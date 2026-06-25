@@ -1,0 +1,5 @@
+# Project CODEOWNERS stub — replace with real handles.
+*                  @your-team/maintainers
+/security/         @your-team/security
+/.gitlab-ci.yml    @your-team/devops
+/DECISIONS/        @your-team/tech-leads
