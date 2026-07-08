@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+    # Runtime magic PHPStan can't see statically without extra stubs. Kept deliberately
+    # tight — this is the baseline to grow the level from, not a blanket silencer.
+    ignoreErrors:
+        # Eloquent dynamic props / query-builder returns are heavily used app-wide.
+        - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model#'
+    checkMissingIterableValueType: false

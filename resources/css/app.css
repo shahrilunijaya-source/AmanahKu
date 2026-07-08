@@ -1,0 +1,171 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../views';
+
+@theme {
+    --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Amanahku design tokens (from design reference) ── */
+:root {
+    --red: #d6232b;
+    --red-active: #b01b22;
+    --red-tint: #fcebec;
+    --canvas: #f6f6f3;
+    --card: #fff;
+    --sidebar: #1f1e1a;
+    --sidebar-soft: #2b2a25;
+    --sidebar-line: #322f29;
+    --sidebar-text: #b8b6ad;
+    --ink: #26251e;
+    --body: #5a5852;
+    --muted: #807d72;
+    --muted-soft: #a09c92;
+    --hairline: #e6e5e0;
+    --hairline-soft: #efeee8;
+    --success: #1f8a65;
+    --amber: #c08532;
+    --error: #cf2d56;
+    --info: #3a6ea5;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+    font-family: var(--font-sans);
+    background: var(--canvas);
+    color: var(--body);
+    -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #d4d2ca; border-radius: 9999px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.font-mono { font-family: var(--font-mono); }
+[x-cloak] { display: none !important; }
+
+@keyframes uj-slide { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes uj-fade { from { opacity: 0; } to { opacity: 1; } }
+.uj-slide { animation: uj-slide .22s ease; }
+.uj-fade { animation: uj-fade .15s ease; }
+
+/* ── Reusable components ── */
+.uj-card {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+}
+.uj-stat { padding: 18px; }
+.uj-stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.uj-stat-value { font-size: 26px; font-weight: 600; color: var(--ink); font-family: var(--font-mono); }
+
+.uj-btn-primary {
+    background: var(--red); color: #fff; font-weight: 500;
+    border-radius: 8px; transition: background .15s;
+}
+.uj-btn-primary:hover { background: var(--red-active); }
+
+/* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
+.uj-fb-input:focus,
+.uj-field:focus {
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 3px var(--red-tint);
+}
+
+/* Sidebar feedback pill — sits on the dark sidebar, brightens on hover. */
+.uj-feedback-btn { transition: background .15s, border-color .15s; }
+.uj-feedback-btn:hover { background: rgba(255,255,255,.10) !important; border-color: rgba(255,255,255,.22) !important; }
+
+/* Account dropdown rows. */
+.uj-acct-item { transition: background .12s; }
+.uj-acct-item:hover { background: var(--canvas); }
+
+.uj-btn-ghost {
+    background: #fff; border: 1px solid var(--hairline); color: var(--ink);
+    font-weight: 500; border-radius: 8px; transition: border-color .15s;
+}
+.uj-btn-ghost:hover { border-color: var(--muted-soft); }
+
+.uj-card-head {
+    padding: 16px 20px; border-bottom: 1px solid var(--hairline);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.uj-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
+.uj-link { font-size: 12.5px; color: var(--red); }
+.uj-pill { padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+.uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
+.uj-progress > span { display: block; height: 100%; background: var(--success); }
+
+/* ── Accessibility ── */
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 5px; }
+.uj-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── Responsive shell (mobile off-canvas nav) ── */
+.uj-nav-toggle { display: none; }
+.uj-nav-backdrop { display: none; }
+@media (max-width: 900px) {
+    .uj-sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 60; transform: translateX(-100%); transition: transform .22s ease; }
+    .uj-sidebar.uj-sidebar-open { transform: translateX(0); box-shadow: 8px 0 44px rgba(31, 30, 26, .28); }
+    .uj-nav-toggle { display: inline-flex; }
+    .uj-nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(31, 30, 26, .32); z-index: 55; }
+    .uj-subhead { padding: 14px 18px 16px !important; }
+    .uj-main { padding: 18px 16px 40px !important; }
+    .uj-header { padding: 0 14px !important; gap: 10px !important; }
+}
+
+/* ── Interaction polish ── */
+a, button { transition: background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, opacity .14s ease; }
+header button:hover { background: var(--canvas) !important; }
+.uj-row { transition: background-color .12s ease; }
+.uj-row:hover { background: var(--canvas) !important; }
+.uj-side-link:hover { background: var(--sidebar-soft) !important; color: #fff !important; }
+.uj-card-clickable:hover { box-shadow: 0 4px 16px rgba(31, 30, 26, .07); transform: translateY(-1px); }
+.uj-card-clickable { transition: box-shadow .15s ease, transform .15s ease; }
+
+/* ── Knowledge Bank header-button pulse (shown while a monthly lesson is owed) ── */
+@keyframes kbpulse {
+    0%   { transform: scale(1);    opacity: .65; }
+    100% { transform: scale(1.45); opacity: 0;   }
+}
+.kb-pulse-ring { animation: kbpulse 1.9s ease-out infinite; }
+
+/* ── First-login wizard responsive layout (welcome.blade.php) ──
+   The step rail collapses above the panels and two-column form grids stack
+   on narrow phones — the wizard is most staff's very first screen. */
+.wz-layout { display: grid; grid-template-columns: 220px 1fr; gap: 22px; align-items: start; }
+.wz-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) {
+    .wz-layout { grid-template-columns: 1fr; }
+    .wz-layout > nav { position: static !important; display: flex; overflow-x: auto; gap: 2px; padding: 6px !important; }
+    .wz-layout > nav button { width: auto; white-space: nowrap; }
+    .wz-grid2 { grid-template-columns: 1fr; }
+}
+
+/* ── Work-board cards ──
+   One source of truth for the card anatomy rendered in three places: the
+   personal board blade, the read-only team board blade, and the JS repaint
+   in work-board.js. Per-card colours (type tag, priority) arrive through the
+   --wi-tag / --wi-pri custom properties set inline. The .wi-sm modifier is
+   the team board's compact, canvas-toned variant. */
+.wi-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wi-tag { font-size: 10px; font-weight: 600; color: #fff; background: var(--wi-tag, var(--info)); padding: 2px 7px; border-radius: 9999px; }
+.wi-pri-txt { font-size: 10.5px; font-weight: 600; color: var(--wi-pri, var(--muted)); }
+.wi-assigned { font-size: 10.5px; font-weight: 600; color: var(--info); background: var(--canvas); border-radius: 6px; padding: 2px 7px; margin-bottom: 8px; display: inline-block; }
+.wi-title { font-size: 13.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin-bottom: 10px; }
+.wi-foot { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--muted); gap: 8px; }
+.wi-meta { display: flex; align-items: center; gap: 10px; }
+.wi-comment-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+.wi-est { font-family: var(--font-mono); }
+.wi-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted-soft); line-height: 1.5; }
+.wi-sm { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 10px; padding: 11px 12px; }
+.wi-sm .wi-head { margin-bottom: 7px; }
+.wi-sm .wi-tag { font-size: 9.5px; }
+.wi-sm .wi-pri-txt { font-size: 10px; }
+.wi-sm .wi-assigned { font-size: 10px; background: #fff; margin-bottom: 7px; }
+.wi-sm .wi-title { font-size: 12.5px; margin-bottom: 8px; }
+.wi-sm .wi-foot { font-size: 11px; }
+.wi-sm .wi-meta { gap: 9px; }
