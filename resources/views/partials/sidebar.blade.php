@@ -3,6 +3,7 @@
         <div style="width:28px;height:28px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;">A</div>
         <span style="font-weight:600;font-size:16px;color:#fff;letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
     </div>
+    <div style="padding:0 18px;">@include('partials.env-badge')</div>
 
     {{-- ── QUICK ACTIONS — persistent white dock above the nav: the 3 daily-driver flows
          (clock · task · timesheet) reachable from every screen. Shown only when the

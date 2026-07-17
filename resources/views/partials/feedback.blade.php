@@ -7,7 +7,8 @@
     Reopens itself after a failed submit so validation errors stay visible.
 --}}
 @php
-    $feedbackHasError = $errors->hasAny(['type', 'title', 'description', 'page_url']);
+    $feedbackHasError = $errors->hasAny(['type', 'title', 'description', 'page_url', 'attachments'])
+        || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'attachments'));
     $releases = $releases ?? [];
     $noteMeta = [
         'new' => ['en' => 'New', 'ms' => 'Baharu', 'dot' => 'var(--success)'],
@@ -45,7 +46,7 @@
         </div>
 
         {{-- ── Report tab ── --}}
-        <form x-show="tab === 'report'" action="{{ route('feedback.store') }}" method="post" style="display:flex;flex-direction:column;min-height:0;">
+        <form x-show="tab === 'report'" action="{{ route('feedback.store') }}" method="post" enctype="multipart/form-data" style="display:flex;flex-direction:column;min-height:0;">
             @csrf
             <input type="hidden" id="fb-page-url" name="page_url" value="{{ old('page_url') }}">
             <input type="hidden" name="type" :value="type">
@@ -89,17 +90,58 @@
                     @error('title')<p style="font-size:12px;color:var(--error);margin:6px 0 0;">{{ $message }}</p>@enderror
                 </div>
 
-                {{-- Description --}}
-                <div>
+                {{-- Description + attachments share one Alpine scope so a paste inside the
+                     textarea can hand image blobs to the attachment manager. --}}
+                <div x-data="feedbackAttach()">
+                    {{-- Details --}}
                     <label for="fb-desc" style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;">
                         <span x-text="$store.ui.lang==='en' ? 'Details' : 'Butiran'"></span>
                         <span style="font-weight:400;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
                     </label>
                     <textarea id="fb-desc" name="description" rows="4" maxlength="2000"
-                              class="uj-fb-input"
-                              :placeholder="type==='bug' ? ($store.ui.lang==='en' ? 'What happened? What did you expect instead? Steps to repeat it help a lot.' : 'Apa yang berlaku? Apa yang anda jangka? Langkah ulangan amat membantu.') : ($store.ui.lang==='en' ? 'What would you like, and what problem does it solve?' : 'Apa yang anda mahu, dan masalah apa ia selesaikan?')"
+                              class="uj-fb-input" @paste="onPaste($event)"
+                              :placeholder="type==='bug' ? ($store.ui.lang==='en' ? 'What happened? What did you expect instead? Paste a screenshot right here.' : 'Apa yang berlaku? Apa yang anda jangka? Tampal tangkap skrin di sini.') : ($store.ui.lang==='en' ? 'What would you like, and what problem does it solve?' : 'Apa yang anda mahu, dan masalah apa ia selesaikan?')"
                               style="width:100%;padding:11px 14px;border:1px solid var(--hairline);border-radius:9px;font-size:14px;color:var(--ink);background:#fff;outline:none;resize:vertical;line-height:1.55;font-family:inherit;transition:border .15s,box-shadow .15s;">{{ old('description') }}</textarea>
                     @error('description')<p style="font-size:12px;color:var(--error);margin:6px 0 0;">{{ $message }}</p>@enderror
+
+                    {{-- Attachments: hidden real input kept in sync from the Alpine file list --}}
+                    <input type="file" name="attachments[]" x-ref="input" multiple
+                           accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                           @change="addFiles($event.target.files)" style="display:none;">
+
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap;">
+                        <button type="button" @click="$refs.input.click()"
+                                style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--hairline);border-radius:9px;background:#fff;color:var(--body);font-size:12.5px;font-weight:500;cursor:pointer;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                            <span x-text="$store.ui.lang==='en' ? 'Attach files' : 'Lampir fail'"></span>
+                        </button>
+                        <span style="font-size:11.5px;color:var(--muted-soft);"
+                              x-text="$store.ui.lang==='en' ? 'or paste a screenshot into Details' : 'atau tampal tangkap skrin dalam Butiran'"></span>
+                    </div>
+
+                    {{-- Preview strip: image thumbnails + document chips, each removable --}}
+                    <div x-show="files.length" x-cloak style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                        <template x-for="(f, i) in files" :key="i">
+                            <div style="position:relative;width:60px;height:60px;border:1px solid var(--hairline);border-radius:9px;overflow:hidden;background:var(--canvas);display:flex;align-items:center;justify-content:center;">
+                                <template x-if="f.isImage"><img :src="f.url" alt="" style="width:100%;height:100%;object-fit:cover;"></template>
+                                <template x-if="!f.isImage">
+                                    <span style="font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--muted);" x-text="ext(f.file.name)"></span>
+                                </template>
+                                <button type="button" @click="remove(i)" aria-label="Remove"
+                                        style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(31,30,26,.72);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- Client-side limit feedback (bilingual), mirrored server-side --}}
+                    <p x-show="error" x-cloak style="font-size:12px;color:var(--error);margin:7px 0 0;"
+                       x-text="({
+                            type: $store.ui.lang==='en' ? 'That file type is not supported. Use an image, PDF or Office document.' : 'Jenis fail itu tidak disokong. Guna imej, PDF atau dokumen Office.',
+                            size: $store.ui.lang==='en' ? 'Each file must be 8 MB or smaller.' : 'Setiap fail mesti 8 MB atau kurang.',
+                            max:  $store.ui.lang==='en' ? 'You can attach up to 6 files.' : 'Anda boleh lampirkan sehingga 6 fail.'
+                       })[error]"></p>
+                    @error('attachments')<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
+                    @foreach ($errors->get('attachments.*') as $messages)@foreach ($messages as $message)<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@endforeach @endforeach
                 </div>
 
                 <p style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted-soft);margin:0;">

@@ -86,40 +86,79 @@
 
             <div x-show="open === @js($domain['key'])" x-cloak style="border-top:1px solid var(--hairline-soft);">
                 @foreach ($domain['rows'] as $step)
-                    <div style="display:flex;align-items:flex-start;gap:14px;padding:15px 20px;{{ ! $loop->last ? 'border-bottom:1px solid var(--hairline-soft);' : '' }}">
-                        <div style="width:26px;height:26px;border-radius:9999px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
-                            {{ $step['done'] ? 'background:#e7f4ee;color:var(--success);' : 'background:var(--hairline-soft);color:var(--muted);' }}">
-                            @if ($step['done'])
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-                            @else
-                                {{ $loop->iteration }}
-                            @endif
-                        </div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                <span style="font-size:13.5px;font-weight:500;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($step['label']) : @js($step['label_ms'])">{{ $step['label'] }}</span>
-                                @if ($step['critical'])
-                                    <span class="uj-pill" style="background:var(--red-tint);color:var(--red);" x-text="$store.ui.lang==='en' ? 'Required to launch' : 'Wajib untuk lancar'">Required to launch</span>
+                    @php
+                        // Settings-backed steps share one screen; pass ?section= so the inline
+                        // frame shows only that step's card. Everything else embeds its own screen.
+                        $sectionMap = ['modules' => 'features', 'profile' => 'profile', 'branches' => 'branches', 'departments' => 'departments', 'staff_levels' => 'staff-levels', 'employment_types' => 'employment-types'];
+                        $stepQ = array_merge($step['query'] ?? [], ['embed' => 1]);
+                        if (isset($sectionMap[$step['key']])) {
+                            $stepQ['section'] = $sectionMap[$step['key']];
+                        }
+                        // The review step IS this wizard — no frame to embed.
+                        $embedUrl = $step['screen'] !== 'setup'
+                            ? route('app.screen', array_merge(['screen' => $step['screen']], $stepQ))
+                            : null;
+                    @endphp
+                    <div x-data="{ o: false, ld: false }" style="{{ ! $loop->last ? 'border-bottom:1px solid var(--hairline-soft);' : '' }}">
+                        <div style="display:flex;align-items:flex-start;gap:14px;padding:15px 20px;">
+                            <div style="width:26px;height:26px;border-radius:9999px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+                                {{ $step['done'] ? 'background:#e7f4ee;color:var(--success);' : 'background:var(--hairline-soft);color:var(--muted);' }}">
+                                @if ($step['done'])
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                                @else
+                                    {{ $loop->iteration }}
                                 @endif
                             </div>
-                            <div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ $step['desc'] }}</div>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                            @if ($step['screen'] !== 'setup')
-                                <a href="{{ route('app.screen', array_merge([$step['screen']], $step['query'])) }}" class="uj-btn-ghost" style="height:31px;padding:0 13px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Configure' : 'Konfigur'">Configure</span>
-                                </a>
-                            @endif
-                            @unless ($step['auto'])
-                                <form method="post" action="{{ route('setup.step') }}">
-                                    @csrf
-                                    <input type="hidden" name="step" value="{{ $step['key'] }}">
-                                    <button type="submit" class="uj-btn-ghost" style="height:31px;padding:0 13px;font-size:12px;{{ $step['done'] ? 'color:var(--muted);' : 'color:var(--red);' }}">
-                                        <span x-text="$store.ui.lang==='en' ? @js($step['done'] ? 'Undo' : 'Mark done') : @js($step['done'] ? 'Buat asal' : 'Tanda siap')">{{ $step['done'] ? 'Undo' : 'Mark done' }}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                    <span style="font-size:13.5px;font-weight:500;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($step['label']) : @js($step['label_ms'])">{{ $step['label'] }}</span>
+                                    @if ($step['critical'])
+                                        <span class="uj-pill" style="background:var(--red-tint);color:var(--red);" x-text="$store.ui.lang==='en' ? 'Required to launch' : 'Wajib untuk lancar'">Required to launch</span>
+                                    @endif
+                                </div>
+                                <div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ $step['desc'] }}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                                @if ($embedUrl)
+                                    {{-- Open the real screen (embed mode) in a centered modal — the wizard
+                                         stays put, no page growth. Frame lazy-mounts on first open. --}}
+                                    <button type="button" @click="o = true; ld = true" class="uj-btn-ghost" style="height:31px;padding:0 13px;font-size:12px;">
+                                        <span x-text="$store.ui.lang==='en' ? '{{ $step['done'] ? 'Edit' : 'Set up' }}' : '{{ $step['done'] ? 'Sunting' : 'Sedia' }}'">{{ $step['done'] ? 'Edit' : 'Set up' }}</span>
                                     </button>
-                                </form>
-                            @endunless
+                                @endif
+                                @unless ($step['auto'])
+                                    <form method="post" action="{{ route('setup.step') }}">
+                                        @csrf
+                                        <input type="hidden" name="step" value="{{ $step['key'] }}">
+                                        <button type="submit" class="uj-btn-ghost" style="height:31px;padding:0 13px;font-size:12px;{{ $step['done'] ? 'color:var(--muted);' : 'color:var(--red);' }}">
+                                            <span x-text="$store.ui.lang==='en' ? @js($step['done'] ? 'Undo' : 'Mark done') : @js($step['done'] ? 'Buat asal' : 'Tanda siap')">{{ $step['done'] ? 'Undo' : 'Mark done' }}</span>
+                                        </button>
+                                    </form>
+                                @endunless
+                            </div>
                         </div>
+                        @if ($embedUrl)
+                            {{-- Centered modal (teleported to body so it escapes the page scroll
+                                 container and centres — see modal-centering memory). Fixed height
+                                 with the frame scrolling internally, so the wizard never grows. --}}
+                            <template x-teleport="body">
+                                <div x-show="o" x-cloak @keydown.escape.window="o = false" @click.self="o = false"
+                                     style="position:fixed;inset:0;z-index:70;display:flex;padding:24px;background:rgba(20,18,16,.55);overflow-y:auto;">
+                                    <div style="width:100%;max-width:1000px;margin:auto;height:84vh;background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;">
+                                        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
+                                            <span style="font-size:14.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($step['label']) : @js($step['label_ms'])">{{ $step['label'] }}</span>
+                                            @if ($step['critical'])<span class="uj-pill" style="background:var(--red-tint);color:var(--red);" x-text="$store.ui.lang==='en' ? 'Required to launch' : 'Wajib untuk lancar'">Required to launch</span>@endif
+                                            <button type="button" @click="o = false" aria-label="Close" style="margin-left:auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--canvas);font-size:15px;">✕</button>
+                                        </div>
+                                        <div style="flex:1;min-height:0;background:var(--canvas);">
+                                            <template x-if="ld">
+                                                <iframe src="{{ $embedUrl }}" data-embed style="width:100%;height:100%;border:0;display:block;"></iframe>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        @endif
                     </div>
                 @endforeach
             </div>

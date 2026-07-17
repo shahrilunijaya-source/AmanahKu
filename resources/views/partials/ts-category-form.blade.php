@@ -1,6 +1,6 @@
 {{-- Shared add/edit form for a timesheet category. Expects $category (or null), $action, $submitLabel. --}}
 @php $c = $category ?? null; @endphp
-<form method="post" action="{{ $action }}" style="display:flex;flex-direction:column;gap:12px;">
+<form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;flex-direction:column;gap:12px;">
     @csrf
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:160px;">

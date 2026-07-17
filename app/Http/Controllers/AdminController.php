@@ -17,6 +17,7 @@ use App\Services\FeatureManager;
 use App\Support\Features;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -182,7 +183,7 @@ class AdminController extends Controller
         return Features::asBool($value);
     }
 
-    public function updateRole(Request $request, User $user): RedirectResponse
+    public function updateRole(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $this->authorizeAdmin($request);
 
@@ -194,7 +195,11 @@ class AdminController extends Controller
         $user->tenants()->updateExistingPivot($tenant->id, ['role' => $role]);
         AuditLog::record('Changed role', $user->name.' → '.$role);
 
-        return back()->with('ok', $user->name.' is now '.ucfirst($role).'.');
+        $message = $user->name.' is now '.ucfirst($role).'.';
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true, 'message' => $message])
+            : back()->with('ok', $message);
     }
 
     /**
@@ -202,7 +207,7 @@ class AdminController extends Controller
      * the role: the role decides WHAT a member can do, the scope decides WHICH records
      * they see. 'company' keeps full visibility (the default).
      */
-    public function updateScope(Request $request, User $user): RedirectResponse
+    public function updateScope(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $this->authorizeAdmin($request);
 
@@ -214,7 +219,11 @@ class AdminController extends Controller
         $user->tenants()->updateExistingPivot($tenant->id, ['data_scope' => $scope]);
         AuditLog::record('Changed data scope', $user->name.' → '.$scope);
 
-        return back()->with('ok', $user->name.' scope set to '.Permissions::SCOPE_LABELS[$scope].'.');
+        $message = $user->name.' scope set to '.Permissions::SCOPE_LABELS[$scope].'.';
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true, 'message' => $message])
+            : back()->with('ok', $message);
     }
 
     /**
@@ -222,7 +231,7 @@ class AdminController extends Controller
      * override is only persisted when it differs from what the member's role already
      * grants — a redundant override is dropped so the record stays minimal.
      */
-    public function updatePermissions(Request $request, User $user): RedirectResponse
+    public function updatePermissions(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $this->authorizeAdmin($request);
 
@@ -257,7 +266,11 @@ class AdminController extends Controller
 
         AuditLog::record('Updated permission overrides', $user->name);
 
-        return back()->with('ok', 'Permission overrides saved for '.$user->name.'.');
+        $message = 'Permission overrides saved for '.$user->name.'.';
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true, 'message' => $message])
+            : back()->with('ok', $message);
     }
 
     // --- Branches -----------------------------------------------------------

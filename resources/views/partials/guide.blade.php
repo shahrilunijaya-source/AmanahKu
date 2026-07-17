@@ -18,6 +18,11 @@
 
     Required: $key, plus either ($en) or flat ($title,$body). $who/$steps optional.
 --}}
+{{-- In embed mode (screen inlined in the Setup wizard) the guide is redundant — the
+     wizard already frames the context — so skip the banner entirely. --}}
+@if (request()->boolean('embed'))
+    @php return; @endphp
+@endif
 @php
     $en = $en ?? ['title' => $title ?? '', 'body' => $body ?? '', 'who' => $who ?? null, 'steps' => $steps ?? []];
     $ms = $ms ?? $en;

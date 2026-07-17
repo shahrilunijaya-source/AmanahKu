@@ -17,6 +17,7 @@ use App\Models\PerformanceReview;
 use App\Models\ProbationReview;
 use App\Models\Tenant;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
 use App\Support\Amanahku;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
@@ -218,13 +219,21 @@ trait BuildsDashboardData
         $openWork = WorkItem::where('status', '!=', 'done')
             ->where(fn ($q) => $q->whereNull('employee_id')->orWhereHas('employee', fn ($e) => $e->active()))
             ->count();
-        $avgKpi = (int) round((float) (Employee::active()->avg('kpi_pct') ?? 0));
 
-        return [
+        $stats = [
             ['k' => 'Team present', 'v' => "$present/$total", 'c' => 'var(--ink)'],
             ['k' => 'Open work items', 'v' => (string) $openWork, 'c' => $openWork > 10 ? 'var(--amber)' : 'var(--ink)'],
-            ['k' => 'Avg KPI', 'v' => "$avgKpi%", 'c' => 'var(--ink)'],
         ];
+
+        // Avg KPI is part of the Performance module — drop the card entirely when that
+        // module is off, so the manager dashboard tracks the same 'kpi' screen toggle that
+        // already hides the KPI screen, its nav entry, and the profile KPI widgets ($perfEnabled).
+        if (app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'kpi')) {
+            $avgKpi = (int) round((float) (Employee::active()->avg('kpi_pct') ?? 0));
+            $stats[] = ['k' => 'Avg KPI', 'v' => "$avgKpi%", 'c' => 'var(--ink)'];
+        }
+
+        return $stats;
     }
 
     /**
@@ -242,9 +251,11 @@ trait BuildsDashboardData
             return collect();
         }
 
+        // Eager-load ONLY today's attendance row per member so the Team-status "Today"
+        // cell shows real clock in/out (not a leave-vs-not guess) without an N+1.
         return Employee::active()
             ->where('reports_to_id', $employee->id)
-            ->with('department')
+            ->with(['department', 'attendanceRecords' => fn ($q) => $q->onDate(now())])
             ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
             ->orderByDesc('open_items_count')
             ->get();

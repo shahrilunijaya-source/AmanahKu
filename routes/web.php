@@ -34,6 +34,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\OidcController;
+use App\Http\Controllers\OnboardingContentController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
@@ -128,6 +129,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/leave/bulk-approve', [LeaveController::class, 'bulkApprove'])->name('leave.bulk-approve');
         Route::get('/app/leave/{leaveRequest}/attachment', [LeaveController::class, 'attachment'])->name('leave.attachment');
         Route::post('/app/leave-setup', [LeaveSetupController::class, 'save'])->name('leave.setup.save');
+        // Leave-type master list managed on the Leave Setup screen. 'standard' is declared
+        // before the {leaveType} wildcard so it isn't parsed as an id.
+        Route::post('/app/leave-setup/types', [LeaveSetupController::class, 'storeLeaveType'])->name('leave.types.store');
+        Route::post('/app/leave-setup/types/standard', [LeaveSetupController::class, 'loadStandardTypes'])->name('leave.types.standard');
+        Route::post('/app/leave-setup/types/{leaveType}', [LeaveSetupController::class, 'updateLeaveType'])->name('leave.types.update');
+        Route::post('/app/leave-setup/types/{leaveType}/delete', [LeaveSetupController::class, 'deleteLeaveType'])->name('leave.types.delete');
+        // Public holidays managed alongside leave types on the Leave Setup screen.
+        Route::post('/app/leave-setup/holidays', [LeaveSetupController::class, 'storeHoliday'])->name('holiday.store');
+        Route::post('/app/leave-setup/holidays/standard', [LeaveSetupController::class, 'loadStandardHolidays'])->name('holiday.standard');
+        Route::post('/app/leave-setup/holidays/{holiday}/delete', [LeaveSetupController::class, 'deleteHoliday'])->name('holiday.delete');
         Route::post('/app/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
         // Auth-gated clock selfie stream from the private disk — {slot} is 'in' or 'out' (AK-SEC-05).
         Route::get('/app/attendance/photos/{record}/{slot}', [AttendanceController::class, 'photo'])->name('attendance.photo');
@@ -179,6 +190,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/onboarding/start', [OnboardingController::class, 'start'])->name('onboarding.start');
         Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');
         Route::post('/app/onboarding/tasks/{task}/remove', [OnboardingController::class, 'removeTask'])->name('onboarding.tasks.remove');
+        // Company onboarding content library (privileged): text/video/file/ack per checklist item.
+        Route::post('/app/onboarding/content', [OnboardingContentController::class, 'save'])->middleware('throttle:30,1')->name('onboarding.content.save');
+        Route::get('/app/onboarding/content/{resource}/file', [OnboardingContentController::class, 'download'])->name('onboarding.content.file');
         Route::post('/app/kpi/{kpiItem}', [KpiController::class, 'update'])->name('kpi.update');
         Route::post('/app/training', [TrainingController::class, 'store'])->name('training.store');
         Route::post('/app/training/{training}/complete', [TrainingController::class, 'complete'])->name('training.complete');
@@ -275,6 +289,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/feedback', [FeedbackController::class, 'store'])->middleware('throttle:20,1')->name('feedback.store');
         // Feedback inbox triage — management/HR move an item along its lifecycle.
         Route::post('/app/feedback/{feedback}/status', [FeedbackController::class, 'setStatus'])->name('feedback.status');
+        // Stream a report's screenshot/document — auth-gated (reporter or inbox viewer), never public.
+        Route::get('/app/feedback/attachments/{attachment}', [FeedbackController::class, 'attachment'])->name('feedback.attachment');
         // Profile test (self-service personality instrument) + HR question editor
         Route::post('/app/profile-test', [ProfileTestController::class, 'submit'])->name('profile-test.submit');
         Route::post('/app/profile-test/questions', [ProfileTestController::class, 'storeQuestion'])->name('profile-test.questions.store');

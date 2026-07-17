@@ -35,7 +35,7 @@ class AllScreensRenderTest extends TestCase
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
         'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
         'reports', 'surveys', 'ideas', 'workload', 'messages',
-        'settings', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',
+        'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',
     ];
 
     protected function setUp(): void
@@ -160,6 +160,34 @@ class AllScreensRenderTest extends TestCase
     }
 
     /**
+     * Embed mode ( ?embed=1 ) backs the Setup wizard's inline step-frames. It must:
+     * (1) strip the app chrome (no sidebar) so only the screen content frames in;
+     * (2) relax X-Frame-Options to SAMEORIGIN so the same-origin iframe is allowed —
+     *     while a normal request stays fully frame-denied; and
+     * (3) honour ?section= so a settings-backed step shows only its own card.
+     */
+    public function test_embed_mode_strips_chrome_and_permits_same_origin_framing(): void
+    {
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+            'persona' => 'hr',
+        ]);
+
+        // Normal request: full chrome (the sidebar <aside>) + hard frame-deny.
+        $plain = $this->get('/app/settings')->assertOk();
+        $plain->assertSee('<aside', false);
+        $plain->assertHeader('X-Frame-Options', 'DENY');
+
+        // Embedded, section-filtered: no chrome (no <aside> anywhere), same-origin framing
+        // allowed, only the Branches card (Departments card absent).
+        $embed = $this->get('/app/settings?embed=1&section=branches')->assertOk();
+        $embed->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $embed->assertDontSee('<aside', false);
+        $embed->assertSee('Branches');
+        $embed->assertDontSee('Departments');
+    }
+
+    /**
      * Disabling the Performance module must also hide the KPI widgets embedded on the
      * profile screen (the "KPI · H1" stat card + the "KPI History" tab), not just the
      * Performance nav group. Before/after around the toggle proves the gate, not the seed.
@@ -185,6 +213,6 @@ class AllScreensRenderTest extends TestCase
         $off = $this->withSession($session)->get('/app/profile')->assertOk();
         $off->assertDontSee('KPI · H1');
         $off->assertDontSee('KPI History</button>', false);
-        $off->assertSee('Leave balance');
+        $off->assertSee('Annual leave'); // sibling stat card (renamed from "Leave balance" — now Annual-only)
     }
 }

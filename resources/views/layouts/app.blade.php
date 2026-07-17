@@ -8,12 +8,16 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body>
-<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false }" style="display:flex;height:100vh;overflow:hidden;background:var(--canvas);">
+@php $embed = $embed ?? false; @endphp
+<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false }" style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
 
-    @include('partials.sidebar')
-    <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
+    @unless ($embed)
+        @include('partials.sidebar')
+        <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
+    @endunless
 
-    <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;">
+    <div style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
+        @unless ($embed)
         @include('partials.header')
 
         {{-- Subheader: breadcrumb + title + persona toggle --}}
@@ -44,9 +48,10 @@
                 @endif
             </div>
         </div>
+        @endunless
 
         {{-- Scrollable body --}}
-        <main class="uj-main" style="flex:1;overflow-y:auto;padding:24px 28px 48px;">
+        <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:24px 28px 48px;' }}">
             <div class="uj-fade" style="width:100%;">
                 @if (session('ok'))
                     <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:10px;background:#e7f4ee;border:1px solid var(--success);color:#176e51;font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
@@ -111,18 +116,36 @@
         </main>
     </div>
 
-    @if ($aiEnabled ?? true)
-        @include('partials.ai-panel')
-    @endif
-    @if ($kbEnabled ?? false)
-        @include('partials.knowledge-panel')
-    @endif
-    @if ($msgEnabled ?? false)
-        @include('partials.messages-panel')
-    @endif
-    @include('partials.welcome')
-    @include('partials.feedback')
+    @unless ($embed)
+        @if ($aiEnabled ?? true)
+            @include('partials.ai-panel')
+        @endif
+        @if ($kbEnabled ?? false)
+            @include('partials.knowledge-panel')
+        @endif
+        @if ($msgEnabled ?? false)
+            @include('partials.messages-panel')
+        @endif
+        @include('partials.welcome')
+        @include('partials.feedback')
+    @endunless
 </div>
+
+@if ($embed)
+    {{-- Report content height to the parent (Setup wizard) so the inline <iframe>
+         can size itself to its screen — on load and whenever the content grows or
+         shrinks (an "+ Add" form opening, a row deleting). Same-origin only. --}}
+    <script>
+        (function () {
+            var post = function () {
+                parent.postMessage({ type: 'embed-height', h: document.body.scrollHeight }, window.location.origin);
+            };
+            window.addEventListener('load', post);
+            if (window.ResizeObserver) { new ResizeObserver(post).observe(document.body); }
+            else { window.addEventListener('resize', post); }
+        })();
+    </script>
+@endif
 
 <script>
     // Global guidance language ('en' | 'ms'). Shared by every guide banner + field hint

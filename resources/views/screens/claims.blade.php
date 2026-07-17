@@ -127,6 +127,7 @@
 
     <div class="uj-card" style="flex:1;min-width:300px;">
         <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'My claims' : 'Claim saya'">My claims</h3></div>
+        <div style="padding:16px 20px 0;">@include('partials.approval-chain')</div>
         @forelse ($myClaims as $c)
             <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
                 <div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $c->title }}@if ($c->receipt_path) <a href="{{ route('claims.receipt', $c) }}" style="text-decoration:none;" title="{{ $c->receipt_name }}">📎</a>@endif</div><div style="font-size:11.5px;color:var(--muted);">{{ ucfirst($c->type) }} · {{ $c->date->format('j M') }}</div></div>

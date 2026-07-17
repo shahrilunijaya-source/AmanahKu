@@ -87,13 +87,11 @@ class Amanahku
             // ── Talent & Growth ───────────────────────────────────────────────
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'recruitment', 'label' => 'Recruitment', 'label_ms' => 'Pengambilan', 'icon' => 'M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2M10 5h4v2h-4z']),
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'referrals', 'label' => 'Referrals', 'label_ms' => 'Rujukan', 'icon' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6M22 11h-6']),
-            // Onboarding groups the per-hire checklist with the company Setup Wizard
-            // (moved out of Administration). Setup is role-gated to privileged staff so
-            // it never leaks into a new hire's nav even though the parent is shown to all.
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'onboarding', 'label' => 'Onboarding', 'label_ms' => 'Onboarding', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2', 'children' => [
-                ['id' => 'onboarding', 'label' => 'New-hire Checklist', 'label_ms' => 'Senarai Semak'],
-                ['id' => 'setup', 'label' => 'Company Setup', 'label_ms' => 'Persediaan Syarikat', 'roles' => ['management', 'hr']],
-            ]]),
+            // Per-hire onboarding checklist. The company Setup Wizard lives under
+            // Administration (privileged), not here.
+            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'onboarding', 'label' => 'Onboarding', 'label_ms' => 'Onboarding', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
+            // The content library behind the checklist items — privileged authors only.
+            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'onboarding-content', 'label' => 'Onboarding Content', 'label_ms' => 'Kandungan Onboarding', 'roles' => ['management', 'hr'], 'icon' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4']),
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
@@ -140,16 +138,25 @@ class Amanahku
             ]]),
 
             // ── Administration ────────────────────────────────────────────────
-            $s('Administration', 'Pentadbiran', ['id' => 'admin', 'label' => 'Administration', 'label_ms' => 'Pentadbiran', 'icon' => 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6', 'children' => [
-                // Setup Wizard moved to the Onboarding group (Talent & Growth).
-                ['id' => 'settings', 'label' => 'Company Settings', 'label_ms' => 'Tetapan Syarikat'],
-                ['id' => 'attendance-admin', 'label' => 'Attendance Setup', 'label_ms' => 'Tetapan Kehadiran'],
-                ['id' => 'leave-setup', 'label' => 'Leave Setup', 'label_ms' => 'Tetapan Cuti'],
-                ['id' => 'position', 'label' => 'Position & Manday Rates', 'label_ms' => 'Pangkat & Kadar Manday'],
-                ['id' => 'profile-test-admin', 'label' => 'Profile Test Editor', 'label_ms' => 'Editor Ujian Profil'],
-                ['id' => 'timesheet-setup', 'label' => 'Timesheet Setup', 'label_ms' => 'Tetapan Lembaran Masa'],
-                ['id' => 'roles', 'label' => 'Roles & Permissions', 'label_ms' => 'Peranan & Kebenaran'],
-            ]]),
+            // Flat, NOT a wrapping "Administration" group: the section header is already
+            // "Administration", so a same-named collapsible group beneath it was redundant.
+            // Each screen is its own section-level link (like the leaf items under Time &
+            // People). All privileged — gated per item via `roles` (management / hr).
+            //
+            // Trimmed to the daily-ops screens only. The one-time CONFIG screens (Company
+            // Settings, Attendance/Leave/Timesheet Setup, Position & Manday Rates) are NOT
+            // listed here — they are steps of the Company Setup wizard ('setup' screen,
+            // SetupController) and are edited there via each step's "Edit" button. Their
+            // routes/screens still exist (wizard iframe + direct URL); only the redundant
+            // sidebar links were removed. Add them back here if a screen needs standalone
+            // ongoing access. What stays: the wizard, plus the two things HR does after
+            // launch (add staff, assign roles) and the Profile Test Editor (not in the wizard).
+            $s('Administration', 'Pentadbiran', ['id' => 'setup', 'label' => 'Company Setup', 'label_ms' => 'Persediaan Syarikat', 'roles' => ['management', 'hr'], 'icon' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01']),
+            // Staff loading bay — add one, bulk-import CSV, provision logins. The
+            // People → Employees directory is view-only; data entry lives here.
+            $s('Administration', 'Pentadbiran', ['id' => 'staff-load', 'label' => 'Add & Import Staff', 'label_ms' => 'Tambah & Import Staf', 'roles' => ['management', 'hr'], 'icon' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6M22 11h-6']),
+            $s('Administration', 'Pentadbiran', ['id' => 'roles', 'label' => 'Roles & Permissions', 'label_ms' => 'Peranan & Kebenaran', 'roles' => ['management', 'hr'], 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
+            $s('Administration', 'Pentadbiran', ['id' => 'profile-test-admin', 'label' => 'Profile Test Editor', 'label_ms' => 'Editor Ujian Profil', 'roles' => ['management', 'hr'], 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
         ];
     }
 
@@ -245,6 +252,7 @@ class Amanahku
             'achievements' => ['title' => 'Achievements & Recognition', 'title_ms' => 'Pencapaian & Pengiktirafan', 'sub' => 'Kudos, awards and milestones across the team.', 'sub_ms' => 'Pujian, anugerah dan pencapaian merentas pasukan.', 'crumb' => ['Performance', 'Achievements']],
             'reviews' => ['title' => 'Performance Reviews', 'title_ms' => 'Semakan Prestasi', 'sub' => 'Review cycles, scorecards and self-assessments.', 'sub_ms' => 'Kitaran semakan, kad skor dan penilaian kendiri.', 'crumb' => ['Performance', 'Reviews']],
             'onboarding' => ['title' => 'Onboarding Checklist', 'title_ms' => 'Senarai Semak Onboarding', 'sub' => 'Farah Aziz · Marketing Executive · Day 12 of 90', 'sub_ms' => 'Farah Aziz · Eksekutif Pemasaran · Hari 12 daripada 90', 'crumb' => ['Onboarding', 'Farah Aziz']],
+            'onboarding-content' => ['title' => 'Onboarding Content', 'title_ms' => 'Kandungan Onboarding', 'sub' => 'Write the intro, policies and per-position material shown behind each checklist item.', 'sub_ms' => 'Tulis pengenalan, polisi dan bahan khusus jawatan di sebalik setiap item senarai semak.', 'crumb' => ['Talent & Growth', 'Onboarding Content']],
             'knowledge-bank' => ['title' => 'Knowledge Bank', 'title_ms' => 'Bank Pengetahuan', 'sub' => "Share one lesson learned every month — and search the company's collective know-how.", 'sub_ms' => 'Kongsi satu pengajaran setiap bulan — dan cari himpunan pengetahuan syarikat.', 'crumb' => ['Knowledge Bank']],
             'messages' => ['title' => 'Messages', 'title_ms' => 'Mesej', 'sub' => 'Direct one-to-one messages with your colleagues.', 'sub_ms' => 'Mesej terus satu-dengan-satu bersama rakan sekerja.', 'crumb' => ['Messages']],
             'claims' => ['title' => 'Claims & Requests', 'title_ms' => 'Tuntutan & Permohonan', 'sub' => 'Submit expense, mileage and medical claims for approval.', 'sub_ms' => 'Hantar tuntutan perbelanjaan, perbatuan dan perubatan untuk kelulusan.', 'crumb' => ['Claims & Requests']],
@@ -274,6 +282,7 @@ class Amanahku
             'reports' => ['title' => 'Reports', 'title_ms' => 'Laporan', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
+            'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],
             'roles' => ['title' => 'Roles & Permissions', 'title_ms' => 'Peranan & Kebenaran', 'sub' => 'Assign access roles to workspace members.', 'sub_ms' => 'Tetapkan peranan akses kepada ahli ruang kerja.', 'crumb' => ['Administration', 'Roles & Permissions']],
             'feedback' => ['title' => 'Feedback Inbox', 'title_ms' => 'Peti Maklum Balas', 'sub' => 'Bug reports and ideas staff sent through the sidebar — triage each through to done.', 'sub_ms' => 'Laporan pepijat dan idea yang dihantar staf melalui bar sisi — saring setiap satu hingga selesai.', 'crumb' => ['Reports & Audit', 'Feedback Inbox']],

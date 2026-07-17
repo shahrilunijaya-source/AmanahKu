@@ -275,6 +275,20 @@ class Employee extends Model
         return $this->hasMany(LeaveBalance::class);
     }
 
+    /**
+     * Headline "leave balance" = the Annual leave balance only. The profile and dashboard
+     * cards used to sum every type (Annual + Medical + Hospitalization…), which conflates
+     * paid annual leave with medical/statutory entitlements into one misleading number.
+     * Annual is the canonical primary type (see LeaveSetupController standard set); matched
+     * by name so a renamed/missing type just yields 0 rather than a wrong total.
+     */
+    public function annualLeaveBalance(): float
+    {
+        return (float) ($this->leaveBalances
+            ->first(fn (LeaveBalance $b) => $b->leaveType && strcasecmp($b->leaveType->name, 'Annual') === 0)
+            ?->balance ?? 0);
+    }
+
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(LeaveRequest::class);

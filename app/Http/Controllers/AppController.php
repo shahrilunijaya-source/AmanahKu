@@ -130,7 +130,7 @@ class AppController extends Controller
         }
 
         // Administration screens are restricted to privileged roles.
-        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup'], true)) {
+        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
         // Reports & Audit oversight surface + company-wide "see all" views (reachable
@@ -142,6 +142,10 @@ class AppController extends Controller
         }
         // Probation tracking also covers managers (their own new hires).
         if ($screen === 'probation') {
+            $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
+        }
+        // Onboarding content library is authored by the same privileged roles that run onboarding.
+        if ($screen === 'onboarding-content') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
 
@@ -172,6 +176,9 @@ class AppController extends Controller
 
         return view($view, array_merge([
             'screen' => $screen,
+            // Embed mode ( ?embed=1 ): renders the screen bare — no sidebar, header or
+            // side panels — so the Setup wizard can inline it in a same-origin iframe.
+            'embed' => $request->boolean('embed'),
             'persona' => $persona,
             'role' => $role,
             'roleLabel' => Amanahku::roleLabel($persona),
@@ -268,7 +275,10 @@ class AppController extends Controller
         // The 'manager' role is an immediate superior by definition; management and HR
         // oversee everyone. An 'employee'-role user still qualifies if the org chart
         // gives them at least one direct report (reports_to_id points at them).
-        if (in_array($role, ['manager', 'management', 'hr'], true)) {
+        // effectiveRole() collapses 'director' → 'management' so a board-tier director
+        // (a strict management super-set) reaches every oversight screen without a
+        // direct report of their own — same single hinge hasTenantRole() relies on.
+        if (in_array(Permissions::effectiveRole($role), ['manager', 'management', 'hr'], true)) {
             return true;
         }
 
@@ -285,6 +295,7 @@ class AppController extends Controller
             // reflects genuine obligations even while previewing another persona.
             'dash' => array_merge($this->dashboardData($persona, $employee), $this->pendingActions($request)),
             'directory' => $this->directoryData($request),
+            'staff-load' => $this->staffLoadData($request),
             'profile' => $this->profileData($request),
             'profile-test' => app(ProfileTestController::class)->screenData($request, $employee),
             'profile-test-admin' => app(ProfileTestController::class)->adminData($request),
@@ -298,6 +309,7 @@ class AppController extends Controller
             'achievements' => $this->achievementsData($request->attributes->get('tenantRole', 'employee')),
             'reviews' => $this->reviewsData($employee, $request->attributes->get('tenantRole', 'employee')),
             'onboarding' => app(OnboardingController::class)->screenData($request, $employee),
+            'onboarding-content' => app(OnboardingContentController::class)->screenData($request),
             'claims' => $this->claimsData($request, $employee),
             'assets' => $this->assetsData($request),
             'training' => $this->trainingData($request),

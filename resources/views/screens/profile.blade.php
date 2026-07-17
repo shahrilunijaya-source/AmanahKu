@@ -67,7 +67,7 @@
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Employment type' : 'Jenis pekerjaan'">Employment type</span></label><select name="employment_type_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allEmploymentTypes as $et)<option value="{{ $et->id }}" @selected((int) old('employment_type_id', $p->employment_type_id) === $et->id)>{{ $et->name }}</option>@endforeach</select></div>
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span></label><select name="reports_to_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allManagers as $m)@continue($m->id === $p->id)<option value="{{ $m->id }}" @selected((int) old('reports_to_id', $p->reports_to_id) === $m->id)>{{ $m->name }}</option>@endforeach</select>@include('partials.hint', ['en' => 'Who this person reports to. This single link is what builds the organisation chart.', 'ms' => 'Siapa orang ini melapor kepadanya. Pautan inilah yang membina carta organisasi.'])</div>
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></label><select name="status" style="{{ $fs }}">@foreach ($stOpts as $v => $l)<option value="{{ $v }}" @selected(old('status', $p->status) === $v)>{{ $l }}</option>@endforeach</select></div>
-                    <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
+                    <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;width:100%;padding:0 16px;display:flex;align-items:center;justify-content:center;margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
                 </form>
                 {{-- Provision a login for a directory record that has an email but no account yet. --}}
                 @if ($p->email && ! $p->user_id)
@@ -107,6 +107,28 @@
                 <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></span><span style="color:var(--ink);font-family:var(--font-mono);">{{ $p->staff_id }}</span></div>
             </div>
         </div>
+
+        @if ($canSeeAttendance ?? false)
+        <div class="uj-card" style="padding:20px;">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Attendance · this month' : 'Kehadiran · bulan ini'">Attendance · this month</span></div>
+            @forelse ($attendance ?? [] as $a)
+                @php
+                    $aLate = $a->status === 'late';
+                    $aIn   = $a->clock_in ? substr((string) $a->clock_in, 0, 5) : '—';
+                    $aOut  = $a->clock_out ? substr((string) $a->clock_out, 0, 5) : '—';
+                    $aDot  = $a->clock_in ? ($aLate ? 'var(--amber)' : 'var(--success)') : 'var(--muted-soft)';
+                @endphp
+                <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--hairline-soft);">
+                    <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $aDot }};"></span>
+                    <span style="font-size:12.5px;color:var(--ink);font-weight:500;min-width:54px;">{{ $a->date->format('d M') }}</span>
+                    <span style="font-size:12.5px;color:var(--body);font-family:var(--font-mono);">{{ $aIn }} → {{ $aOut }}</span>
+                    @if ($aLate)<span style="font-size:10.5px;color:var(--amber);font-weight:600;margin-left:auto;"><span x-text="$store.ui.lang==='en' ? 'Late' : 'Lewat'">Late</span></span>@endif
+                </div>
+            @empty
+                <p style="font-size:12.5px;color:var(--muted-soft);margin:0;" x-text="$store.ui.lang==='en' ? 'No attendance recorded this month.' : 'Tiada kehadiran direkod bulan ini.'">No attendance recorded this month.</p>
+            @endforelse
+        </div>
+        @endif
 
         @if (($canAssign ?? false) && ! $p->isArchived())
     <div class="uj-card" style="padding:20px;" x-data="{ assign: {{ $errors->getBag('assign')->any() ? 'true' : 'false' }} }">
@@ -222,7 +244,7 @@
     {{-- Right column --}}
     <div style="flex:2;min-width:380px;display:flex;flex-direction:column;gap:16px;">
         <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Leave balance' : 'Baki cuti'">Leave balance</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->leaveBalances->sum('balance') }}</div></div>
+            <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Annual leave' : 'Cuti tahunan'">Annual leave</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->annualLeaveBalance() }} <span style="font-size:12px;color:var(--muted-soft);font-weight:400;"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div></div>
             @if ($perfEnabled ?? true)
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'KPI · H1' : 'KPI · H1'">KPI · H1</span></div><div class="uj-stat-value" style="font-size:22px;color:var(--success);">{{ $p->kpi_pct }}%</div></div>
             @endif

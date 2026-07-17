@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amanahku — System Guide & Test Plan</title>
+<style>
+  :root{
+    --red:#d6232b; --red-dark:#a81820; --ink:#1a1a1f; --muted:#5b5b66;
+    --line:#e6e6ec; --bg:#f6f6f9; --card:#fff; --green:#1f8a65; --blue:#3a6ea5;
+    --amber:#b8860b; --radius:14px; --shadow:0 1px 3px rgba(20,20,40,.06),0 8px 24px rgba(20,20,40,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Poppins",-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  header.hero{background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff;padding:56px 0 48px;margin-bottom:40px;}
+  header.hero .wrap{padding-top:0;padding-bottom:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
+  h1{font-size:clamp(2rem,1rem+4vw,3.2rem);margin:16px 0 8px;font-weight:700;letter-spacing:-.02em;}
+  .sub{font-size:1.1rem;opacity:.92;max-width:640px;}
+  h2{font-size:1.5rem;margin:48px 0 4px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:12px;}
+  h2 .n{display:inline-grid;place-items:center;width:32px;height:32px;background:var(--red);color:#fff;border-radius:9px;font-size:15px;}
+  h2 + .lead{color:var(--muted);margin:0 0 20px;}
+  h3{font-size:1.05rem;margin:24px 0 8px;font-weight:600;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin:16px 0;}
+  .grid{display:grid;gap:16px;}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+  code,.kbd{background:#f0f0f4;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;color:var(--red-dark);}
+  .cred{font-size:1.05rem;}
+  .cred b{color:var(--red-dark);}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.94rem;}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#faf6f6;font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+  tr:last-child td{border-bottom:none;}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;}
+  .p-emp{background:#eef3f9;color:var(--blue);} .p-mgr{background:#eaf6f1;color:var(--green);}
+  .p-mgmt{background:#fbf1e6;color:var(--amber);} .p-hr{background:#fbeaeb;color:var(--red-dark);}
+  ol.flow{counter-reset:step;list-style:none;padding:0;margin:0;}
+  ol.flow li{position:relative;padding:14px 0 14px 56px;border-bottom:1px solid var(--line);}
+  ol.flow li:last-child{border-bottom:none;}
+  ol.flow li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:12px;width:36px;height:36px;background:var(--red);color:#fff;border-radius:50%;display:grid;place-items:center;font-weight:700;}
+  ol.flow b{display:block;}
+  .modgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+  .mod{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+  .mod .t{font-weight:600;font-size:.95rem;}
+  .mod .d{font-size:.8rem;color:var(--muted);}
+  .group-title{font-weight:700;color:var(--red-dark);margin:24px 0 8px;font-size:.8rem;text-transform:uppercase;letter-spacing:.6px;}
+  .check{list-style:none;padding:0;margin:0;}
+  .check li{padding:10px 0 10px 34px;position:relative;border-bottom:1px solid var(--line);}
+  .check li::before{content:"";position:absolute;left:0;top:14px;width:18px;height:18px;border:2px solid var(--red);border-radius:5px;}
+  .check li:last-child{border-bottom:none;}
+  .note{background:#fbf6e9;border-left:4px solid var(--amber);padding:14px 18px;border-radius:0 10px 10px 0;margin:16px 0;font-size:.94rem;}
+  .ok{background:#eaf6f1;border-left:4px solid var(--green);padding:14px 18px;border-radius:0 10px 10px 0;margin:16px 0;font-size:.94rem;}
+  a{color:var(--red-dark);}
+  footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:60px;}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;}
+  .toc a{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 14px;text-decoration:none;font-size:.85rem;font-weight:500;color:var(--ink);}
+  .toc a:hover{border-color:var(--red);color:var(--red-dark);}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">HR Platform · Malaysia · Internal Test Build</span>
+    <h1>Amanahku</h1>
+    <p class="sub">Multi-tenant, bilingual (English / Bahasa Melayu) human-resources platform for Malaysian SMEs — built to teach itself to first-time HR users. This is the local test guide.</p>
+  </div>
+</header>
+<div class="wrap">
+
+  <div class="toc">
+    <a href="#what">What it is</a>
+    <a href="#access">Login &amp; access</a>
+    <a href="#users">Users &amp; roles</a>
+    <a href="#flow">Process flow</a>
+    <a href="#modules">All modules</a>
+    <a href="#how">How to use</a>
+    <a href="#test">Test plan</a>
+  </div>
+
+  <!-- ============ WHAT ============ -->
+  <h2 id="what"><span class="n">1</span> What is Amanahku</h2>
+  <p class="lead">A single HR system covering the full employee lifecycle — hire to retire — for several companies under one login.</p>
+  <div class="card">
+    <div class="grid g2">
+      <div>
+        <h3>Core idea</h3>
+        <p>One HR admin can run multiple companies (tenants) from the same account. Each screen is self-teaching: a guide banner and field hints explain every action, so a brand-new HR clerk needs no manual.</p>
+      </div>
+      <div>
+        <h3>Built for Malaysia</h3>
+        <p>Statutory payroll (EPF, SOCSO, EIS, PCB/MTD), NRIC encrypted at rest, bank-file export (Maybank2u Biz &amp; pluggable formats), bilingual EN/BM across every screen.</p>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-top:8px">
+      <div class="mod"><div class="t">Stack</div><div class="d">Laravel 13 · Blade · Tailwind v4 · MySQL</div></div>
+      <div class="mod"><div class="t">Auth</div><div class="d">Password + 2FA + Passkey (WebAuthn)</div></div>
+      <div class="mod"><div class="t">Modules</div><div class="d">~45 screens across 12 groups</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ACCESS ============ -->
+  <h2 id="access"><span class="n">2</span> Login &amp; access</h2>
+  <p class="lead">Server is running locally. Open the URL, sign in with the demo account.</p>
+  <div class="card">
+    <p class="cred">URL: <a href="http://localhost:8000">http://localhost:8000</a> &nbsp;→ redirects to <code>/login</code></p>
+    <p class="cred"><b>HR / multi-tenant demo</b> — Email: <b>aisyah.rahman@unijaya.example</b> · Password: <b>password</b></p>
+    <p class="cred"><b>Super admin</b> (provision companies) — Email: <b>superadmin@amanahku.com</b> · Password: <b>password</b></p>
+    <div class="ok"><b>The HR demo account is special:</b> it belongs to all 3 demo companies, with a different role in each — so you can test every permission level from one login. The <b>super admin</b> belongs to no company; it lands on the provisioning console to create new ones.</div>
+    <p class="cred" style="margin-top:14px;"><b>New account?</b> <a href="http://localhost:8000/register">/register</a> — sign up creates an account with no company yet; an HR admin or super admin then connects it.</p>
+    <div class="note">If login bounces to a <b>password-change</b> screen, set any new password and continue — that is the force-change-on-first-login guard, expected behaviour.</div>
+  </div>
+
+  <!-- ============ USERS ============ -->
+  <h2 id="users"><span class="n">3</span> Users, tenants &amp; roles</h2>
+  <p class="lead">Two layers: which <em>company</em> you're in (tenant), and which <em>role</em> you act as (persona).</p>
+
+  <h3>Demo companies (tenants)</h3>
+  <p>Switch company via the tenant selector. The demo user's role changes per company:</p>
+  <table>
+    <tr><th>Company</th><th>Plan</th><th>Size</th><th>Aisyah's role here</th></tr>
+    <tr><td><b>Unijaya Resources</b></td><td>Enterprise</td><td>4 branches · 186 staff</td><td><span class="pill p-hr">HR Admin</span> — full access</td></tr>
+    <tr><td><b>Shell Seremban 2</b></td><td>Business</td><td>2 branches · 142 staff</td><td><span class="pill p-mgr">Manager</span> — team-level</td></tr>
+    <tr><td><b>Petron Tg Lumpur</b></td><td>Business</td><td>1 branch · 84 staff</td><td><span class="pill p-emp">Employee</span> — self-service only</td></tr>
+  </table>
+
+  <h3>The 4 personas (role switcher on the dashboard)</h3>
+  <table>
+    <tr><th>Persona</th><th>Sees / can do</th></tr>
+    <tr><td><span class="pill p-emp">Employee</span></td><td>Own profile, clock in/out, apply leave/claims, payslips, learning, surveys — self-service.</td></tr>
+    <tr><td><span class="pill p-mgr">Manager</span></td><td>Above + approve their team's leave / OT / timesheets / claims, roster, team KPIs.</td></tr>
+    <tr><td><span class="pill p-mgmt">Management</span></td><td>Cross-department dashboards, workforce intel, reports, sign-offs.</td></tr>
+    <tr><td><span class="pill p-hr">HR Admin</span></td><td>Everything — payroll, recruitment, compliance, admin settings, roles, audit logs.</td></tr>
+  </table>
+  <div class="note">Use <b>Unijaya + HR persona</b> to see the whole system. Drop to <b>Employee</b> to test what a normal staff member can (and cannot) do.</div>
+
+  <h3>How accounts &amp; companies get created</h3>
+  <table>
+    <tr><th>Path</th><th>Who</th><th>Result</th></tr>
+    <tr><td><b>Provision a company</b> <code>/admin/companies/new</code></td><td>Super admin</td><td>New tenant + first branch + department + first HR admin (emailed one-time password) — all in one atomic step.</td></tr>
+    <tr><td><b>Add a member</b> (in-app)</td><td>HR / Management</td><td>New login + employee record, emailed one-time credentials, forced password reset on first sign-in.</td></tr>
+    <tr><td><b>Assign existing user</b> (company detail)</td><td>Super admin</td><td>Attaches an existing platform account to another company with a role (multi-workspace user).</td></tr>
+    <tr><td><b>Self sign-up</b> <code>/register</code></td><td>Anyone</td><td>Account with no company; must verify email; waits to be linked by HR / super admin.</td></tr>
+  </table>
+
+  <!-- ============ FLOW ============ -->
+  <h2 id="flow"><span class="n">4</span> Process flow</h2>
+  <p class="lead">How a request moves through the system — the same approval spine repeats across leave, OT, claims, expenses, loans, shift-swaps.</p>
+  <div class="card">
+    <ol class="flow">
+      <li><b>Sign in</b> Password / 2FA / passkey → land on dashboard.</li>
+      <li><b>Pick company</b> Tenant selector sets which org's data you see.</li>
+      <li><b>Pick role</b> Persona switcher changes what the dashboard surfaces.</li>
+      <li><b>Self-service action</b> Employee submits (leave, claim, timesheet, OT, swap…).</li>
+      <li><b>Approval</b> Manager/HR approves or rejects; status updates; audit log records it.</li>
+      <li><b>Downstream</b> Approved items feed payroll, calendars, compliance and reports.</li>
+      <li><b>Lifecycle</b> Recruitment → Onboarding → Probation → daily HR → Resignation → Offboarding.</li>
+    </ol>
+  </div>
+
+  <!-- ============ MODULES ============ -->
+  <h2 id="modules"><span class="n">5</span> All modules</h2>
+  <p class="lead">Everything in the left sidebar after login. URL pattern: <code>/app/&lt;screen-id&gt;</code>.</p>
+
+  <div class="group-title">Home &amp; my work</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Dashboard</div><div class="d">dash · role-aware home</div></div>
+    <div class="mod"><div class="t">Tasks &amp; Adhoc</div><div class="d">board · assignments</div></div>
+    <div class="mod"><div class="t">Weekly Updates</div><div class="d">weekly</div></div>
+    <div class="mod"><div class="t">Timesheets</div><div class="d">timesheets · per-project hours</div></div>
+  </div>
+
+  <div class="group-title">People</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Employees</div><div class="d">directory</div></div>
+    <div class="mod"><div class="t">Employee Profile</div><div class="d">profile</div></div>
+    <div class="mod"><div class="t">Org Chart</div><div class="d">orgchart · recursive</div></div>
+  </div>
+
+  <div class="group-title">Time &amp; attendance</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Attendance</div><div class="d">attendance · clock in/out</div></div>
+    <div class="mod"><div class="t">Roster</div><div class="d">roster · shift scheduling</div></div>
+    <div class="mod"><div class="t">Shift Swaps</div><div class="d">shiftswap</div></div>
+    <div class="mod"><div class="t">Leave</div><div class="d">leave · applications</div></div>
+    <div class="mod"><div class="t">Time-off Calendar</div><div class="d">calendar</div></div>
+    <div class="mod"><div class="t">Overtime</div><div class="d">overtime</div></div>
+  </div>
+
+  <div class="group-title">Bookings</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Events</div><div class="d">events · RSVP</div></div>
+    <div class="mod"><div class="t">Room Booking</div><div class="d">rooms</div></div>
+    <div class="mod"><div class="t">Vehicle Booking</div><div class="d">vehicles</div></div>
+  </div>
+
+  <div class="group-title">Money</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Payroll</div><div class="d">payroll · EPF/SOCSO/EIS/PCB · bank file</div></div>
+    <div class="mod"><div class="t">Loans &amp; Advances</div><div class="d">loans</div></div>
+    <div class="mod"><div class="t">Petty Cash</div><div class="d">pettycash · floats</div></div>
+    <div class="mod"><div class="t">Benefits</div><div class="d">benefits · enrolment</div></div>
+    <div class="mod"><div class="t">Claims &amp; Requests</div><div class="d">claims</div></div>
+    <div class="mod"><div class="t">Expense Reports</div><div class="d">expenses · itemised</div></div>
+    <div class="mod"><div class="t">Travel</div><div class="d">travel</div></div>
+  </div>
+
+  <div class="group-title">Performance &amp; growth</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">KPI</div><div class="d">kpi</div></div>
+    <div class="mod"><div class="t">Achievements</div><div class="d">achievements</div></div>
+    <div class="mod"><div class="t">Reviews</div><div class="d">reviews · self + manager</div></div>
+    <div class="mod"><div class="t">Goals &amp; OKRs</div><div class="d">goals</div></div>
+    <div class="mod"><div class="t">Skills Matrix</div><div class="d">skills</div></div>
+    <div class="mod"><div class="t">Training</div><div class="d">training</div></div>
+    <div class="mod"><div class="t">Learning Library</div><div class="d">learning · courses</div></div>
+  </div>
+
+  <div class="group-title">Lifecycle</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Recruitment</div><div class="d">recruitment · requisitions/candidates</div></div>
+    <div class="mod"><div class="t">Referrals</div><div class="d">referrals</div></div>
+    <div class="mod"><div class="t">Onboarding</div><div class="d">onboarding · checklist</div></div>
+    <div class="mod"><div class="t">Probation</div><div class="d">probation · check-ins</div></div>
+    <div class="mod"><div class="t">Resignation</div><div class="d">resignation · exit interview</div></div>
+    <div class="mod"><div class="t">Offboarding</div><div class="d">offboarding · clearance</div></div>
+    <div class="mod"><div class="t">Compliance &amp; Licenses</div><div class="d">compliance · expiry alerts</div></div>
+    <div class="mod"><div class="t">Cases</div><div class="d">cases · disciplinary</div></div>
+  </div>
+
+  <div class="group-title">Wellbeing &amp; engagement</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Wellness &amp; EAP</div><div class="d">wellness · check-ins/requests</div></div>
+    <div class="mod"><div class="t">Surveys</div><div class="d">surveys · pulse/eNPS</div></div>
+    <div class="mod"><div class="t">Suggestion Box</div><div class="d">ideas · upvote</div></div>
+    <div class="mod"><div class="t">Handbook</div><div class="d">handbook · acknowledge</div></div>
+    <div class="mod"><div class="t">Helpdesk</div><div class="d">helpdesk · tickets</div></div>
+  </div>
+
+  <div class="group-title">Records, insight &amp; admin</div>
+  <div class="modgrid">
+    <div class="mod"><div class="t">Documents</div><div class="d">documents · private vault</div></div>
+    <div class="mod"><div class="t">Assets</div><div class="d">assets · assign/release</div></div>
+    <div class="mod"><div class="t">Reports</div><div class="d">reports · export</div></div>
+    <div class="mod"><div class="t">AI Workforce Intel</div><div class="d">workload · capacity/risk</div></div>
+    <div class="mod"><div class="t">Administration</div><div class="d">settings · roles · audit logs</div></div>
+  </div>
+
+  <!-- ============ HOW ============ -->
+  <h2 id="how"><span class="n">6</span> How to use it</h2>
+  <div class="card">
+    <ol class="flow">
+      <li><b>Open</b> <a href="http://localhost:8000">localhost:8000</a> and log in with the demo account above.</li>
+      <li><b>Read the guide banner</b> at the top of each screen — every screen explains itself in EN + BM.</li>
+      <li><b>Switch company</b> using the tenant selector (top of sidebar) to change which org you're managing.</li>
+      <li><b>Switch persona</b> on the dashboard to see the system as Employee / Manager / Management / HR.</li>
+      <li><b>Toggle language</b> EN ⇄ BM to confirm both render.</li>
+      <li><b>Do a full round-trip:</b> submit something as Employee, switch persona, approve it as Manager/HR.</li>
+    </ol>
+  </div>
+
+  <!-- ============ TEST ============ -->
+  <h2 id="test"><span class="n">7</span> Local test plan</h2>
+  <p class="lead">Tick these to confirm the build before pushing to staging. (Automated suite already green: 328 passed.)</p>
+
+  <div class="card">
+    <h3>Smoke — does it boot</h3>
+    <ul class="check">
+      <li>Login page loads, demo account signs in.</li>
+      <li>Dashboard renders with no errors; sidebar lists all groups.</li>
+      <li>Open 8–10 random modules — each loads its guide banner + data.</li>
+      <li>Language toggle EN ⇄ BM flips all visible copy.</li>
+    </ul>
+
+    <h3>Multi-tenant &amp; roles</h3>
+    <ul class="check">
+      <li>Tenant switch Unijaya → Shell → Petron changes org name &amp; data.</li>
+      <li>As <b>Petron / Employee</b>, admin-only screens (Payroll, Admin) are hidden or blocked.</li>
+      <li>As <b>Unijaya / HR</b>, every module is reachable.</li>
+    </ul>
+
+    <h3>Approval round-trips</h3>
+    <ul class="check">
+      <li><b>Leave:</b> apply as Employee → approve as Manager → balance/calendar update.</li>
+      <li><b>Overtime / Claims / Expenses:</b> submit → approve → reject path also works.</li>
+      <li><b>Shift swap:</b> request → counterpart accept → manager approve.</li>
+    </ul>
+
+    <h3>Payroll (Malaysia)</h3>
+    <ul class="check">
+      <li>Create a payroll run; EPF/SOCSO/EIS/PCB compute.</li>
+      <li>Finalise → approve → download bank file + statutory report.</li>
+      <li>NRIC shows masked; payslip opens.</li>
+    </ul>
+
+    <h3>Lifecycle &amp; security</h3>
+    <ul class="check">
+      <li>Recruitment → move candidate stages; Onboarding checklist toggles.</li>
+      <li>Probation check-in &amp; decision; Resignation → exit interview.</li>
+      <li>Enrol a passkey / enable 2FA; audit log records key actions.</li>
+    </ul>
+
+    <h3>Provisioning &amp; onboarding (new)</h3>
+    <ul class="check">
+      <li>Sign in as <b>super admin</b> → console lists companies.</li>
+      <li>Create a company → first HR admin issued a one-time password (shown + emailed).</li>
+      <li>Log in as that new admin → forced to reset password before reaching the app.</li>
+      <li>Company detail → assign an existing user to the company with a role.</li>
+      <li>Self-register at <code>/register</code> → lands on "no workspace yet" + verification prompt.</li>
+      <li>HR "add member" → new login emailed credentials, forced reset on first sign-in.</li>
+    </ul>
+  </div>
+
+  <div class="ok"><b>When all ticked:</b> build is good to push to staging. No git remote is set yet — add one before pushing.</div>
+
+  <footer>
+    Amanahku internal test guide · generated for local QA · open in any browser.
+  </footer>
+</div>
+</body>
+</html>

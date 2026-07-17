@@ -19,25 +19,43 @@ use Illuminate\Support\Facades\DB;
 class OnboardingService
 {
     /**
-     * The standard onboarding checklist seeded with each new profile: [track, title].
-     * track is constrained to the onboarding_tasks.track enum (general | position).
+     * The standard onboarding checklist seeded with each new profile: [track, key, title].
+     * track is constrained to the onboarding_tasks.track enum (general | position). key is a
+     * stable slug linking the task to its content-library entry (onboarding_resources.item_key)
+     * — general items share one company-wide entry; position items may add per-position overrides.
      *
-     * @var list<array{0:string,1:string}>
+     * @var list<array{0:string,1:string,2:string}>
      */
     public const STANDARD_CHECKLIST = [
-        ['general', 'Company introduction & history'],
-        ['general', 'Vision, mission & values'],
-        ['general', 'Employee handbook acknowledgement'],
-        ['general', 'IT security & acceptable use policy'],
-        ['general', 'Submit required documents'],
-        ['general', 'Digital acceptance of policies'],
-        ['position', 'Review job description & standard tasks'],
-        ['position', 'Access to systems & tools'],
-        ['position', 'Meet assigned mentor'],
-        ['position', '30-day plan agreed with manager'],
-        ['position', '60-day plan'],
-        ['position', '90-day plan & confirmation checklist'],
+        ['general', 'company-intro', 'Company introduction & history'],
+        ['general', 'vision-values', 'Vision, mission & values'],
+        ['general', 'handbook', 'Employee handbook acknowledgement'],
+        ['general', 'it-security', 'IT security & acceptable use policy'],
+        ['general', 'submit-documents', 'Submit required documents'],
+        ['general', 'policy-acceptance', 'Digital acceptance of policies'],
+        ['position', 'job-description', 'Review job description & standard tasks'],
+        ['position', 'systems-access', 'Access to systems & tools'],
+        ['position', 'meet-mentor', 'Meet assigned mentor'],
+        ['position', 'plan-30', '30-day plan agreed with manager'],
+        ['position', 'plan-60', '60-day plan'],
+        ['position', 'plan-90', '90-day plan & confirmation checklist'],
     ];
+
+    /**
+     * The standard items keyed by slug for the content editor and hire-side resolution:
+     * item_key => ['track' => …, 'title' => …]. Ordering follows STANDARD_CHECKLIST.
+     *
+     * @return array<string, array{track:string, title:string}>
+     */
+    public static function standardItems(): array
+    {
+        $items = [];
+        foreach (self::STANDARD_CHECKLIST as [$track, $key, $title]) {
+            $items[$key] = ['track' => $track, 'title' => $title];
+        }
+
+        return $items;
+    }
 
     /**
      * Open (or reuse) the employee's onboarding profile. Idempotent: an existing profile
@@ -90,9 +108,10 @@ class OnboardingService
             'total_days' => $totalDays,
         ]);
 
-        foreach (self::STANDARD_CHECKLIST as $i => [$track, $title]) {
+        foreach (self::STANDARD_CHECKLIST as $i => [$track, $key, $title]) {
             $profile->tasks()->create([
                 'track' => $track,
+                'item_key' => $key,
                 'title' => $title,
                 'done' => false,
                 'sort' => $i,

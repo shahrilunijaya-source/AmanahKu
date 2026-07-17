@@ -278,8 +278,14 @@ export function registerTimesheetCapture(Alpine) {
 
             // Recreate per open — a Quill mounted while hidden mis-measures, and a stale
             // instance would keep the previous line's content.
-            this.$refs.noteEditor.innerHTML = '';
-            this.quill = new Quill(this.$refs.noteEditor, {
+            const host = this.$refs.noteEditor;
+            // Quill's snow toolbar is inserted as a SIBLING before the editor, not inside it,
+            // so clearing innerHTML leaves the old toolbar behind — each reopen would stack
+            // another. Remove any prior toolbar + Quill's own container classes first.
+            host.parentNode.querySelectorAll('.ql-toolbar').forEach((el) => el.remove());
+            host.classList.remove('ql-container', 'ql-snow');
+            host.innerHTML = '';
+            this.quill = new Quill(host, {
                 theme: 'snow',
                 placeholder: this.t('Describe what you worked on…', 'Terangkan apa yang anda kerjakan…'),
                 modules: {

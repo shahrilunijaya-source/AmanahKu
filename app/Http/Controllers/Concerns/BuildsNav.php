@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Concerns;
 use App\Models\Tenant;
 use App\Services\FeatureManager;
 use App\Support\Amanahku;
+use App\Support\Permissions;
 
 /**
  * Sidebar navigation model for AppController::screen(). Split out of
@@ -19,6 +20,11 @@ trait BuildsNav
     private function navModel(string $screen, string $role, ?Tenant $tenant): array
     {
         $items = Amanahku::nav();
+        // Collapse 'director' → 'management' up front: a director is a strict management
+        // super-set (Permissions::effectiveRole), so every role gate below — Administration,
+        // the oversight group, per-node allowlists — must treat it as management. Without
+        // this the raw 'director' string fell through and hid admin/cases + oversight links.
+        $role = Permissions::effectiveRole($role);
         // Administration is for privileged roles only.
         if (! in_array($role, ['management', 'hr'], true)) {
             $items = array_values(array_filter($items, fn ($i) => ! in_array($i['id'], ['admin', 'cases'], true)));

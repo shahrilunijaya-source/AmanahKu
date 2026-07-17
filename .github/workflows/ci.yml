@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Lint, dependency audit, and the full suite on the fast SQLite driver ──────────
+  test:
+    name: Lint, audit & tests (sqlite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, gd, zip
+          coverage: none
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Code style (Pint, dry-run)
+        run: vendor/bin/pint --test
+
+      - name: Dependency security audit
+        run: composer audit --no-interaction
+
+      - name: Tests
+        run: php artisan test
+
+  # ── Static analysis (PHPStan + Larastan). Larastan is installed here rather than ──
+  # ── pinned in composer.json so the runtime lock stays lean; bump the constraint ───
+  # ── into require-dev once the baseline in phpstan.neon is clean at the target level.
+  static-analysis:
+    name: Static analysis (phpstan/larastan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install Larastan
+        run: composer require --dev "larastan/larastan:^3.0" --no-interaction --no-progress
+
+      - name: PHPStan
+        run: composer analyse
+
+  # ── MySQL-parity run for the money / tenant-isolation / attendance suites, where ──
+  # ── SQLite and MySQL semantics can diverge (AK-TEST-01). phpunit.xml <env> entries ─
+  # ── are non-forcing, so the DB_* job env below takes precedence over the sqlite defaults.
+  test-mysql:
+    name: Tests (MySQL parity)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: amanahku_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: amanahku_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, bcmath, intl, gd, zip
+          coverage: none
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: MySQL-parity suites
+        run: php artisan test --filter='Payroll|LeaveAccrual|CrossTenantDenial|ClockService'
+
+  # ── Coverage gate (AK-TEST-03). Uses pcov. The 80% threshold is the project target; ─
+  # ── if the first green run reports below it, tune the number to the measured baseline ─
+  # ── and ratchet up, rather than lowering the bar permanently.
+  coverage:
+    name: Coverage (>=80%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, gd, zip
+          coverage: pcov
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Tests with coverage gate
+        run: php artisan test --coverage --min=80

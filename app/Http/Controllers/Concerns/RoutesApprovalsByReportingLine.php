@@ -48,6 +48,39 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
+     * The display-only approval chain for a requester, so the applicant knows up front who
+     * signs off their leave / claim / overtime — before they even submit. Shared by every
+     * two-step request screen.
+     *
+     * - verifiers: the requester's immediate superior (reports_to_id) plus any dotted-line
+     *   managers — the exact set allowed to verify (see verifierIds()/verifiers()).
+     * - approvers: the tenant's management tier. Final approval is any ONE of them (no single
+     *   person is pre-assigned), so this is the pool, not a named approver. The requester is
+     *   excluded — nobody approves their own request.
+     *
+     * @return array{verifiers: \Illuminate\Support\Collection, approvers: \Illuminate\Support\Collection}
+     */
+    protected function approvalChain(?Employee $employee): array
+    {
+        $verifiers = $employee ? $employee->verifiers() : collect();
+
+        $tenant = app(CurrentTenant::class)->get();
+        $managementUserIds = $tenant
+            ? $tenant->users()->wherePivotIn('role', $this->approvalManagerRoles())->pluck('users.id')->all()
+            : [];
+
+        $approvers = empty($managementUserIds)
+            ? collect()
+            : Employee::active()
+                ->whereIn('user_id', $managementUserIds)
+                ->when($employee, fn (Builder $q) => $q->whereKeyNot($employee->id))
+                ->orderBy('name')
+                ->get();
+
+        return ['verifiers' => collect($verifiers)->values(), 'approvers' => $approvers->values()];
+    }
+
+    /**
      * Authorise the VERIFY step: the acting user must be one of the requester's managers —
      * the primary superior (reports_to_id) OR any additional (dotted-line) manager. Either
      * may verify. Self-guard first so nobody verifies their own request.

@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\FeedbackAttachment;
 use App\Models\FeedbackItem;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -191,6 +194,26 @@ class FeedbackTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_director_opens_the_inbox_and_can_triage(): void
+    {
+        // Arrange — a board-tier director with NO direct reports of their own. Director is
+        // a management super-set (Permissions::effectiveRole); the oversight gate must let
+        // them in without a reports_to_id chain. Regression for canSeeAll() dropping director.
+        $item = $this->seedItem(['title' => 'Director-visible bug', 'status' => 'open']);
+        $boss = $this->privilegedActor('director');
+
+        // Act — open the inbox, then move an item.
+        $view = $this->actingAs($boss)->withSession(['current_tenant' => $this->tenant->id])->get('/app/feedback');
+        $triage = $this->actingAs($boss)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/feedback/'.$item->id.'/status', ['status' => 'resolved']);
+
+        // Assert — screen opens (not 403) and triage sticks.
+        $view->assertOk();
+        $view->assertSee('Director-visible bug');
+        $triage->assertRedirect();
+        $this->assertSame('resolved', $item->fresh()->status);
+    }
+
     public function test_manager_views_inbox_but_gets_no_triage_control(): void
     {
         // Arrange
@@ -260,5 +283,125 @@ class FeedbackTest extends TestCase
 
         $response->assertSessionHasErrors('status');
         $this->assertSame('open', $item->fresh()->status);
+    }
+
+    // ── Attachments ──────────────────────────────────────────────
+
+    /** Stage an attachment on the fake 'local' disk and return the persisted row. */
+    private function seedAttachment(FeedbackItem $item): FeedbackAttachment
+    {
+        $path = UploadedFile::fake()->image('shot.png')->store('feedback-attachments', 'local');
+
+        return FeedbackAttachment::create([
+            'tenant_id' => $item->tenant_id,
+            'feedback_item_id' => $item->id,
+            'path' => $path,
+            'name' => 'shot.png',
+            'mime' => 'image/png',
+            'size' => 1024,
+        ]);
+    }
+
+    public function test_submit_stores_pasted_screenshot_and_uploaded_document(): void
+    {
+        Storage::fake('local');
+
+        // Act — one image (a pasted screenshot) + one PDF document, on a bug report.
+        $response = $this->actingInTenant()->post('/app/feedback', [
+            'type' => 'bug',
+            'title' => 'Layout broken with proof',
+            'attachments' => [
+                UploadedFile::fake()->image('screenshot-1.png'),
+                UploadedFile::fake()->create('trace.pdf', 40, 'application/pdf'),
+            ],
+        ]);
+
+        // Assert — both files persisted, both rows bound to the new item + tenant.
+        $response->assertRedirect();
+        $item = FeedbackItem::withoutGlobalScopes()->latest('id')->first();
+        $this->assertSame(2, $item->attachments()->count());
+        foreach ($item->attachments as $att) {
+            $this->assertSame($this->tenant->id, $att->tenant_id);
+            Storage::disk('local')->assertExists($att->path);
+        }
+    }
+
+    public function test_submit_rejects_a_disallowed_file_type(): void
+    {
+        Storage::fake('local');
+
+        // Act — an executable is not an image/PDF/Office doc.
+        $response = $this->actingInTenant()->post('/app/feedback', [
+            'type' => 'bug',
+            'title' => 'Sneaky upload',
+            'attachments' => [UploadedFile::fake()->create('malware.exe', 10)],
+        ]);
+
+        // Assert — rejected, nothing written.
+        $response->assertSessionHasErrors('attachments.0');
+        $this->assertSame(0, FeedbackItem::withoutGlobalScopes()->count());
+        $this->assertSame(0, FeedbackAttachment::withoutGlobalScopes()->count());
+    }
+
+    public function test_submit_rejects_more_than_the_attachment_cap(): void
+    {
+        Storage::fake('local');
+
+        // Act — seven images, cap is six.
+        $files = array_map(fn ($i) => UploadedFile::fake()->image("s{$i}.png"), range(1, 7));
+        $response = $this->actingInTenant()->post('/app/feedback', [
+            'type' => 'idea',
+            'title' => 'Too many pics',
+            'attachments' => $files,
+        ]);
+
+        // Assert
+        $response->assertSessionHasErrors('attachments');
+        $this->assertSame(0, FeedbackItem::withoutGlobalScopes()->count());
+    }
+
+    public function test_reporter_can_download_own_attachment(): void
+    {
+        Storage::fake('local');
+        $item = $this->seedItem();
+        $att = $this->seedAttachment($item);
+
+        // The reporter is $this->user (an employee-role user) — owns the item.
+        $response = $this->actingInTenant()->get('/app/feedback/attachments/'.$att->id);
+
+        $response->assertOk();
+    }
+
+    public function test_inbox_viewer_can_download_attachment(): void
+    {
+        Storage::fake('local');
+        $item = $this->seedItem();
+        $att = $this->seedAttachment($item);
+        $boss = $this->privilegedActor('management');
+
+        $response = $this->actingAs($boss)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/feedback/attachments/'.$att->id);
+
+        $response->assertOk();
+    }
+
+    public function test_unrelated_employee_cannot_download_attachment(): void
+    {
+        Storage::fake('local');
+        $item = $this->seedItem();
+        $att = $this->seedAttachment($item);
+
+        // A different employee-role user with no direct reports and not the reporter.
+        $stranger = User::create(['name' => 'Nosy', 'email' => 'nosy@example.com', 'password' => Hash::make('password')]);
+        $stranger->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $stranger->id,
+            'name' => 'Nosy', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $response = $this->actingAs($stranger)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/feedback/attachments/'.$att->id);
+
+        $response->assertForbidden();
     }
 }

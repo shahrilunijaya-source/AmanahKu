@@ -21,18 +21,21 @@
             <span style="width:22px;flex-shrink:0;" aria-hidden="true"></span>
         @endif
 
-        <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" class="uj-card-clickable" style="display:flex;align-items:center;gap:12px;text-decoration:none;border:1px solid var(--hairline);border-radius:11px;padding:11px 15px;background:#fff;flex:1;min-width:0;">
+        {{-- draggable="false" on the anchor + photo: anchors and images are natively
+             draggable, which hijacks the pointer drag and stops SortableJS from grabbing
+             the parent [data-node] in arrange mode. Killing native drag hands it back. --}}
+        <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" draggable="false" class="uj-card-clickable" style="display:flex;align-items:center;gap:10px;text-decoration:none;border:1px solid var(--hairline);border-radius:10px;padding:7px 12px;background:#fff;flex:1;min-width:0;">
             {{-- Only render a self-hosted photo (leading "/"). External URLs are blocked by
                  the CSP img-src 'self' policy, so anything off-origin falls back to initials
                  like every other screen. --}}
             @if ($e->photo && str_starts_with($e->photo, '/'))
-                <img src="{{ $e->photo }}" alt="" width="38" height="38" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                <img src="{{ $e->photo }}" alt="" width="32" height="32" draggable="false" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">
             @else
-                <div style="width:38px;height:38px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
+                <div style="width:32px;height:32px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
             @endif
             <div style="min-width:0;flex:1;">
-                <div style="font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->name }}</div>
-                <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ collect([$e->position, $e->department?->name])->filter()->implode(' · ') }}</div>
+                <div style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->name }}</div>
+                <div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ collect([$e->position, $e->department?->name])->filter()->implode(' · ') }}</div>
                 @if ($e->additionalManagers->isNotEmpty())
                     <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">
                         <span style="opacity:.7;" x-text="$store.ui.lang==='en' ? 'also reports to: ' : 'juga melapor kepada: '">also reports to: </span>{{ $e->additionalManagers->pluck('name')->implode(', ') }}</div>

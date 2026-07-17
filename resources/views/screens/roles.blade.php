@@ -47,7 +47,18 @@
     </form>
 </div>
 
-<div class="uj-card">
+<div class="uj-card" x-data="rolesAdmin()">
+    {{-- Transient save toast (bottom-center). Replaces the top-of-page flash banner so
+         editing a row no longer scrolls the embedded screen back to the top. --}}
+    <div x-show="toast" x-cloak x-transition.opacity
+         style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;max-width:calc(100% - 32px);"
+         :style="toastErr ? 'border-color:var(--red);color:var(--red);background:var(--red-tint);' : ''">
+        <div :style="toastErr
+                ? 'background:var(--red-tint);border:1px solid var(--red);color:var(--red);'
+                : 'background:var(--ink);border:1px solid var(--ink);color:#fff;'"
+             style="border-radius:9px;padding:10px 16px;font-size:13px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+             x-text="toast"></div>
+    </div>
     <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Workspace members' : 'Ahli workspace'">Workspace members</h3><span style="font-size:12.5px;color:var(--muted);">{{ $members->count() }} <span x-text="$store.ui.lang==='en' ? 'members' : 'ahli'">members</span></span></div>
     <div style="display:grid;grid-template-columns:1.6fr 1.6fr 1.1fr 1.3fr 0.8fr;gap:8px;padding:12px 20px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--hairline-soft);"><span x-text="$store.ui.lang==='en' ? 'Member' : 'Ahli'">Member</span><span x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</span><span x-text="$store.ui.lang==='en' ? 'Role' : 'Peranan'">Role</span><span x-text="$store.ui.lang==='en' ? 'Data scope' : 'Skop data'">Data scope</span><span></span></div>
     @foreach ($members as $m)
@@ -58,7 +69,7 @@
                 <span style="font-size:13px;color:var(--muted);">{{ $m->email }}</span>
                 <form method="post" action="{{ route('admin.roles.update', $m) }}" style="display:flex;align-items:center;gap:8px;">
                     @csrf
-                    <select name="role" onchange="this.form.submit()" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;background:#fff;color:var(--ink);">
+                    <select name="role" @change="save($event.target.form)" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;background:#fff;color:var(--ink);">
                         @foreach (['employee' => 'Employee', 'manager' => 'Manager', 'management' => 'Management', 'director' => 'Director', 'hr' => 'HR'] as $v => $l)
                             <option value="{{ $v }}" @selected($m->pivot->role === $v)>{{ $l }}</option>
                         @endforeach
@@ -66,7 +77,7 @@
                 </form>
                 <form method="post" action="{{ route('admin.scope.update', $m) }}" style="display:flex;align-items:center;gap:8px;">
                     @csrf
-                    <select name="data_scope" onchange="this.form.submit()" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;background:#fff;color:var(--ink);">
+                    <select name="data_scope" @change="save($event.target.form)" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;background:#fff;color:var(--ink);">
                         @foreach (\App\Support\Permissions::SCOPE_LABELS as $v => $l)
                             <option value="{{ $v }}" @selected(($m->pivot->data_scope ?? 'company') === $v)>{{ $l }}</option>
                         @endforeach
@@ -79,7 +90,7 @@
 
             {{-- Per-user permission overrides. Default 'inherit' follows the role; grant/deny override it. --}}
             <div x-show="open" x-cloak style="padding:0 20px 18px;">
-                <form method="post" action="{{ route('admin.permissions.update', $m) }}">
+                <form method="post" action="{{ route('admin.permissions.update', $m) }}" @submit.prevent="save($event.target)">
                     @csrf
                     <div style="background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;padding:14px 16px;">
                         <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Per-member overrides for staff actions (create / update / import). Inherit follows the <strong style="color:var(--ink);text-transform:capitalize;">{{ $m->pivot->role }}</strong> role; grant or deny to override for this member only. Other capabilities follow the role — see the reference below.</p>

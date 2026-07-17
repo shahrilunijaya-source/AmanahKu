@@ -74,6 +74,18 @@ trait BuildsPeopleData
         ], $this->orgOptions());
     }
 
+    /**
+     * Data for the Administration → Add & Import Staff screen: the add-employee form's
+     * option lists plus the salary-field gate. The directory screen is view-only; all
+     * staff data-loading (add / CSV import / provision logins) lives here.
+     */
+    private function staffLoadData(Request $request): array
+    {
+        return array_merge($this->orgOptions(), [
+            'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
+        ]);
+    }
+
     /** Department + branch + staff-level + employment-type option lists for the add/edit employee forms. */
     private function orgOptions(): array
     {
@@ -116,6 +128,21 @@ trait BuildsPeopleData
                 ->get()
             : collect();
 
+        // Attendance is sensitive: the person themselves, management/HR/director, or one of
+        // this person's own managers (primary or dotted-line) may see it — never a random peer.
+        // verifierIds() is the same "who manages this requester" source used by leave/claim gates.
+        $canSeeAttendance = $e && (
+            ($own && $own->id === $e->id)
+            || $this->hasTenantRole($request, ['management', 'hr', 'director'])
+            || ($own && in_array($own->id, $e->verifierIds(), true))
+        );
+        $attendance = ($e && $canSeeAttendance)
+            ? $e->attendanceRecords()
+                ->whereBetween('date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+                ->orderByDesc('date')
+                ->get()
+            : collect();
+
         return array_merge([
             'profile' => $e,
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
@@ -124,6 +151,8 @@ trait BuildsPeopleData
             // the directory column and the server-side write guard in EmployeeController).
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
             'assignedTasks' => $assignedTasks,
+            'canSeeAttendance' => $canSeeAttendance,
+            'attendance' => $attendance,
         ], $this->orgOptions());
     }
 

@@ -27,7 +27,9 @@
     ],
 ])
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-    @foreach ($balances as $b)
+    {{-- Medical balance is hidden from the top cards by request. It still exists as a
+         leave type (dropdown + "Leave types explained") — only the summary card is dropped. --}}
+    @foreach ($balances->reject(fn ($b) => strtolower($b->leaveType?->name ?? '') === 'medical') as $b)
         @php $low = $b->balance <= 3; @endphp
         <div class="uj-card uj-stat" style="flex:1;min-width:150px;">
             <div class="uj-stat-label">{{ $b->leaveType?->name }} <span x-text="$store.ui.lang==='en' ? 'leave' : 'cuti'">leave</span></div>
@@ -57,13 +59,34 @@
                 'deductsFrom' => $t->deducts_from_leave_type_id ? ($leaveTypes->firstWhere('id', $t->deducts_from_leave_type_id)?->name) : null,
             ]])->toJson();
         @endphp
-        <form method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{ requiresDoc: {{ $requiresDocMap }}, meta: {{ $typeMeta }}, sel: '{{ old('leave_type_id', $leaveTypes->first()?->id) }}' }">
+        <form method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{
+            requiresDoc: {{ $requiresDocMap }},
+            meta: {{ $typeMeta }},
+            sel: '{{ old('leave_type_id', $leaveTypes->first()?->id) }}',
+            dateFrom: '{{ old('date_from', now()->addDays(3)->toDateString()) }}',
+            dateTo: '{{ old('date_to', now()->addDays(4)->toDateString()) }}',
+            // Earliest allowed start date for the selected type — mirrors the server rule
+            // (planned types need min_notice_days advance). Empty = no client restriction
+            // (unplanned/emergency; the server is the only gate for those).
+            minFrom() {
+                const m = this.meta[this.sel];
+                if (!m || m.unplanned || !m.notice) return '';
+                const d = new Date(); d.setHours(0, 0, 0, 0);
+                d.setDate(d.getDate() + m.notice);
+                return d.toISOString().slice(0, 10);
+            },
+            clampDates() {
+                const mf = this.minFrom();
+                if (mf && this.dateFrom < mf) this.dateFrom = mf;
+                if (this.dateTo < this.dateFrom) this.dateTo = this.dateFrom;
+            },
+        }" x-init="clampDates()">
             @csrf
             @error('date_from')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             @error('date_to')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             @error('attachment')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Leave type' : 'Jenis cuti'">Leave type</span></label>
-            <select name="leave_type_id" x-model="sel" required style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;color:var(--ink);background:#fff;margin-bottom:10px;">
+            <select name="leave_type_id" x-model="sel" @change="clampDates()" required style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;color:var(--ink);background:#fff;margin-bottom:10px;">
                 @foreach ($leaveTypes as $t)<option value="{{ $t->id }}" x-text="$store.ui.lang==='en' ? '{{ $t->name }} leave' : '{{ $t->name }} cuti'">{{ $t->name }} leave</option>@endforeach
             </select>
             {{-- Emergency: unplanned, spends the Annual balance. Planned types: advance notice. --}}
@@ -75,8 +98,8 @@
             </div>
             @include('partials.hint', ['en' => 'Pick the type that matches the reason — sick leave usually needs an MC, annual leave comes off your yearly entitlement.', 'ms' => 'Pilih jenis yang sepadan dengan sebab — cuti sakit biasanya perlu MC, cuti tahunan ditolak daripada kelayakan tahunan anda.'])
             <div style="display:flex;gap:16px;margin-bottom:16px;">
-                <div style="flex:1;"><label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label><input name="date_from" type="date" value="{{ old('date_from', now()->addDays(3)->toDateString()) }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" /></div>
-                <div style="flex:1;"><label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label><input name="date_to" type="date" value="{{ old('date_to', now()->addDays(4)->toDateString()) }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" /></div>
+                <div style="flex:1;"><label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label><input name="date_from" type="date" x-model="dateFrom" :min="minFrom()" @change="clampDates()" value="{{ old('date_from', now()->addDays(3)->toDateString()) }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" /></div>
+                <div style="flex:1;"><label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label><input name="date_to" type="date" x-model="dateTo" :min="dateFrom" value="{{ old('date_to', now()->addDays(4)->toDateString()) }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" /></div>
             </div>
             @include('partials.hint', ['en' => 'First and last day of leave, inclusive. The "To" date must be on or after the "From" date.', 'ms' => 'Hari pertama dan terakhir cuti, termasuk kedua-duanya. Tarikh "To" mesti pada atau selepas tarikh "From".'])
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>
@@ -99,6 +122,7 @@
             <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
                 <span x-text="$store.ui.lang==='en' ? 'How it works: you apply → your manager verifies → management approves. Tap a request to see its progress.' : 'Cara ia berfungsi: anda mohon → pengurus sahkan → pengurusan luluskan. Ketik permohonan untuk lihat perkembangannya.'"></span>
             </div>
+            @include('partials.approval-chain')
             @forelse ($myRequests as $r)
                 @php
                     $sc = ['approved' => 'var(--success)', 'verified' => 'var(--info)', 'submitted' => 'var(--amber)', 'rejected' => 'var(--error)', 'draft' => 'var(--muted)'][$r->status] ?? 'var(--muted)';
@@ -114,7 +138,7 @@
                     </div>
                     <div x-show="open" x-collapse style="padding:4px 0 12px 6px;">
                         @if ($r->reason)<div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-style:italic;">“{{ $r->reason }}”</div>@endif
-                        @include('partials.leave-timeline', ['r' => $r])
+                        @include('partials.leave-timeline', ['r' => $r, 'assignedVerifiers' => $leaveVerifiers])
                     </div>
                 </div>
             @empty

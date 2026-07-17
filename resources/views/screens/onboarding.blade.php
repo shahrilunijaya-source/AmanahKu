@@ -3,7 +3,17 @@
 @php
     $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
     $privileged = $privileged ?? false;
+    $profiles = $profiles ?? collect();
+    $resources = $resources ?? [];
     $trackOpts = ['general' => ['General onboarding', 'Onboarding umum'], 'position' => ['Position-specific', 'Khusus jawatan']];
+    // Turn a YouTube/Vimeo share URL into an embeddable src; null = not embeddable (show a link).
+    // NB: NOT named $embed — that collides with the layout's embed-mode flag and strips app chrome.
+    $videoEmbed = function (?string $url): ?string {
+        if (! $url) return null;
+        if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([\w-]{11})~', $url, $m)) return 'https://www.youtube.com/embed/'.$m[1];
+        if (preg_match('~vimeo\.com/(?:video/)?(\d+)~', $url, $m)) return 'https://player.vimeo.com/video/'.$m[1];
+        return null;
+    };
 @endphp
 
 @section('screen')
@@ -72,6 +82,20 @@
     </div>
 @endif
 
+@if ($privileged && $profiles->count() > 1)
+    {{-- Hire-picker: switch between the concurrent onboardings this viewer is allowed to see
+         (management/HR: all; a manager: only hers). Navigates via ?hire= — Alpine @change uses
+         eval, covered by the CSP's unsafe-eval; an inline onchange handler would be blocked. --}}
+    <div class="uj-card" style="padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Viewing hire' : 'Lihat pekerja'">Viewing hire</label>
+        <select style="{{ $fs }}min-width:240px;" @change="window.location.search = '?hire=' + $event.target.value">
+            @foreach ($profiles as $pf)
+                <option value="{{ $pf->id }}" @selected($profile && $pf->id === $profile->id)>{{ $pf->employee?->name }}@if ($pf->employee?->position) · {{ $pf->employee->position }}@endif</option>
+            @endforeach
+        </select>
+    </div>
+@endif
+
 @if ($profile)
 @php
     $done = $profile->tasks->where('done', true)->count();
@@ -93,12 +117,17 @@
     <div class="uj-progress" style="height:7px;margin-top:16px;"><span style="width:{{ $pct }}%;"></span></div>
 </div>
 
-<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+<div x-data="{ show: null }" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
     @foreach ($trackOpts as $track => [$label, $labelMs])
         <div class="uj-card" style="flex:1;min-width:300px;padding:20px;">
             <h3 class="uj-card-title" style="margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? @json($label) : @json($labelMs)">{{ $label }}</span></h3>
             @foreach ($profile->tasks->where('track', $track) as $t)
-                @php $boxStyle = 'width:20px;height:20px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:'.($t->done ? 'var(--success)' : '#fff').';border:1.5px solid '.($t->done ? 'var(--success)' : 'var(--hairline)').';'; @endphp
+                @php
+                    $boxStyle = 'width:20px;height:20px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:'.($t->done ? 'var(--success)' : '#fff').';border:1.5px solid '.($t->done ? 'var(--success)' : 'var(--hairline)').';';
+                    $res = $t->item_key ? ($resources[$t->item_key] ?? null) : null;
+                    $hasContent = $res && ($res->hasContent() || $res->requires_ack);
+                    $titleStyle = 'font-size:13.5px;color:'.($t->done ? 'var(--muted)' : 'var(--ink)').';'.($t->done ? 'text-decoration:line-through;' : '');
+                @endphp
                 <div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--hairline-soft);">
                     @if ($canToggle)
                         <form method="post" action="{{ route('onboarding.toggle', $t) }}" style="line-height:0;">@csrf
@@ -109,7 +138,15 @@
                     @else
                         <div style="{{ $boxStyle }}">@if ($t->done)<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>@endif</div>
                     @endif
-                    <span style="font-size:13.5px;color:{{ $t->done ? 'var(--muted)' : 'var(--ink)' }};{{ $t->done ? 'text-decoration:line-through;' : '' }}">{{ $t->title }}</span>
+                    @if ($hasContent)
+                        {{-- Item carries content — the title opens it. Chevron signals there's something to read/watch. --}}
+                        <button type="button" @click="show = {{ $t->id }}" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;display:flex;align-items:center;gap:6px;{{ $titleStyle }}">
+                            <span>{{ $t->title }}</span>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent, #c08532)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 18l6-6-6-6"></path></svg>
+                        </button>
+                    @else
+                        <span style="{{ $titleStyle }}">{{ $t->title }}</span>
+                    @endif
                     @if ($privileged)
                         {{-- Remove a task added or seeded in error. Toggle stays primary; this is a quiet fix. --}}
                         <form method="post" action="{{ route('onboarding.tasks.remove', $t) }}" style="line-height:0;margin-left:auto;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this onboarding task?' : 'Buang tugas onboarding ini?')) $event.preventDefault()">@csrf
@@ -119,6 +156,56 @@
                         </form>
                     @endif
                 </div>
+                @if ($hasContent)
+                    {{-- Content viewer — teleported to body so it centres over the whole screen (Alpine scope preserved). --}}
+                    <template x-teleport="body">
+                        <div x-show="show === {{ $t->id }}" x-cloak @keydown.escape.window="show = null" style="position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;">
+                            <div @click="show = null" style="position:absolute;inset:0;background:rgba(0,0,0,.45);"></div>
+                            <div @click.stop x-show="show === {{ $t->id }}" x-transition style="position:relative;background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:85vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.28);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--hairline);position:sticky;top:0;background:#fff;">
+                                    <h3 style="font-size:16px;font-weight:600;color:var(--ink);margin:0;">{{ $t->title }}</h3>
+                                    <button type="button" @click="show = null" aria-label="Close" style="width:28px;height:28px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;flex-shrink:0;">&times;</button>
+                                </div>
+                                <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+                                    @if ($res->position_id)
+                                        <span style="align-self:flex-start;background:var(--accent-tint, #f6edd9);color:var(--accent, #c08532);font-size:11px;font-weight:600;border-radius:999px;padding:3px 10px;" x-text="$store.ui.lang==='en' ? 'For your position' : 'Untuk jawatan anda'">For your position</span>
+                                    @endif
+                                    @php $embedSrc = $videoEmbed($res->video_url); @endphp
+                                    @if ($res->video_url && $embedSrc)
+                                        <div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000;">
+                                            <iframe src="{{ $embedSrc }}" loading="lazy" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe>
+                                        </div>
+                                    @elseif ($res->video_url)
+                                        <a href="{{ $res->video_url }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;color:var(--accent, #c08532);font-size:13.5px;font-weight:500;text-decoration:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span x-text="$store.ui.lang==='en' ? 'Watch video' : 'Tonton video'">Watch video</span></a>
+                                    @endif
+                                    @if (filled($res->body))
+                                        <div style="white-space:pre-wrap;font-size:13.5px;line-height:1.65;color:var(--ink);">{{ $res->body }}</div>
+                                    @endif
+                                    @if ($res->file_path)
+                                        <a href="{{ route('onboarding.content.file', $res) }}" style="display:inline-flex;align-items:center;gap:9px;border:1px solid var(--hairline);border-radius:10px;padding:11px 14px;text-decoration:none;color:var(--ink);font-size:13px;">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent, #c08532)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+                                            <span style="flex:1;">{{ $res->file_name ?? 'Attachment' }}</span>
+                                            <span x-text="$store.ui.lang==='en' ? 'Download' : 'Muat turun'" style="color:var(--accent, #c08532);font-weight:600;">Download</span>
+                                        </a>
+                                    @endif
+                                    @if ($res->requires_ack)
+                                        <div style="border-top:1px solid var(--hairline-soft);padding-top:14px;">
+                                            @if ($t->done)
+                                                <div style="display:flex;align-items:center;gap:8px;color:var(--success);font-size:13px;font-weight:500;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span x-text="$store.ui.lang==='en' ? 'Acknowledged' : 'Telah mengaku'">Acknowledged</span></div>
+                                            @elseif ($canToggle)
+                                                <form method="post" action="{{ route('onboarding.toggle', $t) }}">@csrf
+                                                    <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'I have read this — mark complete' : 'Saya telah baca — tanda siap'">I have read this — mark complete</span></button>
+                                                </form>
+                                            @else
+                                                <p style="font-size:12.5px;color:var(--muted);margin:0;" x-text="$store.ui.lang==='en' ? 'The new hire acknowledges this item.' : 'Pekerja baharu mengesahkan item ini.'">The new hire acknowledges this item.</p>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                @endif
             @endforeach
         </div>
     @endforeach

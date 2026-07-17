@@ -17,8 +17,13 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        // The Setup wizard embeds live app screens inline via same-origin <iframe>
+        // (?embed=1). Those responses must permit same-origin framing; every other
+        // response stays fully frame-denied. Cross-origin framing is never allowed.
+        $embed = $request->boolean('embed');
+
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('X-Frame-Options', $embed ? 'SAMEORIGIN' : 'DENY');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
@@ -37,12 +42,13 @@ class SecurityHeaders
             "style-src 'self' 'unsafe-inline'",
             // OpenStreetMap raster tiles power the Attendance Setup map picker.
             // Tiles load as <img>, so img-src needs the tile host.
-            "img-src 'self' data: https://*.tile.openstreetmap.org",
+            // blob: lets the attendance selfie preview (URL.createObjectURL) render.
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
             "font-src 'self'",
             // The map picker's address search calls Nominatim over fetch/XHR,
             // so connect-src must allow the geocoder host.
             "connect-src 'self' https://nominatim.openstreetmap.org",
-            "frame-ancestors 'none'",
+            'frame-ancestors '.($embed ? "'self'" : "'none'"),
             "base-uri 'self'",
             "form-action 'self'",
             "object-src 'none'",

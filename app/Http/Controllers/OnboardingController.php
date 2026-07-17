@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\OnboardingProfile;
+use App\Models\OnboardingResource;
 use App\Models\OnboardingTask;
 use App\Services\OnboardingService;
 use App\Tenancy\CurrentTenant;
@@ -19,29 +20,62 @@ class OnboardingController extends Controller
     /** Onboarding is manager-driven — managers, management and HR run a hire's checklist. */
     private const PRIVILEGED_ROLES = ['manager', 'management', 'hr'];
 
+    /** Oversight roles see EVERY hire; a plain manager is scoped to hires she runs. */
+    private const OVERSIGHT_ROLES = ['management', 'hr'];
+
     /** Checklist tracks — must match the enum on onboarding_tasks.track. */
     private const TRACKS = ['general', 'position'];
 
     /**
-     * Load the most relevant onboarding profile with its tasks + people. Privileged roles
-     * (manager/management/HR) also receive the tenant's employee list and a "start" form
-     * flag for onboarding a new hire. A non-privileged onboardee only ever sees their OWN
-     * profile — another hire's mentor/manager/day-count is not theirs to view.
+     * Build the onboarding screen for the acting viewer.
+     *
+     * Visibility is tiered: management/HR (director folds into management) oversee EVERY
+     * hire; a plain manager is scoped to the hires she runs or mentors (profile.manager_id
+     * or mentor_id); a non-privileged onboardee only ever sees their OWN profile — another hire's
+     * mentor/manager/day-count is not theirs to view.
+     *
+     * Privileged viewers also get a hire-picker ($profiles) so concurrent onboardings are
+     * all reachable, not just the newest. The shown profile is the ?hire= one when it falls
+     * inside the viewer's allowed set, else the latest; only it is hydrated with tasks/people.
      */
     public function screenData(Request $request, ?Employee $employee): array
     {
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $seesAll = $this->hasTenantRole($request, self::OVERSIGHT_ROLES);
 
-        $query = OnboardingProfile::with('tasks', 'employee', 'mentor', 'manager')
+        $query = OnboardingProfile::with('employee')
             ->orderByDesc('start_date')
             ->orderByDesc('id');
 
         if (! $privileged) {
             $query->where('employee_id', $employee?->id ?? 0);
+        } elseif (! $seesAll) {
+            // A plain manager sees the hires she runs OR mentors.
+            $myId = $employee?->id ?? 0;
+            $query->where(fn ($q) => $q->where('manager_id', $myId)->orWhere('mentor_id', $myId));
         }
 
+        // Roster for the hire-picker (employee name only); the selected profile is hydrated below.
+        $profiles = $query->get();
+
+        // Show the requested hire when it's in the viewer's allowed set, else the latest.
+        $requested = (int) $request->query('hire', 0);
+        $profile = ($requested ? $profiles->firstWhere('id', $requested) : null) ?? $profiles->first();
+        $profile?->load('tasks', 'mentor', 'manager');
+
+        // Resolve the content shown behind each checklist item for THIS hire — a per-position
+        // override wins, else the company-wide default. Keyed by item_key for the blade.
+        $resources = $profile
+            ? OnboardingResource::resolveFor(
+                $profile->tasks->pluck('item_key')->filter()->unique()->values()->all(),
+                $profile->employee?->position_id !== null ? (int) $profile->employee->position_id : null,
+            )
+            : [];
+
         return [
-            'profile' => $query->first(),
+            'profile' => $profile,
+            'profiles' => $profiles,
+            'resources' => $resources,
             'privileged' => $privileged,
             'employees' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'position']) : collect(),
         ];
@@ -66,9 +100,9 @@ class OnboardingController extends Controller
         $onboarding->startOnboarding(
             $employee,
             $data['start_date'],
-            $data['mentor_id'] ?? null,
-            $data['manager_id'] ?? null,
-            $data['total_days'] ?? 90,
+            isset($data['mentor_id']) ? (int) $data['mentor_id'] : null,
+            isset($data['manager_id']) ? (int) $data['manager_id'] : null,
+            (int) ($data['total_days'] ?? 90),
         );
 
         return back()->with('ok', 'Onboarding started.');

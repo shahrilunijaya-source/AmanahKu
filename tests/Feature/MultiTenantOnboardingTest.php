@@ -316,6 +316,27 @@ class MultiTenantOnboardingTest extends TestCase
         $this->assertSame(1, Employee::withoutGlobalScopes()->where('tenant_id', $tenant->id)->where('name', 'No Contact Row')->count());
     }
 
+    public function test_reuploading_enriches_existing_staff_without_duplicating_or_wiping(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        $upload = fn (string $csv) => $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->post('/app/employees/import', ['file' => UploadedFile::fake()->createWithContent('staff.csv', $csv)])->assertRedirect();
+
+        // First upload: staff ID + salary (with a spreadsheet thousands comma, so the field
+        // is quoted), no email yet. The comma must not break salary parsing.
+        $upload("name,staff_id,salary,status\nRosli Ahmad,UR-0100,\"3,500.00\",active\n");
+
+        // Second upload: SAME person (matched by staff ID) now carrying an email — updates,
+        // does not create a duplicate.
+        $upload("name,staff_id,email,status\nRosli Ahmad,UR-0100,rosli@example.com,active\n");
+
+        $rows = Employee::withoutGlobalScopes()->where('tenant_id', $tenant->id)->where('staff_id', 'UR-0100')->get();
+        $this->assertCount(1, $rows, 'matched row must update, not duplicate');
+        $this->assertSame('rosli@example.com', $rows->first()->email, 'email enriched on re-upload');
+        // The blank salary column in the second file must not wipe the value from the first.
+        $this->assertSame('3500.00', $rows->first()->salary, 'unprovided fields are preserved');
+    }
+
     public function test_import_template_downloads(): void
     {
         [$tenant, $hr] = $this->company(1);

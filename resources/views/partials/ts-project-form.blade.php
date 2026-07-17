@@ -1,6 +1,6 @@
 {{-- Shared add/edit form for a project. Expects $project (or null), $action, $submitLabel. --}}
 @php $p = $project ?? null; @endphp
-<form method="post" action="{{ $action }}" style="display:flex;flex-direction:column;gap:12px;">
+<form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;flex-direction:column;gap:12px;">
     @csrf
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
         <div style="width:120px;">

@@ -12,8 +12,10 @@
         'body'  => 'Tetapan admin untuk seluruh syarikat — nama workspace, pelan langganan, serta senarai cawangan dan jabatan. Perubahan di sini memberi kesan kepada setiap ahli, jadi kemas kini dengan berhati-hati.',
     ],
 ])
-<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-    <div class="uj-card" style="flex:1.2;min-width:340px;padding:24px;">
+@php $only = request('section'); @endphp
+<div style="{{ $only ? '' : 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;' }}">
+    @if (! $only || $only === 'profile')
+    <div class="uj-card" style="{{ $only ? 'padding:24px;' : 'flex:1.2;min-width:340px;padding:24px;' }}">
         <h3 class="uj-card-title" style="margin-bottom:16px;" x-text="$store.ui.lang==='en' ? 'Workspace profile' : 'Profil workspace'">Workspace profile</h3>
         <form method="post" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data">
             @csrf
@@ -76,9 +78,11 @@
             <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
         </form>
     </div>
+    @endif
 
-    <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;">
+    <div style="{{ $only ? '' : 'flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;' }}">
 
+        @if (! $only || $only === 'branches')
         {{-- Branches: name + state CRUD. Geofence/hours live on the Attendance Setup screen. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -152,7 +156,9 @@
                 @endforeach
             @endif
         </div>
+        @endif
 
+        @if (! $only || $only === 'departments')
         {{-- Departments: name CRUD. employees_count is shown for context; delete is blocked while in use. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -203,7 +209,9 @@
                 @endforeach
             @endif
         </div>
+        @endif
 
+        @if (! $only || $only === 'staff-levels')
         {{-- Staff levels (grades): name + optional code. Blocked from delete while in use. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -252,7 +260,9 @@
                 @endforeach
             @endif
         </div>
+        @endif
 
+        @if (! $only || $only === 'employment-types')
         {{-- Employment types: Full-time, Contract, Part-time, etc. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -301,10 +311,11 @@
                 @endforeach
             @endif
         </div>
+        @endif
     </div>
 </div>
 
-@if (!empty($canManageFeatures))
+@if (!empty($canManageFeatures) && (! $only || $only === 'features'))
 <div class="uj-card" style="margin-top:16px;padding:24px;">
     <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Features' : 'Ciri'">Features</h3>
     <p style="font-size:13px;color:var(--muted);margin:0 0 16px;"><span x-text="$store.ui.lang==='en' ? 'Turn modules on or off for this company and tune behavioural settings. Features marked' : 'Hidup atau matikan modul untuk syarikat ini dan laras tetapan tingkah laku. Ciri yang ditanda'">Turn modules on or off for this company and tune behavioural settings. Features marked</span> <span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span> <span x-text="$store.ui.lang==='en' ? 'are set by the platform and cannot be changed here.' : 'ditetapkan oleh platform dan tidak boleh diubah di sini.'">are set by the platform and cannot be changed here.</span></p>

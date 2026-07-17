@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FeedbackItem extends Model
 {
@@ -20,5 +21,11 @@ class FeedbackItem extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /** Screenshots + documents the reporter attached, in upload order. */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(FeedbackAttachment::class)->oldest('id');
     }
 }

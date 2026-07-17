@@ -200,6 +200,26 @@ class WritePathsTest extends TestCase
         $this->assertSame('manager', $member->fresh()->roleIn($this->tenant));
     }
 
+    /**
+     * Roles screen edits post over AJAX (no reload → the embedded screen keeps its scroll).
+     * An XHR/JSON request must get a JSON body back, not a redirect. Guards the UX fix.
+     */
+    public function test_role_and_scope_updates_return_json_for_xhr(): void
+    {
+        $member = $this->makeApprover('employee');
+        $hr = $this->makeApproverNamed('chief2@example.com', 'hr');
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->postJson("/app/admin/roles/{$member->id}", ['role' => 'manager'])
+            ->assertOk()->assertJson(['ok' => true]);
+        $this->assertSame('manager', $member->fresh()->roleIn($this->tenant));
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->postJson("/app/admin/scope/{$member->id}", ['data_scope' => 'department'])
+            ->assertOk()->assertJson(['ok' => true]);
+        $this->assertSame('department', $member->fresh()->tenants()->first()->pivot->data_scope);
+    }
+
     private function makeApproverNamed(string $email, string $role): User
     {
         $u = User::create(['name' => 'Chief', 'email' => $email, 'password' => bcrypt('password')]);

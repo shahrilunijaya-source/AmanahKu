@@ -14,7 +14,8 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# public/build is committed on purpose: Hostinger shared can't run `npm run build`
+# (exec() disabled), so compiled Vite assets must ship via git alongside the manifest.
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
@@ -27,3 +28,5 @@ Homestead.yaml
 Thumbs.db
 .gstack/
 .playwright-mcp/
+.claude
+ecosystem.config.cjs

@@ -111,6 +111,7 @@
 
     <div class="uj-card" style="flex:1;min-width:300px;">
         <div class="uj-card-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'My overtime' : 'Kerja lebih masa saya'">My overtime</span></h3></div>
+        <div style="padding:16px 20px 0;">@include('partials.approval-chain')</div>
         @forelse ($myOvertime as $o)
             <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
                 <div style="min-width:0;">

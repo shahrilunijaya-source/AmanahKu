@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ProjectSubPillar;
 use App\Models\TimesheetCategory;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -36,11 +37,20 @@ class TimesheetAdminController extends Controller
 
     // ---- Categories -------------------------------------------------------
 
-    public function storeCategory(Request $request): RedirectResponse
+    public function storeCategory(Request $request): JsonResponse|RedirectResponse
     {
         $this->authorize($request);
         $category = TimesheetCategory::create($this->validateCategory($request));
         AuditLog::record('Added timesheet category', $category->name);
+
+        // AJAX add (the setup screen) — return the rendered row so it can be appended
+        // in place with no full reload. Same partial the initial render uses.
+        if ($request->wantsJson()) {
+            return response()->json([
+                'html' => view('partials.ts-category-row', ['cat' => $category])->render(),
+                'count_sel' => '#ts-cat-count',
+            ]);
+        }
 
         return back()->with('ok', $category->name.' category added.');
     }
@@ -76,11 +86,20 @@ class TimesheetAdminController extends Controller
 
     // ---- Projects ---------------------------------------------------------
 
-    public function storeProject(Request $request): RedirectResponse
+    public function storeProject(Request $request): JsonResponse|RedirectResponse
     {
         $this->authorize($request);
         $project = Project::create($this->validateProject($request));
         AuditLog::record('Added project', $project->name);
+
+        if ($request->wantsJson()) {
+            $project->load('subPillars');
+
+            return response()->json([
+                'html' => view('partials.ts-project-row', ['project' => $project])->render(),
+                'count_sel' => '#ts-proj-count',
+            ]);
+        }
 
         return back()->with('ok', $project->name.' added.');
     }
@@ -116,7 +135,7 @@ class TimesheetAdminController extends Controller
 
     // ---- Sub-pillars ------------------------------------------------------
 
-    public function storeSubPillar(Request $request, Project $project): RedirectResponse
+    public function storeSubPillar(Request $request, Project $project): JsonResponse|RedirectResponse
     {
         $this->authorize($request);
         $this->assertTenant($project->tenant_id);
@@ -124,6 +143,13 @@ class TimesheetAdminController extends Controller
         $data = $this->validateSubPillar($request, $project);
         $sub = $project->subPillars()->create($data);
         AuditLog::record('Added sub-pillar', $project->name.' · '.$sub->name);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'html' => view('partials.ts-subpillar-row', ['sp' => $sub])->render(),
+                'count_sel' => null,
+            ]);
+        }
 
         return back()->with('ok', $sub->name.' added to '.$project->name.'.');
     }

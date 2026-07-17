@@ -44,6 +44,7 @@ class OvertimeController extends Controller
 
         return [
             'myOvertime' => $myOvertime,
+            'approvalChain' => $this->approvalChain($employee),
             'overtimeToVerify' => $toVerify,
             'overtimeToApprove' => $toApprove,
         ];

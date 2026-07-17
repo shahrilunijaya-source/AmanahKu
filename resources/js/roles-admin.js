@@ -1,0 +1,38 @@
+// Members & access roles screen. The role / data-scope dropdowns and the per-member
+// permission-override panel used to submit a full form on every change, which reloaded
+// the page (this screen also runs inside the Setup embed iframe) and snapped the scroll
+// back to the top after each edit. Here we POST the same form over fetch, keep the page
+// in place, and surface a small transient toast instead of a top-of-page flash banner.
+
+export function registerRolesAdmin(Alpine) {
+    Alpine.data('rolesAdmin', () => ({
+        toast: '',
+        toastErr: false,
+        _t: null,
+
+        // Submit any of the row forms (role / scope / permission overrides) without a
+        // reload. The CSRF token and field values ride in the FormData, so the same
+        // endpoints validate identically whether the post is AJAX or a plain submit.
+        async save(form) {
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                    body: new FormData(form),
+                });
+                const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || 'Could not save. Try again.');
+                this.flash(data.message || 'Saved.');
+            } catch (err) {
+                this.flash(err.message || 'Could not save. Try again.', true);
+            }
+        },
+
+        flash(msg, isError = false) {
+            this.toast = msg;
+            this.toastErr = isError;
+            clearTimeout(this._t);
+            this._t = setTimeout(() => (this.toast = ''), 2400);
+        },
+    }));
+}

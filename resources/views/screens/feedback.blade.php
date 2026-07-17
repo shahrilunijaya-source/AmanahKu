@@ -103,6 +103,30 @@
                 @if ($item->description)
                     <p style="font-size:13px;color:var(--muted);margin:0 0 8px;white-space:pre-wrap;">{{ $item->description }}</p>
                 @endif
+
+                {{-- Attachments: image thumbnails open inline; documents download. Both stream
+                     through the auth-gated feedback.attachment route, never a public URL. --}}
+                @if ($item->attachments->isNotEmpty())
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;">
+                        @foreach ($item->attachments as $att)
+                            @if ($att->isImage())
+                                <a href="{{ route('feedback.attachment', $att) }}" target="_blank" rel="noopener noreferrer"
+                                   title="{{ $att->name }}"
+                                   style="display:block;width:64px;height:64px;border-radius:9px;overflow:hidden;border:1px solid var(--hairline);">
+                                    <img src="{{ route('feedback.attachment', $att) }}" alt="{{ $att->name }}" loading="lazy"
+                                         style="width:100%;height:100%;object-fit:cover;">
+                                </a>
+                            @else
+                                <a href="{{ route('feedback.attachment', $att) }}" target="_blank" rel="noopener noreferrer"
+                                   style="display:inline-flex;align-items:center;gap:7px;max-width:220px;height:34px;padding:0 11px;border:1px solid var(--hairline);border-radius:9px;background:#fff;color:var(--body);text-decoration:none;font-size:12px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"></path></svg>
+                                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $att->name }}</span>
+                                </a>
+                            @endif
+                        @endforeach
+                    </div>
+                @endif
+
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted-soft);">
                     <span><span x-text="$store.ui.lang==='en' ? 'by' : 'oleh'">by</span> {{ $reporter }}</span>
                     <span style="font-family:var(--font-mono);">{{ $item->created_at->format('j M Y, H:i') }}</span>

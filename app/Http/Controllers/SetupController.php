@@ -62,18 +62,26 @@ class SetupController extends Controller
     public function stepDefs(): array
     {
         $defs = [
-            // Company basics
+            // Company basics — enable the modules this company uses FIRST. This embeds the
+            // Features/Modules panel from Company Settings (overtime, payroll EPF/SOCSO,
+            // claims, timesheets…). Doing it up front means the rest of the wizard and the
+            // sidebar only surface what's switched on — e.g. turning payroll on here makes
+            // the Payroll step appear on the next load. Manual step (no data signal to auto-tick).
+            'modules' => ['label' => 'Enable modules', 'label_ms' => 'Aktifkan modul', 'desc' => 'Turn on the features this company uses — overtime, payroll (EPF/SOCSO), claims, timesheets and more.', 'screen' => 'settings', 'query' => [], 'auto' => false, 'domain' => 'basics', 'critical' => false],
             'profile' => ['label' => 'Complete company profile', 'label_ms' => 'Lengkapkan profil syarikat', 'desc' => 'Logo, branding, contact details and welcome message.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
             'branches' => ['label' => 'Add branches & locations', 'label_ms' => 'Tambah cawangan & lokasi', 'desc' => 'At least one branch or location for the company.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
             'departments' => ['label' => 'Add departments', 'label_ms' => 'Tambah jabatan', 'desc' => 'The departments staff are organised under.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
-            'positions' => ['label' => 'Add positions', 'label_ms' => 'Tambah jawatan', 'desc' => 'Job positions and their rate bands.', 'screen' => 'position', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
             'staff_levels' => ['label' => 'Configure staff levels', 'label_ms' => 'Konfigur tahap staf', 'desc' => 'Grade/level bands (e.g. L1–L6).', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
             'employment_types' => ['label' => 'Configure employment types', 'label_ms' => 'Konfigur jenis pekerjaan', 'desc' => 'Full-time, contract, part-time and so on.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
+            // Positions LAST in basics: a position ties a department + staff level + rate,
+            // so those must exist first.
+            'positions' => ['label' => 'Add positions', 'label_ms' => 'Tambah jawatan', 'desc' => 'Job positions and their rate bands.', 'screen' => 'position', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
 
-            // People & access
-            'roles' => ['label' => 'Create roles', 'label_ms' => 'Cipta peranan', 'desc' => 'Assign access roles to workspace members.', 'screen' => 'roles', 'query' => [], 'auto' => true, 'domain' => 'people', 'critical' => false],
-            'acl' => ['label' => 'Review ACL permissions', 'label_ms' => 'Semak kebenaran ACL', 'desc' => 'Confirm what each role can see and do.', 'screen' => 'roles', 'query' => [], 'auto' => false, 'domain' => 'people', 'critical' => false],
-            'staff' => ['label' => 'Add & invite staff', 'label_ms' => 'Tambah & jemput staf', 'desc' => 'Add your employees and provision their logins.', 'screen' => 'directory', 'query' => [], 'auto' => true, 'domain' => 'people', 'critical' => true],
+            // People & access — staff FIRST: a role is assigned to a member (a login), so
+            // people must exist before there is anything to assign a role to.
+            'staff' => ['label' => 'Add & import staff', 'label_ms' => 'Tambah & import staf', 'desc' => 'Add employees one by one, bulk-import from CSV, and provision their logins.', 'screen' => 'staff-load', 'query' => [], 'auto' => true, 'domain' => 'people', 'critical' => true],
+            'roles' => ['label' => 'Assign roles & access', 'label_ms' => 'Tetapkan peranan & akses', 'desc' => 'Give each member a role and data scope. The five roles are built in — you assign them, not create them.', 'screen' => 'roles', 'query' => [], 'auto' => true, 'domain' => 'people', 'critical' => false],
+            'acl' => ['label' => 'Review permissions', 'label_ms' => 'Semak kebenaran', 'desc' => 'Confirm what each role can see and do.', 'screen' => 'roles', 'query' => [], 'auto' => false, 'domain' => 'people', 'critical' => false],
 
             // Attendance policy (previously orphaned)
             'attendance_policy' => ['label' => 'Set attendance policy', 'label_ms' => 'Tetapkan dasar kehadiran', 'desc' => 'Office geofence, working hours, client sites and work arrangements.', 'screen' => 'attendance-admin', 'query' => [], 'auto' => true, 'domain' => 'attendance', 'critical' => true],
@@ -82,8 +90,8 @@ class SetupController extends Controller
             'timesheet_categories' => ['label' => 'Set up timesheet categories', 'label_ms' => 'Sediakan kategori timesheet', 'desc' => 'Categories, projects and sub-pillars staff allocate time against.', 'screen' => 'timesheet-setup', 'query' => [], 'auto' => true, 'domain' => 'time', 'critical' => false],
 
             // Leave & requests
-            'leave_types' => ['label' => 'Configure leave types', 'label_ms' => 'Konfigur jenis cuti', 'desc' => 'Annual, medical, unpaid and other leave types with entitlements.', 'screen' => 'leave', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => true],
-            'holidays' => ['label' => 'Add public holidays', 'label_ms' => 'Tambah cuti umum', 'desc' => 'The holiday calendar leave and attendance work against.', 'screen' => 'leave', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => false],
+            'leave_types' => ['label' => 'Configure leave types', 'label_ms' => 'Konfigur jenis cuti', 'desc' => 'Annual, medical, unpaid and other leave types with entitlements.', 'screen' => 'leave-setup', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => true],
+            'holidays' => ['label' => 'Add public holidays', 'label_ms' => 'Tambah cuti umum', 'desc' => 'The holiday calendar leave and attendance work against.', 'screen' => 'leave-setup', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => false],
         ];
 
         // Payroll is only relevant when the module is enabled for the tenant.

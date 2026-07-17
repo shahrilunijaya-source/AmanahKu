@@ -2,13 +2,28 @@
      rejectedBy loaded. Shared by the applicant's "My requests" and the superior/management
      review queues so everyone reads the same trail. --}}
 @php
-    $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'at' => $r->created_at]];
+    // Optional: the requester's assigned verifier(s), passed by "My requests" so a pending
+    // verify step can name the superior up front. Absent in the review queues (they show
+    // "not yet" until acted). `position` is the job title, auto-loaded via the Employee $with.
+    $assignedVerifiers = $assignedVerifiers ?? collect();
+    $pendingVerifierNames = $assignedVerifiers->pluck('name')->filter()->implode(', ') ?: null;
+    $pendingVerifierRole = $assignedVerifiers->count() === 1 ? $assignedVerifiers->first()?->position : null;
+
+    $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'whoRole' => null, 'at' => $r->created_at]];
     if ($r->status === 'rejected') {
-        if ($r->verified_at) { $steps[] = ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'at' => $r->verified_at]; }
-        $steps[] = ['state' => 'rejected', 'en' => 'Declined', 'ms' => 'Ditolak', 'who' => $r->rejectedBy?->name, 'at' => $r->rejected_at];
+        if ($r->verified_at) { $steps[] = ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at]; }
+        $steps[] = ['state' => 'rejected', 'en' => 'Declined', 'ms' => 'Ditolak', 'who' => $r->rejectedBy?->name, 'whoRole' => $r->rejectedBy?->position, 'at' => $r->rejected_at];
     } else {
-        $steps[] = ['state' => $r->verified_at ? 'done' : 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'at' => $r->verified_at];
-        $steps[] = ['state' => $r->status === 'approved' ? 'done' : 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => $r->approvedBy?->name, 'at' => $r->approved_at];
+        // Verify: once done, the actual verifier (name + position); while pending, the
+        // assigned superior(s) so the applicant knows who is holding it.
+        $steps[] = $r->verified_at
+            ? ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at]
+            : ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $pendingVerifierNames, 'whoRole' => $pendingVerifierRole, 'at' => null];
+        // Approve: once done, the actual approver (name + position). Before that, no single
+        // approver is assigned — final approval is any management member — so label the body.
+        $steps[] = $r->status === 'approved'
+            ? ['state' => 'done', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => $r->approvedBy?->name, 'whoRole' => $r->approvedBy?->position, 'at' => $r->approved_at]
+            : ['state' => 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'whoRole' => null, 'whoI18n' => ['en' => 'Management', 'ms' => 'Pengurusan'], 'at' => null];
     }
     $nextEn = ['submitted' => 'Waiting for the immediate superior to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — days deducted from balance.', 'rejected' => 'Declined.'][$r->status] ?? '';
     $nextMs = ['submitted' => 'Menunggu penyelia terdekat mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — hari ditolak daripada baki.', 'rejected' => 'Ditolak.'][$r->status] ?? '';
@@ -26,10 +41,14 @@
                     <span x-text="$store.ui.lang==='en' ? '{{ $st['en'] }}' : '{{ $st['ms'] }}'">{{ $st['en'] }}</span>
                     @if ($st['state'] === 'pending')<span style="font-weight:400;color:var(--muted-soft);"> · <span x-text="$store.ui.lang==='en' ? 'pending' : 'menunggu'">pending</span></span>@endif
                 </div>
-                <div style="font-size:11.5px;color:var(--muted);">
-                    @if ($st['at']){{ $st['at']->format('j M Y, g:ia') }}@endif
-                    @if ($st['who']) · {{ $st['who'] }}@endif
-                    @if (! $st['at'] && ! $st['who'])<span x-text="$store.ui.lang==='en' ? 'not yet' : 'belum'">not yet</span>@endif
+                <div style="font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;">
+                    @if ($st['at'])<span>{{ $st['at']->format('j M Y, g:ia') }}</span>@endif
+                    @if (! empty($st['whoI18n']))
+                        <span x-text="$store.ui.lang==='en' ? '{{ $st['whoI18n']['en'] }}' : '{{ $st['whoI18n']['ms'] }}'">{{ $st['whoI18n']['en'] }}</span>
+                    @elseif (! empty($st['who']))
+                        <span style="color:var(--ink);font-weight:500;">{{ $st['who'] }}</span>@if (! empty($st['whoRole']))<span style="color:var(--muted-soft);">· {{ $st['whoRole'] }}</span>@endif
+                    @endif
+                    @if (! $st['at'] && empty($st['who']) && empty($st['whoI18n']))<span x-text="$store.ui.lang==='en' ? 'not yet' : 'belum'">not yet</span>@endif
                 </div>
             </div>
         </div>

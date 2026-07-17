@@ -25,11 +25,14 @@
         .lg-quick:active { transform: translateY(1px); }
         .lg-link { transition: opacity .15s; }
         .lg-link:hover { opacity: .7; }
+        /* Env chip: hero copy shows on desktop; the compact (form) copy shows only when the hero is hidden. */
+        .lg-badge-compact { display: none; }
         /* Animated hero grid + slow drift. */
         @keyframes lg-drift { from { background-position: 0 0, 0 0; } to { background-position: 56px 56px, 56px 56px; } }
         @media (max-width: 880px) {
             .lg-hero { display: none !important; }
             .lg-formwrap { padding: 32px 22px !important; }
+            .lg-badge-compact { display: block !important; }
         }
     </style>
 </head>
@@ -60,6 +63,9 @@
                 @endif
             </div>
         </div>
+
+        {{-- Environment chip — under the wordmark on non-production tiers (hero is desktop-only) --}}
+        <div style="position:relative;">@include('partials.env-badge')</div>
 
         {{-- Headline --}}
         <div style="position:relative;max-width:460px;">
@@ -114,6 +120,8 @@
                 @endif
             </div>
 
+            <div class="lg-badge-compact">@include('partials.env-badge')</div>
+
             <h2 style="font-weight:400;font-size:30px;letter-spacing:-0.6px;color:var(--ink);margin:0 0 8px;">Welcome back</h2>
             <p style="font-size:14px;color:var(--muted);margin:0 0 26px;">Sign in to your workforce management workspace.</p>
 
@@ -129,10 +137,10 @@
             <div style="margin-bottom:22px;">
                 <div style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted-soft);margin-bottom:9px;">Quick login · demo</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <button type="button" class="lg-quick" onclick="quickLogin('aisyah.rahman@unijaya.example')"
+                    <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"
                             style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#fff;text-align:left;cursor:pointer;">
-                        <span style="font-size:13px;font-weight:600;color:var(--ink);">HR · Manager</span>
-                        <span style="font-size:11px;color:var(--muted);">Aisyah Rahman</span>
+                        <span style="font-size:13px;font-weight:600;color:var(--ink);">HR</span>
+                        <span style="font-size:11px;color:var(--muted);">Unijaya HR</span>
                     </button>
                     <button type="button" class="lg-quick" onclick="quickLogin('superadmin@amanahku.com')"
                             style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#fff;text-align:left;cursor:pointer;">

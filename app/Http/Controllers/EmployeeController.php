@@ -275,37 +275,39 @@ class EmployeeController extends Controller
             return back()->with('error', $error);
         }
 
-        // Tenant-scoped lookup maps. All three match by name case-insensitively (keys
-        // lower-cased + trimmed) so a casing/whitespace difference never silently nulls
-        // the FK. Position bands match on title so the band derives department / staff
-        // level / job title, exactly like the form.
+        // Tenant-scoped FK lookups (match by name/title, case-insensitively). Position
+        // bands match on title so the band derives department / staff level / job title,
+        // exactly like the form.
         $key = CsvImport::key(...);
         $positions = Position::get(['id', 'title'])->mapWithKeys(fn ($p) => [$key($p->title) => $p->id]);
         $branches = Branch::get(['id', 'name'])->mapWithKeys(fn ($b) => [$key($b->name) => $b->id]);
         $employmentTypes = EmploymentType::get(['id', 'name'])->mapWithKeys(fn ($e) => [$key($e->name) => $e->id]);
 
-        $created = 0;
+        // Re-uploading is an UPSERT, not insert-only: a row that matches an existing active
+        // person (by staff ID, else email, else name) UPDATES that record with the row's
+        // non-empty fields — so a second file that just fills in emails enriches the
+        // directory instead of being skipped as a duplicate. Existing staff are indexed by
+        // all three natural keys; rows created this run are added so a later row updates them.
+        $existing = Employee::active()->get();
+        $byStaffId = $existing->filter(fn ($e) => $e->staff_id)->keyBy(fn ($e) => $key($e->staff_id));
+        $byEmail = $existing->filter(fn ($e) => $e->email)->keyBy(fn ($e) => $key($e->email));
+        $byName = $existing->keyBy(fn ($e) => $key($e->name));
+
         $errors = [];
         $row = 1;
         // Reporting lines are resolved in a second pass: a manager named in one row may
         // be created by a later row, so we can only link names to ids once every row exists.
         $pendingLinks = [];
 
-        // Duplicate guards: re-uploading the same file must not duplicate the whole
-        // directory. A row is a duplicate when an active staff member already carries
-        // the same email, else the same staff ID, else (when the row has neither) the
-        // same name. The maps also absorb rows created THIS run, so within-file
-        // duplicates are skipped too.
-        $seenEmails = Employee::active()->whereNotNull('email')->pluck('email')->mapWithKeys(fn ($v) => [$key($v) => true])->all();
-        $seenStaffIds = Employee::active()->whereNotNull('staff_id')->pluck('staff_id')->mapWithKeys(fn ($v) => [$key($v) => true])->all();
-        $seenNames = Employee::active()->pluck('name')->mapWithKeys(fn ($v) => [$key($v) => true])->all();
-
         // One transaction around the whole import: a mid-file crash leaves nothing
         // behind instead of an unreported partial directory.
-        [$created, $errors, $linked] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $created, $errors, $row, $pendingLinks, $seenEmails, $seenStaffIds, $seenNames) {
+        [$created, $updated, $errors, $linked] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $errors, $row, $pendingLinks, $byStaffId, $byEmail, $byName) {
+            $created = 0;
+            $updated = 0;
+
             while (($data = fgetcsv($handle)) !== false) {
                 $row++;
-                if ($created >= CsvImport::ROW_CAP) {
+                if ($created + $updated >= CsvImport::ROW_CAP) {
                     $errors[] = 'Stopped at '.CsvImport::ROW_CAP.' rows.';
                     break;
                 }
@@ -330,24 +332,10 @@ class EmployeeController extends Controller
                 }
 
                 $staffId = $get('staff_id');
-                $dupBy = null;
-                if ($email !== '' && isset($seenEmails[$key($email)])) {
-                    $dupBy = 'email';
-                } elseif ($staffId !== '' && isset($seenStaffIds[$key($staffId)])) {
-                    $dupBy = 'staff ID';
-                } elseif ($email === '' && $staffId === '' && isset($seenNames[$key($name)])) {
-                    $dupBy = 'name';
-                }
-                if ($dupBy !== null) {
-                    $errors[] = "Row $row: skipped — active staff with the same $dupBy already exists.";
 
-                    continue;
-                }
-
-                $status = strtolower(str_replace(' ', '_', $get('status'))) ?: 'active';
-                if (! in_array($status, ['active', 'probation', 'on_leave', 'resigned'], true)) {
-                    $status = 'active';
-                }
+                // Validate the row's provided attributes once — used by both create + update.
+                $statusRaw = strtolower(str_replace(' ', '_', $get('status')));
+                $statusGiven = $get('status') !== '' && in_array($statusRaw, ['active', 'probation', 'on_leave', 'resigned'], true);
 
                 $dob = $get('date_of_birth');
                 $dobValue = null;
@@ -361,7 +349,7 @@ class EmployeeController extends Controller
                 }
 
                 $joined = $get('joined');
-                $joinedValue = now()->toDateString();
+                $joinedValue = null;
                 if ($joined !== '') {
                     $joinedValue = $this->parseIsoDate($joined);
                     if ($joinedValue === null) {
@@ -371,22 +359,72 @@ class EmployeeController extends Controller
                     }
                 }
 
-                $salaryRaw = $get('salary');
+                // Tolerate spreadsheet formatting: thousands separators (7,250.00),
+                // stray spaces and a leading currency symbol (RM 7250) all normalise to a
+                // plain number. A cell that still isn't numeric is left as null.
+                $salaryRaw = trim(str_replace([',', ' ', 'RM', 'rm'], '', $get('salary')));
                 $salary = ($salaryRaw !== '' && is_numeric($salaryRaw)) ? (float) $salaryRaw : null;
 
                 $positionId = $positions[$key($get('position_band'))] ?? null;
+                $branchId = $get('branch') !== '' ? ($branches[$key($get('branch'))] ?? null) : null;
+                $etId = $get('employment_type') !== '' ? ($employmentTypes[$key($get('employment_type'))] ?? null) : null;
 
+                // Find an existing record to update: staff ID, then email, then name.
+                $match = ($staffId !== '' ? $byStaffId->get($key($staffId)) : null)
+                    ?? ($email !== '' ? $byEmail->get($key($email)) : null)
+                    ?? $byName->get($key($name));
+
+                // The row's email must not already belong to a DIFFERENT active person.
+                if ($email !== '') {
+                    $emailOwner = $byEmail->get($key($email));
+                    if ($emailOwner && (! $match || $emailOwner->id !== $match->id)) {
+                        $errors[] = "Row $row: email already used by another staff member.";
+
+                        continue;
+                    }
+                }
+
+                if ($match) {
+                    // UPSERT — overwrite only the fields the row actually provides, so a
+                    // blank cell never wipes existing data.
+                    $fields = [];
+                    if ($email !== '') { $fields['email'] = $email; }
+                    if ($staffId !== '') { $fields['staff_id'] = $staffId; }
+                    if ($joinedValue !== null) { $fields['joined_at'] = $joinedValue; }
+                    if ($dobValue !== null) { $fields['date_of_birth'] = $dobValue; }
+                    if ($salary !== null) { $fields['salary'] = $salary; }
+                    if ($branchId !== null) { $fields['branch_id'] = $branchId; }
+                    if ($etId !== null) { $fields['employment_type_id'] = $etId; }
+                    if ($statusGiven) { $fields['status'] = $statusRaw; }
+                    if ($positionId) { $fields += $this->bandFields($positionId); }
+
+                    if ($fields !== []) {
+                        $match->update($fields);
+                        $updated++;
+                        if ($email !== '') { $byEmail->put($key($email), $match); }
+                        if ($staffId !== '') { $byStaffId->put($key($staffId), $match); }
+                    }
+
+                    $managerName = $get('reports_to');
+                    if ($managerName !== '') {
+                        $pendingLinks[] = ['emp' => $match, 'manager' => $managerName];
+                    }
+
+                    continue;
+                }
+
+                // CREATE — a new person.
                 $employee = Employee::create([
                     'tenant_id' => $tenantId,
                     'name' => $name,
                     'email' => $email ?: null,
                     'staff_id' => $staffId ?: null,
-                    'joined_at' => $joinedValue,
+                    'joined_at' => $joinedValue ?? now()->toDateString(),
                     'date_of_birth' => $dobValue,
                     'salary' => $salary,
-                    'branch_id' => $branches[$key($get('branch'))] ?? null,
-                    'employment_type_id' => $employmentTypes[$key($get('employment_type'))] ?? null,
-                    'status' => $status,
+                    'branch_id' => $branchId,
+                    'employment_type_id' => $etId,
+                    'status' => $statusGiven ? $statusRaw : 'active',
                     'workload' => 'green',
                     'workload_label' => 'Healthy',
                     'initials' => $this->initials($name),
@@ -394,14 +432,10 @@ class EmployeeController extends Controller
                 ] + $this->bandFields($positionId));
                 $created++;
 
-                // Absorb this row's keys so a later duplicate row in the SAME file skips too.
-                if ($email !== '') {
-                    $seenEmails[$key($email)] = true;
-                }
-                if ($staffId !== '') {
-                    $seenStaffIds[$key($staffId)] = true;
-                }
-                $seenNames[$key($name)] = true;
+                // Register so a later row in THIS file updates it instead of duplicating.
+                $byName->put($key($name), $employee);
+                if ($email !== '') { $byEmail->put($key($email), $employee); }
+                if ($staffId !== '') { $byStaffId->put($key($staffId), $employee); }
 
                 $managerName = $get('reports_to');
                 if ($managerName !== '') {
@@ -411,14 +445,16 @@ class EmployeeController extends Controller
 
             $linked = $this->applyImportedReportingLines($pendingLinks, $key);
 
-            return [$created, $errors, $linked];
+            return [$created, $updated, $errors, $linked];
         });
         fclose($handle);
 
-        AuditLog::record('Imported staff', $created.' record(s)');
+        AuditLog::record('Imported staff', $created.' created, '.$updated.' updated');
 
-        $extra = $linked > 0 ? "$linked reporting line(s) set." : '';
-        $msg = CsvImport::summary($created, 'staff imported', $errors, $extra);
+        $bits = [];
+        if ($updated > 0) { $bits[] = "$updated updated."; }
+        if ($linked > 0) { $bits[] = "$linked reporting line(s) set."; }
+        $msg = CsvImport::summary($created, 'staff imported', $errors, implode(' ', $bits));
 
         return back()->with($errors !== [] ? 'error' : 'ok', $msg);
     }

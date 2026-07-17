@@ -48,11 +48,19 @@ export function registerOrgChart(Alpine) {
         error: '',
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         sortables: [],
+        rootEl: null,
 
         init() {
+            // Capture the true component root NOW. The Arrange button lives inside a nested
+            // x-data (the toolbar's `{ orgEdit }` scope), so `this.$root` evaluated from that
+            // button resolves to the toolbar div, not this component — enable() then bound
+            // Sortable to zero tree lists. init() runs on the component element itself, so
+            // $root is correct here; every method uses this.rootEl instead.
+            this.rootEl = this.$root;
+
             // While arranging, a card is a drag handle, not a profile link — swallow the
             // navigation click. Outside arrange mode the listener is a no-op.
-            this.$root.addEventListener(
+            this.rootEl.addEventListener(
                 'click',
                 (e) => {
                     if (this.arranging && e.target.closest('[data-node] a')) {
@@ -70,8 +78,8 @@ export function registerOrgChart(Alpine) {
         },
 
         enable() {
-            this.$root.classList.add('org-arranging');
-            this.$root.querySelectorAll('[data-children]').forEach((list) => {
+            this.rootEl.classList.add('org-arranging');
+            this.rootEl.querySelectorAll('[data-children]').forEach((list) => {
                 this.sortables.push(
                     window.Sortable.create(list, {
                         group: 'org',
@@ -91,7 +99,7 @@ export function registerOrgChart(Alpine) {
         disable() {
             this.sortables.forEach((s) => s.destroy());
             this.sortables = [];
-            this.$root.classList.remove('org-arranging');
+            this.rootEl.classList.remove('org-arranging');
         },
 
         async persist(evt) {
@@ -121,7 +129,7 @@ export function registerOrgChart(Alpine) {
         // Recompute the live counters from the DOM after a successful drop, so the
         // "N reports" pills and the summary strip stay correct without a full reload.
         refresh() {
-            this.$root.querySelectorAll('[data-node]').forEach((node) => {
+            this.rootEl.querySelectorAll('[data-node]').forEach((node) => {
                 const childList = node.querySelector(':scope > [data-children]');
                 const count = childList ? directNodes(childList).length : 0;
                 const pill = node.querySelector(':scope > [data-row] [data-count]');
@@ -131,7 +139,7 @@ export function registerOrgChart(Alpine) {
                 }
             });
 
-            const rootList = this.$root.querySelector('[data-children][data-parent=""]');
+            const rootList = this.rootEl.querySelector('[data-children][data-parent=""]');
             if (rootList) {
                 this.setStat('roots', directNodes(rootList).length);
                 this.setStat('depth', listDepth(rootList));
@@ -139,7 +147,7 @@ export function registerOrgChart(Alpine) {
         },
 
         setStat(name, value) {
-            const el = this.$root.querySelector(`[data-stat="${name}"]`);
+            const el = this.rootEl.querySelector(`[data-stat="${name}"]`);
             if (el) el.textContent = value;
         },
     }));

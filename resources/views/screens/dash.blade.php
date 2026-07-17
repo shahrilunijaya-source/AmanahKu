@@ -114,8 +114,8 @@
             </div>
         </div>
         <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
-            <div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Leave balance' : 'Baki cuti'">Leave balance</span></div>
-            <div class="uj-stat-value">{{ $employee ? $employee->leaveBalances->sum('balance') : '—' }} <span style="font-size:13px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div>
+            <div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Annual leave' : 'Cuti tahunan'">Annual leave</span></div>
+            <div class="uj-stat-value">{{ $employee ? $employee->annualLeaveBalance() : '—' }} <span style="font-size:13px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div>
         </div>
         @if ($perfEnabled ?? true)
         <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
@@ -223,11 +223,24 @@
             <div class="uj-card-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Team status' : 'Status pasukan'">Team status</span></h3></div>
             <div style="display:grid;grid-template-columns:1.6fr .8fr .9fr;gap:8px;padding:10px 20px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--hairline-soft);"><span x-text="$store.ui.lang==='en' ? 'Member' : 'Ahli'">Member</span><span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span><span x-text="$store.ui.lang==='en' ? 'Workload' : 'Beban kerja'">Workload</span></div>
             @foreach ($team as $m)
-                <div style="display:grid;grid-template-columns:1.6fr .8fr .9fr;gap:8px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;">
+                @php
+                    // Today's attendance (eager-loaded in managerTeam, constrained to today).
+                    $att  = $m->attendanceRecords->first();
+                    $late = $att && $att->status === 'late';
+                    $tin  = $att && $att->clock_in ? substr((string) $att->clock_in, 0, 5) : null;
+                    $tout = $att && $att->clock_out ? substr((string) $att->clock_out, 0, 5) : null;
+                @endphp
+                <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $m->id]) }}" class="uj-row" style="display:grid;grid-template-columns:1.6fr .8fr .9fr;gap:8px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;text-decoration:none;color:inherit;">
                     <div style="display:flex;align-items:center;gap:10px;min-width:0;"><div style="width:30px;height:30px;border-radius:50%;background:{{ $m->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $m->initials }}</div><span style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m->name }}</span></div>
-                    <span style="font-size:12.5px;font-weight:500;color:{{ $m->status === 'on_leave' ? 'var(--muted-soft)' : 'var(--success)' }};">@if ($m->status === 'on_leave')<span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span>@else<span x-text="$store.ui.lang==='en' ? 'In' : 'Hadir'">In</span>@endif</span>
+                    @if ($m->status === 'on_leave')
+                        <span style="font-size:12.5px;font-weight:500;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span></span>
+                    @elseif ($tin)
+                        <span style="font-size:12.5px;font-weight:500;font-family:var(--font-mono);color:{{ $late ? 'var(--amber)' : 'var(--success)' }};">{{ $tin }} → {{ $tout ?? '—' }}</span>
+                    @else
+                        <span style="font-size:12.5px;font-weight:600;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Not in' : 'Belum masuk'">Not in</span></span>
+                    @endif
                     <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--body);"><span style="width:9px;height:9px;border-radius:50%;background:{{ Amanahku::SWATCH[$m->workload] }};"></span>{{ $m->workload_label }}</span>
-                </div>
+                </a>
             @endforeach
         </div>
         <div style="flex:1;min-width:280px;background:var(--sidebar);border-radius:12px;padding:20px;color:#fff;">

@@ -144,6 +144,7 @@ trait BuildsWorkData
 
         return [
             'myClaims' => $myClaims,
+            'approvalChain' => $this->approvalChain($employee),
             'claimsToVerify' => $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get(),
             'claimsToApprove' => $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get(),
             'medicalCap' => (float) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'claims.medical_cap'),
@@ -155,12 +156,19 @@ trait BuildsWorkData
     {
         // Two-step gate (see RoutesApprovalsByReportingLine): the immediate superior sees
         // their reports' submitted requests to verify; management sees verified ones to approve.
+        // Approval chain (verifier[s] + management approver pool) shown up front so the
+        // applicant knows who signs off before they submit. Also feeds the pending-verify
+        // name in "My requests" timelines.
+        $chain = $this->approvalChain($employee);
+
         return [
             'balances' => $employee?->leaveBalances()->with('leaveType')->get() ?? collect(),
             'leaveTypes' => LeaveType::orderBy('name')->get(),
-            'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name', 'approvedBy:id,name', 'rejectedBy:id,name'])->latest()->get() ?? collect(),
-            'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name', 'approvedBy:id,name', 'rejectedBy:id,name']), $request)->latest()->get(),
-            'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name', 'approvedBy:id,name', 'rejectedBy:id,name']), $request)->latest()->get(),
+            'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'])->latest()->get() ?? collect(),
+            'approvalChain' => $chain,
+            'leaveVerifiers' => $chain['verifiers'],
+            'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
+            'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             // active() owner: a since-archived person holds no live leave — drop their
             // approved requests from the team-leave widget (mirrors the approval queues).
             'teamLeave' => LeaveRequest::with('employee')->where('status', 'approved')
