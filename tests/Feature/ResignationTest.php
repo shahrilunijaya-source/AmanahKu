@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ResignationController;
 use App\Models\Employee;
 use App\Models\ExitInterview;
 use App\Models\Resignation;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -178,10 +180,10 @@ class ResignationTest extends TestCase
         $request = request();
         $request->attributes->set('tenantRole', 'employee');
         $request->attributes->set('employee', $this->employee);
-        app(\App\Tenancy\CurrentTenant::class)->set($this->tenant);
+        app(CurrentTenant::class)->set($this->tenant);
 
         // Act
-        $data = app(\App\Http\Controllers\ResignationController::class)->screenData($request, $this->employee);
+        $data = app(ResignationController::class)->screenData($request, $this->employee);
 
         // Assert — sees no resignation of their own and no all-resignations list.
         $this->assertNull($data['myResignation']);

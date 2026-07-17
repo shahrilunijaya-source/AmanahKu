@@ -14,7 +14,7 @@ class PcbCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->pcb = new PcbCalculator();
+        $this->pcb = new PcbCalculator;
     }
 
     public function test_annual_tax_is_zero_below_the_first_band(): void

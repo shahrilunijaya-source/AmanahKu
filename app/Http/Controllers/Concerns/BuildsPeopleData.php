@@ -17,7 +17,9 @@ use App\Models\StaffLevel;
 use App\Models\TrainingRecord;
 use App\Models\WorkItem;
 use App\Services\DataScope;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Directory, profile, assets, training, handbook and reports screen data for
@@ -182,8 +184,8 @@ trait BuildsPeopleData
             // Tenant role per login (user_id → role) so the picker can rank staff
             // Director → Management → HR → Manager → Employee. No login = plain employee.
             'recipientRoles' => $privileged
-                ? \Illuminate\Support\Facades\DB::table('tenant_user')
-                    ->where('tenant_id', app(\App\Tenancy\CurrentTenant::class)->id())
+                ? DB::table('tenant_user')
+                    ->where('tenant_id', app(CurrentTenant::class)->id())
                     ->pluck('role', 'user_id')
                 : collect(),
         ];

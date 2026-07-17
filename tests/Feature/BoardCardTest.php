@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -304,6 +305,6 @@ class BoardCardTest extends TestCase
         $this->assertDatabaseMissing('app_notifications', ['user_id' => $this->user->id]);
         // Moving it again must not duplicate the notification.
         $this->actingInTenant()->postJson("/app/board/{$item->id}/move", ['status' => 'done'])->assertOk();
-        $this->assertSame(1, \App\Models\AppNotification::where('title', $this->employee->name.' completed: Wrap up')->count());
+        $this->assertSame(1, AppNotification::where('title', $this->employee->name.' completed: Wrap up')->count());
     }
 }

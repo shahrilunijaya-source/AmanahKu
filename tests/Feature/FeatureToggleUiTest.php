@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
-use App\Models\PlatformFeature;
 use App\Models\Tenant;
-use App\Models\TenantFeature;
 use App\Models\User;
 use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;

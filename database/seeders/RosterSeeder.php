@@ -6,7 +6,6 @@ use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\Tenant;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
 
 class RosterSeeder extends Seeder
 {

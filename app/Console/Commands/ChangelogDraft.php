@@ -211,7 +211,7 @@ class ChangelogDraft extends Command
      * Commit subjects since $boundary. A ref that contains ".."/HEAD or resolves as a
      * revision is used as a range; anything else is treated as a --since date.
      *
-     * @return array<int, string>|null  null on git failure
+     * @return array<int, string>|null null on git failure
      */
     private function gitSubjects(?string $boundary): ?array
     {

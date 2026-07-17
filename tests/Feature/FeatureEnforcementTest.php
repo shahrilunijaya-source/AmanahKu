@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollRun;
+use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\Features;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -103,7 +106,7 @@ class FeatureEnforcementTest extends TestCase
     public function test_core_screen_is_never_gated_by_a_module(): void
     {
         // Even with every module off, core surfaces stay reachable.
-        foreach (array_keys(\App\Support\Features::MODULES) as $key) {
+        foreach (array_keys(Features::MODULES) as $key) {
             app(FeatureManager::class)->setTenant($this->tenant, $key, false);
         }
 
@@ -178,18 +181,18 @@ class FeatureEnforcementTest extends TestCase
     public function test_auto_pcb_flag_drives_the_pcb_deduction(): void
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        \App\Models\SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
 
         // Default flag (off) → no auto-PCB.
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-05'])->assertRedirect();
-        $offSlip = \App\Models\PayrollRun::where('period', '2026-05')->firstOrFail()
+        $offSlip = PayrollRun::where('period', '2026-05')->firstOrFail()
             ->payslips()->where('employee_id', $emp->id)->firstOrFail();
         $this->assertSame(0.0, (float) $offSlip->pcb);
 
         // Flag on → auto-PCB estimates the deduction (gross 5,000 → 110/mo).
         app(FeatureManager::class)->setTenant($this->tenant, 'payroll.auto_pcb', true);
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
-        $onSlip = \App\Models\PayrollRun::where('period', '2026-06')->firstOrFail()
+        $onSlip = PayrollRun::where('period', '2026-06')->firstOrFail()
             ->payslips()->where('employee_id', $emp->id)->firstOrFail();
         $this->assertSame(110.0, (float) $onSlip->pcb);
     }
@@ -197,11 +200,11 @@ class FeatureEnforcementTest extends TestCase
     public function test_four_eyes_flag_blocks_finalizing_a_draft(): void
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        \App\Models\SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
         app(FeatureManager::class)->setTenant($this->tenant, 'payroll.four_eyes', true);
 
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
-        $run = \App\Models\PayrollRun::where('period', '2026-06')->firstOrFail();
+        $run = PayrollRun::where('period', '2026-06')->firstOrFail();
 
         // A draft cannot be finalized directly under four-eyes.
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertStatus(422);
@@ -216,10 +219,10 @@ class FeatureEnforcementTest extends TestCase
     public function test_four_eyes_off_keeps_the_draft_finalize_shortcut(): void
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        \App\Models\SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
 
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
-        $run = \App\Models\PayrollRun::where('period', '2026-06')->firstOrFail();
+        $run = PayrollRun::where('period', '2026-06')->firstOrFail();
 
         // Default (off) → a draft finalizes directly.
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll\BankFile;
 
 use App\Models\PayrollRun;
+use App\Models\Payslip;
 use Illuminate\Support\Collection;
 
 /**
@@ -29,7 +30,7 @@ abstract class BankFileFormat
      * of scalar cells. Fixed-width banks would override the writer; all current formats
      * are CSV, so the controller streams these via fputcsv.
      *
-     * @param  Collection<int, \App\Models\Payslip>  $payslips
+     * @param  Collection<int, Payslip>  $payslips
      * @return array<int, array<int, string|int|float>>
      */
     abstract public function rows(Collection $payslips, PayrollRun $run): array;

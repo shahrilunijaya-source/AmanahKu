@@ -22,7 +22,7 @@ class PayrollCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calc = new PayrollCalculator();
+        $this->calc = new PayrollCalculator;
     }
 
     public function test_epf_employer_rate_steps_down_above_threshold(): void

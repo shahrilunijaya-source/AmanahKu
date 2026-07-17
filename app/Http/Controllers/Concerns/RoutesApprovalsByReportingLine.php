@@ -12,6 +12,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Two-step approval routing driven by the organisation chart's reporting line.
@@ -58,7 +59,7 @@ trait RoutesApprovalsByReportingLine
      *   person is pre-assigned), so this is the pool, not a named approver. The requester is
      *   excluded — nobody approves their own request.
      *
-     * @return array{verifiers: \Illuminate\Support\Collection, approvers: \Illuminate\Support\Collection}
+     * @return array{verifiers: Collection, approvers: Collection}
      */
     protected function approvalChain(?Employee $employee): array
     {

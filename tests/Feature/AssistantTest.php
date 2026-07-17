@@ -60,7 +60,7 @@ class AssistantTest extends TestCase
 
     public function test_canned_reply_summarises_live_workforce_data(): void
     {
-        $reply = (new CannedAiProvider())->reply('anything', [
+        $reply = (new CannedAiProvider)->reply('anything', [
             'tenant' => 'Acme', 'headcount' => 12, 'overloaded' => ['Faizal'],
             'pendingLeave' => 2, 'pendingClaims' => 1,
             'you' => ['name' => 'Demo', 'openTasks' => 3],

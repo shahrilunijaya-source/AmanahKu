@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ReferralController;
 use App\Models\Employee;
 use App\Models\Referral;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -219,12 +222,12 @@ class ReferralTest extends TestCase
         ]);
 
         // Act — build screenData as a plain (non-privileged) employee within the tenant.
-        $request = \Illuminate\Http\Request::create('/app/referrals', 'GET');
+        $request = Request::create('/app/referrals', 'GET');
         $request->setUserResolver(fn () => $this->user);
         $request->attributes->set('tenantRole', 'employee');
-        app(\App\Tenancy\CurrentTenant::class)->set($this->tenant);
+        app(CurrentTenant::class)->set($this->tenant);
 
-        $data = (new \App\Http\Controllers\ReferralController)->screenData($request, $this->employee);
+        $data = (new ReferralController)->screenData($request, $this->employee);
 
         // Assert — only the submitter's referral is visible, the privileged feed is empty.
         $this->assertCount(1, $data['myReferrals']);

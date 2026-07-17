@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\SkillController;
 use App\Models\Employee;
 use App\Models\EmployeeSkill;
 use App\Models\Skill;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
+use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -32,8 +37,8 @@ class SkillTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(\Database\Seeders\DatabaseSeeder::class);
-        $this->seed(\Database\Seeders\SkillSeeder::class);
+        $this->seed(DatabaseSeeder::class);
+        $this->seed(SkillSeeder::class);
 
         $this->user = User::where('email', 'aisyah.rahman@unijaya.example')->firstOrFail();
         $this->tenant = Tenant::where('slug', 'unijaya')->firstOrFail();
@@ -222,14 +227,14 @@ class SkillTest extends TestCase
     {
         // Arrange
         $plain = $this->plainEmployee();
-        $controller = new \App\Http\Controllers\SkillController();
+        $controller = new SkillController;
         $employee = Employee::where('user_id', $plain->id)->firstOrFail();
 
         // Act — call screenData with a non-privileged role in request attributes.
-        $request = \Illuminate\Http\Request::create('/app/skills');
+        $request = Request::create('/app/skills');
         $request->attributes->set('tenantRole', 'employee');
         $request->attributes->set('employee', $employee);
-        app(\App\Tenancy\CurrentTenant::class)->set($this->tenant);
+        app(CurrentTenant::class)->set($this->tenant);
         $data = $controller->screenData($request, $employee);
 
         // Assert — no team matrix leaks to a plain employee.

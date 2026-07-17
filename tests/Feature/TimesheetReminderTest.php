@@ -14,6 +14,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -104,7 +105,7 @@ class TimesheetReminderTest extends TestCase
         // Artisan::starting hook, so the Schedule is only populated once a
         // console command has started. Booting schedule:list triggers that hook,
         // making this assertion independent of test order within the suite.
-        \Illuminate\Support\Facades\Artisan::call('schedule:list');
+        Artisan::call('schedule:list');
 
         $events = collect($this->app->make(Schedule::class)->events())
             ->filter(fn ($e) => str_contains($e->command ?? '', 'timesheet:remind'));

@@ -16,6 +16,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\WeeklyHrDigest;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -183,7 +184,7 @@ class WeeklyHrDigestTest extends TestCase
 
         Notification::assertSentTo($this->hrUser, WeeklyHrDigest::class, function (WeeklyHrDigest $n, array $channels) {
             return in_array('mail', $channels, true)
-                && $n instanceof \Illuminate\Contracts\Queue\ShouldQueue;
+                && $n instanceof ShouldQueue;
         });
     }
 

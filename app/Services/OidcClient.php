@@ -23,9 +23,7 @@ class OidcClient
     /**
      * @param  array{client_id?:?string,client_secret?:?string,issuer?:?string,authorize_url?:?string,token_url?:?string,userinfo_url?:?string,redirect?:?string,scopes?:?string}  $config
      */
-    public function __construct(private array $config)
-    {
-    }
+    public function __construct(private array $config) {}
 
     public static function fromConfig(): self
     {

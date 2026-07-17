@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\AppNotification;
+use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\PayrollRun;
-use App\Models\Payslip;
 use App\Models\SalaryStructure;
 use App\Models\StatutoryRate;
 use App\Models\Tenant;
@@ -312,7 +311,7 @@ class PayrollTest extends TestCase
 
     // ── Bank file formats (I-017) ─────────────────────────────────
 
-    private function finalizedRun(): \App\Models\PayrollRun
+    private function finalizedRun(): PayrollRun
     {
         $run = $this->createRun();
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
@@ -356,7 +355,7 @@ class PayrollTest extends TestCase
 
         $this->actingHr()->get("/app/payroll/runs/{$run->id}/bank-file?format=duitnow")->assertOk();
 
-        $log = \App\Models\AuditLog::where('action', 'Exported bank file')->latest('id')->first();
+        $log = AuditLog::where('action', 'Exported bank file')->latest('id')->first();
         $this->assertNotNull($log);
         $this->assertStringContainsString('unverified layout', $log->target);
     }

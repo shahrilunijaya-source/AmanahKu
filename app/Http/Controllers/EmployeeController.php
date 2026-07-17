@@ -388,21 +388,43 @@ class EmployeeController extends Controller
                     // UPSERT — overwrite only the fields the row actually provides, so a
                     // blank cell never wipes existing data.
                     $fields = [];
-                    if ($email !== '') { $fields['email'] = $email; }
-                    if ($staffId !== '') { $fields['staff_id'] = $staffId; }
-                    if ($joinedValue !== null) { $fields['joined_at'] = $joinedValue; }
-                    if ($dobValue !== null) { $fields['date_of_birth'] = $dobValue; }
-                    if ($salary !== null) { $fields['salary'] = $salary; }
-                    if ($branchId !== null) { $fields['branch_id'] = $branchId; }
-                    if ($etId !== null) { $fields['employment_type_id'] = $etId; }
-                    if ($statusGiven) { $fields['status'] = $statusRaw; }
-                    if ($positionId) { $fields += $this->bandFields($positionId); }
+                    if ($email !== '') {
+                        $fields['email'] = $email;
+                    }
+                    if ($staffId !== '') {
+                        $fields['staff_id'] = $staffId;
+                    }
+                    if ($joinedValue !== null) {
+                        $fields['joined_at'] = $joinedValue;
+                    }
+                    if ($dobValue !== null) {
+                        $fields['date_of_birth'] = $dobValue;
+                    }
+                    if ($salary !== null) {
+                        $fields['salary'] = $salary;
+                    }
+                    if ($branchId !== null) {
+                        $fields['branch_id'] = $branchId;
+                    }
+                    if ($etId !== null) {
+                        $fields['employment_type_id'] = $etId;
+                    }
+                    if ($statusGiven) {
+                        $fields['status'] = $statusRaw;
+                    }
+                    if ($positionId) {
+                        $fields += $this->bandFields($positionId);
+                    }
 
                     if ($fields !== []) {
                         $match->update($fields);
                         $updated++;
-                        if ($email !== '') { $byEmail->put($key($email), $match); }
-                        if ($staffId !== '') { $byStaffId->put($key($staffId), $match); }
+                        if ($email !== '') {
+                            $byEmail->put($key($email), $match);
+                        }
+                        if ($staffId !== '') {
+                            $byStaffId->put($key($staffId), $match);
+                        }
                     }
 
                     $managerName = $get('reports_to');
@@ -434,8 +456,12 @@ class EmployeeController extends Controller
 
                 // Register so a later row in THIS file updates it instead of duplicating.
                 $byName->put($key($name), $employee);
-                if ($email !== '') { $byEmail->put($key($email), $employee); }
-                if ($staffId !== '') { $byStaffId->put($key($staffId), $employee); }
+                if ($email !== '') {
+                    $byEmail->put($key($email), $employee);
+                }
+                if ($staffId !== '') {
+                    $byStaffId->put($key($staffId), $employee);
+                }
 
                 $managerName = $get('reports_to');
                 if ($managerName !== '') {
@@ -452,8 +478,12 @@ class EmployeeController extends Controller
         AuditLog::record('Imported staff', $created.' created, '.$updated.' updated');
 
         $bits = [];
-        if ($updated > 0) { $bits[] = "$updated updated."; }
-        if ($linked > 0) { $bits[] = "$linked reporting line(s) set."; }
+        if ($updated > 0) {
+            $bits[] = "$updated updated.";
+        }
+        if ($linked > 0) {
+            $bits[] = "$linked reporting line(s) set.";
+        }
         $msg = CsvImport::summary($created, 'staff imported', $errors, implode(' ', $bits));
 
         return back()->with($errors !== [] ? 'error' : 'ok', $msg);

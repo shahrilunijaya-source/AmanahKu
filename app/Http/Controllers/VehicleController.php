@@ -47,7 +47,7 @@ class VehicleController extends Controller
         // The employee's own upcoming confirmed bookings.
         $myBookings = $employee
             ? $upcoming->where('employee_id', $employee->id)->values()
-            : new Collection();
+            : new Collection;
 
         return [
             'privileged' => $privileged,

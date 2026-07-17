@@ -73,8 +73,8 @@ final class PcbCalculator
     /**
      * Estimated monthly PCB for a given monthly taxable income.
      *
-     * @param  float  $monthlyTaxable   This month's taxable pay (e.g. gross).
-     * @param  float  $annualRelief     Total annual relief to deduct (individual + EPF + …).
+     * @param  float  $monthlyTaxable  This month's taxable pay (e.g. gross).
+     * @param  float  $annualRelief  Total annual relief to deduct (individual + EPF + …).
      * @param  array{rebate?: bool}  $opts
      */
     public function monthlyEstimate(float $monthlyTaxable, float $annualRelief, array $opts = []): float

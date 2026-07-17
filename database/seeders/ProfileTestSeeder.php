@@ -118,14 +118,14 @@ class ProfileTestSeeder extends Seeder
 
             foreach ($working as $i => $item) {
                 $q = ProfileTestQuestion::create([
-                    'section'   => 'working_style',
+                    'section' => 'working_style',
                     'prompt_en' => $item['prompt'],
-                    'position'  => $i + 1,
+                    'position' => $i + 1,
                 ]);
                 foreach ($item['opts'] as $p => [$animal, $label]) {
                     $q->options()->create([
                         'label_en' => $label,
-                        'animal'   => $animal,
+                        'animal' => $animal,
                         'position' => $p + 1,
                     ]);
                 }
@@ -141,9 +141,9 @@ class ProfileTestSeeder extends Seeder
             ];
             foreach ($colour as $i => $prompt) {
                 ProfileTestQuestion::create([
-                    'section'   => 'colour',
+                    'section' => 'colour',
                     'prompt_en' => $prompt,
-                    'position'  => $i + 1,
+                    'position' => $i + 1,
                 ]);
             }
         });

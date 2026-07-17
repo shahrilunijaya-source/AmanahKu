@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\PersonalAccessToken;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -222,7 +223,7 @@ class ApiTokenTest extends TestCase
             ->assertSuccessful();
 
         // A token row was created, bound to tenant A.
-        $token = \App\Models\PersonalAccessToken::where('tokenable_id', $this->hrA->id)->latest('id')->first();
+        $token = PersonalAccessToken::where('tokenable_id', $this->hrA->id)->latest('id')->first();
         $this->assertNotNull($token);
         $this->assertSame($this->tenantA->id, $token->tenant_id);
     }
@@ -233,6 +234,6 @@ class ApiTokenTest extends TestCase
         $this->artisan('api:token', ['user_email' => 'staff.a@example.com', 'tenant_slug' => 'beta'])
             ->assertFailed();
 
-        $this->assertSame(0, \App\Models\PersonalAccessToken::where('tokenable_id', $this->staffA->id)->count());
+        $this->assertSame(0, PersonalAccessToken::where('tokenable_id', $this->staffA->id)->count());
     }
 }

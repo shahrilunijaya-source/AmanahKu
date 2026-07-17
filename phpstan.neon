@@ -1,5 +1,6 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
 
 parameters:
     level: 5
@@ -10,4 +11,3 @@ parameters:
     ignoreErrors:
         # Eloquent dynamic props / query-builder returns are heavily used app-wide.
         - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model#'
-    checkMissingIterableValueType: false

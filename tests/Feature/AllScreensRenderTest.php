@@ -6,6 +6,8 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
+use App\Support\WorkforceInsights;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -148,13 +150,13 @@ class AllScreensRenderTest extends TestCase
         $this->assertSame('green', $nurul->workload);          // zero open items
         $this->assertSame('grey', $siti->workload);            // on leave overrides load
 
-        $overloaded = app(\App\Support\WorkforceInsights::class)->overloaded()->pluck('name');
+        $overloaded = app(WorkforceInsights::class)->overloaded()->pluck('name');
         $this->assertTrue($overloaded->contains('Faizal Othman'));
         $this->assertTrue($overloaded->contains('Hafiz Zulkifli'));
         $this->assertFalse($overloaded->contains('Nurul Iman binti Hassan'));
 
         // The most-available peer is a real green (lightest-loaded) employee, not an overloaded one.
-        $available = app(\App\Support\WorkforceInsights::class)->available();
+        $available = app(WorkforceInsights::class)->available();
         $this->assertNotNull($available);
         $this->assertSame('green', $available->workload);
     }
@@ -208,7 +210,7 @@ class AllScreensRenderTest extends TestCase
         $on->assertSee('KPI History</button>', false);
 
         // Turn Performance OFF → both KPI widgets disappear; sibling cards untouched.
-        app(\App\Services\FeatureManager::class)->setTenant($this->tenant, 'module.performance', false);
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.performance', false);
 
         $off = $this->withSession($session)->get('/app/profile')->assertOk();
         $off->assertDontSee('KPI · H1');

@@ -33,15 +33,15 @@ class ReportController extends Controller
             $roster->with(['department', 'branch'])
                 ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
                 ->orderBy('name')->chunk(200, function ($chunk) use ($out) {
-                foreach ($chunk as $e) {
-                    // Every user-controlled column is neutralised against CSV formula injection.
-                    fputcsv($out, Csv::safeRow([
-                        $e->name, $e->email, $e->position,
-                        $e->department?->name, $e->branch?->name, $e->level,
-                        $e->status, $e->workload_label, $e->kpi_pct,
-                    ]));
-                }
-            });
+                    foreach ($chunk as $e) {
+                        // Every user-controlled column is neutralised against CSV formula injection.
+                        fputcsv($out, Csv::safeRow([
+                            $e->name, $e->email, $e->position,
+                            $e->department?->name, $e->branch?->name, $e->level,
+                            $e->status, $e->workload_label, $e->kpi_pct,
+                        ]));
+                    }
+                });
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);

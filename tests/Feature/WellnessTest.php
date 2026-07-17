@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\WellnessController;
-use App\Models\EapResource;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;

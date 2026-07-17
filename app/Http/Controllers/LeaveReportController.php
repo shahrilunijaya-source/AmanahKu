@@ -11,7 +11,6 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**

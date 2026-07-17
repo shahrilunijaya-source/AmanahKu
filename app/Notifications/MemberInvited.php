@@ -48,7 +48,7 @@ class MemberInvited extends Notification implements ShouldQueue
             ->action('Activate your account', $activationUrl)
             ->line('This activation link expires in 7 days.')
             ->line("Email: {$notifiable->email}")
-            ->line("Alternatively, sign in at ".url('/login/'.$this->tenant->slug)." with this one-time password: {$this->tempPassword} (you'll be asked to change it immediately).")
+            ->line('Alternatively, sign in at '.url('/login/'.$this->tenant->slug)." with this one-time password: {$this->tempPassword} (you'll be asked to change it immediately).")
             ->line('For your security, do not share these details.');
     }
 }

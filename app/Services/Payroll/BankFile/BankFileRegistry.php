@@ -13,9 +13,9 @@ class BankFileRegistry
     public static function all(): array
     {
         return [
-            new GenericCsvFormat(),
-            new DuitNowBatchFormat(),
-            new Maybank2uBizFormat(),
+            new GenericCsvFormat,
+            new DuitNowBatchFormat,
+            new Maybank2uBizFormat,
         ];
     }
 
@@ -28,7 +28,7 @@ class BankFileRegistry
             }
         }
 
-        return new GenericCsvFormat();
+        return new GenericCsvFormat;
     }
 
     /** @return array<string, string> key => label, for the UI picker. */

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -58,7 +59,7 @@ class RegistrationFlowTest extends TestCase
 
     public function test_verified_user_with_a_company_does_not_see_no_workspace_state(): void
     {
-        $this->seed(\Database\Seeders\DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
         $user = User::where('email', 'aisyah.rahman@unijaya.example')->firstOrFail();
 
         $this->assertNotNull($user->email_verified_at);

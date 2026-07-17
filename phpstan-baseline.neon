@@ -1,0 +1,1105 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Instanceof between App\\Models\\User and Illuminate\\Contracts\\Auth\\MustVerifyEmail will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Actions/Fortify/UpdateUserProfileInformation.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:onDate\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Attendance/ClockService.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: app/Attendance/ScheduleResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Attendance/ScheduleResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>radius_m" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Attendance/ScheduleResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>wfh_min_hours" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Attendance/ScheduleResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>wfh_radius_m" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Attendance/ScheduleResolver.php
+
+		-
+			message: '#^Cannot call method isSameMonth\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Console/Commands/AccrueLeave.php
+
+		-
+			message: '#^Parameter \#1 \$employee of method App\\Services\\OffboardingService\:\:openCase\(\) expects App\\Models\\Employee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/ArchiveDepartedStaff.php
+
+		-
+			message: '#^Parameter \#1 \$employee of method App\\Services\\StaffArchiver\:\:archive\(\) expects App\\Models\\Employee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/ArchiveDepartedStaff.php
+
+		-
+			message: '#^Parameter \#2 \$employee of method App\\Console\\Commands\\ArchiveDepartedStaff\:\:flagOutstanding\(\) expects App\\Models\\Employee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/ArchiveDepartedStaff.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\WeeklyHrDigest\:\:recipientsFor\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\User\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Console/Commands/WeeklyHrDigest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/AdminController.php
+
+		-
+			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: true, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/AdminController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\LeaveRequest\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Payslip\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload_label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 14
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:onDate\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Cannot access property \$year on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Offset ''help'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: true, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: true, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/AssetController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/AssistantController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/AttendanceReportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\AttendanceReportController\:\:byStaff\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: mixed, name\: mixed, initials\: mixed, color\: mixed, dept\: mixed, days\: int, onTime\: int, late\: int, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/AttendanceReportController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot access property \$timestamp on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot call method betweenIncluded\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot call method greaterThanOrEqualTo\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot call method isSameDay\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Cannot call method lessThanOrEqualTo\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Claim\:\:\$verified_by_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Call to function abort_unless\(\) with arguments false, 422 and ''A claim must be…'' will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\ClaimController\:\:assertApprover\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\ClaimController\:\:assertVerifier\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''approved''\|''paid''\|''rejected''\|''submitted'' and ''verified'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/ClaimController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/ComplianceController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Employee\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Employee\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/DocumentController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/DocumentController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/DocumentController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:tenants\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/EmployeeController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,App\\Models\\Employee\>\:\:filter\(\) expects \(callable\(App\\Models\\Employee, int\)\: bool\)\|null, Closure\(mixed\)\: \(string\|null\) given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/EmployeeController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between Carbon\\Carbon\|null and false will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/EmployeeController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/GoalController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:keyResults\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/GoalController.php
+
+		-
+			message: '#^Constant App\\Http\\Controllers\\GoalController\:\:STATUSES is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Http/Controllers/GoalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\KnowledgeEntry\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, label\: string\}, Closure\(App\\Models\\KnowledgeSegment\)\: array\{id\: int, label\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Parameter \#3 \$callback of static method Illuminate\\Cache\\Repository\:\:remember\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LeaveRequest\:\:\$verified_by_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:effectiveBalanceTypeId\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:leaveBalances\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Call to function abort_unless\(\) with arguments false, 422 and ''A request must be…'' will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\LeaveType\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\LeaveType\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#1 \$leaveRequest of method App\\Http\\Controllers\\LeaveController\:\:applyApproval\(\) expects App\\Models\\LeaveRequest, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#1 \$leaveRequest of method App\\Http\\Controllers\\LeaveController\:\:applyVerification\(\) expects App\\Models\\LeaveRequest, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\LeaveController\:\:assertApprover\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\LeaveController\:\:assertVerifier\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''approved''\|''draft''\|''rejected''\|''submitted'' and ''verified'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/LeaveController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\LeaveReportController\:\:byStaff\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: mixed, name\: mixed, initials\: mixed, color\: mixed, dept\: mixed, totalDays\: float, plannedDays\: float, unplannedDays\: float, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/LeaveReportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\LeaveReportController\:\:byType\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{name\: string, days\: float, requests\: int, unplanned\: bool\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/LeaveReportController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/LeaveReportController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/LeaveSetupController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MessageController.php
+
+		-
+			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/MessageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/MessageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/MessageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/MessageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/OffboardingController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/OnboardingController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\OrgController\:\:headcountByDept\(\) should return Illuminate\\Support\\Collection\<string, int\> but returns Illuminate\\Support\\Collection\<\(int\|string\), int\<0, max\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/OrgController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/OrgController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\OvertimeRequest\:\:\$verified_by_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Call to function abort_unless\(\) with arguments false, 422 and ''A request must be…'' will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\OvertimeController\:\:assertApprover\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Parameter \#2 \$requester of method App\\Http\\Controllers\\OvertimeController\:\:assertVerifier\(\) expects App\\Models\\Employee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''approved''\|''rejected''\|''submitted'' and ''verified'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/OvertimeController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:allowancesTotal\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/PayrollController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isEditable\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/PayrollController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:statutoryCategory\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/PayrollController.php
+
+		-
+			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Http/Controllers/PayrollController.php
+
+		-
+			message: '#^Parameter \#1 \$run of method App\\Http\\Controllers\\PayrollController\:\:recalcTotals\(\) expects App\\Models\\PayrollRun, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/PayrollController.php
+
+		-
+			message: '#^Parameter \#1 \$payslips of method App\\Services\\Payroll\\BankFile\\BankFileFormat\:\:rows\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Payslip\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/PayrollExportController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/PositionController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/ProbationController.php
+
+		-
+			message: '#^Cannot call method copy\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/ProbationController.php
+
+		-
+			message: '#^Cannot call method lte\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/ProbationController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 5
+			path: app/Http/Controllers/ProbationController.php
+
+		-
+			message: '#^Parameter \#1 \$employee of method App\\Services\\OffboardingService\:\:openCase\(\) expects App\\Models\\Employee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ResignationController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/RoomController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/RoomController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/RosterController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/RosterController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/RosterController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/SearchController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/SearchController.php
+
+		-
+			message: '#^Constant App\\Http\\Controllers\\SetupController\:\:CRITICAL is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Http/Controllers/SetupController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/ShiftSwapController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Shift\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ShiftSwapController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ShiftSwapController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, int\<0, max\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ShiftSwapController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/ShiftSwapController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SkillController\:\:gapAnalysis\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{skill\: App\\Models\\Skill, rated\: int, coverage\: int, avg\: float\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/SkillController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 5
+			path: app/Http/Controllers/SuperAdmin/CompanyController.php
+
+		-
+			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: true, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/SuperAdmin/FeatureController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/SuperAdmin/FeatureController.php
+
+		-
+			message: '#^Parameter \#2 \$project of method App\\Http\\Controllers\\TimesheetAdminController\:\:validateSubPillar\(\) expects App\\Models\\Project, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TimesheetAdminController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TimesheetEntry\:\:\$cost\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{entry_date\: mixed, percentage\: float\}, Closure\(App\\Models\\TimesheetEntry\)\: array\{entry_date\: mixed, percentage\: float\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string\}, Closure\(App\\Models\\ProjectSubPillar\)\: array\{id\: int, name\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,App\\Models\\TimesheetEntry\>\:\:filter\(\) expects \(callable\(App\\Models\\TimesheetEntry, int\)\: bool\)\|null, Closure\(mixed\)\: \(Illuminate\\Database\\Eloquent\\Model\|null\) given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>week_label" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/TravelController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/VehicleController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/VehicleController.php
+
+		-
+			message: '#^Constant App\\Http\\Controllers\\WellnessController\:\:REQUEST_STATUSES is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Http/Controllers/WellnessController.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Offset ''done''\|''prog''\|''review''\|''todo'' on array\{todo\: ''To Do'', prog\: ''In Progress'', review\: ''In Review'', done\: ''Done''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Parameter \#1 \$c of method App\\Http\\Controllers\\WorkItemController\:\:commentPayload\(\) expects App\\Models\\WorkItemComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array, Closure\(App\\Models\\WorkItemComment\)\: array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Parameter \#1 \$item of method App\\Http\\Controllers\\WorkItemController\:\:cardPayload\(\) expects App\\Models\\WorkItem, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 2
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''prog''\|''review''\|''todo'' and ''done'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: mixed$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Http/Controllers/WorkforceController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>tenant_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Middleware/ApiTenant.php
+
+		-
+			message: '#^Offset 0 on non\-empty\-list\<string\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Middleware/EnsureModuleEnabled.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Cannot call method startOfDay\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/ComplianceItem.php
+
+		-
+			message: '#^Method App\\Models\\Conversation\:\:other\(\) should return App\\Models\\Employee\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isArchived\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Employee.php
+
+		-
+			message: '#^Cannot call method diffInYears\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Employee.php
+
+		-
+			message: '#^Method App\\Models\\Employee\:\:verifiers\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Employee\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Employee.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:first\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\LeaveBalance\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Employee.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>balance" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Employee.php
+
+		-
+			message: '#^Offset ''amount'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Models/SalaryStructure.php
+
+		-
+			message: '#^Method App\\Models\\StatutoryRate\:\:defaults\(\) should return array\<string, array\<string, float\|int\>\> but returns array\<string, array\<string, bool\|float\|int\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/StatutoryRate.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>config" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/StatutoryRate.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tenant.php
+
+		-
+			message: '#^Cannot call method isPast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Tenant.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/WorkItem.php
+
+		-
+			message: '#^Offset 2 on array\{''AI Workforce…'', array\{''workload''\}, 3\}\|array\{''Asset Register'', array\{''assets''\}, 2\}\|array\{''Benefits'', array\{''benefits''\}, 2\}\|array\{''Claims & Expenses'', array\{''claims'', ''expenses'', ''travel''\}, 2\}\|array\{''Company Events'', array\{''events''\}, 1\}\|array\{''Compliance &…'', array\{''compliance''\}, 2\}\|array\{''Disciplinary Cases'', array\{''cases''\}, 2\}\|array\{''Document Vault'', array\{''documents''\}, 1\}\|array\{''Helpdesk'', array\{''helpdesk''\}, 2\}\|array\{''Knowledge Bank'', array\{''knowledge\-bank''\}, 2\}\|array\{''Leave & Time\-off'', array\{''leave'', ''calendar''\}, 1\}\|array\{''Loans & Advances'', array\{''loans''\}, 2\}\|array\{''Messaging'', array\{''messages''\}, 2\}\|array\{''Onboarding'', array\{''onboarding''\}, 2\}\|array\{''Overtime'', array\{''overtime''\}, 1\}\|array\{''Payroll &…'', array\{''payroll''\}, 2\}\|array\{''Performance \(KPI,…'', array\{''kpi'', ''achievements'', ''reviews'', ''goals'', ''skills''\}, 2\}\|array\{''Petty Cash'', array\{''pettycash''\}, 2\}\|array\{''Probation'', array\{''probation''\}, 2\}\|array\{''Recruitment &…'', array\{''recruitment'', ''referrals''\}, 2\}\|array\{''Reports'', array\{''reports''\}, 1\}\|array\{''Resignation &…'', array\{''resignation'', ''offboarding''\}, 2\}\|array\{''Room & Vehicle…'', array\{''rooms'', ''vehicles''\}, 2\}\|array\{''Roster & Shifts'', array\{''roster'', ''shiftswap''\}, 1\}\|array\{''Surveys &…'', array\{''surveys'', ''ideas''\}, 2\}\|array\{''Training & Learning'', array\{''training'', ''learning'', ''handbook''\}, 2\}\|array\{''Wellness & EAP'', array\{''wellness''\}, 2\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/FeatureManager.php
+
+		-
+			message: '#^PHPDoc tag @var for constant App\\Services\\Payroll\\PcbCalculator\:\:BANDS with type array\<int, array\{float, float\}\> is incompatible with value array\{array\{5000, 0\}, array\{20000, 1\}, array\{35000, 3\}, array\{50000, 6\}, array\{70000, 11\}, array\{100000, 19\}, array\{400000, 25\}, array\{600000, 26\}, \.\.\.\}\.$#'
+			identifier: classConstant.phpDocType
+			count: 1
+			path: app/Services/Payroll/PcbCalculator.php
+
+		-
+			message: '#^Offset 2 on array\{''AI Workforce…'', array\{''workload''\}, 3\}\|array\{''Asset Register'', array\{''assets''\}, 2\}\|array\{''Benefits'', array\{''benefits''\}, 2\}\|array\{''Claims & Expenses'', array\{''claims'', ''expenses'', ''travel''\}, 2\}\|array\{''Company Events'', array\{''events''\}, 1\}\|array\{''Compliance &…'', array\{''compliance''\}, 2\}\|array\{''Disciplinary Cases'', array\{''cases''\}, 2\}\|array\{''Document Vault'', array\{''documents''\}, 1\}\|array\{''Helpdesk'', array\{''helpdesk''\}, 2\}\|array\{''Knowledge Bank'', array\{''knowledge\-bank''\}, 2\}\|array\{''Leave & Time\-off'', array\{''leave'', ''calendar''\}, 1\}\|array\{''Loans & Advances'', array\{''loans''\}, 2\}\|array\{''Messaging'', array\{''messages''\}, 2\}\|array\{''Onboarding'', array\{''onboarding''\}, 2\}\|array\{''Overtime'', array\{''overtime''\}, 1\}\|array\{''Payroll &…'', array\{''payroll''\}, 2\}\|array\{''Performance \(KPI,…'', array\{''kpi'', ''achievements'', ''reviews'', ''goals'', ''skills''\}, 2\}\|array\{''Petty Cash'', array\{''pettycash''\}, 2\}\|array\{''Probation'', array\{''probation''\}, 2\}\|array\{''Recruitment &…'', array\{''recruitment'', ''referrals''\}, 2\}\|array\{''Reports'', array\{''reports''\}, 1\}\|array\{''Resignation &…'', array\{''resignation'', ''offboarding''\}, 2\}\|array\{''Room & Vehicle…'', array\{''rooms'', ''vehicles''\}, 2\}\|array\{''Roster & Shifts'', array\{''roster'', ''shiftswap''\}, 1\}\|array\{''Surveys &…'', array\{''surveys'', ''ideas''\}, 2\}\|array\{''Training & Learning'', array\{''training'', ''learning'', ''handbook''\}, 2\}\|array\{''Wellness & EAP'', array\{''wellness''\}, 2\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Support/Features.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$has_certificate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/ProfileCompletion.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$has_personality\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/ProfileCompletion.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/StuckRequests.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Support/StuckRequests.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/WorkforceInsights.php
+
+		-
+			message: '#^Cannot call method lessThanOrEqualTo\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Timesheet/TimesheetCompliance.php
