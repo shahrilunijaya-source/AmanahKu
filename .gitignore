@@ -30,3 +30,4 @@ Thumbs.db
 .playwright-mcp/
 .claude
 ecosystem.config.cjs
+.env.before_lerd
