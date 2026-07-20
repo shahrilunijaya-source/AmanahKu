@@ -1,6 +1,6 @@
 # Amanahku
 
-Laravel HR platform. Local dev runs under [Lerd](https://github.com/) (Podman-powered PHP dev environment) as the site `amanahku.test`, with MySQL, Redis, and Mailpit as lerd-managed services.
+Laravel HR platform. Local dev runs under [Lerd](https://github.com/lerd-env/lerd) (Podman-powered PHP dev environment) as the site `amanahku.test`, with MySQL, Redis, and Mailpit as lerd-managed services.
 
 ## Lerd Site
 

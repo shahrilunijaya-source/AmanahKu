@@ -31,3 +31,4 @@ Thumbs.db
 .claude
 ecosystem.config.cjs
 .env.before_lerd
+docs/vault/

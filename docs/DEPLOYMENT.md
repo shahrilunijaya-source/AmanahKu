@@ -2,26 +2,33 @@
 
 Target: **staging**, then production. Work top to bottom; do not skip the security gate.
 
+> **History note (2026-07-20):** commands below corrected for the current single-repo /
+> Hostinger-shared reality (see `ENVIRONMENTS.md`). Staging is already deployed at
+> `amanahku-staging.myappsonline.net`; §1–§3 are for a **fresh host** (i.e. the future
+> production cutover), not for the existing staging box.
+
 ---
 
-## 1. Environment
+## 1. Environment (fresh host only)
 
-- [ ] Copy `.env.staging.example` → `.env` on the host and fill real secrets.
-- [ ] `php artisan key:generate` (unless APP_KEY already provisioned).
+- [ ] Copy `.env.staging.example` (or `.env.production.example`) → `.env` on the host and fill real secrets.
+- [ ] `php artisan key:generate` — **FRESH INSTALLS ONLY. Never run this on a host that
+      already has data.** `APP_KEY` encrypts NRICs and sessions; regenerating it makes the
+      encrypted columns unrecoverable and logs everyone out. Staging already has a key —
+      back it up, don't rotate it.
 - [ ] `APP_ENV=staging` (or `production`) and **`APP_DEBUG=false`**.
 - [ ] `APP_URL` set to the real HTTPS URL.
 - [ ] DB credentials point at the staging database (not local).
 
 ## 2. Build & install
 
-```bash
-composer install --no-dev --optimize-autoloader
-npm ci && npm run build
-php artisan migrate --force
-php artisan config:cache route:cache view:cache
-```
+`bash deploy.sh` does all of this (composer install, migrate `--force`, caches, queue
+restart), auto-detecting the tier from `APP_ENV`. Assets are the exception: the Hostinger
+host has **no Node**, so build them **locally** and commit `public/build` before pushing
+(see `ENVIRONMENTS.md` §3).
 
-- [ ] Assets built (`public/build/manifest.json` present).
+- [ ] Assets built and committed (`public/build/manifest.json` present in the repo).
+- [ ] `git pull && bash deploy.sh` ran clean on the host.
 - [ ] Migrations applied with `--force` (non-interactive).
 - [ ] Config/route/view caches warmed.
 
@@ -37,18 +44,22 @@ php artisan tinker --execute="\$u=App\Models\User::create(['name'=>'Platform Adm
 - [ ] Real super-admin created, demo seeder NOT run on staging/prod.
 - [ ] Sign in → provision the first real company at `/admin/companies/new`.
 
-## 4. Queue worker (required for email)
+## 4. Queue worker + scheduler (required for email; cron-only on this host)
 
-Invite + verification emails are queued. Without a worker they never send.
+Invite + verification emails are queued. Without a worker they never send. Hostinger shared
+allows **no long-running workers and no SSH crontab** — both jobs live in
+**hPanel → Advanced → Cron Jobs** (cron state cannot be checked over SSH):
 
-```bash
-php artisan queue:work --tries=3 --max-time=3600
+```
+* * * * *   … && php artisan schedule:run          # scheduler — MANDATORY (accrual, digest, archiving fail silently without it)
+*/5 * * * * … && php artisan queue:work --stop-when-empty --max-time=280
 ```
 
-- [ ] Worker supervised by systemd or Supervisor (auto-restart on crash/deploy).
+- [ ] Both cron jobs present in hPanel.
 - [ ] Test an invite → confirm the email arrives via real SMTP.
-- [ ] Scheduler running (`php artisan schedule:work` or a cron `* * * * * php artisan schedule:run`)
-      + queue worker up, so the weekly HR digest (`digest:weekly`, Mon 08:00) sends via real SMTP.
+- [ ] **Do not trust `php artisan about`'s "Mail deliverability: OK"** — that check cannot
+      trip on staging and never trips on a misconfigured SMTP. Verify by sending a real
+      email and reading `storage/logs/laravel.log`.
 
 ## 5. Security gate (do not deploy public without these)
 
@@ -80,7 +91,7 @@ php artisan queue:work --tries=3 --max-time=3600
 
 ## 7. Operational
 
-- [ ] Scheduler running if used: `php artisan schedule:work` (or cron `schedule:run`).
+- [ ] Scheduler cron running — **not optional** (see §4).
 - [ ] Backups: nightly DB dump + APP_KEY stored in a separate secret store.
 - [ ] Log level `warning` or higher in prod; centralised log shipping if available.
 
@@ -89,8 +100,8 @@ php artisan queue:work --tries=3 --max-time=3600
 ### Rollback
 
 ```bash
-# revert to previous release dir / git tag, then:
+# git revert on main, then on the host: git pull && bash deploy.sh   (see ENVIRONMENTS.md §5)
 php artisan migrate:rollback --step=1 --force   # only if the bad deploy migrated
-php artisan config:cache route:cache
 ```
-Keep the previous release available for an instant symlink swap.
+There is no release-dir/symlink setup on this host — rollback is a git revert plus redeploy.
+Keep a `mysqldump` from before the deploy.

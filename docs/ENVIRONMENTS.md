@@ -1,134 +1,93 @@
-# Amanahku — Environments & Deploy (local · staging · production)
+# Amanahku — Environments & Deploy (local · staging)
 
-Mirrors the **DevStage01** convention: a **private** GitHub repo Hostinger auto-pulls, then
-`bash deploy.sh` on the host. `deploy.sh` auto-detects the tier from `APP_ENV` in the host `.env`.
-
-> The **public** repo `github.com/shahrilunijaya-source/AmanahKu` is a sanitized showcase.
-> This deploy repo is a **separate PRIVATE** repo. Never push deploy branches to the public one.
-
----
-
-## 1. Topology
-
-| Env | Branch | Host | URL | DB | `.env` |
-|-----|--------|------|-----|----|----|
-| **local** | feature branches | your PC (PM2 `:8888`) | http://localhost:8888 | `amanahku` (local MySQL) | `.env` from `.env.example` (`APP_ENV=local`) |
-| **staging** | `staging` | Hostinger staging site | `https://staging.DOMAIN` | `amanahku_staging` | `.env` from `.env.staging.example` (`APP_ENV=staging`) |
-| **production** | `main` | Hostinger main site | `https://DOMAIN` | `amanahku_prod` | `.env` from `.env.production.example` (`APP_ENV=production`) |
-
-- Branch → tier: **`staging` = staging**, **`main` = production** (same as DevStage01).
-- Each tier = its own Hostinger site + own MySQL DB + own `.env`. `.env` is gitignored — created once per host.
-- `APP_DEBUG=false` on staging AND production. **Back up production's `APP_KEY`** — it encrypts NRICs.
+> **History:** rewritten 2026-07-20. The original version described the previous
+> maintainer's setup (Windows/Laragon, PM2 on :8888, a separate PRIVATE deploy repo
+> `amanahku-app` with `staging`/`main` branches). That topology was retired on
+> **2026-07-17**, when this public repo became canonical and the server was switched
+> to track it. The old version is preserved in git history (`git log -p docs/ENVIRONMENTS.md`,
+> import commit `be23ac6`).
 
 ---
+
+## 1. Topology (current, verified 2026-07-17)
+
+| Env | Branch | Host | URL | Notes |
+|-----|--------|------|-----|-------|
+| **local** | `dev` (working branch) | [Lerd](https://github.com/lerd-dev/lerd) site `amanahku.test` (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | http://amanahku.test | `.env` wired to lerd containers (`DB_HOST=lerd-mysql` etc.) |
+| **staging** | `main` | Hostinger Business (shared-style, hPanel), `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net | `APP_ENV=staging`. The **only deployed instance** |
+| **production** | — | **Does not exist yet.** Planned: fold the legacy `unijayahr`/`petron`/`shell` PHP sites in as tenants | — | Cutover not scheduled; see DEPLOYMENT.md security gate first |
+
+- **One repo:** `github.com/shahrilunijaya-source/AmanahKu` (public, canonical since 2026-07-17).
+  The old private `amanahku-app` repo is retired — do not push to it. The server keeps a local
+  `staging` branch pinned at `f2cf804` purely as a rollback pointer.
+- **Sanitization rule for this public repo:** demo emails use `@unijaya.example`, never `@unijaya.com`.
+- `APP_DEBUG=false` on staging. **Never run `php artisan key:generate` on the server** —
+  `APP_KEY` encrypts NRICs and sessions; staging already holds encrypted rows.
 
 ## 2. Release flow
 
 ```
-feature branch ─ merge → staging ─ push origin → Hostinger staging pulls → deploy.sh → QA on staging.DOMAIN
-                              │
-                    staging OK ─ merge → main ─ push origin → Hostinger prod pulls → deploy.sh → LIVE on DOMAIN
+dev branch ── merge → main ── push (from your own authenticated machine)
+                                │
+        ssh amanahku → cd ~/domains/amanahku-staging.myappsonline.net/public_html
+                                │
+                     git pull && bash deploy.sh
 ```
 
-Golden rule: **nothing reaches `main` that didn't pass on `staging` first.**
-
----
+- Deploy is a **manual pull over SSH** (anonymous HTTPS remote, no deploy key). There is
+  no auto-deploy webhook wired up.
+- **Never run `git clean` on the server** — the untracked `.htaccess` there must survive.
+- `deploy.sh` auto-detects the tier from `APP_ENV` in the host `.env` and refuses to run
+  against `APP_ENV=local`. Sequence: maintenance mode → composer install → migrate `--force`
+  → storage symlink (`ln`, because `exec()` is disabled on the host) → skip asset build if no
+  Node → config/route/view caches → queue restart → `artisan up`.
 
 ## 3. Assets — build locally, commit `public/build`
 
-Hostinger shared SSH has **no Node**, so `deploy.sh` skips `npm` and serves the committed build.
-Before pushing a release that changed CSS/JS:
+Hostinger shared SSH has **no Node**, so `deploy.sh` skips the asset build and serves the
+committed bundle. Before pushing a release that changed CSS/JS:
 
-```bash
-npm ci && npm run build
-git add -f public/build            # /public/build is gitignored — force-add for the deploy repo
+```fish
+bun run build          # or npm run build; package-lock.json is the shared lockfile
+git add -f public/build
 git commit -m "build: compile assets"
 ```
 
-(If your Hostinger plan DOES have Node, skip this — `deploy.sh` builds on the host automatically.)
+`public/build` is committed **on purpose** — do not "clean up" that gitignore exception.
 
----
+## 4. Scheduler + queue (mandatory on the host)
 
-## 4. One-time setup
+A cron running the scheduler **every minute is mandatory** — leave accrual/carry-forward,
+the weekly HR digest, timesheet reminders, and staff auto-archive all depend on it and fail
+silently without it. On Hostinger shared there is no `crontab` over SSH; cron lives only in
+**hPanel → Advanced → Cron Jobs** (so its state cannot be verified from the shell):
 
-### 4a. Private deploy repo (run in your authenticated terminal, from the AmanahKu working dir)
-```bash
-git branch -m master main                 # match DevStage01 (main = production)
-gh repo create amanahku-app --private --source . --remote origin --push   # pushes main
-git branch staging && git push -u origin staging
 ```
-`amanahku-app` = PRIVATE. The public showcase keeps the name `AmanahKu`.
-
-### 4b. Hostinger — two sites + two databases
-- Sites: `staging.DOMAIN` (subdomain) and `DOMAIN` (main) — each its own `public_html`.
-- MySQL: `u_<acct>_amanahku_staging` and `u_<acct>_amanahku_prod`, a user for each. Record credentials.
-
-### 4c. Wire Git auto-deploy (Hostinger panel → Advanced → Git)
-- Connect the **private** repo `shahrilunijaya-source/amanahku-app` (add Hostinger's deploy key to the repo).
-- Staging site → branch **`staging`**, directory `public_html`.
-- Production site → branch **`main`**, directory `public_html`.
-- Enable auto-deploy webhook so a push pulls automatically, then run `bash deploy.sh` (via the panel's
-  post-deploy command, or SSH — see §6).
-
-### 4d. First boot per host (SSH, once each)
-```bash
-cd ~/domains/<site>/public_html
-cp .env.staging.example .env      # or .env.production.example on prod
-php artisan key:generate          # unique per env — store prod's key in your secret vault
-nano .env                         # fill DB creds, SMTP, real DOMAIN
-bash deploy.sh
-```
-Then `docs/DEPLOYMENT.md` §3 (create the real super-admin; do NOT run the demo seeder) + §5 (security gate).
-
-### 4e. Queue worker + scheduler (emails & weekly digest)
-```bash
-# Scheduler — Hostinger panel → Cron Jobs, every minute:
-* * * * * cd ~/domains/<site>/public_html && php artisan schedule:run >> /dev/null 2>&1
-# Queue — if long-running workers aren't allowed on shared, drain via cron:
-*/5 * * * * cd ~/domains/<site>/public_html && php artisan queue:work --stop-when-empty --max-time=280 >> /dev/null 2>&1
+* * * * *   cd ~/domains/amanahku-staging.myappsonline.net/public_html && php artisan schedule:run >> /dev/null 2>&1
+*/5 * * * * cd ~/domains/amanahku-staging.myappsonline.net/public_html && php artisan queue:work --stop-when-empty --max-time=280 >> /dev/null 2>&1
 ```
 
----
+(Long-running queue workers are not possible on this shared plan; the cron drain pattern
+above is the substitute. Invite/verification emails are queued — without it they never send.)
 
-## 5. Ongoing releases
-
-```bash
-git checkout staging && git merge <feature> && git push          # → staging deploys
-# (rebuild+commit public/build first if assets changed — §3)
-# after QA on staging.DOMAIN:
-git checkout main && git merge staging && git push               # → production deploys
-```
-
-`deploy.sh`: maintenance mode → composer (optimized on prod / dev-deps on staging) → migrate `--force`
-→ assets → caches → queue restart → `artisan up`.
-
----
-
-## 6. If Hostinger won't run a post-pull command
-
-SSH deploy after each push:
-```bash
-ssh u_acct@host "cd ~/domains/<site>/public_html && git pull && bash deploy.sh"
-```
-
----
-
-## 7. Rollback
+## 5. Rollback
 
 ```bash
+# preferred: revert on main and redeploy
 git checkout main && git revert <bad-sha> && git push
-# on host: git pull && bash deploy.sh
-# Keep a mysqldump before each prod deploy — migrations are forward-only.
+# on the server: git pull && bash deploy.sh
+
+# last resort: the server's local `staging` branch still points at the pre-switch
+# tree (f2cf804). Full-history bundles exist at ~/amanahku-server-backup-2026-07-17.bundle
+# (server) and in the local Projects/Unijaya directory.
 ```
 
----
+Keep a `mysqldump` before any risky deploy — migrations are forward-only.
 
-## 8. Env template map
+## 6. Env template map
 
 | Committed template | Copied to `.env` on | Key differences |
 |--------------------|---------------------|-----------------|
-| `.env.example` | local | `APP_ENV=local`, `APP_DEBUG=true`, mail=log |
+| `.env.example` | local (then rewired for lerd; pre-lerd backup at `.env.before_lerd`) | `APP_ENV=local`, `APP_DEBUG=true`, mail=log |
 | `.env.staging.example` | staging host | `APP_ENV=staging`, real SMTP, secure cookies |
-| `.env.production.example` | production host | `APP_ENV=production`, `LOG_LEVEL=error` |
-
-Replace every `DOMAIN` placeholder once the real Amanahku domain is set.
+| `.env.production.example` | future production host | `APP_ENV=production`, `LOG_LEVEL=error` |
