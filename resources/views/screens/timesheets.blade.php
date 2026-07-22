@@ -29,6 +29,14 @@
 
     $weekStatus = $weekStatus ?? null;
     $weekLocked = $weekStatus && $weekStatus !== 'draft';
+
+    // Week-header nav for the day-first capture card: $weekStart arrives as a plain ISO
+    // string (TimesheetController returns ->toDateString(), not a Carbon instance), so it
+    // is parsed here rather than formatted directly.
+    $weekStartC = \Illuminate\Support\Carbon::parse($weekStart);
+    $prevWeekStart = $weekStartC->copy()->subWeek()->toDateString();
+    $nextWeekStart = $weekStartC->copy()->addWeek()->toDateString();
+    $prevWeekDisabled = $prevWeekStart < $tsEarliestWeek;
 @endphp
 
 @section('screen')
@@ -110,13 +118,19 @@
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
             days: 5,
+            today: @js($tsToday),
+            earliestWeek: @js($tsEarliestWeek),
+            locked: @js($tsLocked),
+            items: @js($tsItems),
             categories: @js($tsCategories),
             projects: @js($tsProjects),
             templates: @js($tsTemplates),
             existing: @js($existingGrid),
+            readonly: @js($weekLocked),
+            weekLabel: @js($weekLabel ?? null),
          })">
 
-        {{-- Week picker (GET — reloads the grid for the chosen week) --}}
+        {{-- Week picker (GET — reloads the card for the chosen week) --}}
         <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;">
             <div>
                 <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Week starting (Mon)' : 'Minggu bermula (Isnin)'">Week starting (Mon)</span></label>
@@ -127,211 +141,179 @@
         </form>
         @include('partials.hint', ['en' => 'Pick any Monday to load or build that week. Each day must total 100% before the week can be submitted.', 'ms' => 'Pilih mana-mana Isnin untuk memuatkan atau membina minggu itu. Setiap hari mesti berjumlah 100% sebelum minggu boleh dihantar.'])
 
-        @if ($weekLocked)
-            {{-- Locked: this week is already submitted/approved/rejected. Read-only. --}}
-            <div style="margin-top:8px;padding:12px 16px;border-radius:10px;background:var(--canvas);border:1px solid var(--hairline);font-size:12.5px;color:var(--ink);">
-                <span style="font-weight:600;color:{{ $sc[$weekStatus] }};">{{ ucfirst($weekStatus) }}</span> —
-                <span x-text="$store.ui.lang==='en' ? 'this week is locked. Pick another week to edit.' : 'minggu ini dikunci. Pilih minggu lain untuk menyunting.'">this week is locked. Pick another week to edit.</span>
-            </div>
-            @if ($weekTimesheet)
-                <div style="margin-top:12px;">
-                    @foreach ($weekTimesheet->entries->sortBy('entry_date') as $entry)
-                        <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted);padding:6px 0;border-top:1px solid var(--hairline-soft);">
-                            <span>{{ $entry->entry_date->format('D j M') }} · {{ $entryLabel($entry) }}</span>
-                            <span style="font-family:var(--font-mono);color:var(--ink);">{{ rtrim(rtrim(number_format($entry->percentage, 2), '0'), '.') }}%</span>
-                        </div>
-                    @endforeach
-                </div>
+        {{-- ---- Week header: prev/next nav, date range, status chip ---- --}}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;">
+            @if ($prevWeekDisabled)
+                <span aria-disabled="true" style="height:32px;width:32px;border-radius:8px;border:1px solid var(--hairline);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);opacity:.4;cursor:not-allowed;">&larr;</span>
+            @else
+                <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $prevWeekStart]) }}" class="uj-btn-ghost" style="height:32px;width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;">&larr;</a>
             @endif
-        @else
-            {{-- Editable line-item grid: lines = what you worked on, columns = days --}}
-            <form method="post" action="{{ route('timesheets.store') }}" style="margin-top:6px;">
-                @csrf
-                <input type="hidden" name="week_start" :value="weekStart" />
-                <div style="margin-bottom:14px;">
-                    <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Week label (optional)' : 'Label minggu (pilihan)'">Week label (optional)</span></label>
-                    <input name="week_label" value="{{ old('week_label', $weekLabel ?? '') }}" :placeholder="$store.ui.lang==='en' ? 'e.g. Week 26 · 16–22 Jun' : 'cth. Minggu 26 · 16–22 Jun'" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
+
+            <div style="text-align:center;">
+                <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }}</div>
+                <span style="display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;background:var(--canvas);color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span>
+            </div>
+
+            <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $nextWeekStart]) }}" class="uj-btn-ghost" style="height:32px;width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;">&rarr;</a>
+        </div>
+
+        @if ($weekLocked)
+            <div style="margin-top:6px;font-size:11.5px;color:var(--muted);text-align:center;">
+                <span x-text="$store.ui.lang==='en' ? 'This week is locked. Pick another week to edit.' : 'Minggu ini dikunci. Pilih minggu lain untuk menyunting.'"></span>
+            </div>
+        @endif
+
+        {{-- ---- Week strip: navigation + progress, one bar per day ---- --}}
+        <div style="display:flex;gap:6px;margin:14px 0 16px;">
+            <template x-for="d in dayDates()" :key="d">
+                <button type="button" @click="select(d)" :disabled="isFuture(d)"
+                    style="flex:1;background:none;border:0;padding:0;cursor:pointer;text-align:center;"
+                    :style="isFuture(d) ? { cursor:'not-allowed', opacity:.45 } : {}">
+                    <div style="height:6px;border-radius:3px;margin-bottom:5px;"
+                        :style="{ background: {
+                            empty:   'var(--hairline)',
+                            partial: 'var(--amber)',
+                            done:    'var(--success)',
+                            over:    'var(--error)',
+                            locked:  'var(--muted)',
+                            future:  'var(--hairline-soft)',
+                        }[dayState(d)] }"></div>
+                    <div style="font-size:11px;"
+                        :style="d === selected ? { color:'var(--ink)', fontWeight:600 } : { color:'var(--muted)' }">
+                        <span x-show="isLocked(d)" x-cloak>&#128274;</span>
+                        <span x-text="dayName(d)"></span>
+                    </div>
+                </button>
+            </template>
+        </div>
+
+        {{-- ---- Day card: the one editable (or locked) day ---- --}}
+        <div style="border:1px solid var(--hairline);border-radius:12px;padding:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <strong style="font-size:14px;" x-text="dayLong(selected)"></strong>
+                <span style="font-size:12.5px;font-family:var(--font-mono);"
+                    :style="dayState(selected) === 'over' ? { color:'var(--error)' } : { color:'var(--muted)' }"
+                    x-text="dayTotal(selected) + ' / 100'"></span>
+            </div>
+
+            <div style="height:6px;background:var(--hairline-soft);border-radius:3px;overflow:hidden;margin-bottom:14px;">
+                <div style="height:100%;transition:width .15s;"
+                    :style="{
+                        width: Math.min(100, dayTotal(selected)) + '%',
+                        background: dayState(selected) === 'done' ? 'var(--success)'
+                                  : dayState(selected) === 'over' ? 'var(--error)' : 'var(--amber)',
+                    }"></div>
+            </div>
+
+            {{-- Locked: an approved leave day or public holiday. Read-only, always a full day. --}}
+            <template x-if="isLocked(selected)">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:8px;background:var(--canvas);">
+                    <span>&#128274;</span>
+                    <div style="flex:1;">
+                        <div style="font-size:12.5px;" x-text="locked[selected].label"></div>
+                        <div style="font-size:11px;color:var(--muted);"
+                            x-text="$store.ui.lang==='en' ? 'Nothing to do here.' : 'Tiada apa-apa untuk dibuat.'"></div>
+                    </div>
+                    <span style="font-family:var(--font-mono);font-size:13px;">100%</span>
                 </div>
+            </template>
 
-                {{-- The grid scrolls horizontally on narrow cards; all rows share one min-width so columns stay aligned. --}}
-                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-                    <div style="min-width:480px;">
-                        {{-- Header: day columns --}}
-                        <div style="display:grid;gap:6px;align-items:end;padding:0 0 6px;" :style="gridCols()">
-                            <div style="font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? 'What I worked on' : 'Apa saya kerjakan'"></span></div>
-                            <template x-for="d in dayDates()" :key="d">
-                                <div style="text-align:center;line-height:1.15;">
-                                    <div style="font-size:11.5px;font-weight:600;" :style="isToday(d) ? { color:'var(--red)' } : { color:'var(--ink)' }" x-text="dayName(d)"></div>
-                                    <div style="font-size:9.5px;color:var(--muted);" x-text="dayShort(d)"></div>
-                                </div>
-                            </template>
-                            <div></div>
+            <template x-if="!isLocked(selected)">
+                <div>
+                    <template x-for="(r, i) in (rows[selected] || [])" :key="i">
+                        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                            <span style="flex:1;font-size:12.5px;" x-text="rowLabel(r)"></span>
+                            <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
+                                x-model="r.percentage" @blur="save()" :disabled="!isEditable(selected)"
+                                style="width:72px;height:34px;padding:0 8px;text-align:center;border:1px solid var(--hairline);border-radius:7px;font-family:var(--font-mono);font-size:12.5px;outline:none;" />
+                            <button type="button" @click="removeRow(i)" :disabled="!isEditable(selected)"
+                                class="uj-btn-ghost" style="height:34px;padding:0 9px;color:var(--error);"
+                                :aria-label="$store.ui.lang==='en' ? 'Remove' : 'Buang'">&times;</button>
                         </div>
+                    </template>
 
-                        {{-- One row per line, plus its inline pill picker --}}
-                        <template x-for="(line, li) in lines" :key="li">
-                            <div>
-                                <div style="display:grid;gap:6px;align-items:center;padding:5px 0;border-top:1px solid var(--hairline-soft);" :style="gridCols()">
-                                    <button type="button" @click="line._open = ! line._open"
-                                        style="text-align:left;min-height:36px;padding:6px 10px;border:1px solid var(--hairline);border-radius:8px;background:#fff;font-size:12px;color:var(--ink);cursor:pointer;line-height:1.25;overflow:hidden;"
-                                        :style="lineIncomplete(line) ? { borderColor:'var(--amber)' } : {}">
-                                        <template x-if="line.category_id"><span x-text="lineLabel(line)"></span></template>
-                                        <template x-if="!line.category_id"><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Pick category…' : 'Pilih kategori…'"></span></template>
-                                    </button>
-                                    <template x-for="d in dayDates()" :key="d">
-                                        <input type="number" min="0" max="100" step="0.01" inputmode="decimal" x-model="line.cells[d]" placeholder="·"
-                                            style="width:100%;height:36px;padding:0 4px;text-align:center;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;background:#fff;" />
-                                    </template>
-                                    <div style="display:flex;gap:2px;justify-content:flex-end;align-items:center;">
-                                        <button type="button" @click="openNote(li)" class="uj-btn-ghost" style="height:34px;padding:0 8px;font-size:12px;" :title="$store.ui.lang==='en' ? 'Add note' : 'Tambah nota'"><span x-text="noteSummary(line) ? '📝' : '✎'"></span></button>
-                                        <button type="button" @click="removeLine(li)" class="uj-btn-ghost" style="height:34px;padding:0 8px;font-size:14px;color:var(--error);" :title="$store.ui.lang==='en' ? 'Remove line' : 'Buang baris'">&times;</button>
-                                    </div>
-                                </div>
-
-                                {{-- Inline pill picker for this line --}}
-                                <div x-show="line._open" x-cloak style="padding:12px 14px;margin:4px 0 8px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
-                                    <div>
-                                        <div style="font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'"></span></div>
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            <template x-for="c in categories" :key="c.id">
-                                                <button type="button" @click="setCategory(li, c.id)" :style="String(line.category_id)===String(c.id) ? pillOn : pillOff" x-text="catLabel(c)"></button>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <div x-show="requiresProject(line.category_id)">
-                                        <div style="font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span></div>
-                                        <input x-show="projects.length > 12" x-model="projFilter" :placeholder="$store.ui.lang==='en' ? 'Search project…' : 'Cari projek…'" style="width:100%;max-width:260px;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            <template x-for="p in filteredProjects()" :key="p.id">
-                                                <button type="button" @click="setProject(li, p.id)" :style="String(line.project_id)===String(p.id) ? pillOn : pillOff" x-text="p.name"></button>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <div x-show="requiresProject(line.category_id) && line.project_id && subPillarsFor(line.project_id).length">
-                                        <div style="font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span></div>
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            <button type="button" @click="setSub(li, '')" :style="!line.sub_pillar_id ? pillOn : pillOff" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></button>
-                                            <template x-for="s in subPillarsFor(line.project_id)" :key="s.id">
-                                                <button type="button" @click="setSub(li, s.id)" :style="String(line.sub_pillar_id)===String(s.id) ? pillOn : pillOff" x-text="s.name"></button>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:2px;">
-                                        <button type="button" @click="copyAcross(li)" style="background:none;border:0;color:var(--info);font-size:11.5px;cursor:pointer;padding:0;"><span x-text="$store.ui.lang==='en' ? '↳ Copy across weekdays' : '↳ Salin ke hari minggu'"></span></button>
-                                        <button type="button" @click="saveAsTemplate(li)" style="background:none;border:0;color:var(--info);font-size:11.5px;cursor:pointer;padding:0;"><span x-text="$store.ui.lang==='en' ? '★ Save as template' : '★ Simpan templat'"></span></button>
-                                        <div style="flex:1;"></div>
-                                        <button type="button" @click="line._open = false" class="uj-btn-ghost" style="height:30px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'"></span></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-
-                        {{-- Empty state --}}
-                        <template x-if="!lines.length">
-                            <div style="padding:18px;text-align:center;border:1px dashed var(--hairline);border-radius:12px;margin-top:10px;font-size:12.5px;color:var(--muted);">
-                                <span x-text="$store.ui.lang==='en' ? 'Nothing here yet. Add a line below, pick what you worked on, then fill each day.' : 'Tiada apa-apa lagi. Tambah baris di bawah, pilih apa anda kerjakan, kemudian isi setiap hari.'"></span>
-                            </div>
-                        </template>
-
-                        {{-- Footer: per-day totals (click a column to fill it to 100%) --}}
-                        <div style="display:grid;gap:6px;align-items:center;padding:9px 0 2px;border-top:2px solid var(--hairline);margin-top:2px;" :style="gridCols()">
-                            <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? 'Day total' : 'Jumlah hari'"></span></div>
-                            <template x-for="d in dayDates()" :key="d">
-                                <button type="button" @click="fillDay(d)" :title="$store.ui.lang==='en' ? 'Fill to 100% (into last line)' : 'Isi ke 100% (baris akhir)'"
-                                    style="height:30px;border:0;background:none;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font-mono);" :style="`color:${dayColor(d)}`"
-                                    x-text="dayEmpty(d) ? '—' : fmtPct(dayTotal(d))"></button>
-                            </template>
-                            <div></div>
-                        </div>
+                    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                        <button type="button" @click="copyPreviousDay()" x-show="previousWorkday(selected)"
+                            :disabled="!isEditable(selected)" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;">
+                            <span x-text="($store.ui.lang==='en' ? 'Same as ' : 'Sama seperti ') + dayName(previousWorkday(selected) || selected)"></span>
+                        </button>
+                        <button type="button" @click="fillRemainder()" x-show="(rows[selected] || []).length"
+                            :disabled="!isEditable(selected)" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Give the rest to the last line' : 'Beri bakinya kepada baris akhir'"></span>
+                        </button>
                     </div>
                 </div>
+            </template>
+        </div>
 
-                {{-- Add a line + apply a saved template --}}
-                <div style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap;">
-                    <button type="button" @click="addLine()" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? '+ Add line' : '+ Tambah baris'">+ Add line</span></button>
-                    <template x-if="templates.length">
-                        <select @change="if($event.target.value){ applyTemplate($event.target.value); $event.target.value=''; }" style="height:34px;padding:0 8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;background:#fff;outline:none;color:var(--muted);">
-                            <option value="" x-text="$store.ui.lang==='en' ? 'Add from template…' : 'Tambah dari templat…'"></option>
-                            <template x-for="tpl in templates" :key="tpl.id">
-                                <option :value="tpl.id" x-text="tpl.name"></option>
-                            </template>
-                        </select>
+        {{-- ---- Add affordance: three-step pill drill-down (category -> project -> sub-pillar),
+             kept unchanged in spirit from the previous picker but wired to addRow(); Task 8
+             replaces this with a flat, search-first picker. ---- --}}
+        <div x-data="{ add: { open: false, step: 1, cat: null, proj: null, filter: '' } }" x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
+            <button type="button" x-show="!add.open" @click="add = { open: true, step: 1, cat: null, proj: null, filter: '' }"
+                style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
+                <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
+            </button>
+
+            <div x-show="add.open" x-cloak style="padding:12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button type="button" x-show="add.step > 1" @click="add.step = add.step - 1" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">&larr;</button>
+                    <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+                        <span x-show="add.step===1" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'"></span>
+                        <span x-show="add.step===2" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span>
+                        <span x-show="add.step===3" x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span>
+                    </strong>
+                    <button type="button" @click="add.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span></button>
+                </div>
+
+                <div x-show="add.step===1" style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <template x-for="c in categories" :key="c.id">
+                        <button type="button"
+                            @click="add.cat = c; if (! c.requires_project) { addRow({ category_id: c.id, project_id: '', sub_pillar_id: '' }); add.open = false; } else { add.step = 2; }"
+                            style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                            x-text="$store.ui.lang==='en' ? c.name : (c.name_ms || c.name)"></button>
                     </template>
                 </div>
 
-                {{-- Manage saved templates: name + delete (the only delete affordance for
-                     timesheets.templates.delete — templates could be saved but never removed). --}}
-                @if (! empty($tsTemplates))
-                    <div style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <span style="font-size:11px;color:var(--muted-soft);font-weight:600;text-transform:uppercase;letter-spacing:.04em;" x-text="$store.ui.lang==='en' ? 'Saved templates' : 'Templat disimpan'">Saved templates</span>
-                        @foreach ($tsTemplates as $tpl)
-                            <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--body);background:var(--hairline-soft);border-radius:9999px;padding:3px 7px 3px 11px;">
-                                {{ $tpl['name'] }}
-                                <form method="post" action="{{ route('timesheets.templates.delete', $tpl['id']) }}" style="display:inline;line-height:0;">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" :title="$store.ui.lang==='en' ? 'Delete template' : 'Padam templat'" style="display:flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;">×</button>
-                                </form>
-                            </span>
-                        @endforeach
-                    </div>
-                @endif
-
-                {{-- Hidden inputs flattened from the grid (the real submitted payload) --}}
-                <template x-for="(row, idx) in flatRows()" :key="idx">
-                    <span>
-                        <input type="hidden" :name="`entries[${idx}][entry_date]`" :value="row.entry_date" />
-                        <input type="hidden" :name="`entries[${idx}][category_id]`" :value="row.category_id" />
-                        <input type="hidden" :name="`entries[${idx}][project_id]`" :value="row.project_id || ''" />
-                        <input type="hidden" :name="`entries[${idx}][sub_pillar_id]`" :value="row.sub_pillar_id || ''" />
-                        <input type="hidden" :name="`entries[${idx}][percentage]`" :value="row.percentage" />
-                        <input type="hidden" :name="`entries[${idx}][description]`" :value="row.description || ''" />
-                    </span>
-                </template>
-
-                @error('submit')<div style="font-size:12px;color:var(--error);margin:10px 0 0;">{{ $message }}</div>@enderror
-                @if ($errors->has('entries') || $errors->hasAny(['entries.*.project_id', 'entries.*.category_id', 'entries.*.percentage', 'entries.*.sub_pillar_id']))
-                    <div style="font-size:12px;color:var(--error);margin:10px 0 0;"><span x-text="$store.ui.lang==='en' ? 'Please check each line has a category and a valid percentage (and a project where required).' : 'Sila pastikan setiap baris ada kategori dan peratus yang sah (dan projek jika perlu).'">Please check each line.</span></div>
-                @endif
-                <div x-show="anyIncomplete()" x-cloak style="font-size:12px;color:var(--amber);margin:10px 0 0;"><span x-text="$store.ui.lang==='en' ? 'Some lines have a percentage but no category or project — finish or clear them before submitting.' : 'Ada baris ada peratus tetapi tiada kategori atau projek — lengkapkan atau kosongkan sebelum hantar.'"></span></div>
-
-                {{-- Week meter + actions --}}
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
-                    <div style="font-size:12px;color:var(--muted);">
-                        <span x-text="filledDays()"></span> <span x-text="$store.ui.lang==='en' ? 'days filled' : 'hari diisi'">days filled</span> ·
-                        <span :style="weekOk() ? 'color:var(--success)' : 'color:var(--amber)'" x-text="weekOk() ? ($store.ui.lang==='en' ? 'all days at 100%' : 'semua hari 100%') : ($store.ui.lang==='en' ? 'some days not 100%' : 'ada hari belum 100%')"></span>
-                    </div>
-                    <div style="display:flex;gap:8px;">
-                        <button type="submit" name="submit_now" value="0" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
-                        <button type="submit" name="submit_now" value="1" :disabled="!canSubmit()" :style="!canSubmit() ? { opacity:'.5', cursor:'not-allowed' } : {}" class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
+                <div x-show="add.step===2">
+                    <input x-show="projects.length > 12" x-model="add.filter" :placeholder="$store.ui.lang==='en' ? 'Search project…' : 'Cari projek…'" style="width:100%;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        <template x-for="p in projects.filter((p) => !add.filter || p.name.toLowerCase().includes(add.filter.toLowerCase()))" :key="p.id">
+                            <button type="button"
+                                @click="add.proj = p; if ((p.sub_pillars || []).length) { add.step = 3; } else { addRow({ category_id: add.cat.id, project_id: p.id, sub_pillar_id: '' }); add.open = false; }"
+                                style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                                x-text="p.name"></button>
+                        </template>
                     </div>
                 </div>
-            </form>
 
-            {{-- Note (rich-text) modal — sibling of the form, same Alpine scope --}}
-            <template x-teleport="body">
-            <div x-show="note.open" x-cloak style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(20,18,14,.45);padding:20px;" @click.self="closeNote()">
-                <div class="uj-card" style="width:100%;max-width:560px;margin:auto;padding:20px;">
-                    <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</span></h3>
-                    <div x-ref="noteEditor" style="min-height:160px;background:#fff;"></div>
-                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-                        <button type="button" @click="closeNote()" class="uj-btn-ghost" style="height:36px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span></button>
-                        <button type="button" @click="saveNote()" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save note' : 'Simpan nota'">Save note</span></button>
-                    </div>
+                <div x-show="add.step===3" style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: '' }); add.open = false;"
+                        style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                        x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></button>
+                    <template x-for="s in (add.proj ? (add.proj.sub_pillars || []) : [])" :key="s.id">
+                        <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: s.id }); add.open = false;"
+                            style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                            x-text="s.name"></button>
+                    </template>
                 </div>
             </div>
-            </template>
+        </div>
 
-            {{-- Hidden transient form used by "Save as template" --}}
-            <form method="post" action="{{ route('timesheets.templates.store') }}" x-ref="tplForm" style="display:none;">
-                @csrf
-                <input type="hidden" name="name" />
-                <input type="hidden" name="category_id" />
-                <input type="hidden" name="project_id" />
-                <input type="hidden" name="sub_pillar_id" />
-                <input type="hidden" name="percentage" />
-                <input type="hidden" name="description" />
-            </form>
-        @endif
+        {{-- ---- Footer: save / submit ---- --}}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
+            <div style="font-size:12px;flex:1;min-width:200px;">
+                <span x-show="!weekComplete()" style="color:var(--amber);" x-text="blockingDays().join($store.ui.lang==='en' ? ' and ' : ' dan ') + ($store.ui.lang==='en' ? ' not at 100% yet' : ' belum 100%')"></span>
+                <span x-show="weekComplete() && savedAt" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'Saved ' : 'Disimpan ') + savedAt"></span>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button type="button" @click="save(false)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
+                <button type="button" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
+                    :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
+                    class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
+            </div>
+        </div>
+        <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
     </div>
 
     {{-- ===================== MY TIMESHEETS ===================== --}}

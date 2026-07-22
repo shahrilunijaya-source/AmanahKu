@@ -455,4 +455,11 @@ class TimesheetTest extends TestCase
 
         $this->assertSame('submitted', $sheet->refresh()->status);
     }
+
+    public function test_the_capture_screen_renders_for_an_employee(): void
+    {
+        $this->actingInTenant()->get('/app/timesheets?week=2026-06-15')
+            ->assertOk()
+            ->assertSee('timesheetCapture', false);
+    }
 }
