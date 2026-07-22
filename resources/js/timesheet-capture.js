@@ -135,6 +135,62 @@ export function registerTimesheetCapture(Alpine) {
             return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
 
+        // ---- picker (Task 8): one flat, searchable list — saved templates first, then
+        // recent Category · Project · Sub-pillar combinations. Replaces the three-step
+        // pill drill-down as the primary path; the drill-down itself moves behind
+        // "Something else" in the Blade so every combination stays reachable. ----------
+        picker: { open: false, search: '' },
+
+        openPicker() {
+            this.picker = { open: true, search: '' };
+        },
+        // Saved templates first (named, with a flag), then recent combinations.
+        pickerItems() {
+            const templates = (this.templates || []).map((t) => ({
+                key: 'tpl-' + t.id,
+                template_id: t.id,
+                category_id: t.category_id,
+                project_id: t.project_id || '',
+                sub_pillar_id: t.sub_pillar_id || '',
+                percentage: t.percentage,
+                label: t.name,
+                isTemplate: true,
+            }));
+            return [...templates, ...(this.items || [])];
+        },
+        filteredItems() {
+            const q = this.picker.search.trim().toLowerCase();
+            const all = this.pickerItems();
+            if (!q) return all;
+            return all.filter((i) => i.label.toLowerCase().includes(q));
+        },
+        chooseItem(item) {
+            // A template carries its own default percentage; a recent item takes the remainder.
+            const pct = item.isTemplate && item.percentage != null
+                ? item.percentage
+                : (this.remainder(this.selected) || 100);
+            this.addRow(item, pct);
+            this.picker.open = false;
+        },
+
+        // ---- templates: save-as-template and delete, through the existing routes -------
+        // (routes/web.php: timesheets.templates.store / .delete). Both redirect rather than
+        // return JSON, so the Blade posts real <form>s instead of using save()'s fetch.
+        templateDraft: { category_id: '', project_id: '', sub_pillar_id: '', percentage: null },
+        savingTemplate: false,
+        // Copies a row's fields into templateDraft and opens the save-as-template form.
+        // The form's own submit handler autosaves the day first, so the page reload from
+        // the store route's redirect never drops in-progress work.
+        startSaveTemplate(row) {
+            this.templateDraft = {
+                category_id: row.category_id,
+                project_id: row.project_id || '',
+                sub_pillar_id: row.sub_pillar_id || '',
+                percentage: row.percentage,
+            };
+            this.savingTemplate = true;
+        },
+
         // ---- accelerators --------------------------------------------------
         previousWorkday(iso) {
             const days = this.dayDates();

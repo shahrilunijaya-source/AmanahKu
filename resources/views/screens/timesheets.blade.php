@@ -222,16 +222,67 @@
             <template x-if="!isLocked(selected)">
                 <div>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
-                        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
-                            <span style="flex:1;font-size:12.5px;" x-text="rowLabel(r)"></span>
-                            <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
-                                x-model="r.percentage" @blur="save()" :disabled="!isEditable(selected)"
-                                style="width:72px;height:34px;padding:0 8px;text-align:center;border:1px solid var(--hairline);border-radius:7px;font-family:var(--font-mono);font-size:12.5px;outline:none;" />
-                            <button type="button" @click="removeRow(i)" :disabled="!isEditable(selected)"
-                                class="uj-btn-ghost" style="height:34px;padding:0 9px;color:var(--error);"
-                                :aria-label="$store.ui.lang==='en' ? 'Remove' : 'Buang'">&times;</button>
+                        <div style="padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span style="flex:1;font-size:12.5px;" x-text="rowLabel(r)"></span>
+                                <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
+                                    x-model="r.percentage" @blur="save()" :disabled="!isEditable(selected)"
+                                    style="width:72px;height:34px;padding:0 8px;text-align:center;border:1px solid var(--hairline);border-radius:7px;font-family:var(--font-mono);font-size:12.5px;outline:none;" />
+                                <button type="button" @click="removeRow(i)" :disabled="!isEditable(selected)"
+                                    class="uj-btn-ghost" style="height:34px;padding:0 9px;color:var(--error);"
+                                    :aria-label="$store.ui.lang==='en' ? 'Remove' : 'Buang'">&times;</button>
+                            </div>
+                            {{-- Task 8: quick amount chips for the row you just added, and a
+                                 save-as-template shortcut for any row. --}}
+                            <div x-show="isEditable(selected)" style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+                                <template x-if="i === (rows[selected] || []).length - 1">
+                                    <div style="display:flex;gap:5px;">
+                                        <template x-for="pct in [100, 50, 25]" :key="pct">
+                                            <button type="button" @click="r.percentage = pct; save()"
+                                                style="padding:2px 9px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--muted);font-size:10.5px;cursor:pointer;"
+                                                x-text="pct + '%'"></button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <button type="button" @click="startSaveTemplate(r)"
+                                    style="border:0;background:none;color:var(--muted);font-size:10.5px;text-decoration:underline;cursor:pointer;padding:2px 0;margin-left:auto;">
+                                    <span x-text="$store.ui.lang==='en' ? 'Save as template' : 'Simpan sebagai templat'"></span>
+                                </button>
+                            </div>
                         </div>
                     </template>
+
+                    {{-- Task 8: save-as-template. @submit.prevent awaits save() (autosaving the
+                         day) before submitting for real via $event.target.submit(), so the
+                         redirect + page reload from the store route never drops in-progress
+                         work. project_id/sub_pillar_id are OMITTED (via x-if) rather than
+                         posted at all when a template has no project, so a template with no
+                         project cleanly satisfies storeTemplate()'s nullable|integer rules
+                         for those two fields — no "" ever hits the validator. ---- --}}
+                    <div x-show="savingTemplate" x-cloak style="display:flex;gap:6px;align-items:flex-start;margin-top:10px;padding:10px;border:1px solid var(--hairline);border-radius:8px;background:var(--canvas);flex-wrap:wrap;">
+                        <form method="post" action="{{ route('timesheets.templates.store') }}"
+                            @submit.prevent="await save(); $event.target.submit()"
+                            style="display:flex;gap:6px;flex:1;min-width:200px;flex-wrap:wrap;">
+                            @csrf
+                            <input type="text" name="name" required maxlength="80"
+                                :placeholder="$store.ui.lang==='en' ? 'Name this template' : 'Namakan templat ini'"
+                                style="flex:1;min-width:140px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
+                            <input type="hidden" name="category_id" :value="templateDraft.category_id" />
+                            <template x-if="templateDraft.project_id">
+                                <input type="hidden" name="project_id" :value="templateDraft.project_id" />
+                            </template>
+                            <template x-if="templateDraft.sub_pillar_id">
+                                <input type="hidden" name="sub_pillar_id" :value="templateDraft.sub_pillar_id" />
+                            </template>
+                            <input type="hidden" name="percentage" :value="templateDraft.percentage" />
+                            <button type="submit" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:12px;">
+                                <span x-text="$store.ui.lang==='en' ? 'Save template' : 'Simpan templat'"></span>
+                            </button>
+                        </form>
+                        <button type="button" @click="savingTemplate = false" class="uj-btn-ghost" style="height:32px;padding:0 10px;font-size:11px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span>
+                        </button>
+                    </div>
 
                     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
                         <button type="button" @click="copyPreviousDay()" x-show="previousWorkday(selected)"
@@ -247,57 +298,123 @@
             </template>
         </div>
 
-        {{-- ---- Add affordance: three-step pill drill-down (category -> project -> sub-pillar),
-             kept unchanged in spirit from the previous picker but wired to addRow(); Task 8
-             replaces this with a flat, search-first picker. ---- --}}
+        {{-- ---- Add affordance: flat, search-first picker (Task 8). Saved templates appear
+             first (named, with a "saved" badge and a delete control), then recent
+             Category · Project · Sub-pillar combinations, most recent first. "Something
+             else" reveals the original three-step pill drill-down from Task 7 (moved here
+             unchanged), so no combination is unreachable. ---- --}}
         <div x-data="{ add: { open: false, step: 1, cat: null, proj: null, filter: '' } }" x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
-            <button type="button" x-show="!add.open" @click="add = { open: true, step: 1, cat: null, proj: null, filter: '' }"
+            <button type="button" x-show="!picker.open" @click="openPicker(); add = { open: false, step: 1, cat: null, proj: null, filter: '' }"
                 style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
                 <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
             </button>
 
-            <div x-show="add.open" x-cloak style="padding:12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
+            <div x-show="picker.open" x-cloak style="padding:12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <button type="button" x-show="add.step > 1" @click="add.step = add.step - 1" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">&larr;</button>
                     <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-                        <span x-show="add.step===1" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'"></span>
-                        <span x-show="add.step===2" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span>
-                        <span x-show="add.step===3" x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span>
+                        <span x-text="$store.ui.lang==='en' ? 'Add what you worked on' : 'Tambah apa yang anda kerjakan'"></span>
                     </strong>
-                    <button type="button" @click="add.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span></button>
+                    <button type="button" @click="picker.open = false; add = { open: false, step: 1, cat: null, proj: null, filter: '' }"
+                        class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">
+                        <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span>
+                    </button>
                 </div>
 
-                <div x-show="add.step===1" style="display:flex;flex-wrap:wrap;gap:6px;">
-                    <template x-for="c in categories" :key="c.id">
-                        <button type="button"
-                            @click="add.cat = c; if (! c.requires_project) { addRow({ category_id: c.id, project_id: '', sub_pillar_id: '' }); add.open = false; } else { add.step = 2; }"
-                            style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                            x-text="$store.ui.lang==='en' ? c.name : (c.name_ms || c.name)"></button>
-                    </template>
-                </div>
+                {{-- Flat list: saved templates first, then recents. Hidden while "Something else" is open. --}}
+                <template x-if="!add.open">
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <input x-show="pickerItems().length > 8" x-model="picker.search"
+                            :placeholder="$store.ui.lang==='en' ? 'Search…' : 'Cari…'"
+                            style="width:100%;height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
 
-                <div x-show="add.step===2">
-                    <input x-show="projects.length > 12" x-model="add.filter" :placeholder="$store.ui.lang==='en' ? 'Search project…' : 'Cari projek…'" style="width:100%;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                        <template x-for="p in projects.filter((p) => !add.filter || p.name.toLowerCase().includes(add.filter.toLowerCase()))" :key="p.id">
-                            <button type="button"
-                                @click="add.proj = p; if ((p.sub_pillars || []).length) { add.step = 3; } else { addRow({ category_id: add.cat.id, project_id: p.id, sub_pillar_id: '' }); add.open = false; }"
-                                style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                                x-text="p.name"></button>
-                        </template>
+                        <div style="display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto;">
+                            <template x-for="item in filteredItems()" :key="item.key">
+                                <div @click="chooseItem(item)" role="button" tabindex="0" @keydown.enter="chooseItem(item)"
+                                    style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:#fff;border:1px solid var(--hairline-soft);cursor:pointer;">
+                                    <span style="flex:1;font-size:12.5px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="item.label"></span>
+                                    <span x-show="item.isTemplate" x-cloak style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--success);background:var(--canvas);padding:2px 8px;border-radius:999px;flex-shrink:0;">
+                                        <span x-text="$store.ui.lang==='en' ? 'saved' : 'disimpan'"></span>
+                                    </span>
+                                    {{-- Delete a template: DELETE /app/timesheets/templates/{template}
+                                         (timesheets.templates.delete). @click.stop keeps this from
+                                         also triggering the row's chooseItem(). The confirm() guard
+                                         uses $event.preventDefault() (not "return false", which
+                                         Alpine's expression evaluator cannot parse as a statement). --}}
+                                    <template x-if="item.isTemplate">
+                                        <form method="post" :action="'/app/timesheets/templates/' + item.template_id" @click.stop
+                                            @submit="if (!confirm($store.ui.lang==='en' ? 'Delete this template?' : 'Padam templat ini?')) $event.preventDefault()"
+                                            style="flex-shrink:0;line-height:0;">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Delete template' : 'Padam templat'"
+                                                style="height:22px;width:22px;padding:0;border:0;background:none;color:var(--error);cursor:pointer;font-size:14px;line-height:1;">&times;</button>
+                                        </form>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <div x-show="pickerItems().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
+                                <span x-text="$store.ui.lang==='en' ? 'Nothing saved yet.' : 'Belum ada simpanan.'"></span>
+                                <a href="#" @click.prevent="add.open = true" style="color:var(--info);text-decoration:underline;">
+                                    <span x-text="$store.ui.lang==='en' ? 'Use Something else instead.' : 'Guna Lain-lain sebagai gantinya.'"></span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <button type="button" @click="add.open = true" class="uj-btn-ghost" style="width:100%;height:32px;font-size:12px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Something else' : 'Lain-lain'"></span>
+                        </button>
                     </div>
-                </div>
+                </template>
 
-                <div x-show="add.step===3" style="display:flex;flex-wrap:wrap;gap:6px;">
-                    <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: '' }); add.open = false;"
-                        style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                        x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></button>
-                    <template x-for="s in (add.proj ? (add.proj.sub_pillars || []) : [])" :key="s.id">
-                        <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: s.id }); add.open = false;"
-                            style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                            x-text="s.name"></button>
-                    </template>
-                </div>
+                {{-- Something else: the original three-step pill drill-down (category -> project
+                     -> sub-pillar) from Task 7, moved here unchanged so every combination —
+                     including ones with no saved template or recent use — stays reachable. --}}
+                <template x-if="add.open">
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button type="button" x-show="add.step > 1" @click="add.step = add.step - 1" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">&larr;</button>
+                            <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+                                <span x-show="add.step===1" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'"></span>
+                                <span x-show="add.step===2" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span>
+                                <span x-show="add.step===3" x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span>
+                            </strong>
+                            <button type="button" @click="add.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Back to list' : 'Kembali ke senarai'"></span></button>
+                        </div>
+
+                        <div x-show="add.step===1" style="display:flex;flex-wrap:wrap;gap:6px;">
+                            <template x-for="c in categories" :key="c.id">
+                                <button type="button"
+                                    @click="add.cat = c; if (! c.requires_project) { addRow({ category_id: c.id, project_id: '', sub_pillar_id: '' }); picker.open = false; add.open = false; } else { add.step = 2; }"
+                                    style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                                    x-text="$store.ui.lang==='en' ? c.name : (c.name_ms || c.name)"></button>
+                            </template>
+                        </div>
+
+                        <div x-show="add.step===2">
+                            <input x-show="projects.length > 12" x-model="add.filter" :placeholder="$store.ui.lang==='en' ? 'Search project…' : 'Cari projek…'" style="width:100%;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                <template x-for="p in projects.filter((p) => !add.filter || p.name.toLowerCase().includes(add.filter.toLowerCase()))" :key="p.id">
+                                    <button type="button"
+                                        @click="add.proj = p; if ((p.sub_pillars || []).length) { add.step = 3; } else { addRow({ category_id: add.cat.id, project_id: p.id, sub_pillar_id: '' }); picker.open = false; add.open = false; }"
+                                        style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                                        x-text="p.name"></button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div x-show="add.step===3" style="display:flex;flex-wrap:wrap;gap:6px;">
+                            <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: '' }); picker.open = false; add.open = false;"
+                                style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                                x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></button>
+                            <template x-for="s in (add.proj ? (add.proj.sub_pillars || []) : [])" :key="s.id">
+                                <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: s.id }); picker.open = false; add.open = false;"
+                                    style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
+                                    x-text="s.name"></button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
 
