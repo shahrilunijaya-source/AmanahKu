@@ -1819,71 +1819,155 @@ This is the change that takes adding a line from roughly nine interactions to tw
 - Modify: `resources/js/timesheet-capture.js`
 - Modify: `resources/views/screens/timesheets.blade.php`
 
-**Interfaces:**
-- Consumes: `tsItems` from Task 6, `addRow(item, percentage)` from Task 7.
-- Produces: `filteredItems()` and the `picker` state object, used only inside this component.
+Task 7 removed the old separate templates UI. Per the project decision (2026-07-22), saved
+templates return **inside this picker** rather than as their own panel: a template is a named,
+pre-composed allocation line, which maps exactly onto a pickable item. So this task both builds
+the flat picker AND restores template apply / save / delete through it, giving the orphaned
+`timesheets.templates.store` / `timesheets.templates.delete` routes a UI path again.
 
-- [ ] **Step 1: Add picker state and filtering**
+**Interfaces:**
+- Consumes: `tsItems` and `tsTemplates` from Task 6 (`cfg.items`, `cfg.templates`), `addRow(item, percentage)` and `save()` from Task 7.
+- Produces: `filteredItems()`, `pickerItems()`, and the `picker` state object, used only inside this component.
+
+**Template data shape:** confirm what `TimesheetController::templateOptions()` emits before coding.
+It returns each `TimesheetTemplate` with at least `id, name, category_id, project_id,
+sub_pillar_id, percentage` (percentage may be null). If a field name differs, adapt — do not
+assume.
+
+- [ ] **Step 1: Add picker state, template-merged item list, and filtering**
 
 In `resources/js/timesheet-capture.js`, add to the returned object:
 
 ```js
-        picker: { open: false, search: '', advanced: false },
+        picker: { open: false, search: '' },
 
         openPicker() {
-            this.picker = { open: true, search: '', advanced: false };
+            this.picker = { open: true, search: '' };
+        },
+        // Saved templates first (named, with a flag), then recent combinations.
+        pickerItems() {
+            const templates = (this.templates || []).map((t) => ({
+                key: 'tpl-' + t.id,
+                template_id: t.id,
+                category_id: t.category_id,
+                project_id: t.project_id || '',
+                sub_pillar_id: t.sub_pillar_id || '',
+                percentage: t.percentage,
+                label: t.name,
+                isTemplate: true,
+            }));
+            return [...templates, ...(this.items || [])];
         },
         filteredItems() {
             const q = this.picker.search.trim().toLowerCase();
-            if (!q) return this.items;
-            return this.items.filter((i) => i.label.toLowerCase().includes(q));
+            const all = this.pickerItems();
+            if (!q) return all;
+            return all.filter((i) => i.label.toLowerCase().includes(q));
         },
         chooseItem(item) {
-            this.addRow(item, this.remainder(this.selected) || 100);
+            // A template carries its own default percentage; a recent item takes the remainder.
+            const pct = item.isTemplate && item.percentage != null
+                ? item.percentage
+                : (this.remainder(this.selected) || 100);
+            this.addRow(item, pct);
             this.picker.open = false;
         },
 ```
 
 - [ ] **Step 2: Render the picker**
 
-In the Blade file, replace the add affordance from Task 7 Step 2 item 4 with a panel shown by
+In the Blade file, replace the add affordance from Task 7 (the dashed "Add what you worked on"
+button and, if the 3-step pill panel is still inline there, that panel) with a panel shown by
 `x-show="picker.open"` containing, in order:
 
-1. A search input bound to `picker.search`, shown only when `items.length > 8`.
-2. `<template x-for="item in filteredItems()">` rendering one full-width row per item,
-   labelled `x-text="item.label"`, calling `chooseItem(item)`.
-3. Amount chips beneath the chosen row: `100`, `50`, `25`, plus a number input, all writing to
-   the newly added row's `percentage`.
-4. A `Something else` link toggling `picker.advanced`, which reveals the existing three-step
-   category → project → sub-pillar pill markup unchanged, so no combination is unreachable.
-5. An empty state when `items.length === 0`, sending the user straight to `picker.advanced`.
+1. A search input bound to `picker.search`, shown only when `pickerItems().length > 8`.
+2. `<template x-for="item in filteredItems()" :key="item.key">` rendering one full-width row per
+   item, labelled `x-text="item.label"`, calling `chooseItem(item)`. Mark template rows with a
+   small "saved" badge (`x-show="item.isTemplate"`) and a delete control — see Step 3.
+3. Amount chips for the just-added row: `100`, `50`, `25`, plus a number input, writing the
+   selected row's `percentage`. (For a template item, `chooseItem` already set its default; the
+   chips let the user override.)
+4. A `Something else` toggle revealing the existing three-step category → project → sub-pillar
+   pill markup (moved here from Task 7, unchanged), so no combination is unreachable.
+5. An empty state when `pickerItems().length === 0`, sending the user straight to the
+   `Something else` drill-down.
 
-- [ ] **Step 3: Build and verify in the browser**
+Every user-facing string keeps its `x-text="$store.ui.lang==='en' ? '…' : '…'"` pair.
 
-Run: `bun run build`
+- [ ] **Step 3: Save-as-template and delete, through the existing routes**
 
-Then at `http://localhost:9100/app/timesheets`, confirm:
+These two routes redirect (they are not JSON endpoints), so use real forms rather than the
+autosave `fetch`. To avoid losing the current day when the page reloads, the save-template
+control first autosaves the draft, then submits.
 
-- The picker lists combinations you have used before, most recent first.
-- Typing in the search box filters the list.
-- Choosing an item adds a row already carrying the day's remaining percentage.
+**Save as template** — a small inline form, populated from a row the user chose to save:
+
+```blade
+<form method="post" action="{{ route('timesheets.templates.store') }}" @submit="save()">
+    @csrf
+    <input type="text" name="name" required maxlength="80"
+        :placeholder="$store.ui.lang==='en' ? 'Name this template' : 'Namakan templat ini'" />
+    <input type="hidden" name="category_id" :value="templateDraft.category_id" />
+    <input type="hidden" name="project_id" :value="templateDraft.project_id" />
+    <input type="hidden" name="sub_pillar_id" :value="templateDraft.sub_pillar_id" />
+    <input type="hidden" name="percentage" :value="templateDraft.percentage" />
+    <button type="submit"><span x-text="$store.ui.lang==='en' ? 'Save template' : 'Simpan templat'"></span></button>
+</form>
+```
+
+Add `templateDraft: { category_id: '', project_id: '', sub_pillar_id: '', percentage: null }`
+to the component state and a `startSaveTemplate(row)` method that copies a row's fields into
+`templateDraft` and opens this form. `@submit="save()"` autosaves the draft first; the form then
+POSTs and the page reloads with the new template present in `tsTemplates`.
+
+Empty `project_id` / `sub_pillar_id` hidden inputs post as `""`; the controller's
+`storeTemplate` validation is `nullable|integer` on both, and `""` fails `integer`. So in the
+form, bind these so an empty value is omitted — either drop the hidden input when the value is
+empty (`<template x-if="templateDraft.project_id"> … </template>`) or post `null`. Verify against
+`storeTemplate()` validation before committing; a template with no project must still save.
+
+**Delete a template** — on each template row in the list:
+
+```blade
+<form method="post" :action="'/app/timesheets/templates/' + item.template_id"
+      @submit="return confirm($store.ui.lang==='en' ? 'Delete this template?' : 'Padam templat ini?')">
+    @csrf
+    @method('DELETE')
+    <button type="submit" aria-label="Delete template">&times;</button>
+</form>
+```
+
+(The delete route is `DELETE /app/timesheets/templates/{template}`, named
+`timesheets.templates.delete` — confirm the exact URI in `routes/web.php` and match it.)
+
+- [ ] **Step 4: Build and run the suite**
+
+Run: `bun run build && lerd artisan test --filter=Timesheet`
+Expected: build succeeds, tests green (unchanged count — no test asserts picker internals; the
+existing `TimesheetSetupAjaxTest` and template store/delete coverage must still pass).
+Then `lerd artisan test --filter=AllScreensRenderTest` — the screen must still render.
+
+- [ ] **Step 5: Verify in the browser** (the controller/reviewer confirms; the implementer states what to check)
+
+At `http://localhost:9100/app/timesheets`:
+- Saved templates appear at the top of the picker with a "saved" badge; recents follow, most recent first.
+- Search filters both.
+- Choosing a template adds a row with the template's category/project/sub-pillar and its default percentage.
+- Choosing a recent item adds a row carrying the day's remaining percentage.
 - `Something else` still reaches every category, project and sub-pillar.
 - `On Leave` and `Public Holiday` appear nowhere in the picker.
+- Save-as-template creates a template that then appears in the list; delete removes one.
 
-- [ ] **Step 4: Run the full suite**
-
-Run: `lerd artisan test`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add resources/js/timesheet-capture.js resources/views/screens/timesheets.blade.php public/build
-git commit -m "feat(timesheet): flat searchable work-item picker
+git commit -m "feat(timesheet): flat work-item picker with templates folded in
 
-One list of ready-made Category · Project · Sub-pillar combinations, recent
-first, instead of three sequential pill choices. The drill-down stays behind
-'Something else' so nothing becomes unreachable."
+One searchable list — saved templates first, then recent Category · Project ·
+Sub-pillar combinations — instead of three sequential pill choices. Save-as-
+template and delete run through the existing routes, giving them a UI path
+again. The drill-down stays behind 'Something else' so nothing is unreachable."
 ```
 
 ---
