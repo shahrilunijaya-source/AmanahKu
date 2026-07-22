@@ -29,6 +29,18 @@ export function registerTimesheetCapture(Alpine) {
         savedAt: null,
         error: '',
 
+        // Bilingual weekday names, indexed 0=Sun..6=Sat to match Date#getUTCDay().
+        weekdayNames: {
+            short: {
+                en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                ms: ['Ahad', 'Isn', 'Sel', 'Rabu', 'Kha', 'Jum', 'Sab'],
+            },
+            long: {
+                en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                ms: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'],
+            },
+        },
+
         init() {
             const seed = cfg.existing || {};
             for (const iso of Object.keys(seed)) {
@@ -55,12 +67,16 @@ export function registerTimesheetCapture(Alpine) {
             return out;
         },
         dayName(iso) {
-            return new Date(iso + 'T00:00:00Z')
-                .toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
+            const idx = new Date(iso + 'T00:00:00Z').getUTCDay();
+            return this.weekdayNames.short[lang][idx];
         },
         dayLong(iso) {
-            return new Date(iso + 'T00:00:00Z')
-                .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
+            const dt = new Date(iso + 'T00:00:00Z');
+            const weekday = this.weekdayNames.long[lang][dt.getUTCDay()];
+            const rest = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+            return `${weekday} ${rest}`;
         },
         isLocked(iso) {
             return !!this.locked[iso];
@@ -144,9 +160,18 @@ export function registerTimesheetCapture(Alpine) {
 
         // ---- submit gate ---------------------------------------------------
         blockingDays() {
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
             return this.dayDates()
                 .filter((d) => this.isEditable(d) && this.dayState(d) !== 'done')
-                .map((d) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }));
+                .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
+        },
+        // Joins blockingDays() into a natural sentence fragment: "Monday", "Monday and
+        // Tuesday", or "Monday, Tuesday, Wednesday and Friday" (no Oxford comma; "dan" in BM).
+        blockingDaysText() {
+            const days = this.blockingDays();
+            if (days.length <= 1) return days.join('');
+            const connector = this.$store.ui.lang === 'en' ? ' and ' : ' dan ';
+            return days.slice(0, -1).join(', ') + connector + days[days.length - 1];
         },
         weekComplete() {
             return this.blockingDays().length === 0;

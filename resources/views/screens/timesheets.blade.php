@@ -45,24 +45,24 @@
     'key' => 'timesheets',
     'en'  => [
         'title' => 'Weekly timesheets',
-        'body'  => 'Allocate your week by percentage. Add each thing you worked on once as a line (category → project → sub-pillar), then set its share of each day in the grid — every working day column must add up to 100%. Pick a week, fill the grid, then submit the week.',
+        'body'  => 'Pick the week, then work through it one day at a time. Tap a day in the strip to open it, add what you worked on, and set each entry\'s percentage — every working day must reach 100% before the week can be submitted.',
         'who'   => 'Staff fill & submit · Managers & HR approve',
         'steps' => [
-            'Choose the week at the top. The grid shows your lines down the side and the days across the top.',
-            'Press "+ Add line" and tap a category pill (and a project pill if it needs one). Then type each day\'s percentage in that line\'s row.',
-            'Use "Copy across weekdays" to repeat a line Mon–Fri, or click a day total to fill it to 100%. Save a line as a template, or add one from a saved template.',
-            'When every filled day reads 100%, press "Submit week". You can "Save draft" any time before that.',
+            'Pick the week using the arrows at the top — the strip shows each weekday with a fill bar for how much of that day is planned.',
+            'Tap a day in the strip to open it. Press "+ Add what you worked on", choose what you did, and set its percentage — repeat until the day reads 100%.',
+            'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
+            'Use "Same as <day>" to copy the previous day, or "Give the rest to the last line" to top a day up to 100%. Save a draft any time; press "Submit week" once every day reads 100%.',
         ],
     ],
     'ms'  => [
         'title' => 'Timesheet mingguan',
-        'body'  => 'Peruntukkan minggu anda mengikut peratus. Tambah setiap perkara yang anda kerjakan sekali sahaja sebagai satu baris (kategori → projek → sub-tiang), kemudian tetapkan bahagiannya bagi setiap hari dalam grid — setiap lajur hari bekerja mesti berjumlah 100%. Pilih minggu, isi grid, kemudian hantar minggu untuk kelulusan.',
+        'body'  => 'Pilih minggu, kemudian kerjakan satu hari pada satu masa. Ketik satu hari dalam jalur untuk membukanya, tambah apa yang anda kerjakan, dan tetapkan peratus setiap entri — setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.',
         'who'   => 'Staf isi & hantar · Pengurus & HR luluskan',
         'steps' => [
-            'Pilih minggu di atas. Grid memaparkan baris anda di sisi dan hari di bahagian atas.',
-            'Tekan "+ Tambah baris" dan ketik pil kategori (dan pil projek jika perlu). Kemudian taip peratus setiap hari dalam baris itu.',
-            'Guna "Salin ke hari minggu" untuk mengulang baris Isnin–Jumaat, atau klik jumlah hari untuk mengisinya ke 100%. Simpan baris sebagai templat, atau tambah satu daripada templat tersimpan.',
-            'Apabila setiap hari yang diisi membaca 100%, tekan "Hantar minggu". Anda boleh "Simpan draf" pada bila-bila masa sebelum itu.',
+            'Pilih minggu menggunakan anak panah di atas — jalur memaparkan setiap hari minggu dengan bar pengisian menunjukkan berapa banyak hari itu telah dirancang.',
+            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan", pilih apa yang dilakukan, dan tetapkan peratusnya — ulang sehingga hari itu membaca 100%.',
+            'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
+            'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya, atau "Beri bakinya kepada baris akhir" untuk melengkapkan hari itu ke 100%. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
         ],
     ],
 ])
@@ -201,7 +201,8 @@
                     :style="{
                         width: Math.min(100, dayTotal(selected)) + '%',
                         background: dayState(selected) === 'done' ? 'var(--success)'
-                                  : dayState(selected) === 'over' ? 'var(--error)' : 'var(--amber)',
+                                  : dayState(selected) === 'over' ? 'var(--error)'
+                                  : dayState(selected) === 'locked' ? 'var(--muted)' : 'var(--amber)',
                     }"></div>
             </div>
 
@@ -303,7 +304,7 @@
         {{-- ---- Footer: save / submit ---- --}}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
             <div style="font-size:12px;flex:1;min-width:200px;">
-                <span x-show="!weekComplete()" style="color:var(--amber);" x-text="blockingDays().join($store.ui.lang==='en' ? ' and ' : ' dan ') + ($store.ui.lang==='en' ? ' not at 100% yet' : ' belum 100%')"></span>
+                <span x-show="!weekComplete()" style="color:var(--amber);" x-text="blockingDaysText() + ($store.ui.lang==='en' ? ' not at 100% yet' : ' belum 100%')"></span>
                 <span x-show="weekComplete() && savedAt" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'Saved ' : 'Disimpan ') + savedAt"></span>
             </div>
             <div style="display:flex;gap:8px;">
