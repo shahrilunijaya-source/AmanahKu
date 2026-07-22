@@ -16,7 +16,9 @@ use App\Services\DataScope;
 use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -123,7 +125,7 @@ class TimesheetController extends Controller
      * is authoritative for the whole week, so existing entries are replaced. Optionally
      * submit in the same request (submit_now) once every populated day totals 100%.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
@@ -133,7 +135,7 @@ class TimesheetController extends Controller
             'week_start' => ['required', 'date'],
             'week_label' => ['nullable', 'string', 'max:60'],
             'submit_now' => ['nullable', 'boolean'],
-            'entries' => ['required', 'array', 'min:1'],
+            'entries' => ['present', 'array'],
             'entries.*.entry_date' => ['required', 'date'],
             'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'entries.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
@@ -142,7 +144,18 @@ class TimesheetController extends Controller
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
         ]);
 
-        $entries = $this->normaliseEntries($data['entries']);
+        $lockedDays = app(LockedDays::class);
+        $locked = $lockedDays->forWeek($employee, Carbon::parse($data['week_start'])->startOfDay());
+
+        // D4: an approved leave day or public holiday is a fact HR owns. Anything the staffer
+        // typed against that day is wrong by definition, so it is dropped rather than merged.
+        $userEntries = array_values(array_filter(
+            $data['entries'],
+            fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
+        ));
+
+        $entries = $this->normaliseEntries($userEntries);
+        $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
 
         $submitNow = $request->boolean('submit_now');
         if ($submitNow) {
@@ -175,13 +188,24 @@ class TimesheetController extends Controller
             }
         });
 
+        $message = $submitNow
+            ? 'Timesheet submitted for approval.'
+            : 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.';
+
         if ($submitNow) {
             AuditLog::record('Submitted timesheet', ($timesheet->week_label ?: $timesheet->week_start->toDateString()).' · '.count($entries).' entries');
-
-            return back()->with('ok', 'Timesheet submitted for approval.');
         }
 
-        return back()->with('ok', 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.');
+        // The day-first screen autosaves over fetch(); the plain form POST still redirects.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'status' => $timesheet->status,
+                'locked' => $locked,
+            ]);
+        }
+
+        return back()->with('ok', $message);
     }
 
     public function submit(Request $request, Timesheet $timesheet): RedirectResponse
