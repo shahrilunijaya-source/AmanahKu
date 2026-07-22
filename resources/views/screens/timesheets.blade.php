@@ -264,7 +264,7 @@
                             @submit.prevent="await save(); $event.target.submit()"
                             style="display:flex;gap:6px;flex:1;min-width:200px;flex-wrap:wrap;">
                             @csrf
-                            <input type="text" name="name" required maxlength="80"
+                            <input type="text" name="name" x-model="templateDraft.name" required maxlength="80"
                                 :placeholder="$store.ui.lang==='en' ? 'Name this template' : 'Namakan templat ini'"
                                 style="flex:1;min-width:140px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
                             <input type="hidden" name="category_id" :value="templateDraft.category_id" />
@@ -275,7 +275,7 @@
                                 <input type="hidden" name="sub_pillar_id" :value="templateDraft.sub_pillar_id" />
                             </template>
                             <input type="hidden" name="percentage" :value="templateDraft.percentage" />
-                            <button type="submit" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:12px;">
+                            <button type="submit" :disabled="saving" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:12px;">
                                 <span x-text="$store.ui.lang==='en' ? 'Save template' : 'Simpan templat'"></span>
                             </button>
                         </form>
@@ -337,11 +337,17 @@
                                     </span>
                                     {{-- Delete a template: DELETE /app/timesheets/templates/{template}
                                          (timesheets.templates.delete). @click.stop keeps this from
-                                         also triggering the row's chooseItem(). The confirm() guard
-                                         uses $event.preventDefault() (not "return false", which
-                                         Alpine's expression evaluator cannot parse as a statement). --}}
+                                         also triggering the row's chooseItem(); @keydown.enter.stop
+                                         does the same for a keyboard user tabbing to the delete
+                                         button and pressing Enter — without it, Enter both submits
+                                         the delete AND bubbles up to fire the row's chooseItem(),
+                                         adding a spurious row. The button's native Enter-to-submit
+                                         is unaffected, since .stop only stops propagation. The
+                                         confirm() guard uses $event.preventDefault() (not "return
+                                         false", which Alpine's expression evaluator cannot parse
+                                         as a statement). --}}
                                     <template x-if="item.isTemplate">
-                                        <form method="post" :action="'/app/timesheets/templates/' + item.template_id" @click.stop
+                                        <form method="post" :action="'/app/timesheets/templates/' + item.template_id" @click.stop @keydown.enter.stop
                                             @submit="if (!confirm($store.ui.lang==='en' ? 'Delete this template?' : 'Padam templat ini?')) $event.preventDefault()"
                                             style="flex-shrink:0;line-height:0;">
                                             @csrf
@@ -355,13 +361,19 @@
 
                             <div x-show="pickerItems().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
                                 <span x-text="$store.ui.lang==='en' ? 'Nothing saved yet.' : 'Belum ada simpanan.'"></span>
-                                <a href="#" @click.prevent="add.open = true" style="color:var(--info);text-decoration:underline;">
+                                <a href="#" @click.prevent="add = { open: true, step: 1, cat: null, proj: null, filter: '' }" style="color:var(--info);text-decoration:underline;">
                                     <span x-text="$store.ui.lang==='en' ? 'Use Something else instead.' : 'Guna Lain-lain sebagai gantinya.'"></span>
                                 </a>
                             </div>
+
+                            {{-- A search with zero matches is otherwise just a blank gap below the
+                                 input; distinguish it from "nothing saved at all" above. --}}
+                            <div x-show="picker.search.trim() !== '' && filteredItems().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
+                                <span x-text="$store.ui.lang==='en' ? 'No matches. Try \'Something else\' below.' : 'Tiada padanan. Cuba \'Lain-lain\' di bawah.'"></span>
+                            </div>
                         </div>
 
-                        <button type="button" @click="add.open = true" class="uj-btn-ghost" style="width:100%;height:32px;font-size:12px;">
+                        <button type="button" @click="add = { open: true, step: 1, cat: null, proj: null, filter: '' }" class="uj-btn-ghost" style="width:100%;height:32px;font-size:12px;">
                             <span x-text="$store.ui.lang==='en' ? 'Something else' : 'Lain-lain'"></span>
                         </button>
                     </div>
@@ -379,7 +391,7 @@
                                 <span x-show="add.step===2" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span>
                                 <span x-show="add.step===3" x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span>
                             </strong>
-                            <button type="button" @click="add.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Back to list' : 'Kembali ke senarai'"></span></button>
+                            <button type="button" @click="add = { open: false, step: 1, cat: null, proj: null, filter: '' }" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Back to list' : 'Kembali ke senarai'"></span></button>
                         </div>
 
                         <div x-show="add.step===1" style="display:flex;flex-wrap:wrap;gap:6px;">

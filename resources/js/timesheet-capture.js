@@ -26,6 +26,7 @@ export function registerTimesheetCapture(Alpine) {
         rows: {},
         selected: null,
         saving: false,
+        savePromise: null,
         savedAt: null,
         error: '',
 
@@ -176,13 +177,16 @@ export function registerTimesheetCapture(Alpine) {
         // ---- templates: save-as-template and delete, through the existing routes -------
         // (routes/web.php: timesheets.templates.store / .delete). Both redirect rather than
         // return JSON, so the Blade posts real <form>s instead of using save()'s fetch.
-        templateDraft: { category_id: '', project_id: '', sub_pillar_id: '', percentage: null },
+        templateDraft: { name: '', category_id: '', project_id: '', sub_pillar_id: '', percentage: null },
         savingTemplate: false,
         // Copies a row's fields into templateDraft and opens the save-as-template form.
         // The form's own submit handler autosaves the day first, so the page reload from
-        // the store route's redirect never drops in-progress work.
+        // the store route's redirect never drops in-progress work. name is reset to '' every
+        // time (the panel uses x-show so it stays in the DOM) so a name typed for one row
+        // can never survive to mismatch a different row's allocation.
         startSaveTemplate(row) {
             this.templateDraft = {
+                name: '',
                 category_id: row.category_id,
                 project_id: row.project_id || '',
                 sub_pillar_id: row.sub_pillar_id || '',
@@ -253,42 +257,54 @@ export function registerTimesheetCapture(Alpine) {
             }
             return out;
         },
+        // Re-entrant: a caller that hits save() while one is already in flight (e.g. the
+        // save-as-template form's `await save()` firing right after a blur/chip-click save)
+        // gets back the SAME promise as the in-flight request, so it genuinely waits for that
+        // network round-trip instead of no-oping and letting the caller move on early — which
+        // used to let `$event.target.submit()` navigate while the draft POST was still pending.
         async save(submitNow = false) {
-            if (this.readonly || this.saving) return;
+            if (this.readonly) return Promise.resolve();
+            if (this.saving && this.savePromise) return this.savePromise;
+
             const entries = this.flatRows();
             // Nothing to persist at all — no typed rows and no locked days to materialise.
             if (!entries.length && !Object.keys(this.locked).length && !submitNow) return;
 
             this.saving = true;
             this.error = '';
-            try {
-                const res = await fetch('/app/timesheets', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    body: JSON.stringify({
-                        week_start: this.weekStart,
-                        week_label: cfg.weekLabel || null,
-                        submit_now: submitNow,
-                        entries,
-                    }),
-                });
-                const body = await res.json();
-                if (!res.ok) {
-                    this.error = Object.values(body.errors || {}).flat()[0] || 'Could not save.';
-                    return;
+            this.savePromise = (async () => {
+                try {
+                    const res = await fetch('/app/timesheets', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                        body: JSON.stringify({
+                            week_start: this.weekStart,
+                            week_label: cfg.weekLabel || null,
+                            submit_now: submitNow,
+                            entries,
+                        }),
+                    });
+                    const body = await res.json();
+                    if (!res.ok) {
+                        this.error = Object.values(body.errors || {}).flat()[0] || 'Could not save.';
+                        return;
+                    }
+                    this.locked = body.locked || {};
+                    this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    if (submitNow) window.location.reload();
+                } catch (e) {
+                    this.error = 'Could not reach the server. Your changes are still on screen.';
+                } finally {
+                    this.saving = false;
+                    this.savePromise = null;
                 }
-                this.locked = body.locked || {};
-                this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-                if (submitNow) window.location.reload();
-            } catch (e) {
-                this.error = 'Could not reach the server. Your changes are still on screen.';
-            } finally {
-                this.saving = false;
-            }
+            })();
+
+            return this.savePromise;
         },
     }));
 }

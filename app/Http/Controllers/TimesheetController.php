@@ -108,7 +108,8 @@ class TimesheetController extends Controller
         }
 
         // The picker offers ready-made "Category · Project · Sub-pillar" combinations rather
-        // than three sequential pill choices. Recent first, then saved templates.
+        // than three sequential pill choices. Saved templates first, then recent
+        // combinations, most recent first.
         $tsItems = [];
 
         if ($employee) {
