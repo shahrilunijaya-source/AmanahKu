@@ -38,6 +38,9 @@ holiday. Pure read, no writes, no knowledge of timesheets.
   - `LockedDays::forWeek(Employee $employee, CarbonInterface $weekStart): array` returning
     `array<string, array{label: string, source: string}>` keyed by ISO date, Mon to Fri only.
     `source` is `'holiday'` or `'leave'`.
+  - `LockedDays::forWeekMany(Collection $employees, CarbonInterface $weekStart): array` returning
+    the same per-day arrays keyed by employee id, computed in two queries for the whole
+    collection rather than two per employee. Task 2's `roster()` depends on this.
   - `LockedDays::entryRows(Employee $employee, CarbonInterface $weekStart): array` returning rows
     ready for `TimesheetEntry::create()`, each with keys
     `entry_date, category_id, project_id, sub_pillar_id, percentage, description, project, hours, source`.
@@ -178,6 +181,36 @@ class LockedDaysTest extends TestCase
 
         $this->assertSame([], $this->svc->entryRows($this->employee, '2026-07-20'));
     }
+
+    public function test_for_week_many_keys_locked_days_by_employee(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green',
+        ]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-07-22']);
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-07-20', 'date_to' => '2026-07-20',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $many = $this->svc->forWeekMany(collect([$this->employee, $other]), '2026-07-20');
+
+        // The employee on leave has both the leave Monday and the shared holiday Wednesday.
+        $this->assertSame(['2026-07-20', '2026-07-22'], array_keys($many[$this->employee->id]));
+        // The other employee shares only the holiday.
+        $this->assertSame(['2026-07-22'], array_keys($many[$other->id]));
+    }
+
+    public function test_for_week_many_matches_for_week_per_employee(): void
+    {
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-07-22']);
+
+        $many = $this->svc->forWeekMany(collect([$this->employee]), '2026-07-20');
+
+        $this->assertEquals($this->svc->forWeek($this->employee, '2026-07-20'), $many[$this->employee->id]);
+    }
 }
 ```
 
@@ -203,6 +236,7 @@ use App\Models\PublicHoliday;
 use App\Models\TimesheetCategory;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 
 /**
  * Which weekdays of a timesheet week are already accounted for by a fact HR owns:
@@ -265,6 +299,64 @@ final class LockedDays
     }
 
     /**
+     * forWeek for a whole roster in two queries instead of two per employee.
+     *
+     * roster() renders the entire team, so calling forWeek() in a loop would be an N+1: the
+     * holiday query is identical for every employee, and the leave query can be a single
+     * whereIn. This returns the same per-day arrays forWeek() does, keyed by employee id.
+     *
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return array<int, array<string, array{label: string, source: string}>>
+     */
+    public function forWeekMany(Collection $employees, CarbonInterface $weekStart): array
+    {
+        $start = CarbonImmutable::parse($weekStart)->startOfDay();
+        $end = $start->addDays(4);
+
+        $holidays = PublicHoliday::whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn (PublicHoliday $h) => $h->date->toDateString());
+
+        $leaveByEmployee = LeaveRequest::with('leaveType')
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->where('status', 'approved')
+            ->whereDate('date_from', '<=', $end->toDateString())
+            ->whereDate('date_to', '>=', $start->toDateString())
+            ->get()
+            ->groupBy('employee_id');
+
+        $out = [];
+
+        foreach ($employees as $employee) {
+            $leave = $leaveByEmployee->get($employee->id) ?? collect();
+            $locked = [];
+
+            for ($i = 0; $i < 5; $i++) {
+                $day = $start->addDays($i);
+                $iso = $day->toDateString();
+
+                if ($holiday = $holidays->get($iso)) {
+                    $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday'];
+
+                    continue;
+                }
+
+                $covering = $leave->first(
+                    fn (LeaveRequest $r) => $day->betweenIncluded($r->date_from, $r->date_to)
+                );
+
+                if ($covering) {
+                    $locked[$iso] = ['label' => $covering->leaveType?->name ?: 'Leave', 'source' => 'leave'];
+                }
+            }
+
+            $out[$employee->id] = $locked;
+        }
+
+        return $out;
+    }
+
+    /**
      * The same locked days shaped as timesheet_entries rows, ready to persist.
      *
      * Categories are matched by name because timesheet_categories has no stable key beyond
@@ -318,7 +410,7 @@ final class LockedDays
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `lerd artisan test --filter=LockedDaysTest`
-Expected: PASS, 7 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Run the quality gates**
 
@@ -485,12 +577,14 @@ Add the constructor and extend `isEligible()`:
 Add `use App\Timesheet\LockedDays;` — same namespace, so no import needed; delete this note if
 your editor adds one.
 
-`roster()` filters employees in SQL and does not currently call `isEligible()`. Add the filter
-after the `$employees` query so the roster matches:
+`roster()` filters employees in SQL and does not currently call `isEligible()`. It renders the
+whole team, so use the batched `forWeekMany()` (one pair of queries for the roster) rather than
+`forWeek()` in a loop (a pair per employee). Add, after the `$employees` query is fetched:
 
 ```php
+        $lockedByEmployee = $this->lockedDays->forWeekMany($employees, $start);
         $employees = $employees->reject(
-            fn (Employee $e) => count($this->lockedDays->forWeek($e, $start)) >= 5
+            fn (Employee $e) => count($lockedByEmployee[$e->id] ?? []) >= 5
         )->values();
 ```
 
