@@ -171,6 +171,20 @@ class TimesheetTest extends TestCase
         $this->assertSame('submitted', Timesheet::where('employee_id', $this->employee->id)->first()->status);
     }
 
+    public function test_submitting_an_empty_week_through_store_is_refused(): void
+    {
+        // No user rows, and no approved leave or public holiday to generate locked rows,
+        // so the week is genuinely empty. Submitting it must be refused, not silently
+        // create a submitted timesheet with zero entries.
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => true,
+            'entries' => [],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, Timesheet::where('employee_id', $this->employee->id)->count());
+    }
+
     public function test_category_that_requires_a_project_rejects_a_missing_project(): void
     {
         $needsProject = TimesheetCategory::create([

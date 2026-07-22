@@ -158,6 +158,10 @@ class TimesheetController extends Controller
         $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
 
         $submitNow = $request->boolean('submit_now');
+        // A fully-locked week may submit with no user rows, but a genuinely empty week
+        // must not: mirror submit()'s invariant so store()'s submit_now path can't create
+        // a submitted timesheet with zero entries (which would land in the cost report).
+        abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
         if ($submitNow) {
             $this->assertDayTotals($entries);
         }
