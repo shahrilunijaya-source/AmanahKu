@@ -413,4 +413,46 @@ class TimesheetTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_the_owner_can_recall_a_submitted_week(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 8,
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertRedirect();
+
+        $sheet->refresh();
+        $this->assertSame('draft', $sheet->status);
+        $this->assertNull($sheet->submitted_at);
+    }
+
+    public function test_recalling_a_draft_is_refused(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertStatus(422);
+    }
+
+    public function test_a_non_owner_cannot_recall_someone_elses_week(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 8,
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertForbidden();
+
+        $this->assertSame('submitted', $sheet->refresh()->status);
+    }
 }

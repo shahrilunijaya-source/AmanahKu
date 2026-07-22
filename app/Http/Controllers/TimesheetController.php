@@ -242,6 +242,23 @@ class TimesheetController extends Controller
         return back()->with('ok', 'Timesheet submitted for approval.');
     }
 
+    /**
+     * Put a submitted week back into draft so its owner can fix it.
+     *
+     * Nothing approves timesheets today, so there is no decision to invalidate. This exists
+     * because submit was otherwise irreversible: a typo could only be undone in the database.
+     */
+    public function recall(Request $request, Timesheet $timesheet): RedirectResponse
+    {
+        $this->authorizeOwner($request, $timesheet);
+        abort_unless($timesheet->status === 'submitted', 422, 'Only a submitted week can be recalled.');
+
+        $timesheet->update(['status' => 'draft', 'submitted_at' => null]);
+        AuditLog::record('Recalled timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
+
+        return back()->with('ok', 'Week reopened. Fix it and submit again.');
+    }
+
     // ---- Per-staff templates ---------------------------------------------
 
     public function storeTemplate(Request $request): RedirectResponse
