@@ -97,6 +97,10 @@ class TimesheetController extends Controller
         $existingGrid = [];
         if ($weekTimesheet) {
             foreach ($weekTimesheet->entries as $e) {
+                if ($e->source !== null) {
+                    continue;
+                }
+
                 $existingGrid[$e->entry_date->toDateString()][] = [
                     'category_id' => $e->category_id,
                     'project_id' => $e->project_id,
@@ -250,7 +254,7 @@ class TimesheetController extends Controller
         });
 
         $message = $submitNow
-            ? 'Timesheet submitted for approval.'
+            ? 'Timesheet submitted.'
             : 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.';
 
         if ($submitNow) {
@@ -285,7 +289,7 @@ class TimesheetController extends Controller
         $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
         AuditLog::record('Submitted timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
 
-        return back()->with('ok', 'Timesheet submitted for approval.');
+        return back()->with('ok', 'Timesheet submitted.');
     }
 
     /**

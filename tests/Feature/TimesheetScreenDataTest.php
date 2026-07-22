@@ -105,4 +105,36 @@ class TimesheetScreenDataTest extends TestCase
         $labels = collect($response->viewData('tsItems'))->pluck('label');
         $this->assertTrue($labels->contains('Others'));
     }
+
+    /**
+     * Regression for the "existingGrid re-seeds stale locked rows" finding: a source-tagged
+     * row (generated from approved leave/holiday) must never be seeded back into the editable
+     * grid. Without the `source !== null` skip, a cancelled leave day whose row survives on
+     * the timesheet would resurface as a blank, editable 100% row — and re-saving it would
+     * re-post as a manual `source=null` entry, exactly what D5 (categoryOptions' exclusion of
+     * On Leave / Public Holiday from the picker) is meant to prevent.
+     */
+    public function test_existing_grid_excludes_source_tagged_rows(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
+            'source' => null,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-16',
+            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'On Leave — Annual Leave', 'hours' => 8,
+            'source' => 'leave',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $grid = $response->viewData('existingGrid');
+        $this->assertArrayHasKey('2026-06-15', $grid);
+        $this->assertArrayNotHasKey('2026-06-16', $grid);
+    }
 }

@@ -159,7 +159,17 @@
 
         @if ($weekLocked)
             <div style="margin-top:6px;font-size:11.5px;color:var(--muted);text-align:center;">
-                <span x-text="$store.ui.lang==='en' ? 'This week is locked. Pick another week to edit.' : 'Minggu ini dikunci. Pilih minggu lain untuk menyunting.'"></span>
+                @if ($weekStatus === 'submitted' && $weekTimesheet)
+                    <span x-text="$store.ui.lang==='en' ? 'This week is submitted. Reopen it to make changes.' : 'Minggu ini telah dihantar. Buka semula untuk membuat perubahan.'"></span>
+                    <form method="post" action="{{ route('timesheets.recall', $weekTimesheet) }}" style="margin-top:8px;">
+                        @csrf
+                        <button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Reopen this week' : 'Buka semula minggu ini'"></span>
+                        </button>
+                    </form>
+                @else
+                    <span x-text="$store.ui.lang==='en' ? 'This week is locked. Pick another week to edit.' : 'Minggu ini dikunci. Pilih minggu lain untuk menyunting.'"></span>
+                @endif
             </div>
         @endif
 
