@@ -40,7 +40,14 @@ final class LockedDays
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $end = $start->addDays(4);
 
-        $holidays = PublicHoliday::whereBetween('date', [$start->toDateString(), $end->toDateString()])
+        // whereDate() (not whereBetween) because the 'date' column's stored value is not
+        // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
+        // Eloquent's 'date' cast writes, which includes a " 00:00:00" suffix, so a raw
+        // whereBetween upper-bound string comparison silently drops a holiday that falls on
+        // $end (Friday) — "2026-06-26 00:00:00" sorts after "2026-06-26". whereDate() casts
+        // the column with SQL DATE() before comparing, sidestepping the format entirely.
+        $holidays = PublicHoliday::whereDate('date', '>=', $start->toDateString())
+            ->whereDate('date', '<=', $end->toDateString())
             ->get()
             ->keyBy(fn (PublicHoliday $h) => CarbonImmutable::parse($h->date)->toDateString());
 
@@ -93,7 +100,14 @@ final class LockedDays
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $end = $start->addDays(4);
 
-        $holidays = PublicHoliday::whereBetween('date', [$start->toDateString(), $end->toDateString()])
+        // whereDate() (not whereBetween) because the 'date' column's stored value is not
+        // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
+        // Eloquent's 'date' cast writes, which includes a " 00:00:00" suffix, so a raw
+        // whereBetween upper-bound string comparison silently drops a holiday that falls on
+        // $end (Friday) — "2026-06-26 00:00:00" sorts after "2026-06-26". whereDate() casts
+        // the column with SQL DATE() before comparing, sidestepping the format entirely.
+        $holidays = PublicHoliday::whereDate('date', '>=', $start->toDateString())
+            ->whereDate('date', '<=', $end->toDateString())
             ->get()
             ->keyBy(fn (PublicHoliday $h) => CarbonImmutable::parse($h->date)->toDateString());
 

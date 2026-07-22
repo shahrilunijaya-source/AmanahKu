@@ -60,7 +60,7 @@ class TimesheetReminderTest extends TestCase
         $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false]);
         $ts = Timesheet::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $emp->id,
-            'week_start' => '2026-06-22', 'status' => 'draft', 'total_hours' => 0,
+            'week_start' => '2026-06-22', 'status' => 'submitted', 'total_hours' => 0,
         ]);
         foreach (['2026-06-22', '2026-06-23', '2026-06-24', '2026-06-25', '2026-06-26'] as $d) {
             $ts->entries()->create([

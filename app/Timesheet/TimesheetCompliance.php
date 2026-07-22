@@ -14,14 +14,17 @@ use Illuminate\Support\Collection;
 /**
  * Single source of truth for weekly timesheet compliance.
  *
- * A week is "complete" when every weekday Mon–Fri of that week has timesheet
- * entries summing to 100% (±0.01) — the same per-day rule the capture screen
- * enforces on submit. Weekend days are ignored. Read-only: never writes.
+ * A week is "complete" when the sheet is finalised (submitted or approved — D6) AND
+ * every weekday Mon–Fri of that week has timesheet entries summing to 100% (±0.01) —
+ * the same per-day rule the capture screen enforces on submit. Weekend days are
+ * ignored. Read-only: never writes.
  */
 final class TimesheetCompliance
 {
     /** Tolerance for floating per-day percentage totals. */
     private const EPSILON = 0.01;
+
+    public function __construct(private readonly LockedDays $lockedDays) {}
 
     /** Monday 00:00 of $ref's ISO week. */
     public function weekStart(CarbonInterface $ref): CarbonImmutable
@@ -35,8 +38,20 @@ final class TimesheetCompliance
         return CarbonImmutable::parse($weekStart)->startOfDay()->addDays(4)->setTime(17, 0);
     }
 
-    /** True when every weekday Mon–Fri of $weekStart sums to 100% (±0.01). */
-    public function isComplete(Employee $employee, CarbonInterface $weekStart): bool
+    /**
+     * True when the week is finalised AND every weekday Mon–Fri sums to 100% (±0.01).
+     *
+     * A draft does not count however full it is (D6): before this check, a staffer could
+     * fill a draft, never submit it, and still read as DONE on the roster while keeping the
+     * sheet editable — which rewarded not submitting.
+     *
+     * @param  CarbonInterface|string  $weekStart  Accepts a raw date string too (widened beyond
+     *                                             the brief's CarbonInterface-only signature),
+     *                                             matching LockedDays::forWeek() — see that
+     *                                             class for why. Strictly backward-compatible:
+     *                                             every existing caller passes a Carbon instance.
+     */
+    public function isComplete(Employee $employee, CarbonInterface|string $weekStart): bool
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
 
@@ -45,7 +60,15 @@ final class TimesheetCompliance
             ->forWeek($start)
             ->first();
 
-        return $sheet !== null && $this->weekdaysComplete($sheet->entries, $start);
+        return $sheet !== null
+            && $this->isFinalised($sheet)
+            && $this->weekdaysComplete($sheet->entries, $start);
+    }
+
+    /** A sheet counts towards compliance only once the staffer has finalised it. */
+    private function isFinalised(Timesheet $sheet): bool
+    {
+        return in_array($sheet->status, ['submitted', 'approved'], true);
     }
 
     /**
@@ -54,8 +77,12 @@ final class TimesheetCompliance
      * When the caller has already fetched this week's sheet (e.g. the quick-actions
      * dock loads it for the % tile), pass it with $sheetLoaded=true to skip the
      * duplicate query — $sheet=null then means "loaded, none exists".
+     *
+     * @param  CarbonInterface|string  $weekStart  See isComplete() for why this is widened
+     *                                             beyond the brief's CarbonInterface-only
+     *                                             signature.
      */
-    public function isLate(Employee $employee, CarbonInterface $weekStart, ?Timesheet $sheet = null, bool $sheetLoaded = false): bool
+    public function isLate(Employee $employee, CarbonInterface|string $weekStart, ?Timesheet $sheet = null, bool $sheetLoaded = false): bool
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
 
@@ -70,15 +97,16 @@ final class TimesheetCompliance
         }
 
         $complete = $sheetLoaded
-            ? $sheet !== null && $this->weekdaysComplete($sheet->entries, $start)
+            ? $sheet !== null && $this->isFinalised($sheet) && $this->weekdaysComplete($sheet->entries, $start)
             : $this->isComplete($employee, $start);
 
         return ! $complete;
     }
 
     /**
-     * Whether $employee is expected to have filled the $weekStart week: active and
-     * already employed when the week began. Mirrors the SQL filter in roster().
+     * Whether $employee is expected to have filled the $weekStart week: active,
+     * already employed when the week began, and not on leave/holiday for the whole
+     * week. Mirrors the SQL filter plus locked-week exclusion in roster().
      */
     private function isEligible(Employee $employee, CarbonImmutable $weekStart): bool
     {
@@ -86,17 +114,24 @@ final class TimesheetCompliance
             return false;
         }
 
-        return $employee->joined_at === null
-            || $employee->joined_at->lessThanOrEqualTo($weekStart);
+        if ($employee->joined_at !== null && $employee->joined_at->greaterThan($weekStart)) {
+            return false;
+        }
+
+        // Nobody is expected to file a timesheet for a week they were never at work for.
+        return count($this->lockedDays->forWeek($employee, $weekStart)) < 5;
     }
 
     /**
      * Every active, eligible employee of $tenant with their status for $weekStart.
      * Sorted late → pending → done, then by name.
      *
+     * @param  CarbonInterface|string  $weekStart  See isComplete() for why this is widened
+     *                                             beyond the brief's CarbonInterface-only
+     *                                             signature.
      * @return Collection<int, array{employee: Employee, status: 'done'|'pending'|'late'}>
      */
-    public function roster(Tenant $tenant, CarbonInterface $weekStart): Collection
+    public function roster(Tenant $tenant, CarbonInterface|string $weekStart): Collection
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $pastDeadline = CarbonImmutable::now()->greaterThanOrEqualTo($this->deadline($start));
@@ -106,6 +141,16 @@ final class TimesheetCompliance
             ->where(fn ($q) => $q->whereNull('joined_at')->orWhereDate('joined_at', '<=', $start->toDateString()))
             ->orderBy('name')
             ->get();
+
+        // Nobody is expected to file a timesheet for a week they were never at work
+        // for — drop anyone whose whole week is locked by leave/holiday. Batched
+        // over the roster (forWeekMany) instead of forWeek() per employee to avoid
+        // an N+1: the holiday query is identical for everyone and the leave query
+        // is a single whereIn.
+        $lockedByEmployee = $this->lockedDays->forWeekMany($employees, $start);
+        $employees = $employees->reject(
+            fn (Employee $e) => count($lockedByEmployee[$e->id] ?? []) >= 5
+        )->values();
 
         $sheets = Timesheet::with('entries')
             ->whereIn('employee_id', $employees->pluck('id'))
@@ -118,7 +163,9 @@ final class TimesheetCompliance
         return $employees
             ->map(function (Employee $e) use ($sheets, $start, $pastDeadline) {
                 $sheet = $sheets->get($e->id);
-                $complete = $sheet !== null && $this->weekdaysComplete($sheet->entries, $start);
+                $complete = $sheet !== null
+                    && $this->isFinalised($sheet)
+                    && $this->weekdaysComplete($sheet->entries, $start);
                 $status = $complete ? 'done' : ($pastDeadline ? 'late' : 'pending');
 
                 return ['employee' => $e, 'status' => $status];

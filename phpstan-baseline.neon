@@ -1099,7 +1099,7 @@ parameters:
 			path: app/Support/WorkforceInsights.php
 
 		-
-			message: '#^Cannot call method lessThanOrEqualTo\(\) on string\.$#'
+			message: '#^Cannot call method greaterThan\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
 			path: app/Timesheet/TimesheetCompliance.php
