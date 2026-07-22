@@ -203,7 +203,7 @@ class TimesheetComplianceTest extends TestCase
         ]);
         $sheet->update(['status' => 'draft']);
 
-        $this->assertFalse($this->svc->isComplete($emp, '2026-06-22'));
+        $this->assertFalse($this->svc->isComplete($emp, Carbon::parse('2026-06-22')));
     }
 
     public function test_the_same_week_submitted_is_complete(): void
@@ -216,7 +216,7 @@ class TimesheetComplianceTest extends TestCase
         ]);
         $sheet->update(['status' => 'submitted']);
 
-        $this->assertTrue($this->svc->isComplete($emp, '2026-06-22'));
+        $this->assertTrue($this->svc->isComplete($emp, Carbon::parse('2026-06-22')));
     }
 
     public function test_an_employee_whose_whole_week_is_public_holidays_is_never_late(): void
@@ -228,7 +228,7 @@ class TimesheetComplianceTest extends TestCase
             PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Shutdown', 'date' => $d]);
         }
 
-        $this->assertFalse($this->svc->isLate($emp, '2026-06-22'));
-        $this->assertSame(0, $this->svc->roster($this->tenant, '2026-06-22')->count());
+        $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
+        $this->assertSame(0, $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'))->count());
     }
 }

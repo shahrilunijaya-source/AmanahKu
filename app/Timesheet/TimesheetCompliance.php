@@ -44,14 +44,8 @@ final class TimesheetCompliance
      * A draft does not count however full it is (D6): before this check, a staffer could
      * fill a draft, never submit it, and still read as DONE on the roster while keeping the
      * sheet editable — which rewarded not submitting.
-     *
-     * @param  CarbonInterface|string  $weekStart  Accepts a raw date string too (widened beyond
-     *                                             the brief's CarbonInterface-only signature),
-     *                                             matching LockedDays::forWeek() — see that
-     *                                             class for why. Strictly backward-compatible:
-     *                                             every existing caller passes a Carbon instance.
      */
-    public function isComplete(Employee $employee, CarbonInterface|string $weekStart): bool
+    public function isComplete(Employee $employee, CarbonInterface $weekStart): bool
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
 
@@ -77,12 +71,8 @@ final class TimesheetCompliance
      * When the caller has already fetched this week's sheet (e.g. the quick-actions
      * dock loads it for the % tile), pass it with $sheetLoaded=true to skip the
      * duplicate query — $sheet=null then means "loaded, none exists".
-     *
-     * @param  CarbonInterface|string  $weekStart  See isComplete() for why this is widened
-     *                                             beyond the brief's CarbonInterface-only
-     *                                             signature.
      */
-    public function isLate(Employee $employee, CarbonInterface|string $weekStart, ?Timesheet $sheet = null, bool $sheetLoaded = false): bool
+    public function isLate(Employee $employee, CarbonInterface $weekStart, ?Timesheet $sheet = null, bool $sheetLoaded = false): bool
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
 
@@ -126,12 +116,9 @@ final class TimesheetCompliance
      * Every active, eligible employee of $tenant with their status for $weekStart.
      * Sorted late → pending → done, then by name.
      *
-     * @param  CarbonInterface|string  $weekStart  See isComplete() for why this is widened
-     *                                             beyond the brief's CarbonInterface-only
-     *                                             signature.
      * @return Collection<int, array{employee: Employee, status: 'done'|'pending'|'late'}>
      */
-    public function roster(Tenant $tenant, CarbonInterface|string $weekStart): Collection
+    public function roster(Tenant $tenant, CarbonInterface $weekStart): Collection
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $pastDeadline = CarbonImmutable::now()->greaterThanOrEqualTo($this->deadline($start));
