@@ -256,6 +256,30 @@ class TimesheetTest extends TestCase
         $this->assertSame('leave', $rows[0]->source);
     }
 
+    public function test_the_date_error_key_matches_the_original_submitted_index(): void
+    {
+        // Wednesday 2026-06-17 is an approved-leave day, so entry 0 gets dropped by the D4
+        // filter. Entry 1 carries a future date. Its error must be keyed to its ORIGINAL
+        // index (1), not reindexed to 0 after the drop.
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 100], // dropped by D4
+                ['entry_date' => '2026-06-30', 'category_id' => $this->category->id, 'percentage' => 100], // future -> rejected
+            ],
+        ])->assertSessionHasErrors('entries.1.entry_date');
+    }
+
     public function test_a_draft_may_be_saved_with_no_user_rows(): void
     {
         TimesheetCategory::create([

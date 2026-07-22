@@ -158,10 +158,10 @@ class TimesheetController extends Controller
 
         // D4: an approved leave day or public holiday is a fact HR owns. Anything the staffer
         // typed against that day is wrong by definition, so it is dropped rather than merged.
-        $userEntries = array_values(array_filter(
+        $userEntries = array_filter(
             $data['entries'],
             fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
-        ));
+        );
 
         $this->assertDatesInWindow($userEntries);
 
