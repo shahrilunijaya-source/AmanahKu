@@ -65,6 +65,9 @@ class TimesheetController extends Controller
             ? Carbon::parse($request->query('week'))->startOfWeek()
             : Carbon::now()->startOfWeek();
 
+        $lockedDays = app(LockedDays::class);
+        $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
+
         $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'employee.positionBand'];
 
         $myTimesheets = $employee
@@ -104,6 +107,43 @@ class TimesheetController extends Controller
             }
         }
 
+        // The picker offers ready-made "Category · Project · Sub-pillar" combinations rather
+        // than three sequential pill choices. Recent first, then saved templates.
+        $tsItems = [];
+
+        if ($employee) {
+            $recent = TimesheetEntry::with(['category', 'projectRef', 'subPillar'])
+                ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id))
+                ->whereNull('source')
+                ->where('entry_date', '>=', $weekStart->copy()->subWeeks(8)->toDateString())
+                ->latest('entry_date')
+                ->get();
+
+            foreach ($recent as $e) {
+                $key = $e->category_id.'|'.($e->project_id ?: '').'|'.($e->sub_pillar_id ?: '');
+
+                if (isset($tsItems[$key])) {
+                    continue;
+                }
+
+                $label = implode(' · ', array_filter([
+                    $e->category?->name,
+                    $e->projectRef?->name,
+                    $e->subPillar?->name,
+                ]));
+
+                $tsItems[$key] = [
+                    'key' => $key,
+                    'category_id' => (int) $e->category_id,
+                    'project_id' => $e->project_id ? (int) $e->project_id : null,
+                    'sub_pillar_id' => $e->sub_pillar_id ? (int) $e->sub_pillar_id : null,
+                    'label' => $label,
+                ];
+            }
+        }
+
+        $tsItems = array_values($tsItems);
+
         return [
             'myTimesheets' => $myTimesheets,
             'canSeeCost' => $canSeeCost,
@@ -126,6 +166,11 @@ class TimesheetController extends Controller
             // All-staff weekly compliance board (names + status only, no cost).
             'tsRoster' => app(TimesheetCompliance::class)
                 ->roster(app(CurrentTenant::class)->get(), $weekStart),
+            // Day-first capture screen inputs (Tasks 7-8).
+            'tsLocked' => $locked,
+            'tsItems' => $tsItems,
+            'tsToday' => Carbon::now()->toDateString(),
+            'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];
     }
 
@@ -492,7 +537,14 @@ class TimesheetController extends Controller
 
     // ---- Helpers ----------------------------------------------------------
 
-    /** Active categories as plain arrays for the Alpine capture grid. */
+    /**
+     * Categories offered in the capture picker.
+     *
+     * On Leave and Public Holiday are excluded (D5): those rows are generated from approved
+     * leave requests and the holiday calendar, so offering them by hand would let somebody
+     * log leave HR never approved straight into the manday cost report. The categories
+     * themselves stay in the table, because LockedDays files its generated rows under them.
+     */
     private function categoryOptions(): Collection
     {
         return TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
@@ -501,7 +553,9 @@ class TimesheetController extends Controller
                 'name' => $c->name,
                 'name_ms' => $c->name_ms ?: $c->name,
                 'requires_project' => (bool) $c->requires_project,
-            ])->values();
+            ])
+            ->reject(fn (array $c) => in_array($c['name'], ['On Leave', 'Public Holiday'], true))
+            ->values();
     }
 
     /** Active projects (with active sub-pillars) as plain arrays for the grid. */
