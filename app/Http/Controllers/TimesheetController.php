@@ -36,6 +36,15 @@ class TimesheetController extends Controller
     private const MONEY_ROLES = ['manager', 'management', 'hr'];
 
     /**
+     * How far back a staffer may still edit. The current week plus this many earlier weeks.
+     *
+     * Blocking past days outright is not an option: a forgotten Monday could never reach
+     * 100%, so the week could never be submitted. An unbounded window is not either, because
+     * it lets somebody backfill months the night before an audit.
+     */
+    private const BACKFILL_WEEKS = 3;
+
+    /**
      * Build the timesheets screen data. Tenant scope is automatic via BelongsToTenant.
      *
      * Staff allocate each week by PERCENTAGE across a per-day grid; every populated
@@ -153,6 +162,8 @@ class TimesheetController extends Controller
             $data['entries'],
             fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
         ));
+
+        $this->assertDatesInWindow($userEntries);
 
         $entries = $this->normaliseEntries($userEntries);
         $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
@@ -590,6 +601,35 @@ class TimesheetController extends Controller
                 $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
                 throw ValidationException::withMessages([
                     'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — each day must add up to 100% before submitting.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Entry dates must be today or earlier (D2 — you cannot have spent time you have not
+     * spent), and no earlier than the backfill window (D3). Generated leave and holiday rows
+     * bypass this: they are approved facts, not claims, and may legitimately sit in the future.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertDatesInWindow(array $entries): void
+    {
+        $today = Carbon::now()->startOfDay();
+        $earliest = Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS);
+
+        foreach ($entries as $i => $e) {
+            $date = Carbon::parse($e['entry_date'])->startOfDay();
+
+            if ($date->greaterThan($today)) {
+                throw ValidationException::withMessages([
+                    "entries.$i.entry_date" => $date->format('D, j M').' has not happened yet.',
+                ]);
+            }
+
+            if ($date->lessThan($earliest)) {
+                throw ValidationException::withMessages([
+                    "entries.$i.entry_date" => $date->format('D, j M').' is too far back to edit. Ask HR to reopen it.',
                 ]);
             }
         }

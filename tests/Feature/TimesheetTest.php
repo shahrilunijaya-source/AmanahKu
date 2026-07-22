@@ -12,6 +12,7 @@ use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -46,6 +47,16 @@ class TimesheetTest extends TestCase
         $this->category = TimesheetCategory::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false,
         ]);
+
+        // The suite's fixtures all sit in the week of Mon 2026-06-15. Pin "now" to that
+        // week's Friday so those dates are in the past and inside the backfill window.
+        Carbon::setTestNow('2026-06-19 12:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function actingInTenant(): self
@@ -335,5 +346,47 @@ class TimesheetTest extends TestCase
 
         $this->actingInTenant()->post('/app/timesheets', $payload)->assertRedirect();
         $this->assertSame(0, TimesheetEntry::where('source', 'leave')->count());
+    }
+
+    public function test_an_entry_dated_after_today_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-06-17 09:00:00'); // Wednesday of that week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-19', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('entries.0.entry_date');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_an_entry_older_than_the_backfill_window_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-07-22 09:00:00'); // five weeks after the target week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('entries.0.entry_date');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_an_entry_inside_the_backfill_window_is_accepted(): void
+    {
+        Carbon::setTestNow('2026-07-01 09:00:00'); // two weeks after the target week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        Carbon::setTestNow();
     }
 }
