@@ -342,6 +342,7 @@ Route::middleware('auth')->group(function () {
         // Timesheets (weekly hours, parent + entries; staff self-finalise, no approval)
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/{timesheet}/submit', [TimesheetController::class, 'submit'])->name('timesheets.submit');
+        Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
         // Per-staff reusable allocation templates (owned by the acting employee)
         Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
         Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');

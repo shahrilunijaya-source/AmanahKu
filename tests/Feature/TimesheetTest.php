@@ -3,11 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
+use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -42,6 +47,16 @@ class TimesheetTest extends TestCase
         $this->category = TimesheetCategory::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false,
         ]);
+
+        // The suite's fixtures all sit in the week of Mon 2026-06-15. Pin "now" to that
+        // week's Friday so those dates are in the past and inside the backfill window.
+        Carbon::setTestNow('2026-06-19 12:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function actingInTenant(): self
@@ -70,14 +85,6 @@ class TimesheetTest extends TestCase
         $this->assertSame('draft', $timesheet->status);
         $this->assertSame(2, $timesheet->entries()->count());
         $this->assertSame('16.00', (string) $timesheet->total_hours);
-    }
-
-    public function test_validation_rejects_a_timesheet_with_no_entries(): void
-    {
-        $this->actingInTenant()->post('/app/timesheets', [
-            'week_start' => '2026-06-15',
-            'entries' => [],
-        ])->assertSessionHasErrors('entries');
     }
 
     public function test_submit_transitions_draft_to_submitted(): void
@@ -175,6 +182,20 @@ class TimesheetTest extends TestCase
         $this->assertSame('submitted', Timesheet::where('employee_id', $this->employee->id)->first()->status);
     }
 
+    public function test_submitting_an_empty_week_through_store_is_refused(): void
+    {
+        // No user rows, and no approved leave or public holiday to generate locked rows,
+        // so the week is genuinely empty. Submitting it must be refused, not silently
+        // create a submitted timesheet with zero entries.
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => true,
+            'entries' => [],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, Timesheet::where('employee_id', $this->employee->id)->count());
+    }
+
     public function test_category_that_requires_a_project_rejects_a_missing_project(): void
     {
         $needsProject = TimesheetCategory::create([
@@ -189,5 +210,256 @@ class TimesheetTest extends TestCase
         ])->assertSessionHasErrors('entries.0.project_id');
 
         $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->first());
+    }
+
+    public function test_a_public_holiday_is_persisted_as_a_locked_entry(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false,
+        ]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-06-17']);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertRedirect();
+
+        $locked = TimesheetEntry::whereDate('entry_date', '2026-06-17')->first();
+        $this->assertNotNull($locked);
+        $this->assertSame('holiday', $locked->source);
+        $this->assertSame('100.00', (string) $locked->percentage);
+    }
+
+    public function test_approved_leave_replaces_work_rows_on_that_day_in_a_draft(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertRedirect();
+
+        $rows = TimesheetEntry::whereDate('entry_date', '2026-06-17')->get();
+        $this->assertCount(1, $rows);
+        $this->assertSame('leave', $rows[0]->source);
+    }
+
+    public function test_the_date_error_key_matches_the_original_submitted_index(): void
+    {
+        // Wednesday 2026-06-17 is an approved-leave day, so entry 0 gets dropped by the D4
+        // filter. Entry 1 carries a future date. Its error must be keyed to its ORIGINAL
+        // index (1), not reindexed to 0 after the drop.
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 100], // dropped by D4
+                ['entry_date' => '2026-06-30', 'category_id' => $this->category->id, 'percentage' => 100], // future -> rejected
+            ],
+        ])->assertSessionHasErrors('entries.1.entry_date');
+    }
+
+    public function test_a_draft_may_be_saved_with_no_user_rows(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false,
+        ]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-06-17']);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, TimesheetEntry::count());
+    }
+
+    public function test_the_json_response_carries_the_locked_days(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false,
+        ]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-06-17']);
+
+        $this->actingInTenant()->postJson('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertOk()->assertJsonPath('locked.2026-06-17.source', 'holiday');
+    }
+
+    public function test_a_submitted_week_is_never_rewritten_by_later_leave_approval(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-17',
+            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
+        ]);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        // The week is already finalised, so the save is refused outright rather than merged.
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertStatus(422);
+
+        $rows = TimesheetEntry::whereDate('entry_date', '2026-06-17')->get();
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]->source);
+    }
+
+    public function test_cancelling_approved_leave_clears_the_locked_row_on_the_next_save(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $payload = [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ];
+
+        $this->actingInTenant()->post('/app/timesheets', $payload)->assertRedirect();
+        $this->assertSame(1, TimesheetEntry::where('source', 'leave')->count());
+
+        $leave->update(['status' => 'rejected']);
+
+        $this->actingInTenant()->post('/app/timesheets', $payload)->assertRedirect();
+        $this->assertSame(0, TimesheetEntry::where('source', 'leave')->count());
+    }
+
+    public function test_an_entry_dated_after_today_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-06-17 09:00:00'); // Wednesday of that week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-19', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('entries.0.entry_date');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_an_entry_older_than_the_backfill_window_is_rejected(): void
+    {
+        Carbon::setTestNow('2026-07-22 09:00:00'); // five weeks after the target week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('entries.0.entry_date');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_an_entry_inside_the_backfill_window_is_accepted(): void
+    {
+        Carbon::setTestNow('2026-07-01 09:00:00'); // two weeks after the target week
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        Carbon::setTestNow();
+    }
+
+    public function test_the_owner_can_recall_a_submitted_week(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 8,
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertRedirect();
+
+        $sheet->refresh();
+        $this->assertSame('draft', $sheet->status);
+        $this->assertNull($sheet->submitted_at);
+    }
+
+    public function test_recalling_a_draft_is_refused(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertStatus(422);
+    }
+
+    public function test_a_non_owner_cannot_recall_someone_elses_week(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 8,
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingInTenant()->post("/app/timesheets/{$sheet->id}/recall")->assertForbidden();
+
+        $this->assertSame('submitted', $sheet->refresh()->status);
+    }
+
+    public function test_the_capture_screen_renders_for_an_employee(): void
+    {
+        $this->actingInTenant()->get('/app/timesheets?week=2026-06-15')
+            ->assertOk()
+            ->assertSee('timesheetCapture', false);
     }
 }
