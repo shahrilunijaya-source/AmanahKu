@@ -26,6 +26,8 @@ Both are two views of the *same* 1-to-1 DM system, so attachments must work in b
   otherwise still required. An empty body with no file is rejected.
 - **File rules:** reuse the feedback/leave set exactly —
   `jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv`, 8 MB each, max 6 per message.
+- **Camera on mobile:** a dedicated camera trigger (in addition to the file/gallery
+  picker) so phones can snap a photo straight into the composer.
 - **Storage:** private `local` disk, streamed through an auth-gated route
   (participant-only). Never a public URL — a DM attachment is private between two people.
 
@@ -109,9 +111,18 @@ When the latest message has no body but has attachments, snippet becomes "📎 A
 
 ### UI
 
+Both composers get **two triggers feeding the same `attachments[]`**:
+1. A **paperclip** input — `multiple`, `accept` matching the full mime set (files +
+   gallery; on mobile the OS sheet already includes Camera here too).
+2. A **camera** input — `accept="image/*" capture="environment"`, opening the rear camera
+   directly. Rendered on touch/mobile only (hidden on desktop, where `capture` is a no-op
+   and a camera button would just be a confusing second file dialog). Detection: a
+   `@media (pointer: coarse)` / `hover: none` CSS rule, not UA sniffing.
+
+Selected files from either input merge into one pending-attachment list per message.
+
 **Full page** ([`screens/messages.blade.php`](../../../resources/views/screens/messages.blade.php)):
-- Composer `<form>` gains `enctype="multipart/form-data"` and a file input
-  (`name="attachments[]"` multiple, `accept` matching the mimes).
+- Composer `<form>` gains `enctype="multipart/form-data"` and the two inputs above.
 - Bubbles render attachments: image → thumbnail `<img>` (links to the stream url, opens
   full); non-image → a file chip (name + download icon) linking to the stream url.
 
@@ -121,8 +132,9 @@ When the latest message has no body but has attachments, snippet becomes "📎 A
 - `send()` switches from `URLSearchParams` to `FormData` (drop the
   `Content-Type: x-www-form-urlencoded` header so the browser sets the multipart
   boundary). Append `body`, `conversation_id`/`to`, and each selected file.
-- Add a file-picker button in the composer; track selected files in Alpine state; clear
-  after a successful send; allow send when files present even if `body` is empty.
+- Add a paperclip + a mobile-only camera button in the composer; both append into the
+  same Alpine `files` state; clear after a successful send; allow send when files are
+  present even if `body` is empty.
 - Bubble template renders `m.attachments` (thumbnail / chip) like the full page.
 
 ## Error handling
@@ -148,6 +160,9 @@ using `Storage::fake('local')` and `UploadedFile::fake()`:
 ## Out of scope (YAGNI)
 
 - Inline paste-to-upload in the composer (feedback has it; not requested here).
+- Native camera *app* integration beyond the browser `capture` attribute (no deep-link to
+  a standalone camera app; the browser's built-in capture is what "camera on mobile" means
+  here).
 - Thumbnails/resizing/transcoding — serve originals.
 - Deleting an attachment after send.
 - Attachment support in any surface other than these two.
