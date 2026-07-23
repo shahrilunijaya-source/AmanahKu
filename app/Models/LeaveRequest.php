@@ -47,4 +47,10 @@ class LeaveRequest extends Model
     {
         return $this->belongsTo(LeaveType::class);
     }
+
+    /** True when this request covers only half a day (morning or afternoon). */
+    public function isHalfDay(): bool
+    {
+        return $this->half_day_period !== null;
+    }
 }

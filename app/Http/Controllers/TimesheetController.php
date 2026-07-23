@@ -206,11 +206,17 @@ class TimesheetController extends Controller
         $lockedDays = app(LockedDays::class);
         $locked = $lockedDays->forWeek($employee, Carbon::parse($data['week_start'])->startOfDay());
 
-        // D4: an approved leave day or public holiday is a fact HR owns. Anything the staffer
-        // typed against that day is wrong by definition, so it is dropped rather than merged.
+        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
+        // anything the staffer typed against it is wrong by definition, so it is dropped.
+        // A half-day leave locks only 50%, leaving the staffer to fill the other half, so
+        // their rows on a partially locked day are kept and merged with the 50% leave row.
         $userEntries = array_filter(
             $data['entries'],
-            fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
+            function (array $e) use ($locked) {
+                $day = $locked[Carbon::parse($e['entry_date'])->toDateString()] ?? null;
+
+                return $day === null || $day['percentage'] < 100;
+            }
         );
 
         $this->assertDatesInWindow($userEntries);

@@ -190,7 +190,8 @@
                         }[dayState(d)] }"></div>
                     <div style="font-size:11px;"
                         :style="d === selected ? { color:'var(--ink)', fontWeight:600 } : { color:'var(--muted)' }">
-                        <span x-show="isLocked(d)" x-cloak>&#128274;</span>
+                        <span x-show="isFullyLocked(d)" x-cloak>&#128274;</span>
+                        <span x-show="isPartlyLocked(d)" x-cloak>&#189;</span>
                         <span x-text="dayName(d)"></span>
                     </div>
                 </button>
@@ -216,8 +217,8 @@
                     }"></div>
             </div>
 
-            {{-- Locked: an approved leave day or public holiday. Read-only, always a full day. --}}
-            <template x-if="isLocked(selected)">
+            {{-- Fully locked: an approved whole-day leave or public holiday. Read-only. --}}
+            <template x-if="isFullyLocked(selected)">
                 <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:8px;background:var(--canvas);">
                     <span>&#128274;</span>
                     <div style="flex:1;">
@@ -229,7 +230,24 @@
                 </div>
             </template>
 
-            <template x-if="!isLocked(selected)">
+            {{-- Half-day leave: 50% is locked to "On Leave", the staffer fills the rest below. --}}
+            <template x-if="isPartlyLocked(selected)">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:8px;background:var(--canvas);margin-bottom:8px;">
+                    <span>&#189;</span>
+                    <div style="flex:1;">
+                        <div style="font-size:12.5px;">
+                            <span x-text="locked[selected].label"></span>
+                            <span style="color:var(--muted);" x-show="locked[selected].period"
+                                x-text="'(' + (locked[selected].period === 'am' ? ($store.ui.lang==='en' ? 'morning' : 'pagi') : ($store.ui.lang==='en' ? 'afternoon' : 'petang')) + ')'"></span>
+                        </div>
+                        <div style="font-size:11px;color:var(--muted);"
+                            x-text="$store.ui.lang==='en' ? 'Fill the other half of the day below.' : 'Isi separuh hari yang lagi satu di bawah.'"></div>
+                    </div>
+                    <span style="font-family:var(--font-mono);font-size:13px;" x-text="lockedPct(selected) + '%'"></span>
+                </div>
+            </template>
+
+            <template x-if="!isFullyLocked(selected)">
                 <div>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
                         <div style="padding:8px 0;border-top:1px solid var(--hairline-soft);">

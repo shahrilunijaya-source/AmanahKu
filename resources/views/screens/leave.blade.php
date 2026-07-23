@@ -65,6 +65,9 @@
             sel: '{{ old('leave_type_id', $leaveTypes->first()?->id) }}',
             dateFrom: '{{ old('date_from', now()->addDays(3)->toDateString()) }}',
             dateTo: '{{ old('date_to', now()->addDays(4)->toDateString()) }}',
+            // '' = full day; 'am'/'pm' = half day. Only offered for a single-day range.
+            halfDay: '{{ old('half_day_period', '') }}',
+            isSingleDay() { return this.dateFrom === this.dateTo; },
             // Earliest allowed start date for the selected type — mirrors the server rule
             // (planned types need min_notice_days advance). Empty = no client restriction
             // (unplanned/emergency; the server is the only gate for those).
@@ -79,11 +82,15 @@
                 const mf = this.minFrom();
                 if (mf && this.dateFrom < mf) this.dateFrom = mf;
                 if (this.dateTo < this.dateFrom) this.dateTo = this.dateFrom;
+                // A half day is meaningless across a range — drop the marker once the
+                // dates span more than one day, so a multi-day request always posts full days.
+                if (!this.isSingleDay()) this.halfDay = '';
             },
         }" x-init="clampDates()">
             @csrf
             @error('date_from')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             @error('date_to')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
+            @error('half_day_period')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             @error('attachment')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $message }}</div>@enderror
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Leave type' : 'Jenis cuti'">Leave type</span></label>
             <select name="leave_type_id" x-model="sel" @change="clampDates()" required style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;color:var(--ink);background:#fff;margin-bottom:10px;">
@@ -102,6 +109,17 @@
                 <div style="flex:1;"><label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label><input name="date_to" type="date" x-model="dateTo" :min="dateFrom" value="{{ old('date_to', now()->addDays(4)->toDateString()) }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" /></div>
             </div>
             @include('partials.hint', ['en' => 'First and last day of leave, inclusive. The "To" date must be on or after the "From" date.', 'ms' => 'Hari pertama dan terakhir cuti, termasuk kedua-duanya. Tarikh "To" mesti pada atau selepas tarikh "From".'])
+            {{-- Half day: only meaningful on a single date, so it appears only when From = To.
+                 'am' = morning off, 'pm' = afternoon off; the other half stays a working half. --}}
+            <div x-show="isSingleDay()" x-cloak style="margin-bottom:16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Duration' : 'Tempoh'">Duration</span></label>
+                <select name="half_day_period" x-model="halfDay" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;color:var(--ink);background:#fff;">
+                    <option value="" x-text="$store.ui.lang==='en' ? 'Full day' : 'Sepanjang hari'">Full day</option>
+                    <option value="am" x-text="$store.ui.lang==='en' ? 'Half day — morning' : 'Setengah hari — pagi'">Half day — morning</option>
+                    <option value="pm" x-text="$store.ui.lang==='en' ? 'Half day — afternoon' : 'Setengah hari — petang'">Half day — afternoon</option>
+                </select>
+                @include('partials.hint', ['en' => 'A half day counts as 0.5 against your balance. You still fill the other half of that day on your timesheet.', 'ms' => 'Setengah hari dikira sebagai 0.5 daripada baki anda. Anda tetap perlu isi separuh hari yang lagi satu pada timesheet.'])
+            </div>
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>
             <textarea name="reason" rows="2" style="width:100%;padding:12px 14px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;margin-bottom:16px;outline:none;resize:vertical;">{{ old('reason') }}</textarea>
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">
@@ -127,12 +145,15 @@
                 @php
                     $sc = ['approved' => 'var(--success)', 'verified' => 'var(--info)', 'submitted' => 'var(--amber)', 'rejected' => 'var(--error)', 'draft' => 'var(--muted)'][$r->status] ?? 'var(--muted)';
                     $leaveStatusMs = ['approved' => 'Diluluskan', 'verified' => 'Disahkan', 'submitted' => 'Dihantar', 'rejected' => 'Ditolak', 'draft' => 'Draf'];
+                    $halfEn = $r->isHalfDay() ? ($r->half_day_period === 'am' ? '½ day, morning' : '½ day, afternoon') : null;
+                    $halfMs = $r->isHalfDay() ? ($r->half_day_period === 'am' ? '½ hari, pagi' : '½ hari, petang') : null;
                 @endphp
                 <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
                     <div @click="open = !open" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;">
                         <span style="font-size:13px;color:var(--ink);">
                             <span x-text="open ? '▾' : '▸'" style="color:var(--muted-soft);font-size:11px;">▸</span>
-                            {{ $r->leaveType?->name }} · {{ $r->date_from->format('j') }}–{{ $r->date_to->format('j M') }}@if ($r->attachment_path) <a href="{{ route('leave.attachment', $r) }}" @click.stop style="text-decoration:none;" title="{{ $r->attachment_name }}">📎</a>@endif
+                            {{ $r->leaveType?->name }} · @if ($r->isHalfDay()){{ $r->date_from->format('j M') }} <span style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? '{{ $halfEn }}' : '{{ $halfMs }}'">{{ $halfEn }}</span>@else{{ $r->date_from->format('j') }}–{{ $r->date_to->format('j M') }}@endif
+                            @if ($r->attachment_path)<a href="{{ route('leave.attachment', $r) }}" @click.stop style="text-decoration:none;" title="{{ $r->attachment_name }}">📎</a>@endif
                         </span>
                         <span style="font-size:11px;font-weight:600;color:{{ $sc }};" x-text="$store.ui.lang==='en' ? '{{ ucfirst($r->status) }}' : '{{ $leaveStatusMs[$r->status] ?? ucfirst($r->status) }}'">{{ ucfirst($r->status) }}</span>
                     </div>
