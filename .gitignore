@@ -30,3 +30,7 @@ Thumbs.db
 .playwright-mcp/
 .claude
 ecosystem.config.cjs
+.env.before_lerd
+docs/vault/
+bun.lock
+skills-lock.json

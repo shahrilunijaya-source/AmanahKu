@@ -16,7 +16,9 @@ use App\Services\DataScope;
 use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -32,6 +34,15 @@ class TimesheetController extends Controller
      * Plain employees never see money — only their own time in person-days.
      */
     private const MONEY_ROLES = ['manager', 'management', 'hr'];
+
+    /**
+     * How far back a staffer may still edit. The current week plus this many earlier weeks.
+     *
+     * Blocking past days outright is not an option: a forgotten Monday could never reach
+     * 100%, so the week could never be submitted. An unbounded window is not either, because
+     * it lets somebody backfill months the night before an audit.
+     */
+    private const BACKFILL_WEEKS = 3;
 
     /**
      * Build the timesheets screen data. Tenant scope is automatic via BelongsToTenant.
@@ -53,6 +64,9 @@ class TimesheetController extends Controller
         $weekStart = $request->filled('week')
             ? Carbon::parse($request->query('week'))->startOfWeek()
             : Carbon::now()->startOfWeek();
+
+        $lockedDays = app(LockedDays::class);
+        $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
 
         $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'employee.positionBand'];
 
@@ -83,6 +97,10 @@ class TimesheetController extends Controller
         $existingGrid = [];
         if ($weekTimesheet) {
             foreach ($weekTimesheet->entries as $e) {
+                if ($e->source !== null) {
+                    continue;
+                }
+
                 $existingGrid[$e->entry_date->toDateString()][] = [
                     'category_id' => $e->category_id,
                     'project_id' => $e->project_id,
@@ -92,6 +110,44 @@ class TimesheetController extends Controller
                 ];
             }
         }
+
+        // The picker offers ready-made "Category · Project · Sub-pillar" combinations rather
+        // than three sequential pill choices. Saved templates first, then recent
+        // combinations, most recent first.
+        $tsItems = [];
+
+        if ($employee) {
+            $recent = TimesheetEntry::with(['category', 'projectRef', 'subPillar'])
+                ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id))
+                ->whereNull('source')
+                ->where('entry_date', '>=', $weekStart->copy()->subWeeks(8)->toDateString())
+                ->latest('entry_date')
+                ->get();
+
+            foreach ($recent as $e) {
+                $key = $e->category_id.'|'.($e->project_id ?: '').'|'.($e->sub_pillar_id ?: '');
+
+                if (isset($tsItems[$key])) {
+                    continue;
+                }
+
+                $label = implode(' · ', array_filter([
+                    $e->category?->name,
+                    $e->projectRef?->name,
+                    $e->subPillar?->name,
+                ]));
+
+                $tsItems[$key] = [
+                    'key' => $key,
+                    'category_id' => (int) $e->category_id,
+                    'project_id' => $e->project_id ? (int) $e->project_id : null,
+                    'sub_pillar_id' => $e->sub_pillar_id ? (int) $e->sub_pillar_id : null,
+                    'label' => $label,
+                ];
+            }
+        }
+
+        $tsItems = array_values($tsItems);
 
         return [
             'myTimesheets' => $myTimesheets,
@@ -115,6 +171,11 @@ class TimesheetController extends Controller
             // All-staff weekly compliance board (names + status only, no cost).
             'tsRoster' => app(TimesheetCompliance::class)
                 ->roster(app(CurrentTenant::class)->get(), $weekStart),
+            // Day-first capture screen inputs (Tasks 7-8).
+            'tsLocked' => $locked,
+            'tsItems' => $tsItems,
+            'tsToday' => Carbon::now()->toDateString(),
+            'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];
     }
 
@@ -123,7 +184,7 @@ class TimesheetController extends Controller
      * is authoritative for the whole week, so existing entries are replaced. Optionally
      * submit in the same request (submit_now) once every populated day totals 100%.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
@@ -133,7 +194,7 @@ class TimesheetController extends Controller
             'week_start' => ['required', 'date'],
             'week_label' => ['nullable', 'string', 'max:60'],
             'submit_now' => ['nullable', 'boolean'],
-            'entries' => ['required', 'array', 'min:1'],
+            'entries' => ['present', 'array'],
             'entries.*.entry_date' => ['required', 'date'],
             'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'entries.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
@@ -142,9 +203,26 @@ class TimesheetController extends Controller
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
         ]);
 
-        $entries = $this->normaliseEntries($data['entries']);
+        $lockedDays = app(LockedDays::class);
+        $locked = $lockedDays->forWeek($employee, Carbon::parse($data['week_start'])->startOfDay());
+
+        // D4: an approved leave day or public holiday is a fact HR owns. Anything the staffer
+        // typed against that day is wrong by definition, so it is dropped rather than merged.
+        $userEntries = array_filter(
+            $data['entries'],
+            fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
+        );
+
+        $this->assertDatesInWindow($userEntries);
+
+        $entries = $this->normaliseEntries($userEntries);
+        $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
 
         $submitNow = $request->boolean('submit_now');
+        // A fully-locked week may submit with no user rows, but a genuinely empty week
+        // must not: mirror submit()'s invariant so store()'s submit_now path can't create
+        // a submitted timesheet with zero entries (which would land in the cost report).
+        abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
         if ($submitNow) {
             $this->assertDayTotals($entries);
         }
@@ -175,13 +253,24 @@ class TimesheetController extends Controller
             }
         });
 
+        $message = $submitNow
+            ? 'Timesheet submitted.'
+            : 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.';
+
         if ($submitNow) {
             AuditLog::record('Submitted timesheet', ($timesheet->week_label ?: $timesheet->week_start->toDateString()).' · '.count($entries).' entries');
-
-            return back()->with('ok', 'Timesheet submitted for approval.');
         }
 
-        return back()->with('ok', 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.');
+        // The day-first screen autosaves over fetch(); the plain form POST still redirects.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'status' => $timesheet->status,
+                'locked' => $locked,
+            ]);
+        }
+
+        return back()->with('ok', $message);
     }
 
     public function submit(Request $request, Timesheet $timesheet): RedirectResponse
@@ -200,7 +289,24 @@ class TimesheetController extends Controller
         $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
         AuditLog::record('Submitted timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
 
-        return back()->with('ok', 'Timesheet submitted for approval.');
+        return back()->with('ok', 'Timesheet submitted.');
+    }
+
+    /**
+     * Put a submitted week back into draft so its owner can fix it.
+     *
+     * Nothing approves timesheets today, so there is no decision to invalidate. This exists
+     * because submit was otherwise irreversible: a typo could only be undone in the database.
+     */
+    public function recall(Request $request, Timesheet $timesheet): RedirectResponse
+    {
+        $this->authorizeOwner($request, $timesheet);
+        abort_unless($timesheet->status === 'submitted', 422, 'Only a submitted week can be recalled.');
+
+        $timesheet->update(['status' => 'draft', 'submitted_at' => null]);
+        AuditLog::record('Recalled timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
+
+        return back()->with('ok', 'Week reopened. Fix it and submit again.');
     }
 
     // ---- Per-staff templates ---------------------------------------------
@@ -436,7 +542,14 @@ class TimesheetController extends Controller
 
     // ---- Helpers ----------------------------------------------------------
 
-    /** Active categories as plain arrays for the Alpine capture grid. */
+    /**
+     * Categories offered in the capture picker.
+     *
+     * On Leave and Public Holiday are excluded (D5): those rows are generated from approved
+     * leave requests and the holiday calendar, so offering them by hand would let somebody
+     * log leave HR never approved straight into the manday cost report. The categories
+     * themselves stay in the table, because LockedDays files its generated rows under them.
+     */
     private function categoryOptions(): Collection
     {
         return TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
@@ -445,7 +558,9 @@ class TimesheetController extends Controller
                 'name' => $c->name,
                 'name_ms' => $c->name_ms ?: $c->name,
                 'requires_project' => (bool) $c->requires_project,
-            ])->values();
+            ])
+            ->reject(fn (array $c) => in_array($c['name'], ['On Leave', 'Public Holiday'], true))
+            ->values();
     }
 
     /** Active projects (with active sub-pillars) as plain arrays for the grid. */
@@ -562,6 +677,35 @@ class TimesheetController extends Controller
                 $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
                 throw ValidationException::withMessages([
                     'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — each day must add up to 100% before submitting.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Entry dates must be today or earlier (D2 — you cannot have spent time you have not
+     * spent), and no earlier than the backfill window (D3). Generated leave and holiday rows
+     * bypass this: they are approved facts, not claims, and may legitimately sit in the future.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertDatesInWindow(array $entries): void
+    {
+        $today = Carbon::now()->startOfDay();
+        $earliest = Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS);
+
+        foreach ($entries as $i => $e) {
+            $date = Carbon::parse($e['entry_date'])->startOfDay();
+
+            if ($date->greaterThan($today)) {
+                throw ValidationException::withMessages([
+                    "entries.$i.entry_date" => $date->format('D, j M').' has not happened yet.',
+                ]);
+            }
+
+            if ($date->lessThan($earliest)) {
+                throw ValidationException::withMessages([
+                    "entries.$i.entry_date" => $date->format('D, j M').' is too far back to edit. Ask HR to reopen it.',
                 ]);
             }
         }
