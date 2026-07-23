@@ -18,6 +18,7 @@ use App\Support\HtmlSanitizer;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
+use App\Timesheet\WeekReconciler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -215,8 +216,9 @@ class TimesheetController extends Controller
 
         $this->assertDatesInWindow($userEntries);
 
-        $entries = $this->normaliseEntries($userEntries);
-        $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
+        // Shared with leave-approval reconciliation: drop locked-day rows (already filtered
+        // out above for the date-window check) and lay down the generated locked rows.
+        $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $this->normaliseEntries($userEntries));
 
         $submitNow = $request->boolean('submit_now');
         // A fully-locked week may submit with no user rows, but a genuinely empty week

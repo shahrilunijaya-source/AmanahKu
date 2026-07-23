@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PublicHoliday;
@@ -65,6 +66,18 @@ class TimesheetTest extends TestCase
         $this->actingAs($this->user)->withSession(['current_tenant' => $this->tenant->id]);
 
         return $this;
+    }
+
+    /** A tenant member with a role and its own user, for driving the approval chain. */
+    private function member(string $role, string $name): Employee
+    {
+        $user = User::create(['name' => $name, 'email' => strtolower($name).'@example.com', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($this->tenant->id, ['role' => $role]);
+
+        return Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
+            'name' => $name, 'status' => 'active', 'workload' => 'green',
+        ]);
     }
 
     public function test_employee_creates_a_timesheet_with_entries_and_total_is_computed(): void
@@ -371,6 +384,98 @@ class TimesheetTest extends TestCase
 
         $this->actingInTenant()->post('/app/timesheets', $payload)->assertRedirect();
         $this->assertSame(0, TimesheetEntry::where('source', 'leave')->count());
+    }
+
+    public function test_approving_leave_backfills_a_week_already_submitted_before_the_approval(): void
+    {
+        // The ordering bug: a week is filled and submitted FIRST, then leave for one of its
+        // days is approved. Leave→timesheet used to be pull-based, so the stored week kept
+        // the staffer's work row on the leave day until a manual re-save. Approval must now
+        // reconcile it in place.
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+
+        // Reporting chain: employee → manager (verifies) → management (final approval).
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $this->employee->update(['reports_to_id' => $manager->id]);
+
+        // A submitted week with ordinary work on Tue 16th and on what becomes the leave day, Wed 17th.
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'submitted', 'total_hours' => 16, 'submitted_at' => now(),
+        ]);
+        foreach (['2026-06-16', '2026-06-17'] as $date) {
+            $sheet->entries()->create([
+                'tenant_id' => $this->tenant->id, 'entry_date' => $date,
+                'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
+            ]);
+        }
+
+        // Leave for Wed 17th, verified and waiting on management.
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveBalance::create(['employee_id' => $this->employee->id, 'leave_type_id' => $type->id, 'balance' => 10]);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        // Act — management approves through the real route (drives applyApproval).
+        $this->actingAs($mgmt->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/leave/{$leave->id}/approve")->assertRedirect();
+
+        // The leave day is now a single locked "On Leave" row at 100%.
+        $leaveDay = TimesheetEntry::whereDate('entry_date', '2026-06-17')->get();
+        $this->assertCount(1, $leaveDay);
+        $this->assertSame('leave', $leaveDay[0]->source);
+        $this->assertSame('100.00', (string) $leaveDay[0]->percentage);
+
+        // The untouched work day survives, and the week stays submitted (a valid submission
+        // stays valid — every populated day still totals 100%).
+        $workDay = TimesheetEntry::whereDate('entry_date', '2026-06-16')->get();
+        $this->assertCount(1, $workDay);
+        $this->assertNull($workDay[0]->source);
+        $this->assertSame('submitted', $sheet->fresh()->status);
+
+        // The pre-existing happy path is unchanged: status flips and the balance decrements.
+        $this->assertSame('approved', $leave->fresh()->status);
+        $this->assertEqualsWithDelta(9.0, (float) LeaveBalance::first()->balance, 0.001);
+    }
+
+    public function test_approving_leave_backfills_a_draft_week_saved_before_the_approval(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false,
+        ]);
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $this->employee->update(['reports_to_id' => $manager->id]);
+
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-17',
+            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
+        ]);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-06-17', 'date_to' => '2026-06-17',
+            'days' => 1, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        $this->actingAs($mgmt->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/leave/{$leave->id}/approve")->assertRedirect();
+
+        $rows = TimesheetEntry::whereDate('entry_date', '2026-06-17')->get();
+        $this->assertCount(1, $rows);
+        $this->assertSame('leave', $rows[0]->source);
+        $this->assertSame('draft', $sheet->fresh()->status);
     }
 
     public function test_an_entry_dated_after_today_is_rejected(): void
