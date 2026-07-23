@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One direct message inside a Conversation. read_at is the recipient's read state
@@ -29,5 +30,10 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'sender_id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(MessageAttachment::class);
     }
 }
