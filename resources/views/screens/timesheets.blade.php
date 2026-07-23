@@ -52,6 +52,7 @@
             'Tap a day in the strip to open it. Press "+ Add what you worked on", choose what you did, and set its percentage — repeat until the day reads 100%.',
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
             'Use "Same as <day>" to copy the previous day, or "Give the rest to the last line" to top a day up to 100%. Save a draft any time; press "Submit week" once every day reads 100%.',
+            'Doing the same work every week? On the line you just added, tap "Save as template" and name it — it becomes a one-tap shortcut at the top of the list in every future week.',
         ],
     ],
     'ms'  => [
@@ -63,6 +64,7 @@
             'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan", pilih apa yang dilakukan, dan tetapkan peratusnya — ulang sehingga hari itu membaca 100%.',
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
             'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya, atau "Beri bakinya kepada baris akhir" untuk melengkapkan hari itu ke 100%. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
+            'Buat kerja sama setiap minggu? Pada baris yang baru anda tambah, tekan "Simpan sebagai templat" dan namakannya — ia menjadi pintasan satu ketik di bahagian atas senarai pada setiap minggu akan datang.',
         ],
     ],
 ])
@@ -249,10 +251,12 @@
                                 :disabled="!isEditable(selected)"
                                 :placeholder="$store.ui.lang==='en' ? 'Add a note (optional)' : 'Tambah nota (pilihan)'"
                                 style="width:100%;height:32px;margin-top:6px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;background:#fff;" />
-                            {{-- Task 8: quick amount chips for the row you just added, and a
-                                 save-as-template shortcut for any row. --}}
-                            <div x-show="isEditable(selected)" style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
-                                <template x-if="i === (rows[selected] || []).length - 1">
+                            {{-- Task 8: quick amount chips + save-as-template, shown only on the
+                                 last (most recently added) row so the affordances appear once per
+                                 day instead of repeating on every line. Save any combo by adding
+                                 it last. --}}
+                            <template x-if="isEditable(selected) && i === (rows[selected] || []).length - 1">
+                                <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
                                     <div style="display:flex;gap:5px;">
                                         <template x-for="pct in [100, 50, 25]" :key="pct">
                                             <button type="button" @click="r.percentage = pct; save()"
@@ -260,12 +264,12 @@
                                                 x-text="pct + '%'"></button>
                                         </template>
                                     </div>
-                                </template>
-                                <button type="button" @click="startSaveTemplate(r)"
-                                    style="border:0;background:none;color:var(--muted);font-size:10.5px;text-decoration:underline;cursor:pointer;padding:2px 0;margin-left:auto;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Save as template' : 'Simpan sebagai templat'"></span>
-                                </button>
-                            </div>
+                                    <button type="button" @click="startSaveTemplate(r)"
+                                        style="border:0;background:none;color:var(--muted);font-size:10.5px;text-decoration:underline;cursor:pointer;padding:2px 0;margin-left:auto;">
+                                        <span x-text="$store.ui.lang==='en' ? 'Save as template' : 'Simpan sebagai templat'"></span>
+                                    </button>
+                                </div>
+                            </template>
                         </div>
                     </template>
 
