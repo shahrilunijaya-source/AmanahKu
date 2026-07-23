@@ -232,6 +232,7 @@ class MessageController extends Controller
         $conversation->loadMissing(['employeeLow', 'employeeHigh']);
 
         $messages = Message::where('conversation_id', $conversation->id)
+            ->with('attachments')
             ->orderBy('id')
             ->limit(self::THREAD_LIMIT)
             ->get(['id', 'sender_id', 'body', 'created_at'])
@@ -367,6 +368,7 @@ class MessageController extends Controller
     private function activePayload(Conversation $conversation, ?Employee $other, Employee $viewer): array
     {
         $messages = Message::where('conversation_id', $conversation->id)
+            ->with('attachments')
             ->orderBy('id')
             ->limit(self::THREAD_LIMIT)
             ->get(['id', 'sender_id', 'body', 'created_at'])
@@ -392,7 +394,9 @@ class MessageController extends Controller
         return [
             'id' => $conversation->id,
             'other' => $this->personArr($other),
-            'snippet' => $last ? Str::limit($last->body, 60) : null,
+            // An empty-body latest message can only exist if it carried attachments
+            // (empty sends are rejected), so label it without loading the files here.
+            'snippet' => $last ? ($last->body !== '' ? Str::limit($last->body, 60) : '📎 Attachment') : null,
             'lastMine' => $last ? ($last->sender_id === $viewer->id) : false,
             'at' => $conversation->last_message_at?->diffForHumans(),
             'unread' => (int) ($conversation->unread_count ?? 0),
@@ -409,6 +413,12 @@ class MessageController extends Controller
             'mine' => $message->sender_id === $viewer->id,
             'body' => $message->body,
             'at' => $message->created_at?->format('d M, H:i'),
+            'attachments' => $message->attachments->map(fn (MessageAttachment $a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'isImage' => $a->isImage(),
+                'url' => route('messages.attachment', $a),
+            ])->values()->all(),
         ];
     }
 

@@ -140,4 +140,30 @@ class MessageAttachmentTest extends TestCase
 
         $this->actingInTenant($intruderUser)->get("/app/messages/attachments/{$att->id}")->assertForbidden();
     }
+
+    public function test_thread_json_includes_attachment_metadata(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id, 'body' => 'x',
+            'attachments' => [UploadedFile::fake()->image('p.png')],
+        ])->assertRedirect();
+        $c = Conversation::first();
+
+        $this->actingInTenant()->get("/app/messages/thread/{$c->id}")
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'p.png', 'isImage' => true]);
+    }
+
+    public function test_screen_snippet_marks_attachment_only_messages(): void
+    {
+        // Image-only message → empty body → snippet must not be blank.
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id,
+            'attachments' => [UploadedFile::fake()->image('p.png')],
+        ])->assertRedirect();
+
+        $this->actingInTenant()->get('/app/messages')
+            ->assertOk()
+            ->assertSee('📎 Attachment');
+    }
 }
