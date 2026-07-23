@@ -1,16 +1,25 @@
 # Amanahku
 
-Laravel HR platform. Local dev runs under [Lerd](https://github.com/lerd-env/lerd) (Podman-powered PHP dev environment) as the site `amanahku.test`, with MySQL, Redis, and Mailpit as lerd-managed services.
+Laravel HR platform. Local dev runs under [Lerd](https://github.com/lerd-env/lerd) (Podman-powered PHP dev environment), with MySQL, Redis, and Mailpit as lerd-managed services.
 
 ## Lerd Site
 
-| Domain | Services | PHP | Node |
-|--------|----------|-----|------|
-| amanahku.test | mysql, redis, mailpit | 8.5 FPM | 22 |
+**Reach the app at `http://localhost:9100`**, not `http://amanahku.test`. The nginx
+container serves fine on that port, but `.test` DNS is unreliable on this machine
+(systemd-resolved picks the router as wlan0's DNS server, which NXDOMAINs `.test` with
+no failover to lerd-dns; `lerd dns:repair` cannot win that race, and nsswitch blocks an
+`/etc/hosts` workaround). The port is DNS-independent and always works. It is registered
+as the `laravel-app` entry in `.claude/launch.json`. Note `.env` still has
+`APP_URL=http://amanahku.test`, so APP_URL-derived absolute links (Mailpit emails, etc.)
+still emit the `.test` host.
+
+| Site | Access URL | Services | PHP | Node |
+|------|-----------|----------|-----|------|
+| amanahku (lerd site `amanahku.test`) | http://localhost:9100 | mysql, redis, mailpit | 8.5 FPM | 22 |
 
 **Commands:**
 ```fish
-lerd open                # open amanahku.test in browser
+# open http://localhost:9100 in browser (`lerd open` targets amanahku.test — broken DNS)
 lerd status               # overall health (dns, nginx, php-fpm, services)
 lerd artisan migrate       # run artisan commands in the container
 lerd db:shell               # mysql shell for the amanahku db
@@ -19,6 +28,39 @@ lerd service start mysql      # start a stopped service
 ```
 
 `.env` is wired to lerd's containers (`DB_HOST=lerd-mysql`, `REDIS_HOST=lerd-redis`, `MAIL_HOST=lerd-mailpit`). Pre-lerd `.env` is backed up at `.env.before_lerd`.
+
+### Dev quick-login (one-click, local only)
+
+To debug behind auth without typing passwords, there is a password-less quick-login route.
+The browser (including Claude's browser pane) can sign in as any seeded role by **navigating
+to a single URL** — no form, no password:
+
+```
+http://localhost:9100/dev/login?email=<account>[&tenant=<slug>]
+```
+
+- `GET /dev/login` (route name `dev.login`) calls `Auth::login` by email, then redirects:
+  super-admin → provisioning console, `tenant=<slug>` you belong to → that workspace
+  dashboard, otherwise → the workspace picker.
+- **Local only.** It is `require`d from `routes/web.php` only when `APP_ENV=local`, and the
+  route itself `abort_unless(app()->environment('local'), 404)`. Inert on staging/prod.
+- Seeded accounts (all password `password`, but the route needs none):
+  `superadmin@amanahku.com` (super-admin), `hr@amanahku.test`, `manager@amanahku.test`,
+  `management@amanahku.test`, `employee@amanahku.test`. The `unijaya` tenant is the usual
+  `tenant` slug.
+- Reporting line seeded as employee → manager → management, which is the two-step approval
+  chain: the **manager** (`manager@`) *verifies* a request, then **management**
+  (`management@`, the only account in `Permissions::MANAGEMENT_TIER`) gives *final approval*.
+  Use these three accounts to drive a claim/leave/overtime request through submit → verify →
+  approve. No other dev account can approve (hr/employee lack the management-tier role).
+- The route file `routes/dev-login.php`, the `dev-login.html` button page, and
+  `database/seeders/DevLoginSeeder.php` are **gitignored** (never committed). If the seeded
+  accounts are missing on a fresh machine: `lerd artisan db:seed --class=DevLoginSeeder`.
+
+Example — log in as HR onto the unijaya workspace:
+```
+http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
+```
 
 ## Deploy to staging
 
