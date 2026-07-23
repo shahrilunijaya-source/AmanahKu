@@ -6,6 +6,7 @@ import { registerMapPicker } from './map-picker';
 import { registerOrgChart } from './org-chart';
 import { registerRolesAdmin } from './roles-admin';
 import { registerTimesheetCapture } from './timesheet-capture';
+import { registerToast } from './toast';
 import { registerWorkBoard } from './work-board';
 
 window.Alpine = Alpine;
@@ -19,6 +20,7 @@ registerMapPicker(Alpine);
 registerOrgChart(Alpine);
 registerRolesAdmin(Alpine);
 registerTimesheetCapture(Alpine);
+registerToast(Alpine);
 registerWorkBoard(Alpine);
 
 Alpine.start();

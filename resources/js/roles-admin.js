@@ -6,13 +6,10 @@
 
 export function registerRolesAdmin(Alpine) {
     Alpine.data('rolesAdmin', () => ({
-        toast: '',
-        toastErr: false,
-        _t: null,
-
         // Submit any of the row forms (role / scope / permission overrides) without a
         // reload. The CSRF token and field values ride in the FormData, so the same
         // endpoints validate identically whether the post is AJAX or a plain submit.
+        // Feedback goes through the shared toast store (resources/js/toast.js).
         async save(form) {
             try {
                 const res = await fetch(form.action, {
@@ -22,17 +19,10 @@ export function registerRolesAdmin(Alpine) {
                 });
                 const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.message || 'Could not save. Try again.');
-                this.flash(data.message || 'Saved.');
+                this.$store.toast.success(data.message || 'Saved.');
             } catch (err) {
-                this.flash(err.message || 'Could not save. Try again.', true);
+                this.$store.toast.error(err.message || 'Could not save. Try again.');
             }
-        },
-
-        flash(msg, isError = false) {
-            this.toast = msg;
-            this.toastErr = isError;
-            clearTimeout(this._t);
-            this._t = setTimeout(() => (this.toast = ''), 2400);
         },
     }));
 }

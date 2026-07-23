@@ -71,5 +71,6 @@
         });
     });
 </script>
+@include('partials.toast-host')
 </body>
 </html>
