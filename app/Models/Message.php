@@ -32,6 +32,7 @@ class Message extends Model
         return $this->belongsTo(Employee::class, 'sender_id');
     }
 
+    /** @return HasMany<MessageAttachment, $this> */
     public function attachments(): HasMany
     {
         return $this->hasMany(MessageAttachment::class);
