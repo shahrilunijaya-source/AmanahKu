@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
+use App\Models\TimesheetTemplate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -461,5 +462,135 @@ class TimesheetTest extends TestCase
         $this->actingInTenant()->get('/app/timesheets?week=2026-06-15')
             ->assertOk()
             ->assertSee('timesheetCapture', false);
+    }
+
+    // ---- Per-staff allocation templates -----------------------------------
+
+    public function test_an_owner_saves_a_new_template(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'name' => 'Full-time KDN dev',
+            'category_id' => $this->category->id,
+            'percentage' => 100,
+            'description' => 'Core build work',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('timesheet_templates', [
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'name' => 'Full-time KDN dev',
+            'category_id' => $this->category->id,
+        ]);
+    }
+
+    public function test_a_template_without_a_project_or_sub_pillar_saves(): void
+    {
+        // project_id / sub_pillar_id are nullable — a standalone category needs neither.
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'name' => 'Admin time',
+            'category_id' => $this->category->id,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('timesheet_templates', [
+            'employee_id' => $this->employee->id,
+            'name' => 'Admin time',
+            'project_id' => null,
+            'sub_pillar_id' => null,
+        ]);
+    }
+
+    public function test_saving_a_template_under_an_existing_name_updates_it_in_place(): void
+    {
+        // updateOrCreate keys on (employee_id, name), backed by that unique index: re-saving
+        // the same name must overwrite the existing row, not insert a second one.
+        $other = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Meetings', 'requires_project' => false,
+        ]);
+
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'name' => 'My preset', 'category_id' => $this->category->id, 'percentage' => 50,
+        ])->assertRedirect();
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'name' => 'My preset', 'category_id' => $other->id, 'percentage' => 80,
+        ])->assertRedirect();
+
+        $this->assertSame(1, TimesheetTemplate::where('employee_id', $this->employee->id)->count());
+        $this->assertDatabaseHas('timesheet_templates', [
+            'employee_id' => $this->employee->id, 'name' => 'My preset', 'category_id' => $other->id,
+        ]);
+    }
+
+    public function test_store_template_rejects_a_missing_name(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'category_id' => $this->category->id,
+        ])->assertSessionHasErrors('name');
+
+        $this->assertSame(0, TimesheetTemplate::count());
+    }
+
+    public function test_store_template_rejects_an_unknown_category(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets/templates', [
+            'name' => 'Bad category',
+            'category_id' => 999999,
+        ])->assertSessionHasErrors('category_id');
+
+        $this->assertSame(0, TimesheetTemplate::count());
+    }
+
+    public function test_an_owner_deletes_their_own_template(): void
+    {
+        $template = TimesheetTemplate::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'name' => 'Scrap me', 'category_id' => $this->category->id,
+        ]);
+
+        $this->actingInTenant()->delete("/app/timesheets/templates/{$template->id}")->assertRedirect();
+
+        $this->assertDatabaseMissing('timesheet_templates', ['id' => $template->id]);
+    }
+
+    public function test_a_non_owner_cannot_delete_someone_elses_template(): void
+    {
+        // Same tenant, different owner: the row resolves, then the ownership guard 403s.
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $template = TimesheetTemplate::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
+            'name' => 'Not yours', 'category_id' => $this->category->id,
+        ]);
+
+        $this->actingInTenant()->delete("/app/timesheets/templates/{$template->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('timesheet_templates', ['id' => $template->id]);
+    }
+
+    public function test_a_cross_tenant_actor_cannot_delete_another_tenants_template(): void
+    {
+        // The template lives in tenant A; the actor's active tenant is B. Route-model binding
+        // (SubstituteBindings) resolves the row by id before the `tenant` middleware sets the
+        // context, so the bind is not tenant-scoped and the row resolves. The ownership guard
+        // is what refuses the delete: the intruder's employee is not the template's owner (403).
+        $template = TimesheetTemplate::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'name' => 'Tenant A preset', 'category_id' => $this->category->id,
+        ]);
+
+        $otherTenant = Tenant::create(['slug' => 'globex', 'name' => 'Globex', 'initials' => 'GX']);
+        $intruder = User::create(['name' => 'Intruder', 'email' => 'intruder@example.com', 'password' => Hash::make('password')]);
+        $intruder->tenants()->attach($otherTenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $otherTenant->id, 'user_id' => $intruder->id,
+            'name' => 'Intruder', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($intruder)->withSession(['current_tenant' => $otherTenant->id])
+            ->delete("/app/timesheets/templates/{$template->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('timesheet_templates', ['id' => $template->id]);
     }
 }
