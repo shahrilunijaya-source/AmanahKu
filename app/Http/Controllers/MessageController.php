@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Conversation;
 use App\Models\Employee;
 use App\Models\Message;
+use App\Models\MessageAttachment;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,8 +16,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * In-app 1-to-1 direct messaging.
@@ -39,6 +42,14 @@ class MessageController extends Controller
 
     /** Messages loaded into a single open thread (recent-most, ascending). */
     private const THREAD_LIMIT = 100;
+
+    /** Private disk message attachments live on — reached only via attachment(). */
+    private const ATTACHMENT_DISK = 'local';
+
+    /** Ceiling on files per message, and the accepted extensions (images + PDF + Office docs). */
+    private const MAX_ATTACHMENTS = 6;
+
+    private const ATTACHMENT_MIMES = 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv';
 
     // ── Full page ───────────────────────────────────────────────────────────
 
@@ -119,12 +130,32 @@ class MessageController extends Controller
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
+            // Optional when a file is attached (image-only messages). The "blank body AND
+            // no file" case is rejected explicitly below so empty sends stay impossible.
+            'body' => ['nullable', 'string', 'max:5000'],
             'conversation_id' => ['nullable', 'integer'],
             // Recipient must be an active, same-tenant employee (global scope restricts
             // the id set) — never trust the posted id.
             'to' => ['nullable', 'integer', Rule::in(Employee::active()->pluck('id'))],
+            // Images + PDF + Office docs, each ≤ 8 MB, whole set capped — same discipline
+            // as feedback attachments + leave docs.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_ATTACHMENTS],
+            'attachments.*' => ['file', 'mimes:'.self::ATTACHMENT_MIMES, 'max:8192'],
+        ], [
+            'attachments.max' => 'You can attach up to '.self::MAX_ATTACHMENTS.' files.',
+            'attachments.*.mimes' => 'Attachments must be an image, PDF, or Office document.',
+            'attachments.*.max' => 'Each attachment must be 8 MB or smaller.',
         ]);
+
+        $files = array_values(array_filter(
+            (array) $request->file('attachments', []),
+            fn ($f) => $f && $f->isValid(),
+        ));
+
+        // No empty sends: require a body OR at least one valid file.
+        if (trim((string) ($data['body'] ?? '')) === '' && $files === []) {
+            throw ValidationException::withMessages(['body' => 'Write a message or attach a file.']);
+        }
 
         if (! empty($data['conversation_id'])) {
             $conversation = Conversation::findOrFail($data['conversation_id']);
@@ -139,8 +170,24 @@ class MessageController extends Controller
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $employee->id,
-            'body' => $data['body'],
+            'body' => $data['body'] ?? '',
         ]);
+
+        // Persist each file to the private disk AFTER the message exists, so a rejected
+        // batch can never orphan files.
+        foreach ($files as $file) {
+            $path = $file->store('message-attachments', self::ATTACHMENT_DISK);
+            abort_unless($path !== false, 500, 'Attachment could not be stored.');
+            $message->attachments()->create([
+                'tenant_id' => $message->tenant_id,
+                'path' => $path,
+                'name' => $file->getClientOriginalName() ?: 'attachment',
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize() ?? 0,
+            ]);
+        }
+
+        $message->load('attachments');
         $conversation->update(['last_message_at' => now()]);
 
         $conversation->loadMissing(['employeeLow', 'employeeHigh']);

@@ -7,35 +7,111 @@ use App\Models\Employee;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MessageAttachmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $user;
+
+    private Tenant $tenant;
+
+    private Employee $employee;
+
+    private Employee $other;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('local');
+
+        $this->user = User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->user->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $this->employee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+            'name' => 'Demo', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $this->other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green',
+        ]);
+    }
+
+    private function actingInTenant(?User $as = null): self
+    {
+        $this->actingAs($as ?? $this->user)->withSession(['current_tenant' => $this->tenant->id]);
+
+        return $this;
+    }
+
     public function test_message_has_many_attachments_and_isimage_detects_images(): void
     {
-        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
-        $a = Employee::create(['tenant_id' => $tenant->id, 'name' => 'A', 'status' => 'active', 'workload' => 'green']);
-        $b = Employee::create(['tenant_id' => $tenant->id, 'name' => 'B', 'status' => 'active', 'workload' => 'green']);
         $c = Conversation::create([
-            'tenant_id' => $tenant->id,
-            'employee_low_id' => min($a->id, $b->id),
-            'employee_high_id' => max($a->id, $b->id),
+            'tenant_id' => $this->tenant->id,
+            'employee_low_id' => min($this->employee->id, $this->other->id),
+            'employee_high_id' => max($this->employee->id, $this->other->id),
             'last_message_at' => now(),
         ]);
-        $msg = Message::create(['tenant_id' => $tenant->id, 'conversation_id' => $c->id, 'sender_id' => $a->id, 'body' => 'hi']);
+        $msg = Message::create(['tenant_id' => $this->tenant->id, 'conversation_id' => $c->id, 'sender_id' => $this->employee->id, 'body' => 'hi']);
 
-        $img = $msg->attachments()->create([
-            'tenant_id' => $tenant->id, 'path' => 'message-attachments/x.png', 'name' => 'x.png', 'mime' => 'image/png', 'size' => 10,
-        ]);
-        $doc = $msg->attachments()->create([
-            'tenant_id' => $tenant->id, 'path' => 'message-attachments/y.pdf', 'name' => 'y.pdf', 'mime' => 'application/pdf', 'size' => 20,
-        ]);
+        $img = $msg->attachments()->create(['tenant_id' => $this->tenant->id, 'path' => 'message-attachments/x.png', 'name' => 'x.png', 'mime' => 'image/png', 'size' => 10]);
+        $doc = $msg->attachments()->create(['tenant_id' => $this->tenant->id, 'path' => 'message-attachments/y.pdf', 'name' => 'y.pdf', 'mime' => 'application/pdf', 'size' => 20]);
 
         $this->assertSame(2, $msg->attachments()->count());
         $this->assertTrue($img->isImage());
         $this->assertFalse($doc->isImage());
+    }
+
+    public function test_sending_with_a_file_stores_it_and_creates_a_row(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id,
+            'body' => 'see attached',
+            'attachments' => [UploadedFile::fake()->image('photo.png')],
+        ])->assertRedirect();
+
+        $msg = Message::first();
+        $this->assertNotNull($msg);
+        $this->assertSame(1, MessageAttachment::count());
+        $att = MessageAttachment::first();
+        $this->assertSame($msg->id, $att->message_id);
+        $this->assertSame('photo.png', $att->name);
+        Storage::disk('local')->assertExists($att->path);
+    }
+
+    public function test_image_only_message_is_allowed(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id,
+            'attachments' => [UploadedFile::fake()->image('snap.jpg')],
+        ])->assertRedirect();
+
+        $this->assertSame(1, Message::count());
+        $this->assertSame(1, MessageAttachment::count());
+    }
+
+    public function test_empty_body_with_no_file_is_rejected(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', ['to' => $this->other->id, 'body' => ''])
+            ->assertSessionHasErrors('body');
+        $this->assertSame(0, Message::count());
+    }
+
+    public function test_oversize_file_is_rejected(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id,
+            'body' => 'big',
+            'attachments' => [UploadedFile::fake()->create('huge.pdf', 9000, 'application/pdf')], // 9000 KB > 8192
+        ])->assertSessionHasErrors('attachments.0');
+        $this->assertSame(0, Message::count());
+        $this->assertSame(0, MessageAttachment::count());
     }
 }
