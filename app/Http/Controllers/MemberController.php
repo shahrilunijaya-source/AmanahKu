@@ -51,6 +51,31 @@ class MemberController extends Controller
             ]);
         }
 
+        // Someone with this email may already be in the directory (added via the employee
+        // directory or CSV import, which create login-less records). Inviting them must
+        // attach a login to that EXISTING row, not mint a second Employee for the same
+        // person — the AK-DB-03 duplicate that stranded a directory record on 2026-07-23.
+        // Active-only + tenant-scoped, mirroring EmployeeController's uniqueness rule.
+        $existing = Employee::active()->where('email', $data['email'])->first();
+        if ($existing) {
+            $result = $this->provisionFor($existing, $tenant, $data['role']);
+
+            if ($result === 'created') {
+                AuditLog::record('Added member', $data['name'].' ('.$data['role'].')');
+
+                return back()->with('ok', $data['name'].' is already in the directory — emailed an invite to activate their account and set a password.');
+            }
+
+            // 'has_login' — the directory row already has a login; 'email_taken' — a User
+            // with this email exists (the pre-check above normally catches it; kept for the
+            // concurrent-provision race). Either way, no new row was created.
+            return back()->withInput()->withErrors([
+                'email' => $result === 'has_login'
+                    ? $data['name'].' is already a member with a login.'
+                    : 'A user with this email already exists. Existing accounts cannot be added from here.',
+            ]);
+        }
+
         $tempPassword = Str::password(12);
 
         // Login + tenant link + directory record are one unit: a crash partway must

@@ -32,5 +32,10 @@ Thumbs.db
 ecosystem.config.cjs
 .env.before_lerd
 docs/vault/
+
+# Local-only dev quick-login helper (never commit — known-password auth bypass)
+/dev-login.html
+/routes/dev-login.php
+/database/seeders/DevLoginSeeder.php
 bun.lock
 skills-lock.json

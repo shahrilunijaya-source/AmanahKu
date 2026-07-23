@@ -13,7 +13,17 @@
 
 | Env | Branch | Host | URL | Notes |
 |-----|--------|------|-----|-------|
-| **local** | `dev` (working branch) | [Lerd](https://github.com/lerd-dev/lerd) site `amanahku.test` (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | http://amanahku.test | `.env` wired to lerd containers (`DB_HOST=lerd-mysql` etc.) |
+| **local** | `dev` (working branch) | [Lerd](https://github.com/lerd-dev/lerd) site `amanahku.test` (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | **http://localhost:9100** (not `amanahku.test` — see note) | `.env` wired to lerd containers (`DB_HOST=lerd-mysql` etc.) |
+
+> **Local access — use `http://localhost:9100`, not `amanahku.test`.** The nginx container
+> serves on that port regardless of DNS. `.test` name resolution is unreliable on the dev
+> machine: systemd-resolved selects the router as wlan0's DNS server, which answers `.test`
+> with authoritative NXDOMAIN and never fails over to lerd-dns (`127.0.0.1:5300`).
+> `lerd dns:repair` re-adds the same shared-link config and cannot fix it, and the nsswitch
+> order (`resolve [!UNAVAIL=return]` before `files`) blocks an `/etc/hosts` workaround.
+> The port is registered as the `laravel-app` entry in `.claude/launch.json`. `APP_URL` is
+> still `http://amanahku.test`, so APP_URL-derived links (Mailpit emails, etc.) keep emitting
+> the `.test` host.
 | **staging** | `main` | Hostinger Business (shared-style, hPanel), `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net | `APP_ENV=staging`. The **only deployed instance** |
 | **production** | — | **Does not exist yet.** Planned: fold the legacy `unijayahr`/`petron`/`shell` PHP sites in as tenants | — | Cutover not scheduled; see DEPLOYMENT.md security gate first |
 

@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Timesheet\WeekReconciler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -220,7 +221,9 @@ class LeaveController extends Controller
      */
     private function applyApproval(LeaveRequest $leaveRequest, ?int $actorId): bool
     {
-        $flipped = DB::transaction(function () use ($leaveRequest, $actorId) {
+        $reconciled = 0;
+
+        $flipped = DB::transaction(function () use ($leaveRequest, $actorId, &$reconciled) {
             // Atomic compare-and-set: two concurrent approves can both pass the status
             // check, but only one flips verified→approved here. The loser matches zero
             // rows and must NOT decrement the balance again.
@@ -246,6 +249,14 @@ class LeaveController extends Controller
                 $balance->update(['balance' => max(0, $balance->balance - $leaveRequest->days)]);
             }
 
+            // Leave→timesheet is otherwise pull-based: LockedDays only materialises the
+            // "On Leave" rows when a week is displayed or saved. A week saved BEFORE this
+            // approval would silently disagree with the approved leave until re-saved, so
+            // push the leave into any already-stored week here. Same transaction as the
+            // flip + balance so the approval never half-succeeds. The row is 'approved' on
+            // this connection now, so LockedDays sees it.
+            $reconciled = app(WeekReconciler::class)->reconcileForLeave($leaveRequest);
+
             return true;
         });
 
@@ -254,6 +265,9 @@ class LeaveController extends Controller
         }
 
         AuditLog::record('Approved leave', $leaveRequest->employee->name.' · '.$leaveRequest->days.'d');
+        if ($reconciled > 0) {
+            AuditLog::record('Reconciled timesheet', $leaveRequest->employee->name.' · '.$reconciled.' week(s) updated for approved leave');
+        }
         AppNotification::send(
             $leaveRequest->employee->user_id,
             'Leave approved',
