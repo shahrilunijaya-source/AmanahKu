@@ -114,4 +114,30 @@ class MessageAttachmentTest extends TestCase
         $this->assertSame(0, Message::count());
         $this->assertSame(0, MessageAttachment::count());
     }
+
+    public function test_a_participant_can_stream_an_attachment(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id, 'body' => 'x',
+            'attachments' => [UploadedFile::fake()->image('p.png')],
+        ])->assertRedirect();
+        $att = MessageAttachment::first();
+
+        $this->actingInTenant()->get("/app/messages/attachments/{$att->id}")->assertOk();
+    }
+
+    public function test_a_non_participant_cannot_stream_an_attachment(): void
+    {
+        $this->actingInTenant()->post('/app/messages/send', [
+            'to' => $this->other->id, 'body' => 'x',
+            'attachments' => [UploadedFile::fake()->image('p.png')],
+        ])->assertRedirect();
+        $att = MessageAttachment::first();
+
+        $intruderUser = User::create(['name' => 'Nosy', 'email' => 'nosy@example.com', 'password' => Hash::make('password')]);
+        $intruderUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $intruderUser->id, 'name' => 'Nosy', 'status' => 'active', 'workload' => 'green']);
+
+        $this->actingInTenant($intruderUser)->get("/app/messages/attachments/{$att->id}")->assertForbidden();
+    }
 }
