@@ -409,6 +409,7 @@ Route::middleware('auth')->group(function () {
         // Must sit above the /app/{screen?} catch-all or they resolve as screen names.
         Route::get('/app/messages/unread', [MessageController::class, 'unread'])->middleware('throttle:120,1')->name('messages.unread');
         Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->name('messages.thread');
+        Route::get('/app/messages/attachments/{attachment}', [MessageController::class, 'attachment'])->name('messages.attachment');
         Route::get('/app/employees/import-template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
         Route::get('/app/position/import-template', [PositionController::class, 'importTemplate'])->name('position.import.template');
         Route::get('/app/reports/export/employees', [ReportController::class, 'exportEmployees'])->name('reports.export.employees');

@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * In-app 1-to-1 direct messaging.
@@ -243,6 +244,25 @@ class MessageController extends Controller
             'other' => $this->personArr($conversation->other($employee->id)),
             'messages' => $messages,
         ]);
+    }
+
+    /**
+     * Stream a message attachment inline through an auth-gated action — never a public URL.
+     * A direct message is private between two people, so only the two conversation
+     * participants may fetch its files. Tenant-scoped model binding already blocks
+     * cross-tenant ids; the explicit checks are defence in depth.
+     */
+    public function attachment(Request $request, MessageAttachment $attachment): StreamedResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403);
+        abort_unless($attachment->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $conversation = $attachment->message?->conversation;
+        abort_unless($conversation && $conversation->hasParticipant($employee->id), 403);
+        abort_unless(Storage::disk(self::ATTACHMENT_DISK)->exists($attachment->path), 404);
+
+        return Storage::disk(self::ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
     /** The ~30s unread-count poll target. */
