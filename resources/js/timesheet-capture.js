@@ -241,7 +241,11 @@ export function registerTimesheetCapture(Alpine) {
         flatRows() {
             const out = [];
             for (const iso of Object.keys(this.rows)) {
-                if (this.isLocked(iso)) continue;
+                // Only submit days the user may actually edit. This skips locked days (the
+                // server re-appends leave/holiday itself) AND future / out-of-window days,
+                // which the server rejects (D2). A stale future row seeded from an existing
+                // draft would otherwise poison every save with "… has not happened yet."
+                if (!this.isEditable(iso)) continue;
                 for (const r of this.rows[iso]) {
                     const pct = parseFloat(r.percentage) || 0;
                     if (pct <= 0) continue;
@@ -262,13 +266,16 @@ export function registerTimesheetCapture(Alpine) {
         // gets back the SAME promise as the in-flight request, so it genuinely waits for that
         // network round-trip instead of no-oping and letting the caller move on early — which
         // used to let `$event.target.submit()` navigate while the draft POST was still pending.
-        async save(submitNow = false) {
+        async save(submitNow = false, announce = false) {
             if (this.readonly) return Promise.resolve();
             if (this.saving && this.savePromise) return this.savePromise;
 
             const entries = this.flatRows();
             // Nothing to persist at all — no typed rows and no locked days to materialise.
-            if (!entries.length && !Object.keys(this.locked).length && !submitNow) return;
+            if (!entries.length && !Object.keys(this.locked).length && !submitNow) {
+                if (announce) this.$store.toast.info(this.$store.ui.lang === 'en' ? 'Nothing to save yet.' : 'Belum ada apa-apa untuk disimpan.');
+                return;
+            }
 
             this.saving = true;
             this.error = '';
@@ -291,13 +298,18 @@ export function registerTimesheetCapture(Alpine) {
                     const body = await res.json();
                     if (!res.ok) {
                         this.error = Object.values(body.errors || {}).flat()[0] || 'Could not save.';
+                        if (announce) this.$store.toast.error(this.error);
                         return;
                     }
                     this.locked = body.locked || {};
                     this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    // Submit reloads the page (the server re-renders the locked/submitted view),
+                    // so only the manual draft save needs an in-place toast.
+                    if (announce && !submitNow) this.$store.toast.success(this.$store.ui.lang === 'en' ? 'Draft saved.' : 'Draf disimpan.');
                     if (submitNow) window.location.reload();
                 } catch (e) {
                     this.error = 'Could not reach the server. Your changes are still on screen.';
+                    if (announce) this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not reach the server.' : 'Tak dapat hubungi pelayan.');
                 } finally {
                     this.saving = false;
                     this.savePromise = null;

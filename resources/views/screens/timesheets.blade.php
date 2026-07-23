@@ -242,6 +242,13 @@
                                     class="uj-btn-ghost" style="height:34px;padding:0 9px;color:var(--error);"
                                     :aria-label="$store.ui.lang==='en' ? 'Remove' : 'Buang'">&times;</button>
                             </div>
+                            {{-- Optional free-text note: "what you actually did" for this line.
+                                 The column, validator and save/seed plumbing already round-trip
+                                 `description`; this is the only place it is exposed. --}}
+                            <input type="text" x-model="r.description" @blur="save()" maxlength="500"
+                                :disabled="!isEditable(selected)"
+                                :placeholder="$store.ui.lang==='en' ? 'Add a note (optional)' : 'Tambah nota (pilihan)'"
+                                style="width:100%;height:32px;margin-top:6px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;background:#fff;" />
                             {{-- Task 8: quick amount chips for the row you just added, and a
                                  save-as-template shortcut for any row. --}}
                             <div x-show="isEditable(selected)" style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
@@ -447,7 +454,7 @@
                 <span x-show="weekComplete() && savedAt" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'Saved ' : 'Disimpan ') + savedAt"></span>
             </div>
             <div style="display:flex;gap:8px;">
-                <button type="button" @click="save(false)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
+                <button type="button" @click="save(false, true)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
                 <button type="button" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
                     :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
