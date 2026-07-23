@@ -222,8 +222,10 @@ class TimesheetController extends Controller
 
         $this->assertDatesInWindow($userEntries);
 
-        // Shared with leave-approval reconciliation: drop locked-day rows (already filtered
-        // out above for the date-window check) and lay down the generated locked rows.
+        // Shared with leave-approval reconciliation: drop fully-locked-day rows, keep the
+        // work-half of a half-day, and lay down the generated locked rows. The pre-filter
+        // above is only for the date-window check (fully-locked days bypass it); mergeEntries
+        // applies the same rule authoritatively.
         $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $this->normaliseEntries($userEntries));
 
         $submitNow = $request->boolean('submit_now');

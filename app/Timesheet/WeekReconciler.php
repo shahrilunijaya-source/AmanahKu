@@ -27,9 +27,12 @@ final class WeekReconciler
     public function __construct(private LockedDays $lockedDays) {}
 
     /**
-     * Merge staffer-typed rows with the generated locked rows for a week: drop anything
-     * typed against an approved-leave / public-holiday day (that day is a fact HR owns,
-     * not a claim), then append the generated rows. Returns entry arrays ready to persist.
+     * Merge staffer-typed rows with the generated locked rows for a week, then append the
+     * generated rows. A fully locked day (public holiday, whole-day leave) is a fact HR
+     * owns, not a claim, so anything typed against it is dropped. A half-day leave locks
+     * only 50%: the staffer still fills the other half, so their rows on a partly locked
+     * day are kept and the day reaches 100% from the 50% leave plus those rows. Returns
+     * entry arrays ready to persist.
      *
      * @param  array<int, array<string, mixed>>  $userRows  normalised, source=null rows
      * @return array<int, array<string, mixed>>
@@ -40,7 +43,11 @@ final class WeekReconciler
 
         $kept = array_filter(
             $userRows,
-            fn (array $e) => ! isset($locked[CarbonImmutable::parse($e['entry_date'])->toDateString()])
+            function (array $e) use ($locked) {
+                $day = $locked[CarbonImmutable::parse($e['entry_date'])->toDateString()] ?? null;
+
+                return $day === null || $day['percentage'] < 100;
+            }
         );
 
         return array_merge(array_values($kept), $this->lockedDays->entryRows($employee, $weekStart));

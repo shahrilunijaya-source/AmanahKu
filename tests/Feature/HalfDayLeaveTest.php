@@ -171,6 +171,47 @@ class HalfDayLeaveTest extends TestCase
         $this->assertEqualsWithDelta(100.0, (float) $dayEntries->first()->percentage, 0.001);
     }
 
+    /**
+     * Composition with the leave→timesheet back-fill (WeekReconciler): a week saved BEFORE
+     * a half-day leave is approved gains the 50% "On Leave" row on approval, and the
+     * staffer's already-typed work-half is preserved rather than dropped.
+     */
+    public function test_approving_half_day_backfills_a_saved_week_and_keeps_the_work_half(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+
+        // Verified (not yet approved) half day for Wed 2026-07-22, so the day is not locked
+        // when the staffer saves — their 50% work stands alone as a draft.
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-07-22', 'date_to' => '2026-07-22', 'half_day_period' => 'am',
+            'days' => 0.5, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        $this->actingAsEmployee($report)->post('/app/timesheets', [
+            'week_start' => '2026-07-20',
+            'entries' => [
+                ['entry_date' => '2026-07-22', 'category_id' => $this->work->id, 'percentage' => 50],
+            ],
+        ])->assertRedirect();
+
+        // Before approval: just the 50% work row, no leave row.
+        $sheet = Timesheet::firstWhere('employee_id', $report->id);
+        $this->assertSame(1, TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->count());
+
+        // Approval back-fills the stored week with the 50% leave row.
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+        $this->assertEqualsWithDelta(9.5, (float) LeaveBalance::first()->balance, 0.001);
+
+        $dayEntries = TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->get();
+        $this->assertEqualsWithDelta(100.0, (float) $dayEntries->sum('percentage'), 0.001);
+        $this->assertEqualsWithDelta(50.0, (float) $dayEntries->firstWhere('source', 'leave')->percentage, 0.001);
+        $this->assertEqualsWithDelta(50.0, (float) $dayEntries->firstWhere('source', null)->percentage, 0.001);
+    }
+
     /** A half-day marker is rejected on a multi-day range — you cannot half-day a span. */
     public function test_half_day_rejected_for_multi_day_range(): void
     {
