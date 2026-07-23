@@ -6,6 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Amanahku' }} · Amanahku</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Reveals the mobile-only camera-capture trigger in the messages composer (side panel is
+         global, so this lives in the layout rather than a single screen). --}}
+    <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
 </head>
 <body>
 @php $embed = $embed ?? false; @endphp
@@ -220,6 +223,7 @@
             threads: threads,
             active: null,
             body: '',
+            files: [],
             sending: false,
             loading: false,
             csrf() { return document.querySelector('meta[name=csrf-token]').content; },
@@ -240,28 +244,35 @@
                     headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
                 }).then(r => r.json()).then(d => { if (this.$store.msgbadge) this.$store.msgbadge.unread = d.unread; }).catch(() => {});
             },
+            addFiles(e) {
+                this.files = this.files.concat(Array.from(e.target.files));
+                e.target.value = '';
+            },
             send() {
                 const text = this.body.trim();
-                if (!text || this.sending || !this.active) return;
+                if ((!text && this.files.length === 0) || this.sending || !this.active) return;
                 this.sending = true;
-                const p = new URLSearchParams();
-                p.append('body', text);
-                if (this.active.conversationId) p.append('conversation_id', this.active.conversationId);
-                else if (this.active.to) p.append('to', this.active.to);
+                const fd = new FormData();
+                fd.append('body', text);
+                if (this.active.conversationId) fd.append('conversation_id', this.active.conversationId);
+                else if (this.active.to) fd.append('to', this.active.to);
+                this.files.forEach(f => fd.append('attachments[]', f));
                 fetch('{{ route('messages.send') }}', {
                     method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: p.toString(),
+                    // No Content-Type header — the browser sets the multipart boundary.
+                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
+                    body: fd,
                 }).then(r => r.json()).then(d => {
                     if (d.ok) {
                         this.active.conversationId = d.conversationId;
                         this.active.messages.push(d.message);
                         this.body = '';
+                        this.files = [];
                         this.scrollDown();
                     }
                 }).catch(() => {}).finally(() => { this.sending = false; });
             },
-            back() { this.view = 'list'; this.active = null; this.body = ''; },
+            back() { this.view = 'list'; this.active = null; this.body = ''; this.files = []; },
             scrollDown() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight; }); },
         }));
         @endif
