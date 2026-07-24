@@ -40,6 +40,45 @@
     ],
 ])
 
+{{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
+     403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check
+     here. Always the current week, independent of the report period below. --}}
+@php
+    $tsRoster = collect($tsRoster ?? []);
+    $tsDone = $tsRoster->where('status', 'done')->count();
+    $tsTotal = $tsRoster->count();
+    // Only chips for people who still owe a sheet — a full done/pending grid is a
+    // wall of grey most of the week. Header keeps the done/total ratio for context.
+    $tsPending = $tsRoster->where('status', '!=', 'done')->values();
+    $tsPill = ['done' => 'var(--success)', 'pending' => 'var(--muted)', 'late' => 'var(--red)'];
+@endphp
+@if ($tsTotal)
+<div class="uj-card" style="margin-bottom:16px;padding:14px 18px;" x-data="{ open: true }">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
+        <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
+        <span style="font-size:12.5px;color:var(--muted);">{{ $tsDone }} / {{ $tsTotal }} <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span></span>
+        <span x-text="open ? '▾' : '▸'" style="color:var(--muted);"></span>
+    </div>
+    <div x-show="open" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+        @forelse ($tsPending as $row)
+            <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;background:var(--surface-2,#f3f4f6);font-size:12px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:{{ $tsPill[$row['status']] }};flex:none;"></span>
+                <span>{{ $row['employee']->name }}</span>
+                <span style="color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;">
+                    @if ($row['status'] === 'late')
+                        <span x-text="$store.ui.lang==='en' ? 'late' : 'lewat'">late</span>
+                    @else
+                        <span x-text="$store.ui.lang==='en' ? 'pending' : 'belum'">pending</span>
+                    @endif
+                </span>
+            </span>
+        @empty
+            <span style="font-size:12px;color:var(--success);" x-text="$store.ui.lang==='en' ? 'Everyone is in for this week.' : 'Semua sudah hantar minggu ini.'">Everyone is in for this week.</span>
+        @endforelse
+    </div>
+</div>
+@endif
+
 {{-- Period + slice filters --}}
 <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-card" style="padding:16px 20px;margin-bottom:16px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;">
     <div>

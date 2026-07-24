@@ -169,9 +169,6 @@ class TimesheetController extends Controller
             'weekStatus' => $weekTimesheet?->status,
             'weekTimesheet' => $weekTimesheet,
             'existingGrid' => $existingGrid,
-            // All-staff weekly compliance board (names + status only, no cost).
-            'tsRoster' => app(TimesheetCompliance::class)
-                ->roster(app(CurrentTenant::class)->get(), $weekStart),
             // Day-first capture screen inputs (Tasks 7-8).
             'tsLocked' => $locked,
             'tsItems' => $tsItems,
@@ -487,6 +484,11 @@ class TimesheetController extends Controller
             'byStaff' => $byStaff,
             'reportTotals' => ['days' => $grandDays, 'cost' => $grandCost, 'uncostedDays' => $uncostedDays],
             'reportEmpty' => $entries->isEmpty(),
+            // This-week compliance roster (who still owes a sheet). Lives here on the
+            // all-staff oversight surface, not the personal capture screen. Always the
+            // current week, independent of the from/to report period above.
+            'tsRoster' => app(TimesheetCompliance::class)
+                ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek()),
             // Filter dropdown options + current selection.
             'filterCategories' => TimesheetCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterProjects' => Project::where('is_active', true)->orderBy('name')->get(['id', 'name']),

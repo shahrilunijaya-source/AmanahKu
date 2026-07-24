@@ -43,10 +43,10 @@ class TimesheetReminderTest extends TestCase
         parent::tearDown();
     }
 
-    private function staff(string $name, string $email): array
+    private function staff(string $name, string $email, string $role = 'employee'): array
     {
         $user = User::create(['name' => $name, 'email' => $email, 'password' => Hash::make('password')]);
-        $user->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $user->tenants()->attach($this->tenant->id, ['role' => $role]);
         $employee = Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $name, 'status' => 'active', 'workload' => 'green',
@@ -137,16 +137,39 @@ class TimesheetReminderTest extends TestCase
             ->assertDontSee('Your timesheet for this week is overdue', false);
     }
 
-    public function test_team_status_board_is_visible_to_a_plain_staffer(): void
+    public function test_team_status_board_hidden_from_personal_timesheet_screen(): void
     {
         [$me] = $this->staff('Me Myself', 'me@acme.test');
-        [, $colleagueEmp] = $this->staff('Cathy Colleague', 'cathy@acme.test');
-        $this->fillFullWeek($colleagueEmp); // Cathy is done
+        $this->staff('Cathy Colleague', 'cathy@acme.test');
 
+        // The board moved to the all-staff reports screen; a plain staffer's personal
+        // capture screen no longer carries the team roster.
         $this->actingAs($me)->withSession(['current_tenant' => $this->tenant->id])
             ->get(route('app.screen', 'timesheets'))
             ->assertOk()
-            ->assertSee('Cathy Colleague', false)   // roster lists everyone
-            ->assertSee('team status', false);       // board heading (EN default text)
+            ->assertDontSee('team status', false);
+    }
+
+    public function test_team_status_board_shows_on_reports_for_an_oversight_role(): void
+    {
+        [$boss] = $this->staff('Boss Bee', 'boss@acme.test', 'manager');
+        $this->staff('Pending Pat', 'pat@acme.test'); // empty week → still owes a sheet
+
+        $this->actingAs($boss)->withSession(['current_tenant' => $this->tenant->id])
+            ->get(route('app.screen', 'timesheet-reports'))
+            ->assertOk()
+            ->assertSee('team status', false)     // board heading (EN default text)
+            ->assertSee('Pending Pat', false);    // roster lists who still owes a sheet
+    }
+
+    public function test_a_plain_staffer_cannot_reach_the_timesheet_reports_screen(): void
+    {
+        [$me] = $this->staff('Me Myself', 'me@acme.test');
+
+        // The board's access is the reports screen's own 403 gate — a plain staffer
+        // is blocked from the whole surface, roster included.
+        $this->actingAs($me)->withSession(['current_tenant' => $this->tenant->id])
+            ->get(route('app.screen', 'timesheet-reports'))
+            ->assertForbidden();
     }
 }

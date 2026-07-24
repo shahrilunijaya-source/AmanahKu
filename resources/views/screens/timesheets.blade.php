@@ -75,39 +75,6 @@
     <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Drafts' : 'Draf'">Drafts</span></div><div class="uj-stat-value" style="color:var(--amber);">{{ $draftCount }}</div></div>
 </div>
 
-@php
-    $tsRoster = collect($tsRoster ?? []);
-    $tsDone = $tsRoster->where('status', 'done')->count();
-    $tsTotal = $tsRoster->count();
-    $tsPill = ['done' => 'var(--success)', 'pending' => 'var(--muted)', 'late' => 'var(--red)'];
-@endphp
-@if ($tsTotal)
-<div class="uj-card" style="margin-bottom:16px;padding:14px 18px;" x-data="{ open: true }">
-    <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
-        <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
-        <span style="font-size:12.5px;color:var(--muted);">{{ $tsDone }} / {{ $tsTotal }} <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span></span>
-        <span x-text="open ? '▾' : '▸'" style="color:var(--muted);"></span>
-    </div>
-    <div x-show="open" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
-        @foreach ($tsRoster as $row)
-            <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;background:var(--surface-2,#f3f4f6);font-size:12px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:{{ $tsPill[$row['status']] }};flex:none;"></span>
-                <span>{{ $row['employee']->name }}</span>
-                <span style="color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;">
-                    @if ($row['status'] === 'done')
-                        <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span>
-                    @elseif ($row['status'] === 'late')
-                        <span x-text="$store.ui.lang==='en' ? 'late' : 'lewat'">late</span>
-                    @else
-                        <span x-text="$store.ui.lang==='en' ? 'pending' : 'belum'">pending</span>
-                    @endif
-                </span>
-            </span>
-        @endforeach
-    </div>
-</div>
-@endif
-
 @if (($positionMissing ?? false))
     <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;border-left:3px solid var(--amber);font-size:12.5px;color:var(--ink);">
         <span x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'">You have no position band assigned, so your timesheet cost can't be computed.</span>
