@@ -42,9 +42,36 @@
     .uj-drag-ghost { opacity: .4; }
     .uj-wi { cursor: pointer; transition: box-shadow .12s, transform .12s; }
     .uj-wi:hover { box-shadow: 0 4px 14px rgba(20,20,40,.08); transform: translateY(-1px); }
+
+    /* Overlapping avatar stack on a card face + inside the modal's people row. */
+    .wi-people { display: inline-flex; align-items: center; }
+    .wi-av {
+        width: 20px; height: 20px; border-radius: 9999px; margin-left: -6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 700; color: #fff; letter-spacing: .2px;
+        border: 2px solid #fff; box-shadow: 0 0 0 .5px rgba(20,20,40,.06);
+    }
+    .wi-av:first-child { margin-left: 0; }
+    .wi-av-more { background: var(--muted); }
+
+    /* Modal field focus + custom select caret — lifts the flat look. */
+    .wi-field:focus { border-color: var(--red) !important; box-shadow: 0 0 0 3px var(--red-tint); }
+    .wi-select {
+        appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px !important;
+    }
+    /* People picker chips. */
+    .wi-chip {
+        display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px;
+        border: 1px solid var(--hairline); border-radius: 9999px; font-size: 12px;
+        font-weight: 500; color: var(--ink); background: #fff;
+    }
+    .wi-chip .wi-av { margin-left: 0; width: 22px; height: 22px; font-size: 9.5px; border-color: #fff; }
+    .wi-chip button { color: var(--muted); font-size: 14px; line-height: 1; background: transparent; cursor: pointer; }
 </style>
 
-<div x-data="workBoard(@js($boardType))">
+<div x-data="workBoard(@js($boardType), @js($canAssignPeople ?? false), @js($people ?? []))">
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
         @foreach (['all' => ['All work', 'Semua kerja'], 'task' => ['Tasks', 'Tugas'], 'assignment' => ['Assignments', 'Tugasan'], 'adhoc' => ['Adhoc', 'Adhoc']] as $fk => $fl)
@@ -82,6 +109,14 @@
                             <div class="wi-foot">
                                 <span class="wi-due">{{ $c->dueText() }}</span>
                                 <span class="wi-meta">
+                                    @if ($c->participants->isNotEmpty())
+                                        <span class="wi-people">
+                                            @foreach ($c->participants->take(3) as $p)
+                                                <span class="wi-av" style="background:{{ $p->avatar_color ?? 'var(--muted)' }};" title="{{ $p->name }}">{{ $p->initials }}</span>
+                                            @endforeach
+                                            @if ($c->participants->count() > 3)<span class="wi-av wi-av-more">+{{ $c->participants->count() - 3 }}</span>@endif
+                                        </span>
+                                    @endif
                                     <span class="wi-comments">@if (($c->comments_count ?? 0) > 0)<span class="wi-comment-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>@endif</span>
                                     <span class="wi-est">{{ $c->estimate_hours ? $c->estimate_hours.'h' : '' }}</span>
                                 </span>
@@ -145,35 +180,58 @@
 
                     {{-- title --}}
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'"></label>
-                    <input x-model="modal.card.title" maxlength="160" :disabled="modal.locked" style="{{ $fieldStyle }}margin-bottom:14px;font-weight:500;" />
+                    <input x-model="modal.card.title" maxlength="160" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}margin-bottom:14px;font-weight:500;" />
 
                     {{-- type / priority / due / estimate --}}
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'"></label>
-                            <select x-model="modal.card.type" :disabled="modal.locked" style="{{ $fieldStyle }}">
+                            <select x-model="modal.card.type" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}">
                                 @foreach (['assignment' => 'Assignment', 'task' => 'Task', 'adhoc' => 'Adhoc'] as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                             </select>
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'"></label>
-                            <select x-model="modal.card.priority" :disabled="modal.locked" style="{{ $fieldStyle }}">
+                            <select x-model="modal.card.priority" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}">
                                 @foreach ($priLabel as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                             </select>
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Due label' : 'Label tarikh'"></label>
-                            <input x-model="modal.card.due_label" maxlength="60" :disabled="modal.locked" :placeholder="$store.ui.lang==='en' ? 'e.g. Fri 26 Jun' : 'cth. Jum 26 Jun'" style="{{ $fieldStyle }}" />
+                            <input x-model="modal.card.due_label" maxlength="60" :disabled="modal.locked" :placeholder="$store.ui.lang==='en' ? 'e.g. Fri 26 Jun' : 'cth. Jum 26 Jun'" class="wi-field" style="{{ $fieldStyle }}" />
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Estimate (h)' : 'Anggaran (j)'"></label>
-                            <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
+                            <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
                         </div>
+                    </div>
+
+                    {{-- people included on this shared card --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'"></label>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:10px;">
+                        <template x-if="modal.card.participants.length === 0 && !(canAssign && !modal.locked)">
+                            <span style="font-size:12.5px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'No one else included.' : 'Tiada orang lain disertakan.'"></span>
+                        </template>
+                        <template x-for="p in modal.card.participants" :key="p.id">
+                            <span class="wi-chip">
+                                <span class="wi-av" :style="'background:'+(p.color||'var(--muted)')" x-text="p.initials"></span>
+                                <span x-text="p.name"></span>
+                                <button type="button" x-show="canAssign && !modal.locked" @click="removePerson(p.id)">×</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div x-show="canAssign && !modal.locked && availablePeople.length" x-cloak style="margin-bottom:14px;">
+                        <select class="wi-field wi-select" @change="addPerson($event.target.value); $event.target.value=''" style="{{ $fieldStyle }}">
+                            <option value="" x-text="$store.ui.lang==='en' ? '+ Add someone to this card…' : '+ Tambah orang ke kad ini…'"></option>
+                            <template x-for="p in availablePeople" :key="p.id">
+                                <option :value="p.id" x-text="p.name"></option>
+                            </template>
+                        </select>
                     </div>
 
                     {{-- status --}}
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Column' : 'Lajur'"></label>
-                    <select x-model="modal.card.status" @change="changeStatus($event.target.value)" style="{{ $fieldStyle }}margin-bottom:14px;">
+                    <select x-model="modal.card.status" @change="changeStatus($event.target.value)" class="wi-field wi-select" style="{{ $fieldStyle }}margin-bottom:14px;">
                         @foreach ($statusLabels as $sv => $sl)<option value="{{ $sv }}">{{ $sl }}</option>@endforeach
                     </select>
 
@@ -181,6 +239,7 @@
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'"></label>
                     <textarea x-model="modal.card.description" rows="4" maxlength="5000" :disabled="modal.locked"
                               :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
+                              class="wi-field"
                               style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:9px 11px;font-size:13px;color:var(--ink);outline:none;resize:vertical;font-family:inherit;line-height:1.5;margin-bottom:16px;"></textarea>
 
                     {{-- actions --}}

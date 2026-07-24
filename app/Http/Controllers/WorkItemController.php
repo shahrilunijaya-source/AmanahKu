@@ -112,10 +112,18 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->authorizeAccess($workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy']);
+        $workItem->load(['comments.employee', 'assignedBy', 'participants']);
+
+        // Mirrors authorizeManage(): only the owner of a self-made card, or a tac's
+        // assigner, may edit fields / set participants / delete. A participant opens
+        // the card read-only (they may still move it and comment). The modal uses
+        // this to lock its editable fields instead of letting a doomed save 403.
+        $canManage = $workItem->assigned_by_id === null
+            ? $workItem->employee_id === $employee->id
+            : $this->isAssigner($workItem, $employee);
 
         return response()->json([
-            'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
+            'card' => $this->cardPayload($workItem) + ['description' => $workItem->description, 'can_manage' => $canManage],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
         ]);
     }
@@ -133,9 +141,19 @@ class WorkItemController extends Controller
             'priority' => ['required', 'in:high,medium,low'],
             'due_label' => ['nullable', 'string', 'max:60'],
             'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
+            'participant_ids' => ['sometimes', 'array'],
+            'participant_ids.*' => ['integer'],
         ]);
 
+        // Participants are a relation, not a column — pull them out before the fill.
+        // Present only when the client sends the people picker (privileged roles).
+        if (array_key_exists('participant_ids', $data)) {
+            $this->syncParticipants($request, $workItem, $data['participant_ids']);
+            unset($data['participant_ids']);
+        }
+
         $workItem->update($data);
+        $workItem->load('participants');
 
         return response()->json(['card' => $this->cardPayload($workItem) + ['description' => $workItem->description]]);
     }
@@ -239,11 +257,47 @@ class WorkItemController extends Controller
         return $employee;
     }
 
-    /** View / comment / move: the owner, or (for a tac) the assigner. */
+    /** View / comment / move: the owner, a (tac) assigner, or an included participant. */
     private function authorizeAccess(WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
-        abort_unless($item->employee_id === $employee->id || $this->isAssigner($item, $employee), 403);
+        abort_unless(
+            $item->employee_id === $employee->id
+            || $this->isAssigner($item, $employee)
+            || $item->participants()->whereKey($employee->id)->exists(),
+            403,
+        );
+    }
+
+    /**
+     * Set the people included on a shared card. Privileged roles only — adding
+     * someone pushes the card onto their board, so it mirrors the assign() gate.
+     * The owner is never their own participant. Newly added people are notified
+     * once; re-saving with an unchanged set does not re-ping the survivors.
+     */
+    private function syncParticipants(Request $request, WorkItem $item, array $ids): void
+    {
+        $role = $request->attributes->get('tenantRole', 'employee');
+        abort_unless(in_array($role, self::ASSIGNER_ROLES, true), 403, 'Your role cannot include people on a card.');
+
+        // Keep only real, active employees in this tenant; never the owner themselves.
+        $target = Employee::active()
+            ->whereIn('id', array_filter($ids))
+            ->where('id', '!=', $item->employee_id)
+            ->pluck('id');
+
+        $before = $item->participants()->pluck('employees.id');
+        $item->participants()->sync($target);
+
+        $actor = $this->employee($request);
+        foreach ($target->diff($before) as $addedId) {
+            AppNotification::send(
+                Employee::find($addedId)?->user_id,
+                $actor->name.' added you to a task',
+                $item->title,
+                route('app.screen', 'board'),
+            );
+        }
     }
 
     /**
@@ -282,6 +336,16 @@ class WorkItemController extends Controller
                 'initials' => $item->assignedBy?->initials,
                 'color' => $item->assignedBy?->avatar_color,
             ] : null,
+            // Only emit participants when the relation is loaded — store()/assign()
+            // return fresh cards with none, and we avoid a stray query for them.
+            'participants' => $item->relationLoaded('participants')
+                ? $item->participants->map(fn (Employee $e) => [
+                    'id' => $e->id,
+                    'name' => $e->name,
+                    'initials' => $e->initials,
+                    'color' => $e->avatar_color,
+                ])->values()->all()
+                : [],
         ];
     }
 

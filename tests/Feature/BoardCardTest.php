@@ -307,4 +307,124 @@ class BoardCardTest extends TestCase
         $this->actingInTenant()->postJson("/app/board/{$item->id}/move", ['status' => 'done'])->assertOk();
         $this->assertSame(1, AppNotification::where('title', $this->employee->name.' completed: Wrap up')->count());
     }
+
+    // ───────── Card participants: one shared card visible on many boards ─────────
+    // A manager/HR includes people on a card they own; the same card then appears on
+    // each included person's board. Participants may view / move / comment, but only
+    // the owner (or a tac's assigner) may edit fields, set participants, or delete.
+
+    /** A card owned by a privileged user, used as the sharing source. */
+    private function ownedByManager(Employee $mgr, array $attrs = []): WorkItem
+    {
+        return $mgr->workItems()->create(array_merge([
+            'tenant_id' => $this->tenant->id, 'title' => 'Team task', 'type' => 'task',
+            'priority' => 'medium', 'status' => 'todo', 'progress' => 0,
+        ], $attrs));
+    }
+
+    public function test_manager_includes_people_and_the_pivot_persists(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr);
+
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", [
+            'title' => 'Team task', 'type' => 'task', 'priority' => 'medium',
+            'participant_ids' => [$this->employee->id],
+        ])->assertOk()->assertJsonPath('card.participants.0.id', $this->employee->id);
+
+        $this->assertDatabaseHas('work_item_participant', [
+            'work_item_id' => $card->id, 'employee_id' => $this->employee->id,
+        ]);
+    }
+
+    public function test_participant_sees_the_shared_card_on_their_own_board(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr, ['title' => 'Shared deliverable']);
+        $card->participants()->attach($this->employee->id);
+
+        $this->actingInTenant()->get('/app/board')->assertOk()->assertSee('Shared deliverable');
+    }
+
+    public function test_participant_can_view_move_and_comment(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr);
+        $card->participants()->attach($this->employee->id);
+
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")->assertOk();
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/move", ['status' => 'prog'])->assertOk();
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/comments", ['body' => 'joining in'])->assertCreated();
+    }
+
+    public function test_participant_cannot_edit_or_delete_the_shared_card(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr);
+        $card->participants()->attach($this->employee->id);
+
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'title' => 'Hijack', 'type' => 'task', 'priority' => 'low',
+        ])->assertForbidden();
+        $this->actingInTenant()->deleteJson("/app/board/{$card->id}")->assertForbidden();
+    }
+
+    public function test_added_participant_is_notified(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr, ['title' => 'Notify me']);
+
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", [
+            'title' => 'Notify me', 'type' => 'task', 'priority' => 'medium',
+            'participant_ids' => [$this->employee->id],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $this->user->id, 'title' => 'Mgr added you to a task', 'body' => 'Notify me',
+        ]);
+    }
+
+    public function test_removing_a_participant_does_not_re_notify_the_survivors(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr, ['title' => 'Keep me']);
+        $card->participants()->attach($this->employee->id);
+        AppNotification::query()->delete(); // clear the "added" notice from the attach above is N/A; start clean
+
+        // Re-saving with the same participant must not fire a fresh notification.
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", [
+            'title' => 'Keep me', 'type' => 'task', 'priority' => 'medium',
+            'participant_ids' => [$this->employee->id],
+        ])->assertOk();
+
+        $this->assertSame(0, AppNotification::where('user_id', $this->user->id)->count());
+    }
+
+    public function test_show_flags_manage_rights_so_participants_get_a_read_only_modal(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr);
+        $card->participants()->attach($this->employee->id);
+
+        // The owner may manage the card.
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', true);
+
+        // A participant opens it read-only (move + comment only).
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+    }
+
+    public function test_plain_employee_cannot_set_participants(): void
+    {
+        $card = $this->card(); // owned by the plain employee
+        $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'status' => 'active', 'workload' => 'green']);
+
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'participant_ids' => [$colleague->id],
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('work_item_participant', ['work_item_id' => $card->id]);
+    }
 }

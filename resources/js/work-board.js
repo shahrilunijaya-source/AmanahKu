@@ -32,6 +32,16 @@ function cardInner(card) {
             ? `<span class="wi-comments"><span class="wi-comment-chip">
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>${comments}</span></span>`
             : '<span class="wi-comments"></span>';
+    const people = Array.isArray(card.participants) ? card.participants : [];
+    const peopleStack = people.length
+        ? `<span class="wi-people">${people
+              .slice(0, 3)
+              .map(
+                  (p) =>
+                      `<span class="wi-av" style="background:${esc(p.color || 'var(--muted)')};" title="${esc(p.name)}">${esc(p.initials)}</span>`,
+              )
+              .join('')}${people.length > 3 ? `<span class="wi-av wi-av-more">+${people.length - 3}</span>` : ''}</span>`
+        : '';
     return `
         <div class="wi-head">
             <span class="wi-tag" style="--wi-tag:${color};">${esc(label)}</span>
@@ -42,6 +52,7 @@ function cardInner(card) {
         <div class="wi-foot">
             <span class="wi-due">${esc(card.due_label || '')}</span>
             <span class="wi-meta">
+                ${peopleStack}
                 ${commentBadge}
                 <span class="wi-est">${esc(est)}</span>
             </span>
@@ -61,7 +72,7 @@ function buildCardNode(card) {
 }
 
 export function registerWorkBoard(Alpine) {
-    Alpine.data('workBoard', (boardType = 'core') => ({
+    Alpine.data('workBoard', (boardType = 'core', canAssign = false, people = []) => ({
         boardType,
         // 'all' shows everything; each of 'task' / 'assignment' / 'adhoc' shows that
         // one type only. Landing via a typed sidebar link pre-focuses it; else show all.
@@ -71,6 +82,9 @@ export function registerWorkBoard(Alpine) {
         open: { todo: false, prog: false, review: false, done: false },
         draft: { todo: '', prog: '', review: '', done: '' },
         busy: false,
+        // Whether this viewer's role may include people, and the roster to pick from.
+        canAssign,
+        people,
         modal: {
             show: false,
             loading: false,
@@ -80,10 +94,29 @@ export function registerWorkBoard(Alpine) {
             id: null,
             node: null,
             newComment: '',
-            card: { title: '', description: '', type: 'task', priority: 'medium', due_label: '', estimate_hours: '', status: 'todo' },
+            card: { title: '', description: '', type: 'task', priority: 'medium', due_label: '', estimate_hours: '', status: 'todo', participants: [] },
             comments: [],
         },
         statusLabels: STATUS_LABEL,
+
+        // Roster minus the people already on the card — feeds the "add someone" select.
+        get availablePeople() {
+            const on = new Set((this.modal.card.participants || []).map((p) => p.id));
+            return this.people.filter((p) => !on.has(p.id));
+        },
+
+        addPerson(id) {
+            const pid = Number(id);
+            if (!pid) return;
+            const person = this.people.find((p) => p.id === pid);
+            if (person && !this.modal.card.participants.some((p) => p.id === pid)) {
+                this.modal.card.participants.push(person);
+            }
+        },
+
+        removePerson(id) {
+            this.modal.card.participants = this.modal.card.participants.filter((p) => p.id !== id);
+        },
 
         init() {
             const root = this.$root;
@@ -211,10 +244,11 @@ export function registerWorkBoard(Alpine) {
             this.modal.newComment = '';
             try {
                 const { card, comments } = await this.api(`/app/board/${node.dataset.id}`);
-                this.modal.card = { ...card, description: card.description ?? '', estimate_hours: card.estimate_hours ?? '' };
-                // An assigned tac on this board is opened by the assignee, who may only
-                // move it and comment — core fields belong to the assigner.
-                this.modal.locked = !!card.assigned_by;
+                this.modal.card = { ...card, description: card.description ?? '', estimate_hours: card.estimate_hours ?? '', participants: card.participants ?? [] };
+                // Read-only unless the server says this viewer may manage the card. Covers
+                // both a tac's assignee (edits belong to the assigner) and a shared card's
+                // participant (edits belong to the owner) — either way, move + comment only.
+                this.modal.locked = !!card.assigned_by || card.can_manage === false;
                 this.modal.comments = comments;
             } catch (err) {
                 this.modal.error = this.t('Could not load this card.', 'Tidak dapat memuatkan kad ini.');
@@ -242,18 +276,21 @@ export function registerWorkBoard(Alpine) {
             this.modal.error = '';
             try {
                 const c = this.modal.card;
+                const body = {
+                    title: c.title,
+                    description: c.description || null,
+                    type: c.type,
+                    priority: c.priority,
+                    due_label: c.due_label || null,
+                    estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
+                };
+                // Only privileged roles may set participants; the server re-checks.
+                if (this.canAssign) body.participant_ids = (c.participants || []).map((p) => p.id);
                 const { card } = await this.api(`/app/board/${this.modal.id}`, {
                     method: 'PATCH',
-                    body: JSON.stringify({
-                        title: c.title,
-                        description: c.description || null,
-                        type: c.type,
-                        priority: c.priority,
-                        due_label: c.due_label || null,
-                        estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
-                    }),
+                    body: JSON.stringify(body),
                 });
-                this.modal.card = { ...this.modal.card, ...card, description: card.description ?? '' };
+                this.modal.card = { ...this.modal.card, ...card, description: card.description ?? '', participants: card.participants ?? [] };
                 this.repaintNode();
                 this.applyFilter(); // type may have changed → re-apply visibility + counts
                 this.closeModal();

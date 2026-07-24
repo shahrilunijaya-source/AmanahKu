@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkItem extends Model
@@ -42,5 +43,16 @@ class WorkItem extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(WorkItemComment::class)->oldest();
+    }
+
+    /**
+     * People included on this card beyond its owner. The same shared card appears
+     * on every participant's board; they may view / move / comment but not edit.
+     *
+     * @return BelongsToMany<Employee, $this>
+     */
+    public function participants(): BelongsToMany
+    {
+        return $this->belongsToMany(Employee::class, 'work_item_participant');
     }
 }
