@@ -7,8 +7,6 @@
         'approved' => 'var(--success)',
         'rejected' => 'var(--error)',
     ];
-    $submittedCount = $myTimesheets->whereIn('status', ['submitted', 'approved'])->count();
-    $draftCount = $myTimesheets->where('status', 'draft')->count();
 
     // Manday costing — visible to money roles only (manager/management/HR), set by TimesheetController.
     $canSeeCost = $canSeeCost ?? false;
@@ -69,21 +67,14 @@
     ],
 ])
 
-<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-    <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span></div><div class="uj-stat-value">{{ $myTimesheets->count() }}</div></div>
-    <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Submitted' : 'Dihantar'">Submitted</span></div><div class="uj-stat-value" style="color:var(--success);">{{ $submittedCount }}</div></div>
-    <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Drafts' : 'Draf'">Drafts</span></div><div class="uj-stat-value" style="color:var(--amber);">{{ $draftCount }}</div></div>
-</div>
-
 @if (($positionMissing ?? false))
     <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;border-left:3px solid var(--amber);font-size:12.5px;color:var(--ink);">
         <span x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'">You have no position band assigned, so your timesheet cost can't be computed.</span>
     </div>
 @endif
 
-<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-    {{-- ===================== CAPTURE (per-day cards) ===================== --}}
-    <div class="uj-card" style="flex:1.4;min-width:380px;padding:22px;"
+{{-- ===================== CAPTURE (per-day cards) ===================== --}}
+    <div class="uj-card" style="width:100%;padding:22px;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
             days: 5,
@@ -452,9 +443,24 @@
         <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
     </div>
 
-    {{-- ===================== MY TIMESHEETS ===================== --}}
-    <div class="uj-card" style="flex:1;min-width:320px;">
-        <div class="uj-card-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span></h3></div>
+    {{-- ===================== REFERENCE PANELS (tabbed): My timesheets · My time spent ===================== --}}
+    <div class="uj-card" x-data="{ tab: 'sheets' }" style="margin-top:16px;">
+        <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
+            <button type="button" @click="tab = 'sheets'"
+                style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
+                :style="tab === 'sheets' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
+                <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span> ({{ $myTimesheets->count() }})
+            </button>
+            @if (! empty($myBreakdown))
+                <button type="button" @click="tab = 'spent'"
+                    style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
+                    :style="tab === 'spent' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
+                    <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
+                </button>
+            @endif
+        </div>
+
+        <div x-show="tab === 'sheets'">
         @forelse ($myTimesheets as $t)
             <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 20px;">
@@ -493,19 +499,17 @@
         @empty
             <div style="padding:28px 20px;text-align:center;">
                 <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'No timesheets yet' : 'Tiada timesheet lagi'">No timesheets yet</span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Build this week on the left: add lines and fill each day until it reads 100%, then submit it.' : 'Bina minggu ini di sebelah kiri: tambah baris dan isi setiap hari sehingga membaca 100%, kemudian hantar.'">Build this week on the left.</span></div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Build this week above: add lines and fill each day until it reads 100%, then submit it.' : 'Bina minggu ini di atas: tambah baris dan isi setiap hari sehingga membaca 100%, kemudian hantar.'">Build this week above.</span></div>
             </div>
         @endforelse
-    </div>
-</div>
+        </div>
 
-{{-- ===================== MY TIME SPENT (personal, person-days only — never RM) ===================== --}}
-@if (! empty($myBreakdown))
-    @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-    <div class="uj-card" style="margin-top:16px;padding:20px 22px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
-            <div>
-                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span></h3>
+        {{-- Panel: My time spent (personal, person-days only — never RM) --}}
+        @if (! empty($myBreakdown))
+            @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
+            <div x-show="tab === 'spent'" x-cloak style="padding:20px 22px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
+                    <div>
                 <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Where your recorded time went — by category and project. Submitted weeks only.' : 'Ke mana masa anda direkod — mengikut kategori dan projek. Minggu dihantar sahaja.'"></span></div>
             </div>
             <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
@@ -560,4 +564,5 @@
         @endif
     </div>
 @endif
+    </div>
 @endsection
