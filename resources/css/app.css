@@ -222,6 +222,46 @@ body {
     .uj-header { padding: 0 14px !important; gap: 10px !important; }
 }
 
+/* ── Desktop sidebar collapse (Ctrl+B, header menu button, or in-sidebar toggle) ──
+   Slides the fixed-width sidebar off to the left; the flex parent clips it and the
+   main pane grows to fill. State persists in localStorage (see layouts/app.blade.php). */
+.uj-sb-tgl { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--sidebar-text); background: none; border: none; cursor: pointer; flex-shrink: 0; }
+.uj-sb-tgl:hover { background: var(--sidebar-soft); color: #fff; }
+@media (min-width: 901px) {
+    .uj-sidebar { transition: margin-left .24s cubic-bezier(.4, 0, .2, 1); }
+    .uj-sb-collapsed .uj-sidebar { margin-left: -248px; }
+    .uj-sb-collapsed .uj-nav-toggle { display: inline-flex; }
+}
+
+/* ── Responsive header (priority+ overflow) ──
+   The header is a container-query context, so items fold on the header's OWN width —
+   not the viewport — which already reflects the sidebar being expanded, collapsed, or
+   off-canvas (no hardcoded 248px math, no per-state override). `position:relative;
+   z-index` lifts the header's new stacking context (container-type implies layout
+   containment) above <main>, so the search/notification/account/More dropdowns still
+   paint on top. Three stages as the header narrows:
+     ≤960px  drop button text labels + account name → icon-only, avatar-only
+     ≤720px  fold the secondary actions (Knowledge, Messages, Ask AI, help, language)
+             into the More menu — nothing is removed, only relocated
+     ≤520px  drop people-search (desktop-oriented) on phones */
+.uj-header { container-type: inline-size; container-name: hdr; position: relative; z-index: 20; }
+
+.uj-hd-ib { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
+.uj-hd-pill { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border: 1px solid var(--hairline); border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--ink); background: #fff; flex-shrink: 0; position: relative; cursor: pointer; }
+.uj-hd-acct { flex-shrink: 0; }
+.uj-hd-more { display: none; }
+
+@container hdr (max-width: 960px) {
+    .uj-hd-label, .uj-hd-acct-text { display: none; }
+}
+@container hdr (max-width: 720px) {
+    .uj-hd-fold { display: none !important; }
+    .uj-hd-more { display: block; }
+}
+@container hdr (max-width: 520px) {
+    .uj-hd-search { display: none !important; }
+}
+
 /* ── Interaction polish ── */
 a, button { transition: background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, opacity .14s ease; }
 header button:hover { background: var(--canvas) !important; }

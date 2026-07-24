@@ -12,7 +12,16 @@
 </head>
 <body>
 @php $embed = $embed ?? false; @endphp
-<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false }" style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
+<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
+        sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
+        toggleSb() {
+            if (window.innerWidth <= 900) { this.nav = !this.nav; return; }
+            this.sbCollapsed = !this.sbCollapsed;
+            localStorage.setItem('amanahku-sb-collapsed', this.sbCollapsed ? '1' : '0');
+        } }"
+     @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
+     :class="sbCollapsed ? 'uj-sb-collapsed' : ''"
+     style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
 
     @unless ($embed)
         @include('partials.sidebar')
