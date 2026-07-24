@@ -32,10 +32,10 @@ final class TimesheetCompliance
         return CarbonImmutable::parse($ref)->startOfWeek();
     }
 
-    /** That week's Friday 17:00 — the submission deadline. ($weekStart is Monday.) */
+    /** That week's Friday 19:00 — the submission deadline (unijaya Friday checkout). ($weekStart is Monday.) */
     public function deadline(CarbonInterface $weekStart): CarbonImmutable
     {
-        return CarbonImmutable::parse($weekStart)->startOfDay()->addDays(4)->setTime(17, 0);
+        return CarbonImmutable::parse($weekStart)->startOfDay()->addDays(4)->setTime(19, 0);
     }
 
     /**

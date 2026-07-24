@@ -17,7 +17,7 @@ use Tests\TestCase;
 
 /**
  * Unit coverage for TimesheetCompliance. The "current" week is Mon 2026-06-22
- * (deadline Fri 2026-06-26 17:00). Time is pinned per test.
+ * (deadline Fri 2026-06-26 19:00). Time is pinned per test.
  */
 class TimesheetComplianceTest extends TestCase
 {
@@ -73,10 +73,10 @@ class TimesheetComplianceTest extends TestCase
         $this->assertSame('2026-06-22', $monday->toDateString());
     }
 
-    public function test_deadline_is_friday_1700_of_the_week(): void
+    public function test_deadline_is_friday_1900_of_the_week(): void
     {
         $deadline = $this->svc->deadline(Carbon::parse('2026-06-22'));
-        $this->assertSame('2026-06-26 17:00:00', $deadline->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-06-26 19:00:00', $deadline->format('Y-m-d H:i:s'));
     }
 
     public function test_full_week_all_five_weekdays_at_100_is_complete(): void
@@ -121,10 +121,10 @@ class TimesheetComplianceTest extends TestCase
     {
         $emp = $this->employee(); // no sheet → incomplete
 
-        Carbon::setTestNow('2026-06-26 16:59:00'); // before deadline
+        Carbon::setTestNow('2026-06-26 18:59:00'); // before deadline
         $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
 
-        Carbon::setTestNow('2026-06-26 17:30:00'); // after deadline
+        Carbon::setTestNow('2026-06-26 19:30:00'); // after deadline
         $this->assertTrue($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
     }
 
@@ -136,13 +136,13 @@ class TimesheetComplianceTest extends TestCase
             '2026-06-25' => 100, '2026-06-26' => 100,
         ]);
         $sheet->update(['status' => 'submitted']);
-        Carbon::setTestNow('2026-06-26 18:00:00');
+        Carbon::setTestNow('2026-06-26 19:30:00');
         $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
     }
 
     public function test_roster_marks_done_pending_late_and_excludes_new_joiners_and_inactive(): void
     {
-        Carbon::setTestNow('2026-06-26 17:30:00'); // past deadline → not-done = late
+        Carbon::setTestNow('2026-06-26 19:30:00'); // past deadline → not-done = late
 
         $done = $this->employee(['name' => 'Aaron']);
         $doneSheet = $this->sheet($done, '2026-06-22', [
@@ -182,14 +182,14 @@ class TimesheetComplianceTest extends TestCase
     public function test_is_late_is_false_for_an_employee_who_joined_after_the_week_started(): void
     {
         $emp = $this->employee(['joined_at' => '2026-06-25']); // joined Thu, no sheet
-        Carbon::setTestNow('2026-06-26 17:30:00'); // past the Friday deadline
+        Carbon::setTestNow('2026-06-26 19:30:00'); // past the Friday deadline
         $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
     }
 
     public function test_is_late_is_false_for_an_inactive_employee(): void
     {
         $emp = $this->employee(['status' => 'inactive']);
-        Carbon::setTestNow('2026-06-26 17:30:00');
+        Carbon::setTestNow('2026-06-26 19:30:00');
         $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
     }
 
@@ -221,7 +221,7 @@ class TimesheetComplianceTest extends TestCase
 
     public function test_an_employee_whose_whole_week_is_public_holidays_is_never_late(): void
     {
-        Carbon::setTestNow('2026-06-26 17:30:00'); // Friday, past the deadline
+        Carbon::setTestNow('2026-06-26 19:30:00'); // Friday, past the deadline
         $emp = $this->employee();
 
         foreach (['2026-06-22', '2026-06-23', '2026-06-24', '2026-06-25', '2026-06-26'] as $d) {

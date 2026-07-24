@@ -115,10 +115,10 @@ class TimesheetReminderTest extends TestCase
         $this->assertSame('0 17 * * 5', $events->first()->expression);
     }
 
-    public function test_overdue_banner_shows_after_friday_5pm_when_week_incomplete(): void
+    public function test_overdue_banner_shows_after_friday_7pm_when_week_incomplete(): void
     {
         [$user] = $this->staff('Pending Pat', 'pat@acme.test'); // empty week
-        Carbon::setTestNow('2026-06-26 17:30:00'); // Friday, past deadline
+        Carbon::setTestNow('2026-06-26 19:30:00'); // Friday, past deadline
 
         $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id])
             ->get(route('app.screen', 'timesheets'))
