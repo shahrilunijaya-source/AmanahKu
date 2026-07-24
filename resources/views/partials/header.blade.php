@@ -99,7 +99,7 @@
     </button>
     @endif
 
-    @if ($aiEnabled ?? true)
+    @if ($aiEnabled ?? false)
     <button @click="ai = true" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;font-weight:500;color:var(--ink);background:#fff;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
         <span x-text="$store.ui.lang==='en' ? 'Ask AI' : 'Tanya AI'">Ask AI</span>

@@ -120,7 +120,7 @@
     </div>
 
     @unless ($embed)
-        @if ($aiEnabled ?? true)
+        @if ($aiEnabled ?? false)
             @include('partials.ai-panel')
         @endif
         @if ($kbEnabled ?? false)

@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Ai\AiProvider;
 use App\Services\Ai\CannedAiProvider;
+use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -30,6 +31,9 @@ class AssistantTest extends TestCase
             'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
             'name' => 'Demo', 'status' => 'active', 'workload' => 'green',
         ]);
+        // ai.assistant ships disabled by default; this suite exercises it working, so
+        // turn it on for the tenant (mirrors what the super-admin console does).
+        app(FeatureManager::class)->setTenant($this->tenant, 'ai.assistant', true);
     }
 
     private function actingInTenant(): self

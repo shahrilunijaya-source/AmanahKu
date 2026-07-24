@@ -75,7 +75,7 @@ class Features
         ],
         'ai.assistant' => [
             'label' => 'AI assistant panel',
-            'type' => 'bool', 'scope' => 'tenant', 'default' => true,
+            'type' => 'bool', 'scope' => 'tenant', 'default' => false,
             'help' => 'The in-app AI assistant slide-over.',
         ],
         'payroll.auto_pcb' => [
