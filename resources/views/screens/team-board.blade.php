@@ -7,6 +7,14 @@
 @endphp
 
 @section('screen')
+{{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
+     is reached by that one-way shortcut, so offer a one-tap way back to My tasks
+     rather than leaving the browser Back button as the only exit. --}}
+<div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+    <a href="{{ route('app.screen', 'board') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
+        <span x-text="$store.ui.lang==='en' ? '← My tasks' : '← Tugasan saya'">← My tasks</span>
+    </a>
+</div>
 @include('partials.guide', [
     'key' => 'team-board',
     'en'  => [

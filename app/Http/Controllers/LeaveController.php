@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Timesheet\WeekReconciler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -33,8 +34,18 @@ class LeaveController extends Controller
             'leave_type_id' => ['required', 'integer'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'half_day_period' => ['nullable', 'in:am,pm'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // A half day only makes sense on a single date: you cannot take "the morning off"
+        // across a range. Reject the combination rather than silently ignoring the marker.
+        $isHalfDay = ($data['half_day_period'] ?? null) !== null;
+        if ($isHalfDay && ! Carbon::parse($data['date_from'])->isSameDay(Carbon::parse($data['date_to']))) {
+            return back()->withInput()->withErrors([
+                'half_day_period' => 'Half day leave must start and end on the same day.',
+            ]);
+        }
 
         // LeaveType is tenant-scoped; this also rejects ids from other tenants.
         $type = LeaveType::find($data['leave_type_id']);
@@ -62,7 +73,10 @@ class LeaveController extends Controller
             'attachment.required' => $type->name.' leave needs a supporting document (e.g. medical certificate).',
         ]);
 
-        $days = Carbon::parse($data['date_from'])->diffInDays(Carbon::parse($data['date_to'])) + 1;
+        // A half day counts as 0.5; otherwise the inclusive whole-day span. `days` flows
+        // straight into the balance decrement at approval, so this is the only place the
+        // 0.5 originates.
+        $days = $isHalfDay ? 0.5 : Carbon::parse($data['date_from'])->diffInDays(Carbon::parse($data['date_to'])) + 1;
 
         $attachmentPath = null;
         $attachmentName = null;
@@ -77,6 +91,7 @@ class LeaveController extends Controller
             'leave_type_id' => $data['leave_type_id'],
             'date_from' => $data['date_from'],
             'date_to' => $data['date_to'],
+            'half_day_period' => $data['half_day_period'] ?? null,
             'days' => $days,
             'reason' => $data['reason'] ?? null,
             'attachment_path' => $attachmentPath,
@@ -89,11 +104,11 @@ class LeaveController extends Controller
         $this->notifyManagerToVerify(
             $employee,
             'Leave awaiting your verification',
-            $employee->name.' · '.$days.' day'.($days > 1 ? 's' : ''),
+            $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's'),
             route('app.screen', 'leave'),
         );
 
-        return back()->with('ok', "Leave application submitted ({$days} day".($days > 1 ? 's' : '').').');
+        return back()->with('ok', "Leave application submitted ({$days} day".($days == 1 ? '' : 's').').');
     }
 
     /** Step 1: the immediate superior verifies, moving the request on to management. */
@@ -206,7 +221,9 @@ class LeaveController extends Controller
      */
     private function applyApproval(LeaveRequest $leaveRequest, ?int $actorId): bool
     {
-        $flipped = DB::transaction(function () use ($leaveRequest, $actorId) {
+        $reconciled = 0;
+
+        $flipped = DB::transaction(function () use ($leaveRequest, $actorId, &$reconciled) {
             // Atomic compare-and-set: two concurrent approves can both pass the status
             // check, but only one flips verified→approved here. The loser matches zero
             // rows and must NOT decrement the balance again.
@@ -232,6 +249,14 @@ class LeaveController extends Controller
                 $balance->update(['balance' => max(0, $balance->balance - $leaveRequest->days)]);
             }
 
+            // Leave→timesheet is otherwise pull-based: LockedDays only materialises the
+            // "On Leave" rows when a week is displayed or saved. A week saved BEFORE this
+            // approval would silently disagree with the approved leave until re-saved, so
+            // push the leave into any already-stored week here. Same transaction as the
+            // flip + balance so the approval never half-succeeds. The row is 'approved' on
+            // this connection now, so LockedDays sees it.
+            $reconciled = app(WeekReconciler::class)->reconcileForLeave($leaveRequest);
+
             return true;
         });
 
@@ -240,6 +265,9 @@ class LeaveController extends Controller
         }
 
         AuditLog::record('Approved leave', $leaveRequest->employee->name.' · '.$leaveRequest->days.'d');
+        if ($reconciled > 0) {
+            AuditLog::record('Reconciled timesheet', $leaveRequest->employee->name.' · '.$reconciled.' week(s) updated for approved leave');
+        }
         AppNotification::send(
             $leaveRequest->employee->user_id,
             'Leave approved',

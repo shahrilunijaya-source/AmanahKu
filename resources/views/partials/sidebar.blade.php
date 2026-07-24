@@ -1,9 +1,16 @@
-<aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''" style="width:248px;flex-shrink:0;background:var(--sidebar);display:flex;flex-direction:column;height:100vh;">
-    <div style="height:60px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--sidebar-line);flex-shrink:0;">
+<aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''" style="width:248px;flex-shrink:0;background:#211f1b;display:flex;flex-direction:column;height:100vh;">
+    <div style="height:60px;display:flex;align-items:center;gap:10px;padding:0 14px 0 18px;border-bottom:1px solid var(--sidebar-line);flex-shrink:0;">
         <div style="width:28px;height:28px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;">A</div>
         <span style="font-weight:600;font-size:16px;color:#fff;letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
+        <div style="flex:1;"></div>
+        {{-- Collapse the sidebar (desktop). Same action as the topbar menu button and Ctrl+B. --}}
+        <button type="button" @click="toggleSb()" class="uj-sb-tgl"
+                :aria-label="$store.ui.lang==='en' ? 'Collapse sidebar' : 'Kecilkan bar sisi'"
+                :title="$store.ui.lang==='en' ? 'Collapse sidebar (Ctrl+B)' : 'Kecilkan bar sisi (Ctrl+B)'">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg>
+        </button>
     </div>
-    <div style="padding:0 18px;">@include('partials.env-badge')</div>
+    <div style="padding:0 18px;">@include('partials.env-badge', ['onDark' => true])</div>
 
     {{-- ── QUICK ACTIONS — persistent white dock above the nav: the 3 daily-driver flows
          (clock · task · timesheet) reachable from every screen. Shown only when the
@@ -16,19 +23,19 @@
         @endphp
         <style>
             .qa-row{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:5px 8px;border-radius:10px;text-decoration:none;transition:background .14s ease;}
-            .qa-row:hover{background:var(--canvas);}
+            .qa-row:hover{background:rgba(255,255,255,.06);}
             .qa-ico{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
             .qa-chev{color:var(--muted-soft);font-size:16px;line-height:1;flex-shrink:0;}
         </style>
-        <div style="margin:14px 10px 6px;background:#fff;border-radius:14px;padding:13px 11px 9px;box-shadow:0 6px 18px rgba(0,0,0,.15);">
+        <div style="margin:12px 10px 4px;background:rgba(255,255,255,.04);border:1px solid var(--sidebar-line);border-radius:12px;padding:5px;">
             <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted-soft);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
 
             {{-- Attendance — redirect to the full Attendance screen (clock in/out, history, selfie). --}}
             <a href="{{ route('app.screen', 'attendance') }}" class="qa-row">
-                <span class="qa-ico" style="background:{{ $qci && ! $qco ? '#e7f4ee' : ($qco ? 'var(--canvas)' : 'var(--red-tint)') }};">
+                <span class="qa-ico" style="background:rgba(255,255,255,.07);">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ $qci && ! $qco ? 'var(--success)' : ($qco ? 'var(--muted)' : 'var(--red)') }}" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
                 </span>
-                <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</span>
+                <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;" x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</span>
                 @if ($qco)
                     <span style="font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 6px;border-radius:6px;color:var(--muted);background:var(--canvas);" x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'">Done</span>
                 @elseif ($qci)
@@ -39,24 +46,22 @@
                 <span class="qa-chev">›</span>
             </a>
 
-            <div style="height:1px;background:var(--hairline-soft);margin:9px 3px 6px;"></div>
-
             {{-- Board — redirect to the full Tasks, Assignments & Adhoc board. --}}
             <a href="{{ route('app.screen', 'board') }}" class="qa-row">
-                <span class="qa-ico" style="background:#fbf3e6;">
+                <span class="qa-ico" style="background:rgba(255,255,255,.07);">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18M15 3v18"></path></svg>
                 </span>
-                <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.2;" x-text="'T.A.A.'">T.A.A.</span>
+                <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;line-height:1.2;" x-text="'T.A.A.'">T.A.A.</span>
                 <span class="qa-chev">›</span>
             </a>
 
             {{-- Timesheet — today's allocation at a glance + jump to the grid. --}}
             @if ($qaTsEnabled)
                 <a href="{{ route('app.screen', 'timesheets') }}" class="qa-row">
-                    <span class="qa-ico" style="background:#eaf1f8;">
+                    <span class="qa-ico" style="background:rgba(255,255,255,.07);">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6"></rect><rect x="13" y="7" width="3" height="10"></rect></svg>
                     </span>
-                    <span style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Timesheet' : 'Lembaran masa'">Timesheet</span>
+                    <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;" x-text="$store.ui.lang==='en' ? 'Timesheet' : 'Lembaran masa'">Timesheet</span>
                     <span style="font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 6px;border-radius:6px;color:{{ abs($qaTsPct - 100) < 0.01 ? 'var(--success)' : 'var(--muted)' }};background:{{ abs($qaTsPct - 100) < 0.01 ? '#e7f4ee' : 'var(--canvas)' }};">{{ $qPct }}%</span>
                     <span class="qa-chev">›</span>
                 </a>
@@ -77,7 +82,7 @@
             <div x-data="{ sec: {{ $sectionActive ? 'true' : 'false' }} }" style="margin-bottom:2px;">
                 <button @click="sec = !sec" type="button"
                         style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 10px 5px;background:none;border:none;cursor:pointer;">
-                    <span style="flex:1;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#6b6860;"
+                    <span style="flex:1;text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;color:#78756d;"
                           x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
                     <span style="font-size:9px;color:#6b6860;" x-text="sec ? '▾' : '▸'"></span>
                 </button>

@@ -299,7 +299,7 @@ class AppController extends Controller
             'profile' => $this->profileData($request),
             'profile-test' => app(ProfileTestController::class)->screenData($request, $employee),
             'profile-test-admin' => app(ProfileTestController::class)->adminData($request),
-            'board' => ['columns' => $this->boardColumns($employee, request('type', 'core')), 'boardType' => request('type', 'core')],
+            'board' => $this->boardScreenData($request, $employee),
             'team-board' => $this->teamBoardData($request),
             'workload' => $this->workloadData(),
             'attendance' => $this->attendanceData($employee),

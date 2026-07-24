@@ -5,6 +5,7 @@
     $pri = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
     $priLabel = ['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
     $statusLabels = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
+    $labelDef = \App\Models\WorkItem::LABELS;
     $fieldStyle = 'width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
     $labelStyle = 'display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;';
     $boardType = $boardType ?? 'core';
@@ -42,9 +43,36 @@
     .uj-drag-ghost { opacity: .4; }
     .uj-wi { cursor: pointer; transition: box-shadow .12s, transform .12s; }
     .uj-wi:hover { box-shadow: 0 4px 14px rgba(20,20,40,.08); transform: translateY(-1px); }
+
+    /* Overlapping avatar stack on a card face + inside the modal's people row. */
+    .wi-people { display: inline-flex; align-items: center; }
+    .wi-av {
+        width: 20px; height: 20px; border-radius: 9999px; margin-left: -6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 700; color: #fff; letter-spacing: .2px;
+        border: 2px solid #fff; box-shadow: 0 0 0 .5px rgba(20,20,40,.06);
+    }
+    .wi-av:first-child { margin-left: 0; }
+    .wi-av-more { background: var(--muted); }
+
+    /* Modal field focus + custom select caret — lifts the flat look. */
+    .wi-field:focus { border-color: var(--red) !important; box-shadow: 0 0 0 3px var(--red-tint); }
+    .wi-select {
+        appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px !important;
+    }
+    /* People picker chips. */
+    .wi-chip {
+        display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px;
+        border: 1px solid var(--hairline); border-radius: 9999px; font-size: 12px;
+        font-weight: 500; color: var(--ink); background: #fff;
+    }
+    .wi-chip .wi-av { margin-left: 0; width: 22px; height: 22px; font-size: 9.5px; border-color: #fff; }
+    .wi-chip button { color: var(--muted); font-size: 14px; line-height: 1; background: transparent; cursor: pointer; }
 </style>
 
-<div x-data="workBoard(@js($boardType))">
+<div x-data="workBoard(@js($boardType), @js($canAssignPeople ?? false), @js($people ?? []))">
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
         @foreach (['all' => ['All work', 'Semua kerja'], 'task' => ['Tasks', 'Tugas'], 'assignment' => ['Assignments', 'Tugasan'], 'adhoc' => ['Adhoc', 'Adhoc']] as $fk => $fl)
@@ -57,6 +85,45 @@
                 <span x-text="counts['{{ $fk }}']" style="font-size:11px;opacity:.7;font-family:var(--font-mono);"></span>
             </button>
         @endforeach
+            <span style="width:1px;height:20px;background:var(--hairline);margin:0 3px;"></span>
+            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen"
+                    :style="filtersOpen || activeFilterCount > 0
+                        ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
+                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                    style="padding:7px 13px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;">
+                <span x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</span>
+                <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount"
+                      style="min-width:16px;height:16px;line-height:16px;text-align:center;font-size:10.5px;font-family:var(--font-mono);background:rgba(255,255,255,.28);border-radius:9999px;padding:0 4px;"></span>
+            </button>
+    </div>
+
+    <div x-show="filtersOpen" x-cloak>
+        <div x-show="activeFilterCount > 0" x-cloak style="margin:-2px 0 8px;">
+            <button type="button" @click="clearFilters()" style="font-size:11.5px;font-weight:600;color:var(--muted);background:transparent;cursor:pointer;text-decoration:underline;padding:0;"
+                    x-text="$store.ui.lang==='en' ? 'Clear filters' : 'Kosongkan penapis'"></button>
+        </div>
+
+        {{-- Second filter row: narrow the board to one label. Click again to clear. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Label' : 'Label'">Label</span>
+            @foreach ($labelDef as $lk => [$lname, $lcolor])
+                <button type="button" @click="setLabelFilter('{{ $lk }}')"
+                        :style="labelFilter === '{{ $lk }}'
+                            ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
+                            : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+            @endforeach
+        </div>
+
+        {{-- Third filter row: narrow the board to one project. "All" clears it. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
+            <select x-model="projectFilter" @change="applyFilter()"
+                    style="padding:6px 12px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;background:#fff;color:var(--body);">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'"></option>
+                @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
+            </select>
+        </div>
     </div>
 
     <div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;">
@@ -69,8 +136,11 @@
 
                 <div data-list="{{ $key }}" style="display:flex;flex-direction:column;gap:10px;min-height:24px;">
                     @forelse ($col['cards'] as $c)
-                        @php [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)']; @endphp
-                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
+                        @php
+                            [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)'];
+                            $overdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today());
+                        @endphp
+                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" data-labels="{{ implode(',', $c->labels ?? []) }}" data-project="{{ $c->project_id }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
                             <div class="wi-head">
                                 <span class="wi-tag" style="--wi-tag:{{ $tcolor }};">{{ $tlabel }}</span>
                                 <span class="wi-pri">@if ($c->priority)<span class="wi-pri-txt" style="--wi-pri:{{ $pri[$c->priority] }};">{{ $priLabel[$c->priority] ?? ucfirst($c->priority) }}</span>@endif</span>
@@ -78,10 +148,30 @@
                             @if ($c->assigned_by_id)
                                 <div class="wi-assigned">Assigned by {{ $c->assignedBy?->name ?? '—' }}</div>
                             @endif
+                            @if (! empty($c->labels))
+                                <div class="wi-labels">
+                                    @foreach ($c->labels as $lk)
+                                        @if (isset($labelDef[$lk]))
+                                            <span class="wi-label" style="background:{{ $labelDef[$lk][1] }};">{{ $labelDef[$lk][0] }}</span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if ($c->projectRef)
+                                <div class="wi-project" style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:3px;">{{ $c->projectRef->name }}</div>
+                            @endif
                             <div class="wi-title">{{ $c->title }}</div>
                             <div class="wi-foot">
-                                <span class="wi-due">{{ $c->dueText() }}</span>
+                                <span class="wi-due @if ($overdue) wi-due--over @endif">{{ $c->dueText() }}</span>
                                 <span class="wi-meta">
+                                    @if ($c->participants->isNotEmpty())
+                                        <span class="wi-people">
+                                            @foreach ($c->participants->take(3) as $p)
+                                                <span class="wi-av" style="background:{{ $p->avatar_color ?? 'var(--muted)' }};" title="{{ $p->name }}">{{ $p->initials }}</span>
+                                            @endforeach
+                                            @if ($c->participants->count() > 3)<span class="wi-av wi-av-more">+{{ $c->participants->count() - 3 }}</span>@endif
+                                        </span>
+                                    @endif
                                     <span class="wi-comments">@if (($c->comments_count ?? 0) > 0)<span class="wi-comment-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>@endif</span>
                                     <span class="wi-est">{{ $c->estimate_hours ? $c->estimate_hours.'h' : '' }}</span>
                                 </span>
@@ -145,35 +235,77 @@
 
                     {{-- title --}}
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'"></label>
-                    <input x-model="modal.card.title" maxlength="160" :disabled="modal.locked" style="{{ $fieldStyle }}margin-bottom:14px;font-weight:500;" />
+                    <input x-model="modal.card.title" maxlength="160" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}margin-bottom:14px;font-weight:500;" />
 
                     {{-- type / priority / due / estimate --}}
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'"></label>
-                            <select x-model="modal.card.type" :disabled="modal.locked" style="{{ $fieldStyle }}">
+                            <select x-model="modal.card.type" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}">
                                 @foreach (['assignment' => 'Assignment', 'task' => 'Task', 'adhoc' => 'Adhoc'] as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                             </select>
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'"></label>
-                            <select x-model="modal.card.priority" :disabled="modal.locked" style="{{ $fieldStyle }}">
+                            <select x-model="modal.card.priority" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}">
                                 @foreach ($priLabel as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                             </select>
                         </div>
                         <div>
-                            <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Due label' : 'Label tarikh'"></label>
-                            <input x-model="modal.card.due_label" maxlength="60" :disabled="modal.locked" :placeholder="$store.ui.lang==='en' ? 'e.g. Fri 26 Jun' : 'cth. Jum 26 Jun'" style="{{ $fieldStyle }}" />
+                            <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Due date' : 'Tarikh akhir'"></label>
+                            <input x-model="modal.card.due_at" type="date" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}" />
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Estimate (h)' : 'Anggaran (j)'"></label>
-                            <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
+                            <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
                         </div>
+                    </div>
+
+                    {{-- project: optional, from the same list the timesheet books time to --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></label>
+                    <select x-model="modal.card.project_id" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}margin-bottom:14px;">
+                        <option value="" x-text="$store.ui.lang==='en' ? 'No project' : 'Tiada projek'"></option>
+                        @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
+                    </select>
+
+                    {{-- labels: pick from the fixed palette, multiple per card --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'"></label>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;">
+                        @foreach ($labelDef as $lk => [$lname, $lcolor])
+                            <button type="button" :disabled="modal.locked" @click="toggleLabel('{{ $lk }}')"
+                                    :style="modal.card.labels.includes('{{ $lk }}')
+                                        ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
+                                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                                    style="padding:4px 11px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+                        @endforeach
+                    </div>
+
+                    {{-- people included on this shared card --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'"></label>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:10px;">
+                        <template x-if="modal.card.participants.length === 0 && !(canAssign && !modal.locked)">
+                            <span style="font-size:12.5px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'No one else included.' : 'Tiada orang lain disertakan.'"></span>
+                        </template>
+                        <template x-for="p in modal.card.participants" :key="p.id">
+                            <span class="wi-chip">
+                                <span class="wi-av" :style="'background:'+(p.color||'var(--muted)')" x-text="p.initials"></span>
+                                <span x-text="p.name"></span>
+                                <button type="button" x-show="canAssign && !modal.locked" @click="removePerson(p.id)">×</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div x-show="canAssign && !modal.locked && availablePeople.length" x-cloak style="margin-bottom:14px;">
+                        <select class="wi-field wi-select" @change="addPerson($event.target.value); $event.target.value=''" style="{{ $fieldStyle }}">
+                            <option value="" x-text="$store.ui.lang==='en' ? '+ Add someone to this card…' : '+ Tambah orang ke kad ini…'"></option>
+                            <template x-for="p in availablePeople" :key="p.id">
+                                <option :value="p.id" x-text="p.name"></option>
+                            </template>
+                        </select>
                     </div>
 
                     {{-- status --}}
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Column' : 'Lajur'"></label>
-                    <select x-model="modal.card.status" @change="changeStatus($event.target.value)" style="{{ $fieldStyle }}margin-bottom:14px;">
+                    <select x-model="modal.card.status" @change="changeStatus($event.target.value)" class="wi-field wi-select" style="{{ $fieldStyle }}margin-bottom:14px;">
                         @foreach ($statusLabels as $sv => $sl)<option value="{{ $sv }}">{{ $sl }}</option>@endforeach
                     </select>
 
@@ -181,6 +313,7 @@
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'"></label>
                     <textarea x-model="modal.card.description" rows="4" maxlength="5000" :disabled="modal.locked"
                               :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
+                              class="wi-field"
                               style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:9px 11px;font-size:13px;color:var(--ink);outline:none;resize:vertical;font-family:inherit;line-height:1.5;margin-bottom:16px;"></textarea>
 
                     {{-- actions --}}

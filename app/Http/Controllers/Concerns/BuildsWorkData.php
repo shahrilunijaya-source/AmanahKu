@@ -11,8 +11,10 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\Project;
 use App\Models\PublicHoliday;
 use App\Models\StatutoryRate;
+use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
@@ -48,6 +50,35 @@ trait BuildsWorkData
         ];
     }
 
+    /**
+     * Board screen payload: the four columns, plus (for privileged roles) the
+     * people picker roster. Only manager / management / hr may include people on a
+     * card, mirroring assign() and WorkItemController::syncParticipants(), so only
+     * they receive `people` and `canAssignPeople` = true. Uses the raw tenant role
+     * (not effectiveRole) so the picker's visibility matches what the write-path
+     * will actually accept — no picker shown that then 403s on save.
+     */
+    private function boardScreenData(Request $request, ?Employee $employee): array
+    {
+        $role = $request->attributes->get('tenantRole', 'employee');
+        $canAssignPeople = in_array($role, ['manager', 'management', 'hr'], true);
+
+        return [
+            'columns' => $this->boardColumns($employee, request('type', 'core')),
+            'boardType' => request('type', 'core'),
+            'canAssignPeople' => $canAssignPeople,
+            // Active projects for the card editor's optional project picker. Tenant
+            // scope is applied automatically by BelongsToTenant in a request context.
+            'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
+            'people' => $canAssignPeople && $employee
+                ? Employee::active()->where('id', '!=', $employee->id)
+                    ->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color'])
+                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+                    ->values()
+                : collect(),
+        ];
+    }
+
     private function boardColumns(?Employee $employee, string $type = 'core'): array
     {
         // One board holds every work type (assignments, tasks, adhoc). The `?type`
@@ -55,9 +86,15 @@ trait BuildsWorkData
         // splits the data across pages. Filtering happens live in the browser.
         // Done cards older than 30 days are history, not work — leave them out so
         // the daily-driver board doesn't grow heavier forever.
-        $items = $employee?->workItems()
+        // A card belongs to one owner, but may also include participants — the same
+        // shared card then shows on each included person's board. Load both: cards I
+        // own, plus cards I'm a participant on.
+        $items = $employee ? WorkItem::query()
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->where(fn ($q) => $q->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
-            ->with('assignedBy')->withCount('comments')->orderBy('sort_order')->orderBy('id')->get() ?? collect();
+            ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')
+            ->orderBy('sort_order')->orderBy('id')->get() : collect();
         $cols = [
             'todo' => ['title' => 'To Do', 'cards' => collect()],
             'prog' => ['title' => 'In Progress', 'cards' => collect()],

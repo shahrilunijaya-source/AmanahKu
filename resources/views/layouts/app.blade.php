@@ -12,7 +12,16 @@
 </head>
 <body>
 @php $embed = $embed ?? false; @endphp
-<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false }" style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
+<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
+        sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
+        toggleSb() {
+            if (window.innerWidth <= 900) { this.nav = !this.nav; return; }
+            this.sbCollapsed = !this.sbCollapsed;
+            localStorage.setItem('amanahku-sb-collapsed', this.sbCollapsed ? '1' : '0');
+        } }"
+     @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
+     :class="sbCollapsed ? 'uj-sb-collapsed' : ''"
+     style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
 
     @unless ($embed)
         @include('partials.sidebar')
@@ -105,13 +114,13 @@
                     </div>
                 @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
-                    <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--hairline);border-left:3px solid var(--red);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
+                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--hairline);border-left:3px solid var(--red);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
                         <div style="flex:1;">
                             <div style="font-size:13px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
                             <div class="uj-progress" style="margin-top:6px;max-width:260px;"><span style="width:{{ $profileCompletion['pct'] }}%;background:var(--red);"></span></div>
                         </div>
                         <a href="{{ route('welcome.show') }}" style="white-space:nowrap;font-size:12.5px;font-weight:600;text-decoration:underline;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Complete now' : 'Lengkapkan'">Complete now</a>
-                        <button @click="show = false" style="color:var(--muted);font-size:16px;">×</button>
+                        <button @click="show = false; localStorage.setItem('profileBannerDismissedUntil', Date.now() + 12*36e5)" style="color:var(--muted);font-size:16px;">×</button>
                     </div>
                 @endif
                 @yield('screen')
@@ -120,7 +129,7 @@
     </div>
 
     @unless ($embed)
-        @if ($aiEnabled ?? true)
+        @if ($aiEnabled ?? false)
             @include('partials.ai-panel')
         @endif
         @if ($kbEnabled ?? false)

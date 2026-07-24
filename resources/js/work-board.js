@@ -11,6 +11,15 @@ const TAGS = {
 const PRI = { high: 'var(--error)', medium: 'var(--amber)', low: 'var(--muted)' };
 const PRI_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 const STATUS_LABEL = { todo: 'To Do', prog: 'In Progress', review: 'In Review', done: 'Done' };
+// Fixed label palette — mirror of WorkItem::LABELS (slug => [name, color]).
+const LABELS = {
+    urgent: ['Urgent', '#e5484d'],
+    blocked: ['Blocked', '#f76808'],
+    waiting: ['Waiting', '#9a6700'],
+    review: ['Review', '#3a6ea5'],
+    client: ['Client', '#8a4bdb'],
+    internal: ['Internal', '#5a6b7b'],
+};
 
 const esc = (s) =>
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,22 +35,44 @@ function cardInner(card) {
         ? `<span class="wi-pri"><span class="wi-pri-txt" style="--wi-pri:${PRI[card.priority]};">${PRI_LABEL[card.priority]}</span></span>`
         : '<span class="wi-pri"></span>';
     const est = card.estimate_hours ? `${card.estimate_hours}h` : '';
+    // Overdue = a real due date strictly before today, on a card not yet Done.
+    const overdue = card.due_at && card.status !== 'done' && card.due_at < new Date().toISOString().slice(0, 10);
+    const dueClass = overdue ? 'wi-due wi-due--over' : 'wi-due';
     const comments = Number(card.comments_count) || 0;
     const commentBadge =
         comments > 0
             ? `<span class="wi-comments"><span class="wi-comment-chip">
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>${comments}</span></span>`
             : '<span class="wi-comments"></span>';
+    const labels = Array.isArray(card.labels) ? card.labels : [];
+    const labelsRow = labels.length
+        ? `<div class="wi-labels">${labels
+              .map((k) => (LABELS[k] ? `<span class="wi-label" style="background:${LABELS[k][1]};">${esc(LABELS[k][0])}</span>` : ''))
+              .join('')}</div>`
+        : '';
+    const people = Array.isArray(card.participants) ? card.participants : [];
+    const peopleStack = people.length
+        ? `<span class="wi-people">${people
+              .slice(0, 3)
+              .map(
+                  (p) =>
+                      `<span class="wi-av" style="background:${esc(p.color || 'var(--muted)')};" title="${esc(p.name)}">${esc(p.initials)}</span>`,
+              )
+              .join('')}${people.length > 3 ? `<span class="wi-av wi-av-more">+${people.length - 3}</span>` : ''}</span>`
+        : '';
     return `
         <div class="wi-head">
             <span class="wi-tag" style="--wi-tag:${color};">${esc(label)}</span>
             ${pri}
         </div>
         ${card.assigned_by ? `<div class="wi-assigned">Assigned by ${esc(card.assigned_by.name || '—')}</div>` : ''}
+        ${labelsRow}
+        ${card.project ? `<div class="wi-project" style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:3px;">${esc(card.project.name)}</div>` : ''}
         <div class="wi-title">${esc(card.title)}</div>
         <div class="wi-foot">
-            <span class="wi-due">${esc(card.due_label || '')}</span>
+            <span class="${dueClass}">${esc(card.due_label || '')}</span>
             <span class="wi-meta">
+                ${peopleStack}
                 ${commentBadge}
                 <span class="wi-est">${esc(est)}</span>
             </span>
@@ -55,22 +86,33 @@ function buildCardNode(card) {
     node.dataset.id = card.id;
     node.dataset.status = card.status;
     node.dataset.type = card.type;
+    node.dataset.labels = (card.labels || []).join(',');
+    node.dataset.project = card.project?.id ?? '';
     node.style.cssText = 'padding:13px 14px;cursor:pointer;';
     node.innerHTML = cardInner(card);
     return node;
 }
 
 export function registerWorkBoard(Alpine) {
-    Alpine.data('workBoard', (boardType = 'core') => ({
+    Alpine.data('workBoard', (boardType = 'core', canAssign = false, people = []) => ({
         boardType,
         // 'all' shows everything; each of 'task' / 'assignment' / 'adhoc' shows that
         // one type only. Landing via a typed sidebar link pre-focuses it; else show all.
         filter: ['task', 'assignment', 'adhoc'].includes(boardType) ? boardType : 'all',
+        // Active label filter slug, or null for "any label". ANDs with the type filter.
+        labelFilter: null,
+        // Active project id as a string, or '' for "any project". ANDs with type + label.
+        projectFilter: '',
+        // Whether the collapsible secondary-filter panel (label + project) is open.
+        filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         open: { todo: false, prog: false, review: false, done: false },
         draft: { todo: '', prog: '', review: '', done: '' },
         busy: false,
+        // Whether this viewer's role may include people, and the roster to pick from.
+        canAssign,
+        people,
         modal: {
             show: false,
             loading: false,
@@ -80,10 +122,36 @@ export function registerWorkBoard(Alpine) {
             id: null,
             node: null,
             newComment: '',
-            card: { title: '', description: '', type: 'task', priority: 'medium', due_label: '', estimate_hours: '', status: 'todo' },
+            card: { title: '', description: '', type: 'task', priority: 'medium', due_at: '', estimate_hours: '', status: 'todo', labels: [], participants: [], project_id: '', project: null },
             comments: [],
         },
         statusLabels: STATUS_LABEL,
+
+        // Roster minus the people already on the card — feeds the "add someone" select.
+        get availablePeople() {
+            const on = new Set((this.modal.card.participants || []).map((p) => p.id));
+            return this.people.filter((p) => !on.has(p.id));
+        },
+
+        addPerson(id) {
+            const pid = Number(id);
+            if (!pid) return;
+            const person = this.people.find((p) => p.id === pid);
+            if (person && !this.modal.card.participants.some((p) => p.id === pid)) {
+                this.modal.card.participants.push(person);
+            }
+        },
+
+        removePerson(id) {
+            this.modal.card.participants = this.modal.card.participants.filter((p) => p.id !== id);
+        },
+
+        // Add or remove a label slug from the open card (in-memory; saved on Save changes).
+        toggleLabel(key) {
+            if (this.modal.locked) return;
+            const on = this.modal.card.labels || [];
+            this.modal.card.labels = on.includes(key) ? on.filter((k) => k !== key) : [...on, key];
+        },
 
         init() {
             const root = this.$root;
@@ -116,9 +184,37 @@ export function registerWorkBoard(Alpine) {
             this.applyFilter();
         },
 
+        // Toggle the label filter: click an active label to clear it.
+        setLabelFilter(key) {
+            this.labelFilter = this.labelFilter === key ? null : key;
+            this.applyFilter();
+        },
+
+        // Count of active SECONDARY filters (label + project). Drives the toggle badge.
+        get activeFilterCount() {
+            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0);
+        },
+
+        // Reset the secondary filters and repaint.
+        clearFilters() {
+            this.labelFilter = null;
+            this.projectFilter = '';
+            this.applyFilter();
+        },
+
+        labelInFilter(el) {
+            if (!this.labelFilter) return true;
+            return (el.dataset.labels || '').split(',').includes(this.labelFilter);
+        },
+
+        projectInFilter(el) {
+            if (!this.projectFilter) return true;
+            return (el.dataset.project || '') === this.projectFilter;
+        },
+
         applyFilter() {
             this.$root.querySelectorAll('[data-card]').forEach((el) => {
-                el.style.display = this.typeInFilter(el.dataset.type) ? '' : 'none';
+                el.style.display = this.typeInFilter(el.dataset.type) && this.labelInFilter(el) && this.projectInFilter(el) ? '' : 'none';
             });
             this.recount();
             this.refreshCounts();
@@ -211,10 +307,11 @@ export function registerWorkBoard(Alpine) {
             this.modal.newComment = '';
             try {
                 const { card, comments } = await this.api(`/app/board/${node.dataset.id}`);
-                this.modal.card = { ...card, description: card.description ?? '', estimate_hours: card.estimate_hours ?? '' };
-                // An assigned tac on this board is opened by the assignee, who may only
-                // move it and comment — core fields belong to the assigner.
-                this.modal.locked = !!card.assigned_by;
+                this.modal.card = { ...card, description: card.description ?? '', due_at: card.due_at ?? '', estimate_hours: card.estimate_hours ?? '', labels: card.labels ?? [], participants: card.participants ?? [], project_id: card.project?.id ?? '' };
+                // Read-only unless the server says this viewer may manage the card. Covers
+                // both a tac's assignee (edits belong to the assigner) and a shared card's
+                // participant (edits belong to the owner) — either way, move + comment only.
+                this.modal.locked = !!card.assigned_by || card.can_manage === false;
                 this.modal.comments = comments;
             } catch (err) {
                 this.modal.error = this.t('Could not load this card.', 'Tidak dapat memuatkan kad ini.');
@@ -233,6 +330,8 @@ export function registerWorkBoard(Alpine) {
             if (!node) return;
             node.dataset.type = this.modal.card.type;
             node.dataset.status = this.modal.card.status;
+            node.dataset.labels = (this.modal.card.labels || []).join(',');
+            node.dataset.project = this.modal.card.project_id || '';
             node.innerHTML = cardInner(this.modal.card);
         },
 
@@ -242,18 +341,23 @@ export function registerWorkBoard(Alpine) {
             this.modal.error = '';
             try {
                 const c = this.modal.card;
+                const body = {
+                    title: c.title,
+                    description: c.description || null,
+                    type: c.type,
+                    priority: c.priority,
+                    due_at: c.due_at || null,
+                    estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
+                    project_id: c.project_id === '' ? null : c.project_id,
+                    labels: c.labels || [],
+                };
+                // Only privileged roles may set participants; the server re-checks.
+                if (this.canAssign) body.participant_ids = (c.participants || []).map((p) => p.id);
                 const { card } = await this.api(`/app/board/${this.modal.id}`, {
                     method: 'PATCH',
-                    body: JSON.stringify({
-                        title: c.title,
-                        description: c.description || null,
-                        type: c.type,
-                        priority: c.priority,
-                        due_label: c.due_label || null,
-                        estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
-                    }),
+                    body: JSON.stringify(body),
                 });
-                this.modal.card = { ...this.modal.card, ...card, description: card.description ?? '' };
+                this.modal.card = { ...this.modal.card, ...card, description: card.description ?? '', participants: card.participants ?? [] };
                 this.repaintNode();
                 this.applyFilter(); // type may have changed → re-apply visibility + counts
                 this.closeModal();

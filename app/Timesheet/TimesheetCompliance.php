@@ -32,10 +32,10 @@ final class TimesheetCompliance
         return CarbonImmutable::parse($ref)->startOfWeek();
     }
 
-    /** That week's Friday 17:00 — the submission deadline. ($weekStart is Monday.) */
+    /** That week's Friday 19:00 — the submission deadline (unijaya Friday checkout). ($weekStart is Monday.) */
     public function deadline(CarbonInterface $weekStart): CarbonImmutable
     {
-        return CarbonImmutable::parse($weekStart)->startOfDay()->addDays(4)->setTime(17, 0);
+        return CarbonImmutable::parse($weekStart)->startOfDay()->addDays(4)->setTime(19, 0);
     }
 
     /**
@@ -109,7 +109,20 @@ final class TimesheetCompliance
         }
 
         // Nobody is expected to file a timesheet for a week they were never at work for.
-        return count($this->lockedDays->forWeek($employee, $weekStart)) < 5;
+        // Only fully locked days (holiday / whole-day leave) count: a half-day leave still
+        // expects the staffer to fill the other half, so it does not excuse the week.
+        return $this->fullyLockedCount($this->lockedDays->forWeek($employee, $weekStart)) < 5;
+    }
+
+    /**
+     * How many of a forWeek()/forWeekMany() day map are locked for the whole day (100%).
+     * Half-day leave (50%) is excluded — the staffer is still expected to work the rest.
+     *
+     * @param  array<string, array{percentage: float}>  $locked
+     */
+    private function fullyLockedCount(array $locked): int
+    {
+        return count(array_filter($locked, fn (array $d) => $d['percentage'] >= 100));
     }
 
     /**
@@ -136,7 +149,7 @@ final class TimesheetCompliance
         // is a single whereIn.
         $lockedByEmployee = $this->lockedDays->forWeekMany($employees, $start);
         $employees = $employees->reject(
-            fn (Employee $e) => count($lockedByEmployee[$e->id] ?? []) >= 5
+            fn (Employee $e) => $this->fullyLockedCount($lockedByEmployee[$e->id] ?? []) >= 5
         )->values();
 
         $sheets = Timesheet::with('entries')

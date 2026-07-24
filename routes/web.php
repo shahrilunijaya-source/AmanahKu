@@ -75,6 +75,13 @@ use Illuminate\Support\Facades\Route;
 // Entry: guests → Fortify login (custom view), authed users → tenant select.
 Route::get('/', fn () => Auth::check() ? redirect()->route('tenant.select') : redirect('/login'));
 
+// Local-only password-less quick-login helper for dev-login.html. The route file is
+// gitignored and only present on dev machines; loaded solely under APP_ENV=local so it
+// can never register outside local development. Inert (and absent) on staging/prod.
+if (app()->environment('local') && file_exists(__DIR__.'/dev-login.php')) {
+    require __DIR__.'/dev-login.php';
+}
+
 // Enterprise SSO (OIDC, authorization-code flow). Guest-accessible; the controller
 // 404s when OIDC isn't configured. Sign-in only — no tenant/role is ever granted here.
 Route::get('/auth/oidc/redirect', [OidcController::class, 'redirect'])->name('oidc.redirect');

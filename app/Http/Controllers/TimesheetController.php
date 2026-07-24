@@ -18,6 +18,7 @@ use App\Support\HtmlSanitizer;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
+use App\Timesheet\WeekReconciler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -168,9 +169,6 @@ class TimesheetController extends Controller
             'weekStatus' => $weekTimesheet?->status,
             'weekTimesheet' => $weekTimesheet,
             'existingGrid' => $existingGrid,
-            // All-staff weekly compliance board (names + status only, no cost).
-            'tsRoster' => app(TimesheetCompliance::class)
-                ->roster(app(CurrentTenant::class)->get(), $weekStart),
             // Day-first capture screen inputs (Tasks 7-8).
             'tsLocked' => $locked,
             'tsItems' => $tsItems,
@@ -206,17 +204,26 @@ class TimesheetController extends Controller
         $lockedDays = app(LockedDays::class);
         $locked = $lockedDays->forWeek($employee, Carbon::parse($data['week_start'])->startOfDay());
 
-        // D4: an approved leave day or public holiday is a fact HR owns. Anything the staffer
-        // typed against that day is wrong by definition, so it is dropped rather than merged.
+        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
+        // anything the staffer typed against it is wrong by definition, so it is dropped.
+        // A half-day leave locks only 50%, leaving the staffer to fill the other half, so
+        // their rows on a partially locked day are kept and merged with the 50% leave row.
         $userEntries = array_filter(
             $data['entries'],
-            fn (array $e) => ! isset($locked[Carbon::parse($e['entry_date'])->toDateString()])
+            function (array $e) use ($locked) {
+                $day = $locked[Carbon::parse($e['entry_date'])->toDateString()] ?? null;
+
+                return $day === null || $day['percentage'] < 100;
+            }
         );
 
         $this->assertDatesInWindow($userEntries);
 
-        $entries = $this->normaliseEntries($userEntries);
-        $entries = array_merge($entries, $lockedDays->entryRows($employee, $data['week_start']));
+        // Shared with leave-approval reconciliation: drop fully-locked-day rows, keep the
+        // work-half of a half-day, and lay down the generated locked rows. The pre-filter
+        // above is only for the date-window check (fully-locked days bypass it); mergeEntries
+        // applies the same rule authoritatively.
+        $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $this->normaliseEntries($userEntries));
 
         $submitNow = $request->boolean('submit_now');
         // A fully-locked week may submit with no user rows, but a genuinely empty week
@@ -477,6 +484,11 @@ class TimesheetController extends Controller
             'byStaff' => $byStaff,
             'reportTotals' => ['days' => $grandDays, 'cost' => $grandCost, 'uncostedDays' => $uncostedDays],
             'reportEmpty' => $entries->isEmpty(),
+            // This-week compliance roster (who still owes a sheet). Lives here on the
+            // all-staff oversight surface, not the personal capture screen. Always the
+            // current week, independent of the from/to report period above.
+            'tsRoster' => app(TimesheetCompliance::class)
+                ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek()),
             // Filter dropdown options + current selection.
             'filterCategories' => TimesheetCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterProjects' => Project::where('is_active', true)->orderBy('name')->get(['id', 'name']),

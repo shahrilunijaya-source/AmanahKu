@@ -171,6 +171,9 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_enabled_ai_assistant_endpoint_replies(): void
     {
+        // ai.assistant ships disabled by default, so an "enabled" test must turn it on.
+        app(FeatureManager::class)->setTenant($this->tenant, 'ai.assistant', true);
+
         $this->actingHr()->postJson('/app/assistant', ['message' => 'hi'])
             ->assertOk()
             ->assertJsonStructure(['reply']);

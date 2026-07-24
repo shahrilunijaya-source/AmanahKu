@@ -16,12 +16,12 @@ use Illuminate\Support\Collection;
  * Which weekdays of a timesheet week are already accounted for by a fact HR owns:
  * an approved leave request, or a public holiday.
  *
- * A locked day is filled to 100% and the employee cannot log work against it. Read-only:
+ * A fully locked day is filled to 100% and the employee cannot log work against it.
+ * A half-day leave locks only 50%: the "On Leave" row covers half the day and the
+ * staffer still fills the remaining half with real work, so that day must reach 100%
+ * from the leave half plus their own entries. Each locked day therefore carries a
+ * `percentage` (100 or 50) and, for a half day, a `period` ('am' | 'pm'). Read-only:
  * this class never writes. Callers persist the rows it returns.
- *
- * Half-day leave is deliberately not handled: LeaveController computes
- * `days = date_from->diffInDays(date_to) + 1`, always a whole number, so no fractional
- * leave day can exist today. Revisit this class if half-days are ever introduced.
  */
 final class LockedDays
 {
@@ -33,7 +33,7 @@ final class LockedDays
      *                                             brief's CarbonInterface-only signature) because
      *                                             CarbonImmutable::parse() already normalizes either,
      *                                             and this is a strictly backward-compatible superset.
-     * @return array<string, array{label: string, source: string}> keyed by ISO date, Mon–Fri only
+     * @return array<string, array{label: string, source: string, percentage: float, period: ?string}> keyed by ISO date, Mon–Fri only
      */
     public function forWeek(Employee $employee, CarbonInterface|string $weekStart): array
     {
@@ -66,7 +66,7 @@ final class LockedDays
 
             if ($holiday = $holidays->get($iso)) {
                 // A holiday outranks leave: nobody burns annual leave on a public holiday.
-                $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday'];
+                $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => 100.0, 'period' => null];
 
                 continue;
             }
@@ -76,7 +76,7 @@ final class LockedDays
             );
 
             if ($covering) {
-                $locked[$iso] = ['label' => $covering->leaveType?->name ?: 'Leave', 'source' => 'leave'];
+                $locked[$iso] = $this->leaveEntry($covering);
             }
         }
 
@@ -93,7 +93,7 @@ final class LockedDays
      * @param  Collection<int, Employee>  $employees
      * @param  CarbonInterface|string  $weekStart  See forWeek() for why this is widened beyond
      *                                             the brief's CarbonInterface-only signature.
-     * @return array<int, array<string, array{label: string, source: string}>>
+     * @return array<int, array<string, array{label: string, source: string, percentage: float, period: ?string}>>
      */
     public function forWeekMany(Collection $employees, CarbonInterface|string $weekStart): array
     {
@@ -130,7 +130,7 @@ final class LockedDays
                 $iso = $day->toDateString();
 
                 if ($holiday = $holidays->get($iso)) {
-                    $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday'];
+                    $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => 100.0, 'period' => null];
 
                     continue;
                 }
@@ -140,7 +140,7 @@ final class LockedDays
                 );
 
                 if ($covering) {
-                    $locked[$iso] = ['label' => $covering->leaveType?->name ?: 'Leave', 'source' => 'leave'];
+                    $locked[$iso] = $this->leaveEntry($covering);
                 }
             }
 
@@ -148,6 +148,22 @@ final class LockedDays
         }
 
         return $out;
+    }
+
+    /**
+     * Shape one covering leave request as a locked-day array. A half-day request locks
+     * only 50% (the staffer fills the rest); a whole-day request locks the full day.
+     *
+     * @return array{label: string, source: string, percentage: float, period: ?string}
+     */
+    private function leaveEntry(LeaveRequest $leave): array
+    {
+        return [
+            'label' => $leave->leaveType?->name ?: 'Leave',
+            'source' => 'leave',
+            'percentage' => $leave->isHalfDay() ? 50.0 : 100.0,
+            'period' => $leave->half_day_period,
+        ];
     }
 
     /**
@@ -184,16 +200,21 @@ final class LockedDays
                 continue;
             }
 
+            // 100 for a holiday or whole-day leave, 50 for a half day. Hours track the
+            // percentage so manday RM costing (hours * rate) stays correct for a half day.
+            $percentage = (float) $day['percentage'];
+            $periodSuffix = ['am' => ' (morning)', 'pm' => ' (afternoon)'][$day['period']] ?? '';
+
             $rows[] = [
                 'entry_date' => $iso,
                 'category_id' => $category->id,
                 'project_id' => null,
                 'sub_pillar_id' => null,
-                'percentage' => 100.0,
+                'percentage' => $percentage,
                 'description' => null,
                 // Legacy readable fallback for any code still reading the string column.
-                'project' => $category->name.' — '.$day['label'],
-                'hours' => round($hoursPerDay, 2),
+                'project' => $category->name.' — '.$day['label'].$periodSuffix,
+                'hours' => round($hoursPerDay * $percentage / 100, 2),
                 'source' => $day['source'],
             ];
         }
