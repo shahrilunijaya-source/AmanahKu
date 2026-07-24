@@ -35,6 +35,7 @@ class WorkItemController extends Controller
             'status' => ['nullable', 'in:'.implode(',', self::STATUSES)],
             'due_label' => ['nullable', 'string', 'max:60'],
             'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
         ]);
 
         $status = $data['status'] ?? 'todo';
@@ -45,6 +46,7 @@ class WorkItemController extends Controller
             'priority' => $data['priority'],
             'due_label' => $data['due_label'] ?? null,
             'estimate_hours' => $data['estimate_hours'] ?? null,
+            'project_id' => $data['project_id'] ?? null,
             'status' => $status,
             'progress' => 0,
             // Place new cards at the bottom of their column.
@@ -113,7 +115,7 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->authorizeAccess($workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants']);
+        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef']);
 
         // Mirrors authorizeManage(): only the owner of a self-made card, or a tac's
         // assigner, may edit fields / set participants / delete. A participant opens
@@ -143,6 +145,7 @@ class WorkItemController extends Controller
             'due_at' => ['nullable', 'date'],
             'due_label' => ['nullable', 'string', 'max:60'],
             'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'labels' => ['sometimes', 'array'],
             'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
             'participant_ids' => ['sometimes', 'array'],
@@ -335,6 +338,7 @@ class WorkItemController extends Controller
             'due_at' => $item->due_at?->format('Y-m-d'),
             'estimate_hours' => $item->estimate_hours,
             'labels' => $item->labels ?? [],
+            'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->name,

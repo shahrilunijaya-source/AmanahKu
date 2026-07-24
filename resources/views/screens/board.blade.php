@@ -85,18 +85,45 @@
                 <span x-text="counts['{{ $fk }}']" style="font-size:11px;opacity:.7;font-family:var(--font-mono);"></span>
             </button>
         @endforeach
+            <span style="width:1px;height:20px;background:var(--hairline);margin:0 3px;"></span>
+            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen"
+                    :style="filtersOpen || activeFilterCount > 0
+                        ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
+                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                    style="padding:7px 13px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;">
+                <span x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</span>
+                <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount"
+                      style="min-width:16px;height:16px;line-height:16px;text-align:center;font-size:10.5px;font-family:var(--font-mono);background:rgba(255,255,255,.28);border-radius:9999px;padding:0 4px;"></span>
+            </button>
     </div>
 
-    {{-- Second filter row: narrow the board to one label. Click again to clear. --}}
-    <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
-        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Label' : 'Label'">Label</span>
-        @foreach ($labelDef as $lk => [$lname, $lcolor])
-            <button type="button" @click="setLabelFilter('{{ $lk }}')"
-                    :style="labelFilter === '{{ $lk }}'
-                        ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
-                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
-                    style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
-        @endforeach
+    <div x-show="filtersOpen" x-cloak>
+        <div x-show="activeFilterCount > 0" x-cloak style="margin:-2px 0 8px;">
+            <button type="button" @click="clearFilters()" style="font-size:11.5px;font-weight:600;color:var(--muted);background:transparent;cursor:pointer;text-decoration:underline;padding:0;"
+                    x-text="$store.ui.lang==='en' ? 'Clear filters' : 'Kosongkan penapis'"></button>
+        </div>
+
+        {{-- Second filter row: narrow the board to one label. Click again to clear. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Label' : 'Label'">Label</span>
+            @foreach ($labelDef as $lk => [$lname, $lcolor])
+                <button type="button" @click="setLabelFilter('{{ $lk }}')"
+                        :style="labelFilter === '{{ $lk }}'
+                            ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
+                            : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+            @endforeach
+        </div>
+
+        {{-- Third filter row: narrow the board to one project. "All" clears it. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
+            <select x-model="projectFilter" @change="applyFilter()"
+                    style="padding:6px 12px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;background:#fff;color:var(--body);">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'"></option>
+                @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
+            </select>
+        </div>
     </div>
 
     <div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;">
@@ -113,7 +140,7 @@
                             [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)'];
                             $overdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today());
                         @endphp
-                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" data-labels="{{ implode(',', $c->labels ?? []) }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
+                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" data-labels="{{ implode(',', $c->labels ?? []) }}" data-project="{{ $c->project_id }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
                             <div class="wi-head">
                                 <span class="wi-tag" style="--wi-tag:{{ $tcolor }};">{{ $tlabel }}</span>
                                 <span class="wi-pri">@if ($c->priority)<span class="wi-pri-txt" style="--wi-pri:{{ $pri[$c->priority] }};">{{ $priLabel[$c->priority] ?? ucfirst($c->priority) }}</span>@endif</span>
@@ -129,6 +156,9 @@
                                         @endif
                                     @endforeach
                                 </div>
+                            @endif
+                            @if ($c->projectRef)
+                                <div class="wi-project" style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:3px;">{{ $c->projectRef->name }}</div>
                             @endif
                             <div class="wi-title">{{ $c->title }}</div>
                             <div class="wi-foot">
@@ -230,6 +260,13 @@
                             <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
                         </div>
                     </div>
+
+                    {{-- project: optional, from the same list the timesheet books time to --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></label>
+                    <select x-model="modal.card.project_id" :disabled="modal.locked" class="wi-field wi-select" style="{{ $fieldStyle }}margin-bottom:14px;">
+                        <option value="" x-text="$store.ui.lang==='en' ? 'No project' : 'Tiada projek'"></option>
+                        @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
+                    </select>
 
                     {{-- labels: pick from the fixed palette, multiple per card --}}
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'"></label>

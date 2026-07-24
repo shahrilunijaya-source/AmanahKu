@@ -67,6 +67,7 @@ function cardInner(card) {
         </div>
         ${card.assigned_by ? `<div class="wi-assigned">Assigned by ${esc(card.assigned_by.name || '—')}</div>` : ''}
         ${labelsRow}
+        ${card.project ? `<div class="wi-project" style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:3px;">${esc(card.project.name)}</div>` : ''}
         <div class="wi-title">${esc(card.title)}</div>
         <div class="wi-foot">
             <span class="${dueClass}">${esc(card.due_label || '')}</span>
@@ -86,6 +87,7 @@ function buildCardNode(card) {
     node.dataset.status = card.status;
     node.dataset.type = card.type;
     node.dataset.labels = (card.labels || []).join(',');
+    node.dataset.project = card.project?.id ?? '';
     node.style.cssText = 'padding:13px 14px;cursor:pointer;';
     node.innerHTML = cardInner(card);
     return node;
@@ -99,6 +101,10 @@ export function registerWorkBoard(Alpine) {
         filter: ['task', 'assignment', 'adhoc'].includes(boardType) ? boardType : 'all',
         // Active label filter slug, or null for "any label". ANDs with the type filter.
         labelFilter: null,
+        // Active project id as a string, or '' for "any project". ANDs with type + label.
+        projectFilter: '',
+        // Whether the collapsible secondary-filter panel (label + project) is open.
+        filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         open: { todo: false, prog: false, review: false, done: false },
@@ -116,7 +122,7 @@ export function registerWorkBoard(Alpine) {
             id: null,
             node: null,
             newComment: '',
-            card: { title: '', description: '', type: 'task', priority: 'medium', due_at: '', estimate_hours: '', status: 'todo', labels: [], participants: [] },
+            card: { title: '', description: '', type: 'task', priority: 'medium', due_at: '', estimate_hours: '', status: 'todo', labels: [], participants: [], project_id: '', project: null },
             comments: [],
         },
         statusLabels: STATUS_LABEL,
@@ -184,14 +190,31 @@ export function registerWorkBoard(Alpine) {
             this.applyFilter();
         },
 
+        // Count of active SECONDARY filters (label + project). Drives the toggle badge.
+        get activeFilterCount() {
+            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0);
+        },
+
+        // Reset the secondary filters and repaint.
+        clearFilters() {
+            this.labelFilter = null;
+            this.projectFilter = '';
+            this.applyFilter();
+        },
+
         labelInFilter(el) {
             if (!this.labelFilter) return true;
             return (el.dataset.labels || '').split(',').includes(this.labelFilter);
         },
 
+        projectInFilter(el) {
+            if (!this.projectFilter) return true;
+            return (el.dataset.project || '') === this.projectFilter;
+        },
+
         applyFilter() {
             this.$root.querySelectorAll('[data-card]').forEach((el) => {
-                el.style.display = this.typeInFilter(el.dataset.type) && this.labelInFilter(el) ? '' : 'none';
+                el.style.display = this.typeInFilter(el.dataset.type) && this.labelInFilter(el) && this.projectInFilter(el) ? '' : 'none';
             });
             this.recount();
             this.refreshCounts();
@@ -284,7 +307,7 @@ export function registerWorkBoard(Alpine) {
             this.modal.newComment = '';
             try {
                 const { card, comments } = await this.api(`/app/board/${node.dataset.id}`);
-                this.modal.card = { ...card, description: card.description ?? '', due_at: card.due_at ?? '', estimate_hours: card.estimate_hours ?? '', labels: card.labels ?? [], participants: card.participants ?? [] };
+                this.modal.card = { ...card, description: card.description ?? '', due_at: card.due_at ?? '', estimate_hours: card.estimate_hours ?? '', labels: card.labels ?? [], participants: card.participants ?? [], project_id: card.project?.id ?? '' };
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
                 // participant (edits belong to the owner) — either way, move + comment only.
@@ -308,6 +331,7 @@ export function registerWorkBoard(Alpine) {
             node.dataset.type = this.modal.card.type;
             node.dataset.status = this.modal.card.status;
             node.dataset.labels = (this.modal.card.labels || []).join(',');
+            node.dataset.project = this.modal.card.project_id || '';
             node.innerHTML = cardInner(this.modal.card);
         },
 
@@ -324,6 +348,7 @@ export function registerWorkBoard(Alpine) {
                     priority: c.priority,
                     due_at: c.due_at || null,
                     estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
+                    project_id: c.project_id === '' ? null : c.project_id,
                     labels: c.labels || [],
                 };
                 // Only privileged roles may set participants; the server re-checks.

@@ -38,6 +38,16 @@ class WorkItem extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * The project this card is planned under. Optional. Named projectRef (not
+     * project) to match TimesheetEntry and stay clear of any future `project`
+     * column that would shadow the relation.
+     */
+    public function projectRef(): BelongsTo
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
+
     /** The superior who assigned this task. Null for self-created cards. */
     public function assignedBy(): BelongsTo
     {

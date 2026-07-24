@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AppNotification;
 use App\Models\Employee;
+use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
@@ -157,6 +158,40 @@ class BoardCardTest extends TestCase
         $res->assertSee('wi-due--over', false);
         // Exactly one overdue marker — the Done card is excluded.
         $this->assertSame(1, substr_count($res->getContent(), 'wi-due--over'));
+    }
+
+    public function test_board_emits_project_data_attribute_for_filtering(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $this->card(['project_id' => $project->id, 'title' => 'Booked card']);
+
+        $this->actingInTenant()->get('/app/board')->assertOk()
+            ->assertSee('data-project="'.$project->id.'"', false);
+    }
+
+    public function test_owner_books_a_card_to_a_project(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low', 'project_id' => $project->id,
+        ])->assertOk()
+            ->assertJsonPath('card.project.id', $project->id)
+            ->assertJsonPath('card.project.name', 'KPT: RMS');
+
+        $this->assertSame($project->id, (int) $item->fresh()->project_id);
+    }
+
+    public function test_project_from_another_tenant_is_rejected(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = Project::create(['tenant_id' => $otherTenant->id, 'name' => 'Not yours', 'is_active' => true]);
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low', 'project_id' => $foreign->id,
+        ])->assertStatus(422);
     }
 
     public function test_unknown_label_key_is_rejected(): void

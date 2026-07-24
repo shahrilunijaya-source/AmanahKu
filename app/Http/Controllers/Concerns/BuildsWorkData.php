@@ -11,6 +11,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\Project;
 use App\Models\PublicHoliday;
 use App\Models\StatutoryRate;
 use App\Models\WorkItem;
@@ -66,6 +67,9 @@ trait BuildsWorkData
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
             'canAssignPeople' => $canAssignPeople,
+            // Active projects for the card editor's optional project picker. Tenant
+            // scope is applied automatically by BelongsToTenant in a request context.
+            'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
             'people' => $canAssignPeople && $employee
                 ? Employee::active()->where('id', '!=', $employee->id)
                     ->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color'])
@@ -89,7 +93,7 @@ trait BuildsWorkData
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->where(fn ($q) => $q->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
-            ->with(['assignedBy', 'participants'])->withCount('comments')
+            ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')
             ->orderBy('sort_order')->orderBy('id')->get() : collect();
         $cols = [
             'todo' => ['title' => 'To Do', 'cards' => collect()],
