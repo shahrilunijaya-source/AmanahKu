@@ -5,6 +5,7 @@
     $pri = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
     $priLabel = ['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
     $statusLabels = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
+    $labelDef = \App\Models\WorkItem::LABELS;
     $fieldStyle = 'width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
     $labelStyle = 'display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;';
     $boardType = $boardType ?? 'core';
@@ -86,6 +87,18 @@
         @endforeach
     </div>
 
+    {{-- Second filter row: narrow the board to one label. Click again to clear. --}}
+    <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Label' : 'Label'">Label</span>
+        @foreach ($labelDef as $lk => [$lname, $lcolor])
+            <button type="button" @click="setLabelFilter('{{ $lk }}')"
+                    :style="labelFilter === '{{ $lk }}'
+                        ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
+                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                    style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+        @endforeach
+    </div>
+
     <div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;">
         @foreach ($columns as $key => $col)
             <div style="flex:1;min-width:272px;">
@@ -96,8 +109,11 @@
 
                 <div data-list="{{ $key }}" style="display:flex;flex-direction:column;gap:10px;min-height:24px;">
                     @forelse ($col['cards'] as $c)
-                        @php [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)']; @endphp
-                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
+                        @php
+                            [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)'];
+                            $overdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today());
+                        @endphp
+                        <div class="uj-card uj-wi" data-card data-id="{{ $c->id }}" data-status="{{ $c->status }}" data-type="{{ $c->type }}" data-labels="{{ implode(',', $c->labels ?? []) }}" @if ($c->assigned_by_id) data-assigned="1" @endif style="padding:13px 14px;">
                             <div class="wi-head">
                                 <span class="wi-tag" style="--wi-tag:{{ $tcolor }};">{{ $tlabel }}</span>
                                 <span class="wi-pri">@if ($c->priority)<span class="wi-pri-txt" style="--wi-pri:{{ $pri[$c->priority] }};">{{ $priLabel[$c->priority] ?? ucfirst($c->priority) }}</span>@endif</span>
@@ -105,9 +121,18 @@
                             @if ($c->assigned_by_id)
                                 <div class="wi-assigned">Assigned by {{ $c->assignedBy?->name ?? '—' }}</div>
                             @endif
+                            @if (! empty($c->labels))
+                                <div class="wi-labels">
+                                    @foreach ($c->labels as $lk)
+                                        @if (isset($labelDef[$lk]))
+                                            <span class="wi-label" style="background:{{ $labelDef[$lk][1] }};">{{ $labelDef[$lk][0] }}</span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
                             <div class="wi-title">{{ $c->title }}</div>
                             <div class="wi-foot">
-                                <span class="wi-due">{{ $c->dueText() }}</span>
+                                <span class="wi-due @if ($overdue) wi-due--over @endif">{{ $c->dueText() }}</span>
                                 <span class="wi-meta">
                                     @if ($c->participants->isNotEmpty())
                                         <span class="wi-people">
@@ -197,13 +222,25 @@
                             </select>
                         </div>
                         <div>
-                            <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Due label' : 'Label tarikh'"></label>
-                            <input x-model="modal.card.due_label" maxlength="60" :disabled="modal.locked" :placeholder="$store.ui.lang==='en' ? 'e.g. Fri 26 Jun' : 'cth. Jum 26 Jun'" class="wi-field" style="{{ $fieldStyle }}" />
+                            <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Due date' : 'Tarikh akhir'"></label>
+                            <input x-model="modal.card.due_at" type="date" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}" />
                         </div>
                         <div>
                             <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Estimate (h)' : 'Anggaran (j)'"></label>
                             <input x-model="modal.card.estimate_hours" type="number" min="0" max="500" :disabled="modal.locked" class="wi-field" style="{{ $fieldStyle }}font-family:var(--font-mono);" />
                         </div>
+                    </div>
+
+                    {{-- labels: pick from the fixed palette, multiple per card --}}
+                    <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'"></label>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;">
+                        @foreach ($labelDef as $lk => [$lname, $lcolor])
+                            <button type="button" :disabled="modal.locked" @click="toggleLabel('{{ $lk }}')"
+                                    :style="modal.card.labels.includes('{{ $lk }}')
+                                        ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
+                                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                                    style="padding:4px 11px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+                        @endforeach
                     </div>
 
                     {{-- people included on this shared card --}}

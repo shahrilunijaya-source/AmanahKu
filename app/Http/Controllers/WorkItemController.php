@@ -12,6 +12,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class WorkItemController extends Controller
 {
@@ -139,8 +140,11 @@ class WorkItemController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'type' => ['required', 'in:assignment,task,adhoc'],
             'priority' => ['required', 'in:high,medium,low'],
+            'due_at' => ['nullable', 'date'],
             'due_label' => ['nullable', 'string', 'max:60'],
             'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
+            'labels' => ['sometimes', 'array'],
+            'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
         ]);
@@ -330,6 +334,7 @@ class WorkItemController extends Controller
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
             'estimate_hours' => $item->estimate_hours,
+            'labels' => $item->labels ?? [],
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->name,

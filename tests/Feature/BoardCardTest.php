@@ -127,6 +127,48 @@ class BoardCardTest extends TestCase
         $this->assertSame(6, (int) $fresh->estimate_hours);
     }
 
+    public function test_owner_sets_labels_and_real_due_date(): void
+    {
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'due_at' => '2026-08-01', 'labels' => ['urgent', 'review'],
+        ])->assertOk()
+            ->assertJsonPath('card.labels', ['urgent', 'review'])
+            ->assertJsonPath('card.due_at', '2026-08-01')
+            // The real date wins over any free-text label in the card face text.
+            ->assertJsonPath('card.due_label', '01 Aug 2026');
+
+        $fresh = $item->fresh();
+        $this->assertSame(['urgent', 'review'], $fresh->labels);
+        $this->assertSame('2026-08-01', $fresh->due_at->format('Y-m-d'));
+    }
+
+    public function test_board_marks_overdue_open_cards_and_emits_label_data(): void
+    {
+        // Open past-due card: carries a label and gets the overdue marker.
+        $this->card(['labels' => ['urgent'], 'due_at' => now()->subDay()->toDateString(), 'status' => 'todo']);
+        // A Done card that is also past its date must NOT be flagged overdue.
+        $this->card(['due_at' => now()->subDay()->toDateString(), 'status' => 'done', 'title' => 'Shipped']);
+
+        $res = $this->actingInTenant()->get('/app/board')->assertOk();
+        $res->assertSee('data-labels="urgent"', false);
+        $res->assertSee('wi-due--over', false);
+        // Exactly one overdue marker — the Done card is excluded.
+        $this->assertSame(1, substr_count($res->getContent(), 'wi-due--over'));
+    }
+
+    public function test_unknown_label_key_is_rejected(): void
+    {
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'labels' => ['not-a-real-label'],
+        ])->assertStatus(422);
+    }
+
     public function test_drag_reorders_destination_column(): void
     {
         $a = $this->card(['title' => 'A', 'status' => 'todo', 'sort_order' => 0]);

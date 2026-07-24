@@ -14,9 +14,23 @@ class WorkItem extends Model
 
     protected $guarded = [];
 
+    /**
+     * Fixed kanban label palette: slug => [display name, chip color]. Cards store
+     * an array of these slugs in the `labels` JSON column. Mirror any change in
+     * resources/js/work-board.js (LABELS) so client-side repaint stays in sync.
+     */
+    public const LABELS = [
+        'urgent' => ['Urgent', '#e5484d'],
+        'blocked' => ['Blocked', '#f76808'],
+        'waiting' => ['Waiting', '#9a6700'],
+        'review' => ['Review', '#3a6ea5'],
+        'client' => ['Client', '#8a4bdb'],
+        'internal' => ['Internal', '#5a6b7b'],
+    ];
+
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'labels' => 'array'];
     }
 
     public function employee(): BelongsTo
@@ -31,13 +45,14 @@ class WorkItem extends Model
     }
 
     /**
-     * Human due text for a card: the free-text label if set, otherwise the
-     * structured assigned due date formatted. Empty string when neither exists.
-     * Lets assigned tacs (which carry a real due_at, no label) still show a date.
+     * Human due text for a card: the real due date if set, otherwise a legacy
+     * free-text label. Empty string when neither exists. The structured date wins
+     * so cards edited through the date picker show the real date even if an old
+     * free-text label lingers.
      */
     public function dueText(): string
     {
-        return $this->due_label ?: ($this->due_at?->format('d M Y') ?? '');
+        return $this->due_at?->format('d M Y') ?? ($this->due_label ?: '');
     }
 
     public function comments(): HasMany

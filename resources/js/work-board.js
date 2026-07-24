@@ -11,6 +11,15 @@ const TAGS = {
 const PRI = { high: 'var(--error)', medium: 'var(--amber)', low: 'var(--muted)' };
 const PRI_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 const STATUS_LABEL = { todo: 'To Do', prog: 'In Progress', review: 'In Review', done: 'Done' };
+// Fixed label palette — mirror of WorkItem::LABELS (slug => [name, color]).
+const LABELS = {
+    urgent: ['Urgent', '#e5484d'],
+    blocked: ['Blocked', '#f76808'],
+    waiting: ['Waiting', '#9a6700'],
+    review: ['Review', '#3a6ea5'],
+    client: ['Client', '#8a4bdb'],
+    internal: ['Internal', '#5a6b7b'],
+};
 
 const esc = (s) =>
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,12 +35,21 @@ function cardInner(card) {
         ? `<span class="wi-pri"><span class="wi-pri-txt" style="--wi-pri:${PRI[card.priority]};">${PRI_LABEL[card.priority]}</span></span>`
         : '<span class="wi-pri"></span>';
     const est = card.estimate_hours ? `${card.estimate_hours}h` : '';
+    // Overdue = a real due date strictly before today, on a card not yet Done.
+    const overdue = card.due_at && card.status !== 'done' && card.due_at < new Date().toISOString().slice(0, 10);
+    const dueClass = overdue ? 'wi-due wi-due--over' : 'wi-due';
     const comments = Number(card.comments_count) || 0;
     const commentBadge =
         comments > 0
             ? `<span class="wi-comments"><span class="wi-comment-chip">
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>${comments}</span></span>`
             : '<span class="wi-comments"></span>';
+    const labels = Array.isArray(card.labels) ? card.labels : [];
+    const labelsRow = labels.length
+        ? `<div class="wi-labels">${labels
+              .map((k) => (LABELS[k] ? `<span class="wi-label" style="background:${LABELS[k][1]};">${esc(LABELS[k][0])}</span>` : ''))
+              .join('')}</div>`
+        : '';
     const people = Array.isArray(card.participants) ? card.participants : [];
     const peopleStack = people.length
         ? `<span class="wi-people">${people
@@ -48,9 +66,10 @@ function cardInner(card) {
             ${pri}
         </div>
         ${card.assigned_by ? `<div class="wi-assigned">Assigned by ${esc(card.assigned_by.name || '—')}</div>` : ''}
+        ${labelsRow}
         <div class="wi-title">${esc(card.title)}</div>
         <div class="wi-foot">
-            <span class="wi-due">${esc(card.due_label || '')}</span>
+            <span class="${dueClass}">${esc(card.due_label || '')}</span>
             <span class="wi-meta">
                 ${peopleStack}
                 ${commentBadge}
@@ -66,6 +85,7 @@ function buildCardNode(card) {
     node.dataset.id = card.id;
     node.dataset.status = card.status;
     node.dataset.type = card.type;
+    node.dataset.labels = (card.labels || []).join(',');
     node.style.cssText = 'padding:13px 14px;cursor:pointer;';
     node.innerHTML = cardInner(card);
     return node;
@@ -77,6 +97,8 @@ export function registerWorkBoard(Alpine) {
         // 'all' shows everything; each of 'task' / 'assignment' / 'adhoc' shows that
         // one type only. Landing via a typed sidebar link pre-focuses it; else show all.
         filter: ['task', 'assignment', 'adhoc'].includes(boardType) ? boardType : 'all',
+        // Active label filter slug, or null for "any label". ANDs with the type filter.
+        labelFilter: null,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         open: { todo: false, prog: false, review: false, done: false },
@@ -94,7 +116,7 @@ export function registerWorkBoard(Alpine) {
             id: null,
             node: null,
             newComment: '',
-            card: { title: '', description: '', type: 'task', priority: 'medium', due_label: '', estimate_hours: '', status: 'todo', participants: [] },
+            card: { title: '', description: '', type: 'task', priority: 'medium', due_at: '', estimate_hours: '', status: 'todo', labels: [], participants: [] },
             comments: [],
         },
         statusLabels: STATUS_LABEL,
@@ -116,6 +138,13 @@ export function registerWorkBoard(Alpine) {
 
         removePerson(id) {
             this.modal.card.participants = this.modal.card.participants.filter((p) => p.id !== id);
+        },
+
+        // Add or remove a label slug from the open card (in-memory; saved on Save changes).
+        toggleLabel(key) {
+            if (this.modal.locked) return;
+            const on = this.modal.card.labels || [];
+            this.modal.card.labels = on.includes(key) ? on.filter((k) => k !== key) : [...on, key];
         },
 
         init() {
@@ -149,9 +178,20 @@ export function registerWorkBoard(Alpine) {
             this.applyFilter();
         },
 
+        // Toggle the label filter: click an active label to clear it.
+        setLabelFilter(key) {
+            this.labelFilter = this.labelFilter === key ? null : key;
+            this.applyFilter();
+        },
+
+        labelInFilter(el) {
+            if (!this.labelFilter) return true;
+            return (el.dataset.labels || '').split(',').includes(this.labelFilter);
+        },
+
         applyFilter() {
             this.$root.querySelectorAll('[data-card]').forEach((el) => {
-                el.style.display = this.typeInFilter(el.dataset.type) ? '' : 'none';
+                el.style.display = this.typeInFilter(el.dataset.type) && this.labelInFilter(el) ? '' : 'none';
             });
             this.recount();
             this.refreshCounts();
@@ -244,7 +284,7 @@ export function registerWorkBoard(Alpine) {
             this.modal.newComment = '';
             try {
                 const { card, comments } = await this.api(`/app/board/${node.dataset.id}`);
-                this.modal.card = { ...card, description: card.description ?? '', estimate_hours: card.estimate_hours ?? '', participants: card.participants ?? [] };
+                this.modal.card = { ...card, description: card.description ?? '', due_at: card.due_at ?? '', estimate_hours: card.estimate_hours ?? '', labels: card.labels ?? [], participants: card.participants ?? [] };
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
                 // participant (edits belong to the owner) — either way, move + comment only.
@@ -267,6 +307,7 @@ export function registerWorkBoard(Alpine) {
             if (!node) return;
             node.dataset.type = this.modal.card.type;
             node.dataset.status = this.modal.card.status;
+            node.dataset.labels = (this.modal.card.labels || []).join(',');
             node.innerHTML = cardInner(this.modal.card);
         },
 
@@ -281,8 +322,9 @@ export function registerWorkBoard(Alpine) {
                     description: c.description || null,
                     type: c.type,
                     priority: c.priority,
-                    due_label: c.due_label || null,
+                    due_at: c.due_at || null,
                     estimate_hours: c.estimate_hours === '' ? null : c.estimate_hours,
+                    labels: c.labels || [],
                 };
                 // Only privileged roles may set participants; the server re-checks.
                 if (this.canAssign) body.participant_ids = (c.participants || []).map((p) => p.id);

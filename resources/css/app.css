@@ -260,9 +260,12 @@ header button:hover { background: var(--canvas) !important; }
 .wi-tag { font-size: 10px; font-weight: 600; color: #fff; background: var(--wi-tag, var(--info)); padding: 2px 7px; border-radius: 9999px; }
 .wi-pri-txt { font-size: 10.5px; font-weight: 600; color: var(--wi-pri, var(--muted)); }
 .wi-assigned { font-size: 10.5px; font-weight: 600; color: var(--info); background: var(--canvas); border-radius: 6px; padding: 2px 7px; margin-bottom: 8px; display: inline-block; }
+.wi-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.wi-label { font-size: 9.5px; font-weight: 600; color: #fff; padding: 1px 7px; border-radius: 9999px; letter-spacing: .2px; }
 .wi-title { font-size: 13.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin-bottom: 10px; }
 .wi-foot { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--muted); gap: 8px; }
 .wi-meta { display: flex; align-items: center; gap: 10px; }
+.wi-due--over { color: var(--error); font-weight: 600; }
 .wi-comment-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
 .wi-est { font-family: var(--font-mono); }
 .wi-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted-soft); line-height: 1.5; }
