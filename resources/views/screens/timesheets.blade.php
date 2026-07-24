@@ -74,7 +74,7 @@
 @endif
 
 {{-- ===================== CAPTURE (per-day cards) ===================== --}}
-    <div class="uj-card" style="width:100%;padding:22px;"
+    <div class="uj-card" style="width:100%;padding:22px;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
             days: 5,
@@ -90,31 +90,40 @@
             weekLabel: @js($weekLabel ?? null),
          })">
 
-        {{-- Week picker (GET — reloads the card for the chosen week) --}}
-        <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;">
-            <div>
-                <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Week starting (Mon)' : 'Minggu bermula (Isnin)'">Week starting (Mon)</span></label>
-                <input type="date" name="week" value="{{ $weekStart }}" onchange="this.form.submit()" style="height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
+        {{-- ---- Today header: the date opens the jump sheet; total + progress on the right ---- --}}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0;">
+                <span x-show="selected === today" x-cloak style="font-size:11px;font-weight:600;color:var(--red);background:var(--red-tint);padding:3px 10px;border-radius:999px;margin-bottom:9px;"><span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span></span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button type="button" @click="stepDay(-1)" :disabled="dayDates().indexOf(selected) <= 0"
+                        :style="dayDates().indexOf(selected) <= 0 ? { opacity:.3, cursor:'not-allowed' } : {}"
+                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;"
+                        :aria-label="$store.ui.lang==='en' ? 'Previous day' : 'Hari sebelumnya'">&larr;</button>
+                    <button type="button" @click="sheetOpen = true" style="display:inline-flex;align-items:center;gap:7px;border:0;background:none;padding:0;cursor:pointer;color:var(--ink);text-align:left;">
+                        <strong style="font-size:20px;font-weight:600;" x-text="dayLong(selected)"></strong>
+                        <span style="font-size:15px;color:var(--muted);">&#9662;</span>
+                    </button>
+                    <button type="button" @click="stepDay(1)" :disabled="dayDates().indexOf(selected) >= lastSelectableIndex()"
+                        :style="dayDates().indexOf(selected) >= lastSelectableIndex() ? { opacity:.3, cursor:'not-allowed' } : {}"
+                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;"
+                        :aria-label="$store.ui.lang==='en' ? 'Next day' : 'Hari seterusnya'">&rarr;</button>
+                </div>
+                <div style="font-size:12px;color:var(--muted-soft);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
             </div>
-            <div style="flex:1;"></div>
-            <button type="button" @click="days = (days === 5 ? 7 : 5)" class="uj-btn-ghost" style="height:36px;padding:0 13px;font-size:12px;"><span x-text="days === 5 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span></button>
-        </form>
-        @include('partials.hint', ['en' => 'Pick any Monday to load or build that week. Each day must total 100% before the week can be submitted.', 'ms' => 'Pilih mana-mana Isnin untuk memuatkan atau membina minggu itu. Setiap hari mesti berjumlah 100% sebelum minggu boleh dihantar.'])
+            <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;"
+                :style="{ color: { empty:'var(--muted)', partial:'var(--amber)', done:'var(--success)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }">
+                <span x-text="dayTotal(selected)"></span><span style="color:var(--muted-soft);"> / 100</span>
+            </span>
+        </div>
 
-        {{-- ---- Week header: prev/next nav, date range, status chip ---- --}}
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;">
-            @if ($prevWeekDisabled)
-                <span aria-disabled="true" style="height:32px;width:32px;border-radius:8px;border:1px solid var(--hairline);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);opacity:.4;cursor:not-allowed;">&larr;</span>
-            @else
-                <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $prevWeekStart]) }}" class="uj-btn-ghost" style="height:32px;width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;">&larr;</a>
-            @endif
-
-            <div style="text-align:center;">
-                <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }}</div>
-                <span style="display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;background:var(--canvas);color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span>
-            </div>
-
-            <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $nextWeekStart]) }}" class="uj-btn-ghost" style="height:32px;width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;">&rarr;</a>
+        <div style="height:7px;background:var(--hairline-soft);border-radius:999px;overflow:hidden;margin:14px 0 4px;">
+            <div style="height:100%;transition:width .15s;"
+                :style="{
+                    width: Math.min(100, dayTotal(selected)) + '%',
+                    background: dayState(selected) === 'done' ? 'var(--success)'
+                              : dayState(selected) === 'over' ? 'var(--error)'
+                              : dayState(selected) === 'locked' ? 'var(--muted)' : 'var(--amber)',
+                }"></div>
         </div>
 
         @if ($weekLocked)
@@ -133,49 +142,8 @@
             </div>
         @endif
 
-        {{-- ---- Week strip: navigation + progress, one bar per day ---- --}}
-        <div style="display:flex;gap:6px;margin:14px 0 16px;">
-            <template x-for="d in dayDates()" :key="d">
-                <button type="button" @click="select(d)" :disabled="isFuture(d)"
-                    style="flex:1;background:none;border:0;padding:0;cursor:pointer;text-align:center;"
-                    :style="isFuture(d) ? { cursor:'not-allowed', opacity:.45 } : {}">
-                    <div style="height:6px;border-radius:3px;margin-bottom:5px;"
-                        :style="{ background: {
-                            empty:   'var(--hairline)',
-                            partial: 'var(--amber)',
-                            done:    'var(--success)',
-                            over:    'var(--error)',
-                            locked:  'var(--muted)',
-                            future:  'var(--hairline-soft)',
-                        }[dayState(d)] }"></div>
-                    <div style="font-size:11px;"
-                        :style="d === selected ? { color:'var(--ink)', fontWeight:600 } : { color:'var(--muted)' }">
-                        <span x-show="isFullyLocked(d)" x-cloak>&#128274;</span>
-                        <span x-show="isPartlyLocked(d)" x-cloak>&#189;</span>
-                        <span x-text="dayName(d)"></span>
-                    </div>
-                </button>
-            </template>
-        </div>
-
-        {{-- ---- Day card: the one editable (or locked) day ---- --}}
-        <div style="border:1px solid var(--hairline);border-radius:12px;padding:16px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                <strong style="font-size:14px;" x-text="dayLong(selected)"></strong>
-                <span style="font-size:12.5px;font-family:var(--font-mono);"
-                    :style="dayState(selected) === 'over' ? { color:'var(--error)' } : { color:'var(--muted)' }"
-                    x-text="dayTotal(selected) + ' / 100'"></span>
-            </div>
-
-            <div style="height:6px;background:var(--hairline-soft);border-radius:3px;overflow:hidden;margin-bottom:14px;">
-                <div style="height:100%;transition:width .15s;"
-                    :style="{
-                        width: Math.min(100, dayTotal(selected)) + '%',
-                        background: dayState(selected) === 'done' ? 'var(--success)'
-                                  : dayState(selected) === 'over' ? 'var(--error)'
-                                  : dayState(selected) === 'locked' ? 'var(--muted)' : 'var(--amber)',
-                    }"></div>
-            </div>
+        {{-- ---- Day: locked banners + editable rows (date/total/bar hoisted into the header above) ---- --}}
+        <div style="border:1px solid var(--hairline);border-radius:12px;padding:16px;margin-top:16px;">
 
             {{-- Fully locked: an approved whole-day leave or public holiday. Read-only. --}}
             <template x-if="isFullyLocked(selected)">
@@ -207,7 +175,22 @@
                 </div>
             </template>
 
-            <template x-if="!isFullyLocked(selected)">
+            {{-- Future day: reachable for viewing (a shown weekend, or arrowing forward) but
+                 not yet fillable — the server rejects entries for days that haven't happened. --}}
+            <template x-if="isFuture(selected) && !isOffDay(selected)">
+                <div style="padding:12px;border-radius:8px;background:var(--canvas);font-size:12px;color:var(--muted);">
+                    <span x-text="$store.ui.lang==='en' ? 'This day hasn\'t happened yet — you can fill it in on the day or after.' : 'Hari ini belum berlaku — anda boleh mengisinya pada hari itu atau selepasnya.'"></span>
+                </div>
+            </template>
+
+            {{-- Sunday rest day (Unijaya six-day week): not a recordable work day. --}}
+            <template x-if="isOffDay(selected)">
+                <div style="padding:12px;border-radius:8px;background:var(--canvas);font-size:12px;color:var(--muted);">
+                    <span x-text="$store.ui.lang==='en' ? 'Sunday is a rest day — nothing to record.' : 'Ahad ialah hari rehat — tiada apa untuk direkod.'"></span>
+                </div>
+            </template>
+
+            <template x-if="!isFullyLocked(selected) && !isFuture(selected) && !isOffDay(selected)">
                 <div>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
                         <div style="padding:8px 0;border-top:1px solid var(--hairline-soft);">
@@ -427,6 +410,40 @@
             </div>
         </div>
 
+        {{-- ---- Week at a glance: dots + weekend toggle. Day-to-day nav lives in the date sheet. ---- --}}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
+            <div style="display:flex;gap:14px;align-items:flex-end;">
+                <template x-for="d in dayDates()" :key="d">
+                    <button type="button" @click="select(d)" :disabled="isOffDay(d)"
+                        style="background:none;border:0;padding:0;text-align:center;min-width:20px;"
+                        :style="isOffDay(d) ? { cursor:'default', opacity:.3 } : (isFuture(d) ? { cursor:'pointer', opacity:.5 } : { cursor:'pointer' })">
+                        <div style="height:14px;display:flex;align-items:center;justify-content:center;">
+                            <template x-if="isFullyLocked(d)"><span style="font-size:12px;color:var(--muted);">&#128274;</span></template>
+                            <template x-if="!isFullyLocked(d)">
+                                <span :style="{
+                                    width: d === selected ? '13px' : '11px', height: d === selected ? '13px' : '11px',
+                                    borderRadius:'50%', display:'inline-block',
+                                    background: { empty:'var(--hairline)', partial:'var(--amber)', done:'var(--success)', over:'var(--error)', locked:'var(--muted)', future:'var(--hairline-soft)' }[dayState(d)],
+                                    boxShadow: d === selected ? '0 0 0 3px var(--red-tint)' : 'none',
+                                }"></span>
+                            </template>
+                        </div>
+                        <div style="font-size:11px;margin-top:5px;" :style="d === selected ? { color:'var(--ink)', fontWeight:600 } : { color:'var(--muted)' }">
+                            <span x-show="isPartlyLocked(d)" x-cloak style="font-size:9px;">&#189;</span><span x-text="dayName(d)"></span>
+                        </div>
+                    </button>
+                </template>
+            </div>
+            <button type="button" @click="days = (days === 5 ? 7 : 5)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
+                <span x-text="days === 5 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
+            </button>
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;margin-top:11px;font-size:11px;color:var(--muted);flex-wrap:wrap;">
+            <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--success);"></span> <span x-text="$store.ui.lang==='en' ? '100% done' : '100% siap'">100% done</span></span>
+            <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);"></span> <span x-text="$store.ui.lang==='en' ? 'in progress' : 'sedang jalan'">in progress</span></span>
+            <span>&#128274; <span x-text="$store.ui.lang==='en' ? 'on leave / holiday' : 'cuti / kelepasan'">on leave / holiday</span></span>
+        </div>
+
         {{-- ---- Footer: save / submit ---- --}}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
             <div style="font-size:12px;flex:1;min-width:200px;">
@@ -441,6 +458,53 @@
             </div>
         </div>
         <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
+
+        {{-- ---- Date sheet: jump to any day in the week, or to another week ---- --}}
+        <div x-show="sheetOpen" x-cloak @click.self="sheetOpen = false"
+             style="position:absolute;inset:0;z-index:60;background:transparent;display:flex;align-items:center;justify-content:center;padding:16px;">
+            <div style="background:#fff;border:1px solid var(--hairline);border-radius:14px;width:100%;max-width:420px;padding:18px;box-shadow:0 14px 40px rgba(0,0,0,.18);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                    <strong style="font-size:14px;"><span x-text="$store.ui.lang==='en' ? 'Go to a day' : 'Pergi ke hari'">Go to a day</span></strong>
+                    <button type="button" @click="sheetOpen = false" class="uj-btn-ghost" style="height:28px;width:28px;padding:0;font-size:15px;" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">&times;</button>
+                </div>
+
+                <div style="display:flex;gap:7px;flex-wrap:wrap;">
+                    <template x-for="d in dayDates()" :key="d">
+                        <button type="button" @click="if (! isOffDay(d)) { select(d); sheetOpen = false; }" :disabled="isOffDay(d)"
+                            style="flex:1;min-width:52px;border-radius:9px;padding:8px 4px;text-align:center;background:#fff;"
+                            :style="{
+                                border: d === selected ? '2px solid var(--red)' : '1px solid var(--hairline)',
+                                color: d === selected ? 'var(--red)' : (isOffDay(d) ? 'var(--muted-soft)' : (isFuture(d) ? 'var(--muted)' : 'var(--ink)')),
+                                cursor: isOffDay(d) ? 'default' : 'pointer',
+                                opacity: isOffDay(d) ? .4 : (isFuture(d) ? .7 : 1),
+                            }">
+                            <div style="font-size:11px;color:var(--muted);" x-text="dayName(d)"></div>
+                            <template x-if="isFullyLocked(d)"><span style="font-size:12px;">&#128274;</span></template>
+                            <template x-if="!isFullyLocked(d)"><span style="font-size:13px;font-family:var(--font-mono);" x-text="Number(d.slice(8, 10))"></span></template>
+                        </button>
+                    </template>
+                </div>
+
+                <div style="border-top:1px solid var(--hairline);margin:16px 0 12px;"></div>
+
+                <div style="font-size:12px;color:var(--muted);margin-bottom:8px;"><span x-text="$store.ui.lang==='en' ? 'Or jump to a whole week' : 'Atau lompat ke satu minggu'">Or jump to a whole week</span></div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    @if ($prevWeekDisabled)
+                        <span aria-disabled="true" class="uj-btn-ghost" style="height:38px;width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;opacity:.4;cursor:not-allowed;">&larr;</span>
+                    @else
+                        <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $prevWeekStart]) }}" class="uj-btn-ghost" style="height:38px;width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;">&larr;</a>
+                    @endif
+                    <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="flex:1;">
+                        <input type="date" name="week" value="{{ $weekStart }}" onchange="this.form.submit()" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:9px;font-size:13px;outline:none;" />
+                    </form>
+                    <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $nextWeekStart]) }}" class="uj-btn-ghost" style="height:38px;width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;">&rarr;</a>
+                </div>
+
+                <div style="margin-top:14px;font-size:11.5px;color:var(--muted-soft);line-height:1.5;">
+                    <span x-text="$store.ui.lang==='en' ? 'Locked days (on leave, public holiday) are filled in for you and can\'t be edited.' : 'Hari dikunci (cuti, hari kelepasan) sudah diisi untuk anda dan tidak boleh disunting.'"></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ===================== REFERENCE PANELS (tabbed): My timesheets · My time spent ===================== --}}

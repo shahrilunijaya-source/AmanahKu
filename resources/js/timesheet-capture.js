@@ -28,6 +28,7 @@ export function registerTimesheetCapture(Alpine) {
         readonly: cfg.readonly || false,
         rows: {},
         selected: null,
+        sheetOpen: false,
         saving: false,
         savePromise: null,
         savedAt: null,
@@ -59,7 +60,13 @@ export function registerTimesheetCapture(Alpine) {
                     percentage: e.percentage,
                 }));
             }
-            this.selected = this.firstDayNeedingWork();
+            // Land on today when it falls in the visible week, so the screen opens focused
+            // on the day the user is most likely filling. Fall back to the first day still
+            // needing work when today is out of range (viewing a past/future week, or today
+            // is a hidden weekend day).
+            this.selected = (this.dayDates().includes(this.today) && !this.isOffDay(this.today))
+                ? this.today
+                : this.firstDayNeedingWork();
         },
 
         // ---- the week ------------------------------------------------------
@@ -102,9 +109,24 @@ export function registerTimesheetCapture(Alpine) {
         isFuture(iso) {
             return iso > this.today;
         },
+        // Unijaya works a six-day week: Sunday is the weekly rest day and is never a
+        // recordable work day. Saturday IS a work day (the first Saturday of the month is a
+        // half day, which the server applies), so only Sunday is gated here.
+        isOffDay(iso) {
+            return new Date(iso + 'T00:00:00Z').getUTCDay() === 0;
+        },
+        // Index of the last selectable day in the visible week (skips the Sunday rest day),
+        // so the forward day-arrow knows where to stop.
+        lastSelectableIndex() {
+            const ds = this.dayDates();
+            for (let i = ds.length - 1; i >= 0; i--) if (!this.isOffDay(ds[i])) return i;
+            return ds.length - 1;
+        },
         isEditable(iso) {
-            // A partly locked (half-day) day is editable for the unlocked half.
-            return !this.readonly && !this.isFullyLocked(iso) && !this.isFuture(iso) && iso >= this.earliestWeek;
+            // A partly locked (half-day) day is editable for the unlocked half. The Sunday
+            // rest day is never editable.
+            return !this.readonly && !this.isFullyLocked(iso) && !this.isFuture(iso)
+                && !this.isOffDay(iso) && iso >= this.earliestWeek;
         },
         dayTotal(iso) {
             if (this.isFullyLocked(iso)) return 100;
@@ -123,10 +145,23 @@ export function registerTimesheetCapture(Alpine) {
             const days = this.dayDates().filter((d) => this.isEditable(d));
             return days.find((d) => this.dayState(d) !== 'done') || days[days.length - 1] || this.weekStart;
         },
+        // Navigating to a future day is allowed for viewing — the arrows and the shown
+        // weekend can reach a day that hasn't happened yet. Editing stays gated by
+        // isEditable(), and flatRows() never submits a non-editable day, so a future day is
+        // view-only and can never poison a save.
         select(iso) {
-            if (this.isFuture(iso)) return;
+            // The Sunday rest day is never selectable.
+            if (this.isOffDay(iso)) return;
             this.save();
             this.selected = iso;
+        },
+        // Step the selected day one back/forward within the visible week, skipping the
+        // Sunday rest day so an arrow never lands on an ungated day.
+        stepDay(delta) {
+            const ds = this.dayDates();
+            let j = ds.indexOf(this.selected) + delta;
+            while (j >= 0 && j < ds.length && this.isOffDay(ds[j])) j += delta;
+            if (j >= 0 && j < ds.length) this.select(ds[j]);
         },
 
         // ---- rows ----------------------------------------------------------
