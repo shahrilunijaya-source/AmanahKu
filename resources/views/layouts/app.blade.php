@@ -38,6 +38,7 @@
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
         @unless ($embed)
         @include('partials.header')
+        @include('partials.ios-install')
 
         {{-- Subheader: breadcrumb + title + persona toggle --}}
         <div class="uj-subhead" style="flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);padding:16px 28px 18px;">
