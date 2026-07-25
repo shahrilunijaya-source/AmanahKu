@@ -54,6 +54,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // the resignation. Idempotent, so a missed/duplicate run is safe.
         $schedule->command('staff:archive-departed')->dailyAt('00:30')
             ->withoutOverlapping()->onFailure($onFailure('staff:archive-departed'));
+        // Clock nudges: every 15 minutes across the working day. Each bell carries a
+        // per-day dedupe key, so the short cadence costs at most one notification per
+        // staffer per type per day regardless of how many ticks fire.
+        $schedule->command('attendance:remind')->everyFifteenMinutes()->between('6:00', '22:00')
+            ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         // Behind a TLS-terminating proxy (Nginx/ALB) the app only sees HTTP unless it
