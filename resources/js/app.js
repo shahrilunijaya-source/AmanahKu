@@ -3,6 +3,7 @@ import Sortable from 'sortablejs';
 import './passkeys';
 import { registerFeedbackAttach } from './feedback-attach';
 import { registerMapPicker } from './map-picker';
+import { registerNotifier } from './notifier';
 import { registerOrgChart } from './org-chart';
 import { registerRolesAdmin } from './roles-admin';
 import { registerServiceWorker } from './pwa';
@@ -18,6 +19,7 @@ window.Sortable = Sortable;
 // itself on first use instead of taxing every page's bundle.
 registerFeedbackAttach(Alpine);
 registerMapPicker(Alpine);
+registerNotifier(Alpine);
 registerOrgChart(Alpine);
 registerRolesAdmin(Alpine);
 registerTimesheetCapture(Alpine);
