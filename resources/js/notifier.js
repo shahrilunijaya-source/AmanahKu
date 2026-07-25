@@ -77,7 +77,12 @@ export function registerNotifier(Alpine) {
             }
 
             const firstRun = cursor === null;
-            localStorage.setItem(CURSOR_KEY, String(payload.latestId));
+            // Notification ids are global across tenants, but latestId is scoped to the
+            // current tenant. Writing it verbatim would rewind the cursor on a workspace
+            // switch and replay alerts already seen in the other tenant. Monotonic keeps
+            // genuinely new notifications working (their id is always above the high-water
+            // mark) while never moving the cursor backwards.
+            localStorage.setItem(CURSOR_KEY, String(Math.max(Number(cursor ?? 0), payload.latestId)));
 
             // A first run only records the starting point. Without this, a returning user
             // is hit with a burst of alerts for bells they already know about.
@@ -87,11 +92,13 @@ export function registerNotifier(Alpine) {
 
             try {
                 // permission is only a snapshot from init()/enable(); a user can revoke it in
-                // site settings mid-session, and showNotification() then throws on every tick.
+                // site settings mid-session, and showNotification() then rejects on every tick.
+                // It must be awaited for the catch below to see that rejection at all, since an
+                // un-awaited call's rejection escapes as an unhandled promise rejection instead.
                 // A missed reminder is not worth spamming the console once a minute, so fail quiet.
                 const registration = await navigator.serviceWorker.ready;
                 for (const notification of payload.notifications) {
-                    registration.showNotification(notification.title, {
+                    await registration.showNotification(notification.title, {
                         body: notification.body ?? '',
                         icon: '/icons/icon-192.png',
                         badge: '/icons/icon-192.png',

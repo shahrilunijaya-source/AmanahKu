@@ -89,4 +89,24 @@ class UnseenNotificationsTest extends TestCase
     {
         $this->getJson(route('notifications.unseen'))->assertUnauthorized();
     }
+
+    /**
+     * Guards the limit(5) cap: a long-idle tab with a backlog of unread bells must only
+     * ever surface the 5 newest, never the full backlog in one burst.
+     */
+    public function test_caps_results_at_five_and_excludes_the_oldest(): void
+    {
+        $notifications = collect(range(1, 6))
+            ->map(fn (int $i) => AppNotification::create(['user_id' => $this->user->id, 'title' => "Bell {$i}"]));
+
+        $oldest = $notifications->first();
+
+        $response = $this->actingAs($this->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->getJson(route('notifications.unseen'));
+
+        $response->assertOk()->assertJsonCount(5, 'notifications');
+
+        $returnedIds = collect($response->json('notifications'))->pluck('id');
+        $this->assertFalse($returnedIds->contains($oldest->id));
+    }
 }

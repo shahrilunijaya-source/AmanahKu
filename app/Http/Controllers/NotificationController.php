@@ -37,14 +37,20 @@ class NotificationController extends Controller
         $base = fn () => AppNotification::where('user_id', $userId)
             ->where('tenant_id', $tenantId);   // explicit, not just the global scope
 
+        // Compute the ceiling before the rows query. Otherwise a row inserted in the gap
+        // between the two queries would be counted in latestId (advancing the client's
+        // cursor past it) but never appear in the rows, and would be lost for good.
+        $max = (int) ($base()->max('id') ?? 0);
+
         return response()->json([
             'notifications' => $base()
                 ->whereNull('read_at')
                 ->where('id', '>', $since)
+                ->where('id', '<=', $max)
                 ->orderByDesc('id')
                 ->limit(5)
                 ->get(['id', 'title', 'body', 'url']),
-            'latestId' => (int) ($base()->max('id') ?? 0),
+            'latestId' => $max,
         ]);
     }
 }
