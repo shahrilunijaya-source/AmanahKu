@@ -43,7 +43,7 @@
 
 {{-- Result card — shows once the test has been scored --}}
 @if ($archetype && $result?->animal_archetype)
-    <div class="uj-card" style="padding:22px 24px;margin-bottom:16px;border-left:3px solid {{ $archetype['accent'] }};background:linear-gradient(0deg,var(--canvas),#fff);">
+    <div class="uj-card" style="padding:22px 24px;margin-bottom:16px;background:linear-gradient(0deg,var(--canvas),#fff);">
         <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
             <div style="width:60px;height:60px;border-radius:14px;background:{{ $archetype['accent'] }};display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;">{{ $animalEmoji[$result->animal_archetype] ?? '•' }}</div>
             <div style="flex:1;min-width:200px;">

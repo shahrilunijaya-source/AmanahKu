@@ -26,7 +26,7 @@
 @if (! empty($setupProgress) && ! $setupProgress['complete'])
     {{-- Company setup progress — only for admins until the wizard is finished. --}}
     <a href="{{ route('app.screen', 'setup') }}" style="text-decoration:none;display:block;margin-bottom:16px;">
-        <div class="uj-card" style="padding:18px 22px;display:flex;align-items:center;gap:18px;border-left:3px solid var(--red);">
+        <div class="uj-card" style="padding:18px 22px;display:flex;align-items:center;gap:18px;">
             <div style="width:46px;height:46px;border-radius:11px;background:var(--red-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
             </div>
@@ -37,7 +37,10 @@
                     <div style="height:100%;width:{{ $setupProgress['pct'] }}%;background:var(--red);border-radius:9999px;"></div>
                 </div>
             </div>
-            <div style="font-size:22px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $setupProgress['pct'] }}%</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+                <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Unfinished' : 'Belum selesai'">Unfinished</span>
+                <div style="font-size:22px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $setupProgress['pct'] }}%</div>
+            </div>
         </div>
     </a>
 @endif
@@ -45,7 +48,7 @@
 @if (! empty($stuckRequests) && $stuckRequests->count())
     {{-- Requests from staff with no reporting-line superior land in nobody's queue (AK-PROC-04).
          HR/management only — assign a superior in the org chart to route them. --}}
-    <div class="uj-card" style="padding:18px 22px;margin-bottom:16px;border-left:3px solid var(--amber);">
+    <div class="uj-card" style="padding:18px 22px;margin-bottom:16px;">
         <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;">
             <div style="width:40px;height:40px;border-radius:11px;background:rgba(214,158,46,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
@@ -54,6 +57,7 @@
                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Requests stuck with no approver' : 'Permohonan tersekat tanpa pelulus'">Requests stuck with no approver</span> ({{ $stuckRequests->count() }})</div>
                 <div style="font-size:12.5px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'These people have no reporting-line superior, so their submitted requests reach nobody. Assign a superior in the org chart to route them (or reject on the request screen).' : 'Orang ini tiada penyelia dalam carta organisasi, jadi permohonan mereka tidak sampai kepada sesiapa. Tetapkan penyelia dalam carta organisasi untuk menghalakannya (atau tolak di skrin permohonan).'">These people have no reporting-line superior, so their submitted requests reach nobody.</span></div>
             </div>
+            <span class="uj-stamp" data-tone="amber" x-text="$store.ui.lang==='en' ? 'Going nowhere' : 'Tersekat'">Going nowhere</span>
         </div>
         <div style="display:flex;flex-direction:column;">
             @foreach ($stuckRequests->take(6) as $sr)

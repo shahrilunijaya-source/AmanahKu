@@ -133,7 +133,7 @@
                 @else
                     <div style="display:flex;flex-direction:column;gap:6px;">
                         @foreach ($slots as $b)
-                            <div style="display:flex;align-items:center;gap:12px;border:1px solid var(--hairline);border-left:3px solid var(--success);border-radius:7px;padding:7px 11px;font-size:12.5px;">
+                            <div class="uj-chip-tone" data-tone="success" style="display:flex;align-items:center;gap:12px;padding:7px 11px;font-size:12.5px;">
                                 <span style="font-weight:600;color:var(--ink);min-width:200px;">{{ $fmtWin($b) }}</span>
                                 <span style="color:var(--body);flex:1;">{{ $b->purpose }}{{ $b->destination ? ' → '.$b->destination : '' }}</span>
                                 <span style="color:var(--muted);">{{ $b->employee?->name ?? '—' }}</span>

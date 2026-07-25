@@ -82,19 +82,15 @@ body {
     gap: 11px;
     min-width: 258px;
     max-width: 400px;
-    padding: 12px 12px 12px 15px;
+    padding: 12px;
     background: var(--card);
     border: 1px solid var(--hairline);
-    border-left: 3px solid var(--muted);
     border-radius: 12px;
     box-shadow: 0 12px 34px rgba(38, 37, 30, .15), 0 2px 6px rgba(38, 37, 30, .06);
     overflow: hidden;
     animation: uj-toast-in .24s cubic-bezier(.21, 1.02, .73, 1);
 }
 .uj-toast--leaving { animation: uj-toast-out .2s ease forwards; pointer-events: none; }
-.uj-toast[data-type="success"] { border-left-color: var(--success); }
-.uj-toast[data-type="error"]   { border-left-color: var(--error); }
-.uj-toast[data-type="info"]    { border-left-color: var(--info); }
 
 .uj-toast-icon {
     flex-shrink: 0;
@@ -202,6 +198,32 @@ body {
 .uj-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
 .uj-link { font-size: 12.5px; color: var(--red); }
 .uj-pill { padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+
+/* ── Stamp: the status marker on banner cards. Replaces the old 3px left stripe —
+   a stamped word says what the colour used to only imply. Tone is set with
+   data-tone; the default (no attribute) is the neutral/archived grey. ── */
+.uj-stamp {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+    white-space: nowrap;
+    background: var(--hairline-soft); color: var(--muted);
+}
+.uj-stamp[data-tone="red"]     { background: var(--red-tint); color: var(--red-active); }
+.uj-stamp[data-tone="amber"]   { background: color-mix(in srgb, var(--amber) 13%, #fff); color: #7a5210; }
+.uj-stamp[data-tone="success"] { background: color-mix(in srgb, var(--success) 13%, #fff); color: #14614a; }
+.uj-stamp[data-tone="error"]   { background: var(--red-tint); color: var(--error); }
+
+/* x-show wipes the inline display property when it reveals an element, so any row layout
+   on an x-show element must live in a class or it collapses back to block. */
+.uj-banner-row { display: flex; align-items: center; gap: 11px; }
+
+/* Booking / shift chips are too small for a stamp, so the tone fills the chip instead. */
+.uj-chip-tone { border: 1px solid var(--hairline); border-radius: 7px; }
+.uj-chip-tone[data-tone="success"]   { background: color-mix(in srgb, var(--success) 7%, #fff); border-color: color-mix(in srgb, var(--success) 22%, var(--hairline)); }
+.uj-chip-tone[data-tone="info"]      { background: color-mix(in srgb, var(--info) 7%, #fff);    border-color: color-mix(in srgb, var(--info) 22%, var(--hairline)); }
+.uj-chip-tone[data-tone="amber"]     { background: color-mix(in srgb, var(--amber) 8%, #fff);   border-color: color-mix(in srgb, var(--amber) 26%, var(--hairline)); }
+.uj-chip-tone[data-tone="muted"]     { background: var(--hairline-soft); }
 .uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
 .uj-progress > span { display: block; height: 100%; background: var(--success); }
 

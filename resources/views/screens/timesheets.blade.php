@@ -68,7 +68,8 @@
 ])
 
 @if (($positionMissing ?? false))
-    <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;border-left:3px solid var(--amber);font-size:12.5px;color:var(--ink);">
+    <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;display:flex;align-items:flex-start;gap:11px;font-size:12.5px;color:var(--ink);line-height:1.5;">
+        <span class="uj-stamp" data-tone="amber" style="margin-top:1px;" x-text="$store.ui.lang==='en' ? 'Needs setup' : 'Perlu tetapan'">Needs setup</span>
         <span x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'">You have no position band assigned, so your timesheet cost can't be computed.</span>
     </div>
 @endif
