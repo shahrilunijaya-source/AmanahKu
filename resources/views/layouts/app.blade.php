@@ -28,7 +28,7 @@
         <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
     @endunless
 
-    <div style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
+    <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
         @unless ($embed)
         @include('partials.header')
 
