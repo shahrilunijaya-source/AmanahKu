@@ -28,4 +28,19 @@ class NotifierMarkupTest extends TestCase
         $this->assertStringContainsString("import { registerNotifier } from './notifier'", $appJs);
         $this->assertStringContainsString('registerNotifier(Alpine)', $appJs);
     }
+
+    /**
+     * The Blade half of the contract (asserted above) binds to specific names inside
+     * notifier.js. Neither test alone catches a rename: this one pins the JS side, so
+     * renaming the registration key, the canAsk getter, or enable() fails a test instead
+     * of silently breaking every alert with no console error.
+     */
+    public function test_notifier_module_exposes_the_hooks_the_bell_binds_to(): void
+    {
+        $notifierJs = (string) file_get_contents(resource_path('js/notifier.js'));
+
+        $this->assertStringContainsString("Alpine.data('notifier'", $notifierJs);
+        $this->assertStringContainsString('canAsk', $notifierJs);
+        $this->assertStringContainsString('enable()', $notifierJs);
+    }
 }
