@@ -5,6 +5,7 @@ import { registerFeedbackAttach } from './feedback-attach';
 import { registerMapPicker } from './map-picker';
 import { registerOrgChart } from './org-chart';
 import { registerRolesAdmin } from './roles-admin';
+import { registerServiceWorker } from './pwa';
 import { registerTimesheetCapture } from './timesheet-capture';
 import { registerToast } from './toast';
 import { registerWorkBoard } from './work-board';
@@ -22,5 +23,6 @@ registerRolesAdmin(Alpine);
 registerTimesheetCapture(Alpine);
 registerToast(Alpine);
 registerWorkBoard(Alpine);
+registerServiceWorker();
 
 Alpine.start();
