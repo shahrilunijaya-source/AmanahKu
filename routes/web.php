@@ -243,6 +243,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
         Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::get('/app/notifications/unseen', [NotificationController::class, 'unseen'])->name('notifications.unseen');
         // Roster (shift scheduling)
         Route::post('/app/roster', [RosterController::class, 'store'])->name('roster.store');
         Route::post('/app/roster/{shift}/cancel', [RosterController::class, 'cancel'])->name('roster.cancel');
