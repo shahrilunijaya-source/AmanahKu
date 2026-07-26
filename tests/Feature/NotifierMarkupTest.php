@@ -12,13 +12,13 @@ use Tests\TestCase;
  */
 class NotifierMarkupTest extends TestCase
 {
-    public function test_bell_mounts_the_notifier_component(): void
+    public function test_bell_binds_to_the_shared_alerts_store(): void
     {
         $header = (string) file_get_contents(resource_path('views/partials/header.blade.php'));
 
-        $this->assertStringContainsString('x-data="notifier"', $header);
-        $this->assertStringContainsString('x-show="canAsk"', $header);
-        $this->assertStringContainsString('@click="enable()"', $header);
+        $this->assertStringContainsString('x-data="{ notif: false }"', $header);
+        $this->assertStringContainsString('x-show="$store.alerts.canAsk"', $header);
+        $this->assertStringContainsString('@click="$store.alerts.enable()"', $header);
     }
 
     public function test_notifier_module_is_registered_in_the_bundle(): void
@@ -32,14 +32,16 @@ class NotifierMarkupTest extends TestCase
     /**
      * The Blade half of the contract (asserted above) binds to specific names inside
      * notifier.js. Neither test alone catches a rename: this one pins the JS side, so
-     * renaming the registration key, the canAsk getter, or enable() fails a test instead
-     * of silently breaking every alert with no console error.
+     * renaming the store, the canAsk getter, or enable() fails a test instead of silently
+     * breaking every alert with no console error. The store must be a singleton — the
+     * bell and the banner both bind to it — rather than an Alpine.data() component, which
+     * would spin up one independent instance (and one setInterval poll) per element.
      */
-    public function test_notifier_module_exposes_the_hooks_the_bell_binds_to(): void
+    public function test_notifier_module_exposes_the_hooks_the_bell_and_banner_bind_to(): void
     {
         $notifierJs = (string) file_get_contents(resource_path('js/notifier.js'));
 
-        $this->assertStringContainsString("Alpine.data('notifier'", $notifierJs);
+        $this->assertStringContainsString("Alpine.store('alerts'", $notifierJs);
         $this->assertStringContainsString('canAsk', $notifierJs);
         $this->assertStringContainsString('enable()', $notifierJs);
     }
