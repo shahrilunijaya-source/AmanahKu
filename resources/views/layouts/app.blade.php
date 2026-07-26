@@ -6,6 +6,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Amanahku' }} · Amanahku</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Installable web app. On iOS this is the only route to notifications at all:
+         Safari shows them just for a web app added to the Home Screen. --}}
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#d6232b">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Amanahku">
     {{-- Reveals the mobile-only camera-capture trigger in the messages composer (side panel is
          global, so this lives in the layout rather than a single screen). --}}
     <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
@@ -31,6 +38,7 @@
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
         @unless ($embed)
         @include('partials.header')
+        @include('partials.ios-install')
 
         {{-- Subheader: breadcrumb + title + persona toggle --}}
         <div class="uj-subhead" style="flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);padding:16px 28px 18px;">
