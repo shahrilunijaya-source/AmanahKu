@@ -13,8 +13,7 @@ const CURSOR_KEY = 'amanahku:lastNotificationId';
  * platform.
  */
 export function registerNotifier(Alpine) {
-    Alpine.data('notifier', () => ({
-        notif: false,
+    Alpine.store('alerts', {
         permission: 'Notification' in window ? Notification.permission : 'unsupported',
         timer: null,
 
@@ -110,5 +109,5 @@ export function registerNotifier(Alpine) {
                 return;
             }
         },
-    }));
+    });
 }

@@ -39,6 +39,7 @@
         @unless ($embed)
         @include('partials.header')
         @include('partials.ios-install')
+        @include('partials.enable-alerts')
 
         {{-- Subheader: breadcrumb + title + persona toggle --}}
         <div class="uj-subhead" style="flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);padding:16px 28px 18px;">
