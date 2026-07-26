@@ -82,19 +82,15 @@ body {
     gap: 11px;
     min-width: 258px;
     max-width: 400px;
-    padding: 12px 12px 12px 15px;
+    padding: 12px;
     background: var(--card);
     border: 1px solid var(--hairline);
-    border-left: 3px solid var(--muted);
     border-radius: 12px;
     box-shadow: 0 12px 34px rgba(38, 37, 30, .15), 0 2px 6px rgba(38, 37, 30, .06);
     overflow: hidden;
     animation: uj-toast-in .24s cubic-bezier(.21, 1.02, .73, 1);
 }
 .uj-toast--leaving { animation: uj-toast-out .2s ease forwards; pointer-events: none; }
-.uj-toast[data-type="success"] { border-left-color: var(--success); }
-.uj-toast[data-type="error"]   { border-left-color: var(--error); }
-.uj-toast[data-type="info"]    { border-left-color: var(--info); }
 
 .uj-toast-icon {
     flex-shrink: 0;
@@ -202,6 +198,32 @@ body {
 .uj-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
 .uj-link { font-size: 12.5px; color: var(--red); }
 .uj-pill { padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+
+/* ── Stamp: the status marker on banner cards. Replaces the old 3px left stripe —
+   a stamped word says what the colour used to only imply. Tone is set with
+   data-tone; the default (no attribute) is the neutral/archived grey. ── */
+.uj-stamp {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+    white-space: nowrap;
+    background: var(--hairline-soft); color: var(--muted);
+}
+.uj-stamp[data-tone="red"]     { background: var(--red-tint); color: var(--red-active); }
+.uj-stamp[data-tone="amber"]   { background: color-mix(in srgb, var(--amber) 13%, #fff); color: #7a5210; }
+.uj-stamp[data-tone="success"] { background: color-mix(in srgb, var(--success) 13%, #fff); color: #14614a; }
+.uj-stamp[data-tone="error"]   { background: var(--red-tint); color: var(--error); }
+
+/* x-show wipes the inline display property when it reveals an element, so any row layout
+   on an x-show element must live in a class or it collapses back to block. */
+.uj-banner-row { display: flex; align-items: center; gap: 11px; }
+
+/* Booking / shift chips are too small for a stamp, so the tone fills the chip instead. */
+.uj-chip-tone { border: 1px solid var(--hairline); border-radius: 7px; }
+.uj-chip-tone[data-tone="success"]   { background: color-mix(in srgb, var(--success) 7%, #fff); border-color: color-mix(in srgb, var(--success) 22%, var(--hairline)); }
+.uj-chip-tone[data-tone="info"]      { background: color-mix(in srgb, var(--info) 7%, #fff);    border-color: color-mix(in srgb, var(--info) 22%, var(--hairline)); }
+.uj-chip-tone[data-tone="amber"]     { background: color-mix(in srgb, var(--amber) 8%, #fff);   border-color: color-mix(in srgb, var(--amber) 26%, var(--hairline)); }
+.uj-chip-tone[data-tone="muted"]     { background: var(--hairline-soft); }
 .uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
 .uj-progress > span { display: block; height: 100%; background: var(--success); }
 
@@ -224,13 +246,32 @@ body {
 
 /* ── Desktop sidebar collapse (Ctrl+B, header menu button, or in-sidebar toggle) ──
    Slides the fixed-width sidebar off to the left; the flex parent clips it and the
-   main pane grows to fill. State persists in localStorage (see layouts/app.blade.php). */
+   main pane grows to fill. State persists in localStorage (see layouts/app.blade.php).
+
+   Both panes move with `transform`, which the compositor animates without re-running
+   layout. The main pane still has to actually GROW by 248px, and that is a layout
+   change no transform can express, so it is done in one step with `margin-right:
+   -248px` (negative margin makes the flex item overflow its slot) rather than
+   interpolated over 240 frames. The `0s` margin transition is a scheduling trick, not
+   an animation: collapsing applies it immediately (the pane is already sliding left,
+   so the extra width sits off the right edge, clipped by the shell's overflow:hidden),
+   while expanding delays it by .24s so the pane keeps its full width until it has
+   slid back into place. Either way nothing ever reflows mid-slide. */
 .uj-sb-tgl { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--sidebar-text); background: none; border: none; cursor: pointer; flex-shrink: 0; }
 .uj-sb-tgl:hover { background: var(--sidebar-soft); color: #fff; }
 @media (min-width: 901px) {
-    .uj-sidebar { transition: margin-left .24s cubic-bezier(.4, 0, .2, 1); }
-    .uj-sb-collapsed .uj-sidebar { margin-left: -248px; }
+    .uj-sidebar,
+    .uj-shell-main { transition: transform .24s cubic-bezier(.4, 0, .2, 1), margin-right 0s linear .24s; }
+    .uj-sb-collapsed .uj-sidebar { transform: translateX(-248px); }
+    .uj-sb-collapsed .uj-shell-main {
+        transform: translateX(-248px);
+        margin-right: -248px;
+        transition: transform .24s cubic-bezier(.4, 0, .2, 1), margin-right 0s;
+    }
     .uj-sb-collapsed .uj-nav-toggle { display: inline-flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .uj-sidebar, .uj-shell-main, .uj-sb-collapsed .uj-shell-main { transition: none; }
 }
 
 /* ── Responsive header (priority+ overflow) ──

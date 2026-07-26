@@ -90,9 +90,16 @@
     </div>
 
     @if ($isCompleted)
-        <div class="uj-card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid {{ $outstanding > 0 ? 'var(--red)' : 'var(--muted)' }};">
-            <div style="font-size:13px;font-weight:600;color:var(--ink);">
-                <span x-text="$store.ui.lang==='en' ? 'Departed · archived' : 'Telah keluar · diarkib'">Departed · archived</span>@if ($case->completed_at) {{ $case->completed_at->format('j M Y') }}@endif
+        <div class="uj-card" style="padding:14px 18px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--ink);">
+                    <span x-text="$store.ui.lang==='en' ? 'Departed · archived' : 'Telah keluar · diarkib'">Departed · archived</span>@if ($case->completed_at) {{ $case->completed_at->format('j M Y') }}@endif
+                </div>
+                @if ($outstanding > 0)
+                    <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Loose ends' : 'Ada tertinggal'">Loose ends</span>
+                @else
+                    <span class="uj-stamp" x-text="$store.ui.lang==='en' ? 'Settled' : 'Selesai'">Settled</span>
+                @endif
             </div>
             @if ($outstanding > 0)
                 <div style="font-size:12px;color:var(--red);margin-top:4px;"><span x-text="$store.ui.lang==='en' ? @json($outstanding.' item(s) were outstanding at archival') : @json($outstanding.' item belum selesai semasa diarkib')">{{ $outstanding }} item(s) were outstanding at archival</span></div>

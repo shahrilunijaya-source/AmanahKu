@@ -75,8 +75,8 @@
 @endif
 
 {{-- Confidentiality reassurance banner --}}
-<div class="uj-card" style="padding:13px 16px;margin-bottom:16px;display:flex;gap:11px;align-items:flex-start;border-left:3px solid var(--success);background:#f3faf6;">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+<div class="uj-card" style="padding:13px 16px;margin-bottom:16px;display:flex;gap:11px;align-items:flex-start;">
+    <span class="uj-stamp" data-tone="success" style="margin-top:1px;" x-text="$store.ui.lang==='en' ? 'Private' : 'Sulit'">Private</span>
     <div style="font-size:12.5px;color:var(--body);line-height:1.5;">
         @if ($privileged)
             <strong style="color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Confidential by design.' : 'Sulit secara reka bentuk.'">Confidential by design.</strong> <span x-text="$store.ui.lang==='en' ? 'You see anonymous, combined wellbeing trends only — never an individual mood or stress entry. Treat the 1:1 requests below with care.' : 'Anda hanya nampak trend kesejahteraan gabungan tanpa nama — tidak pernah entri mood atau tekanan individu. Layan permintaan 1:1 di bawah dengan berhati-hati.'">You see anonymous, combined wellbeing trends only — never an individual mood or stress entry. Treat the 1:1 requests below with care.</span>

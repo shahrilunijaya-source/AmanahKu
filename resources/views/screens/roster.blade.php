@@ -2,6 +2,8 @@
 
 @php
     $sc = ['scheduled' => 'var(--info)', 'confirmed' => 'var(--success)', 'cancelled' => 'var(--muted-soft)'];
+    // Shift cells are too small for a stamp, so the status tints the whole chip (.uj-chip-tone).
+    $chipTone = ['scheduled' => 'info', 'confirmed' => 'success', 'cancelled' => 'muted'];
     $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
     $fmtTime = fn ($t) => $t ? \Illuminate\Support\Carbon::parse($t)->format('g:ia') : '—';
 @endphp
@@ -97,7 +99,7 @@
                         @foreach ($days as $d)
                             <div style="display:flex;flex-direction:column;gap:5px;">
                                 @foreach ($cells->get($d['date'], collect()) as $s)
-                                    <div style="border:1px solid var(--hairline);border-left:3px solid {{ $sc[$s->status] }};border-radius:7px;padding:6px 8px;font-size:11px;{{ $s->status === 'cancelled' ? 'opacity:.55;' : '' }}">
+                                    <div class="uj-chip-tone" data-tone="{{ $chipTone[$s->status] ?? 'muted' }}" style="padding:6px 8px;font-size:11px;{{ $s->status === 'cancelled' ? 'opacity:.55;' : '' }}">
                                         <div style="font-weight:600;color:var(--ink);">{{ $fmtTime($s->start_time) }}–{{ $fmtTime($s->end_time) }}</div>
                                         <div style="color:var(--muted);">{{ $s->location }}</div>
                                         @if ($s->status !== 'cancelled')

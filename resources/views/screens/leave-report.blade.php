@@ -83,8 +83,9 @@
 </div>
 
 @if ($kpis['unplannedPct'] >= 25 && $kpis['unplannedDays'] > 0)
-    <div class="uj-card" style="border-left:3px solid var(--error);padding:12px 16px;margin-bottom:18px;">
-        <span style="font-size:13px;color:var(--error);font-weight:600;">⚠ <span x-text="$store.ui.lang==='en' ? 'High emergency-leave rate' : 'Kadar cuti kecemasan tinggi'">High emergency-leave rate</span></span>
+    <div class="uj-card" style="padding:12px 16px;margin-bottom:18px;">
+        <span class="uj-stamp" data-tone="error" style="margin-right:8px;" x-text="$store.ui.lang==='en' ? 'Flagged' : 'Ditanda'">Flagged</span>
+        <span style="font-size:13px;color:var(--error);font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'High emergency-leave rate' : 'Kadar cuti kecemasan tinggi'">High emergency-leave rate</span></span>
         <span style="font-size:12.5px;color:var(--muted);"> — <span x-text="$store.ui.lang==='en' ? '{{ $kpis['unplannedPct'] }}% of leave was unplanned across {{ $kpis['unplannedStaff'] }} staff. Review the top of the staff table.' : '{{ $kpis['unplannedPct'] }}% cuti tidak dirancang merentas {{ $kpis['unplannedStaff'] }} staf. Semak bahagian atas jadual staf.'"></span></span>
     </div>
 @endif

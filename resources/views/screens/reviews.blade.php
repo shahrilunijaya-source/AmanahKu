@@ -95,8 +95,8 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;">
                     @foreach ($blocks as [$label, $labelMs, $text, $col])
                         @if ($text)
-                            <div style="border-left:3px solid {{ $col }};padding:2px 0 2px 13px;">
-                                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($labelMs)">{{ $label }}</div>
+                            <div>
+                                <div style="font-size:11px;color:{{ $col }};font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($labelMs)">{{ $label }}</div>
                                 <div style="font-size:13px;color:var(--ink);line-height:1.5;">{{ $text }}</div>
                             </div>
                         @endif

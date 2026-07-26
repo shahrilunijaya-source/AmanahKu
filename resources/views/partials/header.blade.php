@@ -157,7 +157,7 @@
         </div>
     </div>
 
-    <div x-data="{ notif: false }" style="position:relative;">
+    <div x-data="notifier" style="position:relative;">
         <button @click="notif = ! notif" class="uj-hd-ib"
                 :aria-label="$store.ui.lang==='en' ? @js($unreadCount ? "Notifications ({$unreadCount} unread)" : 'Notifications') : @js($unreadCount ? "Pemberitahuan ({$unreadCount} belum dibaca)" : 'Pemberitahuan')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
@@ -171,6 +171,11 @@
                 @if ($unreadCount > 0)
                     <form method="post" action="{{ route('notifications.read') }}">@csrf<button type="submit" style="font-size:12px;color:var(--red);background:none;" x-text="$store.ui.lang==='en' ? 'Mark all read' : 'Tanda semua dibaca'">Mark all read</button></form>
                 @endif
+                {{-- Opt-in must be click-driven: browsers reject a permission request that
+                     is not tied to a user gesture. Hidden once granted, denied, or unsupported. --}}
+                <button type="button" x-show="canAsk" x-cloak @click="enable()"
+                        style="font-size:12px;color:var(--red);background:none;"
+                        x-text="$store.ui.lang==='en' ? 'Turn on alerts' : 'Hidupkan makluman'">Turn on alerts</button>
             </div>
             <div style="max-height:360px;overflow-y:auto;">
                 @forelse ($notifications as $n)

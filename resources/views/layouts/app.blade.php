@@ -6,6 +6,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Amanahku' }} · Amanahku</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Installable web app. On iOS this is the only route to notifications at all:
+         Safari shows them just for a web app added to the Home Screen. --}}
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#d6232b">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Amanahku">
     {{-- Reveals the mobile-only camera-capture trigger in the messages composer (side panel is
          global, so this lives in the layout rather than a single screen). --}}
     <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
@@ -28,9 +35,10 @@
         <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
     @endunless
 
-    <div style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
+    <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
         @unless ($embed)
         @include('partials.header')
+        @include('partials.ios-install')
 
         {{-- Subheader: breadcrumb + title + persona toggle --}}
         <div class="uj-subhead" style="flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);padding:16px 28px 18px;">
@@ -114,7 +122,8 @@
                     </div>
                 @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
-                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--hairline);border-left:3px solid var(--red);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
+                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
+                        <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
                         <div style="flex:1;">
                             <div style="font-size:13px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
                             <div class="uj-progress" style="margin-top:6px;max-width:260px;"><span style="width:{{ $profileCompletion['pct'] }}%;background:var(--red);"></span></div>
