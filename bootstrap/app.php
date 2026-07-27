@@ -59,6 +59,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // staffer per type per day regardless of how many ticks fire.
         $schedule->command('attendance:remind')->everyFifteenMinutes()->between('6:00', '22:00')
             ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
+        // TOT reminders: 14 days out when the topic is blank, 7 days out for the presenter,
+        // 1 day out for everybody. Every send is deduped, so a retry is harmless.
+        $schedule->command('tot:remind')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('tot:remind'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         // Behind a TLS-terminating proxy (Nginx/ALB) the app only sees HTTP unless it
