@@ -348,6 +348,7 @@ class AppController extends Controller
             'cases' => app(CaseController::class)->screenData($request, $employee),
             'ideas' => app(IdeaController::class)->screenData($request, $employee),
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
+            'tot' => app(TotController::class)->screenData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),
             'benefits' => app(BenefitController::class)->screenData($request, $employee),
             'expenses' => app(ExpenseController::class)->screenData($request, $employee),

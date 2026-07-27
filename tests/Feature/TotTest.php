@@ -122,4 +122,25 @@ class TotTest extends TestCase
 
         $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->employee->id)->count());
     }
+
+    // ── Screen ────────────────────────────────────────────────────
+
+    public function test_the_screen_renders_twelve_slots_for_the_requested_year(): void
+    {
+        $this->makeSession(['month' => 3, 'title' => 'Install git on our own server']);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertViewHas('sessions', fn ($sessions) => count($sessions) === 12);
+        $response->assertSee('Install git on our own server');
+    }
+
+    public function test_the_screen_defaults_to_the_current_year(): void
+    {
+        $response = $this->actingInTenant()->get('/app/tot');
+
+        $response->assertOk();
+        $response->assertViewHas('year', (int) now()->year);
+    }
 }

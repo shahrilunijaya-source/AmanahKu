@@ -51,7 +51,7 @@ class Features
         'module.assets' => ['Asset Register', ['assets'], 2],
         'module.reports' => ['Reports', ['reports'], 1],
         'module.surveys' => ['Surveys & Suggestions', ['surveys', 'ideas'], 2],
-        'module.knowledge' => ['Knowledge Bank', ['knowledge-bank'], 2],
+        'module.knowledge' => ['Knowledge Bank', ['knowledge-bank', 'tot'], 2],
         'module.messages' => ['Messaging', ['messages'], 2],
         'module.ai' => ['AI Workforce Intelligence', ['workload'], 3],
     ];
