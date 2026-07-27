@@ -5,7 +5,7 @@
         'open' => ['label' => 'Open', 'color' => 'var(--info)'],
         'in_progress' => ['label' => 'In Progress', 'color' => 'var(--amber)'],
         'resolved' => ['label' => 'Resolved', 'color' => 'var(--success)'],
-        'closed' => ['label' => 'Closed', 'color' => 'var(--muted-soft)'],
+        'closed' => ['label' => 'Closed', 'color' => 'var(--muted)'],
     ];
     $priorityColor = [
         'low' => 'var(--muted)',

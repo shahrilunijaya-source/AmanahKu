@@ -32,7 +32,7 @@
                 <div style="font-size:13.5px;color:var(--ink);"><span style="font-weight:600;">{{ $log->action }}</span>@if ($log->target) — {{ $log->target }}@endif</div>
                 <div style="font-size:11.5px;color:var(--muted);">{{ $log->actor_name }}</div>
             </div>
-            <span style="font-size:12px;color:var(--muted-soft);font-family:var(--font-mono);white-space:nowrap;">{{ $log->created_at->format('j M, H:i') }}</span>
+            <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $log->created_at->format('j M, H:i') }}</span>
         </div>
     @empty
         <div style="padding:28px 20px;text-align:center;">

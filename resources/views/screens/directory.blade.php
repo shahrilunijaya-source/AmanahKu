@@ -52,7 +52,7 @@
     @php $isArchived = $archived ?? false; @endphp
     @forelse ($employees as $e)
         @php
-            $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted-soft)', 'resigned' => 'var(--error)'][$e->status] ?? 'var(--body)';
+            $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$e->status] ?? 'var(--body)';
             $stLabel = ['active' => 'Active', 'probation' => 'Probation', 'on_leave' => 'On Leave', 'resigned' => 'Resigned'][$e->status] ?? $e->status;
             $rowStyle = 'display:grid;grid-template-columns:'.$dirGrid.';gap:8px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;';
         @endphp
@@ -62,7 +62,7 @@
         @else
         <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" class="uj-row" style="text-decoration:none;{{ $rowStyle }}">
         @endif
-            <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div style="width:34px;height:34px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div><div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->name }}</div><div style="font-size:11.5px;color:var(--muted-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($isArchived && $e->archived_at)<span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkib'">Archived</span> {{ $e->archived_at->format('d M Y') }}@else{{ $e->email }}@endif</div></div></div>
+            <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div style="width:34px;height:34px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div><div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->name }}</div><div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($isArchived && $e->archived_at)<span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkib'">Archived</span> {{ $e->archived_at->format('d M Y') }}@else{{ $e->email }}@endif</div></div></div>
             <span style="font-size:13px;color:var(--body);">{{ $e->positionBand?->title ?? '—' }}</span>
             <span style="font-size:13px;color:var(--body);">{{ $e->department?->name }}</span>
             <span style="font-size:13px;color:var(--body);">{{ $e->branch?->name }}</span>

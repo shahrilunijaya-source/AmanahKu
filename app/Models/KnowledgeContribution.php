@@ -19,6 +19,21 @@ class KnowledgeContribution extends Model
         return ['submitted' => 'boolean'];
     }
 
+    /**
+     * Mark an employee's monthly contribution as fulfilled for a specific calendar month.
+     *
+     * Shared by the Knowledge Bank (a written lesson) and the TOT board (presenting a
+     * session). Takes an explicit year and month rather than reading now(), because a TOT
+     * session marked done late must still credit the month it was held in.
+     */
+    public static function mark(Employee $employee, int $year, int $month): void
+    {
+        static::updateOrCreate(
+            ['employee_id' => $employee->id, 'year' => $year, 'month' => $month],
+            ['submitted' => true],
+        );
+    }
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

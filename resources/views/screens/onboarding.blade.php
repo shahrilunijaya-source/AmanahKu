@@ -150,7 +150,7 @@
                     @if ($privileged)
                         {{-- Remove a task added or seeded in error. Toggle stays primary; this is a quiet fix. --}}
                         <form method="post" action="{{ route('onboarding.tasks.remove', $t) }}" style="line-height:0;margin-left:auto;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this onboarding task?' : 'Buang tugas onboarding ini?')) $event.preventDefault()">@csrf
-                            <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Remove task' : 'Buang tugas'" aria-label="Remove task" style="width:22px;height:22px;border-radius:6px;border:none;background:none;color:var(--muted-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Remove task' : 'Buang tugas'" aria-label="Remove task" style="width:22px;height:22px;border-radius:6px;border:none;background:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
                             </button>
                         </form>

@@ -39,3 +39,6 @@ docs/vault/
 /database/seeders/DevLoginSeeder.php
 bun.lock
 skills-lock.json
+
+# Exported Google Sheet TotHistorySeeder was transcribed from (real company data, never commit)
+/2025 2026 TOT Sabtu/

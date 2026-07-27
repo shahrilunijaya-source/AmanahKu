@@ -63,7 +63,7 @@
                     </div>
                 </template>
 
-                <div x-show="sending" style="align-self:flex-start;font-size:12.5px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'Thinking…' : 'Sedang berfikir…'">Thinking…</div>
+                <div x-show="sending" style="align-self:flex-start;font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Thinking…' : 'Sedang berfikir…'">Thinking…</div>
 
                 <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;">
                     <template x-for="prompt in prompts" :key="prompt">
@@ -77,7 +77,7 @@
                     <input x-model="input" @keydown.enter.prevent="send()" :disabled="sending" :placeholder="$store.ui.lang==='en' ? 'Ask about your team, workload, approvals…' : 'Tanya tentang pasukan, beban kerja, kelulusan…'" style="flex:1;border:none;background:none;font-size:13.5px;color:var(--ink);outline:none;" />
                     <button @click="send()" :disabled="sending" :aria-label="$store.ui.lang==='en' ? 'Send' : 'Hantar'" style="width:32px;height:32px;border-radius:8px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">↑</button>
                 </div>
-                <div style="font-size:10.5px;color:var(--muted-soft);margin-top:8px;text-align:center;" x-text="$store.ui.lang==='en' ? 'AI respects your permissions · answers use live tenant data only' : 'AI mematuhi kebenaran anda · jawapan menggunakan data penyewa secara langsung sahaja'">AI respects your permissions · answers use live tenant data only</div>
+                <div style="font-size:10.5px;color:var(--muted);margin-top:8px;text-align:center;" x-text="$store.ui.lang==='en' ? 'AI respects your permissions · answers use live tenant data only' : 'AI mematuhi kebenaran anda · jawapan menggunakan data penyewa secara langsung sahaja'">AI respects your permissions · answers use live tenant data only</div>
             </div>
         </aside>
     </div>

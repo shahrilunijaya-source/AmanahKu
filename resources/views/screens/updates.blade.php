@@ -39,7 +39,7 @@
                         <span style="font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--red);border-radius:9999px;padding:2px 8px;"
                               x-text="$store.ui.lang==='en' ? 'Latest' : 'Terkini'">Latest</span>
                     @endif
-                    <span style="font-size:11.5px;color:var(--muted-soft);font-family:var(--font-mono);">v{{ $rel['version'] }}</span>
+                    <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);">v{{ $rel['version'] }}</span>
                 </div>
                 <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;flex-shrink:0;">{{ $rel['date'] }}</span>
             </div>

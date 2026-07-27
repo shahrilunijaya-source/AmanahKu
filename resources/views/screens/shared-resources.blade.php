@@ -92,7 +92,7 @@
                     </span>
                     <span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);"
                           x-text="$store.ui.lang==='en' ? @js($m['en']) : @js($m['ms'])">{{ $m['en'] }}</span>
-                    <span style="font-size:11px;font-weight:600;color:var(--muted-soft);">· {{ $items->count() }}</span>
+                    <span style="font-size:11px;font-weight:600;color:var(--muted);">· {{ $items->count() }}</span>
                 </div>
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;">
@@ -116,7 +116,7 @@
                                     @if ($r->username)
                                         <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border-radius:8px;padding:7px 9px;">
                                             <div style="min-width:0;flex:1;">
-                                                <div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-soft);margin-bottom:1px;" x-text="$store.ui.lang==='en' ? 'Username' : 'Nama pengguna'">Username</div>
+                                                <div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:1px;" x-text="$store.ui.lang==='en' ? 'Username' : 'Nama pengguna'">Username</div>
                                                 <div style="font-size:12.5px;color:var(--ink);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r->username }}</div>
                                             </div>
                                             <button type="button" @click="copy(@js($r->username))" title="Copy" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted);background:#fff;border:1px solid var(--hairline);border-radius:6px;padding:4px 8px;cursor:pointer;">
@@ -128,7 +128,7 @@
                                     @if ($r->password)
                                         <div style="display:flex;align-items:center;gap:8px;background:var(--canvas);border-radius:8px;padding:7px 9px;">
                                             <div style="min-width:0;flex:1;">
-                                                <div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-soft);margin-bottom:1px;" x-text="$store.ui.lang==='en' ? 'Password' : 'Kata laluan'">Password</div>
+                                                <div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:1px;" x-text="$store.ui.lang==='en' ? 'Password' : 'Kata laluan'">Password</div>
                                                 <div style="font-size:12.5px;color:var(--ink);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r->password }}</div>
                                             </div>
                                             <button type="button" @click="copy(@js($r->password))" title="Copy" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted);background:#fff;border:1px solid var(--hairline);border-radius:6px;padding:4px 8px;cursor:pointer;">

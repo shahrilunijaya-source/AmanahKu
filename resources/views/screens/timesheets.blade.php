@@ -109,11 +109,11 @@
                         class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;"
                         :aria-label="$store.ui.lang==='en' ? 'Next day' : 'Hari seterusnya'">&rarr;</button>
                 </div>
-                <div style="font-size:12px;color:var(--muted-soft);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
             </div>
             <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;"
                 :style="{ color: { empty:'var(--muted)', partial:'var(--amber)', done:'var(--success)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }">
-                <span x-text="dayTotal(selected)"></span><span style="color:var(--muted-soft);"> / 100</span>
+                <span x-text="dayTotal(selected)"></span><span style="color:var(--muted);"> / 100</span>
             </span>
         </div>
 
@@ -475,7 +475,7 @@
                             style="flex:1;min-width:52px;border-radius:9px;padding:8px 4px;text-align:center;background:#fff;"
                             :style="{
                                 border: d === selected ? '2px solid var(--red)' : '1px solid var(--hairline)',
-                                color: d === selected ? 'var(--red)' : (isOffDay(d) ? 'var(--muted-soft)' : (isFuture(d) ? 'var(--muted)' : 'var(--ink)')),
+                                color: d === selected ? 'var(--red)' : (isOffDay(d) ? 'var(--muted)' : (isFuture(d) ? 'var(--muted)' : 'var(--ink)')),
                                 cursor: isOffDay(d) ? 'default' : 'pointer',
                                 opacity: isOffDay(d) ? .4 : (isFuture(d) ? .7 : 1),
                             }">
@@ -501,7 +501,7 @@
                     <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $nextWeekStart]) }}" class="uj-btn-ghost" style="height:38px;width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;">&rarr;</a>
                 </div>
 
-                <div style="margin-top:14px;font-size:11.5px;color:var(--muted-soft);line-height:1.5;">
+                <div style="margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.5;">
                     <span x-text="$store.ui.lang==='en' ? 'Locked days (on leave, public holiday) are filled in for you and can\'t be edited.' : 'Hari dikunci (cuti, hari kelepasan) sudah diisi untuk anda dan tidak boleh disunting.'"></span>
                 </div>
             </div>
@@ -555,7 +555,7 @@
                                 <span style="font-family:var(--font-mono);color:var(--ink);">{{ rtrim(rtrim(number_format($entry->percentage, 2), '0'), '.') }}%</span>
                             </div>
                             @if ($entry->description)
-                                <div style="font-size:11.5px;color:var(--muted-soft);margin-top:2px;">{!! $entry->description !!}</div>
+                                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">{!! $entry->description !!}</div>
                             @endif
                         </div>
                     @endforeach

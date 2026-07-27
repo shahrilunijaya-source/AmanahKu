@@ -19,7 +19,7 @@
         .lg-primary { transition: background .15s, transform .04s; }
         .lg-primary:active { transform: translateY(1px); }
         .lg-passkey { transition: border-color .15s, background .15s; }
-        .lg-passkey:hover { border-color: var(--muted-soft); background: var(--canvas); }
+        .lg-passkey:hover { border-color:var(--muted); background: var(--canvas); }
         .lg-quick { transition: border-color .15s, background .15s, transform .04s; }
         .lg-quick:hover { border-color: var(--red); background: var(--red-tint); }
         .lg-quick:active { transform: translateY(1px); }
@@ -56,10 +56,10 @@
             <div>
                 @if ($brandTenant)
                     <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">{{ $brandTenant->name }}</div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#807d72;">Powered by Amanahku</div>
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Powered by Amanahku</div>
                 @else
                     <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">Amanah<span style="color:#ff6b6b;">ku</span></div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#807d72;">Workforce OS</div>
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Workforce OS</div>
                 @endif
             </div>
         </div>
@@ -91,12 +91,12 @@
         <div style="position:relative;">
             @unless ($brandTenant)
                 <div style="display:flex;gap:40px;margin-bottom:28px;">
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">3</div><div style="font-size:12.5px;color:#807d72;">tenants live</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">412</div><div style="font-size:12.5px;color:#807d72;">employees</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">17</div><div style="font-size:12.5px;color:#807d72;">modules</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">3</div><div style="font-size:12.5px;color:var(--sidebar-dim);">tenants live</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">412</div><div style="font-size:12.5px;color:var(--sidebar-dim);">employees</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">17</div><div style="font-size:12.5px;color:var(--sidebar-dim);">modules</div></div>
                 </div>
             @endunless
-            <div style="font-size:11.5px;color:#615f57;">© {{ date('Y') }} Amanahku{{ $brandTenant ? ' · '.$brandTenant->name : '' }}</div>
+            <div style="font-size:11.5px;color:var(--sidebar-dim);">© {{ date('Y') }} Amanahku{{ $brandTenant ? ' · '.$brandTenant->name : '' }}</div>
         </div>
     </div>
 
@@ -135,7 +135,7 @@
             @if (! $brandTenant && app()->isLocal())
             {{-- Quick login (demo) — local development only; never rendered in staging/production. --}}
             <div style="margin-bottom:22px;">
-                <div style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted-soft);margin-bottom:9px;">Quick login · demo</div>
+                <div style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:9px;">Quick login · demo</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                     <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"
                             style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#fff;text-align:left;cursor:pointer;">
@@ -148,10 +148,10 @@
                         <span style="font-size:11px;color:var(--muted);">Platform console</span>
                     </button>
                 </div>
-                <p style="font-size:11.5px;color:var(--muted-soft);margin:8px 0 0;">One click signs you in. HR demo picks a workspace next: Unijaya (HR), Shell (Manager), Petron (Employee).</p>
+                <p style="font-size:11.5px;color:var(--muted);margin:8px 0 0;">One click signs you in. HR demo picks a workspace next: Unijaya (HR), Shell (Manager), Petron (Employee).</p>
             </div>
 
-            <div style="display:flex;align-items:center;gap:10px;margin:0 0 22px;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted-soft);text-transform:uppercase;letter-spacing:0.5px;">or sign in</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
+            <div style="display:flex;align-items:center;gap:10px;margin:0 0 22px;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">or sign in</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
             @endif
 
             <label for="email" style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">Work email</label>
@@ -170,7 +170,7 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
             </button>
 
-            <div style="display:flex;align-items:center;gap:10px;margin:18px 0;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted-soft);text-transform:uppercase;letter-spacing:0.5px;">or</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
+            <div style="display:flex;align-items:center;gap:10px;margin:18px 0;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">or</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
 
             <button type="button" id="passkey-signin" class="lg-passkey" style="width:100%;height:46px;font-size:14px;background:#fff;border:1px solid var(--hairline);border-radius:9px;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v3h6v-3M12 2a5 5 0 0 0-5 5c0 2 1 3 1 3M12 2a5 5 0 0 1 5 5M12 7v.01M8 21l4-9 4 9"/></svg>
@@ -196,7 +196,7 @@
                     <p style="font-size:12.5px;color:var(--muted);margin-top:22px;text-align:center;">Need help signing in? Contact <span style="color:var(--ink);">{{ $brandTenant->email ?: $brandTenant->contact_number }}</span></p>
                 @endif
             @endunless
-            <p style="font-size:11.5px;color:var(--muted-soft);margin-top:18px;text-align:center;">Protected by Amanahku · Multi-tenant SSO</p>
+            <p style="font-size:11.5px;color:var(--muted);margin-top:18px;text-align:center;">Protected by Amanahku · Multi-tenant SSO</p>
         </form>
     </div>
 </div>

@@ -20,10 +20,11 @@
     --sidebar-soft: #2b2a25;
     --sidebar-line: #322f29;
     --sidebar-text: #b8b6ad;
+    --sidebar-dim: #a5a297;
     --ink: #26251e;
     --body: #5a5852;
-    --muted: #807d72;
-    --muted-soft: #a09c92;
+    --muted: #6f6c61;
+    --muted-soft: #8b887e;
     --hairline: #e6e5e0;
     --hairline-soft: #efeee8;
     --success: #1f8a65;
@@ -123,7 +124,7 @@ body {
     display: grid;
     place-items: center;
     border-radius: 6px;
-    color: var(--muted-soft);
+    color: var(--muted);
     background: none;
     cursor: pointer;
     transition: color .12s, background .12s;
@@ -481,7 +482,7 @@ header button:hover { background: var(--canvas) !important; }
 .wi-due--over { color: var(--error); font-weight: 600; }
 .wi-comment-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
 .wi-est { font-family: var(--font-mono); }
-.wi-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted-soft); line-height: 1.5; }
+.wi-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .wi-sm { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 10px; padding: 11px 12px; }
 .wi-sm .wi-head { margin-bottom: 7px; }
 .wi-sm .wi-tag { font-size: 9.5px; }

@@ -126,6 +126,6 @@
         @endforeach
     </div>
 </div>
-<p style="font-size:12px;color:var(--muted-soft);margin-top:12px;"><span x-text="$store.ui.lang==='en' ? 'Role changes take effect on the member next page load. Approval rights (leave, claims) follow the assigned role.' : 'Perubahan peranan berkuat kuasa pada muatan halaman seterusnya ahli tersebut. Hak kelulusan (cuti, tuntutan) mengikut peranan yang ditetapkan.'">Role changes take effect on the member's next page load. Approval rights (leave, claims) follow the assigned role.</span></p>
+<p style="font-size:12px;color:var(--muted);margin-top:12px;"><span x-text="$store.ui.lang==='en' ? 'Role changes take effect on the member next page load. Approval rights (leave, claims) follow the assigned role.' : 'Perubahan peranan berkuat kuasa pada muatan halaman seterusnya ahli tersebut. Hak kelulusan (cuti, tuntutan) mengikut peranan yang ditetapkan.'">Role changes take effect on the member's next page load. Approval rights (leave, claims) follow the assigned role.</span></p>
 </div>
 @endsection

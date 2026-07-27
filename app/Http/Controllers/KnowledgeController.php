@@ -401,10 +401,7 @@ class KnowledgeController extends Controller
 
     private function markContributed(Employee $employee): void
     {
-        KnowledgeContribution::updateOrCreate(
-            ['employee_id' => $employee->id, 'year' => (int) now()->year, 'month' => (int) now()->month],
-            ['submitted' => true],
-        );
+        KnowledgeContribution::mark($employee, (int) now()->year, (int) now()->month);
     }
 
     /**

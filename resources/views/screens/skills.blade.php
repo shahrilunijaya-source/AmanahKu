@@ -11,7 +11,7 @@
         5 => '#d2ecdd',
     ];
     $levelInk = [
-        0 => 'var(--muted-soft)',
+        0 => 'var(--muted)',
         1 => 'var(--error)',
         2 => 'var(--amber)',
         3 => 'var(--amber)',
@@ -149,7 +149,7 @@
                                             @endphp
                                             <td style="border-top:1px solid var(--hairline-soft);text-align:center;padding:5px 6px;">
                                                 <span :title="@js($emp->name . ' · ' . $skill->name) + ({{ $cell ? 'true' : 'false' }} ? ' · ' + ($store.ui.lang==='en' ? @js($levelLabel[$lvl] ?? '') : @js($levelLabelMs[$lvl] ?? '')) : ' · ' + ($store.ui.lang==='en' ? 'not rated' : 'belum dinilai'))"
-                                                      style="display:inline-block;min-width:26px;padding:3px 0;border-radius:6px;font-weight:600;background:{{ $levelColor[$lvl] ?? 'var(--hairline-soft)' }};color:{{ $levelInk[$lvl] ?? 'var(--muted-soft)' }};">{{ $lvl > 0 ? $lvl : '·' }}</span>
+                                                      style="display:inline-block;min-width:26px;padding:3px 0;border-radius:6px;font-weight:600;background:{{ $levelColor[$lvl] ?? 'var(--hairline-soft)' }};color:{{ $levelInk[$lvl] ?? 'var(--muted)' }};">{{ $lvl > 0 ? $lvl : '·' }}</span>
                                                 @if ($cell && ! $cell->verified)
                                                     <form method="post" action="{{ route('skills.verify', $cell) }}" style="margin-top:3px;">
                                                         @csrf

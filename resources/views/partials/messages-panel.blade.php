@@ -28,11 +28,11 @@
                             <span style="flex:1;min-width:0;">
                                 <span style="display:flex;align-items:center;gap:7px;">
                                     <span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="t.other.name"></span>
-                                    <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted-soft);" x-text="t.at"></span>
+                                    <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);" x-text="t.at"></span>
                                 </span>
                                 <span style="display:flex;align-items:center;gap:7px;margin-top:2px;">
                                     <span style="flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                        <span x-show="t.lastMine" style="color:var(--muted-soft);" x-text="($store.ui.lang==='en' ? 'You: ' : 'Anda: ')"></span><span x-text="t.snippet || ($store.ui.lang==='en' ? 'No messages yet' : 'Belum ada mesej')"></span>
+                                        <span x-show="t.lastMine" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'You: ' : 'Anda: ')"></span><span x-text="t.snippet || ($store.ui.lang==='en' ? 'No messages yet' : 'Belum ada mesej')"></span>
                                     </span>
                                     <template x-if="t.unread > 0">
                                         <span style="flex-shrink:0;min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="t.unread"></span>
@@ -91,7 +91,7 @@
                                     </template>
                                 </div>
                             </template>
-                            <div :style="'font-size:10px;font-family:var(--font-mono);color:var(--muted-soft);margin-top:3px;'+(m.mine ? 'text-align:right;' : '')" x-text="m.at"></div>
+                            <div :style="'font-size:10px;font-family:var(--font-mono);color:var(--muted);margin-top:3px;'+(m.mine ? 'text-align:right;' : '')" x-text="m.at"></div>
                         </div>
                     </template>
                     <template x-if="active && active.messages.length === 0 && !loading">

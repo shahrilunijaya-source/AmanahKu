@@ -86,7 +86,7 @@
         @endphp
         <div x-data="{ rnw: false }" style="display:grid;grid-template-columns:1.4fr 1.8fr 1.2fr 1.2fr 1fr 1.1fr auto;gap:8px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;">
             <span style="font-size:13px;color:var(--body);">{{ $i->employee?->name }}</span>
-            <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $i->name }}</div><div style="font-size:11.5px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? @json($tc[$i->type] ?? $i->type) : @json($tcMs[$i->type] ?? ($tc[$i->type] ?? $i->type))">{{ $tc[$i->type] ?? $i->type }}</span></div></div>
+            <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $i->name }}</div><div style="font-size:11.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? @json($tc[$i->type] ?? $i->type) : @json($tcMs[$i->type] ?? ($tc[$i->type] ?? $i->type))">{{ $tc[$i->type] ?? $i->type }}</span></div></div>
             <span style="font-size:12.5px;color:var(--muted);font-family:var(--font-mono);">{{ $i->identifier ?? '—' }}</span>
             <span style="font-size:13px;color:var(--body);">{{ $i->issuer ?? '—' }}</span>
             <span style="font-size:12.5px;font-family:var(--font-mono);color:{{ $c }};">{{ $i->expires_at->format('j M Y') }}</span>

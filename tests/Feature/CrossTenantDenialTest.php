@@ -14,6 +14,10 @@ use App\Models\PettyCashFloat;
 use App\Models\PolicyAcknowledgement;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Models\TotComment;
+use App\Models\TotParticipation;
+use App\Models\TotReaction;
+use App\Models\TotSession;
 use App\Models\User;
 use App\Models\WorkItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,6 +65,17 @@ class CrossTenantDenialTest extends TestCase
             ->status();
 
         $this->assertContains($status, [403, 404], "Expected denial for [$uri], got HTTP $status.");
+    }
+
+    /** Same as denied(), for the routes that take DELETE rather than POST. */
+    private function deniedDelete(string $uri): void
+    {
+        $status = $this->actingAs($this->attackerB)
+            ->withSession(['current_tenant' => $this->tenantB->id])
+            ->delete($uri)
+            ->status();
+
+        $this->assertContains($status, [403, 404], "Expected denial for DELETE [$uri], got HTTP $status.");
     }
 
     public function test_foreign_leave_request_cannot_be_verified_approved_or_rejected(): void
@@ -150,6 +165,39 @@ class CrossTenantDenialTest extends TestCase
 
         $this->assertSame(0, PolicyAcknowledgement::withoutGlobalScopes()
             ->where('handbook_section_id', $section->id)->count());
+    }
+
+    /**
+     * The TOT board was the live AK-SEC-04 instance: seven actions took a route-bound
+     * TotSession or TotComment with no tenant assert, so HR of company B could rewrite,
+     * rate and delete company A's sessions. Mirrored here from TotTest so the canonical
+     * cross-tenant file covers every TOT write path, not only update and react.
+     */
+    public function test_foreign_tot_session_and_comment_cannot_be_touched(): void
+    {
+        $session = TotSession::create([
+            'tenant_id' => $this->tenantA->id, 'year' => 2026, 'month' => 5,
+            'title' => 'Alpha only', 'status' => 'confirmed',
+        ]);
+        $comment = TotComment::create([
+            'tenant_id' => $this->tenantA->id, 'session_id' => $session->id,
+            'employee_id' => $this->victimA->id, 'body' => 'Alpha comment',
+        ]);
+
+        $this->denied("/app/tot/{$session->id}", ['title' => 'Hijacked']);
+        $this->denied("/app/tot/{$session->id}/comment", ['body' => 'Injected']);
+        $this->denied("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->denied("/app/tot/{$session->id}/watched");
+        $this->denied("/app/tot/{$session->id}/rate", ['score' => 5]);
+        $this->denied("/app/tot/{$session->id}/delete");
+        $this->deniedDelete("/app/tot/comments/{$comment->id}");
+
+        $fresh = TotSession::withoutGlobalScopes()->find($session->id);
+        $this->assertNotNull($fresh);
+        $this->assertSame('Alpha only', $fresh->title);
+        $this->assertSame(1, TotComment::withoutGlobalScopes()->where('session_id', $session->id)->count());
+        $this->assertSame(0, TotReaction::withoutGlobalScopes()->where('session_id', $session->id)->count());
+        $this->assertSame(0, TotParticipation::withoutGlobalScopes()->where('session_id', $session->id)->count());
     }
 
     public function test_foreign_employee_record_cannot_be_updated_or_archived(): void

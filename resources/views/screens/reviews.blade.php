@@ -77,7 +77,7 @@
                 <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px;">
                     <div style="min-width:130px;">
                         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;" x-text="$store.ui.lang==='en' ? 'Overall rating' : 'Rating keseluruhan'">Overall rating</div>
-                        <div style="font-size:42px;font-weight:600;color:var(--ink);font-family:var(--font-mono);line-height:1.1;margin-top:4px;">{{ $latest->overall_rating ? number_format($latest->overall_rating, 1) : '—' }}<span style="font-size:16px;color:var(--muted-soft);">/5</span></div>
+                        <div style="font-size:42px;font-weight:600;color:var(--ink);font-family:var(--font-mono);line-height:1.1;margin-top:4px;">{{ $latest->overall_rating ? number_format($latest->overall_rating, 1) : '—' }}<span style="font-size:16px;color:var(--muted);">/5</span></div>
                         @if ($latest->rating_label)<div style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px;">{{ $latest->rating_label }}</div>@endif
                     </div>
                     <div style="flex:1;min-width:240px;">
@@ -128,7 +128,7 @@
             @forelse ($history as $r)
                 @php [$hc, $hbg] = $statusStyle[$r->status] ?? ['var(--muted)', 'var(--hairline-soft)']; @endphp
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                    <div style="min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $r->cycle }}</div><div style="font-size:11.5px;color:var(--muted-soft);">{{ $r->period_label }}</div></div>
+                    <div style="min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $r->cycle }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $r->period_label }}</div></div>
                     <div style="text-align:right;flex-shrink:0;"><div style="font-size:13px;color:var(--ink);font-weight:600;font-family:var(--font-mono);">{{ $r->overall_rating ? number_format($r->overall_rating, 1) : '—' }}</div><span class="uj-pill" style="background:{{ $hbg }};color:{{ $hc }};font-size:10px;">{{ ucfirst(str_replace('_', ' ', $r->status)) }}</span></div>
                 </div>
             @empty
@@ -154,7 +154,7 @@
                     <div x-data="{ score: {{ $reopen ? 'true' : 'false' }} }" style="border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:11px;padding:11px 20px;">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $r->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $r->employee?->initials ?? '—' }}</div>
-                            <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r->employee?->name }}</div><div style="font-size:11.5px;color:var(--muted-soft);">{{ $r->cycle }}</div></div>
+                            <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r->employee?->name }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $r->cycle }}</div></div>
                             @if ($r->status === 'in_progress')
                                 @if ($r->reviewer_rated_at)<span class="uj-pill" style="background:#eaf1f8;color:var(--info);font-size:10px;" x-text="$store.ui.lang==='en' ? 'Rated' : 'Dinilai'">Rated</span>@endif
                                 <button @click="score = ! score" class="uj-btn-ghost" style="height:28px;padding:0 11px;font-size:11.5px;"><span x-text="score ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : (@js($r->reviewer_rated_at ? true : false) ? ($store.ui.lang==='en' ? 'Edit' : 'Sunting') : ($store.ui.lang==='en' ? 'Score' : 'Beri skor'))"></span></button>

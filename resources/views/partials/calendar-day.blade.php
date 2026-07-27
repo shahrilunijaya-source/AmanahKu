@@ -20,7 +20,7 @@
     $visible = $items->take($maxItems);
     $overflow = $items->count() - $visible->count();
     $bg = $cell['isToday'] ? '#fffaf0' : ($cell['inMonth'] ? '#fff' : 'var(--surface-soft, #fafafa)');
-    $dayColor = $cell['inMonth'] ? 'var(--ink)' : 'var(--muted-soft)';
+    $dayColor = $cell['inMonth'] ? 'var(--ink)' : 'var(--muted)';
 @endphp
 <div style="min-height:108px;padding:7px 8px;background:{{ $bg }};border:1px solid var(--hairline-soft);{{ $cell['isToday'] ? 'box-shadow:inset 0 0 0 2px var(--amber);' : '' }}border-radius:8px;display:flex;flex-direction:column;gap:4px;overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;">

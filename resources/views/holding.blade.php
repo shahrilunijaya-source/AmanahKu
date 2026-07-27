@@ -15,7 +15,7 @@
         </div>
         <h1 style="font-size:19px;font-weight:600;color:var(--ink);margin:0 0 8px;">Your workspace is being set up</h1>
         <p style="font-size:13.5px;color:var(--muted);margin:0 0 4px;">Your HR team is still configuring Amanahku. You'll be able to sign in and start once setup is complete.</p>
-        <p style="font-size:12.5px;color:var(--muted-soft);margin:0 0 22px;">Ruang kerja anda sedang disediakan oleh pasukan HR. Sila cuba semula sebentar lagi.</p>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 22px;">Ruang kerja anda sedang disediakan oleh pasukan HR. Sila cuba semula sebentar lagi.</p>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="uj-btn-ghost" style="padding:9px 20px;">Sign out</button>

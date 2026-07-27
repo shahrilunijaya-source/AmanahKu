@@ -55,7 +55,7 @@
 <div class="uj-card" style="padding:14px 18px;margin-bottom:16px;display:flex;flex-direction:column;gap:12px;">
     {{-- Type row --}}
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-soft);width:52px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
+        <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);width:52px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
         <a href="{{ $chip(['type' => null]) }}" class="uj-pill" style="text-decoration:none;{{ $activeType === null ? 'background:var(--ink);color:#fff;' : 'background:var(--hairline-soft);color:var(--muted);' }}"><span x-text="$store.ui.lang==='en' ? 'All' : 'Semua'">All</span> · {{ $total }}</a>
         @foreach ($types as $t)
             <a href="{{ $chip(['type' => $t]) }}" class="uj-pill" style="text-decoration:none;{{ $activeType === $t ? 'background:'.$typeMeta[$t]['fg'].';color:#fff;' : 'background:'.$typeMeta[$t]['bg'].';color:'.$typeMeta[$t]['fg'].';' }}"><span x-text="$store.ui.lang==='en' ? @js($typeMeta[$t]['en'].'s') : @js($typeMeta[$t]['ms'])">{{ $typeMeta[$t]['en'] }}s</span> · {{ $t === 'bug' ? $bugCount : $ideaCount }}</a>
@@ -63,7 +63,7 @@
     </div>
     {{-- Status row --}}
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-soft);width:52px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span>
+        <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);width:52px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span>
         <a href="{{ $chip(['status' => null]) }}" class="uj-pill" style="text-decoration:none;{{ $activeStatus === null ? 'background:var(--ink);color:#fff;' : 'background:var(--hairline-soft);color:var(--muted);' }}"><span x-text="$store.ui.lang==='en' ? 'All' : 'Semua'">All</span></a>
         @foreach ($statuses as $st)
             @php $sm = $statusMeta[$st]; @endphp
@@ -127,7 +127,7 @@
                     </div>
                 @endif
 
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted-soft);">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);">
                     <span><span x-text="$store.ui.lang==='en' ? 'by' : 'oleh'">by</span> {{ $reporter }}</span>
                     <span style="font-family:var(--font-mono);">{{ $item->created_at->format('j M Y, H:i') }}</span>
                     @if ($safeUrl)

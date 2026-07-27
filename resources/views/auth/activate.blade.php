@@ -32,7 +32,7 @@
             <button type="submit" class="uj-btn-primary" style="width:100%;height:46px;font-size:14px;">Activate account</button>
         </form>
 
-        <p style="font-size:12px;color:var(--muted-soft);margin-top:18px;text-align:center;">Prefer to use the temporary password from your email? <a href="/login" style="color:var(--red);text-decoration:none;">Sign in instead</a>.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:18px;text-align:center;">Prefer to use the temporary password from your email? <a href="/login" style="color:var(--red);text-decoration:none;">Sign in instead</a>.</p>
     </div>
 </div>
 </body>

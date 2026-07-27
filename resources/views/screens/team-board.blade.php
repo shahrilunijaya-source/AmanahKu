@@ -106,7 +106,7 @@
                                     </div>
                                 </div>
                             @empty
-                                <div style="border:1px dashed var(--hairline);border-radius:9px;padding:12px;text-align:center;font-size:11px;color:var(--muted-soft);">—</div>
+                                <div style="border:1px dashed var(--hairline);border-radius:9px;padding:12px;text-align:center;font-size:11px;color:var(--muted);">—</div>
                             @endforelse
                         </div>
                     </div>

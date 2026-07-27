@@ -34,7 +34,7 @@ class AllScreensRenderTest extends TestCase
         'payroll', 'loans', 'pettycash', 'benefits', 'wellness',
         'kpi', 'achievements', 'reviews', 'goals', 'skills',
         'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
-        'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
+        'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook', 'tot',
         'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
         'reports', 'surveys', 'ideas', 'messages',
         'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',

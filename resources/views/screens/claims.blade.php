@@ -101,7 +101,7 @@
                 <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">
                     <span x-text="$store.ui.lang==='en' ? 'Receipt / supporting document' : 'Resit / dokumen sokongan'">Receipt / supporting document</span>
                     <span x-show="requiresReceipt[type]" style="color:var(--red);">*</span>
-                    <span x-show="!requiresReceipt[type]" style="color:var(--muted-soft);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
+                    <span x-show="!requiresReceipt[type]" style="color:var(--muted);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
                 </label>
                 <input type="file" name="receipt" accept=".pdf,.jpg,.jpeg,.png" :required="requiresReceipt[type]" style="width:100%;font-size:13px;color:var(--ink);margin-bottom:8px;" />
                 @include('partials.hint', ['en' => 'Attach a photo or PDF of the receipt. Expense, medical and travel claims require it; mileage and other are optional. Up to 8 MB.', 'ms' => 'Lampirkan foto atau PDF resit. Claim perbelanjaan, perubatan dan perjalanan wajib; mileage dan lain-lain pilihan. Sehingga 8 MB.'])

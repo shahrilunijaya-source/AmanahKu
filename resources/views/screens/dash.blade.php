@@ -117,7 +117,7 @@
         </div>
         <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
             <div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Annual leave' : 'Cuti tahunan'">Annual leave</span></div>
-            <div class="uj-stat-value">{{ $employee ? $employee->annualLeaveBalance() : '—' }} <span style="font-size:13px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div>
+            <div class="uj-stat-value">{{ $employee ? $employee->annualLeaveBalance() : '—' }} <span style="font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div>
         </div>
         @if ($perfEnabled ?? true)
         <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
@@ -186,7 +186,7 @@
                     <div style="padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
                             <span style="font-size:10px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:2px 7px;border-radius:9999px;">{{ $a->tag }}</span>
-                            <span style="font-size:11px;color:var(--muted-soft);">{{ $a->date->format('d M Y') }}</span>
+                            <span style="font-size:11px;color:var(--muted);">{{ $a->date->format('d M Y') }}</span>
                         </div>
                         <div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $a->title }}</div>
                     </div>
@@ -248,7 +248,7 @@
                     <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $m->id]) }}" class="uj-row uj-team-grid" style="padding:12px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;text-decoration:none;color:inherit;">
                         <div style="display:flex;align-items:center;gap:10px;min-width:0;"><div style="width:30px;height:30px;border-radius:50%;background:{{ $m->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $m->initials }}</div><span style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m->name }}</span></div>
                         @if ($m->status === 'on_leave')
-                            <span style="font-size:12.5px;font-weight:500;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span></span>
+                            <span style="font-size:12.5px;font-weight:500;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span></span>
                         @elseif ($tin)
                             <span style="font-size:12.5px;font-weight:500;font-family:var(--font-mono);color:{{ $late ? 'var(--amber)' : 'var(--success)' }};">{{ $tin }} → {{ $tout ?? '—' }}</span>
                         @else
@@ -280,7 +280,7 @@
             <h3 class="uj-card-title" style="margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Department capacity' : 'Kapasiti jabatan'">Department capacity</span></h3>
             <p style="font-size:12.5px;color:var(--muted);margin:0 0 18px;"><span x-text="$store.ui.lang==='en' ? 'Assigned load vs. available capacity, this week.' : 'Beban diberi berbanding kapasiti tersedia, minggu ini.'">Assigned load vs. available capacity, this week.</span></p>
             @forelse ($deptCap as $d)
-                <div style="margin-bottom:14px;"><div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $d['name'] }} <span style="color:var(--muted-soft);font-weight:400;">· {{ $d['head'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span></span><span style="font-size:12.5px;font-weight:600;color:{{ Amanahku::SWATCH[$d['color']] }};font-family:var(--font-mono);">{{ $d['cap'] }}%</span></div><div style="height:8px;background:var(--hairline);border-radius:9999px;overflow:hidden;"><div style="height:100%;width:{{ $d['cap'] }}%;background:{{ Amanahku::SWATCH[$d['color']] }};"></div></div></div>
+                <div style="margin-bottom:14px;"><div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $d['name'] }} <span style="color:var(--muted);font-weight:400;">· {{ $d['head'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span></span><span style="font-size:12.5px;font-weight:600;color:{{ Amanahku::SWATCH[$d['color']] }};font-family:var(--font-mono);">{{ $d['cap'] }}%</span></div><div style="height:8px;background:var(--hairline);border-radius:9999px;overflow:hidden;"><div style="height:100%;width:{{ $d['cap'] }}%;background:{{ Amanahku::SWATCH[$d['color']] }};"></div></div></div>
             @empty
                 @include('partials.list-empty', [
                     'en' => ['title' => 'No departments set up yet', 'body' => 'Departments with staff assigned will show their capacity here.'],
@@ -349,7 +349,7 @@
             <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
                 <span style="font-size:10px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:2px 8px;border-radius:9999px;white-space:nowrap;">{{ $a->tag }}</span>
                 <span style="flex:1;font-size:13px;color:var(--ink);font-weight:500;">{{ $a->title }}</span>
-                <span style="font-size:11.5px;color:var(--muted-soft);font-family:var(--font-mono);white-space:nowrap;">{{ $a->date->format('d M') }}</span>
+                <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $a->date->format('d M') }}</span>
             </div>
         @empty
             @include('partials.list-empty', [

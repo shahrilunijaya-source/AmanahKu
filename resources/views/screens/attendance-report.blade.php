@@ -11,7 +11,7 @@
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
     ];
-    $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted-soft)'];
+    $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted)'];
     $stLabel = ['on_time' => ['On time', 'Tepat masa'], 'late' => ['Late', 'Lewat'], 'pending' => ['Pending', 'Menunggu']];
 
     // Punctuality → swatch. Shared by KPI tile and per-staff cells.

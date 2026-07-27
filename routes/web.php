@@ -62,6 +62,7 @@ use App\Http\Controllers\SuperAdmin\FeatureController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetController;
+use App\Http\Controllers\TotController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\TravelController;
 use App\Http\Controllers\VehicleController;
@@ -316,6 +317,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/knowledge-bank/{entry}/star', [KnowledgeController::class, 'toggleStar'])->name('knowledge.star');
         Route::post('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'comment'])->name('knowledge.comments');
         Route::delete('/app/knowledge-bank/comments/{comment}', [KnowledgeController::class, 'deleteComment'])->name('knowledge.comments.delete');
+        // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
+        // first segment so EnsureModuleEnabled gates them under module.knowledge.
+        Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
+        Route::delete('/app/tot/comments/{comment}', [TotController::class, 'deleteComment'])->name('tot.comments.delete');
+        Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');
+        Route::post('/app/tot/{session}/react', [TotController::class, 'react'])->name('tot.react');
+        Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
+        Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
+        Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
+        Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1')->name('messages.send');
