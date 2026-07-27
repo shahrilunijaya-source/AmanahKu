@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -60,6 +62,105 @@ class TotController extends Controller
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
         ];
+    }
+
+    /** Privileged-only: create a slot for a month that has none yet. */
+    public function store(Request $request): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'presenter_employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+            'presenter_name' => ['nullable', 'string', 'max:120'],
+            'title' => ['nullable', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'status' => ['required', 'in:'.implode(',', TotSession::STATUSES)],
+        ]);
+
+        $session = TotSession::updateOrCreate(
+            ['year' => $data['year'], 'month' => $data['month']],
+            [
+                'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
+                'presenter_name' => $data['presenter_name'] ?? null,
+                'title' => $data['title'] ?? null,
+                'description' => $data['description'] ?? null,
+                'status' => $data['status'],
+                'created_by' => $request->attributes->get('employee')?->id,
+            ],
+        );
+
+        AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
+
+        return back()->with('ok', 'TOT slot saved.');
+    }
+
+    /**
+     * Update a slot. HR and management may change everything; the presenter of the slot may
+     * only change the material (title, description, links, cross-link). Status is
+     * privileged because flipping it to done credits a Knowledge Bank month.
+     */
+    public function update(Request $request, TotSession $session): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $this->authorizeSlotEdit($request, $session, $employee);
+
+        $rules = [
+            'title' => ['nullable', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'links' => ['nullable', 'array', 'max:12'],
+            'links.*.label' => ['required_with:links', 'string', 'max:60'],
+            'links.*.url' => ['required_with:links', 'url', 'max:2000'],
+            'entry_id' => ['nullable', 'integer', 'exists:knowledge_entries,id'],
+        ];
+
+        if ($privileged) {
+            $rules['presenter_employee_id'] = ['nullable', 'integer', 'exists:employees,id'];
+            $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
+            $rules['status'] = ['nullable', 'in:'.implode(',', TotSession::STATUSES)];
+            $rules['held_on'] = ['nullable', 'date'];
+        }
+
+        // validate() returns only the keys it was given rules for. A non-privileged
+        // presenter has no status rule, so a hand-crafted POST carrying status never
+        // reaches $data and cannot promote the slot.
+        $data = $request->validate($rules);
+
+        $session->fill($data)->save();
+
+        AuditLog::record('Updated TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
+
+        return back()->with('ok', 'TOT slot updated.');
+    }
+
+    /** Privileged-only: remove a slot entirely. */
+    public function destroy(Request $request, TotSession $session): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $label = sprintf('%04d-%02d', $session->year, $session->month);
+        $session->delete();
+
+        AuditLog::record('Deleted TOT slot', $label);
+
+        return back()->with('ok', 'TOT slot removed.');
+    }
+
+    /** 403 unless the actor is privileged or is the presenter of this slot. */
+    private function authorizeSlotEdit(Request $request, TotSession $session, ?Employee $employee): void
+    {
+        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+            return;
+        }
+
+        abort_unless(
+            $employee && $session->presenter_employee_id === $employee->id,
+            403,
+            'Only HR, management, or the presenter of this session can edit it.'
+        );
     }
 
     /**

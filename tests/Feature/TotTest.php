@@ -143,4 +143,94 @@ class TotTest extends TestCase
         $response->assertOk();
         $response->assertViewHas('year', (int) now()->year);
     }
+
+    // ── Roster permissions ────────────────────────────────────────
+
+    public function test_an_employee_cannot_create_a_slot(): void
+    {
+        $response = $this->actingInTenant()->post('/app/tot', [
+            'year' => 2026, 'month' => 9, 'status' => 'planned',
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_hr_creates_a_slot(): void
+    {
+        $hr = $this->hrActor();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/tot', [
+                'year' => 2026, 'month' => 9,
+                'presenter_employee_id' => $this->employee->id,
+                'title' => 'Queue workers in production',
+                'status' => 'confirmed',
+            ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('tot_sessions', [
+            'year' => 2026, 'month' => 9, 'title' => 'Queue workers in production', 'status' => 'confirmed',
+        ]);
+    }
+
+    public function test_the_presenter_edits_their_own_slot(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'title' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'title' => 'Install git on our own server',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame('Install git on our own server', $session->fresh()->title);
+    }
+
+    public function test_an_employee_cannot_edit_a_slot_they_do_not_present(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Someone else',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $other->id]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", ['title' => 'Hijacked']);
+
+        $response->assertForbidden();
+    }
+
+    public function test_the_presenter_cannot_change_the_status(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'title' => 'Install git on our own server',
+            'status' => 'done',
+        ]);
+
+        $this->assertSame('confirmed', $session->fresh()->status);
+    }
+
+    public function test_an_unknown_status_is_rejected(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'cancelled']);
+
+        $response->assertSessionHasErrors('status');
+    }
+
+    public function test_only_privileged_roles_delete_a_slot(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/delete")->assertForbidden();
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}/delete")->assertRedirect();
+
+        $this->assertDatabaseMissing('tot_sessions', ['id' => $session->id]);
+    }
 }
