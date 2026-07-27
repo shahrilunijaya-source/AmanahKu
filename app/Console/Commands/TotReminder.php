@@ -62,7 +62,7 @@ class TotReminder extends Command
     {
         $sent = 0;
 
-        $slots = TotSession::with('presenter.user')
+        $slots = TotSession::with('presenter')
             ->whereNotIn('status', self::SILENT_STATUSES)
             ->where('year', '>=', $today->year)
             ->get();
@@ -99,7 +99,7 @@ class TotReminder extends Command
                 $before = AppNotification::count();
 
                 AppNotification::sendMany(
-                    Employee::where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
+                    Employee::active()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
                     'TOT tomorrow',
                     $title.'. Material is on the TOT board.',
                     $url,

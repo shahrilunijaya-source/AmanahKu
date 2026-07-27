@@ -144,4 +144,47 @@ class TotReminderTest extends TestCase
             'user_id' => $this->presenter->id, 'dedupe_key' => 'tot:'.$slot->id.':tomorrow',
         ]);
     }
+
+    public function test_nothing_is_sent_eight_days_out(): void
+    {
+        $this->makeSlot();
+
+        // First Saturday of March 2026 is the 7th; 7 days before is 28 February.
+        // 8 days out (one day before that boundary) must not fire.
+        $this->travelTo('2026-02-27 08:00:00');
+        $this->artisan('tot:remind');
+
+        $this->assertSame(0, AppNotification::count());
+    }
+
+    public function test_nothing_is_sent_six_days_out(): void
+    {
+        $this->makeSlot();
+
+        // 6 days out (one day after the 7-day boundary) must not fire.
+        $this->travelTo('2026-03-01 08:00:00');
+        $this->artisan('tot:remind');
+
+        $this->assertSame(0, AppNotification::count());
+    }
+
+    public function test_an_archived_employee_does_not_receive_the_all_hands_reminder(): void
+    {
+        $departed = User::create(['name' => 'Gone', 'email' => 'gone@example.com', 'password' => Hash::make('password')]);
+        $departed->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $departed->id,
+            'name' => 'Gone', 'status' => 'active', 'workload' => 'green',
+            'archived_at' => now(),
+        ]);
+
+        $slot = $this->makeSlot();
+
+        $this->travelTo('2026-03-06 08:00:00');
+        $this->artisan('tot:remind');
+
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $departed->id, 'dedupe_key' => 'tot:'.$slot->id.':tomorrow',
+        ]);
+    }
 }
