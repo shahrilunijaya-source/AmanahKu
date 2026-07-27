@@ -9,6 +9,7 @@ import { registerRolesAdmin } from './roles-admin';
 import { registerServiceWorker } from './pwa';
 import { registerTimesheetCapture } from './timesheet-capture';
 import { registerToast } from './toast';
+import { registerUploadFilenameSanitizer } from './upload-filename';
 import { registerWorkBoard } from './work-board';
 
 window.Alpine = Alpine;
@@ -24,6 +25,7 @@ registerOrgChart(Alpine);
 registerRolesAdmin(Alpine);
 registerTimesheetCapture(Alpine);
 registerToast(Alpine);
+registerUploadFilenameSanitizer();
 registerWorkBoard(Alpine);
 registerServiceWorker();
 

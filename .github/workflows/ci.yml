@@ -49,6 +49,12 @@ jobs:
       - name: Dependency security audit
         run: composer audit --no-interaction
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: JS tests (bun)
+        run: bun test
+
       - name: Tests
         run: php artisan test
 

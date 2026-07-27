@@ -93,7 +93,7 @@ parameters:
 		-
 			message: '#^Cannot call method toDateString\(\) on string\.$#'
 			identifier: method.nonObject
-			count: 2
+			count: 1
 			path: app/Http/Controllers/Api/V1/ApiController.php
 
 		-
@@ -115,9 +115,15 @@ parameters:
 			path: app/Http/Controllers/Api/V1/ApiController.php
 
 		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
 			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 2
+			count: 1
 			path: app/Http/Controllers/Api/V1/ApiController.php
 
 		-
@@ -154,12 +160,6 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:onDate\(\)\.$#'
 			identifier: method.notFound
 			count: 2
-			path: app/Http/Controllers/AppController.php
-
-		-
-			message: '#^Cannot access property \$year on string\.$#'
-			identifier: property.nonObject
-			count: 1
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -211,7 +211,7 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Using nullsafe property access on non\-nullable type string\. Use \-\> instead\.$#'
+			message: '#^Using nullsafe property access on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/AppController.php
@@ -247,12 +247,6 @@ parameters:
 			path: app/Http/Controllers/CalendarController.php
 
 		-
-			message: '#^Cannot access property \$timestamp on string\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: app/Http/Controllers/CalendarController.php
-
-		-
 			message: '#^Cannot call method betweenIncluded\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 2
@@ -274,12 +268,6 @@ parameters:
 			message: '#^Cannot call method isSameDay\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 2
-			path: app/Http/Controllers/CalendarController.php
-
-		-
-			message: '#^Cannot call method lessThanOrEqualTo\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
 			path: app/Http/Controllers/CalendarController.php
 
 		-
