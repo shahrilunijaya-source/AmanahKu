@@ -85,4 +85,14 @@ class TotHistorySeederTest extends TestCase
 
         $this->assertSame(0, KnowledgeContribution::count());
     }
+
+    public function test_it_throws_when_the_tenant_is_missing(): void
+    {
+        $this->tenant->delete();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('tenant "unijaya" not found');
+
+        (new TotHistorySeeder)->run();
+    }
 }

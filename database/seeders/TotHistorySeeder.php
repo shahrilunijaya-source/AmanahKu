@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotSession;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 
 /**
  * Imports the TOT history from the Google Sheet this board replaces
@@ -102,19 +103,25 @@ class TotHistorySeeder extends Seeder
         // `db:seed --class=`), matching the convention DatabaseSeeder uses for the same reason.
         $tenant = Tenant::where('slug', 'unijaya')->first();
         if (! $tenant) {
-            $this->command?->error('TOT import: tenant "unijaya" not found. Run the base seeder first.');
-
-            return;
+            throw new \RuntimeException(
+                'TOT import: tenant "unijaya" not found. Run the base seeder first.'
+            );
         }
 
         $unmatched = [];
+        $ambiguous = [];
 
         foreach (self::HISTORY as $year => $months) {
             foreach ($months as $month => [$presenter, $title, $status, $links]) {
-                $employee = $presenter ? $this->matchEmployee($tenant->id, $presenter) : null;
+                $candidates = $presenter ? $this->matchEmployees($tenant->id, $presenter) : collect();
+                $employee = $candidates->first();
 
                 if ($presenter && ! $employee) {
                     $unmatched[$presenter] = true;
+                }
+
+                if ($candidates->count() > 1) {
+                    $ambiguous[$presenter] = true;
                 }
 
                 TotSession::updateOrCreate(
@@ -141,13 +148,26 @@ class TotHistorySeeder extends Seeder
                 .'. These slots keep the name as free text; fix them on the TOT screen.'
             );
         }
+
+        if ($ambiguous !== []) {
+            $this->command?->warn(
+                'TOT import: more than one employee matched for '.implode(', ', array_keys($ambiguous))
+                .'. Picked the lowest employee id; verify the presenter on the TOT screen.'
+            );
+        }
     }
 
-    /** Case-insensitive name match so "Roy" and "ROY" resolve to the same person. */
-    private function matchEmployee(int $tenantId, string $name): ?Employee
+    /**
+     * Case-insensitive name match so "Roy" and "ROY" resolve to the same person, ordered
+     * by id so a collision always picks the same employee instead of an arbitrary one.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function matchEmployees(int $tenantId, string $name): Collection
     {
         return Employee::where('tenant_id', $tenantId)
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])
-            ->first();
+            ->orderBy('id')
+            ->get();
     }
 }
