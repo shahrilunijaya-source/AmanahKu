@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -28,6 +29,11 @@ class WorkforceInsightsTest extends TestCase
         parent::setUp();
 
         $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // `module.ai` now defaults OFF (Features::NOT_READY — see docs/ISSUES.md I-025), and
+        // EnsureModuleEnabled gates every /app/workload/* route — including this apply
+        // endpoint — on it. This suite tests the underlying apply logic itself, so enable
+        // the module for this tenant regardless of the platform default.
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.ai', true);
         // The manager actor's own employee is green → satisfies the "available peer"
         // condition so the rebalance recommendation can surface in other tests.
         $this->manager = $this->userWithRole('manager', 'mgr@example.com');

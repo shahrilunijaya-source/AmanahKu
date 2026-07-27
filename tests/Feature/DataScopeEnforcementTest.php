@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DataScope;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -82,5 +83,68 @@ class DataScopeEnforcementTest extends TestCase
 
         $this->assertStringContainsString('Alice in A', $content);
         $this->assertStringNotContainsString('Bob in B', $content);
+    }
+
+    /**
+     * A new manager must not start company-wide. The column default is 'company', so the
+     * role's intended reach has to be written at the point the membership is created —
+     * otherwise every manager reads every employee's attendance, remarks and timesheets.
+     */
+    public function test_new_manager_membership_starts_on_team_scope(): void
+    {
+        $this->assertSame('team', Permissions::defaultScopeForRole('manager'));
+        $this->assertSame('company', Permissions::defaultScopeForRole('management'));
+        $this->assertSame('company', Permissions::defaultScopeForRole('hr'));
+        // 'director' collapses to management, so it inherits the company-wide default.
+        $this->assertSame('company', Permissions::defaultScopeForRole('director'));
+
+        $hr = $this->privilegedUser();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/members', [
+                'name' => 'New Manager',
+                'email' => 'new.manager@example.com',
+                'role' => 'manager',
+            ])->assertRedirect();
+
+        $created = User::where('email', 'new.manager@example.com')->firstOrFail();
+        $this->assertSame('team', $created->dataScopeIn($this->tenant));
+    }
+
+    /** Promoting someone to manager must narrow their reach in the same move. */
+    public function test_promotion_to_manager_narrows_an_untouched_scope(): void
+    {
+        $staff = User::create(['name' => 'Staff', 'email' => 'staff@example.com', 'password' => Hash::make('password')]);
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+
+        $hr = $this->privilegedUser();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/admin/roles/'.$staff->id, ['role' => 'manager'])->assertRedirect();
+
+        $this->assertSame('team', $staff->fresh()->dataScopeIn($this->tenant));
+    }
+
+    /** A scope an admin deliberately chose survives an unrelated role edit. */
+    public function test_role_change_keeps_a_deliberately_chosen_scope(): void
+    {
+        $staff = User::create(['name' => 'Wide', 'email' => 'wide@example.com', 'password' => Hash::make('password')]);
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee', 'data_scope' => 'branch']);
+
+        $hr = $this->privilegedUser();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/admin/roles/'.$staff->id, ['role' => 'manager'])->assertRedirect();
+
+        $this->assertSame('branch', $staff->fresh()->dataScopeIn($this->tenant));
+    }
+
+    private function privilegedUser(): User
+    {
+        $hr = User::create(['name' => 'HR', 'email' => 'hr@example.com', 'password' => Hash::make('password')]);
+        $hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $hr->id,
+            'name' => 'HR', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        return $hr;
     }
 }

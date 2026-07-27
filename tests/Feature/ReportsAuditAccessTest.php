@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -86,5 +87,44 @@ class ReportsAuditAccessTest extends TestCase
         $this->actAs($this->userWithRole('employee'), 'employee');
 
         $this->get('/app/dash')->assertOk()->assertDontSee('Reports & Audit');
+    }
+
+    /**
+     * A clock remark is free text a staff member writes about their own day, so who reads it
+     * matters. It must reach an overseer through the report drill-down, and must never reach
+     * a peer. The screen gate above already blocks the peer; this pins both ends to the
+     * remark text itself, which is the thing that would actually leak.
+     */
+    public function test_clock_remark_is_visible_to_an_overseer_and_hidden_from_a_peer(): void
+    {
+        // The record is created outside a request, so the tenant the BelongsToTenant trait
+        // stamps and scopes by has to be set by hand first.
+        app(CurrentTenant::class)->set($this->tenant);
+
+        $subject = Employee::where('tenant_id', $this->tenant->id)->active()->firstOrFail();
+        $remark = 'Handover at the Kuantan depot, back after lunch.';
+
+        // Yesterday, not today: on SQLite the `date` cast writes "Y-m-d H:i:s", so a row dated
+        // today string-compares past the report window's end bound and vanishes. MySQL's DATE
+        // column truncates and has no such edge, so this only bites the test DB.
+        $subject->attendanceRecords()->create([
+            'tenant_id' => $this->tenant->id,
+            'date' => now()->subDay()->toDateString(),
+            'clock_in' => '09:00:00',
+            'status' => 'on_time',
+            'location' => 'PJ HQ',
+            'clock_in_justification' => $remark,
+        ]);
+
+        $this->assertDatabaseHas('attendance_records', ['employee_id' => $subject->id, 'clock_in_justification' => $remark]);
+
+        $this->actAs($this->userWithRole('manager'), 'manager');
+        $this->get('/app/attendance-report?emp='.$subject->id)->assertOk()->assertSee($subject->name)->assertSee($remark, false);
+
+        $this->actAs($this->userWithRole('employee'), 'employee');
+        $this->get('/app/attendance-report?emp='.$subject->id)->assertForbidden();
+        // The peer's own attendance screen is scoped to their own records, so the remark
+        // is absent there too — not merely hidden behind a role check.
+        $this->get('/app/attendance')->assertOk()->assertDontSee($remark, false);
     }
 }

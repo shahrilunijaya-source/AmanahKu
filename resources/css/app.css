@@ -166,9 +166,10 @@ body {
 
 .uj-btn-primary {
     background: var(--red); color: #fff; font-weight: 500;
-    border-radius: 8px; transition: background .15s;
+    border-radius: 8px; transition: background .15s, transform 160ms ease-out;
 }
 .uj-btn-primary:hover { background: var(--red-active); }
+.uj-btn-primary:active { transform: scale(0.97); }
 
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
@@ -187,9 +188,28 @@ body {
 
 .uj-btn-ghost {
     background: #fff; border: 1px solid var(--hairline); color: var(--ink);
-    font-weight: 500; border-radius: 8px; transition: border-color .15s;
+    font-weight: 500; border-radius: 8px; transition: border-color .15s, transform 160ms ease-out;
 }
 .uj-btn-ghost:hover { border-color: var(--muted-soft); }
+.uj-btn-ghost:active { transform: scale(0.97); }
+
+/* ── Modal/drawer open motion (claims "New claim" overlay et al) ──
+   Alpine x-transition class hooks: enter/leave share the same from/to states so a
+   toggle mid-animation reverses cleanly. Enter is slower (250ms) than leave (180ms) —
+   opening earns a beat of anticipation, closing should just get out of the way.
+   Transform + opacity only, never scale(0) (that reads as a pop, not a settle). */
+.uj-overlay-enter { transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1); }
+.uj-overlay-leave { transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms cubic-bezier(0.32, 0.72, 0, 1); }
+.uj-overlay-from { opacity: 0; transform: scale(0.97) translateY(6px); }
+.uj-overlay-to { opacity: 1; transform: scale(1) translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .uj-btn-primary, .uj-btn-ghost { transition: background .15s, border-color .15s; }
+    .uj-btn-primary:active, .uj-btn-ghost:active { transform: none; }
+    .uj-overlay-enter, .uj-overlay-leave { transition: opacity 180ms ease; }
+    .uj-overlay-from, .uj-overlay-to { transform: none; }
+    .uj-card-clickable { transition: box-shadow .15s ease; }
+    .uj-card-clickable:hover { transform: none; }
+}
 
 .uj-card-head {
     padding: 16px 20px; border-bottom: 1px solid var(--hairline);
@@ -217,6 +237,79 @@ body {
 /* x-show wipes the inline display property when it reveals an element, so any row layout
    on an x-show element must live in a class or it collapses back to block. */
 .uj-banner-row { display: flex; align-items: center; gap: 11px; }
+/* On a narrow phone the stamp + text + action + dismiss cannot share one row without
+   squeezing the text to three or four words a line, so the row wraps and the text
+   claims a full line of its own. flex-basis:100% on the text child is what forces the
+   break; the stamp and the actions stay side by side above and below it. */
+@media (max-width: 480px) {
+    .uj-banner-row { flex-wrap: wrap; gap: 8px 10px; }
+    .uj-banner-row > .uj-banner-text { flex-basis: 100%; }
+}
+
+/* Inline page alert: session ok/error and the overdue-timesheet nudge in layouts/app.blade.php.
+   Same x-show rule as .uj-banner-row above — the row layout must live here, not inline.
+   Tone drives background, border and text colour; the icon tile and dismiss button match
+   .uj-toast so a flashed message and a toast read as one family. */
+.uj-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid;
+    border-radius: 10px;
+    padding: 10px 12px 10px 11px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.uj-alert-icon {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    display: grid; place-items: center;
+    background: #fff;
+    color: inherit;
+}
+.uj-alert-icon svg { width: 13px; height: 13px; }
+.uj-alert-msg { flex: 1; min-width: 0; font-weight: 500; }
+.uj-alert-action { white-space: nowrap; font-weight: 600; text-decoration: underline; color: inherit; }
+.uj-alert-close {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    opacity: .5;
+    cursor: pointer;
+    transition: opacity .12s, background .12s;
+}
+.uj-alert-close:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.uj-alert-close svg { width: 12px; height: 12px; }
+.uj-alert[data-tone="success"] {
+    background: color-mix(in srgb, var(--success) 7%, #fff);
+    border-color: color-mix(in srgb, var(--success) 34%, var(--hairline));
+    color: #176e51;
+}
+.uj-alert[data-tone="error"] {
+    background: var(--red-tint);
+    border-color: color-mix(in srgb, var(--red) 34%, var(--hairline));
+    color: var(--red);
+}
+/* The overdue nudge carries an action link, so on a phone the text takes its own line
+   rather than squeezing to three words beside the icon and the two trailing controls. */
+@media (max-width: 480px) {
+    .uj-alert:has(.uj-alert-action) { flex-wrap: wrap; gap: 8px 10px; }
+    .uj-alert:has(.uj-alert-action) > .uj-alert-msg { flex-basis: 100%; }
+}
+
+/* Card lede: leading icon tile, flexible text, trailing stamp ("Action needed",
+   "Requests stuck with no approver", the setup-progress banner). Same squeeze as
+   above at phone widths — the text child carries a min-width inline, so once the
+   row is allowed to wrap the stamp is the part that drops to its own line. */
+.uj-card-lede { display: flex; gap: 14px; }
+@media (max-width: 480px) {
+    .uj-card-lede { flex-wrap: wrap; gap: 10px 12px; }
+}
 
 /* Booking / shift chips are too small for a stamp, so the tone fills the chip instead. */
 .uj-chip-tone { border: 1px solid var(--hairline); border-radius: 7px; }
@@ -226,6 +319,11 @@ body {
 .uj-chip-tone[data-tone="muted"]     { background: var(--hairline-soft); }
 .uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
 .uj-progress > span { display: block; height: 100%; background: var(--success); }
+
+/* Trailing hairline: rows in a list hand-roll `border-bottom` on every row, which
+   leaves the last row with a dangling rule under it. Inline styles can't express
+   :last-child, hence the class + !important to beat the per-row inline border. */
+.uj-trim-last > *:last-child { border-bottom: none !important; }
 
 /* ── Accessibility ── */
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 5px; }
@@ -242,6 +340,40 @@ body {
     .uj-subhead { padding: 14px 18px 16px !important; }
     .uj-main { padding: 18px 16px 40px !important; }
     .uj-header { padding: 0 14px !important; gap: 10px !important; }
+}
+
+/* ── Dashboard two-column split (employee / manager / management personas) ──
+   Replaces per-branch inline `flex:2/1;min-width:Npx`, which reflowed at whatever
+   width the two min-widths happened to sum to, and overflowed a narrow phone before
+   reaching that point.
+
+   The breakpoint is 1024px, not the shell's 900px, because above 900px a 248px sidebar
+   plus 56px of padding sits beside this content: a 1000px window leaves the content
+   column only ~570px, which would squeeze the side column under 200px. 1024 - 304 puts
+   the collapse at roughly 720px of real content width.
+
+   Deliberately NOT a container query. `container-type: inline-size` implies layout
+   containment, which makes the element a containing block for fixed-position
+   descendants — and screens rendered into .uj-main (claims, board, attendance, profile,
+   setup…) put their modals and drawers there with position:fixed. Scoping to the
+   viewport keeps those escaping to the viewport as intended. */
+.uj-dash-split { display: flex; gap: 16px; align-items: flex-start; }
+.uj-dash-main { flex: 2; min-width: 0; }
+.uj-dash-side { flex: 1; min-width: 0; }
+@media (max-width: 1024px) {
+    .uj-dash-split { flex-direction: column; }
+    .uj-dash-main, .uj-dash-side { width: 100%; }
+}
+
+/* Manager dashboard "Team status" table: 3-column grid at normal widths, stacks into
+   readable vertical rows when narrow (member / today / workload each get their own
+   line — still self-explanatory without the column header, which is hidden since it
+   no longer labels anything once the columns collapse). Below 900px the sidebar is
+   off-canvas, so here the viewport width IS roughly the content width. */
+.uj-team-grid { display: grid; grid-template-columns: 1.6fr .8fr .9fr; gap: 8px; }
+@media (max-width: 560px) {
+    .uj-team-grid-head { display: none; }
+    .uj-team-grid { grid-template-columns: 1fr; gap: 4px; }
 }
 
 /* ── Desktop sidebar collapse (Ctrl+B, header menu button, or in-sidebar toggle) ──

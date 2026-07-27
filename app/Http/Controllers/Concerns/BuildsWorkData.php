@@ -165,10 +165,13 @@ trait BuildsWorkData
         ];
     }
 
+    /**
+     * Personal-only claims data for the `claims` screen: the viewer's own claims, their
+     * approval chain and the medical-cap figures the new-claim drawer needs. Company-wide
+     * data and the verify/approve queues live in claimApprovalsData() instead — see there.
+     */
     private function claimsData(Request $request, ?Employee $employee): array
     {
-        // Two-step gate (see RoutesApprovalsByReportingLine): the immediate superior sees
-        // their reports' submitted claims to verify; management sees verified claims to approve.
         $myClaims = $employee?->claims()->latest('date')->get() ?? collect();
 
         // Medical allowance consumed this calendar year (all non-rejected medical claims),
@@ -182,10 +185,33 @@ trait BuildsWorkData
         return [
             'myClaims' => $myClaims,
             'approvalChain' => $this->approvalChain($employee),
-            'claimsToVerify' => $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get(),
-            'claimsToApprove' => $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get(),
             'medicalCap' => (float) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'claims.medical_cap'),
             'medicalUsedYtd' => $medicalUsedYtd,
+        ];
+    }
+
+    /**
+     * Company-wide claims data for the `claim-approvals` screen: the two-step approval
+     * queues (see RoutesApprovalsByReportingLine — immediate superior verifies, then
+     * management approves) plus, for management/hr, the full company ledger.
+     */
+    private function claimApprovalsData(Request $request, ?Employee $employee): array
+    {
+        $privileged = $this->hasTenantRole($request, ['management', 'hr']);
+
+        return [
+            'privileged' => $privileged,
+            'claimsToVerify' => $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get(),
+            'claimsToApprove' => $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get(),
+            // Company-wide claims view, management/hr only. Totals come from one grouped
+            // aggregate query (not summed in PHP), and the claim list is capped at the
+            // latest 50 rows on purpose so this screen doesn't grow heavier forever.
+            'claimTotals' => $privileged
+                ? Claim::query()->selectRaw('status, COUNT(*) as count, SUM(amount) as total')->groupBy('status')->get()->keyBy('status')
+                : collect(),
+            'allClaims' => $privileged
+                ? Claim::with('employee')->latest('date')->take(50)->get()
+                : collect(),
         ];
     }
 

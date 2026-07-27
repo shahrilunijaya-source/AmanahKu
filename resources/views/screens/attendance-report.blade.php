@@ -208,11 +208,28 @@
                     <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
                 </span>
                 <span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-                    @foreach (($r->flags ?? []) as $f)
+                    {{-- 'late' is dropped: the Status column already says Late, from the same
+                         boolean that writes the flag. See the same filter on the attendance screen. --}}
+                    @foreach (array_diff($r->flags ?? [], ['late']) as $f)
                         @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
                         <span style="font-size:9px;font-weight:600;color:var(--error);background:var(--red-tint,rgba(214,35,43,.1));padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                     @endforeach
                 </span>
+                {{-- What the staff member typed on the punch: a remark by choice, or the reason the
+                     server demanded for an off-site or early event. Spans the whole grid row so a
+                     long note never squeezes the time columns. --}}
+                @php $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]); @endphp
+                @if ($notes)
+                    <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:2px;">
+                        @foreach ($notes as $slot => $note)
+                            <div style="display:flex;gap:7px;font-size:11.5px;line-height:1.45;color:var(--body);">
+                                <span style="flex-shrink:0;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:2px;"
+                                      x-text="$store.ui.lang==='en' ? @js($slot === 'in' ? 'In' : 'Out') : @js($slot === 'in' ? 'Masuk' : 'Keluar')">{{ $slot === 'in' ? 'In' : 'Out' }}</span>
+                                <span>{{ $note }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         @empty
             <div style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No attendance in this period.' : 'Tiada kehadiran dalam tempoh ini.'">No attendance in this period.</span></div>

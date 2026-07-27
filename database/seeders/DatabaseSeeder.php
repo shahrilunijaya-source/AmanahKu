@@ -36,6 +36,7 @@ use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkSite;
 use App\Services\Payroll\PayrollCalculator;
+use App\Support\Permissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -79,7 +80,13 @@ class DatabaseSeeder extends Seeder
         $petron = Tenant::create(['slug' => 'petron-tl', 'name' => 'Petron Tg Lumpur', 'initials' => 'PT', 'color' => '#3a6ea5', 'plan' => 'Business', 'company_category_id' => $stage1, 'meta' => '1 branch · 84 employees']);
 
         // Demo user can access all three; HR role so the persona toggle stays usable.
-        $demo->tenants()->attach([$unijaya->id => ['role' => 'hr'], $shell->id => ['role' => 'manager'], $petron->id => ['role' => 'employee']]);
+        // Each membership starts on its role's default data scope, so the seeded manager
+        // sees their reporting line rather than the whole company (Permissions::defaultScopeForRole).
+        $demo->tenants()->attach([
+            $unijaya->id => ['role' => 'hr', 'data_scope' => Permissions::defaultScopeForRole('hr')],
+            $shell->id => ['role' => 'manager', 'data_scope' => Permissions::defaultScopeForRole('manager')],
+            $petron->id => ['role' => 'employee', 'data_scope' => Permissions::defaultScopeForRole('employee')],
+        ]);
 
         // Org lookups for the main demo tenant (grades L1–L6 + employment types).
         foreach (['L1', 'L2', 'L3', 'L4', 'L5', 'L6'] as $i => $lv) {

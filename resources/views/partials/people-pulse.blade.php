@@ -51,10 +51,12 @@
                 </span>
             </a>
         @empty
-            <div style="padding:10px 0;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'Nobody off this week' : 'Tiada sesiapa bercuti minggu ini'"></span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Approved leave for the next 7 days shows here — full team in for now.' : 'Cuti diluluskan untuk 7 hari akan datang dipapar di sini — pasukan penuh buat masa ini.'"></span></div>
-            </div>
+            @include('partials.list-empty', [
+                'en' => ['title' => 'Nobody off this week', 'body' => 'Approved leave for the next 7 days shows here — full team in for now.'],
+                'ms' => ['title' => 'Tiada sesiapa bercuti minggu ini', 'body' => 'Cuti diluluskan untuk 7 hari akan datang dipapar di sini — pasukan penuh buat masa ini.'],
+                'pad' => '10px 0',
+                'center' => false,
+            ])
         @endforelse
     </div>
 
@@ -82,10 +84,12 @@
                    style="height:30px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px;text-decoration:none;border:1px solid var(--hairline);border-radius:8px;color:var(--body);white-space:nowrap;">🎂 <span x-text="$store.ui.lang==='en' ? 'Wish' : 'Ucap'">Wish</span></a>
             </div>
         @empty
-            <div style="padding:10px 0;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No birthdays this month' : 'Tiada hari lahir bulan ini'"></span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Colleagues celebrating this month appear here so you can send a wish.' : 'Rakan sekerja yang menyambut bulan ini muncul di sini untuk anda ucapkan.'"></span></div>
-            </div>
+            @include('partials.list-empty', [
+                'en' => ['title' => 'No birthdays this month', 'body' => 'Colleagues celebrating this month appear here so you can send a wish.'],
+                'ms' => ['title' => 'Tiada hari lahir bulan ini', 'body' => 'Rakan sekerja yang menyambut bulan ini muncul di sini untuk anda ucapkan.'],
+                'pad' => '10px 0',
+                'center' => false,
+            ])
         @endforelse
     </div>
 </div>

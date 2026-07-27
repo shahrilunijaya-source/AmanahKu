@@ -75,17 +75,29 @@
         <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:24px 28px 48px;' }}">
             <div class="uj-fade" style="width:100%;">
                 @if (session('ok'))
-                    <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:10px;background:#e7f4ee;border:1px solid var(--success);color:#176e51;font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-                        <span style="flex:1;">{{ session('ok') }}</span>
-                        <button @click="show = false" style="color:#176e51;font-size:16px;">×</button>
+                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                         class="uj-alert" data-tone="success" role="status">
+                        <span class="uj-alert-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                        </span>
+                        <span class="uj-alert-msg">{{ session('ok') }}</span>
+                        <button type="button" class="uj-alert-close" @click="show = false"
+                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        </button>
                     </div>
                 @endif
                 @if (session('error'))
-                    <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:10px;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-                        <span style="flex:1;">{{ session('error') }}</span>
-                        <button @click="show = false" style="color:var(--red);font-size:16px;">×</button>
+                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                         class="uj-alert" data-tone="error" role="alert">
+                        <span class="uj-alert-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+                        </span>
+                        <span class="uj-alert-msg">{{ session('error') }}</span>
+                        <button type="button" class="uj-alert-close" @click="show = false"
+                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        </button>
                     </div>
                 @endif
                 {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
@@ -113,19 +125,25 @@
                     </div>
                 @endif
                 @if (($qaTsOverdue ?? false))
-                    <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:10px;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-                        <span style="flex:1;" x-text="$store.ui.lang==='en'
+                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                         class="uj-alert" data-tone="error" role="alert">
+                        <span class="uj-alert-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+                        </span>
+                        <span class="uj-alert-msg" x-text="$store.ui.lang==='en'
                             ? 'Your timesheet for this week is overdue. Fill every working day to 100%.'
                             : 'Timesheet anda untuk minggu ini sudah lewat. Isi setiap hari bekerja ke 100%.'">Your timesheet for this week is overdue. Fill every working day to 100%.</span>
-                        <a href="{{ route('app.screen', 'timesheets') }}" style="white-space:nowrap;font-weight:600;text-decoration:underline;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Update now' : 'Kemas kini'">Update now</a>
-                        <button @click="show = false" style="color:var(--red);font-size:16px;">×</button>
+                        <a href="{{ route('app.screen', 'timesheets') }}" class="uj-alert-action" x-text="$store.ui.lang==='en' ? 'Update now' : 'Kemas kini'">Update now</a>
+                        <button type="button" class="uj-alert-close" @click="show = false"
+                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        </button>
                     </div>
                 @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
                     <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
-                        <div style="flex:1;">
+                        <div class="uj-banner-text" style="flex:1;">
                             <div style="font-size:13px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
                             <div class="uj-progress" style="margin-top:6px;max-width:260px;"><span style="width:{{ $profileCompletion['pct'] }}%;background:var(--red);"></span></div>
                         </div>

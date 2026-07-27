@@ -26,16 +26,14 @@
 @if (! empty($setupProgress) && ! $setupProgress['complete'])
     {{-- Company setup progress — only for admins until the wizard is finished. --}}
     <a href="{{ route('app.screen', 'setup') }}" style="text-decoration:none;display:block;margin-bottom:16px;">
-        <div class="uj-card" style="padding:18px 22px;display:flex;align-items:center;gap:18px;">
+        <div class="uj-card uj-card-clickable uj-card-lede" style="padding:18px 22px;align-items:center;gap:18px;">
             <div style="width:46px;height:46px;border-radius:11px;background:var(--red-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
             </div>
-            <div style="flex:1;min-width:0;">
+            <div style="flex:1;min-width:150px;">
                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish setting up your workspace' : 'Lengkapkan persediaan ruang kerja anda'">Finish setting up your workspace</div>
                 <div style="font-size:12.5px;color:var(--muted);margin-top:2px;">{{ $setupProgress['done'] }} / {{ $setupProgress['total'] }} <span x-text="$store.ui.lang==='en' ? 'steps done — continue the setup wizard' : 'langkah selesai — teruskan bestari persediaan'">steps done — continue the setup wizard</span></div>
-                <div style="height:6px;border-radius:9999px;background:var(--hairline-soft);margin-top:8px;overflow:hidden;max-width:320px;">
-                    <div style="height:100%;width:{{ $setupProgress['pct'] }}%;background:var(--red);border-radius:9999px;"></div>
-                </div>
+                <div class="uj-progress" style="margin-top:8px;max-width:320px;"><span style="width:{{ $setupProgress['pct'] }}%;background:var(--red);"></span></div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
                 <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Unfinished' : 'Belum selesai'">Unfinished</span>
@@ -49,11 +47,11 @@
     {{-- Requests from staff with no reporting-line superior land in nobody's queue (AK-PROC-04).
          HR/management only — assign a superior in the org chart to route them. --}}
     <div class="uj-card" style="padding:18px 22px;margin-bottom:16px;">
-        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;">
+        <div class="uj-card-lede" style="align-items:flex-start;margin-bottom:10px;">
             <div style="width:40px;height:40px;border-radius:11px;background:rgba(214,158,46,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
             </div>
-            <div style="flex:1;min-width:0;">
+            <div style="flex:1;min-width:150px;">
                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Requests stuck with no approver' : 'Permohonan tersekat tanpa pelulus'">Requests stuck with no approver</span> ({{ $stuckRequests->count() }})</div>
                 <div style="font-size:12.5px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'These people have no reporting-line superior, so their submitted requests reach nobody. Assign a superior in the org chart to route them (or reject on the request screen).' : 'Orang ini tiada penyelia dalam carta organisasi, jadi permohonan mereka tidak sampai kepada sesiapa. Tetapkan penyelia dalam carta organisasi untuk menghalakannya (atau tolak di skrin permohonan).'">These people have no reporting-line superior, so their submitted requests reach nobody.</span></div>
             </div>
@@ -131,9 +129,9 @@
 
     @include('partials.knowledge-reminder')
 
-    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-        <div style="flex:2;min-width:340px;display:flex;flex-direction:column;gap:16px;">
-            <div class="uj-card">
+    <div class="uj-dash-split">
+        <div class="uj-dash-main" style="display:flex;flex-direction:column;gap:16px;">
+            <div class="uj-card uj-trim-last">
                 <div class="uj-card-head">
                     <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'My current work' : 'Kerja semasa saya'">My current work</span></h3>
                     <a href="{{ route('app.screen', 'board') }}" class="uj-link" style="text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'View board →' : 'Lihat board →'">View board →</span></a>
@@ -154,16 +152,17 @@
                         </div>
                     </div>
                 @empty
-                    <div style="padding:28px 20px;text-align:center;">
-                        <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Nothing on your plate right now' : 'Tiada kerja untuk anda sekarang'"></span></div>
-                        <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'When tasks are assigned to you on the board, they show here with their progress. Open the board to pick something up.' : 'Bila tugasan diberi kepada anda di board, ia akan muncul di sini dengan progresnya. Buka board untuk ambil kerja.'"></span></div>
-                    </div>
+                    @include('partials.list-empty', [
+                        'en' => ['title' => 'Nothing on your plate right now', 'body' => 'When tasks are assigned to you on the board, they show here with their progress. Open the board to pick something up.'],
+                        'ms' => ['title' => 'Tiada kerja untuk anda sekarang', 'body' => 'Bila tugasan diberi kepada anda di board, ia akan muncul di sini dengan progresnya. Buka board untuk ambil kerja.'],
+                        'pad' => '28px 20px',
+                    ])
                 @endforelse
             </div>
 
-            <div class="uj-card" style="padding:20px;">
+            <div class="uj-card uj-trim-last" style="padding:20px;">
                 <h3 class="uj-card-title" style="margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Recent achievements' : 'Pencapaian terkini'">Recent achievements</span></h3>
-                @foreach ($achievements as $a)
+                @forelse ($achievements as $a)
                     <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
                         <div style="width:34px;height:34px;border-radius:50%;background:{{ $a->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $a->employee?->initials ?? '★' }}</div>
                         <div>
@@ -171,14 +170,19 @@
                             <div style="font-size:12px;color:var(--muted);margin-top:1px;">{{ $a->who }} · {{ $a->date?->diffForHumans() ?? $a->date_label }}</div>
                         </div>
                     </div>
-                @endforeach
+                @empty
+                    @include('partials.list-empty', [
+                        'en' => ['title' => 'No achievements yet', 'body' => 'Recognition posted for great work will appear here as it happens.'],
+                        'ms' => ['title' => 'Tiada pencapaian lagi', 'body' => 'Pengiktirafan untuk kerja cemerlang akan dipaparkan di sini apabila ia berlaku.'],
+                    ])
+                @endforelse
             </div>
         </div>
 
-        <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;">
-            <div class="uj-card" style="padding:20px;">
+        <div class="uj-dash-side" style="display:flex;flex-direction:column;gap:16px;">
+            <div class="uj-card uj-trim-last" style="padding:20px;">
                 <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Announcements' : 'Pengumuman'">Announcements</span></h3>
-                @foreach ($announcements as $a)
+                @forelse ($announcements as $a)
                     <div style="padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
                             <span style="font-size:10px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:2px 7px;border-radius:9999px;">{{ $a->tag }}</span>
@@ -186,10 +190,15 @@
                         </div>
                         <div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $a->title }}</div>
                     </div>
-                @endforeach
+                @empty
+                    @include('partials.list-empty', [
+                        'en' => ['title' => 'No announcements yet', 'body' => 'Company news posted by HR will show up here.'],
+                        'ms' => ['title' => 'Tiada pengumuman lagi', 'body' => 'Berita syarikat yang dipos oleh HR akan dipaparkan di sini.'],
+                    ])
+                @endforelse
             </div>
 
-            <div class="uj-card" style="padding:20px;">
+            <div class="uj-card uj-trim-last" style="padding:20px;">
                 <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Pending requests' : 'Permohonan tertunggak'">Pending requests</span></h3>
                 @forelse ($pendingRequests as $r)
                     @php $sc = ['approved' => 'var(--success)', 'submitted' => 'var(--amber)', 'rejected' => 'var(--error)', 'draft' => 'var(--muted)'][$r->status] ?? 'var(--muted)'; @endphp
@@ -198,10 +207,10 @@
                         <span style="font-size:11px;font-weight:600;color:{{ $sc }};">{{ ucfirst($r->status) }}</span>
                     </div>
                 @empty
-                    <div style="padding:14px 0;text-align:center;">
-                        <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No requests waiting' : 'Tiada permohonan menunggu'"></span></div>
-                        <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Leave or other requests you submit will appear here until they are approved or rejected.' : 'Permohonan cuti atau lain yang anda hantar akan muncul di sini sehingga ia diluluskan atau ditolak.'"></span></div>
-                    </div>
+                    @include('partials.list-empty', [
+                        'en' => ['title' => 'No requests waiting', 'body' => 'Leave or other requests you submit will appear here until they are approved or rejected.'],
+                        'ms' => ['title' => 'Tiada permohonan menunggu', 'body' => 'Permohonan cuti atau lain yang anda hantar akan muncul di sini sehingga ia diluluskan atau ditolak.'],
+                    ])
                 @endforelse
             </div>
 
@@ -222,53 +231,74 @@
             <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label">{{ $s['k'] }}</div><div class="uj-stat-value" style="color:{{ $s['c'] }};">{{ $s['v'] }}</div></div>
         @endforeach
     </div>
-    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-        <div class="uj-card" style="flex:2;min-width:380px;">
+    {{-- Without the AI panel there is no second column, so Team status goes full width. --}}
+    <div @class(['uj-dash-split' => $aiInsights])>
+        <div class="uj-card uj-trim-last{{ $aiInsights ? ' uj-dash-main' : '' }}">
             <div class="uj-card-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Team status' : 'Status pasukan'">Team status</span></h3></div>
-            <div style="display:grid;grid-template-columns:1.6fr .8fr .9fr;gap:8px;padding:10px 20px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--hairline-soft);"><span x-text="$store.ui.lang==='en' ? 'Member' : 'Ahli'">Member</span><span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span><span x-text="$store.ui.lang==='en' ? 'Workload' : 'Beban kerja'">Workload</span></div>
-            @foreach ($team as $m)
-                @php
-                    // Today's attendance (eager-loaded in managerTeam, constrained to today).
-                    $att  = $m->attendanceRecords->first();
-                    $late = $att && $att->status === 'late';
-                    $tin  = $att && $att->clock_in ? substr((string) $att->clock_in, 0, 5) : null;
-                    $tout = $att && $att->clock_out ? substr((string) $att->clock_out, 0, 5) : null;
-                @endphp
-                <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $m->id]) }}" class="uj-row" style="display:grid;grid-template-columns:1.6fr .8fr .9fr;gap:8px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;text-decoration:none;color:inherit;">
-                    <div style="display:flex;align-items:center;gap:10px;min-width:0;"><div style="width:30px;height:30px;border-radius:50%;background:{{ $m->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $m->initials }}</div><span style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m->name }}</span></div>
-                    @if ($m->status === 'on_leave')
-                        <span style="font-size:12.5px;font-weight:500;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span></span>
-                    @elseif ($tin)
-                        <span style="font-size:12.5px;font-weight:500;font-family:var(--font-mono);color:{{ $late ? 'var(--amber)' : 'var(--success)' }};">{{ $tin }} → {{ $tout ?? '—' }}</span>
-                    @else
-                        <span style="font-size:12.5px;font-weight:600;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Not in' : 'Belum masuk'">Not in</span></span>
-                    @endif
-                    <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--body);"><span style="width:9px;height:9px;border-radius:50%;background:{{ Amanahku::SWATCH[$m->workload] }};"></span>{{ $m->workload_label }}</span>
-                </a>
-            @endforeach
+            @if ($team->isNotEmpty())
+                <div class="uj-team-grid uj-team-grid-head" style="padding:10px 20px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--hairline-soft);"><span x-text="$store.ui.lang==='en' ? 'Member' : 'Ahli'">Member</span><span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span><span x-text="$store.ui.lang==='en' ? 'Workload' : 'Beban kerja'">Workload</span></div>
+                @foreach ($team as $m)
+                    @php
+                        // Today's attendance (eager-loaded in managerTeam, constrained to today).
+                        $att  = $m->attendanceRecords->first();
+                        $late = $att && $att->status === 'late';
+                        $tin  = $att && $att->clock_in ? substr((string) $att->clock_in, 0, 5) : null;
+                        $tout = $att && $att->clock_out ? substr((string) $att->clock_out, 0, 5) : null;
+                    @endphp
+                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $m->id]) }}" class="uj-row uj-team-grid" style="padding:12px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;text-decoration:none;color:inherit;">
+                        <div style="display:flex;align-items:center;gap:10px;min-width:0;"><div style="width:30px;height:30px;border-radius:50%;background:{{ $m->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $m->initials }}</div><span style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m->name }}</span></div>
+                        @if ($m->status === 'on_leave')
+                            <span style="font-size:12.5px;font-weight:500;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Leave' : 'Cuti'">Leave</span></span>
+                        @elseif ($tin)
+                            <span style="font-size:12.5px;font-weight:500;font-family:var(--font-mono);color:{{ $late ? 'var(--amber)' : 'var(--success)' }};">{{ $tin }} → {{ $tout ?? '—' }}</span>
+                        @else
+                            <span style="font-size:12.5px;font-weight:600;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Not in' : 'Belum masuk'">Not in</span></span>
+                        @endif
+                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--body);"><span style="width:9px;height:9px;border-radius:50%;background:{{ Amanahku::SWATCH[$m->workload] }};"></span>{{ $m->workload_label }}</span>
+                    </a>
+                @endforeach
+            @else
+                @include('partials.list-empty', [
+                    'en' => ['title' => 'No direct reports yet', 'body' => 'Staff whose reporting line points to you will appear here with their attendance and workload.'],
+                    'ms' => ['title' => 'Tiada penyeliaan langsung lagi', 'body' => 'Staf yang carta organisasinya menunjuk kepada anda akan muncul di sini dengan kehadiran dan beban kerja mereka.'],
+                ])
+            @endif
         </div>
-        <div style="flex:1;min-width:280px;background:var(--sidebar);border-radius:12px;padding:20px;color:#fff;">
+        @if ($aiInsights)
+        <div class="uj-dash-side" style="background:var(--sidebar);border-radius:12px;padding:20px;color:#fff;">
             <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg><h3 style="font-size:15px;font-weight:600;color:#fff;margin:0;"><span x-text="$store.ui.lang==='en' ? 'AI recommendations' : 'Cadangan AI'">AI recommendations</span></h3></div>
             @include('partials.recs')
         </div>
+        @endif
     </div>
 
 @elseif ($persona === 'management')
     {{-- ── MANAGEMENT ── --}}
-    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-        <div class="uj-card" style="flex:2;min-width:380px;padding:20px;">
+    @if ($aiInsights)
+    <div class="uj-dash-split">
+        <div class="uj-card uj-dash-main" style="padding:20px;">
             <h3 class="uj-card-title" style="margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Department capacity' : 'Kapasiti jabatan'">Department capacity</span></h3>
             <p style="font-size:12.5px;color:var(--muted);margin:0 0 18px;"><span x-text="$store.ui.lang==='en' ? 'Assigned load vs. available capacity, this week.' : 'Beban diberi berbanding kapasiti tersedia, minggu ini.'">Assigned load vs. available capacity, this week.</span></p>
-            @foreach ($deptCap as $d)
+            @forelse ($deptCap as $d)
                 <div style="margin-bottom:14px;"><div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $d['name'] }} <span style="color:var(--muted-soft);font-weight:400;">· {{ $d['head'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span></span><span style="font-size:12.5px;font-weight:600;color:{{ Amanahku::SWATCH[$d['color']] }};font-family:var(--font-mono);">{{ $d['cap'] }}%</span></div><div style="height:8px;background:var(--hairline);border-radius:9999px;overflow:hidden;"><div style="height:100%;width:{{ $d['cap'] }}%;background:{{ Amanahku::SWATCH[$d['color']] }};"></div></div></div>
-            @endforeach
+            @empty
+                @include('partials.list-empty', [
+                    'en' => ['title' => 'No departments set up yet', 'body' => 'Departments with staff assigned will show their capacity here.'],
+                    'ms' => ['title' => 'Tiada jabatan disediakan lagi', 'body' => 'Jabatan yang mempunyai staf ditetapkan akan memaparkan kapasiti di sini.'],
+                ])
+            @endforelse
         </div>
-        <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;">
-            <div class="uj-card" style="padding:20px;">
+        <div class="uj-dash-side" style="display:flex;flex-direction:column;gap:16px;">
+            <div class="uj-card uj-trim-last" style="padding:20px;">
                 <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Operational risks' : 'Risiko operasi'">Operational risks</span></h3>
-                @foreach ($risks as $r)
+                @forelse ($risks as $r)
                     <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);"><span style="font-size:9.5px;font-weight:700;color:{{ Amanahku::SWATCH[$r['sevc']] }};background:{{ $r['sevc'] === 'red' ? 'var(--red-tint)' : '#fbf3e6' }};padding:3px 7px;border-radius:9999px;height:fit-content;white-space:nowrap;">{{ $r['sev'] }}</span><span style="font-size:12.5px;color:var(--ink);line-height:1.4;">{{ $r['t'] }}</span></div>
-                @endforeach
+                @empty
+                    @include('partials.list-empty', [
+                        'en' => ['title' => 'No operational risks flagged', 'body' => 'Capacity, timesheet and licensing risks will appear here when detected.'],
+                        'ms' => ['title' => 'Tiada risiko operasi dikesan', 'body' => 'Risiko kapasiti, kad masa dan lesen akan dipaparkan di sini apabila dikesan.'],
+                    ])
+                @endforelse
             </div>
             <div style="background:var(--sidebar);border-radius:12px;padding:20px;color:#fff;">
                 <h3 style="font-size:14px;font-weight:600;color:#fff;margin:0 0 10px;"><span x-text="$store.ui.lang==='en' ? 'What management should do next' : 'Apa pengurusan patut buat seterusnya'">What management should do next</span></h3>
@@ -277,6 +307,12 @@
             </div>
         </div>
     </div>
+    @else
+    <div class="uj-card" style="padding:32px 24px;text-align:center;">
+        <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:6px;"><span x-text="$store.ui.lang==='en' ? 'Workforce intelligence is still being built' : 'Perisikan tenaga kerja masih dalam pembinaan'"></span></div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.6;max-width:440px;margin:0 auto;"><span x-text="$store.ui.lang==='en' ? 'Department capacity, operational risk flags and AI recommendations will appear here once this module ships. Anything already needing your approval is shown above this card.' : 'Kapasiti jabatan, penanda risiko operasi dan cadangan AI akan muncul di sini apabila modul ini dilancarkan. Apa-apa yang sudah perlukan kelulusan anda dipaparkan di atas kad ini.'"></span></div>
+    </div>
+    @endif
 
 @else
     {{-- ── HR ── --}}
@@ -290,14 +326,14 @@
         @forelse ($onboarding as $o)
             <div style="margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);">{{ $o->employee?->name }} · {{ $o->employee?->position }}</span><span style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Day' : 'Hari'">Day</span> {{ $o->day_number }}/{{ $o->total_days }}</span></div><div class="uj-progress" style="height:7px;"><span style="width:{{ round($o->day_number / max($o->total_days,1) * 100) }}%;"></span></div></div>
         @empty
-            <div style="padding:14px 0;text-align:center;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No one is onboarding right now' : 'Tiada sesiapa dalam onboarding sekarang'"></span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'When a new hire is added, their onboarding progress (Day X of 90) shows here.' : 'Bila pekerja baharu ditambah, progres onboarding mereka (Hari X daripada 90) akan muncul di sini.'"></span></div>
-            </div>
+            @include('partials.list-empty', [
+                'en' => ['title' => 'No one is onboarding right now', 'body' => 'When a new hire is added, their onboarding progress (Day X of 90) shows here.'],
+                'ms' => ['title' => 'Tiada sesiapa dalam onboarding sekarang', 'body' => 'Bila pekerja baharu ditambah, progres onboarding mereka (Hari X daripada 90) akan muncul di sini.'],
+            ])
         @endforelse
     </div>
 
-    <div class="uj-card" style="padding:20px;margin-top:16px;" x-data="{ post: {{ $errors->any() ? 'true' : 'false' }} }">
+    <div class="uj-card uj-trim-last" style="padding:20px;margin-top:16px;" x-data="{ post: {{ $errors->any() ? 'true' : 'false' }} }">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Company announcements' : 'Pengumuman syarikat'">Company announcements</span></h3>
             <button @click="post = ! post" class="uj-btn-primary" style="height:32px;padding:0 13px;font-size:12px;"><span x-text="post ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Post' : '+ Pos')"></span></button>
@@ -316,10 +352,10 @@
                 <span style="font-size:11.5px;color:var(--muted-soft);font-family:var(--font-mono);white-space:nowrap;">{{ $a->date->format('d M') }}</span>
             </div>
         @empty
-            <div style="padding:14px 0;text-align:center;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No announcements yet' : 'Tiada pengumuman lagi'"></span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Use the + Post button above to share company news — everyone sees it on their home screen.' : 'Guna butang + Post di atas untuk kongsi berita syarikat — semua orang akan nampak di skrin utama mereka.'"></span></div>
-            </div>
+            @include('partials.list-empty', [
+                'en' => ['title' => 'No announcements yet', 'body' => 'Use the + Post button above to share company news — everyone sees it on their home screen.'],
+                'ms' => ['title' => 'Tiada pengumuman lagi', 'body' => 'Guna butang + Post di atas untuk kongsi berita syarikat — semua orang akan nampak di skrin utama mereka.'],
+            ])
         @endforelse
     </div>
 @endif

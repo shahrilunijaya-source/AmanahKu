@@ -46,7 +46,7 @@ class Features
         'module.cases' => ['Disciplinary Cases', ['cases'], 2],
         'module.learning' => ['Training & Learning', ['training', 'learning', 'handbook'], 2],
         'module.documents' => ['Document Vault', ['documents'], 1],
-        'module.claims' => ['Claims & Expenses', ['claims', 'expenses', 'travel'], 2],
+        'module.claims' => ['Claims & Expenses', ['claims', 'claim-approvals', 'expenses', 'travel'], 2],
         'module.helpdesk' => ['Helpdesk', ['helpdesk'], 2],
         'module.assets' => ['Asset Register', ['assets'], 2],
         'module.reports' => ['Reports', ['reports'], 1],
@@ -107,12 +107,22 @@ class Features
         ],
     ];
 
+    /**
+     * Modules that are fully built but deliberately shipped OFF: the code exists and
+     * works, but the feature has not been signed off for release yet. Kept in one place
+     * so "why is this off" is answerable by reading this list instead of hunting for a
+     * scattered inline condition. Remove a key here once the module is approved to ship.
+     */
+    public const NOT_READY = [
+        'module.ai',
+    ];
+
     /** All keys with their registry default. */
     public static function defaults(): array
     {
         $out = [];
         foreach (self::MODULES as $key => [$label, $screens]) {
-            $out[$key] = true;
+            $out[$key] = ! in_array($key, self::NOT_READY, true);
         }
         foreach (self::SETTINGS as $key => $meta) {
             $out[$key] = $meta['default'];
@@ -176,7 +186,7 @@ class Features
     {
         $out = [];
         foreach (self::MODULES as $key => $def) {
-            if (($def[2] ?? 1) <= $level) {
+            if ($def[2] <= $level) {
                 $out[] = $key;
             }
         }

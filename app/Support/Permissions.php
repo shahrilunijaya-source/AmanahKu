@@ -45,6 +45,18 @@ class Permissions
         'company' => 'Entire company',
     ];
 
+    /**
+     * The data scope a fresh membership starts on, decided by its role. A manager oversees
+     * their own reporting line, not the whole company, so they start on 'team' — otherwise
+     * every manager reads every employee's attendance records, clock remarks and timesheets
+     * from day one. Management and HR do oversee everyone, so they stay company-wide. An
+     * admin can still widen or narrow any membership afterwards in the Roles screen.
+     */
+    public static function defaultScopeForRole(string $role): string
+    {
+        return self::effectiveRole($role) === 'manager' ? 'team' : 'company';
+    }
+
     /** Cumulative per-role permission sets. */
     public const ROLE_PERMISSIONS = [
         'employee' => [

@@ -106,11 +106,16 @@ class FeatureManager
      * entitlement — not the category — is the source of truth thereafter (task §2).
      * Non-module settings (security, payroll, AI assistant) are intentionally left
      * untouched. Locked keys still resolve to the platform value regardless.
+     *
+     * Features::NOT_READY modules stay off no matter how high the stage level is —
+     * without this, provisioning a stage-3 company would write an explicit `true`
+     * override and un-hide a module that has not been signed off for release.
      */
     public function applyCategoryPackage(Tenant $tenant, int $level): void
     {
         foreach (Features::MODULES as $key => $def) {
-            $this->setTenant($tenant, $key, ($def[2] ?? 1) <= $level);
+            $ready = ! in_array($key, Features::NOT_READY, true);
+            $this->setTenant($tenant, $key, $ready && $def[2] <= $level);
         }
     }
 
