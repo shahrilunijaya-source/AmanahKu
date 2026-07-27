@@ -101,12 +101,25 @@ class TotHistorySeeder extends Seeder
     {
         // Self-scope tenant_id explicitly (no tenant session when run standalone via
         // `db:seed --class=`), matching the convention DatabaseSeeder uses for the same reason.
-        $tenant = Tenant::where('slug', 'unijaya')->first();
-        if (! $tenant) {
+        // Prefix match, because the dev seeder registers the company as "unijaya" while a
+        // real deployment registers it under the full legal slug (unijaya-resources-sdn-bhd).
+        $matches = Tenant::where('slug', 'like', 'unijaya%')->orderBy('id')->get();
+
+        if ($matches->isEmpty()) {
             throw new \RuntimeException(
-                'TOT import: tenant "unijaya" not found. Run the base seeder first.'
+                'TOT import: no tenant with a slug starting "unijaya" found. Run the base seeder first.'
             );
         }
+
+        if ($matches->count() > 1) {
+            throw new \RuntimeException(
+                'TOT import: more than one tenant matches "unijaya" ('
+                .$matches->pluck('slug')->implode(', ')
+                .'). This import belongs to one company, so import it by hand instead of guessing.'
+            );
+        }
+
+        $tenant = $matches->first();
 
         $unmatched = [];
         $ambiguous = [];

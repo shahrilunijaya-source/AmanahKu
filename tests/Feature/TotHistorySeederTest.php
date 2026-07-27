@@ -91,7 +91,35 @@ class TotHistorySeederTest extends TestCase
         $this->tenant->delete();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('tenant "unijaya" not found');
+        $this->expectExceptionMessage('no tenant with a slug starting "unijaya"');
+
+        (new TotHistorySeeder)->run();
+    }
+
+    /**
+     * The real deployments register the company under its full legal slug, not the bare
+     * "unijaya" the dev seeder uses, so the import has to resolve the longer slug too.
+     */
+    public function test_it_resolves_the_full_company_slug(): void
+    {
+        $this->tenant->delete();
+        $legal = Tenant::create([
+            'slug' => 'unijaya-resources-sdn-bhd', 'name' => 'Unijaya Resources Sdn Bhd', 'initials' => 'UJ',
+        ]);
+        app(CurrentTenant::class)->set($legal);
+
+        $this->seed(TotHistorySeeder::class);
+
+        $this->assertSame(36, TotSession::count());
+        $this->assertSame(36, TotSession::where('tenant_id', $legal->id)->count());
+    }
+
+    public function test_it_refuses_to_guess_between_two_matching_tenants(): void
+    {
+        Tenant::create(['slug' => 'unijaya-holdings', 'name' => 'Unijaya Holdings', 'initials' => 'UH']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('more than one tenant');
 
         (new TotHistorySeeder)->run();
     }
