@@ -312,4 +312,27 @@ class TotTest extends TestCase
 
         $this->assertSame(0, KnowledgeContribution::count());
     }
+
+    /**
+     * Two behaviours in one pass: editing an already-done, already-credited session
+     * (a) never re-fires the credit and (b) leaves the status alone when the request
+     * omits the status key entirely, because validate() drops absent nullable keys
+     * from $data and fill() never touches an attribute that is not in $data.
+     */
+    public function test_editing_an_already_done_session_without_status_keeps_it_done_and_does_not_recredit(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['status' => 'done']);
+        KnowledgeContribution::mark($this->employee, 2026, 3);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['title' => 'Install git on our own server (updated)'])
+            ->assertRedirect();
+
+        $this->assertSame('done', $session->fresh()->status);
+        $this->assertSame('Install git on our own server (updated)', $session->fresh()->title);
+        $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->employee->id)->count());
+    }
 }
