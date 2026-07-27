@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
+use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
@@ -422,5 +423,109 @@ class TotTest extends TestCase
             ->where('employee_id', $this->employee->id)
             ->where('emoji', '👍')
             ->count());
+    }
+
+    // ── Watched and rating ────────────────────────────────────────
+
+    public function test_an_employee_marks_a_session_watched(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/watched")->assertRedirect();
+
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertNotNull($row->watched_at);
+    }
+
+    public function test_rating_twice_updates_the_same_row(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 3]);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 5, 'note' => 'Clearer than I expected.']);
+
+        $this->assertSame(1, TotParticipation::where('session_id', $session->id)->count());
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertSame(5, (int) $row->score);
+        $this->assertSame('Clearer than I expected.', $row->note);
+    }
+
+    public function test_a_score_outside_one_to_five_is_rejected(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 9])
+            ->assertSessionHasErrors('score');
+    }
+
+    public function test_rating_also_marks_the_session_watched(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
+
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertNotNull($row->watched_at);
+    }
+
+    // ── Rating privacy ────────────────────────────────────────────
+
+    public function test_a_plain_employee_never_receives_scores(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Presenter',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $other->id]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'Very good',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertViewHas('scores', fn ($scores) => $scores === []);
+        $response->assertDontSee('Very good');
+    }
+
+    public function test_the_presenter_sees_their_own_average_and_notes(): void
+    {
+        $session = $this->makeSession();
+        $rater = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Rater',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $rater->id, 'score' => 4, 'note' => 'Useful',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertViewHas('scores', function ($scores) use ($session) {
+            return isset($scores[$session->id])
+                && $scores[$session->id]['average'] === 4.0
+                && $scores[$session->id]['count'] === 1
+                && $scores[$session->id]['notes'] === ['Useful'];
+        });
+    }
+
+    public function test_hr_sees_scores_on_every_session(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Presenter',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $other->id]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'score' => 2,
+        ]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertViewHas('scores', fn ($scores) => isset($scores[$session->id]));
     }
 }

@@ -321,6 +321,8 @@ Route::middleware('auth')->group(function () {
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
         Route::post('/app/tot/{session}/react', [TotController::class, 'react'])->name('tot.react');
+        Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
+        Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so

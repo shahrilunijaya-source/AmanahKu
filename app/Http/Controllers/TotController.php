@@ -189,6 +189,76 @@ class TotController extends Controller
         return back();
     }
 
+    /** Mark the session watched for the acting employee. Idempotent. */
+    public function watched(Request $request, TotSession $session): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $row = TotParticipation::firstOrNew([
+            'session_id' => $session->id,
+            'employee_id' => $employee->id,
+        ]);
+
+        $row->watched_at ??= now();
+
+        try {
+            $row->save();
+        } catch (QueryException $e) {
+            // 23xxx = the unique (session_id, employee_id) guard raced by a concurrent
+            // insert; the other request already recorded this employee as watched, which
+            // is the state this call wanted too, so there is nothing left to do.
+            if (! str_starts_with((string) $e->getCode(), '23')) {
+                throw $e;
+            }
+        }
+
+        return back()->with('ok', 'Marked as watched.');
+    }
+
+    /**
+     * Record or replace the acting employee's rating.
+     *
+     * The row carries employee_id so a person can rate once and edit it later, which makes
+     * the rating pseudonymous rather than anonymous. No screen ever renders who scored what,
+     * and only the presenter and privileged roles see scores at all. Rating implies watching,
+     * so the same call stamps watched_at.
+     */
+    public function rate(Request $request, TotSession $session): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'score' => ['required', 'integer', 'min:1', 'max:5'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $row = TotParticipation::firstOrNew([
+            'session_id' => $session->id,
+            'employee_id' => $employee->id,
+        ]);
+
+        $row->fill([
+            'score' => $data['score'],
+            'note' => $data['note'] ?? null,
+        ]);
+        $row->watched_at ??= now();
+
+        try {
+            $row->save();
+        } catch (QueryException $e) {
+            // Same race as watched(): a concurrent submit of this employee's first rating
+            // already inserted the row with the same data this call was about to write, so
+            // there is nothing left to do.
+            if (! str_starts_with((string) $e->getCode(), '23')) {
+                throw $e;
+            }
+        }
+
+        return back()->with('ok', 'Thanks, your rating was saved.');
+    }
+
     /** Privileged-only: remove a slot entirely. */
     public function destroy(Request $request, TotSession $session): RedirectResponse
     {
