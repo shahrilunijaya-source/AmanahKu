@@ -279,7 +279,7 @@ class TotController extends Controller
 
         // Only overwrite the note when this submit actually carries one. A score-only
         // resubmit (the rater just changing their mind on the number) must not silently
-        // wipe a note they wrote earlier — and because the screen never echoes a rater's
+        // wipe a note they wrote earlier, and because the screen never echoes a rater's
         // own note back into the page (ratings are pseudonymous even to their own author),
         // there is no form field to resubmit it from. Preserving server-side is the only
         // option that keeps both promises at once.
