@@ -249,4 +249,67 @@ class TotTest extends TestCase
 
         $this->assertDatabaseMissing('tot_sessions', ['id' => $session->id]);
     }
+
+    // ── Knowledge Bank contribution credit ────────────────────────
+
+    public function test_marking_a_session_done_credits_the_presenter_for_that_month(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['year' => 2026, 'month' => 3, 'status' => 'confirmed']);
+
+        // Deliberately act in a different month to prove the credit follows the session.
+        $this->travelTo('2026-04-20 09:00:00');
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('knowledge_monthly_contributions', [
+            'employee_id' => $this->employee->id, 'year' => 2026, 'month' => 3, 'submitted' => true,
+        ]);
+        $this->assertDatabaseMissing('knowledge_monthly_contributions', [
+            'employee_id' => $this->employee->id, 'year' => 2026, 'month' => 4,
+        ]);
+    }
+
+    public function test_reverting_a_session_out_of_done_keeps_the_credit(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['status' => 'confirmed']);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done']);
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'planned']);
+
+        $this->assertDatabaseHas('knowledge_monthly_contributions', [
+            'employee_id' => $this->employee->id, 'year' => 2026, 'month' => 3,
+        ]);
+    }
+
+    public function test_a_session_with_no_employee_presenter_credits_nobody(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession([
+            'presenter_employee_id' => null, 'presenter_name' => 'Team', 'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done'])
+            ->assertRedirect();
+
+        $this->assertSame(0, KnowledgeContribution::count());
+    }
+
+    public function test_a_not_tot_entry_never_credits_a_month(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['status' => 'not_tot', 'title' => 'Jamuan raya']);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'not_tot'])
+            ->assertRedirect();
+
+        $this->assertSame(0, KnowledgeContribution::count());
+    }
 }

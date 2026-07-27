@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\KnowledgeContribution;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
@@ -131,7 +132,15 @@ class TotController extends Controller
         // reaches $data and cannot promote the slot.
         $data = $request->validate($rules);
 
+        $wasDone = $session->status === 'done';
+
         $session->fill($data)->save();
+
+        // Credit only on the transition INTO done, and only once. Presenting is the thing
+        // that earns the month; editing the title afterwards is not.
+        if (! $wasDone && $session->status === 'done') {
+            $this->creditContribution($session);
+        }
 
         AuditLog::record('Updated TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
@@ -282,5 +291,24 @@ class TotController extends Controller
                 'notes' => $rows->pluck('note')->filter()->values()->all(),
             ])
             ->all();
+    }
+
+    /**
+     * Presenting a TOT counts as that month's Knowledge Bank contribution.
+     *
+     * Credits the SESSION's year and month, never now(), so a slot marked done late still
+     * credits the month it was held in. Never revoked when a slot moves back out of done:
+     * revoking could silently erase a contribution the person separately earned by writing
+     * a real lesson, and that bug would be invisible.
+     */
+    private function creditContribution(TotSession $session): void
+    {
+        $presenter = $session->presenter;
+
+        if (! $presenter) {
+            return;
+        }
+
+        KnowledgeContribution::mark($presenter, (int) $session->year, (int) $session->month);
     }
 }
