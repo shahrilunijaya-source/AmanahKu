@@ -180,7 +180,7 @@ class TotController extends Controller
             ]);
         } catch (QueryException $e) {
             // 23xxx = the unique (session_id, employee_id, emoji) duplicate-reaction guard.
-            // Anything else is a real DB failure — don't mask it behind a friendly message.
+            // Anything else is a real DB failure, so do not mask it behind a friendly message.
             if (! str_starts_with((string) $e->getCode(), '23')) {
                 throw $e;
             }
