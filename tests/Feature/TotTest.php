@@ -689,4 +689,30 @@ class TotTest extends TestCase
 
         $response->assertViewHas('comments', fn ($comments) => count($comments[$session->id]) === 1);
     }
+
+    // ── Screen contents ───────────────────────────────────────────
+
+    public function test_the_screen_shows_the_computed_saturday_and_the_status_wording(): void
+    {
+        $this->makeSession(['month' => 3]);
+        $this->makeSession(['month' => 6, 'title' => null, 'status' => 'planned']);
+
+        $this->travelTo('2026-07-27 09:00:00');   // June 2026 is in the past, so its blank topic is overdue
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertViewHas('sessions', fn ($sessions) => $sessions[2]->session_date->toDateString() === '2026-03-07');
+        $response->assertSee('Topic still blank');
+        $response->assertSee('Install git on our own server');
+    }
+
+    public function test_the_rating_notice_names_the_presenter(): void
+    {
+        $this->makeSession();
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertSee('Only Demo and management see scores', false);
+    }
 }

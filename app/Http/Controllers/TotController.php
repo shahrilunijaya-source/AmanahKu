@@ -277,10 +277,16 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        $row->fill([
-            'score' => $data['score'],
-            'note' => $data['note'] ?? null,
-        ]);
+        // Only overwrite the note when this submit actually carries one. A score-only
+        // resubmit (the rater just changing their mind on the number) must not silently
+        // wipe a note they wrote earlier — and because the screen never echoes a rater's
+        // own note back into the page (ratings are pseudonymous even to their own author),
+        // there is no form field to resubmit it from. Preserving server-side is the only
+        // option that keeps both promises at once.
+        $row->score = $data['score'];
+        if ($request->filled('note')) {
+            $row->note = $data['note'];
+        }
         $row->watched_at ??= now();
 
         try {
@@ -306,10 +312,10 @@ class TotController extends Controller
                 ->where('employee_id', $employee->id)
                 ->firstOrFail();
 
-            $row->fill([
-                'score' => $data['score'],
-                'note' => $data['note'] ?? null,
-            ]);
+            $row->score = $data['score'];
+            if ($request->filled('note')) {
+                $row->note = $data['note'];
+            }
             $row->watched_at ??= now();
             $row->save();
         }
