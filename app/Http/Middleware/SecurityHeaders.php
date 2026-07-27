@@ -25,7 +25,13 @@ class SecurityHeaders
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', $embed ? 'SAMEORIGIN' : 'DENY');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        // `camera=()` / `geolocation=()` is an EMPTY allowlist — it denies the feature to this
+        // origin too, not only to third-party frames. That silently broke the two attendance
+        // features that need them: the clock-in geofence (every record stored NULL coordinates)
+        // and the in-page selfie webcam. `(self)` keeps every other origin and every embedded
+        // frame denied, which is the protection actually wanted here. Microphone stays fully
+        // off — nothing in the product records audio.
+        $response->headers->set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self)');
 
         // Transitional CSP. The UI still relies on inline styles + a few inline scripts
         // (passkey ceremony, Alpine expressions), so script/style-src must allow

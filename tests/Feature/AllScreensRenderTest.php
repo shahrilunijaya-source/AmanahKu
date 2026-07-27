@@ -204,6 +204,23 @@ class AllScreensRenderTest extends TestCase
     }
 
     /**
+     * Permissions-Policy must allow camera and geolocation for THIS origin. `camera=()` is an
+     * empty allowlist, which denies the app itself: it silently broke the attendance geofence
+     * (every record stored NULL coordinates) and the in-page clock-in selfie. Microphone stays
+     * fully denied — nothing in the product records audio.
+     */
+    public function test_permissions_policy_allows_self_for_camera_and_geolocation(): void
+    {
+        $header = $this->get('/login')->assertOk()->headers->get('Permissions-Policy');
+
+        $this->assertStringContainsString('camera=(self)', $header);
+        $this->assertStringContainsString('geolocation=(self)', $header);
+        $this->assertStringContainsString('microphone=()', $header);
+        $this->assertStringNotContainsString('camera=()', $header);
+        $this->assertStringNotContainsString('geolocation=()', $header);
+    }
+
+    /**
      * Disabling the Performance module must also hide the KPI widgets embedded on the
      * profile screen (the "KPI · H1" stat card + the "KPI History" tab), not just the
      * Performance nav group. Before/after around the toggle proves the gate, not the seed.
