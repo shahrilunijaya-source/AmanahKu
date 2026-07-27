@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -43,6 +44,13 @@ class TotSession extends Model
         return Carbon::parse(sprintf('first saturday of %04d-%02d', $year, $month));
     }
 
+    /** Computed, never stored, so a slot can exist before anybody decides anything about it. */
+    protected function sessionDate(): Attribute
+    {
+        return Attribute::get(fn () => self::firstSaturday($this->year, $this->month));
+    }
+
+    /** @return BelongsTo<Employee, $this> */
     public function presenter(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'presenter_employee_id');

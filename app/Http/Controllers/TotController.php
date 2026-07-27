@@ -39,17 +39,11 @@ class TotController extends Controller
             ->get()
             ->keyBy('month');
 
-        $sessions = collect(range(1, 12))->map(function (int $month) use ($saved, $year) {
-            $session = $saved->get($month) ?? new TotSession([
-                'year' => $year,
-                'month' => $month,
-                'status' => 'planned',
-            ]);
-
-            $session->session_date = TotSession::firstSaturday($year, $month);
-
-            return $session;
-        })->all();
+        $sessions = collect(range(1, 12))->map(fn (int $month) => $saved->get($month) ?? new TotSession([
+            'year' => $year,
+            'month' => $month,
+            'status' => 'planned',
+        ]))->all();
 
         $ids = $saved->pluck('id')->all();
 
