@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
+use App\Models\TotComment;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
@@ -63,6 +64,7 @@ class TotController extends Controller
             'myParticipation' => $this->myParticipation($ids, $employee),
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
+            'comments' => $this->commentsBySession($ids),
         ];
     }
 
@@ -146,6 +148,42 @@ class TotController extends Controller
         AuditLog::record('Updated TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
         return back()->with('ok', 'TOT slot updated.');
+    }
+
+    /** Anybody in the workspace may post to a session thread. */
+    public function comment(Request $request, TotSession $session): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        TotComment::create([
+            'session_id' => $session->id,
+            'employee_id' => $employee->id,
+            'body' => $data['body'],
+        ]);
+
+        return back()->with('ok', 'Comment posted.');
+    }
+
+    /** The author removes their own comment; HR and management may remove any. */
+    public function deleteComment(Request $request, TotComment $comment): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+
+        abort_unless(
+            $this->hasTenantRole($request, self::PRIVILEGED_ROLES)
+                || ($employee && $comment->employee_id === $employee->id),
+            403,
+            'You can only delete your own comment.'
+        );
+
+        $comment->delete();
+
+        return back()->with('ok', 'Comment removed.');
     }
 
     /**
@@ -422,6 +460,27 @@ class TotController extends Controller
                 'count' => $rows->count(),
                 'notes' => $rows->pluck('note')->filter()->values()->all(),
             ])
+            ->all();
+    }
+
+    /**
+     * Thread contents per session, oldest first, so a question asked before the Saturday and
+     * a follow-up posted after it read in the order they happened.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, Collection<int, TotComment>>
+     */
+    private function commentsBySession(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return TotComment::with('employee')
+            ->whereIn('session_id', $ids)
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('session_id')
             ->all();
     }
 

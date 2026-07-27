@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
+use App\Models\TotComment;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
@@ -606,5 +607,86 @@ class TotTest extends TestCase
             ->get('/app/tot?year=2026');
 
         $response->assertViewHas('scores', fn ($scores) => isset($scores[$session->id]));
+    }
+
+    // ── Discussion ────────────────────────────────────────────────
+
+    public function test_an_employee_posts_a_comment(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/comment", [
+            'body' => 'Will this cover access control, or only the install?',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('tot_comments', [
+            'session_id' => $session->id,
+            'employee_id' => $this->employee->id,
+            'body' => 'Will this cover access control, or only the install?',
+        ]);
+    }
+
+    public function test_an_empty_comment_is_rejected(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/comment", ['body' => ''])
+            ->assertSessionHasErrors('body');
+    }
+
+    public function test_a_person_deletes_their_own_comment(): void
+    {
+        $session = $this->makeSession();
+        $comment = TotComment::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'body' => 'Mine',
+        ]);
+
+        $this->actingInTenant()->delete("/app/tot/comments/{$comment->id}")->assertRedirect();
+
+        $this->assertDatabaseMissing('tot_comments', ['id' => $comment->id]);
+    }
+
+    public function test_an_employee_cannot_delete_someone_elses_comment(): void
+    {
+        $session = $this->makeSession();
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $comment = TotComment::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'body' => 'Theirs',
+        ]);
+
+        $this->actingInTenant()->delete("/app/tot/comments/{$comment->id}")->assertForbidden();
+    }
+
+    public function test_hr_deletes_any_comment(): void
+    {
+        $session = $this->makeSession();
+        $comment = TotComment::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'body' => 'Needs moderating',
+        ]);
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->delete("/app/tot/comments/{$comment->id}")->assertRedirect();
+
+        $this->assertDatabaseMissing('tot_comments', ['id' => $comment->id]);
+    }
+
+    public function test_the_screen_carries_comments_per_session(): void
+    {
+        $session = $this->makeSession();
+        TotComment::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'body' => 'Saved this one.',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertViewHas('comments', fn ($comments) => count($comments[$session->id]) === 1);
     }
 }
