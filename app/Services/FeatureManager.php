@@ -115,7 +115,7 @@ class FeatureManager
     {
         foreach (Features::MODULES as $key => $def) {
             $ready = ! in_array($key, Features::NOT_READY, true);
-            $this->setTenant($tenant, $key, $ready && ($def[2] ?? 1) <= $level);
+            $this->setTenant($tenant, $key, $ready && $def[2] <= $level);
         }
     }
 

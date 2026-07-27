@@ -186,7 +186,7 @@ class Features
     {
         $out = [];
         foreach (self::MODULES as $key => $def) {
-            if (($def[2] ?? 1) <= $level) {
+            if ($def[2] <= $level) {
                 $out[] = $key;
             }
         }
