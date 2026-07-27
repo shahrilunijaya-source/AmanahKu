@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
 use App\Models\TotSession;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -93,5 +95,31 @@ class TotTest extends TestCase
         $this->assertSame('2026-03-07', TotSession::firstSaturday(2026, 3)->toDateString());
         $this->assertSame('2026-08-01', TotSession::firstSaturday(2026, 8)->toDateString());
         $this->assertSame('2027-01-02', TotSession::firstSaturday(2027, 1)->toDateString());
+    }
+
+    // ── Contribution credit helper ────────────────────────────────
+
+    public function test_mark_credits_the_month_it_is_given_not_the_current_month(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+
+        KnowledgeContribution::mark($this->employee, 2026, 3);
+
+        $this->assertDatabaseHas('knowledge_monthly_contributions', [
+            'employee_id' => $this->employee->id,
+            'year' => 2026,
+            'month' => 3,
+            'submitted' => true,
+        ]);
+    }
+
+    public function test_mark_is_idempotent_for_the_same_month(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+
+        KnowledgeContribution::mark($this->employee, 2026, 3);
+        KnowledgeContribution::mark($this->employee, 2026, 3);
+
+        $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->employee->id)->count());
     }
 }
