@@ -79,17 +79,19 @@ class TotController extends Controller
             'status' => ['required', 'in:'.implode(',', TotSession::STATUSES)],
         ]);
 
-        $session = TotSession::updateOrCreate(
-            ['year' => $data['year'], 'month' => $data['month']],
-            [
-                'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
-                'presenter_name' => $data['presenter_name'] ?? null,
-                'title' => $data['title'] ?? null,
-                'description' => $data['description'] ?? null,
-                'status' => $data['status'],
-                'created_by' => $request->attributes->get('employee')?->id,
-            ],
-        );
+        $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
+        abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
+
+        $session = TotSession::create([
+            'year' => $data['year'],
+            'month' => $data['month'],
+            'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
+            'presenter_name' => $data['presenter_name'] ?? null,
+            'title' => $data['title'] ?? null,
+            'description' => $data['description'] ?? null,
+            'status' => $data['status'],
+            'created_by' => $request->attributes->get('employee')?->id,
+        ]);
 
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 

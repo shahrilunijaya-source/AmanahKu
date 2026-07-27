@@ -173,6 +173,22 @@ class TotTest extends TestCase
         ]);
     }
 
+    public function test_hr_cannot_overwrite_an_existing_slot_by_posting_store_again(): void
+    {
+        $session = $this->makeSession(['year' => 2026, 'month' => 9, 'title' => 'Original title']);
+        $hr = $this->hrActor();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/tot', [
+                'year' => 2026, 'month' => 9,
+                'title' => 'Overwritten title',
+                'status' => 'planned',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertSame('Original title', $session->fresh()->title);
+    }
+
     public function test_the_presenter_edits_their_own_slot(): void
     {
         $session = $this->makeSession(['status' => 'confirmed', 'title' => null]);
