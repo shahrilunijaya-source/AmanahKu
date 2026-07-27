@@ -12,11 +12,11 @@
 @endphp
 @if ($total > 0)
     <div class="uj-card" style="padding:18px 22px;margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+        <div class="uj-card-lede" style="align-items:center;margin-bottom:12px;">
             <div style="width:40px;height:40px;border-radius:11px;background:var(--red-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
             </div>
-            <div style="flex:1;min-width:0;">
+            <div style="flex:1;min-width:150px;">
                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Action needed' : 'Tindakan diperlukan'">Action needed</span> ({{ $total }})</div>
                 <div style="font-size:12.5px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Requests waiting for you to verify or approve.' : 'Permohonan menunggu anda sahkan atau luluskan.'"></span></div>
             </div>

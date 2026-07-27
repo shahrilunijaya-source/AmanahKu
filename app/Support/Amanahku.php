@@ -441,7 +441,9 @@ class Amanahku
         return [
             'employee' => self::employeeHeading($employee),
             'manager' => ['title' => 'Team Overview — People & Culture', 'title_ms' => 'Gambaran Pasukan — People & Culture', 'sub' => "{$reportsLabel} · {$onLeave} on leave · {$timesheetsLabel} outstanding.", 'sub_ms' => "{$directReports} laporan terus · {$onLeave} bercuti · {$outstanding} lembaran masa belum dihantar."],
-            'management' => ['title' => 'Workforce Intelligence', 'title_ms' => 'Workforce Intelligence', 'sub' => "{$company} · {$employees} · live capacity & risk view.", 'sub_ms' => "{$company} · {$headcount} pekerja · paparan kapasiti & risiko secara langsung."],
+            'management' => ($stats['ai_insights'] ?? true)
+                ? ['title' => 'Workforce Intelligence', 'title_ms' => 'Workforce Intelligence', 'sub' => "{$company} · {$employees} · live capacity & risk view.", 'sub_ms' => "{$company} · {$headcount} pekerja · paparan kapasiti & risiko secara langsung."]
+                : ['title' => 'Management Overview', 'title_ms' => 'Gambaran Pengurusan', 'sub' => "{$company} · {$employees}.", 'sub_ms' => "{$company} · {$headcount} pekerja."],
             'hr' => ['title' => 'HR Operations', 'title_ms' => 'Operasi HR', 'sub' => "{$headcount} headcount · {$onProbation} on probation · {$confirmations} due this month.", 'sub_ms' => "{$headcount} jumlah pekerja · {$onProbation} dalam percubaan · {$confirmationsDue} pengesahan jawatan perlu diputuskan bulan ini."],
         ][$persona] ?? ['title' => 'Dashboard', 'sub' => ''];
     }

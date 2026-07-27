@@ -36,7 +36,7 @@ class AllScreensRenderTest extends TestCase
         'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
         'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
-        'reports', 'surveys', 'ideas', 'workload', 'messages',
+        'reports', 'surveys', 'ideas', 'messages',
         'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',
     ];
 
@@ -65,6 +65,20 @@ class AllScreensRenderTest extends TestCase
                 "Screen '{$screen}' did not render (status {$response->status()})."
             );
         }
+    }
+
+    /**
+     * 'workload' is deliberately absent from SCREENS above: it is gated by
+     * `module.ai`, which now defaults OFF (Features::NOT_READY — the AI Workforce
+     * Intelligence dashboard blocks are built but not yet released; see docs/ISSUES.md
+     * I-025). Confirms the new default behaviour instead of masking it.
+     */
+    public function test_workload_screen_404s_when_module_ai_is_off_by_default(): void
+    {
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+            'persona' => 'hr',
+        ])->get('/app/workload')->assertNotFound();
     }
 
     /**

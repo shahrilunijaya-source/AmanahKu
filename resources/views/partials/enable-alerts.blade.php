@@ -15,7 +15,7 @@
      class="uj-banner-row"
      style="align-items:flex-start;gap:12px;padding:12px 16px;background:var(--red-tint);border-bottom:1px solid var(--hairline);flex-shrink:0;">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
-    <div style="flex:1;min-width:0;">
+    <div class="uj-banner-text" style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;color:var(--ink);"
              x-text="$store.ui.lang==='en' ? 'Turn on clock reminders' : 'Hidupkan peringatan jam'">Turn on clock reminders</div>
         <div style="font-size:12px;color:var(--body);margin-top:2px;line-height:1.45;"

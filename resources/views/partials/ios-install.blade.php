@@ -19,7 +19,7 @@
      class="uj-banner-row"
      style="align-items:flex-start;gap:12px;padding:12px 16px;background:var(--red-tint);border-bottom:1px solid var(--hairline);flex-shrink:0;">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 16V4M8 8l4-4 4 4"></path><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
-    <div style="flex:1;min-width:0;">
+    <div class="uj-banner-text" style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;color:var(--ink);"
              x-text="$store.ui.lang==='en' ? 'Get clock reminders on this iPhone' : 'Dapatkan peringatan jam di iPhone ini'">Get clock reminders on this iPhone</div>
         <div style="font-size:12px;color:var(--body);margin-top:2px;line-height:1.45;"

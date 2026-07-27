@@ -53,7 +53,14 @@ trait BuildsDashboardData
         $headcount = $tenant->employees()->active()->count();
 
         if ($persona === 'management') {
-            return ['headcount' => $headcount, 'company' => $tenant->name];
+            // The management heading is the AI Workforce Intelligence branding, so it
+            // follows the same gate as the cards below it — otherwise a "live capacity
+            // & risk view" title sits above a card saying the module is not built yet.
+            return [
+                'headcount' => $headcount,
+                'company' => $tenant->name,
+                'ai_insights' => app(FeatureManager::class)->screenAllowed($tenant, 'workload'),
+            ];
         }
 
         return [
@@ -68,15 +75,23 @@ trait BuildsDashboardData
 
     private function dashboardData(string $persona, ?Employee $employee): array
     {
-        return match ($persona) {
+        // Gates the AI Workforce Intelligence dashboard blocks (manager's AI
+        // recommendations panel; management's capacity/risk/next-steps cards) behind
+        // the same 'workload' screen gate the nav and route already enforce, so a
+        // disabled module hides consistently everywhere instead of just 404ing the
+        // standalone screen. Keys stay present with empty collections when off so the
+        // Blade never hits an undefined variable.
+        $aiInsights = app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'workload');
+
+        $data = match ($persona) {
             'manager' => [
                 'team' => $this->managerTeam($employee),
                 'mgrStats' => $this->managerStats(),
-                'recs' => app(WorkforceInsights::class)->recommendations(),
+                'recs' => $aiInsights ? app(WorkforceInsights::class)->recommendations() : collect(),
             ],
             'management' => [
-                'deptCap' => $this->departmentCapacity(),
-                'risks' => Amanahku::operationalRisks(),
+                'deptCap' => $aiInsights ? $this->departmentCapacity() : collect(),
+                'risks' => $aiInsights ? Amanahku::operationalRisks() : [],
                 'stuckRequests' => app(StuckRequests::class)->forCurrentTenant(),
             ],
             'hr' => [
@@ -96,6 +111,8 @@ trait BuildsDashboardData
                 ...$this->employeeDashPeople($employee),
             ],
         };
+
+        return $data + ['aiInsights' => $aiInsights];
     }
 
     /**

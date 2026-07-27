@@ -107,12 +107,22 @@ class Features
         ],
     ];
 
+    /**
+     * Modules that are fully built but deliberately shipped OFF: the code exists and
+     * works, but the feature has not been signed off for release yet. Kept in one place
+     * so "why is this off" is answerable by reading this list instead of hunting for a
+     * scattered inline condition. Remove a key here once the module is approved to ship.
+     */
+    public const NOT_READY = [
+        'module.ai',
+    ];
+
     /** All keys with their registry default. */
     public static function defaults(): array
     {
         $out = [];
         foreach (self::MODULES as $key => [$label, $screens]) {
-            $out[$key] = true;
+            $out[$key] = ! in_array($key, self::NOT_READY, true);
         }
         foreach (self::SETTINGS as $key => $meta) {
             $out[$key] = $meta['default'];
