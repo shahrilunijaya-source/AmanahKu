@@ -32,6 +32,7 @@ the day, react and discuss, and rate the presenter privately.
 | 6 | Import the full 2024 to 2026 sheet history. |
 | 7 | Marking a session `done` credits the PIC's Knowledge Bank contribution for that month. |
 | 8 | Optional cross-link from a session to one Knowledge Bank entry. |
+| 9 | Visual direction is a **year lineup** with a brand-red masthead, not a data table. See section 7. |
 
 ### Why TOT does not reuse the Knowledge Bank tables
 
@@ -211,27 +212,93 @@ POST   /app/tot/{session}/watched        tot.watched
 POST   /app/tot/{session}/rate           tot.rate
 ```
 
-### Layout
+### Visual direction — the year lineup
 
-**Year grid.** Year tabs across the top (2024, 2025, 2026, then future years as
-they exist). Twelve rows below, one per month, always all twelve even when empty:
+The screen is a **yearly lineup**, not a data table. A TOT roster is twelve names
+against twelve dates, so it is set like a bill of performers rather than a report.
 
-`Month · PIC · Title · Status pill · Link count · Reaction row · Watched count`
+- **The presenter is the headline.** The name is 19px semibold in `--ink`. The
+  topic drops to a 13px subline. `Nabil` outweighs `Install git on our own server`
+  because the roster is about people teaching people.
+- **The date is the spine.** A month abbreviation in letter-spaced caps sits above
+  a 26px mono day numeral. Twelve of these down the page form a rhythm you scan
+  without reading words.
+- **Masthead in brand red.** A solid `--red` (`#d6232b`) field carries the year at
+  54px mono in white, the "first Saturday of every month" line, the year switcher,
+  and the counts as white translucent chips. The paper below warms to `#faf9f5` so
+  the red does not sit on grey.
+- **Accepted collision:** `--red` is also the app's error colour (`--red-tint`
+  backs the failure banner). TOT is the one screen where red means occasion rather
+  than fault. This was decided deliberately; the screen is monthly, so the clash is
+  rare and the energy is worth it. Do not extend the red-as-celebration reading to
+  any other screen.
+- **Status is carried by weight, not by chips.** Held rows sit at full ink.
+  `skipped` drops to 45% opacity, `not_tot` to 72%. A missing topic goes amber in
+  the subline itself and reads "Topic still blank" instead of a badge repeating a
+  badge. Four status colours become zero status chips.
+- **Rows expand in place.** No side panel and no detail card. Material,
+  reactions, and the rating unfold beneath the clicked row, so the reader never
+  loses their position in the year.
 
-An empty month shows a muted row with an **Assign PIC** button for HR. A past
-month still `planned` shows the amber **Needs update** badge.
+### Interaction and motion
 
-**Session detail.** Opens from a row:
+| Element | Treatment | Reason |
+|---|---|---|
+| Row hover | Date tile fills solid `--red` with white numerals and lifts 1px; row washes to `--tint`; presenter name goes `--red-active`. 170ms `cubic-bezier(.23,1,.32,1)` | The date is already under the reader's eye, so lighting it costs nothing to notice. Replaces an earlier left-border accent, which was decoration beside the content. |
+| Row press | Date tile `scale(.96)` | The tile reads as a physical key. |
+| Row expand | `grid-template-rows: 0fr → 1fr`, 280ms | See the caveat below. |
+| Chevron | `rotate(180deg)`, 220ms | Direction of travel. |
+| Emoji press | `scale(.94)`, 140ms ease-out | Direct manipulation needs press feedback. |
+| Year switch | Colour only, 160ms | Three targets. A sliding indicator would be decoration. |
 
-- Title, presenter, held date.
-- Description.
-- Labelled links, all visible to everyone in the workspace.
-- Emoji bar with per-emoji counts, own reactions highlighted.
-- **I watched this** button.
-- Rating form: 1-5 plus an optional note, with the pseudonymity notice.
+No `ease-in` anywhere. No entry animates from `scale(0)`. Every transform and the
+row-expand transition is disabled under `prefers-reduced-motion: reduce`, matching
+the block already in `app.css`.
+
+**Known rule break:** the expand animates `grid-template-rows`, which is layout,
+not transform or opacity. There is no transform equivalent for an accordion of
+unknown height. The trade is accepted because the expand is click-triggered, not
+scroll- or hover-triggered, so it never runs during a busy frame.
+
+### Row anatomy
+
+`[date tile] [presenter name / topic subline] [top 3 reactions] [watched count] [chevron]`
+
+- Empty month: `Nobody assigned` in `--muted-soft`, with an **Assign PIC** action
+  for HR and management.
+- Past month still `planned`: subline reads "Topic still blank" in amber.
+- Future month: an uppercase `Upcoming` marker replaces the watched count.
+
+### Expanded row contents
+
+- Labelled links as bordered chips, all visible to everyone in the workspace.
+- Emoji bar with per-emoji counts; the reader's own reactions get the red tint.
+- **I watched this** control.
+- Rating: 1-5 plus an optional note, under the pseudonymity notice, which names
+  the presenter ("Only Nabil and management see scores, never with your name")
+  rather than saying "this is private" generically.
 - Score summary, shown only to the PIC and to management or HR.
 - Comment thread.
 - **Related Knowledge Bank entry** line when `entry_id` is set.
+
+### Mobile
+
+Single column throughout. Breakpoint at 640px.
+
+- Masthead: year drops to 40px, the subtitle shortens, the year switcher becomes a
+  horizontal pill row instead of a right-aligned stack, and the four counts sit in
+  a 2 by 2 grid.
+- Row: the three-column grid holds, with the date tile at 46px and the name at
+  16px. Reactions and the watched count move **below** the topic subline rather
+  than to the right, because they never fit beside a truncated topic on a 375px
+  screen.
+- Expanded row: the panel spans the full row width and drops the desktop 72px
+  left indent, so content aligns to the card edge instead of a distant text
+  column. Links wrap. The six emoji fit one row at 375px. **I watched this**
+  becomes a full-width control. The five rating buttons become `flex: 1` so they
+  span the width and clear a 38px touch target.
+- The active row keeps the red date tile and the tinted background, so the open
+  session stays identifiable while scrolling.
 
 Follow the existing screen conventions: `@extends('layouts.app')`,
 `@include('partials.guide', ...)` with English and Malay copy, `uj-card` and
