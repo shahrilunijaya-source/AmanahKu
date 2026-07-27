@@ -2396,6 +2396,11 @@ never filled in. Every send is deduped so cron retries cannot double-notify."
 
 **No backfilled credit:** the seeder must not call `KnowledgeContribution::mark()`. Backfilling two years would rewrite a counter people currently read as lessons written.
 
+**Two corrections made during implementation. The shipped seeder is the truth, not the code block below:**
+
+1. The seeder resolves the `unijaya` tenant by slug and threads `tenant_id` explicitly through both the session upsert and the employee lookup. Nothing sets a tenant context outside a request, so the ambient-context version below throws when run as `db:seed --class=TotHistorySeeder`. It throws a `RuntimeException` when that tenant is missing, matching `DevLoginSeeder`, because a silent no-op on a data import is the worst failure mode available.
+2. The `updateOrCreate` key is `['tenant_id', 'year', 'month']`, not `['year', 'month']`. That matches the table's actual unique constraint. The two-key version would have been a latent multi-tenant bug.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `tests/Feature/TotHistorySeederTest.php`:
