@@ -2320,8 +2320,11 @@ class TotReminder extends Command
                 $title = $slot->title ?: 'topic to be announced';
                 $before = AppNotification::count();
 
+                // active() excludes archived staff. Archiving sets archived_at and never
+                // touches the status column, so filtering on status alone still notifies
+                // people who have left.
                 AppNotification::sendMany(
-                    Employee::where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
+                    Employee::active()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
                     'TOT tomorrow',
                     $title.'. Material is on the TOT board.',
                     $url,
