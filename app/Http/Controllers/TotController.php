@@ -248,12 +248,32 @@ class TotController extends Controller
         try {
             $row->save();
         } catch (QueryException $e) {
-            // Same race as watched(): a concurrent submit of this employee's first rating
-            // already inserted the row with the same data this call was about to write, so
-            // there is nothing left to do.
             if (! str_starts_with((string) $e->getCode(), '23')) {
                 throw $e;
             }
+
+            // Unlike react(), a rating carries information that can differ between two
+            // racing requests. A concurrent first-time submit already inserted the row,
+            // so the plain firstOrNew() above missed it, and this insert lost the unique
+            // (session_id, employee_id) race. The user was already told "your rating was
+            // saved", so their score must win, not be silently dropped. Re-read the row
+            // the winner created and overwrite it with what THIS request submitted.
+            //
+            // The follow-up save() below is an UPDATE keyed by the row's own id, not an
+            // INSERT keyed by the (session_id, employee_id) pair, so it cannot collide
+            // with the same unique constraint and does not need its own catch. Two
+            // recovery paths racing each other here just resolve to last-write-wins,
+            // the same semantics an ordinary edit-your-rating request already has.
+            $row = TotParticipation::where('session_id', $session->id)
+                ->where('employee_id', $employee->id)
+                ->firstOrFail();
+
+            $row->fill([
+                'score' => $data['score'],
+                'note' => $data['note'] ?? null,
+            ]);
+            $row->watched_at ??= now();
+            $row->save();
         }
 
         return back()->with('ok', 'Thanks, your rating was saved.');

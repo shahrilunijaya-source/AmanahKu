@@ -468,6 +468,85 @@ class TotTest extends TestCase
         $this->assertNotNull($row->watched_at);
     }
 
+    public function test_rating_an_already_watched_session_does_not_move_watched_at_forward(): void
+    {
+        $session = $this->makeSession();
+
+        $this->travelTo('2026-03-10 09:00:00');
+        $this->actingInTenant()->post("/app/tot/{$session->id}/watched");
+        $watchedAt = TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at;
+
+        $this->travelTo('2026-03-11 09:00:00');
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
+
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertTrue($watchedAt->equalTo($row->watched_at));
+    }
+
+    /**
+     * Reverse order of the test above: rate first, then press watched. Pins the same
+     * ??= rule from the other direction, since watched() has its own independent ??=
+     * on the same column and nothing stops the two call orders from drifting apart.
+     */
+    public function test_marking_watched_after_rating_does_not_move_watched_at_forward(): void
+    {
+        $session = $this->makeSession();
+
+        $this->travelTo('2026-03-10 09:00:00');
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
+        $watchedAt = TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at;
+
+        $this->travelTo('2026-03-11 09:00:00');
+        $this->actingInTenant()->post("/app/tot/{$session->id}/watched");
+
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertTrue($watchedAt->equalTo($row->watched_at));
+    }
+
+    /**
+     * Simulates the lost side of a race between two near-simultaneous first-time ratings
+     * for the same person and session, using the same model "creating" hook technique as
+     * test_a_concurrent_react_race_is_absorbed_not_fatal. Unlike a reaction, the two
+     * competing ratings carry different scores, so the loser's submission must survive
+     * the race, not be dropped: rate() re-reads the row the "winner" inserted and
+     * overwrites it with what this request actually submitted.
+     * Covers: the recovery branch of the QueryException catch path in rate() through the
+     * real HTTP route.
+     * Does not cover: genuine simultaneous DB connections/threads, or a second collision
+     * on the recovery save() itself (not reachable: that save() is an UPDATE keyed by the
+     * row's id, not an INSERT keyed by the unique (session_id, employee_id) pair).
+     */
+    public function test_a_concurrent_first_rating_race_keeps_this_requests_score(): void
+    {
+        $session = $this->makeSession();
+        $raced = false;
+
+        TotParticipation::creating(function () use ($session, &$raced): void {
+            if ($raced) {
+                return;
+            }
+            $raced = true;
+
+            TotParticipation::create([
+                'tenant_id' => $this->tenant->id,
+                'session_id' => $session->id,
+                'employee_id' => $this->employee->id,
+                'score' => 2,
+                'watched_at' => now(),
+            ]);
+        });
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}/rate", [
+            'score' => 5, 'note' => 'Genuinely useful.',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(1, TotParticipation::where('session_id', $session->id)->count());
+        $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+        $this->assertSame(5, (int) $row->score);
+        $this->assertSame('Genuinely useful.', $row->note);
+    }
+
     // ── Rating privacy ────────────────────────────────────────────
 
     public function test_a_plain_employee_never_receives_scores(): void
