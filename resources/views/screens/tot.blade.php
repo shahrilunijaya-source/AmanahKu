@@ -23,6 +23,13 @@
         'Company event' => 'Acara syarikat',
         'Nobody assigned' => 'Belum ada pembentang',
     ];
+    $statusLabels = [
+        'planned' => ['en' => 'Planned', 'ms' => 'Dirancang'],
+        'confirmed' => ['en' => 'Confirmed', 'ms' => 'Disahkan'],
+        'done' => ['en' => 'Done', 'ms' => 'Selesai'],
+        'skipped' => ['en' => 'Skipped', 'ms' => 'Dilangkau'],
+        'not_tot' => ['en' => 'Not TOT', 'ms' => 'Bukan TOT'],
+    ];
 
     foreach ($sessions as $i => $session) {
         $subline = match (true) {
@@ -151,7 +158,8 @@
     .tot-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows 280ms var(--tot-eo);}
     .tot-wrap[data-open="1"]{grid-template-rows:1fr;}
     .tot-wrap>div{overflow:hidden;}
-    .tot-panel{padding:2px 6px 22px 72px;}
+    .tot-panel{padding:2px 6px 22px 72px;background:var(--red-tint);border-radius:0 0 10px 10px;}
+    .tot-panel-date{font:600 11px var(--font-mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
 
     .tot-emo{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;border:1px solid var(--hairline);background:var(--card);font-size:14px;line-height:1;cursor:pointer;font-family:inherit;transition:transform 140ms var(--tot-eo),border-color 140ms var(--tot-eo),background 140ms var(--tot-eo);}
     .tot-emo:hover{border-color:var(--muted);}
@@ -243,6 +251,8 @@
                 $sessionScore = $session->exists ? ($scores[$session->id] ?? null) : null;
                 $watched = $session->exists ? ($watchedCounts[$session->id] ?? 0) : 0;
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
+                $isPresenterOfSlot = $session->exists && $employee && $session->presenter_employee_id === $employee->id;
+                $canEditSlot = $canManage || $isPresenterOfSlot;
             @endphp
             <div x-data="{ open: false, editing: false }">
                 <button type="button" class="tot-row" @click="open = !open" :aria-expanded="open" style="opacity:{{ $rm['opacity'] }}">
@@ -285,8 +295,11 @@
                     <div><div class="tot-panel">
 
                         @if ($session->exists)
+                            {{-- Full date and watched count --}}
+                            <div class="tot-panel-date">{{ $session->session_date->format('l j F Y') }} · <span x-text="$store.ui.lang==='en' ? @js($watched.' watched') : @js($watched.' sudah tonton')">{{ $watched }} watched</span></div>
+
                             {{-- Links --}}
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
                                 @forelse ($session->links ?? [] as $link)
                                     <a class="tot-lk" href="{{ $link['url'] }}" target="_blank" rel="noopener noreferrer">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted);"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14L21 3"/></svg>
@@ -423,8 +436,12 @@
                                 @endif
                             </div>
 
-                            {{-- HR / management: edit and delete this slot --}}
-                            @if ($canManage)
+                            {{-- Edit this slot. HR and management change everything; the presenter
+                                 of this slot changes only the material (topic, description, links,
+                                 Knowledge Bank cross-link), never the roster fields. Same form for
+                                 both: the presenter's version is the privileged version minus the
+                                 privileged fields, guarded here to match TotController::update(). --}}
+                            @if ($canEditSlot)
                                 <div class="tot-rule">
                                     <button type="button" class="tot-pillbtn" @click="editing = !editing">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -434,16 +451,20 @@
                                     <div x-show="editing" x-cloak style="margin-top:14px;">
                                         <form method="post" action="{{ route('tot.update', $session) }}">
                                             @csrf
-                                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                                                <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
-                                                <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
+                                            @if ($canManage)
+                                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
+                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
+                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID)' : 'Pembentang (ID pekerja)'">Presenter (employee ID)</label><input class="tot-field" type="number" name="presenter_employee_id" value="{{ $session->presenter_employee_id }}"></div>
+                                                </div>
+                                                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Linking an employee ID overrides the presenter name above, everywhere this session is shown.' : 'Mengaitkan ID pekerja mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Linking an employee ID overrides the presenter name above, everywhere this session is shown.</div>
+                                                <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                                                     <select class="tot-field" name="status">
                                                         @foreach (\App\Models\TotSession::STATUSES as $st)
-                                                            <option value="{{ $st }}" @selected($session->status === $st)>{{ ucfirst(str_replace('_', ' ', $st)) }}</option>
+                                                            <option value="{{ $st }}" @selected($session->status === $st) x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                            </div>
+                                            @endif
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title" value="{{ $session->title }}"></div>
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:64px;padding-top:9px;resize:vertical;">{{ $session->description }}</textarea></div>
 
@@ -468,16 +489,18 @@
                                             <div class="tot-rule" style="max-width:620px;display:flex;gap:8px;align-items:center;">
                                                 <button type="submit" class="tot-btn-p" x-text="$store.ui.lang==='en' ? 'Save slot' : 'Simpan slot'">Save slot</button>
                                                 <button type="button" class="tot-btn-g" @click="editing = false" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
-                                                @if ($session->status !== 'done')
+                                                @if ($canManage && $session->status !== 'done')
                                                     <div class="tot-note" style="margin-left:auto;"><span x-text="$store.ui.lang==='en' ? @js('Marking this Done credits '.($session->presenter?->name ?? 'the presenter').'’s Knowledge Bank month.') : @js('Menandakan ini Selesai mengkredit bulan Bank Pengetahuan '.($session->presenter?->name ?? 'pembentang').'.')">Marking this <b style="color:var(--ink);font-weight:600;">Done</b> credits {{ $session->presenter?->name ?? 'the presenter' }}&rsquo;s Knowledge Bank month.</span></div>
                                                 @endif
                                             </div>
                                         </form>
 
-                                        <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this slot? This cannot be undone.' : 'Buang slot ini? Tindakan ini tidak boleh dibatalkan.')) $event.preventDefault();">
-                                            @csrf
-                                            <button type="submit" class="tot-btn-g" style="color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete slot' : 'Padam slot'">Delete slot</button>
-                                        </form>
+                                        @if ($canManage)
+                                            <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this slot? This cannot be undone.' : 'Buang slot ini? Tindakan ini tidak boleh dibatalkan.')) $event.preventDefault();">
+                                                @csrf
+                                                <button type="submit" class="tot-btn-g" style="color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete slot' : 'Padam slot'">Delete slot</button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </div>
                             @endif
@@ -496,7 +519,7 @@
                                     <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                                         <select class="tot-field" name="status">
                                             @foreach (\App\Models\TotSession::STATUSES as $st)
-                                                <option value="{{ $st }}" @selected($st === 'planned')>{{ ucfirst(str_replace('_', ' ', $st)) }}</option>
+                                                <option value="{{ $st }}" @selected($st === 'planned') x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
                                             @endforeach
                                         </select>
                                     </div>
