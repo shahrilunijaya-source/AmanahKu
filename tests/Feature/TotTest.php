@@ -176,6 +176,77 @@ class TotTest extends TestCase
         ]);
     }
 
+    public function test_a_foreign_tenant_employee_id_is_rejected_on_store(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreignEmployee = Employee::create([
+            'tenant_id' => $otherTenant->id, 'name' => 'Foreign',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $hr = $this->hrActor();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/tot', [
+                'year' => 2026, 'month' => 9,
+                'presenter_employee_id' => $foreignEmployee->id,
+                'status' => 'planned',
+            ]);
+
+        $response->assertSessionHasErrors('presenter_employee_id');
+        $this->assertDatabaseMissing('tot_sessions', ['year' => 2026, 'month' => 9]);
+    }
+
+    public function test_a_foreign_tenant_employee_id_is_rejected_on_update(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreignEmployee = Employee::create([
+            'tenant_id' => $otherTenant->id, 'name' => 'Foreign',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $hr = $this->hrActor();
+        $session = $this->makeSession();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $foreignEmployee->id]);
+
+        $response->assertSessionHasErrors('presenter_employee_id');
+        $this->assertNotSame($foreignEmployee->id, $session->fresh()->presenter_employee_id);
+    }
+
+    /**
+     * Simulates the lost side of a race between two near-simultaneous "Assign PIC" clicks
+     * for the same (tenant, year, month) slot, using the same model "creating" hook
+     * technique as the react and rate race tests. The controller's own exists() pre-check
+     * finds nothing (that check ran first, same as a real race), but by the time this
+     * request's create() reaches the database another request has already inserted the
+     * slot, so this insert collides with a row that exists for real.
+     * Covers: the QueryException catch path in store() through the real HTTP route.
+     */
+    public function test_a_concurrent_store_race_is_absorbed_not_fatal(): void
+    {
+        $hr = $this->hrActor();
+        $raced = false;
+
+        TotSession::creating(function () use (&$raced): void {
+            if ($raced) {
+                return;
+            }
+            $raced = true;
+
+            TotSession::create([
+                'tenant_id' => $this->tenant->id,
+                'year' => 2026, 'month' => 9,
+                'status' => 'planned',
+            ]);
+        });
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/tot', ['year' => 2026, 'month' => 9, 'status' => 'planned']);
+
+        $response->assertStatus(422);
+        $this->assertSame(1, TotSession::where('year', 2026)->where('month', 9)->count());
+    }
+
     public function test_hr_cannot_overwrite_an_existing_slot_by_posting_store_again(): void
     {
         $session = $this->makeSession(['year' => 2026, 'month' => 9, 'title' => 'Original title']);
@@ -337,6 +408,60 @@ class TotTest extends TestCase
         $this->assertSame('done', $session->fresh()->status);
         $this->assertSame('Install git on our own server (updated)', $session->fresh()->title);
         $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->employee->id)->count());
+    }
+
+    public function test_marking_a_session_done_stamps_held_on_with_the_computed_saturday(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['year' => 2026, 'month' => 3, 'status' => 'confirmed', 'held_on' => null]);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done'])
+            ->assertRedirect();
+
+        $this->assertSame('2026-03-07', $session->fresh()->held_on->toDateString());
+    }
+
+    public function test_marking_a_session_done_does_not_override_an_existing_held_on(): void
+    {
+        $hr = $this->hrActor();
+        $session = $this->makeSession(['year' => 2026, 'month' => 3, 'status' => 'confirmed', 'held_on' => '2026-03-14']);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done'])
+            ->assertRedirect();
+
+        $this->assertSame('2026-03-14', $session->fresh()->held_on->toDateString());
+    }
+
+    // ── Cross-tenant isolation ───────────────────────────────────
+
+    public function test_a_foreign_tenant_session_404s_on_update_and_react(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreignSession = TotSession::create([
+            'tenant_id' => $otherTenant->id,
+            'year' => 2026, 'month' => 5,
+            'title' => 'Belongs to another tenant',
+            'status' => 'confirmed',
+        ]);
+
+        // HR of the acting tenant, the highest role that could plausibly bypass a
+        // tenant-blind authorization check, still must not be able to touch it.
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$foreignSession->id}", ['title' => 'Hijacked'])
+            ->assertNotFound();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$foreignSession->id}/react", ['emoji' => '👍'])
+            ->assertNotFound();
+
+        $this->assertSame(
+            'Belongs to another tenant',
+            TotSession::withoutGlobalScopes()->find($foreignSession->id)->title
+        );
     }
 
     // ── Reactions ─────────────────────────────────────────────────

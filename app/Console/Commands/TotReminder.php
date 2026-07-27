@@ -99,7 +99,7 @@ class TotReminder extends Command
                 $before = AppNotification::count();
 
                 AppNotification::sendMany(
-                    Employee::active()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
+                    Employee::active()->whereNotNull('user_id')->pluck('user_id'),
                     'TOT tomorrow',
                     $title.'. Material is on the TOT board.',
                     $url,

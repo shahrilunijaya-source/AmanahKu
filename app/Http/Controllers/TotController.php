@@ -11,10 +11,12 @@ use App\Models\TotComment;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 
 class TotController extends Controller
 {
@@ -34,7 +36,6 @@ class TotController extends Controller
         $year = (int) ($request->query('year') ?: now()->year);
 
         $saved = TotSession::with(['presenter', 'entry'])
-            ->withCount('comments')
             ->where('year', $year)
             ->get()
             ->keyBy('month');
@@ -66,11 +67,12 @@ class TotController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        $tenantId = app(CurrentTenant::class)->id();
 
         $data = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'month' => ['required', 'integer', 'min:1', 'max:12'],
-            'presenter_employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+            'presenter_employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
             'presenter_name' => ['nullable', 'string', 'max:120'],
             'title' => ['nullable', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -80,16 +82,27 @@ class TotController extends Controller
         $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
         abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
 
-        $session = TotSession::create([
-            'year' => $data['year'],
-            'month' => $data['month'],
-            'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
-            'presenter_name' => $data['presenter_name'] ?? null,
-            'title' => $data['title'] ?? null,
-            'description' => $data['description'] ?? null,
-            'status' => $data['status'],
-            'created_by' => $request->attributes->get('employee')?->id,
-        ]);
+        try {
+            $session = TotSession::create([
+                'year' => $data['year'],
+                'month' => $data['month'],
+                'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
+                'presenter_name' => $data['presenter_name'] ?? null,
+                'title' => $data['title'] ?? null,
+                'description' => $data['description'] ?? null,
+                'status' => $data['status'],
+                'created_by' => $request->attributes->get('employee')?->id,
+            ]);
+        } catch (QueryException $e) {
+            // 23xxx = the unique (tenant_id, year, month) guard raced by a concurrent create,
+            // same as the exists() pre-check above but for the request that lost the race.
+            // Same 422 either way; a double-click must never fall through to a 500 page.
+            if (! str_starts_with((string) $e->getCode(), '23')) {
+                throw $e;
+            }
+
+            abort(422, 'That slot already exists. Edit it instead of creating it again.');
+        }
 
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
@@ -103,10 +116,13 @@ class TotController extends Controller
      */
     public function update(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
+
         $employee = $request->attributes->get('employee');
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
 
         $this->authorizeSlotEdit($request, $session, $employee);
+        $tenantId = app(CurrentTenant::class)->id();
 
         $rules = [
             'title' => ['nullable', 'string', 'max:200'],
@@ -114,11 +130,11 @@ class TotController extends Controller
             'links' => ['nullable', 'array', 'max:12'],
             'links.*.label' => ['required_with:links', 'string', 'max:60'],
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
-            'entry_id' => ['nullable', 'integer', 'exists:knowledge_entries,id'],
+            'entry_id' => ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)],
         ];
 
         if ($privileged) {
-            $rules['presenter_employee_id'] = ['nullable', 'integer', 'exists:employees,id'];
+            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
             $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
             $rules['status'] = ['nullable', 'in:'.implode(',', TotSession::STATUSES)];
             $rules['held_on'] = ['nullable', 'date'];
@@ -131,7 +147,16 @@ class TotController extends Controller
 
         $wasDone = $session->status === 'done';
 
-        $session->fill($data)->save();
+        $session->fill($data);
+
+        // Stamp held_on on the transition INTO done, same rule TotHistorySeeder uses for
+        // imported rows, so a session marked done through the UI carries a date too. Only
+        // fills a still-blank value: HR can override it afterwards and that override sticks.
+        if (! $wasDone && $session->status === 'done' && $session->held_on === null) {
+            $session->held_on = TotSession::firstSaturday((int) $session->year, (int) $session->month)->toDateString();
+        }
+
+        $session->save();
 
         // Credit only on the transition INTO done, and only once. Presenting is the thing
         // that earns the month; editing the title afterwards is not.
@@ -147,6 +172,8 @@ class TotController extends Controller
     /** Anybody in the workspace may post to a session thread. */
     public function comment(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
+
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
@@ -166,6 +193,8 @@ class TotController extends Controller
     /** The author removes their own comment; HR and management may remove any. */
     public function deleteComment(Request $request, TotComment $comment): RedirectResponse
     {
+        $this->assertSameTenant($comment);
+
         $employee = $request->attributes->get('employee');
 
         abort_unless(
@@ -186,6 +215,8 @@ class TotController extends Controller
      */
     public function react(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
+
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
@@ -224,6 +255,8 @@ class TotController extends Controller
     /** Mark the session watched for the acting employee. Idempotent. */
     public function watched(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
+
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
@@ -258,6 +291,8 @@ class TotController extends Controller
      */
     public function rate(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
+
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
@@ -320,6 +355,7 @@ class TotController extends Controller
     /** Privileged-only: remove a slot entirely. */
     public function destroy(Request $request, TotSession $session): RedirectResponse
     {
+        $this->assertSameTenant($session);
         $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
 
         $label = sprintf('%04d-%02d', $session->year, $session->month);
@@ -328,6 +364,21 @@ class TotController extends Controller
         AuditLog::record('Deleted TOT slot', $label);
 
         return back()->with('ok', 'TOT slot removed.');
+    }
+
+    /**
+     * 404 unless the route-bound record belongs to the acting tenant.
+     *
+     * Route-model binding resolves before the BelongsToTenant global scope is active (the
+     * 'tenant' middleware sets the active tenant later in the pipeline), so on its own the
+     * scope does not stop an actor in one tenant from reaching another tenant's TOT session
+     * or comment by id. Every action that receives one as a route parameter must call this
+     * first. 404, not 403: a foreign id must look indistinguishable from one that does not
+     * exist at all, and must never leave the record reachable to write through.
+     */
+    private function assertSameTenant(TotSession|TotComment $record): void
+    {
+        abort_unless($record->tenant_id === app(CurrentTenant::class)->id(), 404);
     }
 
     /** 403 unless the actor is privileged or is the presenter of this slot. */
@@ -479,6 +530,7 @@ class TotController extends Controller
         return TotComment::with('employee')
             ->whereIn('session_id', $ids)
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get()
             ->groupBy('session_id')
             ->all();

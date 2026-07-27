@@ -168,6 +168,25 @@ class TotReminderTest extends TestCase
         $this->assertSame(0, AppNotification::count());
     }
 
+    public function test_a_probation_status_employee_receives_the_all_hands_reminder(): void
+    {
+        $newHire = User::create(['name' => 'Fresh', 'email' => 'fresh@example.com', 'password' => Hash::make('password')]);
+        $newHire->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $newHire->id,
+            'name' => 'Fresh', 'status' => 'probation', 'workload' => 'green',
+        ]);
+
+        $slot = $this->makeSlot();
+
+        $this->travelTo('2026-03-06 08:00:00');
+        $this->artisan('tot:remind');
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $newHire->id, 'dedupe_key' => 'tot:'.$slot->id.':tomorrow',
+        ]);
+    }
+
     public function test_an_archived_employee_does_not_receive_the_all_hands_reminder(): void
     {
         $departed = User::create(['name' => 'Gone', 'email' => 'gone@example.com', 'password' => Hash::make('password')]);
