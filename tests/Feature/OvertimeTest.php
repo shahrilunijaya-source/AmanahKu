@@ -255,4 +255,17 @@ class OvertimeTest extends TestCase
             'title' => 'Overtime awaiting your verification',
         ]);
     }
+
+    public function test_overtime_screen_still_renders_the_tall_approval_chain(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->actingAs($report->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/overtime')->assertOk()
+            ->assertSee('Who signs off your request')
+            ->assertSee('Manager')
+            ->assertSee('Director');
+    }
 }

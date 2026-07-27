@@ -171,6 +171,18 @@ class LeaveApprovalRoutingTest extends TestCase
             ->assertSee('Reportee');
     }
 
+    public function test_leave_screen_still_renders_the_tall_approval_chain(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->actingAsEmployee($report)->get('/app/leave')->assertOk()
+            ->assertSee('Who signs off your request')
+            ->assertSee('Manager')
+            ->assertSee('Director');
+    }
+
     // --- Notifications ------------------------------------------------------
 
     public function test_submitting_notifies_the_superior_to_verify(): void

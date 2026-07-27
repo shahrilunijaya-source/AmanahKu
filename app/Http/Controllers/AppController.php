@@ -311,6 +311,7 @@ class AppController extends Controller
             'onboarding' => app(OnboardingController::class)->screenData($request, $employee),
             'onboarding-content' => app(OnboardingContentController::class)->screenData($request),
             'claims' => $this->claimsData($request, $employee),
+            'claim-approvals' => $this->claimApprovalsData($request, $employee),
             'assets' => $this->assetsData($request),
             'training' => $this->trainingData($request),
             'orgchart' => app(OrgController::class)->screenData($request, $employee),

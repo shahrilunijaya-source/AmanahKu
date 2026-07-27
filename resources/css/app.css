@@ -166,9 +166,10 @@ body {
 
 .uj-btn-primary {
     background: var(--red); color: #fff; font-weight: 500;
-    border-radius: 8px; transition: background .15s;
+    border-radius: 8px; transition: background .15s, transform 160ms ease-out;
 }
 .uj-btn-primary:hover { background: var(--red-active); }
+.uj-btn-primary:active { transform: scale(0.97); }
 
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
@@ -187,9 +188,28 @@ body {
 
 .uj-btn-ghost {
     background: #fff; border: 1px solid var(--hairline); color: var(--ink);
-    font-weight: 500; border-radius: 8px; transition: border-color .15s;
+    font-weight: 500; border-radius: 8px; transition: border-color .15s, transform 160ms ease-out;
 }
 .uj-btn-ghost:hover { border-color: var(--muted-soft); }
+.uj-btn-ghost:active { transform: scale(0.97); }
+
+/* ── Modal/drawer open motion (claims "New claim" overlay et al) ──
+   Alpine x-transition class hooks: enter/leave share the same from/to states so a
+   toggle mid-animation reverses cleanly. Enter is slower (250ms) than leave (180ms),
+   opening earns a beat of anticipation, closing should just get out of the way.
+   Transform + opacity only, never scale(0) (that reads as a pop, not a settle). */
+.uj-overlay-enter { transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1); }
+.uj-overlay-leave { transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms cubic-bezier(0.32, 0.72, 0, 1); }
+.uj-overlay-from { opacity: 0; transform: scale(0.97) translateY(6px); }
+.uj-overlay-to { opacity: 1; transform: scale(1) translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .uj-btn-primary, .uj-btn-ghost { transition: background .15s, border-color .15s; }
+    .uj-btn-primary:active, .uj-btn-ghost:active { transform: none; }
+    .uj-overlay-enter, .uj-overlay-leave { transition: opacity 180ms ease; }
+    .uj-overlay-from, .uj-overlay-to { transform: none; }
+    .uj-card-clickable { transition: box-shadow .15s ease; }
+    .uj-card-clickable:hover { transform: none; }
+}
 
 .uj-card-head {
     padding: 16px 20px; border-bottom: 1px solid var(--hairline);

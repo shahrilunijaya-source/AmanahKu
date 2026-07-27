@@ -125,13 +125,30 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->claim($toVerify, 'submitted', null, 'Verify Claim');
         $this->claim($verified, 'verified', $manager->id, 'Approve Claim');
 
-        // The superior sees the submitted one to verify.
-        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
-            ->assertSee('To verify')->assertSee('Verify Me');
+        // The superior sees the submitted one to verify, on the claim-approvals screen.
+        $this->actingAsEmployee($manager)->get('/app/claim-approvals')->assertOk()
+            ->assertSee('step 1, verify')->assertSee('Verify Me');
 
         // Management sees the verified one to approve.
-        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
-            ->assertSee('To approve')->assertSee('Approve Me');
+        $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()
+            ->assertSee('step 2, approve')->assertSee('Approve Me');
+    }
+
+    public function test_merged_queue_sorts_approve_step_rows_before_verify_step_rows(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $mgmt->id); // mgmt is also report's direct superior
+        $approveOwner = $this->member('employee', 'Approve Owner');
+        $this->claim($report, 'submitted', null, 'Verify Row');
+        $this->claim($approveOwner, 'verified', $mgmt->id, 'Approve Row');
+
+        $content = $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()->getContent();
+
+        $approvePos = strpos($content, 'Approve Row');
+        $verifyPos = strpos($content, 'Verify Row');
+        $this->assertNotFalse($approvePos);
+        $this->assertNotFalse($verifyPos);
+        $this->assertLessThan($verifyPos, $approvePos, 'Approve-step rows must render before verify-step rows.');
     }
 
     public function test_submitting_a_claim_notifies_the_superior(): void
@@ -300,5 +317,143 @@ class ClaimApprovalRoutingTest extends TestCase
 
         $this->actingAsEmployee($mgmt)->post("/app/claims/{$claim->id}/reject")->assertStatus(422);
         $this->assertSame('approved', $claim->fresh()->status);
+    }
+
+    // --- Screen split: claims (personal) vs claim-approvals (queues + company) -----
+
+    public function test_claims_screen_no_longer_exposes_company_data_or_queues_to_anyone(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->claim($report); // submitted — would show in a verify queue if this screen still had one
+
+        foreach ([$mgmt, $manager] as $viewer) {
+            $this->actingAsEmployee($viewer)->get('/app/claims')->assertOk()
+                ->assertViewMissing('claimTotals')
+                ->assertViewMissing('allClaims')
+                ->assertViewMissing('claimsToVerify')
+                ->assertViewMissing('claimsToApprove')
+                ->assertDontSee('Company claims')
+                ->assertDontSee('To verify')
+                ->assertDontSee('To approve');
+        }
+    }
+
+    public function test_management_sees_the_company_wide_claims_section(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $someone = $this->member('employee', 'Someone');
+        $this->claim($someone);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('privileged', true)
+            ->assertSee('All claims')
+            ->assertSee('Company claims');
+    }
+
+    public function test_hr_sees_the_company_wide_claims_section(): void
+    {
+        $hr = $this->member('hr', 'HR Person');
+        $someone = $this->member('employee', 'Someone');
+        $this->claim($someone);
+
+        $this->actingAsEmployee($hr)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('privileged', true)
+            ->assertSee('All claims')
+            ->assertSee('Company claims');
+    }
+
+    public function test_employee_and_manager_do_not_see_the_company_wide_claims_section(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $employee = $this->member('employee', 'Plain Employee', $manager->id);
+        $this->claim($employee);
+
+        $this->actingAsEmployee($manager)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('privileged', false)
+            ->assertDontSee('All claims');
+
+        $this->actingAsEmployee($employee)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('privileged', false)
+            ->assertDontSee('All claims');
+    }
+
+    public function test_plain_employee_sees_no_queue_and_no_ledger_on_claim_approvals(): void
+    {
+        $employee = $this->member('employee', 'Plain Employee');
+
+        $this->actingAsEmployee($employee)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('privileged', false)
+            ->assertDontSee('All claims')
+            ->assertSee('Nothing waiting on you');
+    }
+
+    public function test_company_totals_sum_amounts_correctly_by_status(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $empA = $this->member('employee', 'Emp A');
+        $empB = $this->member('employee', 'Emp B');
+
+        // Two submitted claims: 100.00 + 50.00 = 150.00.
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'expense', 'title' => 'S1', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empB->id, 'type' => 'expense', 'title' => 'S2', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'submitted']);
+        // One approved claim: 75.25.
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'medical', 'title' => 'A1', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
+
+        $response = $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk();
+
+        $totals = $response->viewData('claimTotals');
+        $this->assertSame(2, (int) $totals['submitted']->count);
+        $this->assertEqualsWithDelta(150.00, (float) $totals['submitted']->total, 0.001);
+        $this->assertSame(1, (int) $totals['approved']->count);
+        $this->assertEqualsWithDelta(75.25, (float) $totals['approved']->total, 0.001);
+
+        $response->assertSee('150.00')->assertSee('75.25');
+
+        $allClaims = $response->viewData('allClaims');
+        $this->assertCount(3, $allClaims);
+    }
+
+    public function test_personal_tiles_show_only_the_viewers_own_claims_not_company_total(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $other = $this->member('employee', 'Other Person');
+
+        $this->claim($mgmt, 'submitted', null, 'Mine');
+        $this->claim($other, 'submitted', null, 'Not mine');
+
+        $response = $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk();
+
+        // "My claims" is the director's own claim only (1), not the company total (2).
+        $this->assertCount(1, $response->viewData('myClaims'));
+    }
+
+    public function test_claims_screen_renders_the_compact_approval_chain_without_the_tall_heading(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->actingAsEmployee($report)->get('/app/claims')->assertOk()
+            ->assertSee('Manager')
+            ->assertSee('Director')
+            ->assertDontSee('Who signs off your request');
+    }
+
+    public function test_personal_tiles_compute_waiting_and_approved_not_paid_correctly(): void
+    {
+        $employee = $this->member('employee', 'Claimant');
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Submitted', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Verified', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'verified']);
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Approved', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Paid', 'amount' => 999, 'date' => '2026-06-04', 'status' => 'paid']);
+
+        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
+            // Waiting on approval = submitted (100) + verified (50) = 150.00.
+            ->assertSee('150.00')
+            // Approved, not yet paid = approved only (75.25) — excludes the 999 paid claim.
+            ->assertSee('75.25')
+            ->assertDontSee('1074.25');
     }
 }

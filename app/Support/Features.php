@@ -46,7 +46,7 @@ class Features
         'module.cases' => ['Disciplinary Cases', ['cases'], 2],
         'module.learning' => ['Training & Learning', ['training', 'learning', 'handbook'], 2],
         'module.documents' => ['Document Vault', ['documents'], 1],
-        'module.claims' => ['Claims & Expenses', ['claims', 'expenses', 'travel'], 2],
+        'module.claims' => ['Claims & Expenses', ['claims', 'claim-approvals', 'expenses', 'travel'], 2],
         'module.helpdesk' => ['Helpdesk', ['helpdesk'], 2],
         'module.assets' => ['Asset Register', ['assets'], 2],
         'module.reports' => ['Reports', ['reports'], 1],

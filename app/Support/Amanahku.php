@@ -81,7 +81,11 @@ class Amanahku
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'pettycash', 'label' => 'Petty Cash', 'label_ms' => 'Wang Runcit', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 12h.01M6 9v6M18 9v6']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'benefits', 'label' => 'Benefits', 'label_ms' => 'Faedah', 'icon' => 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9.5 11l1.7 1.7L14.5 9']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'wellness', 'label' => 'Wellness & EAP', 'label_ms' => 'Kesihatan & EAP', 'icon' => 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z']),
-            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'claims', 'label' => 'Claims & Requests', 'label_ms' => 'Tuntutan & Permohonan', 'icon' => 'M5 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z']),
+            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'claims', 'label' => 'Claims', 'label_ms' => 'Tuntutan', 'icon' => 'M5 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z']),
+            // Verify/approve queues + the company ledger, split out of Claims & Requests so
+            // that screen stays personal-only. manager/management/hr only — a plain employee
+            // has nothing to action here.
+            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'claim-approvals', 'label' => 'Claim approvals', 'label_ms' => 'Kelulusan Tuntutan', 'roles' => ['manager', 'management', 'hr'], 'icon' => 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'expenses', 'label' => 'Expense Reports', 'label_ms' => 'Laporan Perbelanjaan', 'icon' => 'M9 14l6-6M9 8h.01M15 14h.01M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z']),
 
             // ── Talent & Growth ───────────────────────────────────────────────
@@ -255,7 +259,8 @@ class Amanahku
             'onboarding-content' => ['title' => 'Onboarding Content', 'title_ms' => 'Kandungan Onboarding', 'sub' => 'Write the intro, policies and per-position material shown behind each checklist item.', 'sub_ms' => 'Tulis pengenalan, polisi dan bahan khusus jawatan di sebalik setiap item senarai semak.', 'crumb' => ['Talent & Growth', 'Onboarding Content']],
             'knowledge-bank' => ['title' => 'Knowledge Bank', 'title_ms' => 'Bank Pengetahuan', 'sub' => "Share one lesson learned every month — and search the company's collective know-how.", 'sub_ms' => 'Kongsi satu pengajaran setiap bulan — dan cari himpunan pengetahuan syarikat.', 'crumb' => ['Knowledge Bank']],
             'messages' => ['title' => 'Messages', 'title_ms' => 'Mesej', 'sub' => 'Direct one-to-one messages with your colleagues.', 'sub_ms' => 'Mesej terus satu-dengan-satu bersama rakan sekerja.', 'crumb' => ['Messages']],
-            'claims' => ['title' => 'Claims & Requests', 'title_ms' => 'Tuntutan & Permohonan', 'sub' => 'Submit expense, mileage and medical claims for approval.', 'sub_ms' => 'Hantar tuntutan perbelanjaan, perbatuan dan perubatan untuk kelulusan.', 'crumb' => ['Claims & Requests']],
+            'claims' => ['title' => 'Claims', 'title_ms' => 'Tuntutan', 'sub' => 'Claim back what you spent for work.', 'sub_ms' => 'Tuntut balik wang yang anda belanja untuk kerja.', 'crumb' => ['Claims']],
+            'claim-approvals' => ['title' => 'Claim approvals', 'title_ms' => 'Kelulusan Tuntutan', 'sub' => 'Decide first, review the ledger second.', 'sub_ms' => 'Buat keputusan dahulu, semak lejar kemudian.', 'crumb' => ['Claim approvals']],
             'expenses' => ['title' => 'Expense Reports', 'title_ms' => 'Laporan Perbelanjaan', 'sub' => 'Itemised expense reports with receipts — submit a batch for approval.', 'sub_ms' => 'Laporan perbelanjaan terperinci dengan resit — hantar sekumpulan untuk kelulusan.', 'crumb' => ['Expense Reports']],
             'probation' => ['title' => 'Probation Tracking', 'title_ms' => 'Penjejakan Percubaan', 'sub' => 'New-hire probation periods, check-ins and confirmation decisions.', 'sub_ms' => 'Tempoh percubaan pekerja baharu, semakan dan keputusan pengesahan jawatan.', 'crumb' => ['Probation']],
             'helpdesk' => ['title' => 'Helpdesk', 'title_ms' => 'Helpdesk', 'sub' => 'Raise and track IT, facilities and HR support tickets.', 'sub_ms' => 'Bangkitkan dan jejak tiket sokongan IT, fasiliti dan HR.', 'crumb' => ['Helpdesk']],
@@ -342,7 +347,8 @@ class Amanahku
             'Onboarding' => 'Onboarding',
             'Knowledge Bank' => 'Bank Pengetahuan',
             'Messages' => 'Mesej',
-            'Claims & Requests' => 'Tuntutan & Permohonan',
+            'Claims' => 'Tuntutan',
+            'Claim approvals' => 'Kelulusan Tuntutan',
             'Expense Reports' => 'Laporan Perbelanjaan',
             'Probation' => 'Percubaan',
             'Helpdesk' => 'Helpdesk',
