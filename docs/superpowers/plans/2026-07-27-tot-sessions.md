@@ -1034,17 +1034,23 @@ Add to `app/Http/Controllers/TotController.php`, inside the class, after `screen
             'status' => ['required', 'in:'.implode(',', TotSession::STATUSES)],
         ]);
 
-        $session = TotSession::updateOrCreate(
-            ['year' => $data['year'], 'month' => $data['month']],
-            [
-                'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
-                'presenter_name' => $data['presenter_name'] ?? null,
-                'title' => $data['title'] ?? null,
-                'description' => $data['description'] ?? null,
-                'status' => $data['status'],
-                'created_by' => $request->attributes->get('employee')?->id,
-            ],
-        );
+        // Refuse rather than overwrite. The table has a unique key on (tenant_id, year,
+        // month), so a plain create would crash on a duplicate; refusing explicitly avoids
+        // both the crash and the silent data loss that updateOrCreate would cause when a
+        // stale tab or a mis-aimed submit lands on a month that is already filled.
+        $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
+        abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
+
+        $session = TotSession::create([
+            'year' => $data['year'],
+            'month' => $data['month'],
+            'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
+            'presenter_name' => $data['presenter_name'] ?? null,
+            'title' => $data['title'] ?? null,
+            'description' => $data['description'] ?? null,
+            'status' => $data['status'],
+            'created_by' => $request->attributes->get('employee')?->id,
+        ]);
 
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
