@@ -246,6 +246,62 @@ body {
     .uj-banner-row > .uj-banner-text { flex-basis: 100%; }
 }
 
+/* Inline page alert: session ok/error and the overdue-timesheet nudge in layouts/app.blade.php.
+   Same x-show rule as .uj-banner-row above — the row layout must live here, not inline.
+   Tone drives background, border and text colour; the icon tile and dismiss button match
+   .uj-toast so a flashed message and a toast read as one family. */
+.uj-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid;
+    border-radius: 10px;
+    padding: 10px 12px 10px 11px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.uj-alert-icon {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    display: grid; place-items: center;
+    background: #fff;
+    color: inherit;
+}
+.uj-alert-icon svg { width: 13px; height: 13px; }
+.uj-alert-msg { flex: 1; min-width: 0; font-weight: 500; }
+.uj-alert-action { white-space: nowrap; font-weight: 600; text-decoration: underline; color: inherit; }
+.uj-alert-close {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    opacity: .5;
+    cursor: pointer;
+    transition: opacity .12s, background .12s;
+}
+.uj-alert-close:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.uj-alert-close svg { width: 12px; height: 12px; }
+.uj-alert[data-tone="success"] {
+    background: color-mix(in srgb, var(--success) 7%, #fff);
+    border-color: color-mix(in srgb, var(--success) 34%, var(--hairline));
+    color: #176e51;
+}
+.uj-alert[data-tone="error"] {
+    background: var(--red-tint);
+    border-color: color-mix(in srgb, var(--red) 34%, var(--hairline));
+    color: var(--red);
+}
+/* The overdue nudge carries an action link, so on a phone the text takes its own line
+   rather than squeezing to three words beside the icon and the two trailing controls. */
+@media (max-width: 480px) {
+    .uj-alert:has(.uj-alert-action) { flex-wrap: wrap; gap: 8px 10px; }
+    .uj-alert:has(.uj-alert-action) > .uj-alert-msg { flex-basis: 100%; }
+}
+
 /* Card lede: leading icon tile, flexible text, trailing stamp ("Action needed",
    "Requests stuck with no approver", the setup-progress banner). Same squeeze as
    above at phone widths — the text child carries a min-width inline, so once the

@@ -36,17 +36,29 @@
     <main style="flex:1;overflow-y:auto;padding:32px 16px 64px;">
         <div style="max-width:860px;margin:0 auto;">
             @if (session('ok'))
-                <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:center;gap:10px;background:#e7f4ee;border:1px solid var(--success);color:#176e51;font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-                    <span style="flex:1;">{{ session('ok') }}</span>
-                    <button @click="show = false" style="color:#176e51;font-size:16px;">×</button>
+                <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                     class="uj-alert" data-tone="success" role="status">
+                    <span class="uj-alert-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                    </span>
+                    <span class="uj-alert-msg">{{ session('ok') }}</span>
+                    <button type="button" class="uj-alert-close" @click="show = false"
+                            :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </button>
                 </div>
             @endif
             @if (session('error') || $errors->any())
-                <div x-data="{ show: true }" x-show="show" style="display:flex;align-items:flex-start;gap:10px;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:13px;border-radius:10px;padding:11px 16px;margin-bottom:16px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-                    <span style="flex:1;">{{ session('error') ?? $errors->first() }}</span>
-                    <button @click="show = false" style="color:var(--red);font-size:16px;">×</button>
+                <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                     class="uj-alert" data-tone="error" role="alert">
+                    <span class="uj-alert-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+                    </span>
+                    <span class="uj-alert-msg">{{ session('error') ?? $errors->first() }}</span>
+                    <button type="button" class="uj-alert-close" @click="show = false"
+                            :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </button>
                 </div>
             @endif
 
