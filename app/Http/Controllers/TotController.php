@@ -147,6 +147,39 @@ class TotController extends Controller
         return back()->with('ok', 'TOT slot updated.');
     }
 
+    /**
+     * Toggle one whitelisted emoji for the acting employee. A repeat POST of the same emoji
+     * removes it; different emoji stack, one row each, guarded by the unique key.
+     */
+    public function react(Request $request, TotSession $session): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
+        ]);
+
+        $existing = TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $employee->id)
+            ->where('emoji', $data['emoji'])
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+
+            return back();
+        }
+
+        TotReaction::create([
+            'session_id' => $session->id,
+            'employee_id' => $employee->id,
+            'emoji' => $data['emoji'],
+        ]);
+
+        return back();
+    }
+
     /** Privileged-only: remove a slot entirely. */
     public function destroy(Request $request, TotSession $session): RedirectResponse
     {

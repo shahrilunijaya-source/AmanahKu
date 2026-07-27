@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
+use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -334,5 +335,51 @@ class TotTest extends TestCase
         $this->assertSame('done', $session->fresh()->status);
         $this->assertSame('Install git on our own server (updated)', $session->fresh()->title);
         $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->employee->id)->count());
+    }
+
+    // ── Reactions ─────────────────────────────────────────────────
+
+    public function test_an_employee_reacts_to_a_session(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tot_reactions', [
+            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => '👍',
+        ]);
+    }
+
+    public function test_reacting_twice_with_the_same_emoji_removes_it(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+
+        $this->assertDatabaseMissing('tot_reactions', [
+            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => '👍',
+        ]);
+    }
+
+    public function test_one_person_may_hold_several_different_emoji(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+        $this->assertSame(2, TotReaction::where('session_id', $session->id)->count());
+    }
+
+    public function test_an_emoji_outside_the_whitelist_is_rejected(): void
+    {
+        $session = $this->makeSession();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '💩'])
+            ->assertSessionHasErrors('emoji');
+
+        $this->assertSame(0, TotReaction::count());
     }
 }
