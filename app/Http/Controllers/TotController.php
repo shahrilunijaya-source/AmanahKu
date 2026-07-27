@@ -10,6 +10,7 @@ use App\Models\KnowledgeContribution;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -171,11 +172,19 @@ class TotController extends Controller
             return back();
         }
 
-        TotReaction::create([
-            'session_id' => $session->id,
-            'employee_id' => $employee->id,
-            'emoji' => $data['emoji'],
-        ]);
+        try {
+            TotReaction::create([
+                'session_id' => $session->id,
+                'employee_id' => $employee->id,
+                'emoji' => $data['emoji'],
+            ]);
+        } catch (QueryException $e) {
+            // 23xxx = the unique (session_id, employee_id, emoji) duplicate-reaction guard.
+            // Anything else is a real DB failure — don't mask it behind a friendly message.
+            if (! str_starts_with((string) $e->getCode(), '23')) {
+                throw $e;
+            }
+        }
 
         return back();
     }

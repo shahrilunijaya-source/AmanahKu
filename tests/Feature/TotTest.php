@@ -382,4 +382,45 @@ class TotTest extends TestCase
 
         $this->assertSame(0, TotReaction::count());
     }
+
+    /**
+     * Simulates the lost side of a race between two near-simultaneous reacts for the same
+     * person, session and emoji. The controller's own read finds no row (that check ran
+     * first, same as a real race), but by the time its create() reaches the database another
+     * request has already inserted the same row. We fake that interleaving with a model
+     * "creating" hook: the moment this request's create() starts, the hook fires a second,
+     * "winning" create for the identical row, so this request's own insert then collides
+     * with a row that exists for real. The guard flag stops the hook recursing on that
+     * nested create and makes it permanently inert afterwards, so it is harmless if it
+     * fires again for unrelated TotReaction rows later in the test run.
+     * Covers: the QueryException catch path in react() through the real HTTP route.
+     * Does not cover: genuine simultaneous DB connections/threads.
+     */
+    public function test_a_concurrent_react_race_is_absorbed_not_fatal(): void
+    {
+        $session = $this->makeSession();
+        $raced = false;
+
+        TotReaction::creating(function () use ($session, &$raced): void {
+            if ($raced) {
+                return;
+            }
+            $raced = true;
+
+            TotReaction::create([
+                'tenant_id' => $this->tenant->id,
+                'session_id' => $session->id,
+                'employee_id' => $this->employee->id,
+                'emoji' => '👍',
+            ]);
+        });
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+
+        $response->assertRedirect();
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)
+            ->where('emoji', '👍')
+            ->count());
+    }
 }
