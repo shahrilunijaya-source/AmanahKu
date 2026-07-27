@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\MemberInvited;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -93,7 +94,10 @@ class MemberController extends Controller
                 // member can reach any application route (I-008). Not in $fillable,
                 // so force the flag on.
                 $user->forceFill(['password_change_required' => true])->save();
-                $user->tenants()->attach($tenant->id, ['role' => $data['role']]);
+                $user->tenants()->attach($tenant->id, [
+                    'role' => $data['role'],
+                    'data_scope' => Permissions::defaultScopeForRole($data['role']),
+                ]);
 
                 Employee::create([
                     'tenant_id' => $tenant->id,
@@ -266,7 +270,10 @@ class MemberController extends Controller
                     'password' => Hash::make($tempPassword),
                 ]);
                 $user->forceFill(['password_change_required' => true])->save();
-                $user->tenants()->attach($tenant->id, ['role' => $role]);
+                $user->tenants()->attach($tenant->id, [
+                    'role' => $role,
+                    'data_scope' => Permissions::defaultScopeForRole($role),
+                ]);
                 $employee->update(['user_id' => $user->id]);
 
                 return $user;

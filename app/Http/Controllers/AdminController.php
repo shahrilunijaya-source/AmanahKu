@@ -192,7 +192,17 @@ class AdminController extends Controller
 
         $role = $request->validate(['role' => ['required', 'in:'.implode(',', self::ASSIGNABLE_ROLES)]])['role'];
 
-        $user->tenants()->updateExistingPivot($tenant->id, ['role' => $role]);
+        // Promoting an employee to manager must also narrow their reach, or the role change
+        // silently hands them company-wide sight of everyone's records. Only move the scope
+        // when it is still the old role's default — an admin who deliberately picked a scope
+        // keeps it, and their choice is not undone by an unrelated role edit.
+        $pivot = $user->tenants->firstWhere('id', $tenant->id)->pivot;
+        $updates = ['role' => $role];
+        if (($pivot->data_scope ?? 'company') === Permissions::defaultScopeForRole($pivot->role)) {
+            $updates['data_scope'] = Permissions::defaultScopeForRole($role);
+        }
+
+        $user->tenants()->updateExistingPivot($tenant->id, $updates);
         AuditLog::record('Changed role', $user->name.' → '.$role);
 
         $message = $user->name.' is now '.ucfirst($role).'.';

@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\MemberInvited;
 use App\Services\FeatureManager;
+use App\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -312,7 +313,10 @@ class CompanyController extends Controller
             return back()->withErrors(['email' => 'That user already belongs to this company.']);
         }
 
-        $user->tenants()->attach($tenant->id, ['role' => $data['role']]);
+        $user->tenants()->attach($tenant->id, [
+            'role' => $data['role'],
+            'data_scope' => Permissions::defaultScopeForRole($data['role']),
+        ]);
 
         // Mirror an employee record if one does not yet exist for this tenant.
         if (! Employee::where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
