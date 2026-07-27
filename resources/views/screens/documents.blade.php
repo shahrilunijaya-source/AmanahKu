@@ -2,7 +2,7 @@
 
 @php
     $catIcon = ['Contract' => '📄', 'Certificate' => '🎓', 'ID' => '🪪', 'Other' => '📁'];
-    $catColor = ['Contract' => 'var(--info)', 'Certificate' => 'var(--success)', 'ID' => 'var(--amber)', 'Other' => 'var(--muted-soft)'];
+    $catColor = ['Contract' => 'var(--info)', 'Certificate' => 'var(--success)', 'ID' => 'var(--amber)', 'Other' => 'var(--muted)'];
     $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
     $totalDocs = $documents->flatten()->count();
     $fmtSize = fn ($b) => $b >= 1048576 ? round($b / 1048576, 1).' MB' : ($b >= 1024 ? round($b / 1024).' KB' : $b.' B');

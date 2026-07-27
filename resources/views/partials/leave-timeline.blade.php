@@ -39,14 +39,14 @@
             <div style="padding-bottom:9px;">
                 <div style="font-size:12.5px;font-weight:600;color:{{ $st['state'] === 'rejected' ? 'var(--error)' : ($st['state'] === 'pending' ? 'var(--muted)' : 'var(--ink)') }};">
                     <span x-text="$store.ui.lang==='en' ? '{{ $st['en'] }}' : '{{ $st['ms'] }}'">{{ $st['en'] }}</span>
-                    @if ($st['state'] === 'pending')<span style="font-weight:400;color:var(--muted-soft);"> · <span x-text="$store.ui.lang==='en' ? 'pending' : 'menunggu'">pending</span></span>@endif
+                    @if ($st['state'] === 'pending')<span style="font-weight:400;color:var(--muted);"> · <span x-text="$store.ui.lang==='en' ? 'pending' : 'menunggu'">pending</span></span>@endif
                 </div>
                 <div style="font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;">
                     @if ($st['at'])<span>{{ $st['at']->format('j M Y, g:ia') }}</span>@endif
                     @if (! empty($st['whoI18n']))
                         <span x-text="$store.ui.lang==='en' ? '{{ $st['whoI18n']['en'] }}' : '{{ $st['whoI18n']['ms'] }}'">{{ $st['whoI18n']['en'] }}</span>
                     @elseif (! empty($st['who']))
-                        <span style="color:var(--ink);font-weight:500;">{{ $st['who'] }}</span>@if (! empty($st['whoRole']))<span style="color:var(--muted-soft);">· {{ $st['whoRole'] }}</span>@endif
+                        <span style="color:var(--ink);font-weight:500;">{{ $st['who'] }}</span>@if (! empty($st['whoRole']))<span style="color:var(--muted);">· {{ $st['whoRole'] }}</span>@endif
                     @endif
                     @if (! $st['at'] && empty($st['who']) && empty($st['whoI18n']))<span x-text="$store.ui.lang==='en' ? 'not yet' : 'belum'">not yet</span>@endif
                 </div>

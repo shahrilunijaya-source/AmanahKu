@@ -85,7 +85,7 @@
                 <div style="font-size:12px;color:var(--muted);margin-top:3px;">
                     {{ $f->branch?->name ?? '—' }}
                     · <span x-text="$store.ui.lang==='en' ? 'Custodian:' : 'Penjaga:'">Custodian:</span> {{ $f->custodian?->name ?? '—' }}
-                    · <span style="font-weight:600;color:{{ $f->is_active ? 'var(--success)' : 'var(--muted-soft)' }};" x-text="$store.ui.lang==='en' ? @js($f->is_active ? 'Active' : 'Closed') : @js($f->is_active ? 'Aktif' : 'Ditutup')">{{ $f->is_active ? 'Active' : 'Closed' }}</span>
+                    · <span style="font-weight:600;color:{{ $f->is_active ? 'var(--success)' : 'var(--muted)' }};" x-text="$store.ui.lang==='en' ? @js($f->is_active ? 'Active' : 'Closed') : @js($f->is_active ? 'Aktif' : 'Ditutup')">{{ $f->is_active ? 'Active' : 'Closed' }}</span>
                 </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">

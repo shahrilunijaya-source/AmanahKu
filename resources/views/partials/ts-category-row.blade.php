@@ -3,7 +3,7 @@
 <div class="uj-card" style="padding:14px 20px;margin-bottom:10px;{{ $cat->is_active ? '' : 'opacity:.6;' }}" x-data="{ edit: false }">
     <div style="display:flex;gap:12px;align-items:center;">
         <div style="flex:1;min-width:0;">
-            <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $cat->name }}<span style="color:var(--muted-soft);font-weight:400;"> · {{ $cat->name_ms }}</span></div>
+            <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $cat->name }}<span style="color:var(--muted);font-weight:400;"> · {{ $cat->name_ms }}</span></div>
             <div style="display:flex;gap:8px;margin-top:4px;">
                 @if ($cat->requires_project)
                     <span class="uj-pill" style="background:var(--red-tint);color:var(--red);font-size:10.5px;"><span x-text="$store.ui.lang==='en' ? 'Needs project' : 'Perlu projek'">Needs project</span></span>

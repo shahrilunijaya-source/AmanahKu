@@ -33,7 +33,7 @@
         @php $low = $b->balance <= 3; @endphp
         <div class="uj-card uj-stat" style="flex:1;min-width:150px;">
             <div class="uj-stat-label">{{ $b->leaveType?->name }} <span x-text="$store.ui.lang==='en' ? 'leave' : 'cuti'">leave</span></div>
-            <div class="uj-stat-value" style="color:{{ $low ? 'var(--amber)' : 'var(--ink)' }};">{{ $b->balance }} <span style="font-size:12px;color:var(--muted-soft);">/ {{ $b->leaveType?->entitlement }}</span></div>
+            <div class="uj-stat-value" style="color:{{ $low ? 'var(--amber)' : 'var(--ink)' }};">{{ $b->balance }} <span style="font-size:12px;color:var(--muted);">/ {{ $b->leaveType?->entitlement }}</span></div>
         </div>
     @endforeach
 </div>
@@ -125,7 +125,7 @@
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">
                 <span x-text="$store.ui.lang==='en' ? 'Supporting document' : 'Dokumen sokongan'">Supporting document</span>
                 <span x-show="requiresDoc[sel]" style="color:var(--red);font-weight:600;" x-text="$store.ui.lang==='en' ? '(required)' : '(wajib)'"></span>
-                <span x-show="!requiresDoc[sel]" style="color:var(--muted-soft);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
+                <span x-show="!requiresDoc[sel]" style="color:var(--muted);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
             </label>
             <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png" :required="requiresDoc[sel]" style="width:100%;font-size:13px;color:var(--ink);margin-bottom:8px;" />
             @include('partials.hint', ['en' => 'Sick and hospitalisation leave need a medical certificate (MC); maternity and paternity need a supporting letter. PDF or image, up to 8 MB.', 'ms' => 'Cuti sakit dan kemasukan hospital perlu sijil sakit (MC); cuti bersalin dan paterniti perlu surat sokongan. PDF atau imej, sehingga 8 MB.'])
@@ -151,7 +151,7 @@
                 <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
                     <div @click="open = !open" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;cursor:pointer;">
                         <span style="font-size:13px;color:var(--ink);">
-                            <span x-text="open ? '▾' : '▸'" style="color:var(--muted-soft);font-size:11px;">▸</span>
+                            <span x-text="open ? '▾' : '▸'" style="color:var(--muted);font-size:11px;">▸</span>
                             {{ $r->leaveType?->name }} · @if ($r->isHalfDay()){{ $r->date_from->format('j M') }} <span style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? '{{ $halfEn }}' : '{{ $halfMs }}'">{{ $halfEn }}</span>@else{{ $r->date_from->format('j') }}–{{ $r->date_to->format('j M') }}@endif
                             @if ($r->attachment_path)<a href="{{ route('leave.attachment', $r) }}" @click.stop style="text-decoration:none;" title="{{ $r->attachment_name }}">📎</a>@endif
                         </span>
@@ -185,7 +185,7 @@
             <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Upcoming holidays' : 'Cuti umum akan datang'">Upcoming holidays</span></h3>
             @foreach ($holidays as $h)
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
-                    <div><div style="font-size:13px;color:var(--ink);">{{ $h->name }}</div><div style="font-size:11.5px;color:var(--muted-soft);">{{ $h->state }}</div></div>
+                    <div><div style="font-size:13px;color:var(--ink);">{{ $h->name }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $h->state }}</div></div>
                     <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $h->date->format('j M') }}</span>
                 </div>
             @endforeach

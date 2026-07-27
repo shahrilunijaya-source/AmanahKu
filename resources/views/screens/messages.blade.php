@@ -40,7 +40,7 @@
                             <span style="width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $r['color'] }};">{{ $r['initials'] }}</span>
                             <span style="min-width:0;">
                                 <span style="display:block;font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r['name'] }}</span>
-                                <span style="display:block;font-size:11px;color:var(--muted-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r['position'] }}</span>
+                                <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r['position'] }}</span>
                             </span>
                         </a>
                     @empty
@@ -59,10 +59,10 @@
                     <span style="flex:1;min-width:0;">
                         <span style="display:flex;align-items:center;gap:7px;">
                             <span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $c['other']['name'] }}</span>
-                            <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted-soft);">{{ $c['at'] }}</span>
+                            <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);">{{ $c['at'] }}</span>
                         </span>
                         <span style="display:flex;align-items:center;gap:7px;margin-top:2px;">
-                            <span style="flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($c['lastMine'])<span style="color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'You: ' : 'Anda: '">You: </span>@endif{{ $c['snippet'] ?? '' }}</span>
+                            <span style="flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($c['lastMine'])<span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You: ' : 'Anda: '">You: </span>@endif{{ $c['snippet'] ?? '' }}</span>
                             @if ($c['unread'] > 0)
                                 <span style="flex-shrink:0;min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;">{{ $c['unread'] }}</span>
                             @endif
@@ -120,7 +120,7 @@
                                 @endif
                             </div>
                         @endforeach
-                        <div style="font-size:10px;font-family:var(--font-mono);color:var(--muted-soft);margin-top:3px;{{ $m['mine'] ? 'text-align:right;' : '' }}">{{ $m['at'] }}</div>
+                        <div style="font-size:10px;font-family:var(--font-mono);color:var(--muted);margin-top:3px;{{ $m['mine'] ? 'text-align:right;' : '' }}">{{ $m['at'] }}</div>
                     </div>
                 @empty
                     <div style="margin:auto;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No messages yet — say hello.' : 'Belum ada mesej — sapa dahulu.'">No messages yet — say hello.</div>

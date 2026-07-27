@@ -8,7 +8,7 @@
         'active' => ['bg' => 'var(--hairline-soft)', 'fg' => 'var(--muted)'],
         'achieved' => ['bg' => '#e7f4ee', 'fg' => 'var(--success)'],
         'missed' => ['bg' => 'var(--red-tint)', 'fg' => 'var(--red)'],
-        'archived' => ['bg' => 'var(--hairline-soft)', 'fg' => 'var(--muted-soft)'],
+        'archived' => ['bg' => 'var(--hairline-soft)', 'fg' => 'var(--muted)'],
     ];
     $barColor = fn (int $p) => $p >= 80 ? 'var(--success)' : ($p >= 50 ? 'var(--amber)' : 'var(--red)');
     $addOpen = old('form') === 'goal';
@@ -106,7 +106,7 @@
                         <span class="uj-pill" style="background:{{ $st['bg'] }};color:{{ $st['fg'] }};">{{ ucfirst($goal->status) }}</span>
                     </div>
                     @if ($goal->description)<p style="font-size:12.5px;color:var(--muted);margin:5px 0 0;">{{ $goal->description }}</p>@endif
-                    <div style="font-size:11px;color:var(--muted-soft);margin-top:4px;font-family:var(--font-mono);">{{ $goal->period }}</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);">{{ $goal->period }}</div>
                 </div>
                 <div style="text-align:right;flex-shrink:0;">
                     <div style="font-size:20px;font-weight:700;color:var(--ink);font-family:var(--font-mono);">{{ $goal->progress }}%</div>
@@ -122,7 +122,7 @@
                         <div style="display:flex;align-items:center;gap:12px;">
                             <div style="flex:2;min-width:0;">
                                 <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $kr->title }}</div>
-                                @if ($kr->target_label)<div style="font-size:11px;color:var(--muted-soft);font-family:var(--font-mono);">{{ $kr->target_label }}</div>@endif
+                                @if ($kr->target_label)<div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">{{ $kr->target_label }}</div>@endif
                             </div>
                             <div style="flex:1.4;display:flex;align-items:center;gap:8px;">
                                 <div class="uj-progress" style="flex:1;"><span style="width:{{ $kr->progress }}%;background:{{ $barColor((int) $kr->progress) }};"></span></div>
@@ -145,7 +145,7 @@
                         @endif
                     </div>
                 @empty
-                    <div style="font-size:12px;color:var(--muted-soft);padding:4px 0;">@if ($canManage)<span x-text="$store.ui.lang==='en' ? 'No key results yet — add one below to start measuring progress.' : 'Belum ada key result — tambah satu di bawah untuk mula mengukur kemajuan.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'No key results yet — measurable steps will show here once added.' : 'Belum ada key result — langkah yang boleh diukur akan dipaparkan di sini sebaik sahaja ditambah.'"></span>@endif</div>
+                    <div style="font-size:12px;color:var(--muted);padding:4px 0;">@if ($canManage)<span x-text="$store.ui.lang==='en' ? 'No key results yet — add one below to start measuring progress.' : 'Belum ada key result — tambah satu di bawah untuk mula mengukur kemajuan.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'No key results yet — measurable steps will show here once added.' : 'Belum ada key result — langkah yang boleh diukur akan dipaparkan di sini sebaik sahaja ditambah.'"></span>@endif</div>
                 @endforelse
             </div>
 

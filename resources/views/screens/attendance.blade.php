@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted-soft)'];
+    $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted)'];
     $stLabel = ['on_time' => 'On time', 'late' => 'Late', 'pending' => 'Pending'];
     $stLabelMs = ['on_time' => 'Tepat masa', 'late' => 'Lewat', 'pending' => 'Menunggu'];
     // Flag badge labels (EN / MS) for the weekly list.

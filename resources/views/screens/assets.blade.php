@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $sc = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted-soft)'];
+    $sc = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted)'];
     $statusEn = ['assigned' => 'Assigned', 'available' => 'Available', 'maintenance' => 'Maintenance', 'retired' => 'Retired'];
     $statusMs = ['assigned' => 'Ditugaskan', 'available' => 'Tersedia', 'maintenance' => 'Penyelenggaraan', 'retired' => 'Bersara'];
     $catMs = ['laptop' => 'Laptop', 'phone' => 'Telefon', 'vehicle' => 'Kenderaan', 'furniture' => 'Perabot', 'other' => 'Lain-lain'];

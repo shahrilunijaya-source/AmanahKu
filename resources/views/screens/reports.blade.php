@@ -35,7 +35,7 @@
         <p style="font-size:12.5px;color:var(--muted);margin:0 0 18px;" x-text="$store.ui.lang==='en' ? 'Estimated load vs. capacity by department.' : 'Anggaran beban berbanding kapasiti mengikut jabatan.'">Estimated load vs. capacity by department.</p>
         @foreach ($byDept as $d)
             <div style="margin-bottom:14px;">
-                <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $d['name'] }} <span style="color:var(--muted-soft);font-weight:400;">· {{ $d['head'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span></span><span style="font-size:12.5px;font-weight:600;color:{{ Amanahku::SWATCH[$d['color']] }};font-family:var(--font-mono);">{{ $d['cap'] }}%</span></div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $d['name'] }} <span style="color:var(--muted);font-weight:400;">· {{ $d['head'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span></span><span style="font-size:12.5px;font-weight:600;color:{{ Amanahku::SWATCH[$d['color']] }};font-family:var(--font-mono);">{{ $d['cap'] }}%</span></div>
                 <div style="height:8px;background:var(--hairline);border-radius:9999px;overflow:hidden;"><div style="height:100%;width:{{ $d['cap'] }}%;background:{{ Amanahku::SWATCH[$d['color']] }};"></div></div>
             </div>
         @endforeach

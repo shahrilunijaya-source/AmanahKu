@@ -91,7 +91,7 @@
                                 <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
                                     <span style="font-size:10.5px;color:var(--body);background:var(--canvas);border:1px solid var(--hairline);padding:2px 8px;border-radius:9999px;" x-text="e.seg"></span>
                                     <template x-if="e.isNew"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);"></span></template>
-                                    <span style="margin-left:auto;font-size:10.5px;font-family:var(--font-mono);color:var(--muted-soft);" x-text="e.date"></span>
+                                    <span style="margin-left:auto;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);" x-text="e.date"></span>
                                 </div>
                                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-bottom:5px;" x-text="e.title"></div>
                                 <div style="font-size:12.5px;color:var(--body);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;" x-text="e.body"></div>
@@ -162,7 +162,7 @@
                         <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'What happened' : 'Apa yang berlaku'">What happened</label>
                         <textarea name="body" required maxlength="5000" rows="5" :placeholder="$store.ui.lang==='en' ? 'What did you learn, and how can someone apply it?' : 'Apa yang anda pelajari, dan bagaimana orang lain boleh gunakannya?'" style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;resize:vertical;outline:none;margin-bottom:13px;font-family:inherit;line-height:1.55;">{{ old('body') }}</textarea>
 
-                        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Tags' : 'Tag'">Tags</span> <span style="color:var(--muted-soft);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional, comma-separated)' : '(pilihan, pisah dengan koma)'">(optional)</span></label>
+                        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Tags' : 'Tag'">Tags</span> <span style="color:var(--muted);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional, comma-separated)' : '(pilihan, pisah dengan koma)'">(optional)</span></label>
                         <input name="tags" value="{{ old('tags') }}" maxlength="200" placeholder="laravel, deploy, gotcha" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;margin-bottom:18px;outline:none;" />
 
                         <div style="display:flex;gap:10px;">

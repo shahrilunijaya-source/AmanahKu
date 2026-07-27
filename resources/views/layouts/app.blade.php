@@ -49,7 +49,7 @@
                           x-data="{ en: @js($crumb), ms: @js($crumbsMs[$i] ?? $crumb) }"
                           x-text="$store.ui.lang==='en' ? en : ms">{{ $crumb }}</span>
                     @if ($i < count($crumbs) - 1)
-                        <span style="color:var(--muted-soft);">/</span>
+                        <span style="color:var(--muted);">/</span>
                     @endif
                 @endforeach
             </div>

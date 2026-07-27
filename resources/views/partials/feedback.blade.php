@@ -96,7 +96,7 @@
                     {{-- Details --}}
                     <label for="fb-desc" style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;">
                         <span x-text="$store.ui.lang==='en' ? 'Details' : 'Butiran'"></span>
-                        <span style="font-weight:400;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
+                        <span style="font-weight:400;color:var(--muted);" x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'"></span>
                     </label>
                     <textarea id="fb-desc" name="description" rows="4" maxlength="2000"
                               class="uj-fb-input" @paste="onPaste($event)"
@@ -115,7 +115,7 @@
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                             <span x-text="$store.ui.lang==='en' ? 'Attach files' : 'Lampir fail'"></span>
                         </button>
-                        <span style="font-size:11.5px;color:var(--muted-soft);"
+                        <span style="font-size:11.5px;color:var(--muted);"
                               x-text="$store.ui.lang==='en' ? 'or paste a screenshot into Details' : 'atau tampal tangkap skrin dalam Butiran'"></span>
                     </div>
 
@@ -144,7 +144,7 @@
                     @foreach ($errors->get('attachments.*') as $messages)@foreach ($messages as $message)<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@endforeach @endforeach
                 </div>
 
-                <p style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted-soft);margin:0;">
+                <p style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);margin:0;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'We attach the page you are on so we can find it faster.' : 'Kami lampirkan halaman semasa anda supaya lebih mudah dicari.'"></span>
                 </p>
@@ -168,7 +168,7 @@
                     <div>
                         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:11px;">
                             <h3 style="font-size:14.5px;font-weight:600;color:var(--ink);margin:0;">{{ $rel['title'] }}</h3>
-                            <span style="font-size:11.5px;color:var(--muted-soft);font-family:var(--font-mono);white-space:nowrap;flex-shrink:0;">{{ $rel['date'] }}</span>
+                            <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;flex-shrink:0;">{{ $rel['date'] }}</span>
                         </div>
                         @foreach ($noteMeta as $key => $meta)
                             @php $lines = $rel['notes'][$key] ?? []; @endphp
@@ -189,7 +189,7 @@
                         @endforeach
                     </div>
                 @empty
-                    <div style="text-align:center;padding:34px 0;font-size:13px;color:var(--muted-soft);"
+                    <div style="text-align:center;padding:34px 0;font-size:13px;color:var(--muted);"
                          x-text="$store.ui.lang==='en' ? 'No updates yet.' : 'Tiada kemas kini lagi.'"></div>
                 @endforelse
             </div>

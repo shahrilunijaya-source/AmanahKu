@@ -70,7 +70,7 @@
             <option value="{{ route('app.screen', 'leave-report') }}?period={{ $period }}&dept={{ urlencode($d) }}" {{ $dept === $d ? 'selected' : '' }}>{{ $d }}</option>
         @endforeach
     </select>
-    <span style="font-size:12px;color:var(--muted-soft);">{{ $rangeLabel }}</span>
+    <span style="font-size:12px;color:var(--muted);">{{ $rangeLabel }}</span>
 </div>
 
 {{-- Company-wide KPI tiles --}}
@@ -79,7 +79,7 @@
     <div class="uj-card lr-kpi"><div class="lr-kpi-v" style="color:{{ $upcol }};">{{ rtrim(rtrim(number_format($kpis['unplannedDays'], 1), '0'), '.') }} <span style="font-size:15px;">({{ $kpis['unplannedPct'] }}%)</span></div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Emergency (unplanned)' : 'Kecemasan (tak dirancang)'">Emergency (unplanned)</span></div></div>
     <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['pending'] }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Pending requests' : 'Permohonan tertunggak'">Pending requests</span></div></div>
     <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['avgPerHead'] }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Avg days / head' : 'Purata hari / orang'">Avg days / head</span></div></div>
-    <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['staffTaken'] }}<span style="font-size:15px;color:var(--muted-soft);"> / {{ $kpis['headcount'] }}</span></div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Staff who took leave' : 'Staf yang bercuti'">Staff who took leave</span></div></div>
+    <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['staffTaken'] }}<span style="font-size:15px;color:var(--muted);"> / {{ $kpis['headcount'] }}</span></div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Staff who took leave' : 'Staf yang bercuti'">Staff who took leave</span></div></div>
 </div>
 
 @if ($kpis['unplannedPct'] >= 25 && $kpis['unplannedDays'] > 0)
@@ -128,7 +128,7 @@
 
 {{-- By staff — worst unplanned first --}}
 <div class="uj-card" style="margin-top:16px;padding:0;overflow:hidden;">
-    <div style="padding:16px 16px 10px;"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'By staff' : 'Mengikut staf'">By staff</span> <span style="font-size:12px;color:var(--muted-soft);font-weight:400;">— <span x-text="$store.ui.lang==='en' ? 'most unplanned leave first' : 'cuti tak dirancang dahulu'">most unplanned leave first</span></span></h3></div>
+    <div style="padding:16px 16px 10px;"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'By staff' : 'Mengikut staf'">By staff</span> <span style="font-size:12px;color:var(--muted);font-weight:400;">— <span x-text="$store.ui.lang==='en' ? 'most unplanned leave first' : 'cuti tak dirancang dahulu'">most unplanned leave first</span></span></h3></div>
     <div class="lr-staff-row lr-head" style="border-bottom:1px solid var(--hairline);">
         <span><span x-text="$store.ui.lang==='en' ? 'Staff' : 'Staf'">Staff</span></span>
         <span><span x-text="$store.ui.lang==='en' ? 'Dept' : 'Jabatan'">Dept</span></span>
@@ -146,7 +146,7 @@
             <span style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $s['dept'] ?? '—' }}</span>
             <span class="lr-num">{{ rtrim(rtrim(number_format($s['totalDays'], 1), '0'), '.') }}</span>
             <span class="lr-num" style="color:var(--muted);">{{ rtrim(rtrim(number_format($s['plannedDays'], 1), '0'), '.') }}</span>
-            <span class="lr-num" style="color:{{ $s['unplannedDays'] > 0 ? 'var(--error)' : 'var(--muted-soft)' }};">{{ $s['unplannedDays'] > 0 ? rtrim(rtrim(number_format($s['unplannedDays'], 1), '0'), '.').' ('.$s['unplannedCount'].')' : '—' }}</span>
+            <span class="lr-num" style="color:{{ $s['unplannedDays'] > 0 ? 'var(--error)' : 'var(--muted)' }};">{{ $s['unplannedDays'] > 0 ? rtrim(rtrim(number_format($s['unplannedDays'], 1), '0'), '.').' ('.$s['unplannedCount'].')' : '—' }}</span>
             <span class="lr-num" style="color:{{ $s['annualRemaining'] !== null && $s['annualRemaining'] <= 3 ? 'var(--amber)' : 'var(--ink)' }};">{{ $s['annualRemaining'] !== null ? rtrim(rtrim(number_format($s['annualRemaining'], 1), '0'), '.') : '—' }}</span>
         </a>
     @empty

@@ -25,7 +25,7 @@
             // The signed-in user is looking at their own record — offer self-service editing.
             $isOwn = isset($employee) && $employee && $p && $employee->id === $p->id;
             $stOpts = ['active' => 'Active', 'probation' => 'Probation', 'on_leave' => 'On Leave', 'resigned' => 'Resigned'];
-            $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted-soft)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
+            $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
             $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
         @endphp
         <div class="uj-card" style="padding:24px;text-align:center;" x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }">
@@ -125,7 +125,7 @@
                     @if ($aLate)<span style="font-size:10.5px;color:var(--amber);font-weight:600;margin-left:auto;"><span x-text="$store.ui.lang==='en' ? 'Late' : 'Lewat'">Late</span></span>@endif
                 </div>
             @empty
-                <p style="font-size:12.5px;color:var(--muted-soft);margin:0;" x-text="$store.ui.lang==='en' ? 'No attendance recorded this month.' : 'Tiada kehadiran direkod bulan ini.'">No attendance recorded this month.</p>
+                <p style="font-size:12.5px;color:var(--muted);margin:0;" x-text="$store.ui.lang==='en' ? 'No attendance recorded this month.' : 'Tiada kehadiran direkod bulan ini.'">No attendance recorded this month.</p>
             @endforelse
         </div>
         @endif
@@ -159,7 +159,7 @@
                 </div>
             </div>
         @empty
-            <p style="font-size:12.5px;color:var(--muted-soft);margin:0;" x-text="$store.ui.lang==='en' ? 'No tasks assigned to this person yet.' : 'Tiada tugas diberi kepada orang ini lagi.'">No tasks assigned to this person yet.</p>
+            <p style="font-size:12.5px;color:var(--muted);margin:0;" x-text="$store.ui.lang==='en' ? 'No tasks assigned to this person yet.' : 'Tiada tugas diberi kepada orang ini lagi.'">No tasks assigned to this person yet.</p>
         @endforelse
 
         {{-- Assign modal — teleported to body + centered. --}}
@@ -244,7 +244,7 @@
     {{-- Right column --}}
     <div style="flex:2;min-width:380px;display:flex;flex-direction:column;gap:16px;">
         <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Annual leave' : 'Cuti tahunan'">Annual leave</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->annualLeaveBalance() }} <span style="font-size:12px;color:var(--muted-soft);font-weight:400;"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div></div>
+            <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Annual leave' : 'Cuti tahunan'">Annual leave</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->annualLeaveBalance() }} <span style="font-size:12px;color:var(--muted);font-weight:400;"><span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></span></div></div>
             @if ($perfEnabled ?? true)
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'KPI · H1' : 'KPI · H1'">KPI · H1</span></div><div class="uj-stat-value" style="font-size:22px;color:var(--success);">{{ $p->kpi_pct }}%</div></div>
             @endif
@@ -255,13 +255,13 @@
         @php
             // Read-only lookup maps for the profile tabs (mirrors the standalone screens).
             $wTag    = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
-            $wStatus = ['todo' => ['To Do', 'var(--muted-soft)'], 'prog' => ['In Progress', 'var(--info)'], 'review' => ['In Review', 'var(--amber)'], 'done' => ['Done', 'var(--success)']];
+            $wStatus = ['todo' => ['To Do', 'var(--muted)'], 'prog' => ['In Progress', 'var(--info)'], 'review' => ['In Review', 'var(--amber)'], 'done' => ['Done', 'var(--success)']];
             $wPri    = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
             $wOrder  = ['todo' => 0, 'prog' => 1, 'review' => 2, 'done' => 3];
             $wItems  = $p->workItems->sortBy(fn ($w) => $wOrder[$w->status] ?? 9)->values();
             $aIcon   = ['laptop' => '💻', 'phone' => '📱', 'vehicle' => '🚗', 'furniture' => '🪑', 'other' => '📦'];
-            $aSc     = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted-soft)'];
-            $tSc     = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted-soft)'];
+            $aSc     = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted)'];
+            $tSc     = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted)'];
             $tSl     = ['completed' => 'Completed', 'in_progress' => 'In progress', 'not_started' => 'Not started'];
             $tabs    = [['overview', 'Overview', 'Gambaran'], ['work', 'Work & Tasks', 'Kerja & Tugas'], ['kpi', 'KPI History', 'Sejarah KPI'], ['documents', 'Documents', 'Dokumen'], ['assets', 'Assets', 'Aset'], ['training', 'Training', 'Latihan']];
             // Drop the KPI History tab when Performance is off for this company.
@@ -292,11 +292,11 @@
             {{-- Work & Tasks · this employee's work items, open ones first --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 @forelse ($wItems as $w)
-                    @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted-soft)']; @endphp
+                    @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted)']; @endphp
                     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $w->title }}</div>
-                            <div style="font-size:11.5px;color:var(--muted-soft);margin-top:2px;"><span style="color:{{ $tc }};font-weight:600;">{{ $tl }}</span>@if ($w->due_label) · {{ $w->due_label }}@endif @if ($w->estimate_hours) · <span style="font-family:var(--font-mono);">{{ $w->estimate_hours }}h</span>@endif</div>
+                            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;"><span style="color:{{ $tc }};font-weight:600;">{{ $tl }}</span>@if ($w->due_label) · {{ $w->due_label }}@endif @if ($w->estimate_hours) · <span style="font-family:var(--font-mono);">{{ $w->estimate_hours }}h</span>@endif</div>
                         </div>
                         @if ($w->priority)<span style="font-size:10.5px;font-weight:600;color:{{ $wPri[$w->priority] ?? 'var(--muted)' }};">{{ ucfirst($w->priority) }}</span>@endif
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $scol }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $scol }};"></span>{{ $sl }}</span>
@@ -312,10 +312,10 @@
                 @forelse ($p->kpiItems as $k)
                     <div style="padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;">
-                            <div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $k->title }}</div><div style="font-size:11px;color:var(--muted-soft);text-transform:capitalize;">{{ $k->category }}</div></div>
+                            <div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $k->title }}</div><div style="font-size:11px;color:var(--muted);text-transform:capitalize;">{{ $k->category }}</div></div>
                             <div style="text-align:right;white-space:nowrap;"><span style="font-size:12.5px;color:var(--ink);font-weight:600;font-family:var(--font-mono);">{{ $k->actual }}</span><span style="font-size:11.5px;color:var(--muted);"> / {{ $k->target }}</span></div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:8px;"><div class="uj-progress" style="flex:1;"><span style="width:{{ $k->progress }}%;background:{{ Amanahku::SWATCH[$k->status] ?? 'var(--success)' }};"></span></div><span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">{{ $k->progress }}%</span><span style="font-size:11px;color:var(--muted-soft);">· w{{ $k->weight }}</span></div>
+                        <div style="display:flex;align-items:center;gap:8px;"><div class="uj-progress" style="flex:1;"><span style="width:{{ $k->progress }}%;background:{{ Amanahku::SWATCH[$k->status] ?? 'var(--success)' }};"></span></div><span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">{{ $k->progress }}%</span><span style="font-size:11px;color:var(--muted);">· w{{ $k->weight }}</span></div>
                     </div>
                 @empty
                     <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No KPI objectives set.' : 'Tiada objektif KPI ditetapkan.'">No KPI objectives set.</div>
@@ -335,7 +335,7 @@
                 @forelse ($p->assets as $a)
                     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
                         <span style="font-size:18px;flex-shrink:0;">{{ $aIcon[$a->category] ?? '📦' }}</span>
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $a->name }}</div><div style="font-size:11.5px;color:var(--muted-soft);text-transform:capitalize;">{{ $a->category }}@if ($a->serial) · <span style="font-family:var(--font-mono);text-transform:none;">{{ $a->serial }}</span>@endif</div></div>
+                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $a->name }}</div><div style="font-size:11.5px;color:var(--muted);text-transform:capitalize;">{{ $a->category }}@if ($a->serial) · <span style="font-family:var(--font-mono);text-transform:none;">{{ $a->serial }}</span>@endif</div></div>
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $aSc[$a->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $aSc[$a->status] ?? 'var(--muted)' }};"></span>{{ ucfirst($a->status) }}</span>
                     </div>
                 @empty
@@ -348,7 +348,7 @@
                 @forelse ($p->trainingRecords as $r)
                     @php $isOverdue = $r->status !== 'completed' && $r->due_at && $r->due_at->isPast(); @endphp
                     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted-soft);">{{ $r->provider }}@if ($r->mandatory) · <span style="color:var(--red);font-weight:600;">Mandatory</span>@endif</div></div>
+                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $r->provider }}@if ($r->mandatory) · <span style="color:var(--red);font-weight:600;">Mandatory</span>@endif</div></div>
                         <span style="font-size:12px;font-family:var(--font-mono);color:{{ $isOverdue ? 'var(--error)' : 'var(--muted)' }};white-space:nowrap;">{{ $r->due_at?->format('j M Y') ?? '—' }}{{ $isOverdue ? ' ⚠' : '' }}</span>
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $tSc[$r->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $tSc[$r->status] ?? 'var(--muted)' }};"></span>{{ $tSl[$r->status] ?? ucfirst($r->status) }}</span>
                     </div>

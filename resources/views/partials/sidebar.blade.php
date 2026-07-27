@@ -25,10 +25,10 @@
             .qa-row{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:5px 8px;border-radius:10px;text-decoration:none;transition:background .14s ease;}
             .qa-row:hover{background:rgba(255,255,255,.06);}
             .qa-ico{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-            .qa-chev{color:var(--muted-soft);font-size:16px;line-height:1;flex-shrink:0;}
+            .qa-chev{color:var(--muted);font-size:16px;line-height:1;flex-shrink:0;}
         </style>
         <div style="margin:12px 10px 4px;background:rgba(255,255,255,.04);border:1px solid var(--sidebar-line);border-radius:12px;padding:5px;">
-            <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted-soft);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
+            <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
 
             {{-- Attendance — redirect to the full Attendance screen (clock in/out, history, selfie). --}}
             <a href="{{ route('app.screen', 'attendance') }}" class="qa-row">

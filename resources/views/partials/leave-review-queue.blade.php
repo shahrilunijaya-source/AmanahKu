@@ -47,7 +47,7 @@
                     <div style="font-size:12px;color:var(--muted);">
                         {{ $a->leaveType?->name }} · {{ $a->date_from->format('j M') }}–{{ $a->date_to->format('j M') }} · {{ $a->days }}d
                         @if ($a->attachment_path)· 📎@endif
-                        <span x-text="open ? '▾' : '▸'" style="color:var(--muted-soft);">▸</span>
+                        <span x-text="open ? '▾' : '▸'" style="color:var(--muted);">▸</span>
                     </div>
                     @if (! $isVerify && $a->verifiedBy)<div style="font-size:11px;color:var(--success);">{{ $a->verifiedBy->name }} <span x-text="$store.ui.lang==='en' ? 'verified' : 'sahkan'">verified</span></div>@endif
                 </div>

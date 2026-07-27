@@ -5,7 +5,7 @@
         'open' => ['label' => 'Open', 'ms' => 'Dibuka', 'color' => 'var(--success)'],
         'on_hold' => ['label' => 'On Hold', 'ms' => 'Ditangguh', 'color' => 'var(--amber)'],
         'filled' => ['label' => 'Filled', 'ms' => 'Diisi', 'color' => 'var(--info)'],
-        'closed' => ['label' => 'Closed', 'ms' => 'Ditutup', 'color' => 'var(--muted-soft)'],
+        'closed' => ['label' => 'Closed', 'ms' => 'Ditutup', 'color' => 'var(--muted)'],
     ];
     $stageMeta = [
         'applied' => ['label' => 'Applied', 'ms' => 'Memohon', 'color' => 'var(--muted)'],

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $sc = ['scheduled' => 'var(--info)', 'confirmed' => 'var(--success)', 'cancelled' => 'var(--muted-soft)'];
+    $sc = ['scheduled' => 'var(--info)', 'confirmed' => 'var(--success)', 'cancelled' => 'var(--muted)'];
     // Shift cells are too small for a stamp, so the status tints the whole chip (.uj-chip-tone).
     $chipTone = ['scheduled' => 'info', 'confirmed' => 'success', 'cancelled' => 'muted'];
     $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
@@ -105,7 +105,7 @@
                                         @if ($s->status !== 'cancelled')
                                             <form method="post" action="{{ route('roster.cancel', $s) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Cancel this shift?' : 'Batalkan shift ini?')) $event.preventDefault();" style="margin-top:3px;">@csrf<button type="submit" class="uj-btn-ghost" style="height:22px;padding:0 7px;font-size:10.5px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span></button></form>
                                         @else
-                                            <div style="color:var(--muted-soft);font-size:10.5px;margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Cancelled' : 'Dibatalkan'">Cancelled</span></div>
+                                            <div style="color:var(--muted);font-size:10.5px;margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Cancelled' : 'Dibatalkan'">Cancelled</span></div>
                                         @endif
                                     </div>
                                 @endforeach

@@ -139,7 +139,7 @@
                     <div style="font-size:13.5px;font-weight:700;color:{{ $remainColor }};"><span x-text="$store.ui.lang==='en' ? @json($remainLabel) : @json($remainLabelMs)">{{ $remainLabel }}</span></div>
                     @if ($latestRating)
                         <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:5px;">
-                            <span style="font-size:11px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Latest' : 'Terkini'">Latest</span></span>
+                            <span style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Latest' : 'Terkini'">Latest</span></span>
                             @include('partials.rating-dots', ['rating' => $latestRating])
                         </div>
                     @endif
@@ -151,7 +151,7 @@
                 <div style="height:6px;border-radius:9999px;background:var(--hairline-soft);overflow:hidden;">
                     <div style="height:100%;width:{{ $pct }}%;background:{{ $remainColor === 'var(--ink)' ? 'var(--info)' : $remainColor }};border-radius:9999px;transition:width .3s;"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted-soft);margin-top:5px;font-family:var(--font-mono);">
+                <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:5px;font-family:var(--font-mono);">
                     <span>{{ $r->start_date->format('j M') }}</span>
                     <span>{{ $pct }}%</span>
                     <span>{{ $r->end_date->format('j M') }}</span>
@@ -162,7 +162,7 @@
             {{-- Check-in timeline --}}
             <div style="padding:16px 20px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;"><span x-text="$store.ui.lang==='en' ? 'Check-ins' : 'Check-in'">Check-ins</span>@if ($checkinCount) <span style="color:var(--muted-soft);">· {{ $checkinCount }}</span>@endif</div>
+                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;"><span x-text="$store.ui.lang==='en' ? 'Check-ins' : 'Check-in'">Check-ins</span>@if ($checkinCount) <span style="color:var(--muted);">· {{ $checkinCount }}</span>@endif</div>
                     <button type="button" @click="addci = (addci === {{ $r->id }} ? null : {{ $r->id }})" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
                         <span x-text="addci === {{ $r->id }} ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Add check-in' : '+ Tambah check-in')">+ Add check-in</span>
                     </button>
@@ -178,7 +178,7 @@
                                 <span style="position:absolute;left:-20px;top:3px;width:10px;height:10px;border-radius:50%;background:{{ $mc }};box-shadow:0 0 0 3px var(--surface, #fff);"></span>
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
                                     <span style="font-size:10.5px;font-weight:700;color:#fff;background:{{ $mc }};padding:2px 8px;border-radius:9999px;">{{ $c->milestone }}</span>
-                                    <span style="font-size:11.5px;color:var(--muted-soft);">{{ $c->checkin_date->format('j M Y') }}</span>
+                                    <span style="font-size:11.5px;color:var(--muted);">{{ $c->checkin_date->format('j M Y') }}</span>
                                     @if ($c->rating)<span style="margin-left:auto;">@include('partials.rating-dots', ['rating' => $c->rating, 'size' => 6])</span>@endif
                                 </div>
                                 <div style="font-size:13px;color:var(--body);line-height:1.55;white-space:pre-line;">{{ $c->note }}</div>
@@ -210,7 +210,7 @@
                             </select>
                         </div>
                         <div>
-                            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Rating' : 'Penarafan'">Rating</span> <span style="color:var(--muted-soft);font-weight:400;"><span x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'">(optional)</span></span></label>
+                            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Rating' : 'Penarafan'">Rating</span> <span style="color:var(--muted);font-weight:400;"><span x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'">(optional)</span></span></label>
                             {{-- Click a star to set 1–5; click the current one again to clear. --}}
                             <div style="display:flex;align-items:center;gap:2px;height:38px;">
                                 @for ($i = 1; $i <= 5; $i++)

@@ -31,7 +31,7 @@
                     </span>
                     <div style="width:26px;height:26px;border-radius:50%;background:{{ $it['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">{{ $it['initials'] }}</div>
                     <span style="flex:1;min-width:0;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $it['label'] }} — {{ $it['who'] }}</span>
-                    <span aria-hidden="true" style="font-size:16px;color:var(--muted-soft);flex-shrink:0;">›</span>
+                    <span aria-hidden="true" style="font-size:16px;color:var(--muted);flex-shrink:0;">›</span>
                 </a>
             @endforeach
         </div>

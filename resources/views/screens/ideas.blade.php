@@ -78,7 +78,7 @@
                             <span class="uj-pill" style="background:{{ $sm['bg'] }};color:{{ $sm['fg'] }};">{{ $sm['label'] }}</span>
                         </div>
                         <p style="font-size:13px;color:var(--muted);margin:0 0 8px;white-space:pre-wrap;">{{ $idea->body }}</p>
-                        <div style="font-size:11.5px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'by' : 'oleh'">by</span> {{ $idea->employee?->name ?? 'Unknown' }}</div>
+                        <div style="font-size:11.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'by' : 'oleh'">by</span> {{ $idea->employee?->name ?? 'Unknown' }}</div>
 
                         @if ($privileged)
                             <form method="post" action="{{ route('ideas.status', $idea) }}" style="display:flex;gap:8px;align-items:center;margin-top:10px;">

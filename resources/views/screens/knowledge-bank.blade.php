@@ -74,7 +74,7 @@
     <div class="uj-card" style="width:220px;flex-shrink:0;padding:8px;min-width:200px;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px 6px;">
             <span style="font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</span>
-            <span style="font-size:11px;font-family:var(--font-mono);color:var(--muted-soft);">{{ $segments->count() }}</span>
+            <span style="font-size:11px;font-family:var(--font-mono);color:var(--muted);">{{ $segments->count() }}</span>
         </div>
 
         <a href="{{ route('app.screen', 'knowledge-bank') }}"
@@ -88,10 +88,10 @@
                     <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id]) }}"
                        style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;color:{{ $segActive && ! $activeSub ? '#fff' : 'var(--body)' }};background:{{ $segActive && ! $activeSub ? 'var(--red)' : 'transparent' }};">
                         <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $seg->label }}</span>
-                        <span style="font-size:11px;font-family:var(--font-mono);color:{{ $segActive && ! $activeSub ? 'rgba(255,255,255,.7)' : 'var(--muted-soft)' }};">{{ $seg->entries()->count() }}</span>
+                        <span style="font-size:11px;font-family:var(--font-mono);color:{{ $segActive && ! $activeSub ? 'rgba(255,255,255,.7)' : 'var(--muted)' }};">{{ $seg->entries()->count() }}</span>
                     </a>
                     @if ($seg->children->count())
-                        <button @click="open = !open" type="button" style="width:30px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:none;color:var(--muted-soft);font-size:11px;border-radius:7px;cursor:pointer;" x-text="open ? '▾' : '▸'"></button>
+                        <button @click="open = !open" type="button" style="width:30px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:none;color:var(--muted);font-size:11px;border-radius:7px;cursor:pointer;" x-text="open ? '▾' : '▸'"></button>
                     @endif
                 </div>
                 @if ($seg->children->count())
@@ -161,7 +161,7 @@
                     @if ($isNew)
                         <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--red);"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);"></span><span x-text="$store.ui.lang==='en' ? 'New' : 'Baharu'">New</span></span>
                     @endif
-                    <span style="margin-left:auto;font-size:11px;font-family:var(--font-mono);color:var(--muted-soft);">{{ $e->created_at?->format('d M Y') }}</span>
+                    <span style="margin-left:auto;font-size:11px;font-family:var(--font-mono);color:var(--muted);">{{ $e->created_at?->format('d M Y') }}</span>
                 </div>
                 <h3 style="font-size:15px;font-weight:600;color:var(--ink);margin:0 0 6px;">{{ $e->title }}</h3>
                 <div style="font-size:13px;color:var(--body);line-height:1.6;margin:0 0 12px;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
@@ -207,11 +207,11 @@
                             <div style="flex:1;min-width:0;">
                                 <div style="display:flex;align-items:center;gap:8px;">
                                     <span style="font-size:12px;font-weight:600;color:var(--ink);">{{ $c->employee?->name ?? 'Unknown' }}</span>
-                                    <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--muted-soft);">{{ $c->created_at?->diffForHumans() }}</span>
+                                    <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--muted);">{{ $c->created_at?->diffForHumans() }}</span>
                                     @if ($privileged || ($employee && $c->employee_id === $employee->id))
                                         <form method="post" action="{{ route('knowledge.comments.delete', $c) }}" style="margin-left:auto;">
                                             @csrf @method('DELETE')
-                                            <button type="submit" :title="$store.ui.lang==='en' ? 'Delete' : 'Padam'" style="font-size:11px;color:var(--muted-soft);background:none;cursor:pointer;">×</button>
+                                            <button type="submit" :title="$store.ui.lang==='en' ? 'Delete' : 'Padam'" style="font-size:11px;color:var(--muted);background:none;cursor:pointer;">×</button>
                                         </form>
                                     @endif
                                 </div>
@@ -219,7 +219,7 @@
                             </div>
                         </div>
                     @empty
-                        <div style="font-size:12px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'No comments yet — start the discussion.' : 'Tiada komen lagi — mulakan perbincangan.'">No comments yet.</div>
+                        <div style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No comments yet — start the discussion.' : 'Tiada komen lagi — mulakan perbincangan.'">No comments yet.</div>
                     @endforelse
 
                     @if ($canSubmit)

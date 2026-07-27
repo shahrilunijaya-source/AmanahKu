@@ -135,7 +135,7 @@
                             <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--body);background:var(--canvas);border-radius:8px;padding:8px 11px;">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
                                 <span>{{ $c->title }}</span>
-                                <span style="color:var(--muted-soft);">· {{ $c->original_name }}</span>
+                                <span style="color:var(--muted);">· {{ $c->original_name }}</span>
                             </div>
                         @endforeach
                     </div>

@@ -42,7 +42,7 @@
         @php $reopen = old('row') == $k->id; @endphp
         <div x-data="{ ed: {{ $reopen ? 'true' : 'false' }} }" style="border-bottom:1px solid var(--hairline-soft);">
             <div style="display:grid;grid-template-columns:2.4fr 1fr 1fr 1.4fr .6fr auto;gap:8px;padding:13px 20px;align-items:center;">
-                <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $k->title }}</div><div style="font-size:11px;color:var(--muted-soft);text-transform:capitalize;">{{ $k->category }}</div></div>
+                <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $k->title }}</div><div style="font-size:11px;color:var(--muted);text-transform:capitalize;">{{ $k->category }}</div></div>
                 <span style="font-size:12.5px;color:var(--body);font-family:var(--font-mono);">{{ $k->target }}</span>
                 <span style="font-size:12.5px;color:var(--ink);font-weight:500;font-family:var(--font-mono);">{{ $k->actual }}</span>
                 <div style="display:flex;align-items:center;gap:8px;"><div class="uj-progress" style="flex:1;"><span style="width:{{ $k->progress }}%;background:{{ Amanahku::SWATCH[$k->status] }};"></span></div><span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">{{ $k->progress }}%</span></div>

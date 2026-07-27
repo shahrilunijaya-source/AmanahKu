@@ -284,7 +284,7 @@
                     <label style="{{ $labelStyle }}" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'"></label>
                     <div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:10px;">
                         <template x-if="modal.card.participants.length === 0 && !(canAssign && !modal.locked)">
-                            <span style="font-size:12.5px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'No one else included.' : 'Tiada orang lain disertakan.'"></span>
+                            <span style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No one else included.' : 'Tiada orang lain disertakan.'"></span>
                         </template>
                         <template x-for="p in modal.card.participants" :key="p.id">
                             <span class="wi-chip">
@@ -334,7 +334,7 @@
                         </div>
 
                         <template x-if="modal.comments.length === 0">
-                            <p style="font-size:12.5px;color:var(--muted-soft);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'No comments yet.' : 'Tiada komen lagi.'"></p>
+                            <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'No comments yet.' : 'Tiada komen lagi.'"></p>
                         </template>
 
                         <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;">
@@ -344,7 +344,7 @@
                                     <div style="flex:1;min-width:0;">
                                         <div style="display:flex;align-items:baseline;gap:8px;">
                                             <span style="font-size:12.5px;font-weight:600;color:var(--ink);" x-text="c.author"></span>
-                                            <span style="font-size:11px;color:var(--muted-soft);" x-text="c.when"></span>
+                                            <span style="font-size:11px;color:var(--muted);" x-text="c.when"></span>
                                             <button type="button" x-show="c.mine" @click="deleteComment(c.id)" style="margin-left:auto;font-size:11px;color:var(--muted);background:transparent;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
                                         </div>
                                         <div style="font-size:13px;color:var(--body);line-height:1.5;white-space:pre-wrap;margin-top:2px;" x-text="c.body"></div>

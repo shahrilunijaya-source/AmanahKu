@@ -6,7 +6,7 @@
         'accepted'  => 'var(--info)',
         'approved'  => 'var(--success)',
         'rejected'  => 'var(--error)',
-        'cancelled' => 'var(--muted-soft)',
+        'cancelled' => 'var(--muted)',
     ];
     $fmtTime = fn ($t) => $t ? \Illuminate\Support\Carbon::parse($t)->format('g:ia') : '—';
     $fs = 'height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;background:#fff;color:var(--ink);outline:none;';

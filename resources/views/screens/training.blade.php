@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $sc = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted-soft)'];
+    $sc = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted)'];
     $sl = ['completed' => 'Completed', 'in_progress' => 'In progress', 'not_started' => 'Not started'];
     $slMs = ['completed' => 'Selesai', 'in_progress' => 'Sedang berjalan', 'not_started' => 'Belum mula'];
     $overdue = $records->filter(fn ($r) => $r->status !== 'completed' && $r->due_at && $r->due_at->isPast());
@@ -76,7 +76,7 @@
                      }">
                     <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Employees' : 'Pekerja'">Employees</span> *</label>
                     <button type="button" @click="pickerOpen = true" style="{{ $fs }}width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;">
-                        <span x-show="picked.length === 0" style="color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'Select employees…' : 'Pilih pekerja…'">Select employees…</span>
+                        <span x-show="picked.length === 0" style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Select employees…' : 'Pilih pekerja…'">Select employees…</span>
                         <span x-show="picked.length" x-cloak style="color:var(--ink);" x-text="picked.length + ($store.ui.lang==='en' ? ' selected' : ' dipilih')"></span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;"><path d="M6 9l6 6 6-6"></path></svg>
                     </button>
@@ -100,7 +100,7 @@
                              style="position:fixed;inset:0;z-index:120;display:flex;padding:40px 16px;background:rgba(18,18,30,.42);overflow-y:auto;">
                             <div class="uj-card" style="width:100%;max-width:460px;margin:auto;padding:0;display:flex;flex-direction:column;max-height:calc(100vh - 80px);overflow:hidden;">
                                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
-                                    <h3 class="uj-card-title" style="margin:0;font-size:15px;"><span x-text="$store.ui.lang==='en' ? 'Select employees' : 'Pilih pekerja'">Select employees</span><span x-show="picked.length" x-cloak style="color:var(--muted-soft);font-weight:400;" x-text="' · ' + picked.length"></span></h3>
+                                    <h3 class="uj-card-title" style="margin:0;font-size:15px;"><span x-text="$store.ui.lang==='en' ? 'Select employees' : 'Pilih pekerja'">Select employees</span><span x-show="picked.length" x-cloak style="color:var(--muted);font-weight:400;" x-text="' · ' + picked.length"></span></h3>
                                     <button type="button" @click="pickerOpen = false" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;">&times;</button>
                                 </div>
                                 <div style="padding:12px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
@@ -111,7 +111,7 @@
                                         @php $grpJs = \Illuminate\Support\Js::from($people->map(fn ($e) => (string) $e->id)->values()); $grpNames = \Illuminate\Support\Js::from($people->map(fn ($e) => strtolower($e->name))->values()); $tm = $tierMeta[$tier] ?? ['en' => ucfirst($tier), 'ms' => ucfirst($tier)]; @endphp
                                         <div x-show="!q || {{ $grpNames }}.some(n => n.includes(q.toLowerCase()))">
                                             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 10px 5px;">
-                                                <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? @json($tm['en']) : @json($tm['ms'])">{{ $tm['en'] }}</span> <span style="color:var(--muted-soft);">· {{ $people->count() }}</span></span>
+                                                <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? @json($tm['en']) : @json($tm['ms'])">{{ $tm['en'] }}</span> <span style="color:var(--muted);">· {{ $people->count() }}</span></span>
                                                 <button type="button" @click="picked = {{ $grpJs }}.every(i => picked.includes(i)) ? picked.filter(i => !{{ $grpJs }}.includes(i)) : [...new Set([...picked, ...{{ $grpJs }}])]"
                                                         style="border:none;background:none;cursor:pointer;font-size:11.5px;color:var(--red);font-weight:600;"
                                                         x-text="{{ $grpJs }}.every(i => picked.includes(i)) ? ($store.ui.lang==='en' ? 'Clear' : 'Kosong') : ($store.ui.lang==='en' ? 'Select all' : 'Pilih semua')"></button>
@@ -126,7 +126,7 @@
                                                         <span style="width:28px;height:28px;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->initials }}</span>
                                                         <span style="flex:1;min-width:0;">
                                                             <span style="display:block;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $p->name }}</span>
-                                                            @if ($p->position)<span style="display:block;font-size:11px;color:var(--muted-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $p->position }}</span>@endif
+                                                            @if ($p->position)<span style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $p->position }}</span>@endif
                                                         </span>
                                                         <input type="checkbox" value="{{ $p->id }}" x-model="picked" style="width:16px;height:16px;flex-shrink:0;accent-color:var(--red);cursor:pointer;" />
                                                     </label>
@@ -177,7 +177,7 @@
              float the single-line values between the two lines. Aligning to start puts every
              value on the course-title line. A shared 20px line-height keeps them level. --}}
         <div style="display:grid;grid-template-columns:2.2fr 1.4fr 1fr 1fr 1fr auto;gap:8px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);align-items:start;line-height:20px;">
-            <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted-soft);line-height:1.4;">{{ $r->provider }}</div></div>
+            <div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted);line-height:1.4;">{{ $r->provider }}</div></div>
             <span style="font-size:13px;color:var(--body);">{{ $r->employee?->name }}</span>
             <span style="font-size:12.5px;font-family:var(--font-mono);color:{{ $isOverdue ? 'var(--error)' : 'var(--body)' }};">{{ $r->due_at?->format('j M Y') ?? '—' }}{{ $isOverdue ? ' ⚠' : '' }}</span>
             <span style="font-size:11px;font-weight:600;color:{{ $r->mandatory ? 'var(--red)' : 'var(--muted)' }};"><span x-text="$store.ui.lang==='en' ? '{{ $r->mandatory ? 'Mandatory' : 'Optional' }}' : '{{ $r->mandatory ? 'Wajib' : 'Pilihan' }}'">{{ $r->mandatory ? 'Mandatory' : 'Optional' }}</span></span>

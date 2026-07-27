@@ -50,7 +50,7 @@
                     </div>
                     <div style="flex-shrink:0;text-align:right;">
                         @if (! $s->requires_ack)
-                            <span style="font-size:12px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'Reference' : 'Rujukan'">Reference</span></span>
+                            <span style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Reference' : 'Rujukan'">Reference</span></span>
                         @elseif ($acked)
                             <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--success);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span x-text="$store.ui.lang==='en' ? 'Acknowledged' : 'Telah disahkan'">Acknowledged</span></span>
                         @else

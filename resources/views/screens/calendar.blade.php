@@ -77,7 +77,7 @@
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $h->name }}</div>
-                        <div style="font-size:11.5px;color:var(--muted-soft);">{{ $h->state }}</div>
+                        <div style="font-size:11.5px;color:var(--muted);">{{ $h->state }}</div>
                     </div>
                     <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $h->date->format('j M') }}</span>
                 </div>
@@ -111,7 +111,7 @@
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $e->title }}</div>
-                        <div style="font-size:11.5px;color:var(--muted-soft);">{{ $e->location ?: ucfirst($e->type ?? 'event') }}</div>
+                        <div style="font-size:11.5px;color:var(--muted);">{{ $e->location ?: ucfirst($e->type ?? 'event') }}</div>
                     </div>
                     <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $e->event_date->format('j M') }}</span>
                 </div>

@@ -65,7 +65,7 @@
 <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px;">
     <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Working style' : 'Gaya kerja'">Working style</span></h2>
     <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;">{{ $working->count() }}</span>
-    <span style="font-size:12px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'scored — maps to a working personality' : 'diberi markah — dipetakan kepada personaliti kerja'">scored — maps to a working personality</span></span>
+    <span style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'scored — maps to a working personality' : 'diberi markah — dipetakan kepada personaliti kerja'">scored — maps to a working personality</span></span>
 </div>
 @forelse ($working as $q)
     <div class="uj-card" style="padding:16px 20px;margin-bottom:12px;" x-data="{ edit: false }">
@@ -103,7 +103,7 @@
 <div style="display:flex;align-items:center;gap:9px;margin:24px 0 11px;">
     <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;">Colour</h2>
     <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;">{{ $colour->count() }}</span>
-    <span style="font-size:12px;color:var(--muted-soft);"><span x-text="$store.ui.lang==='en' ? 'icebreakers — flavour only, unscored' : 'pencair suasana — perisa sahaja, tiada markah'">icebreakers — flavour only, unscored</span></span>
+    <span style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'icebreakers — flavour only, unscored' : 'pencair suasana — perisa sahaja, tiada markah'">icebreakers — flavour only, unscored</span></span>
 </div>
 @forelse ($colour as $q)
     <div class="uj-card" style="padding:14px 20px;margin-bottom:12px;" x-data="{ edit: false }">

@@ -5,7 +5,7 @@
         'open' => ['label' => 'Open', 'ms' => 'Dibuka', 'color' => 'var(--info)'],
         'investigating' => ['label' => 'Investigating', 'ms' => 'Disiasat', 'color' => 'var(--amber)'],
         'resolved' => ['label' => 'Resolved', 'ms' => 'Diselesaikan', 'color' => 'var(--success)'],
-        'closed' => ['label' => 'Closed', 'ms' => 'Ditutup', 'color' => 'var(--muted-soft)'],
+        'closed' => ['label' => 'Closed', 'ms' => 'Ditutup', 'color' => 'var(--muted)'],
     ];
     $typeMeta = [
         'warning' => 'Warning',

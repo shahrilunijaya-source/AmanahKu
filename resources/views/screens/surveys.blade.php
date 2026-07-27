@@ -74,7 +74,7 @@
                                         </label>
                                     @endfor
                                 </div>
-                                <p style="font-size:11px;color:var(--muted-soft);margin:0 0 12px;"><span x-text="$store.ui.lang==='en' ? '0 = not at all likely · 10 = extremely likely' : '0 = langsung tidak mungkin · 10 = amat mungkin'">0 = not at all likely · 10 = extremely likely</span></p>
+                                <p style="font-size:11px;color:var(--muted);margin:0 0 12px;"><span x-text="$store.ui.lang==='en' ? '0 = not at all likely · 10 = extremely likely' : '0 = langsung tidak mungkin · 10 = amat mungkin'">0 = not at all likely · 10 = extremely likely</span></p>
                             @endif
 
                             <textarea name="comment" maxlength="1000" rows="2" :placeholder="$store.ui.lang==='en' ? @js($s->type === 'text' ? 'Your feedback…' : 'Optional comment…') : @js($s->type === 'text' ? 'Maklum balas anda…' : 'Komen pilihan…')" {{ $s->type === 'text' ? 'required' : '' }} style="width:100%;padding:9px 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;resize:vertical;outline:none;margin-bottom:12px;font-family:inherit;">{{ old('comment') }}</textarea>

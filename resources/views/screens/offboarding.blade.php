@@ -127,7 +127,7 @@
                         @if ($privileged && ! $isCompleted)
                             {{-- Remove an item added or seeded in error. Toggle stays the primary action; this is a quiet fix. --}}
                             <form method="post" action="{{ route('offboarding.items.remove', $it) }}" style="line-height:0;margin-left:auto;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this clearance item?' : 'Buang item pelepasan ini?')) $event.preventDefault()">@csrf
-                                <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Remove item' : 'Buang item'" aria-label="Remove item" style="width:22px;height:22px;border-radius:6px;border:none;background:none;color:var(--muted-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Remove item' : 'Buang item'" aria-label="Remove item" style="width:22px;height:22px;border-radius:6px;border:none;background:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
                                 </button>
                             </form>

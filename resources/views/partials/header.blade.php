@@ -53,7 +53,7 @@
                     <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:' + (r.avatar_color || '#3a6ea5')" x-text="r.initials"></span>
                     <span style="min-width:0;">
                         <span style="display:block;font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="r.name"></span>
-                        <span style="display:block;font-size:11.5px;color:var(--muted-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="[r.position, r.department].filter(Boolean).join(' · ')"></span>
+                        <span style="display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="[r.position, r.department].filter(Boolean).join(' · ')"></span>
                     </span>
                 </a>
             </template>
@@ -182,7 +182,7 @@
                     <a href="{{ $n->url ?? '#' }}" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;background:{{ $n->read_at ? '#fff' : 'var(--red-tint)' }};">
                         <div style="font-size:13px;font-weight:600;color:var(--ink);">{{ $n->title }}</div>
                         @if ($n->body)<div style="font-size:12px;color:var(--body);margin-top:2px;line-height:1.45;">{{ $n->body }}</div>@endif
-                        <div style="font-size:11px;color:var(--muted-soft);margin-top:4px;font-family:var(--font-mono);">{{ $n->created_at->diffForHumans() }}</div>
+                        <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);">{{ $n->created_at->diffForHumans() }}</div>
                     </a>
                 @empty
                     <div style="padding:36px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You\'re all caught up.' : 'Semua sudah dibaca.'">You're all caught up.</div>
