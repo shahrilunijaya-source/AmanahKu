@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Support\AttachmentName;
 use App\Timesheet\WeekReconciler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -321,7 +322,13 @@ class LeaveController extends Controller
 
         return Storage::disk(self::ATTACHMENT_DISK)->download(
             $leaveRequest->attachment_path,
-            $leaveRequest->attachment_name ?? 'leave-document',
+            AttachmentName::build(
+                $leaveRequest->employee?->name,
+                'leave',
+                $leaveRequest->id,
+                $leaveRequest->attachment_path,
+                $leaveRequest->date_from,
+            ),
         );
     }
 }

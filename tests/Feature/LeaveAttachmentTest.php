@@ -140,4 +140,25 @@ class LeaveAttachmentTest extends TestCase
         $mgmt = $this->member('management', 'Director');
         $this->actingAsEmployee($mgmt)->get("/app/leave/{$req->id}/attachment")->assertOk();
     }
+
+    public function test_download_filename_is_slugged_and_carries_no_apostrophe(): void
+    {
+        // Regression guard: an apostrophe in Content-Disposition is exactly what
+        // Hostinger's ModSecurity WAF blocks on staging (AK's on-disk name stays hashed).
+        $report = $this->member('employee', "Nur'ain Binti Abdullah");
+        $this->actingAsEmployee($report)->post('/app/leave', [
+            'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
+            'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
+        ]);
+        $req = LeaveRequest::first();
+
+        $response = $this->actingAsEmployee($report)->get("/app/leave/{$req->id}/attachment")->assertOk();
+
+        $disposition = $response->headers->get('Content-Disposition');
+        $this->assertStringNotContainsString("'", $disposition);
+        $this->assertStringContainsString(
+            "nurain-binti-abdullah-leave-{$req->id}-2026-07-10.pdf",
+            $disposition,
+        );
+    }
 }

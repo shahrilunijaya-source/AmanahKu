@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Services\FeatureManager;
+use App\Support\AttachmentName;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -203,7 +204,13 @@ class ClaimController extends Controller
 
         return Storage::disk(self::RECEIPT_DISK)->download(
             $claim->receipt_path,
-            $claim->receipt_name ?? 'claim-receipt',
+            AttachmentName::build(
+                $claim->employee?->name,
+                'claim',
+                $claim->id,
+                $claim->receipt_path,
+                $claim->date,
+            ),
         );
     }
 }

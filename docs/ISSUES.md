@@ -64,3 +64,26 @@ Findings from an authorization-boundary review. Roles are well *defined* (employ
 | I-019 | high | Tenant isolation relies on hand-written per-controller guards | Route-model binding is NOT tenant-scoped (no `scopeBindings`/`resolveRouteBinding`; `SubstituteBindings` runs before `ResolveTenant`), so a bound `{model}` resolves across ALL tenants. Each controller re-defends by hand with `abort_unless($m->tenant_id === CurrentTenant::id(), 403)` (66 occurrences). This fails OPEN: one forgotten guard on a new endpoint means cross-tenant read/write. Fix: add `->scopeBindings()` on the tenant route group, or a `resolveRouteBinding` override on the `BelongsToTenant` trait, so isolation is structural instead of per-call. |
 | I-020 | medium | `director` role access is inconsistent across modules | `director` is documented as a strict super-set of `management` (`Permissions::effectiveRole`). But 4 controllers reimplement `isPrivileged()` inline with `in_array($role, ['management','hr'])` and skip `effectiveRole()`, so a director is silently treated as a plain employee there: `ComplianceController`, `ProbationController`, `VehicleController`, `Api/V1/ApiController`. Director IS honored in Documents/Rooms/Cases/Wellness (which delegate to `hasTenantRole`). Fails closed (director gets less, not more), so it is a correctness/consistency bug, not a hole. Fix: route every `isPrivileged()` through `hasTenantRole()`. |
 | I-021 | medium | Role enforcement is decentralized with no single source of truth | No Laravel Gates/Policies exist; the `Permissions` matrix is advisory only (its own docblock says so). The real boundary is scattered across ~50 controllers: `authorizeTenantRole()`/`hasTenantRole()` (51 uses), 8 private `isPrivileged()` copies, and inline role literals (`['management','hr']` ×44, `['manager','management','hr']` ×27, `['director','hr']` ×5). I-020 is a symptom of this. Fix: promote `Permissions::ROLE_PERMISSIONS` to authoritative `Gate::define`/policies, then replace the literals and `isPrivileged()` copies with `$this->authorize()` / `roleHas()` calls. |
+
+## Mail delivery broken on staging (found 2026-07-26)
+
+Surfaced when the staging scheduler and queue-worker crons were created for the first
+time. Mail on staging has never worked; nothing reported it because no worker was
+running to attempt a send. Supersedes the deploy-side half of **I-009**, which recorded
+the risk generically but predates staging having any `MAIL_*` values at all.
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-022 | high | `MAIL_SCHEME=tls` is not a valid scheme | Staging `.env` sets `MAIL_SCHEME=tls`. `config/mail.php:42` passes it straight through as `'scheme' => env('MAIL_SCHEME')`, and Symfony Mailer rejects it: `The "tls" scheme is not supported; supported schemes for mailer "smtp" are: "smtp", "smtps".` This throws before any connection is attempted, so it fails regardless of credentials. `tls` is the value of the *old* `MAIL_ENCRYPTION` key, which Laravel 11+ replaced with `MAIL_SCHEME`; the value did not carry over. Fix: for port 587 (STARTTLS) use `MAIL_SCHEME=smtp`; for port 465 (implicit TLS) use `MAIL_SCHEME=smtps` and change `MAIL_PORT` to match. Omitting the key entirely also works — Symfony then infers from the port. |
+| I-023 | high | Staging SMTP credentials are still placeholders | `MAIL_HOST=__smtp_host__`, `MAIL_USERNAME=__smtp_user__`, and `MAIL_FROM_ADDRESS="noreply@amanahku.example"` are literal placeholder strings, never filled in. Even with I-022 fixed, no mail would send and the From domain is a reserved example domain that receiving servers reject. Fix: set real host/username/password plus a From address on a domain the deployment controls. Independent of I-022 — both must be fixed for mail to work. |
+| I-024 | medium | Failed mail jobs accumulate silently | Two `App\Notifications\MemberInvited` jobs are sitting in `failed_jobs` on staging, and `storage/logs/laravel.log` has passed 3.2 MB, almost entirely repeats of the I-022 exception. There is no log rotation and no alerting on `failed_jobs` depth, so a mail outage is invisible until someone reads the log by hand. Fix (after I-022/I-023): `php artisan queue:retry all`, truncate the log, and add either log rotation or a `queue:monitor` check. |
+
+**Blast radius while unfixed.** Everything the app sends by mail silently fails:
+`App\Notifications\MemberInvited` (workspace invites), `App\Notifications\WeeklyHrDigest`
+(the Monday digest, queued), and all Fortify mail — password reset and email
+verification. A user who forgets their password currently has no self-service recovery
+path on staging.
+
+**Not caused by, and does not block, the attendance-reminder feature.** Clock reminders
+write straight to `app_notifications` (a database row read by the in-app bell and the
+browser poller) and never touch the mailer.
