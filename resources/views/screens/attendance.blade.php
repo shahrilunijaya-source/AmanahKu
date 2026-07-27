@@ -30,7 +30,8 @@
         'steps' => [
             'The banner shows where you are expected today and your hours.',
             'Tap "Clock in" and allow location so the system can confirm you are on-site.',
-            'If you are outside the location, a reason box appears — say why (e.g. client meeting).',
+            'Add a remark if there is something your manager should know about the day. It is optional.',
+            'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting).',
             'Clock out when you finish. Leaving before your end time or off-site needs a reason too.',
         ],
     ],
@@ -41,7 +42,8 @@
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
             'Tekan "Clock in" dan benarkan lokasi supaya sistem boleh sahkan anda di lokasi.',
-            'Jika anda di luar lokasi, kotak sebab muncul — nyatakan kenapa (cth. mesyuarat klien).',
+            'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
+            'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
             'Clock out bila habis. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
         ],
     ],
@@ -262,12 +264,27 @@
                     </template>
                     <canvas x-ref="canvas" style="display:none;"></canvas>
 
-                {{-- Reason box — auto-revealed when GPS is outside the geofence or the clock-out is early. --}}
-                <div x-show="justify" x-cloak style="margin-bottom:14px;text-align:left;">
-                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Reason (you are outside the expected location or leaving early)' : 'Sebab (anda di luar lokasi atau balik awal)'">Reason</span></label>
-                    <textarea name="justification" x-ref="reason" x-model="reason" rows="2" maxlength="500"
-                              :placeholder="$store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus'"
-                              style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;color:var(--ink);outline:none;resize:vertical;"></textarea>
+                {{-- One free-text box, two jobs. Normally it is an optional remark ("worked the
+                     morning off-site", "left for a client call") that rides along with the punch.
+                     When the GPS is outside the geofence or the clock-out is early, the same box
+                     becomes the REQUIRED reason and says so — asking for a second, near-identical
+                     textarea would only make staff guess which one HR reads. Both land in
+                     attendance_records.clock_in_justification / clock_out_justification; the
+                     `flags` column is what tells the two cases apart afterwards. --}}
+                <div style="margin-bottom:14px;text-align:left;">
+                    <label for="attendance-remarks" style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;">
+                        <span x-show="!justify" x-text="$store.ui.lang==='en' ? 'Remarks (optional)' : 'Catatan (pilihan)'">Remarks (optional)</span>
+                        <span x-show="justify" x-cloak style="color:var(--red);"
+                              x-text="$store.ui.lang==='en' ? 'Reason required — you are outside the expected location or leaving early' : 'Sebab diperlukan — anda di luar lokasi atau balik awal'"></span>
+                    </label>
+                    <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
+                              :placeholder="justify
+                                  ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
+                                  : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"
+                              {{-- Object form, not a string: Alpine REPLACES the inline style
+                                   attribute when :style is a string, which wipes the base styles below. --}}
+                              :style="{ borderColor: justify ? 'var(--red)' : '' }"
+                              style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;color:var(--ink);outline:none;resize:vertical;font-family:inherit;"></textarea>
                     @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
                 </div>
 
@@ -314,10 +331,23 @@
                             <div style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                                 {{ $rin }}–{{ $rout }}@if ($worked) · {{ $worked }}@endif · {{ $r->location ?? '—' }}
                             </div>
+                            @php $notes = array_filter([$r->clock_in_justification, $r->clock_out_justification]); @endphp
+                            @if ($notes)
+                                {{-- The note the employee attached to the punch: a voluntary remark, or the
+                                     required reason when the day carries an off-site / early flag. --}}
+                                <div style="font-size:11.5px;color:var(--body);line-height:1.45;margin-top:5px;display:flex;flex-direction:column;gap:3px;">
+                                    @foreach ($notes as $note)
+                                        <div style="border-left:2px solid var(--hairline);padding-left:8px;">{{ $note }}</div>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end;">
-                        @foreach (($r->flags ?? []) as $f)
+                        {{-- 'late' is dropped: ClockService sets status='late' and pushes the 'late'
+                             flag from the same boolean, so a pill would just repeat the status dot
+                             sitting next to it. Every other flag says something the status cannot. --}}
+                        @foreach (array_diff($r->flags ?? [], ['late']) as $f)
                             @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
                             <span style="font-size:9.5px;font-weight:600;color:var(--red);background:var(--red-tint);padding:2px 6px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                         @endforeach

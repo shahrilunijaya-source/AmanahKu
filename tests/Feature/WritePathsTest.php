@@ -86,6 +86,55 @@ class WritePathsTest extends TestCase
         $this->assertNotNull($record->clock_in);
     }
 
+    /**
+     * The browser posts the GPS fix in hidden latitude/longitude inputs. Nothing covered the
+     * request → controller → record hop before, so a silently dropped coordinate looked
+     * identical to a staff member who denied location permission.
+     */
+    public function test_clock_in_persists_the_posted_coordinates(): void
+    {
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'latitude' => '3.1039000',
+            'longitude' => '101.6021000',
+        ])->assertRedirect();
+
+        $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
+        $this->assertSame(3.1039, (float) $record->latitude);
+        $this->assertSame(101.6021, (float) $record->longitude);
+    }
+
+    /** A remark rides along with an ordinary punch — no flag, nothing demanded by the server. */
+    public function test_clock_in_stores_an_optional_remark(): void
+    {
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'justification' => 'Starting at the client office this morning.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
+        $this->assertSame('Starting at the client office this morning.', $record->clock_in_justification);
+        $this->assertSame([], $record->flags ?? []);
+    }
+
+    /** The clock-out box writes to its own column, so an in-remark is never overwritten. */
+    public function test_clock_out_stores_its_own_remark_alongside_the_clock_in_remark(): void
+    {
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'justification' => 'Morning note.',
+        ])->assertRedirect();
+
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'out',
+            'justification' => 'Evening note.',
+        ])->assertRedirect();
+
+        $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
+        $this->assertSame('Morning note.', $record->clock_in_justification);
+        $this->assertSame('Evening note.', $record->clock_out_justification);
+    }
+
     private function makeApprover(string $role = 'hr'): User
     {
         $hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
