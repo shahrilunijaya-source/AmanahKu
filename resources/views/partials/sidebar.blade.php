@@ -25,15 +25,15 @@
             .qa-row{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:5px 8px;border-radius:10px;text-decoration:none;transition:background .14s ease;}
             .qa-row:hover{background:rgba(255,255,255,.06);}
             .qa-ico{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-            .qa-chev{color:var(--muted);font-size:16px;line-height:1;flex-shrink:0;}
+            .qa-chev{color:var(--sidebar-dim);font-size:16px;line-height:1;flex-shrink:0;}
         </style>
         <div style="margin:12px 10px 4px;background:rgba(255,255,255,.04);border:1px solid var(--sidebar-line);border-radius:12px;padding:5px;">
-            <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
+            <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--sidebar-dim);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
 
             {{-- Attendance — redirect to the full Attendance screen (clock in/out, history, selfie). --}}
             <a href="{{ route('app.screen', 'attendance') }}" class="qa-row">
                 <span class="qa-ico" style="background:rgba(255,255,255,.07);">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ $qci && ! $qco ? 'var(--success)' : ($qco ? 'var(--muted)' : 'var(--red)') }}" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ $qci && ! $qco ? 'var(--success)' : ($qco ? 'var(--sidebar-dim)' : 'var(--red)') }}" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
                 </span>
                 <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;" x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</span>
                 @if ($qco)
@@ -82,9 +82,9 @@
             <div x-data="{ sec: {{ $sectionActive ? 'true' : 'false' }} }" style="margin-bottom:2px;">
                 <button @click="sec = !sec" type="button"
                         style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 10px 5px;background:none;border:none;cursor:pointer;">
-                    <span style="flex:1;text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;color:#78756d;"
+                    <span style="flex:1;text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--sidebar-dim);"
                           x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
-                    <span style="font-size:9px;color:#6b6860;" x-text="sec ? '▾' : '▸'"></span>
+                    <span style="font-size:9px;color:var(--sidebar-dim);" x-text="sec ? '▾' : '▸'"></span>
                 </button>
                 <div x-show="sec" x-cloak style="margin-bottom:6px;">
                     @foreach ($items as $item)
@@ -94,12 +94,12 @@
                                         style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:{{ $item['active'] ? '#fff' : 'var(--sidebar-text)' }};background:{{ $item['active'] ? 'var(--red)' : 'transparent' }};">
                                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="{{ $item['icon'] }}"></path></svg>
                                     <span style="flex:1;text-align:left;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                    <span style="font-size:10px;color:#6b6860;" x-text="open ? '▾' : '▸'"></span>
+                                    <span style="font-size:10px;color:currentColor;" x-text="open ? '▾' : '▸'"></span>
                                 </button>
                                 <div x-show="open" x-cloak style="margin:2px 0 6px 0;">
                                     @foreach ($item['children'] as $child)
                                         <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}" class="{{ $child['active'] ? '' : 'uj-side-link' }}"
-                                           style="display:flex;align-items:center;gap:11px;padding:7px 10px 7px 38px;border-radius:8px;font-size:13px;font-weight:500;text-align:left;text-decoration:none;color:{{ $child['active'] ? '#fff' : '#9a978e' }};background:{{ $child['active'] ? 'var(--sidebar-soft)' : 'transparent' }};" x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
+                                           style="display:flex;align-items:center;gap:11px;padding:7px 10px 7px 38px;border-radius:8px;font-size:13px;font-weight:500;text-align:left;text-decoration:none;color:{{ $child['active'] ? '#fff' : 'var(--sidebar-dim)' }};background:{{ $child['active'] ? 'var(--sidebar-soft)' : 'transparent' }};" x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
                                     @endforeach
                                 </div>
                             @else
@@ -131,9 +131,9 @@
             <div style="width:30px;height:30px;border-radius:8px;background:{{ $tenant['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ $tenant['initials'] }}</div>
             <div style="flex:1;min-width:0;text-align:left;">
                 <div style="font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $tenant['name'] }}</div>
-                <div style="font-size:11px;color:#807d72;">{{ $tenant['plan'] }} · <span x-text="$store.ui.lang==='en' ? 'switch' : 'tukar'">switch</span></div>
+                <div style="font-size:11px;color:var(--sidebar-dim);">{{ $tenant['plan'] }} · <span x-text="$store.ui.lang==='en' ? 'switch' : 'tukar'">switch</span></div>
             </div>
-            <span style="color:#807d72;font-size:12px;">⇄</span>
+            <span style="color:var(--sidebar-dim);font-size:12px;">⇄</span>
         </a>
     </div>
 </aside>

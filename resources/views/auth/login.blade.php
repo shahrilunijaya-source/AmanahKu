@@ -56,10 +56,10 @@
             <div>
                 @if ($brandTenant)
                     <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">{{ $brandTenant->name }}</div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#807d72;">Powered by Amanahku</div>
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Powered by Amanahku</div>
                 @else
                     <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">Amanah<span style="color:#ff6b6b;">ku</span></div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#807d72;">Workforce OS</div>
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Workforce OS</div>
                 @endif
             </div>
         </div>
@@ -91,12 +91,12 @@
         <div style="position:relative;">
             @unless ($brandTenant)
                 <div style="display:flex;gap:40px;margin-bottom:28px;">
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">3</div><div style="font-size:12.5px;color:#807d72;">tenants live</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">412</div><div style="font-size:12.5px;color:#807d72;">employees</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">17</div><div style="font-size:12.5px;color:#807d72;">modules</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">3</div><div style="font-size:12.5px;color:var(--sidebar-dim);">tenants live</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">412</div><div style="font-size:12.5px;color:var(--sidebar-dim);">employees</div></div>
+                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">17</div><div style="font-size:12.5px;color:var(--sidebar-dim);">modules</div></div>
                 </div>
             @endunless
-            <div style="font-size:11.5px;color:#615f57;">© {{ date('Y') }} Amanahku{{ $brandTenant ? ' · '.$brandTenant->name : '' }}</div>
+            <div style="font-size:11.5px;color:var(--sidebar-dim);">© {{ date('Y') }} Amanahku{{ $brandTenant ? ' · '.$brandTenant->name : '' }}</div>
         </div>
     </div>
 
