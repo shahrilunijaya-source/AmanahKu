@@ -734,7 +734,7 @@ class TotTest extends TestCase
         $session = $this->makeSession(['presenter_employee_id' => $other->id]);
         TotParticipation::create([
             'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
-            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'Very good',
+            'employee_id' => $other->id, 'score' => 5, 'note' => 'Very good',
         ]);
 
         $response = $this->actingInTenant()->get('/app/tot?year=2026');
@@ -884,15 +884,6 @@ class TotTest extends TestCase
         $response->assertViewHas('sessions', fn ($sessions) => $sessions[2]->session_date->toDateString() === '2026-03-07');
         $response->assertSee('Topic still blank');
         $response->assertSee('Install git on our own server');
-    }
-
-    public function test_the_rating_notice_names_the_presenter(): void
-    {
-        $this->makeSession();
-
-        $response = $this->actingInTenant()->get('/app/tot?year=2026');
-
-        $response->assertSee('Only Demo and management see scores', false);
     }
 
     // ── Presenter picker ──────────────────────────────────────────

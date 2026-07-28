@@ -491,3 +491,17 @@ header button:hover { background: var(--canvas) !important; }
 .wi-sm .wi-title { font-size: 12.5px; margin-bottom: 8px; }
 .wi-sm .wi-foot { font-size: 11px; }
 .wi-sm .wi-meta { gap: 9px; }
+
+/* ── TOT session card reaction pills and icon row ── */
+.tot-pill { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 9px;
+  border-radius:999px; background:var(--hairline-soft); font-size:13px; color:var(--body); }
+.tot-pill[data-mine] { background:var(--red-tint); color:var(--red); }
+.tot-pill b { font-weight:600; font-size:12px; color:var(--muted); }
+
+.tot-actions { display:flex; align-items:center; gap:22px; margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--hairline-soft); }
+.tot-act { display:inline-flex; align-items:center; gap:7px; background:none; border:0; padding:0;
+  cursor:pointer; color:var(--muted); font-size:13.5px; }
+.tot-act:hover { color:var(--red); }
+.tot-act[data-on] { color:var(--red); }
+

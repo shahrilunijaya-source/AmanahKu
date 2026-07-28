@@ -292,7 +292,18 @@
                 </button>
 
                 <div class="tot-wrap" :data-open="open ? 1 : 0">
-                    <div><div class="tot-panel">
+                    <div><div class="tot-panel" @if ($session->exists) x-data="totCard({
+                        id: {{ $session->id }},
+                        reactions: @js($reactionCounts[$session->id] ?? (object) []),
+                        mine: @js($myReact),
+                        watched: {{ $watched }},
+                        iWatched: @js((bool) $myPart?->watched_at),
+                        comments: {{ $sessionCommentCount }},
+                        myScore: @js($myPart?->score),
+                        myNote: @js($myPart?->note),
+                        score: @js($sessionScore ? ['average' => $sessionScore['average'], 'count' => $sessionScore['count']] : null),
+                        canParticipate: @js($canParticipate),
+                    })" @endif>
 
                         @if ($session->exists)
                             {{-- Full date and watched count --}}
@@ -310,76 +321,49 @@
                                 @endforelse
                             </div>
 
-                            {{-- Emoji bar + watched --}}
-                            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;align-items:center;">
-                                @foreach (\App\Models\TotSession::EMOJI as $emoji)
-                                    @if ($canParticipate)
-                                        <form method="post" action="{{ route('tot.react', $session) }}">
-                                            @csrf
-                                            <input type="hidden" name="emoji" value="{{ $emoji }}">
-                                            <button type="submit" class="tot-emo" @if (in_array($emoji, $myReact, true)) data-on="1" @endif aria-label="React {{ $emoji }}">{{ $emoji }}@if (! empty($reactionCounts[$session->id][$emoji] ?? null))<b>{{ $reactionCounts[$session->id][$emoji] }}</b>@endif</button>
-                                        </form>
-                                    @else
-                                        <span class="tot-emo">{{ $emoji }}@if (! empty($reactionCounts[$session->id][$emoji] ?? null))<b>{{ $reactionCounts[$session->id][$emoji] }}</b>@endif</span>
-                                    @endif
-                                @endforeach
-
-                                @if ($canParticipate)
-                                    @if ($myPart?->watched_at)
-                                        <span class="tot-pillbtn" style="margin-left:auto;color:var(--success);border-color:var(--success);">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-                                            <span x-text="$store.ui.lang==='en' ? 'Watched' : 'Sudah tonton'">Watched</span>
-                                        </span>
-                                    @else
-                                        <form method="post" action="{{ route('tot.watched', $session) }}" style="margin-left:auto;display:inline-flex;">
-                                            @csrf
-                                            <button type="submit" class="tot-pillbtn">
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted);"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                                <span x-text="$store.ui.lang==='en' ? 'I watched this' : 'Saya sudah tonton'">I watched this</span>
-                                            </button>
-                                        </form>
-                                    @endif
-                                @endif
+                            {{-- Reaction pills: one per emoji that somebody actually pressed, count only, never names. --}}
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;" x-show="reactionTotal > 0">
+                                <template x-for="(count, emoji) in reactions" :key="emoji">
+                                    <span class="tot-pill" :data-mine="mine.includes(emoji) ? '1' : null">
+                                        <span x-text="emoji"></span><b x-text="count"></b>
+                                    </span>
+                                </template>
                             </div>
 
-                            {{-- Rating: the form needs an Employee record to write to, so it stays
-                                 behind $canParticipate. The score summary is a read, and the
-                                 controller (visibleScores()) already decided who may read it,
-                                 so it must render whenever $sessionScore is set, regardless of
-                                 whether the viewer can also fill in the form below it. --}}
-                            @if ($canParticipate || $sessionScore)
-                                <div class="tot-rule">
-                                    @if ($canParticipate)
-                                        <form method="post" action="{{ route('tot.rate', $session) }}">
-                                            @csrf
-                                            <div class="tot-note" style="margin-bottom:9px;"><span x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span></div>
-                                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                                @foreach ([1, 2, 3, 4, 5] as $n)
-                                                    <button type="submit" name="score" value="{{ $n }}" class="tot-score" @if ($myPart?->score === $n) data-mine="1" @endif>{{ $n }}</button>
-                                                @endforeach
-                                            </div>
-                                            {{-- Deliberately never prefilled with the rater's own note text: ratings are
-                                                 pseudonymous even to their own author, so the screen never echoes a note
-                                                 back. Leaving this blank on submit keeps whatever note is already saved
-                                                 (see TotController::rate()); typing here replaces it. --}}
-                                            <textarea name="note" maxlength="1000" :placeholder="$store.ui.lang==='en' ? @js($myPart?->note ? 'Leave blank to keep your existing note, or type a new one' : 'Add a note') : @js($myPart?->note ? 'Biarkan kosong untuk kekalkan nota sedia ada, atau taip nota baharu' : 'Tambah nota')" placeholder="{{ $myPart?->note ? 'Leave blank to keep your existing note, or type a new one' : 'Add a note' }}" class="tot-field" style="margin-top:8px;height:60px;padding-top:8px;resize:vertical;"></textarea>
-                                        </form>
-                                    @endif
+                            <div class="tot-actions">
+                                <span class="tot-fw">
+                                    <button type="button" class="tot-act" :data-on="mine.length ? '1' : null"
+                                            @click="flyout = flyout === 'react' ? null : 'react'"
+                                            @mouseenter="flyout = 'react'"
+                                            :aria-label="$store.ui.lang==='en' ? 'React to this session' : 'Beri reaksi'">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                                        <span x-text="reactionTotal || ''"></span>
+                                    </button>
+                                </span>
 
-                                    @if ($sessionScore)
-                                        <div class="tot-note" style="margin-top:10px;">
-                                            <span x-text="$store.ui.lang==='en' ? @js('Average '.$sessionScore['average'].' from '.$sessionScore['count'].' '.($sessionScore['count'] === 1 ? 'rating' : 'ratings').'. Scores are shown to you because you are the presenter or management, and never with a name attached.') : @js('Purata '.$sessionScore['average'].' daripada '.$sessionScore['count'].' penilaian. Skor dipaparkan kepada anda kerana anda pembentang atau pengurusan, dan tidak sekali dengan nama.')">Average {{ $sessionScore['average'] }} from {{ $sessionScore['count'] }} {{ $sessionScore['count'] === 1 ? 'rating' : 'ratings' }}. Scores are shown to you because you are the presenter or management, and never with a name attached.</span>
-                                            @if (count($sessionScore['notes']))
-                                                <ul style="margin:6px 0 0;padding-left:16px;">
-                                                    @foreach ($sessionScore['notes'] as $note)
-                                                        <li>{{ $note }}</li>
-                                                    @endforeach
-                                                </ul>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                            @endif
+                                <button type="button" class="tot-act" @click="openThread()"
+                                        :aria-label="$store.ui.lang==='en' ? 'Open comments' : 'Buka komen'">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-4-.9L3 21l1.9-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>
+                                    <span x-text="comments || ''"></span>
+                                </button>
+
+                                <button type="button" class="tot-act" :data-on="iWatched ? '1' : null"
+                                        @click="toggleWatched()" x-show="canParticipate"
+                                        :aria-label="$store.ui.lang==='en' ? 'Mark as watched' : 'Tanda sudah tonton'">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <span x-text="watched || ''"></span>
+                                </button>
+
+                                <span class="tot-fw" x-show="canParticipate">
+                                    <button type="button" class="tot-act" :data-on="myScore ? '1' : null"
+                                            @click="flyout = flyout === 'rate' ? null : 'rate'"
+                                            @mouseenter="flyout = 'rate'"
+                                            :aria-label="$store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini'">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z"/></svg>
+                                        <span x-text="score ? `${score.average} (${score.count})` : ''"></span>
+                                    </button>
+                                </span>
+                            </div>
 
                             {{-- Related Knowledge Bank entry --}}
                             @if ($session->entry_id && $session->entry)
