@@ -1279,11 +1279,16 @@ As an employee, react, then rate, then comment on the same slot, one after anoth
 
 - [ ] **Step 6: Final format, analyse and commit**
 
+Stage the files this task actually touched. **Never `git add -A` here.** The working tree may
+carry unrelated edits that are not yours to commit, and on a real run of this plan that swept an
+unrelated `.gitignore` change and a reviewer's in-progress CSS fix into a commit whose message
+mentioned neither.
+
 ```bash
 vendor/bin/pint --format agent
 composer analyse
 php artisan test --compact
-git add -A
+git add tests/Feature/TotLiveActionsTest.php
 git commit -m "test(tot): pin the no-JavaScript path so the redirect branch survives
 
 Every action has a fetch path now, which makes the redirect branch look dead.
