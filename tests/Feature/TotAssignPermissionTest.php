@@ -199,4 +199,61 @@ class TotAssignPermissionTest extends TestCase
         $this->assertSame($this->presenter->id, $fresh->presenter_employee_id);
         $this->assertNull($fresh->presenter_name);
     }
+
+    public function test_a_holder_can_create_a_slot_with_a_presenter(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2027, 'month' => 1,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertRedirect();
+
+        $created = TotSession::where('year', 2027)->where('month', 1)->firstOrFail();
+        $this->assertSame($this->presenter->id, $created->presenter_employee_id);
+        $this->assertSame('planned', $created->status);
+        $this->assertNull($created->title);
+    }
+
+    public function test_a_holder_creating_a_slot_cannot_set_anything_else(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2027, 'month' => 2,
+            'presenter_employee_id' => $this->presenter->id,
+            'title' => 'Hijacked',
+            'status' => 'done',
+        ]);
+
+        $created = TotSession::where('year', 2027)->where('month', 2)->firstOrFail();
+        $this->assertSame('planned', $created->status);
+        $this->assertNull($created->title);
+    }
+
+    public function test_a_holder_still_cannot_create_a_duplicate_slot(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $this->slot();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2026, 'month' => 9,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertStatus(422);
+    }
+
+    public function test_a_manager_without_the_override_cannot_create_a_slot(): void
+    {
+        $this->seedWorkspace();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2027, 'month' => 3,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertForbidden();
+
+        $this->assertSame(0, TotSession::where('year', 2027)->count());
+    }
 }

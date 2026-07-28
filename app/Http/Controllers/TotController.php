@@ -64,21 +64,35 @@ class TotController extends Controller
         ];
     }
 
-    /** Privileged-only: create a slot for a month that has none yet. */
+    /**
+     * Create a slot for a month that has none yet. Privileged roles set every field; a
+     * tot.assign holder opens the month with only year, month and presenter_employee_id,
+     * and the slot lands planned.
+     */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        abort_unless($this->canAssignPresenter($request), 403);
+
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         $tenantId = app(CurrentTenant::class)->id();
 
-        $data = $request->validate([
+        $rules = [
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'month' => ['required', 'integer', 'min:1', 'max:12'],
             'presenter_employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-            'presenter_name' => ['nullable', 'string', 'max:120'],
-            'title' => ['nullable', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'status' => ['required', 'in:'.implode(',', TotSession::STATUSES)],
-        ]);
+        ];
+
+        if ($privileged) {
+            $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
+            $rules['title'] = ['nullable', 'string', 'max:200'];
+            $rules['description'] = ['nullable', 'string', 'max:2000'];
+            $rules['status'] = ['required', 'in:'.implode(',', TotSession::STATUSES)];
+        }
+
+        // A holder opens a month and puts a name on it. Everything else about the session,
+        // including whether it happened, stays HR's decision, so their new slot is planned.
+        $data = $request->validate($rules);
+        $data['status'] ??= 'planned';
 
         $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
         abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
