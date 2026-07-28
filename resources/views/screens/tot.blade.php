@@ -411,16 +411,6 @@
                                 </div>
                             @endif
 
-                            {{-- Discussion --}}
-                            <div class="tot-rule">
-                                <div class="tot-note">{{ $sessionCommentCount }} <span x-text="$store.ui.lang==='en' ? 'comments' : 'komen'">comments</span></div>
-                            </div>
-
-                            {{-- Edit this slot. HR and management change everything; the presenter
-                                 of this slot changes only the material (topic, description, links,
-                                 Knowledge Bank cross-link), never the roster fields. Same form for
-                                 both: the presenter's version is the privileged version minus the
-                                 privileged fields, guarded here to match TotController::update(). --}}
                             @if ($canEditSlot)
                                 <div class="tot-rule">
                                     <button type="button" class="tot-pillbtn" @click="editing = !editing">
@@ -509,6 +499,68 @@
                                     </div>
                                 </div>
                             @endif
+
+                            <div class="tot-modal" x-show="modalOpen" x-cloak @keydown.escape.window="modalOpen = false">
+                                <div class="tot-modal-back" @click="modalOpen = false"></div>
+                                <div class="tot-modal-card" role="dialog" aria-modal="true"
+                                     :aria-label="$store.ui.lang==='en' ? 'Discussion' : 'Perbincangan'">
+                                    <div class="tot-modal-head">
+                                        <span style="flex:1;font-size:14.5px;color:var(--ink);">{{ $session->title ?: ($session->session_date->format('F Y')) }}</span>
+                                        <button type="button" class="tot-act" @click="modalOpen = false"
+                                                :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">&times;</button>
+                                    </div>
+
+                                    <div class="tot-modal-body">
+                                        {{-- Anonymous rating notes. Present only for a viewer the server decided may see
+                                             scores, which is the presenter and management. Never a name, never a score
+                                             beside a note. This is where the note list from the old card lives now. --}}
+                                        <template x-if="notes.length">
+                                            <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--hairline-soft);">
+                                                <div class="tot-note" style="margin-bottom:7px;"
+                                                     x-text="$store.ui.lang==='en' ? 'Anonymous notes from raters' : 'Nota tanpa nama daripada penilai'">Anonymous notes from raters</div>
+                                                <template x-for="(n, i) in notes" :key="i">
+                                                    <div style="font-size:13.5px;color:var(--body);margin-bottom:5px;" x-text="n"></div>
+                                                </template>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="thread === null">
+                                            <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
+                                        </template>
+                                        <template x-if="thread !== null && thread.length === 0">
+                                            <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet. Start the discussion.</div>
+                                        </template>
+                                        <template x-for="c in (thread || [])" :key="c.id">
+                                            <div style="display:flex;gap:11px;margin-bottom:16px;">
+                                                <div class="tot-av" :style="`background:${c.color};color:#fff;`" x-text="c.initials"></div>
+                                                <div style="min-width:0;flex:1;">
+                                                    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                                                        <span style="font-size:13.5px;font-weight:600;color:var(--ink);" x-text="c.name"></span>
+                                                        <span class="tot-presenter-tag" x-show="c.presenter"
+                                                              x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
+                                                        <span class="tot-note" style="font-size:12px;" x-text="c.at"></span>
+                                                        <button type="button" x-show="c.canDelete" style="margin-left:auto;font-size:11px;color:var(--muted);background:none;border:0;cursor:pointer;"
+                                                                @click="removeComment(c.id)"
+                                                                :aria-label="$store.ui.lang==='en' ? 'Remove comment' : 'Buang komen'">&times;</button>
+                                                    </div>
+                                                    <div style="font-size:13.5px;color:var(--body);margin-top:2px;" x-text="c.body"></div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    @if ($canParticipate)
+                                        <div class="tot-modal-foot">
+                                            <input type="text" maxlength="2000" class="tot-field" x-ref="composer"
+                                                   :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'"
+                                                   @keydown.enter.prevent="postComment($event.target.value); $event.target.value = ''">
+                                            <button type="button" class="tot-btn-p" style="height:34px;font-size:12.5px;"
+                                                    @click="postComment($refs.composer.value); $refs.composer.value = ''"
+                                                    x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</button>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
                         @else
                             {{-- Nothing saved for this month yet --}}
                             @if ($canManage || $canAssignPresenter)

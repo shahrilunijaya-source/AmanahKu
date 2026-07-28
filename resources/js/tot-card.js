@@ -56,8 +56,56 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/rate`, { score: this.myScore, note });
         },
 
-        openThread() {
+        async openThread() {
             this.modalOpen = true;
+            if (this.thread !== null) return;
+            try {
+                const res = await fetch(`/app/tot/${this.id}/comments`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!res.ok) throw new Error(res.status);
+                const payload = await res.json();
+                this.thread = payload.comments;
+                this.notes = payload.notes;
+            } catch (e) {
+                this.thread = [];
+                this.notes = [];
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en'
+                        ? 'Could not load the discussion.'
+                        : 'Tidak dapat memuatkan perbincangan.'
+                );
+            }
+        },
+
+        async postComment(body) {
+            if (!body.trim()) return;
+            await this.act(`/app/tot/${this.id}/comment`, { body });
+            this.thread = null;
+            await this.openThread();
+        },
+
+        async removeComment(id) {
+            if (this.busy) return;
+            this.busy = true;
+            try {
+                const res = await fetch(`/app/tot/comments/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                });
+                if (!res.ok) throw new Error(res.status);
+                Object.assign(this, await res.json());
+                this.thread = this.thread.filter((c) => c.id !== id);
+            } catch (e) {
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en' ? 'Could not remove that.' : 'Tidak dapat membuang.'
+                );
+            } finally {
+                this.busy = false;
+            }
         },
     }));
 }
