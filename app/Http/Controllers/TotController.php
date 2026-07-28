@@ -14,6 +14,7 @@ use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -220,7 +221,7 @@ class TotController extends Controller
     }
 
     /** Anybody in the workspace may post to a session thread. */
-    public function comment(Request $request, TotSession $session): RedirectResponse
+    public function comment(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -237,11 +238,13 @@ class TotController extends Controller
             'body' => $data['body'],
         ]);
 
-        return back()->with('ok', 'Comment posted.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Comment posted.');
     }
 
     /** The author removes their own comment; HR and management may remove any. */
-    public function deleteComment(Request $request, TotComment $comment): RedirectResponse
+    public function deleteComment(Request $request, TotComment $comment): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($comment);
 
@@ -254,16 +257,19 @@ class TotController extends Controller
             'You can only delete your own comment.'
         );
 
+        $session = $comment->session;
         $comment->delete();
 
-        return back()->with('ok', 'Comment removed.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Comment removed.');
     }
 
     /**
      * Toggle one whitelisted emoji for the acting employee. A repeat POST of the same emoji
      * removes it; different emoji stack, one row each, guarded by the unique key.
      */
-    public function react(Request $request, TotSession $session): RedirectResponse
+    public function react(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -282,7 +288,9 @@ class TotController extends Controller
         if ($existing) {
             $existing->delete();
 
-            return back();
+            return $request->expectsJson()
+                ? response()->json($this->sessionState($request, $session))
+                : back();
         }
 
         try {
@@ -299,11 +307,13 @@ class TotController extends Controller
             }
         }
 
-        return back();
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back();
     }
 
     /** Mark the session watched for the acting employee. Idempotent. */
-    public function watched(Request $request, TotSession $session): RedirectResponse
+    public function watched(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -328,7 +338,9 @@ class TotController extends Controller
             }
         }
 
-        return back()->with('ok', 'Marked as watched.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Marked as watched.');
     }
 
     /**
@@ -339,7 +351,7 @@ class TotController extends Controller
      * and only the presenter and privileged roles see scores at all. Rating implies watching,
      * so the same call stamps watched_at.
      */
-    public function rate(Request $request, TotSession $session): RedirectResponse
+    public function rate(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -399,7 +411,58 @@ class TotController extends Controller
             $row->save();
         }
 
-        return back()->with('ok', 'Thanks, your rating was saved.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Thanks, your rating was saved.');
+    }
+
+    /**
+     * Everything a session card draws, for the acting viewer.
+     *
+     * One method so the JSON a live action returns and the data the screen renders can never
+     * drift apart, and so the privacy rule has exactly one home: the score summary is present
+     * only for a viewer visibleScores() would show it to, and it carries an average and a
+     * count, never a name and never the anonymous notes.
+     *
+     * @return array<string, mixed>
+     */
+    private function sessionState(Request $request, TotSession $session): array
+    {
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $mine = $employee
+            ? TotReaction::where('session_id', $session->id)
+                ->where('employee_id', $employee->id)
+                ->pluck('emoji')->all()
+            : [];
+
+        $participation = $employee
+            ? TotParticipation::where('session_id', $session->id)
+                ->where('employee_id', $employee->id)
+                ->first()
+            : null;
+
+        $summary = $this->visibleScores(
+            collect([$session->id => $session]),
+            $employee,
+            $privileged
+        )[$session->id] ?? null;
+
+        return [
+            'id' => $session->id,
+            'reactions' => $this->reactionCounts([$session->id])[$session->id] ?? [],
+            'mine' => $mine,
+            'watched' => $this->watchedCounts([$session->id])[$session->id] ?? 0,
+            'iWatched' => $participation?->watched_at !== null,
+            'comments' => TotComment::where('session_id', $session->id)->count(),
+            'myScore' => $participation?->score,
+            'myNote' => $participation?->note,
+            'score' => $summary === null ? null : [
+                'average' => $summary['average'],
+                'count' => $summary['count'],
+            ],
+        ];
     }
 
     /** Privileged-only: remove a slot entirely. */
