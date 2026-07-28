@@ -159,6 +159,14 @@ class TotController extends Controller
 
         $session->fill($data);
 
+        // The two presenter columns are one fact stored two ways: a linked employee, or a
+        // free-text name for an imported nickname nobody has matched yet. Whenever this
+        // request decides the linked employee, the stale free-text name goes with it,
+        // unless the same request explicitly supplies one (privileged callers only).
+        if (array_key_exists('presenter_employee_id', $data) && blank($data['presenter_name'] ?? null)) {
+            $session->presenter_name = null;
+        }
+
         // Stamp held_on on the transition INTO done, same rule TotHistorySeeder uses for
         // imported rows, so a session marked done through the UI carries a date too. Only
         // fills a still-blank value: HR can override it afterwards and that override sticks.

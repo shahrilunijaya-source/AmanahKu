@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
 use App\Models\TotSession;
 use App\Models\User;
 use App\Models\UserPermission;
 use App\Support\Permissions;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -152,5 +154,49 @@ class TotAssignPermissionTest extends TestCase
         $this->grantAssign();
 
         $this->actingAsManager()->get('/app/roles')->assertForbidden();
+    }
+
+    public function test_a_holder_can_clear_the_presenter(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->presenter->id]);
+
+        $this->actingAsManager()->post("/app/tot/{$session->id}", ['presenter_employee_id' => '']);
+
+        $fresh = $session->fresh();
+        $this->assertNull($fresh->presenter_employee_id);
+        $this->assertNull($fresh->presenter_name);
+    }
+
+    public function test_clearing_a_presenter_never_revokes_knowledge_bank_credit(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->presenter->id]);
+        app(CurrentTenant::class)->set($this->tenant);
+        KnowledgeContribution::mark($this->presenter, 2026, 9);
+
+        $this->actingAsManager()->post("/app/tot/{$session->id}", ['presenter_employee_id' => '']);
+
+        $this->assertSame(1, KnowledgeContribution::where('employee_id', $this->presenter->id)
+            ->where('year', 2026)->where('month', 9)->where('submitted', true)->count());
+    }
+
+    public function test_assigning_an_employee_clears_an_imported_nickname(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+        $session->update(['presenter_name' => 'Kak Lin']);
+
+        $this->actingAsManager()
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $this->presenter->id]);
+
+        $fresh = $session->fresh();
+        $this->assertSame($this->presenter->id, $fresh->presenter_employee_id);
+        $this->assertNull($fresh->presenter_name);
     }
 }
