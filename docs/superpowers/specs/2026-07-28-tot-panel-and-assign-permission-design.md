@@ -234,6 +234,51 @@ Rules:
 
 ---
 
+---
+
+## Part D: flash messages become toasts
+
+### The duplicate
+
+`layouts/app.blade.php` renders a `uj-alert` banner for `session('ok')` and another for
+`session('error')`. Eleven screens then render their own copy of the same message:
+
+`benefits`, `events`, `feedback`, `goals`, `ideas`, `learning`, `position`, `skills`,
+`surveys`, `wellness`, `tot`.
+
+Every one of those screens shows every confirmation twice. This is not a TOT bug. TOT is the
+eleventh screen to inherit it, and the screenshot that found it would have been reproducible on
+any of the other ten.
+
+### The fix
+
+The toast system is already built and already mounted: `resources/js/toast.js` registers a
+`toast` Alpine store with a queue, hover to hold, a timed progress bar, three tones and a
+bilingual dismiss label, and `partials/toast-host.blade.php` renders it. It is included at the
+bottom of `layouts/app.blade.php`. Nothing new is needed.
+
+So:
+
+1. Delete the eleven per-screen `@if (session('ok'))` blocks.
+2. Delete the two `uj-alert` blocks from the layout.
+3. Seed the store once on boot, after `registerToast`, from `session('ok')` and
+   `session('error')`.
+
+This also serves Part C. Once actions stop reloading the page there is no next request to carry
+a flash, so the fetch handlers push to the same store directly. One confirmation path for both
+the JavaScript and the no-JavaScript case.
+
+### What stays a banner
+
+A toast is for something transient that a person may miss without harm. These are not that, and
+they keep their current in-page treatment:
+
+- The profile completion banner. It is a standing state, not an event.
+- The "What is this screen for?" help box.
+- The one-time password reveal after an HR password reset. It must stay on screen and stay
+  copyable, and auto-dismissing it would lose the only copy.
+- Form validation error lists, which belong beside their fields.
+
 ## Testing
 
 **Part A**
@@ -255,6 +300,11 @@ Rules:
 - Each action still redirects when it does not.
 - A viewer who may not see scores gets no score keys in the JSON.
 - The concurrent double-react and double-rate tests keep passing over the JSON path.
+
+**Part D**
+
+- A screen that flashes `ok` renders no `uj-alert` markup and no per-screen banner.
+- The toast host is present and the message reaches it once, not twice.
 
 **Part B** is view work. Cover the server-visible parts: the comment count comes from
 `withCount`, the modal route returns only that session's comments, and it refuses a session
