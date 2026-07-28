@@ -364,8 +364,14 @@
                                 </button>
 
                                 <span class="tot-fw" x-show="canParticipate">
+                                    {{-- noting resets whenever the flyout closes. x-show only hides,
+                                         it does not tear the component down, so without this a rater
+                                         who scores and then moves the mouse away reopens on the note
+                                         box instead of the scores, with no way back to change the
+                                         number until the box has been focused and blurred. --}}
                                     <span class="tot-fly" x-show="flyout === 'rate'" x-cloak
-                                          @mouseleave="flyout = null" @keydown.escape.window="flyout = null"
+                                          @mouseleave="flyout = null; noting = false"
+                                          @keydown.escape.window="flyout = null; noting = false"
                                           x-data="{ noting: false }">
                                         <template x-if="!noting">
                                             <span style="display:flex;align-items:center;gap:6px;">
