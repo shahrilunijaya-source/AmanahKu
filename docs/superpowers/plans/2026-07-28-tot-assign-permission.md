@@ -348,9 +348,31 @@ In `authorizeSlotEdit()`, add an early return for a holder. Replace the whole me
 
 - [ ] **Step 5: Gate the presenter rule on the flag, not on privilege**
 
-In `update()`, replace the block that starts `if ($privileged) {` with:
+**The material rules must become conditional too.** Widening `authorizeSlotEdit()` in Step 4 means a holder now passes that gate, and the `title`, `description`, `links` and `entry_id` rules are currently unconditional, so a holder would silently gain the right to rewrite a session's material. That is a real authorization hole, and `test_a_holder_cannot_change_anything_else` is what catches it.
+
+In `update()`, capture whether the actor owns this slot, next to the existing `$privileged` line:
 
 ```php
+        $isPresenterOfSlot = $employee && $session->presenter_employee_id === $employee->id;
+```
+
+Then replace the whole `$rules = [...]` assignment and the `if ($privileged) {` block that follows it with:
+
+```php
+        // The material (title, description, links, cross-link) belongs to the presenter of
+        // THIS slot or a privileged role, not to a tot.assign holder: that override buys
+        // exactly one field, presenter_employee_id, handled below.
+        $rules = [];
+
+        if ($privileged || $isPresenterOfSlot) {
+            $rules['title'] = ['nullable', 'string', 'max:200'];
+            $rules['description'] = ['nullable', 'string', 'max:2000'];
+            $rules['links'] = ['nullable', 'array', 'max:12'];
+            $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
+            $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
+            $rules['entry_id'] = ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)];
+        }
+
         if ($this->canAssignPresenter($request)) {
             $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
         }
@@ -361,6 +383,8 @@ In `update()`, replace the block that starts `if ($privileged) {` with:
             $rules['held_on'] = ['nullable', 'date'];
         }
 ```
+
+A holder who also happens to present that month gets both sets, which is right: the two rights are independent and they add up.
 
 `presenter_name` stays privileged on purpose. Linking an imported nickname to a real employee is HR work, and a holder never needs to type a free-text name.
 
