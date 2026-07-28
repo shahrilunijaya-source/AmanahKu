@@ -249,7 +249,7 @@
                 $watched = $session->exists ? ($watchedCounts[$session->id] ?? 0) : 0;
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
                 $isPresenterOfSlot = $session->exists && $employee && $session->presenter_employee_id === $employee->id;
-                $canEditSlot = $canManage || $isPresenterOfSlot;
+                $canEditSlot = $canManage || $canAssignPresenter || $isPresenterOfSlot;
             @endphp
             <div x-data="{ open: false, editing: false }">
                 <button type="button" class="tot-row" @click="open = !open" :aria-expanded="open" style="opacity:{{ $rm['opacity'] }}">
@@ -448,11 +448,17 @@
                                     <div x-show="editing" x-cloak style="margin-top:14px;">
                                         <form method="post" action="{{ route('tot.update', $session) }}">
                                             @csrf
-                                            @if ($canManage)
+                                            @if ($canManage || $canAssignPresenter)
                                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
-                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID)' : 'Pembentang (ID pekerja)'">Presenter (employee ID)</label><input class="tot-field" type="number" name="presenter_employee_id" value="{{ $session->presenter_employee_id }}"></div>
+                                                    @if ($canManage)
+                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
+                                                    @endif
+                                                    @if ($canAssignPresenter)
+                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID)' : 'Pembentang (ID pekerja)'">Presenter (employee ID)</label><input class="tot-field" type="number" name="presenter_employee_id" value="{{ $session->presenter_employee_id }}"></div>
+                                                    @endif
                                                 </div>
+                                            @endif
+                                            @if ($canManage)
                                                 <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Linking an employee ID overrides the presenter name above, everywhere this session is shown.' : 'Mengaitkan ID pekerja mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Linking an employee ID overrides the presenter name above, everywhere this session is shown.</div>
                                                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                                                     <select class="tot-field" name="status">

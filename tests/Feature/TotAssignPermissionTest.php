@@ -305,4 +305,37 @@ class TotAssignPermissionTest extends TestCase
 
         $this->assertSame(1, AuditLog::where('action', 'Assigned TOT presenter')->count());
     }
+
+    public function test_the_screen_shows_a_holder_the_presenter_picker(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $this->slot();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertSee('name="presenter_employee_id"', false);
+    }
+
+    public function test_the_screen_hides_privileged_fields_from_a_holder(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $this->slot();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('name="status"', false)
+            ->assertDontSee('name="held_on"', false);
+    }
+
+    public function test_the_screen_shows_no_picker_without_the_override(): void
+    {
+        $this->seedWorkspace();
+        $this->slot();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('name="presenter_employee_id"', false);
+    }
 }
