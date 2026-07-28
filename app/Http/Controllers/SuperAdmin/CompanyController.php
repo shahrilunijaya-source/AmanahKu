@@ -42,7 +42,40 @@ class CompanyController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('superadmin.companies.index', ['companies' => $companies]);
+        return view('superadmin.companies.index', [
+            'companies' => $companies,
+            'failedJobs' => $this->failedJobSummary(),
+        ]);
+    }
+
+    /**
+     * Headline state of the failed-jobs table, for the console banner.
+     *
+     * Every email the app sends goes out through the queue, so a non-empty
+     * failed_jobs table usually means invites and password resets are not being
+     * delivered. This banner is the only place a super-admin is told: the alert
+     * cannot be emailed (mail is the thing that is broken) and cannot use the
+     * in-app bell (AppNotification is tenant-scoped and a super-admin is not).
+     *
+     * @return array{count: int, latest: ?string, failedAt: ?string}
+     */
+    private function failedJobSummary(): array
+    {
+        $count = DB::table('failed_jobs')->count();
+
+        if ($count === 0) {
+            return ['count' => 0, 'latest' => null, 'failedAt' => null];
+        }
+
+        $latest = DB::table('failed_jobs')->orderByDesc('failed_at')->first(['payload', 'failed_at']);
+
+        return [
+            'count' => $count,
+            // Queued notifications report the notification class as displayName, so this
+            // names the actual mail that failed rather than the generic queue wrapper.
+            'latest' => data_get(json_decode($latest->payload, true), 'displayName', 'Unknown job'),
+            'failedAt' => $latest->failed_at,
+        ];
     }
 
     /** New-company form. */

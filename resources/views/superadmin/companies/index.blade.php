@@ -27,6 +27,17 @@
             <a href="{{ route('superadmin.companies.create') }}" class="uj-btn" style="text-decoration:none;padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:var(--red);color:#fff;">+ New company</a>
         </div>
 
+        {{-- Queued mail is the app's only outbound email path, and a failure there is
+             otherwise silent: it cannot be emailed (mail is what broke) and the in-app
+             bell is tenant-scoped. This banner is the whole alerting surface. --}}
+        @if ($failedJobs['count'] > 0)
+            <div style="background:#fdf3e3;border:1px solid #f0d9a8;color:#7a4f10;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;line-height:1.6;">
+                <div style="font-weight:600;margin-bottom:2px;">Queued jobs are failing</div>
+                <div>{{ $failedJobs['count'] }} queued {{ Str::plural('job', $failedJobs['count']) }} {{ $failedJobs['count'] === 1 ? 'has' : 'have' }} failed. Most recent: <strong>{{ $failedJobs['latest'] }}</strong> at {{ $failedJobs['failedAt'] }}.</div>
+                <div style="margin-top:6px;">Invites, password resets and the weekly digest all send through the queue, so they are probably not being delivered. Fix the mail settings first, then run <code>php artisan queue:retry all</code> to resend.</div>
+            </div>
+        @endif
+
         @if (session('ok'))
             <div style="background:#eaf6f1;border:1px solid #bfe3d3;color:#0f5132;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;line-height:1.6;">{{ session('ok') }}</div>
         @endif
