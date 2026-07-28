@@ -68,6 +68,9 @@ class DashboardAiGatingTest extends TestCase
 
     public function test_ai_blocks_are_hidden_by_default(): void
     {
+        // Asserts the shipped default, so opt out of the suite-wide "every module on".
+        $this->useShippedModuleDefaults();
+
         $hr = $this->userWithRole('hr', 'hr@example.com');
 
         $this->dashAs($hr, 'manager')->assertOk()->assertDontSee('AI recommendations');

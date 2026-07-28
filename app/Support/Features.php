@@ -38,7 +38,7 @@ class Features
         'module.benefits' => ['Benefits', ['benefits'], 2],
         'module.wellness' => ['Wellness & EAP', ['wellness'], 2],
         'module.performance' => ['Performance (KPI, reviews, goals, skills)', ['kpi', 'achievements', 'reviews', 'goals', 'skills'], 2],
-        'module.onboarding' => ['Onboarding', ['onboarding'], 2],
+        'module.onboarding' => ['Onboarding', ['onboarding', 'onboarding-content'], 2],
         'module.probation' => ['Probation', ['probation'], 2],
         'module.offboarding' => ['Resignation & Offboarding', ['resignation', 'offboarding'], 2],
         'module.compliance' => ['Compliance & Licenses', ['compliance'], 2],
@@ -46,13 +46,16 @@ class Features
         'module.cases' => ['Disciplinary Cases', ['cases'], 2],
         'module.learning' => ['Training & Learning', ['training', 'learning', 'handbook'], 2],
         'module.documents' => ['Document Vault', ['documents'], 1],
-        'module.claims' => ['Claims & Expenses', ['claims', 'claim-approvals', 'expenses', 'travel'], 2],
+        'module.claims' => ['Claims', ['claims', 'claim-approvals'], 2],
+        'module.expenses' => ['Expense Reports & Travel', ['expenses', 'travel'], 2],
         'module.helpdesk' => ['Helpdesk', ['helpdesk'], 2],
         'module.assets' => ['Asset Register', ['assets'], 2],
         'module.reports' => ['Reports', ['reports'], 1],
         'module.surveys' => ['Surveys & Suggestions', ['surveys', 'ideas'], 2],
         'module.knowledge' => ['Knowledge Bank', ['knowledge-bank', 'tot'], 2],
         'module.messages' => ['Messaging', ['messages'], 2],
+        'module.sharedresources' => ['Shared Resources', ['shared-resources'], 2],
+        'module.profiletest' => ['Employee Profile Test', ['profile-test', 'profile-test-admin'], 2],
         'module.ai' => ['AI Workforce Intelligence', ['workload'], 3],
     ];
 
@@ -108,12 +111,45 @@ class Features
     ];
 
     /**
-     * Modules that are fully built but deliberately shipped OFF: the code exists and
-     * works, but the feature has not been signed off for release yet. Kept in one place
-     * so "why is this off" is answerable by reading this list instead of hunting for a
-     * scattered inline condition. Remove a key here once the module is approved to ship.
+     * Modules that are fully built but deliberately shipped OFF by default. Two
+     * reasons land a key here, and both mean the same thing to the resolver:
+     *
+     *  - descoped — outside the current delivery scope (attendance, timesheets,
+     *    T.A.A., TOT, claims, leave, plus basic HR admin). The code stays so the
+     *    module can be brought back by deleting one line, not by rewriting it.
+     *  - not signed off — built, but not approved for release yet (module.ai).
+     *
+     * This is a DEFAULT, not a lock: a super-admin or tenant admin can still switch
+     * any of these on per company from the Features panel, which writes a tenant
+     * override that beats this list. Kept in one place so "why is this off" is
+     * answerable by reading here instead of hunting for a scattered inline condition.
      */
-    public const NOT_READY = [
+    public const OFF = [
+        // Descoped — kept in the codebase, hidden from the app.
+        'module.roster',
+        'module.overtime',
+        'module.events',
+        'module.bookings',
+        'module.payroll',
+        'module.loans',
+        'module.pettycash',
+        'module.benefits',
+        'module.wellness',
+        'module.performance',
+        'module.onboarding',
+        'module.probation',
+        'module.offboarding',
+        'module.compliance',
+        'module.recruitment',
+        'module.cases',
+        'module.learning',
+        'module.expenses',
+        'module.helpdesk',
+        'module.assets',
+        'module.surveys',
+        'module.sharedresources',
+        'module.profiletest',
+        // Built but not signed off for release (see docs/ISSUES.md I-025).
         'module.ai',
     ];
 
@@ -122,7 +158,7 @@ class Features
     {
         $out = [];
         foreach (self::MODULES as $key => [$label, $screens]) {
-            $out[$key] = ! in_array($key, self::NOT_READY, true);
+            $out[$key] = ! in_array($key, self::OFF, true);
         }
         foreach (self::SETTINGS as $key => $meta) {
             $out[$key] = $meta['default'];

@@ -63,7 +63,7 @@ class MultiTenantOnboardingTest extends TestCase
         app(FeatureManager::class)->applyCategoryPackage($tenant, 1);
 
         $this->assertTrue($tenant->featureEnabled('module.leave'));     // stage 1
-        $this->assertFalse($tenant->featureEnabled('module.payroll'));  // stage 2
+        $this->assertFalse($tenant->featureEnabled('module.claims'));   // stage 2
         $this->assertFalse($tenant->featureEnabled('module.ai'));       // stage 3
     }
 
@@ -71,7 +71,7 @@ class MultiTenantOnboardingTest extends TestCase
     {
         [$tenant] = $this->company(1);
         app(FeatureManager::class)->applyCategoryPackage($tenant, 1);
-        $this->assertFalse($tenant->featureEnabled('module.payroll'));
+        $this->assertFalse($tenant->featureEnabled('module.claims'));
 
         $stage2 = CompanyCategory::where('level', 2)->first();
         $this->actingAs($this->superAdmin())
@@ -79,8 +79,8 @@ class MultiTenantOnboardingTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame($stage2->id, $tenant->fresh()->company_category_id);
-        $this->assertTrue($tenant->fresh()->featureEnabled('module.payroll')); // now in scope
-        $this->assertFalse($tenant->fresh()->featureEnabled('module.ai'));     // still stage 3
+        $this->assertTrue($tenant->fresh()->featureEnabled('module.claims')); // now in scope
+        $this->assertFalse($tenant->fresh()->featureEnabled('module.ai'));    // still stage 3
     }
 
     public function test_disabled_module_screen_404s_for_a_stage1_company(): void
@@ -89,7 +89,7 @@ class MultiTenantOnboardingTest extends TestCase
         app(FeatureManager::class)->applyCategoryPackage($tenant, 1);
 
         $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
-            ->get('/app/payroll')->assertNotFound(); // module.payroll is Stage 2
+            ->get('/app/claims')->assertNotFound(); // module.claims is Stage 2
     }
 
     public function test_super_admin_can_suspend_and_reactivate_a_company(): void

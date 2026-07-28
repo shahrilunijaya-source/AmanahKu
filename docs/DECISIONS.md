@@ -82,3 +82,51 @@ and keeps the demo deterministic. Egress tradeoff documented (ISSUES I-010).
 ## 2026-06-24 — Phase E+: Payroll production tier (decision)
 
 User approved expanding payroll to the production tier previously deferred ("finish payroll to prod tier"): EPF/SOCSO/EIS statutory contribution reports + a bank payment file. Added bank/statutory identifiers (bank name + account, EPF no, SOCSO no, NRIC) to salary structures. Bank file is a generic CSV (bank-specific formats deferred, I-017); NRIC is PII (I-018). Exports are management/hr-only, tenant-asserted, finalized-runs-only.
+
+## 2026-07-28 — Delivery scope cut to six features (decision)
+
+**D-0xx · Descoped modules are switched off, not deleted.**
+User asked to cut the app back to attendance, timesheets, T.A.A. (the `board` screen),
+TOT, claims and leave, plus basic HR administration. Chosen mechanism: the existing
+feature registry, not code deletion.
+
+- `Features::NOT_READY` renamed to `Features::OFF` and widened from one key to 24. It now
+  covers two reasons that resolve the same way: **descoped** (out of this delivery scope)
+  and **not signed off** (`module.ai`, I-025). `Features::defaults()` and
+  `FeatureManager::applyCategoryPackage()` both read it, so a descoped module stays off at
+  every company-category stage.
+- This is a **default, not a lock.** A super-admin or tenant admin can still switch any of
+  them on per company from the Features panel; the tenant override beats the registry.
+  Re-scoping a module back in = delete one line from `Features::OFF`.
+- **Why not delete the code.** The tables already carry staging data, so dropping them is
+  not revertable by `git revert`. The per-tenant module entitlement (Stage 1/2/3 packages)
+  is a deliberate product concept — deleting modules would delete the product model, not
+  the bloat. And ~40 test classes cover the parked modules; keeping them alive keeps the
+  parked code provably working.
+- **Bundles split** so a kept feature is not dragged out by a dropped one:
+  `module.claims` now gates only `claims` + `claim-approvals`; the new `module.expenses`
+  gates `expenses` + `travel` and is off. `module.knowledge` keeps both `knowledge-bank`
+  and `tot` (user kept Knowledge Bank).
+- **Screens that had no gating module** and so leaked into the nav were given one:
+  `onboarding-content` folded into `module.onboarding`; new `module.sharedresources` and
+  `module.profiletest`, both off.
+- **Dashboard widgets do not inherit the screen gate.** `StuckRequests` and
+  `BuildsDashboardData::pendingActions` were rendering rows that link to now-404 screens,
+  so both now filter their request types by `FeatureManager::screenAllowed`. Other
+  cross-module dashboard copy is a known remnant (see below).
+- **Tests run with every module ON.** `Tests\TestCase::setUp` writes an unlocked platform
+  row per `Features::OFF` key, so parked modules keep their coverage. Tests that assert
+  the shipped default call `useShippedModuleDefaults()`. `ShippedScopeTest` pins the scope
+  in both directions and fails if a descoped screen drifts back in.
+
+- **Probation remnant on the HR dashboard, closed.** The heading read "N on probation · N
+  confirmations due this month" and a stat tile read "On probation / confirmations
+  pending" while `module.probation` was off. The split follows the data source, not the
+  word "probation": `on_probation` is an `Employee.status` value (basic HR) and stays
+  visible, while `confirmations_due` reads `ProbationReview` (module data) and is now
+  gated. `dashStats()` omits the key entirely when the module is off, and `dashHeading()`
+  builds the HR subtitle by joining the clauses that are present, so nothing dangles. The
+  tile keeps its count but drops the "confirmations pending" promise (and its amber
+  needs-action tone) for a neutral "of active headcount". `DashboardProbationGatingTest`
+  pins both sides of the gate. The `Probation` row in `reportsData()` is a plain status
+  breakdown, so it was left alone.

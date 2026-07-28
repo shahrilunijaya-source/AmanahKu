@@ -63,13 +63,19 @@ trait BuildsDashboardData
             ];
         }
 
+        // `on_probation` reads employees.status — basic HR data that stays visible.
+        // `confirmations_due` counts ProbationReview rows, which belong to the Probation
+        // module: when that module is off the key is absent entirely, and dashHeading()
+        // drops the clause rather than printing "· 0 confirmations due this month".
         return [
             'headcount' => $headcount,
             'on_probation' => Employee::active()->where('status', 'probation')->count(),
-            'confirmations_due' => ProbationReview::where('status', 'active')
-                ->whereHas('employee', fn ($q) => $q->active())
-                ->whereBetween('end_date', [now()->startOfMonth(), now()->endOfMonth()])
-                ->count(),
+            ...(app(FeatureManager::class)->screenAllowed($tenant, 'probation') ? [
+                'confirmations_due' => ProbationReview::where('status', 'active')
+                    ->whereHas('employee', fn ($q) => $q->active())
+                    ->whereBetween('end_date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->count(),
+            ] : []),
         ];
     }
 
@@ -178,11 +184,15 @@ trait BuildsDashboardData
     {
         // Fresh builder per call — a Builder is mutable, so the same instance cannot be
         // fed to both scopeToVerify and scopeToApprove without stacking constraints.
-        $sources = [
+        // A request type whose module is switched off is dropped: its action row links to
+        // a screen the tenant cannot open, so it would be an obligation nobody can clear.
+        $features = app(FeatureManager::class);
+        $tenant = app(CurrentTenant::class)->get();
+        $sources = array_filter([
             ['Leave', 'leave', fn () => LeaveRequest::with(['employee', 'leaveType'])],
             ['Claim', 'claims', fn () => Claim::with(['employee', 'verifiedBy'])],
             ['Overtime', 'overtime', fn () => OvertimeRequest::with(['employee', 'verifiedBy'])],
-        ];
+        ], fn (array $s) => $features->screenAllowed($tenant, $s[1]));
 
         $items = collect();
         foreach ($sources as [$label, $screen, $make]) {
@@ -310,9 +320,14 @@ trait BuildsDashboardData
             ? 100
             : (int) round($roster->where('status', 'done')->count() / $roster->count() * 100);
 
+        // The count is employees.status, so the tile stays. Its subtitle promises a
+        // confirmation workflow that only the Probation module provides, so the copy
+        // (and its amber "needs action" tone) follows that module's gate.
+        $probation = app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'probation');
+
         return [
             ['k' => 'Headcount', 'v' => Employee::active()->count(), 'sub' => 'across all branches', 'subc' => 'var(--muted)'],
-            ['k' => 'On probation', 'v' => Employee::active()->where('status', 'probation')->count(), 'sub' => 'confirmations pending', 'subc' => 'var(--amber)'],
+            ['k' => 'On probation', 'v' => Employee::active()->where('status', 'probation')->count(), 'sub' => $probation ? 'confirmations pending' : 'of active headcount', 'subc' => $probation ? 'var(--amber)' : 'var(--muted)'],
             ['k' => 'On leave today', 'v' => Employee::active()->where('status', 'on_leave')->count(), 'sub' => 'see leave calendar', 'subc' => 'var(--muted)'],
             ['k' => 'Timesheets filled', 'v' => $tsPct.'%', 'sub' => 'this week', 'subc' => $tsPct >= 80 ? 'var(--success)' : 'var(--amber)'],
         ];

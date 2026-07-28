@@ -69,12 +69,15 @@ class AllScreensRenderTest extends TestCase
 
     /**
      * 'workload' is deliberately absent from SCREENS above: it is gated by
-     * `module.ai`, which now defaults OFF (Features::NOT_READY — the AI Workforce
-     * Intelligence dashboard blocks are built but not yet released; see docs/ISSUES.md
-     * I-025). Confirms the new default behaviour instead of masking it.
+     * `module.ai`, which defaults OFF (Features::OFF — the AI Workforce Intelligence
+     * dashboard blocks are built but not yet released; see docs/ISSUES.md I-025).
+     * Confirms the shipped default instead of masking it, so it opts out of the
+     * suite-wide "every module on" override in Tests\TestCase.
      */
     public function test_workload_screen_404s_when_module_ai_is_off_by_default(): void
     {
+        $this->useShippedModuleDefaults();
+
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $this->tenant->id,
             'persona' => 'hr',

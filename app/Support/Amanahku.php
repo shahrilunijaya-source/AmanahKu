@@ -426,11 +426,21 @@ class Amanahku
     {
         $headcount = (int) ($stats['headcount'] ?? 0);
         $onProbation = (int) ($stats['on_probation'] ?? 0);
-        $confirmationsDue = (int) ($stats['confirmations_due'] ?? 0);
         $company = $stats['company'] ?? 'Unijaya Resources';
 
         $employees = $headcount.' '.Str::plural('employee', $headcount);
-        $confirmations = $confirmationsDue.' '.Str::plural('confirmation', $confirmationsDue);
+
+        // The confirmations clause is Probation-module data (see dashStats). The key is
+        // absent when that module is off, and the sentence is built from the clauses that
+        // are actually present, so no dangling "· 0 confirmations due this month" is left.
+        $hrClauses = ["{$headcount} headcount", "{$onProbation} on probation"];
+        $hrClausesMs = ["{$headcount} jumlah pekerja", "{$onProbation} dalam percubaan"];
+
+        if (isset($stats['confirmations_due'])) {
+            $due = (int) $stats['confirmations_due'];
+            $hrClauses[] = $due.' '.Str::plural('confirmation', $due).' due this month';
+            $hrClausesMs[] = "{$due} pengesahan jawatan perlu diputuskan bulan ini";
+        }
 
         // Manager subtitle is driven by the viewer's real reporting line (see
         // BuildsDashboardData::managerHeadingStats), replacing the old fixed "8 direct reports" copy.
@@ -446,7 +456,7 @@ class Amanahku
             'management' => ($stats['ai_insights'] ?? true)
                 ? ['title' => 'Workforce Intelligence', 'title_ms' => 'Workforce Intelligence', 'sub' => "{$company} · {$employees} · live capacity & risk view.", 'sub_ms' => "{$company} · {$headcount} pekerja · paparan kapasiti & risiko secara langsung."]
                 : ['title' => 'Management Overview', 'title_ms' => 'Gambaran Pengurusan', 'sub' => "{$company} · {$employees}.", 'sub_ms' => "{$company} · {$headcount} pekerja."],
-            'hr' => ['title' => 'HR Operations', 'title_ms' => 'Operasi HR', 'sub' => "{$headcount} headcount · {$onProbation} on probation · {$confirmations} due this month.", 'sub_ms' => "{$headcount} jumlah pekerja · {$onProbation} dalam percubaan · {$confirmationsDue} pengesahan jawatan perlu diputuskan bulan ini."],
+            'hr' => ['title' => 'HR Operations', 'title_ms' => 'Operasi HR', 'sub' => implode(' · ', $hrClauses).'.', 'sub_ms' => implode(' · ', $hrClausesMs).'.'],
         ][$persona] ?? ['title' => 'Dashboard', 'sub' => ''];
     }
 
