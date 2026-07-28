@@ -74,32 +74,8 @@
         {{-- Scrollable body --}}
         <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:24px 28px 48px;' }}">
             <div class="uj-fade" style="width:100%;">
-                @if (session('ok'))
-                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
-                         class="uj-alert" data-tone="success" role="status">
-                        <span class="uj-alert-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-                        </span>
-                        <span class="uj-alert-msg">{{ session('ok') }}</span>
-                        <button type="button" class="uj-alert-close" @click="show = false"
-                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
-                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                        </button>
-                    </div>
-                @endif
-                @if (session('error'))
-                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
-                         class="uj-alert" data-tone="error" role="alert">
-                        <span class="uj-alert-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-                        </span>
-                        <span class="uj-alert-msg">{{ session('error') }}</span>
-                        <button type="button" class="uj-alert-close" @click="show = false"
-                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
-                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                        </button>
-                    </div>
-                @endif
+                {{-- Flash confirmations are not rendered here: they are pushed into the
+                     global toast queue on boot (see the toast seed in the Alpine block below). --}}
                 {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
                      Shown once, copyable; never persisted or logged. --}}
                 @if (session('reset_password'))
@@ -312,6 +288,15 @@
             back() { this.view = 'list'; this.active = null; this.body = ''; this.files = []; },
             scrollDown() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight; }); },
         }));
+        @endif
+
+        // Server flash messages ride the same queue as client-side confirmations, so a
+        // redirect result appears once, as a toast, instead of an in-page banner.
+        @if (session('error'))
+        Alpine.store('toast').error(@js(session('error')));
+        @endif
+        @if (session('ok'))
+        Alpine.store('toast').success(@js(session('ok')));
         @endif
     });
 </script>

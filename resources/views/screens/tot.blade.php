@@ -104,9 +104,6 @@
     ],
 ])
 
-@if (session('ok'))
-    <div style="background:#e7f4ee;border:1px solid var(--success);color:var(--success);font-size:12.5px;border-radius:8px;padding:10px 14px;margin-bottom:16px;">{{ session('ok') }}</div>
-@endif
 
 <style>
     /* ── TOT year lineup, ported from docs/superpowers/specs/2026-07-27-tot-sessions-design.html ── */

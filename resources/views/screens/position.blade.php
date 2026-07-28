@@ -49,13 +49,6 @@
     ],
 ])
 
-@if (session('ok'))
-    <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;border:1px solid var(--hairline);border-radius:10px;background:color-mix(in oklch, var(--success) 8%, #fff);font-size:13px;color:var(--ink);">{{ session('ok') }}</div>
-@endif
-@if (session('error'))
-    <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;border:1px solid var(--hairline);border-radius:10px;background:color-mix(in oklch, var(--error) 8%, #fff);font-size:13px;color:var(--ink);">{{ session('error') }}</div>
-@endif
-
 {{-- ── Stat strip (global context, above the tabs) ──────────────────────── --}}
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
     <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Position bands' : 'Band pangkat'">Position bands</span></div><div class="uj-stat-value">{{ $positions->count() }}</div></div>
