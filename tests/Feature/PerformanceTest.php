@@ -190,6 +190,8 @@ class PerformanceTest extends TestCase
 
     public function test_achievements_screen_renders(): void
     {
+        $this->markTestSkipped('screens/achievements blade removed in the debloat; module.performance is OFF.');
+
         Achievement::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
             'who' => 'Demo', 'title' => 'Did a great thing', 'category' => 'Recognition', 'points' => 40,
@@ -201,6 +203,8 @@ class PerformanceTest extends TestCase
 
     public function test_reviews_screen_renders(): void
     {
+        $this->markTestSkipped('screens/reviews blade removed in the debloat; module.performance is OFF.');
+
         $this->ownReview('completed');
 
         $this->actingInTenant()->get('/app/reviews')->assertOk()->assertSee('2026 H1');

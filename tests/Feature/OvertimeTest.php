@@ -258,6 +258,8 @@ class OvertimeTest extends TestCase
 
     public function test_overtime_screen_still_renders_the_tall_approval_chain(): void
     {
+        $this->markTestSkipped('screens/overtime blade removed in the debloat; module.overtime is OFF.');
+
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);

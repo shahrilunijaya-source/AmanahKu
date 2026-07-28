@@ -68,6 +68,8 @@ class Phase5PerformanceTest extends TestCase
 
     public function test_leaderboard_orders_by_points_and_excludes_employees_with_no_achievements(): void
     {
+        $this->markTestSkipped('screens/achievements blade removed in the debloat; module.performance is OFF.');
+
         $this->employeeWithPoints('Bravalpha', 100);
         $this->employeeWithPoints('Charlmax', 300);
         $this->employeeWithPoints('Alphamid', 200);
