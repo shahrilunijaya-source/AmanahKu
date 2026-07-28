@@ -36,7 +36,7 @@ Spec: [2026-07-28-tot-panel-and-assign-permission-design.md](../specs/2026-07-28
 | Emoji stagger | 30ms per emoji, six total |
 | Emoji hover | `scale(1.4) translateY(-5px)`, 140ms, same easing |
 | Modal backdrop | 150ms fade |
-| Modal card | 180ms scale from `.96` |
+| Modal card | 180ms scale from `.96`, on `cubic-bezier(.22, 1, .36, 1)`. Plain ease-out, no overshoot: a dialog that springs past its size on entry reads cheap. The overshoot curve stays on the flyouts and the hover pops, where it is the point. |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` drops every transform and keeps only the fades |
 
 ### Not in this plan
