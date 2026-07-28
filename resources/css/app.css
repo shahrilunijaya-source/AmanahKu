@@ -505,3 +505,24 @@ header button:hover { background: var(--canvas) !important; }
 .tot-act:hover { color:var(--red); }
 .tot-act[data-on] { color:var(--red); }
 
+.tot-fw { position:relative; display:inline-flex; }
+.tot-fly { position:absolute; bottom:100%; left:-10px; margin-bottom:10px; display:flex;
+  align-items:center; gap:6px; padding:7px 11px; border-radius:999px; background:var(--card);
+  border:1px solid var(--hairline); white-space:nowrap; z-index:20;
+  animation:tot-fly-in 200ms cubic-bezier(.2,.9,.3,1.35) both; }
+@keyframes tot-fly-in { from { opacity:0; transform:translateY(8px) scale(.92); }
+  to { opacity:1; transform:none; } }
+.tot-fly-e { font-size:23px; line-height:1; background:none; border:0; padding:0; cursor:pointer;
+  transform-origin:bottom center; animation:tot-e-in 260ms var(--d) both; }
+@keyframes tot-e-in { from { opacity:0; transform:translateY(10px) scale(.5); }
+  to { opacity:1; transform:none; } }
+.tot-fly-e:hover { transform:scale(1.4) translateY(-5px); transition:transform 140ms cubic-bezier(.2,.9,.3,1.35); }
+.tot-fly-e[data-mine] { filter:none; }
+.tot-fly-e:not([data-mine]) { filter:grayscale(.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tot-fly, .tot-fly-e { animation:tot-fade-in 150ms both; }
+  .tot-fly-e:hover { transform:none; }
+  @keyframes tot-fade-in { from { opacity:0; } to { opacity:1; } }
+}
+
