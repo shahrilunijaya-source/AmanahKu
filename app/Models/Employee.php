@@ -33,6 +33,19 @@ class Employee extends Model
     }
 
     /**
+     * The one name format the whole app shows: `Mohd Hakime Bin Md Nasri "Hakime"`, falling
+     * back to the full legal name when nobody has recorded a nickname. Legal name first, so
+     * a list stays sorted and scannable the way it always was, with the short name people
+     * actually say added on.
+     */
+    protected function displayName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => blank($this->nickname) ? $this->name : $this->name.' "'.$this->nickname.'"',
+        );
+    }
+
+    /**
      * Live workload tiers, driven by a person's OPEN (not-done) work-item count — never a stored
      * column. The `workload` / `workloadLabel` accessors below are the single source of truth;
      * the same-named DB columns are legacy seed data and are no longer read anywhere.

@@ -45,6 +45,9 @@ class WelcomeWizardController extends Controller
         $employee = $this->actingEmployee($request);
 
         $data = $request->validate([
+            // Optional, and the only field on this step that is: the short name colleagues
+            // already use for this person. Nobody is blocked from starting work over it.
+            'nickname' => ['nullable', 'string', 'max:60'],
             'nric' => ['required', 'string', 'max:20'],
             'date_of_birth' => ['required', 'date', 'before:today'],
             'gender' => ['required', 'in:male,female'],
