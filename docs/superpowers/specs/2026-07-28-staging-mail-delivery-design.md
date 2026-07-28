@@ -237,7 +237,7 @@ Outcome recorded 2026-07-28, after deploy `2e515d9`.
 | 2 | A test mail from the staging host reaches a real external inbox | met, Gmail **inbox**, SPF/DKIM/DMARC all pass |
 | 3 | `failed_jobs` is cleared | met by `queue:flush`, **not** `queue:retry`, see below |
 | 4 | An end-to-end invite from the app arrives | **not tested**, see below |
-| 5 | A password reset from the staging login page arrives | **not tested**, see below |
+| 5 | A password reset from the staging login page arrives | met, Fortify reset link delivered |
 | 6 | `laravel.log` rotates daily instead of growing as one file | met, channel is `daily`, old 3.3 MB file truncated |
 | 7 | Console warns when `failed_jobs` is non-empty, tests pass | met, 3 tests, 13 passing with the existing suite |
 | 8 | `.env.staging.example` no longer contains `MAIL_SCHEME=tls` | met |
@@ -247,8 +247,21 @@ Outcome recorded 2026-07-28, after deploy `2e515d9`.
 not being shown to anyone yet, so they were flushed rather than sent. Their signed links
 would have expired 2026-08-02 in any case.
 
-**Criteria 4 and 5 are deliberately unmet.** Both need mail sent to a real person, and the
-decision was to tell nobody about the app yet. The shared transport underneath them is
-proven by criterion 2: same mailer, same credentials, same signing. What is unproven is
-only the app-level path, meaning template rendering and the signed-URL generation. Worth
-running once the first real invite goes out.
+**Criterion 5 was closed the same day**, by requesting a reset for a developer-owned
+address from the staging login page. The link arrived. This is the stronger of the two
+remaining checks: it exercises the whole app-level path, meaning Fortify's notification,
+Blade mail rendering and signed-URL generation, not only the raw transport that criterion
+2 covers.
+
+**Criterion 4 stays deliberately unmet.** An invite has to go to a real person, and the
+decision was to tell nobody about the app yet. What criterion 5 does not cover is
+`MemberInvited` specifically: its own template, its 7-day `temporarySignedRoute`
+activation link, and the fact that it is `ShouldQueue` while Fortify's reset is not. So
+the queued path to a real mailbox is still unproven. Check it when the first real invite
+goes out.
+
+**Note on the HR-side reset button.** `MemberController@resetPassword` sends no email by
+design: it mints a temp password and flashes it once on screen for HR to relay in person
+(AK-SEC-10). It is not part of these criteria and its behaviour did not change here.
+Worth knowing, because "HR reset a password and no email arrived" looks like a mail bug
+and is not one.
