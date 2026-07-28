@@ -168,6 +168,17 @@ class TotController extends Controller
             $rules['held_on'] = ['nullable', 'date'];
         }
 
+        // The editor always renders one link row, so a slot with no links posts a single
+        // empty label/url pair and the rules below would reject the whole save. A row the
+        // user left completely blank is not a link, so drop it before validating. A row
+        // with only one half filled in still fails, which is the error they should see.
+        if (is_array($request->input('links'))) {
+            $request->merge(['links' => array_values(array_filter(
+                $request->input('links'),
+                fn ($link) => is_array($link) && (filled($link['label'] ?? null) || filled($link['url'] ?? null)),
+            ))]);
+        }
+
         // validate() returns only the keys it was given rules for. A non-privileged
         // presenter has no status rule, so a hand-crafted POST carrying status never
         // reaches $data and cannot promote the slot.

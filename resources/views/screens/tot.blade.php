@@ -250,8 +250,11 @@
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
                 $isPresenterOfSlot = $session->exists && $employee && $session->presenter_employee_id === $employee->id;
                 $canEditSlot = $canManage || $canAssignPresenter || $isPresenterOfSlot;
+                // A rejected save redirects back to the whole board, so the slot that failed
+                // names itself in the flashed input and reopens with the error showing.
+                $slotFailed = $session->exists && $errors->any() && old('totform') === (string) $session->id;
             @endphp
-            <div x-data="{ open: false, editing: false }">
+            <div x-data="{ open: {{ $slotFailed ? 'true' : 'false' }}, editing: {{ $slotFailed ? 'true' : 'false' }} }">
                 <button type="button" class="tot-row" @click="open = !open" :aria-expanded="open" style="opacity:{{ $rm['opacity'] }}">
                     <div class="tot-tile" @if ($session->status === 'skipped') data-tone="soft" @endif>
                         <div class="m">{{ $session->session_date->format('M') }}</div>
@@ -446,8 +449,12 @@
                                     </button>
 
                                     <div x-show="editing" x-cloak style="margin-top:14px;">
+                                        @if ($slotFailed)
+                                            <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:14px;max-width:620px;">{{ $errors->first() }}</div>
+                                        @endif
                                         <form method="post" action="{{ route('tot.update', $session) }}">
                                             @csrf
+                                            <input type="hidden" name="totform" value="{{ $session->id }}">
                                             @if ($canManage || $canAssignPresenter)
                                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
                                                     @if ($canManage)

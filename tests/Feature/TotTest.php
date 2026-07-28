@@ -275,6 +275,56 @@ class TotTest extends TestCase
         $this->assertSame('Install git on our own server', $session->fresh()->title);
     }
 
+    /**
+     * The links editor renders one blank row for a slot that has none, so the plain
+     * "open the editor, change the topic, save" path posts an empty label/url pair.
+     * That pair used to fail validation and lose the whole save silently.
+     */
+    public function test_a_slot_with_no_links_saves_although_the_editor_posts_a_blank_link_row(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'title' => 'Install git on our own server',
+            'links' => [['label' => '', 'url' => '']],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame('Install git on our own server', $session->fresh()->title);
+        $this->assertSame([], $session->fresh()->links);
+    }
+
+    /** A blank row is not a link, but a half filled row is still a broken link. */
+    public function test_a_link_row_with_a_label_and_no_url_is_still_rejected(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'links' => [['label' => '', 'url' => ''], ['label' => 'Slides', 'url' => '']],
+        ]);
+
+        $response->assertSessionHasErrors('links.0.url');
+    }
+
+    /** The failed save reopens its own slot on the board, with the reason showing. */
+    public function test_a_rejected_save_reopens_the_slot_it_came_from(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'year' => 2026, 'month' => 3]);
+
+        $this->actingInTenant()->from('/app/tot?year=2026')->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'links' => [['label' => 'Slides', 'url' => 'not a url']],
+        ])->assertRedirect('/app/tot?year=2026');
+
+        $response = $this->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertSee('{ open: true, editing: true }', false);
+        $response->assertSee('must be a valid URL', false);
+    }
+
     public function test_an_employee_cannot_edit_a_slot_they_do_not_present(): void
     {
         $other = Employee::create([
