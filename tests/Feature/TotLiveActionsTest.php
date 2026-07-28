@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotComment;
+use App\Models\TotParticipation;
 use App\Models\TotSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -212,5 +213,18 @@ class TotLiveActionsTest extends TestCase
         ]);
 
         $this->actingInTenant()->getJson("/app/tot/{$foreign->id}/comments")->assertNotFound();
+    }
+
+    public function test_every_action_still_works_as_a_plain_form_post(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍'])->assertRedirect();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/watched")->assertRedirect();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 3])->assertRedirect();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/comment", ['body' => 'Plain post'])->assertRedirect();
+
+        $this->assertSame(1, TotComment::where('session_id', $session->id)->count());
+        $this->assertSame(3, TotParticipation::where('session_id', $session->id)->value('score'));
     }
 }
