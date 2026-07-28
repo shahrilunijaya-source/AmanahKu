@@ -458,6 +458,10 @@ Append to `tests/Feature/TotAssignPermissionTest.php`. Add `use App\Models\Knowl
         $this->grantAssign();
         $session = $this->slot();
         $session->update(['presenter_employee_id' => $this->presenter->id]);
+        // KnowledgeContribution uses BelongsToTenant, which fail-closes on a write with no
+        // tenant context. Seeding it outside a request needs the context set by hand, the
+        // same way TotTest does.
+        app(CurrentTenant::class)->set($this->tenant);
         KnowledgeContribution::mark($this->presenter, 2026, 9);
 
         $this->actingAsManager()->post("/app/tot/{$session->id}", ['presenter_employee_id' => '']);
