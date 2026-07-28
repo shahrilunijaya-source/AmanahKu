@@ -244,7 +244,7 @@
                 $top3 = $session->exists ? collect($reactionCounts[$session->id] ?? [])->sortDesc()->take(3) : collect();
                 $myReact = $session->exists ? ($myReactions[$session->id] ?? []) : [];
                 $myPart = $session->exists ? ($myParticipation[$session->id] ?? null) : null;
-                $sessionComments = $session->exists ? ($comments[$session->id] ?? collect()) : collect();
+                $sessionCommentCount = $session->exists ? ($commentCounts[$session->id] ?? 0) : 0;
                 $sessionScore = $session->exists ? ($scores[$session->id] ?? null) : null;
                 $watched = $session->exists ? ($watchedCounts[$session->id] ?? 0) : 0;
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
@@ -391,49 +391,7 @@
 
                             {{-- Discussion --}}
                             <div class="tot-rule">
-                                <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:14px;">
-                                    <span style="font-size:14px;font-weight:600;color:var(--ink);">{{ count($sessionComments) }} <span x-text="$store.ui.lang==='en' ? @js(count($sessionComments) === 1 ? 'comment' : 'comments') : 'komen'">{{ count($sessionComments) === 1 ? 'comment' : 'comments' }}</span></span>
-                                    <span class="tot-note" x-text="$store.ui.lang==='en' ? 'Oldest first' : 'Terlama dahulu'">Oldest first</span>
-                                </div>
-
-                                @forelse ($sessionComments as $comment)
-                                    <div style="display:flex;gap:11px;margin-bottom:16px;">
-                                        <div class="tot-av" style="background:{{ $comment->employee->avatar_color ?? '#3a6ea5' }};color:#fff;">{{ $comment->employee->initials ?? '–' }}</div>
-                                        <div style="min-width:0;flex:1;">
-                                            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
-                                                <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $comment->employee->name }}</span>
-                                                @if ($session->presenter_employee_id && $comment->employee_id === $session->presenter_employee_id)
-                                                    <span class="tot-presenter-tag" x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
-                                                @endif
-                                                <span class="tot-note" style="font-size:12px;">{{ $comment->created_at?->format('j M') }}</span>
-                                                @if ($privileged || ($employee && $comment->employee_id === $employee->id))
-                                                    <form method="post" action="{{ route('tot.comments.delete', $comment) }}" style="margin-left:auto;">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" style="font-size:11px;color:var(--muted);background:none;cursor:pointer;">&times;</button>
-                                                    </form>
-                                                @endif
-                                            </div>
-                                            <div style="font-size:13.5px;color:var(--body);margin-top:2px;">{{ $comment->body }}</div>
-                                        </div>
-                                    </div>
-                                @empty
-                                    <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet. Start the discussion.</div>
-                                @endforelse
-
-                                @if ($canParticipate)
-                                    <form method="post" action="{{ route('tot.comment', $session) }}" style="display:flex;gap:11px;align-items:flex-start;max-width:620px;">
-                                        @csrf
-                                        <div class="tot-av">{{ $employee->initials ?? '–' }}</div>
-                                        <div style="flex:1;">
-                                            <input type="text" name="body" maxlength="2000" required class="tot-field" placeholder="Ask a question or add what you learned" :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'">
-                                            <div style="display:flex;align-items:center;gap:9px;margin-top:8px;">
-                                                <button type="submit" class="tot-btn-p" style="height:34px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Post comment' : 'Hantar komen'">Post comment</button>
-                                                <span class="tot-note" x-text="$store.ui.lang==='en' ? 'Everyone in the workspace can read this.' : 'Semua orang di ruang kerja ini boleh membacanya.'">Everyone in the workspace can read this.</span>
-                                            </div>
-                                        </div>
-                                    </form>
-                                @endif
+                                <div class="tot-note">{{ $sessionCommentCount }} <span x-text="$store.ui.lang==='en' ? 'comments' : 'komen'">comments</span></div>
                             </div>
 
                             {{-- Edit this slot. HR and management change everything; the presenter

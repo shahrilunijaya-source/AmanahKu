@@ -155,4 +155,62 @@ class TotLiveActionsTest extends TestCase
             ->assertJsonPath('comments', 0)
             ->assertJsonPath('id', $session->id);
     }
+
+    public function test_the_thread_loads_on_demand(): void
+    {
+        $session = $this->slot();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/comment", ['body' => 'First']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('comments.0.body', 'First')
+            ->assertJsonPath('comments.0.name', 'Demo')
+            ->assertJsonPath('comments.0.canDelete', true);
+    }
+
+    public function test_the_thread_carries_only_this_session(): void
+    {
+        $mine = $this->slot();
+        $other = TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 10, 'status' => 'planned',
+        ]);
+        $this->actingInTenant()->post("/app/tot/{$mine->id}/comment", ['body' => 'Mine']);
+        $this->actingInTenant()->post("/app/tot/{$other->id}/comment", ['body' => 'Other']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$mine->id}/comments")
+            ->assertOk()
+            ->assertJsonCount(1, 'comments')
+            ->assertJsonPath('comments.0.body', 'Mine');
+    }
+
+    public function test_the_presenter_gets_the_anonymous_notes_with_the_thread(): void
+    {
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->employee->id]);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 5, 'note' => 'Clear slides']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('notes', ['Clear slides']);
+    }
+
+    public function test_a_plain_viewer_gets_no_notes(): void
+    {
+        $session = $this->slot();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 5, 'note' => 'Clear slides']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('notes', []);
+    }
+
+    public function test_a_foreign_tenant_thread_is_not_readable(): void
+    {
+        $other = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BT']);
+        $foreign = TotSession::create([
+            'tenant_id' => $other->id, 'year' => 2026, 'month' => 11, 'status' => 'planned',
+        ]);
+
+        $this->actingInTenant()->getJson("/app/tot/{$foreign->id}/comments")->assertNotFound();
+    }
 }

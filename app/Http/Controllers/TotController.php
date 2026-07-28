@@ -63,7 +63,7 @@ class TotController extends Controller
             'myParticipation' => $this->myParticipation($ids, $employee),
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
-            'comments' => $this->commentsBySession($ids),
+            'commentCounts' => $this->commentCounts($ids),
         ];
     }
 
@@ -241,6 +241,43 @@ class TotController extends Controller
         return $request->expectsJson()
             ? response()->json($this->sessionState($request, $session))
             : back()->with('ok', 'Comment posted.');
+    }
+
+    /**
+     * One session's thread, oldest first. Loaded when the comment modal opens rather than
+     * with the screen, so twelve months of discussion no longer ride along with every page
+     * view of the year lineup.
+     */
+    public function comments(Request $request, TotSession $session): JsonResponse
+    {
+        $this->assertSameTenant($session);
+
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $rows = TotComment::with('employee')
+            ->where('session_id', $session->id)
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (TotComment $c) => [
+                'id' => $c->id,
+                'name' => $c->employee->name,
+                'initials' => $c->employee->initials ?? '',
+                'color' => $c->employee->avatar_color ?? '#3a6ea5',
+                'presenter' => $session->presenter_employee_id !== null
+                    && $c->employee_id === $session->presenter_employee_id,
+                'body' => $c->body,
+                'at' => $c->created_at?->format('j M') ?? '',
+                'canDelete' => $privileged || ($employee && $c->employee_id === $employee->id),
+            ])
+            ->all();
+
+        $summary = $this->visibleScores(collect([$session->id => $session]), $employee, $privileged);
+
+        return response()->json([
+            'comments' => $rows,
+            'notes' => $summary[$session->id]['notes'] ?? [],
+        ]);
     }
 
     /** The author removes their own comment; HR and management may remove any. */
@@ -696,24 +733,23 @@ class TotController extends Controller
     }
 
     /**
-     * Thread contents per session, oldest first, so a question asked before the Saturday and
-     * a follow-up posted after it read in the order they happened.
+     * How many comments each session has. The card shows a number; the thread itself loads
+     * only when somebody opens the modal.
      *
      * @param  list<int>  $ids
-     * @return array<int, Collection<int, TotComment>>
+     * @return array<int, int>
      */
-    private function commentsBySession(array $ids): array
+    private function commentCounts(array $ids): array
     {
         if ($ids === []) {
             return [];
         }
 
-        return TotComment::with('employee')
-            ->whereIn('session_id', $ids)
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get()
+        return TotComment::whereIn('session_id', $ids)
+            ->selectRaw('session_id, count(*) as aggregate')
             ->groupBy('session_id')
+            ->pluck('aggregate', 'session_id')
+            ->map(fn ($n) => (int) $n)
             ->all();
     }
 

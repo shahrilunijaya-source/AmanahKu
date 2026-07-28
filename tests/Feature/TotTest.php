@@ -862,7 +862,11 @@ class TotTest extends TestCase
 
         $response = $this->actingInTenant()->get('/app/tot?year=2026');
 
-        $response->assertViewHas('comments', fn ($comments) => count($comments[$session->id]) === 1);
+        $response->assertViewHas('commentCounts', fn ($counts) => ($counts[$session->id] ?? 0) === 1);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('comments.0.body', 'Saved this one.');
     }
 
     // ── Screen contents ───────────────────────────────────────────
