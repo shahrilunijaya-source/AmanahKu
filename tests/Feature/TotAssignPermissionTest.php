@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppNotification;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
 use App\Models\Tenant;
@@ -255,5 +257,52 @@ class TotAssignPermissionTest extends TestCase
         ])->assertForbidden();
 
         $this->assertSame(0, TotSession::where('year', 2027)->count());
+    }
+
+    public function test_assigning_notifies_the_new_presenter_once(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $presenterUser = User::create([
+            'name' => 'Nabil', 'email' => 'nabil@example.com', 'password' => Hash::make('password'),
+        ]);
+        $presenterUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $this->presenter->update(['user_id' => $presenterUser->id]);
+        $session = $this->slot();
+
+        $this->actingAsManager()
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $this->presenter->id]);
+        $this->actingAsManager()
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $this->presenter->id]);
+
+        $this->assertSame(1, AppNotification::where('user_id', $presenterUser->id)->count());
+        $this->assertStringContainsString(
+            'presenting TOT',
+            (string) AppNotification::where('user_id', $presenterUser->id)->value('title')
+        );
+    }
+
+    public function test_clearing_a_presenter_sends_nothing(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->presenter->id]);
+
+        $this->actingAsManager()->post("/app/tot/{$session->id}", ['presenter_employee_id' => '']);
+
+        $this->assertSame(0, AppNotification::count());
+    }
+
+    public function test_every_presenter_change_writes_an_audit_row(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+
+        $this->actingAsManager()
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $this->presenter->id]);
+
+        $this->assertSame(1, AuditLog::where('action', 'Assigned TOT presenter')->count());
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
@@ -121,6 +122,8 @@ class TotController extends Controller
 
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
+        $this->announcePresenter($session, null);
+
         return back()->with('ok', 'TOT slot saved.');
     }
 
@@ -170,6 +173,7 @@ class TotController extends Controller
         $data = $request->validate($rules);
 
         $wasDone = $session->status === 'done';
+        $previousPresenterId = $session->presenter_employee_id;
 
         $session->fill($data);
 
@@ -189,6 +193,8 @@ class TotController extends Controller
         }
 
         $session->save();
+
+        $this->announcePresenter($session, $previousPresenterId);
 
         // Credit only on the transition INTO done, and only once. Presenting is the thing
         // that earns the month; editing the title afterwards is not.
@@ -396,6 +402,40 @@ class TotController extends Controller
         AuditLog::record('Deleted TOT slot', $label);
 
         return back()->with('ok', 'TOT slot removed.');
+    }
+
+    /**
+     * Tell the newly assigned presenter, and record who decided it.
+     *
+     * Only fires when the linked employee actually changed, so re-saving the same person
+     * is silent. Clearing a presenter announces nothing: the person removed sees it on the
+     * screen, and a "you are no longer presenting" message is noise. In-app only, never
+     * email, matching the rest of the TOT board.
+     */
+    private function announcePresenter(TotSession $session, ?int $previousEmployeeId): void
+    {
+        if ($session->presenter_employee_id === $previousEmployeeId) {
+            return;
+        }
+
+        AuditLog::record(
+            'Assigned TOT presenter',
+            sprintf('%04d-%02d', $session->year, $session->month)
+        );
+
+        if ($session->presenter_employee_id === null) {
+            return;
+        }
+
+        $session->loadMissing('presenter');
+
+        AppNotification::send(
+            $session->presenter?->user_id,
+            'You are presenting TOT on '.$session->session_date->format('j F Y'),
+            'Pick your topic and upload your slides on the TOT board.',
+            route('app.screen', 'tot').'?year='.$session->year,
+            "tot:{$session->id}:assigned:{$session->presenter_employee_id}",
+        );
     }
 
     /**
