@@ -56,6 +56,7 @@ class TotController extends Controller
             'privileged' => $privileged,
             'canManage' => $privileged,
             'canAssignPresenter' => $this->canAssignPresenter($request),
+            'assignableEmployees' => $this->assignableEmployees(),
             'reactionCounts' => $this->reactionCounts($ids),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
@@ -484,6 +485,21 @@ class TotController extends Controller
             403,
             'Only HR, management, the TOT organiser, or the presenter of this session can edit it.'
         );
+    }
+
+    /**
+     * The people the presenter picker offers, by name rather than by database id: the person
+     * who runs the roster is not HR and has no reason to know anybody's numeric id.
+     *
+     * Employee::active() (not status = 'active'), because archiving is the separate
+     * archived_at column. Filtering on the status column would drop probation and on-leave
+     * staff, who present TOT sessions like everybody else.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function assignableEmployees(): Collection
+    {
+        return Employee::active()->orderBy('name')->get(['id', 'name', 'nickname']);
     }
 
     /**

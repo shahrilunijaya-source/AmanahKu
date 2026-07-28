@@ -454,12 +454,21 @@
                                                         <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
                                                     @endif
                                                     @if ($canAssignPresenter)
-                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID)' : 'Pembentang (ID pekerja)'">Presenter (employee ID)</label><input class="tot-field" type="number" name="presenter_employee_id" value="{{ $session->presenter_employee_id }}"></div>
+                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</label>
+                                                            <select class="tot-field" name="presenter_employee_id">
+                                                                {{-- Blank first, so a presenter can be cleared: an empty value nulls
+                                                                     both presenter_employee_id and presenter_name server-side. --}}
+                                                                <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
+                                                                @foreach ($assignableEmployees as $person)
+                                                                    <option value="{{ $person->id }}" @selected($session->presenter_employee_id === $person->id)>{{ $person->display_name }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        </div>
                                                     @endif
                                                 </div>
                                             @endif
                                             @if ($canManage)
-                                                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Linking an employee ID overrides the presenter name above, everywhere this session is shown.' : 'Mengaitkan ID pekerja mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Linking an employee ID overrides the presenter name above, everywhere this session is shown.</div>
+                                                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Picking a presenter overrides the presenter name above, everywhere this session is shown.' : 'Memilih pembentang mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Picking a presenter overrides the presenter name above, everywhere this session is shown.</div>
                                                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                                                     <select class="tot-field" name="status">
                                                         @foreach (\App\Models\TotSession::STATUSES as $st)
@@ -528,7 +537,14 @@
                                         @if ($canManage)
                                             <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
                                         @endif
-                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID, optional)' : 'Pembentang (ID pekerja, pilihan)'">Presenter (employee ID, optional)</label><input class="tot-field" type="number" name="presenter_employee_id"></div>
+                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (optional)' : 'Pembentang (pilihan)'">Presenter (optional)</label>
+                                            <select class="tot-field" name="presenter_employee_id">
+                                                <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
+                                                @foreach ($assignableEmployees as $person)
+                                                    <option value="{{ $person->id }}">{{ $person->display_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
                                     @if ($canManage)
                                         <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>

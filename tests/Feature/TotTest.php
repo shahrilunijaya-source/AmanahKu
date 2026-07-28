@@ -840,4 +840,112 @@ class TotTest extends TestCase
 
         $response->assertSee('Only Demo and management see scores', false);
     }
+
+    // ── Presenter picker ──────────────────────────────────────────
+
+    /**
+     * Employee::active() is the right scope, not status = 'active': archiving lives in the
+     * separate archived_at column, and probation / on-leave staff present sessions too.
+     */
+    public function test_the_picker_lists_probation_staff_and_leaves_out_archived_ones(): void
+    {
+        $probation = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Nur Aizatul Aliya', 'nickname' => 'Aizat',
+            'status' => 'probation', 'workload' => 'green',
+        ]);
+        $archived = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Gone Already',
+            'status' => 'active', 'workload' => 'green', 'archived_at' => now(),
+        ]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertViewHas('assignableEmployees', function ($people) use ($probation, $archived) {
+            $ids = $people->pluck('id')->all();
+
+            return in_array($probation->id, $ids, true) && ! in_array($archived->id, $ids, true);
+        });
+    }
+
+    public function test_the_picker_never_offers_another_tenants_staff(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = Employee::create([
+            'tenant_id' => $otherTenant->id, 'name' => 'Foreign',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertViewHas(
+            'assignableEmployees',
+            fn ($people) => ! in_array($foreign->id, $people->pluck('id')->all(), true)
+        );
+    }
+
+    /**
+     * The roster owner is not HR and does not know anybody's database id, so the presenter
+     * field must be a name dropdown. assertDontSee targets presenter_employee_id itself:
+     * name="title" and name="description" also belong to the layout's Knowledge Bank share
+     * and feedback panels, so asserting on those would answer about a different form.
+     */
+    public function test_the_presenter_field_is_a_name_dropdown_not_a_numeric_id_box(): void
+    {
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $this->makeSession();
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertSee('<select class="tot-field" name="presenter_employee_id">', false);
+        $response->assertDontSee('type="number" name="presenter_employee_id"', false);
+        $response->assertSee('Mohd Hakime Bin Md Nasri &quot;Hakime&quot;', false);
+    }
+
+    public function test_assigning_a_presenter_through_the_dropdown_saves(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_name' => 'Hakime']);
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => (string) $hakime->id])
+            ->assertRedirect();
+
+        $session->refresh();
+        $this->assertSame($hakime->id, $session->presenter_employee_id);
+        $this->assertNull($session->presenter_name);
+    }
+
+    /** The blank first option is how a presenter gets cleared again. */
+    public function test_the_blank_option_clears_the_presenter(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $hakime->id]);
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => ''])
+            ->assertRedirect();
+
+        $session->refresh();
+        $this->assertNull($session->presenter_employee_id);
+        $this->assertNull($session->presenter_name);
+    }
 }
