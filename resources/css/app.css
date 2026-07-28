@@ -526,6 +526,14 @@ header button:hover { background: var(--canvas) !important; }
 .tot-sc:hover { transform:scale(1.15); border-color:var(--red); color:var(--red); }
 .tot-sc[data-mine] { border-color:var(--red); color:var(--red); font-weight:600; }
 
+/* The rating flyout stacks a scores row over a sentence, so the pill radius the single-row
+   emoji picker uses reads as a lozenge here. Rounded rectangle, and wide enough that the
+   sentence sets on two lines rather than three. */
+/* Explicit width, because an absolutely positioned box shrink-to-fits against its containing
+   block, and that is the ~30px star wrapper. Without this the sentence wraps into a column
+   barely wider than the five circles. */
+.tot-fly-rate { border-radius:14px; padding:12px 14px; width:300px; max-width:calc(100vw - 32px); }
+
 /* On a phone the rating flyout is wider than the screen, because it carries the five score
    circles and the full "only the presenter and management see scores" sentence on one nowrap
    line. Anchoring it to the button cannot help: no anchor fits a 414px box in a 375px viewport.

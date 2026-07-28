@@ -374,7 +374,7 @@
                                          who scores and then moves the mouse away reopens on the note
                                          box instead of the scores, with no way back to change the
                                          number until the box has been focused and blurred. --}}
-                                    <span class="tot-fly" x-show="flyout === 'rate'" x-cloak
+                                    <span class="tot-fly tot-fly-rate" x-show="flyout === 'rate'" x-cloak
                                           @mouseleave="flyout = null; noting = false"
                                           @keydown.escape.window="flyout = null; noting = false"
                                           x-data="{ noting: false }">
@@ -391,7 +391,7 @@
                                                 </span>
                                                 {{-- white-space:normal because .tot-fly is nowrap, which the
                                                      sentence would otherwise inherit and run past the pill. --}}
-                                                <span class="tot-note" style="font-size:11.5px;max-width:230px;white-space:normal;line-height:1.4;"
+                                                <span class="tot-note" style="font-size:11.5px;max-width:300px;white-space:normal;line-height:1.4;"
                                                       x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
                                             </span>
                                         </template>
