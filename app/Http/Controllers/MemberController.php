@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 class MemberController extends Controller
@@ -194,9 +195,13 @@ class MemberController extends Controller
      * sign-in (password_change_required), and hands the credential back to the acting
      * HR user ONCE via a flash so they can relay it in person — the deliberate
      * exception to the never-echo-a-credential rule (AK-SEC-10), for the case where
-     * an employee has forgotten their password and email is unreliable. The plaintext
+     * an employee has no working email or is standing at HR's desk. The plaintext
      * is never written to the audit log. Existing two-factor enrolment is left intact,
      * so a reset alone cannot bypass 2FA.
+     *
+     * The member is ALSO emailed a standard reset link, so they can recover without
+     * anyone reading a password out loud. The flash reports whether that mail went
+     * out, because HR needs to know whether to relay the password by hand.
      */
     public function resetPassword(Request $request, Employee $employee): RedirectResponse
     {
@@ -232,7 +237,34 @@ class MemberController extends Controller
         return back()->with('reset_password', [
             'name' => $employee->name,
             'password' => $tempPassword,
+            'email' => $user->email,
+            'mail' => $this->mailResetLink($user),
         ]);
+    }
+
+    /**
+     * Best-effort reset-link mail for a member whose password HR just rotated.
+     *
+     * Deliberately swallows every failure. The password has ALREADY been rotated by the
+     * time this runs, so letting an exception escape would lose the flash carrying the
+     * replacement credential — the member would be locked out and HR would have nothing
+     * to give them. A failed email is an inconvenience; a lost flash is a lockout.
+     *
+     * @return 'sent'|'throttled'|'failed' for the flash to report back to HR
+     */
+    private function mailResetLink(User $user): string
+    {
+        try {
+            return match (Password::broker()->sendResetLink(['email' => $user->email])) {
+                Password::RESET_LINK_SENT => 'sent',
+                Password::RESET_THROTTLED => 'throttled',
+                default => 'failed',
+            };
+        } catch (\Throwable $e) {
+            report($e);
+
+            return 'failed';
+        }
     }
 
     /**

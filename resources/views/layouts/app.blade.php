@@ -95,6 +95,15 @@
                                         <span x-show="copied" x-cloak x-text="$store.ui.lang==='en' ? 'Copied' : 'Disalin'"></span>
                                     </button>
                                 </div>
+                                {{-- Whether the reset link also went out by email. HR needs this to
+                                     know if relaying the password by hand is actually necessary. --}}
+                                @if (($rp['mail'] ?? null) === 'sent')
+                                    <p style="font-size:11.5px;margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was also emailed to {{ $rp['email'] ?? '' }}, so they can set their own password without this.' : 'Pautan tetapan semula juga dihantar ke {{ $rp['email'] ?? '' }}, jadi mereka boleh menetapkan kata laluan sendiri tanpa ini.'"></span></p>
+                                @elseif (($rp['mail'] ?? null) === 'throttled')
+                                    <p style="font-size:11.5px;margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was emailed recently, so another was not sent. Give them the password above.' : 'Pautan tetapan semula baru sahaja dihantar, jadi tiada yang baharu dihantar. Berikan kata laluan di atas kepada mereka.'"></span></p>
+                                @elseif (($rp['mail'] ?? null) === 'failed')
+                                    <p style="font-size:11.5px;margin:9px 0 0;color:#a8501a;font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'The reset email could not be sent. You must give them the password above.' : 'E-mel tetapan semula tidak dapat dihantar. Anda mesti berikan kata laluan di atas kepada mereka.'"></span></p>
+                                @endif
                             </div>
                             <button @click="show = false" style="color:#7a5314;font-size:16px;flex-shrink:0;">×</button>
                         </div>
