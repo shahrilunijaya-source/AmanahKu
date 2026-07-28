@@ -20,6 +20,8 @@ Spec: [2026-07-28-tot-panel-and-assign-permission-design.md](../specs/2026-07-28
 - **Never remove the redirect branch.** Each action keeps `back()->with('ok', ...)` for non-JSON requests. This is what keeps the screen usable without JavaScript and what keeps the existing `TotTest` assertions valid.
 - **Scores stay private.** `visibleScores()` decides who may see a score. The JSON must apply the same rule, and no response may ever carry a rater's name or a per-person score.
 - **Reactions and ratings never show names**, only counts.
+- **The rater-facing reassurance sentence is not optional and is not shortened.** It reads "Only <presenter> and management see scores, and never with your name." and it belongs beside the rating control, not only in the collapsible guide panel at the top of the screen. It is the only thing telling somebody their score is safe to give honestly.
+- **A test that starts failing is a finding, not an obstacle.** Never change a test's fixture or delete a test to make a suite green. Report the conflict and stop. A previous attempt on this plan changed a privacy test so that its rater was a different person, which turned the suite green and removed the exact case the test existed to cover.
 - Fetch calls follow the pattern already in `resources/views/layouts/app.blade.php` (search for `X-CSRF-TOKEN`): the token comes from `document.querySelector('meta[name=csrf-token]').content` and the request sends `Accept: application/json`.
 - Use `bun` for any JS tooling, never npm, node, yarn or pnpm. Run `bun run build` and commit `public/build` whenever Blade classes change.
 - The app runs under Lerd at `http://localhost:9100`, not `amanahku.test`. Sign in with no password at `http://localhost:9100/dev/login?email=<account>&tenant=unijaya`.
@@ -888,8 +890,8 @@ Inside the `<span class="tot-fw">` that wraps the star, directly before the butt
                 <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
                         @click="rate({{ $n }}); noting = true">{{ $n }}</button>
             @endforeach
-            <span class="tot-note" style="font-size:11.5px;padding-left:4px;"
-                  x-text="$store.ui.lang==='en' ? 'No names' : 'Tanpa nama'">No names</span>
+            <span class="tot-note" style="font-size:11.5px;padding-left:4px;max-width:210px;"
+                  x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
         </span>
     </template>
     <template x-if="noting">
@@ -906,7 +908,97 @@ Inside the `<span class="tot-fw">` that wraps the star, directly before the butt
 
 The score saves on the click, before the note box appears. Somebody who picks a number and walks away has still rated. The note saves on Enter or on blur, and it is prefilled from `myNote` so an existing note can be edited rather than retyped.
 
-This is the one place the screen echoes a rater's own note back to them. That is safe and is not a change to the privacy rule: `sessionState()` returns `myNote` only to its own author, and no view ever renders another person's note next to a name.
+### The prefill reverses an existing decision, deliberately
+
+The code this replaces carried the opposite rule, and it said so:
+
+> Deliberately never prefilled with the rater's own note text: ratings are pseudonymous even to their own author, so the screen never echoes a note back.
+
+That is now overruled by product decision: a rater sees and edits their own note. `sessionState()` returns `myNote` only to its own author, and no view ever renders another person's note beside a name, so the promise that matters, that nobody can tie a note to a person, is unchanged.
+
+**Three things must move together with the prefill.** Doing only some of them leaves the feature incoherent.
+
+**1. Restore the page seed.** `resources/views/screens/tot.blade.php` currently has `myNote: null` in the `totCard(...)` seed with a comment explaining why. Replace both the value and the comment:
+
+```blade
+                        myScore: @js($myPart?->score),
+                        myNote: @js($myPart?->note),
+```
+
+**2. Change what a blank note means in `TotController::rate()`.** Today it uses `$request->filled('note')`, so an empty submit preserves the saved note. That was correct only because no field existed to resubmit from. With a prefilled box, an empty box is a deliberate clear, and this is also what fixes the recorded limitation that a rater can never clear a note.
+
+The rule is: if the request carries the `note` key, take it verbatim, including empty, which becomes null. If the key is absent, leave the note untouched. The absent case is load-bearing, because the flyout's score buttons post a score with no note and must not wipe anything.
+
+Replace both occurrences in `rate()`, the one in the main path and the one in the race-recovery catch, with:
+
+```php
+        if ($request->has('note')) {
+            $row->note = $request->input('note') === '' ? null : $data['note'];
+        }
+```
+
+Update the long comment above the first one. It currently explains why a blank submit preserves the note. Replace that reasoning with: the box is prefilled from the rater's own note, so a blank box now means clear it, while a score-only submit from the flyout carries no note key at all and leaves the note alone.
+
+**3. Fix the test that this changes.** `test_a_plain_employee_never_receives_scores` in `tests/Feature/TotTest.php` puts the viewer's own note on the session and asserts `assertDontSee('Very good')`. The viewer's own note now appears in the page on purpose, so that assertion becomes wrong.
+
+Do NOT weaken it by moving the note onto a different employee, which is what a previous attempt did. Cover both halves instead:
+
+```php
+    public function test_a_plain_employee_never_receives_scores(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Presenter',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $other->id]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'My own words',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'score' => 2, 'note' => 'Somebody elses words',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        // No aggregate, and never another person's words.
+        $response->assertViewHas('scores', fn ($scores) => $scores === []);
+        $response->assertDontSee('Somebody elses words');
+
+        // Their own note comes back so the flyout can prefill it for editing.
+        $response->assertSee('My own words', false);
+    }
+```
+
+Add a test for the clear path too:
+
+```php
+    public function test_a_rater_can_clear_their_own_note(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'First thoughts']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => '']);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertNull($row->note);
+    }
+
+    public function test_a_score_only_submit_leaves_an_existing_note_alone(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Keep me']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 2]);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertSame('Keep me', $row->note);
+        $this->assertSame(2, (int) $row->score);
+    }
+```
 
 - [ ] **Step 2: Add the styles**
 
