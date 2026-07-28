@@ -379,7 +379,10 @@
                                                     <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
                                                             @click="rate({{ $n }}); noting = true">{{ $n }}</button>
                                                 @endforeach
-                                                <span class="tot-note" style="font-size:11.5px;padding-left:4px;max-width:210px;"
+                                                {{-- white-space:normal because .tot-fly is nowrap, which the
+                                                     sentence inherits, so max-width alone cannot wrap it and
+                                                     the text runs outside the pill. --}}
+                                                <span class="tot-note" style="font-size:11.5px;padding-left:4px;max-width:210px;white-space:normal;line-height:1.35;"
                                                       x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
                                             </span>
                                         </template>
