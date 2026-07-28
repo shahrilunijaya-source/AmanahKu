@@ -381,7 +381,9 @@ allowed to see scores, and never a name or the anonymous notes."
 
 **Interfaces:**
 - Consumes: `assertSameTenant()`.
-- Produces: `public function comments(Request $request, TotSession $session): JsonResponse` returning `['comments' => list<array{id: int, name: string, initials: string, color: string, presenter: bool, body: string, at: string, canDelete: bool}>]`, on the route named `tot.comments` at `GET /app/tot/{session}/comments`. Also replaces the `comments` key in `screenData()` with `commentCounts` of shape `array<int, int>`.
+- Produces: `public function comments(Request $request, TotSession $session): JsonResponse` returning `['comments' => list<array{id: int, name: string, initials: string, color: string, presenter: bool, body: string, at: string, canDelete: bool}>, 'notes' => list<string>]`, on the route named `tot.comments` at `GET /app/tot/{session}/comments`. Also replaces the `comments` key in `screenData()` with `commentCounts` of shape `array<int, int>`.
+
+`notes` is the anonymous rating notes, and it is `[]` for anybody `visibleScores()` would not show scores to. It rides on this endpoint rather than on `sessionState()` because `sessionState()` answers every action, including ones an ordinary rater triggers, and the notes must only ever travel to a presenter or to management.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -413,6 +415,27 @@ Append to `tests/Feature/TotLiveActionsTest.php`:
             ->assertOk()
             ->assertJsonCount(1, 'comments')
             ->assertJsonPath('comments.0.body', 'Mine');
+    }
+
+    public function test_the_presenter_gets_the_anonymous_notes_with_the_thread(): void
+    {
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->employee->id]);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 5, 'note' => 'Clear slides']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('notes', ['Clear slides']);
+    }
+
+    public function test_a_plain_viewer_gets_no_notes(): void
+    {
+        $session = $this->slot();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 5, 'note' => 'Clear slides']);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('notes', []);
     }
 
     public function test_a_foreign_tenant_thread_is_not_readable(): void
@@ -476,7 +499,12 @@ In `app/Http/Controllers/TotController.php`, add this public method directly aft
             ])
             ->all();
 
-        return response()->json(['comments' => $rows]);
+        $summary = $this->visibleScores(collect([$session->id => $session]), $employee, $privileged);
+
+        return response()->json([
+            'comments' => $rows,
+            'notes' => $summary[$session->id]['notes'] ?? [],
+        ]);
     }
 ```
 
@@ -594,6 +622,7 @@ Alpine.data('totCard', (seed) => ({
     flyout: null,
     modalOpen: false,
     thread: null,
+    notes: [],
     busy: false,
 
     // Total across every emoji, which is what the heart shows.
@@ -704,9 +733,9 @@ The star's number renders only when `score` is present, and `sessionState()` dec
 
 - [ ] **Step 5: Delete the rating block**
 
-Delete the whole `@if ($canParticipate || $sessionScore)` block (lines 347 to 379), including the score-summary paragraph and its note list. The average and the count now live on the star. The anonymous note list moves nowhere for now; if the presenter needs to read notes, that is a separate change and not in this plan.
+Delete the whole `@if ($canParticipate || $sessionScore)` block (lines 347 to 379), including the score-summary paragraph and its note list.
 
-Say in your report that the note list is gone from the card, so it is a deliberate, visible loss rather than something discovered later.
+The average and the count move to the star. **The anonymous note list moves into the comment modal**, built in Task 6, where a presenter reads their feedback in one place. It is not dropped. Do not delete anything here until you have read Task 6, so you know where each piece lands.
 
 - [ ] **Step 6: Add the styles**
 
@@ -933,9 +962,12 @@ In the `totCard` component, replace the stub from Task 3 with:
                 headers: { 'Accept': 'application/json' },
             });
             if (!res.ok) throw new Error(res.status);
-            this.thread = (await res.json()).comments;
+            const payload = await res.json();
+            this.thread = payload.comments;
+            this.notes = payload.notes;
         } catch (e) {
             this.thread = [];
+            this.notes = [];
             Alpine.store('toast').error(
                 Alpine.store('ui').lang === 'en'
                     ? 'Could not load the discussion.'
@@ -993,6 +1025,19 @@ Delete the placeholder line added in Task 2 (the `<div class="tot-note">{{ $sess
         </div>
 
         <div class="tot-modal-body">
+            {{-- Anonymous rating notes. Present only for a viewer the server decided may see
+                 scores, which is the presenter and management. Never a name, never a score
+                 beside a note. This is where the note list from the old card lives now. --}}
+            <template x-if="notes.length">
+                <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--hairline-soft);">
+                    <div class="tot-note" style="margin-bottom:7px;"
+                         x-text="$store.ui.lang==='en' ? 'Anonymous notes from raters' : 'Nota tanpa nama daripada penilai'">Anonymous notes from raters</div>
+                    <template x-for="(n, i) in notes" :key="i">
+                        <div style="font-size:13.5px;color:var(--body);margin-bottom:5px;" x-text="n"></div>
+                    </template>
+                </div>
+            </template>
+
             <template x-if="thread === null">
                 <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
             </template>
@@ -1065,6 +1110,8 @@ bun run build
 At `/app/tot`: press the speech bubble. The modal opens, shows a loading line, then the thread. Post a comment; it appears and the count on the card goes up without a page reload. Delete your own comment; it disappears and the count goes down. Press Escape; the modal closes. Click the backdrop; it closes. Open a month nobody has commented on; the empty state reads correctly in both languages.
 
 Check the `ui` store's language toggle while the modal is open, and confirm every string switches.
+
+Then sign in as the presenter of a rated slot and open the modal. The anonymous notes must appear above the thread, with no name and no score beside any of them. Sign in as an ordinary employee who is not the presenter, open the same modal, and confirm the notes section is not there at all.
 
 - [ ] **Step 5: Run the suite and commit**
 
