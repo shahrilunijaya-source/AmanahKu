@@ -723,6 +723,31 @@ class TotTest extends TestCase
         $this->assertSame('Genuinely useful.', $row->note);
     }
 
+    public function test_a_rater_can_clear_their_own_note(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'First thoughts']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => '']);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertNull($row->note);
+    }
+
+    public function test_a_score_only_submit_leaves_an_existing_note_alone(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Keep me']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 2]);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertSame('Keep me', $row->note);
+        $this->assertSame(2, (int) $row->score);
+    }
+
     // ── Rating privacy ────────────────────────────────────────────
 
     public function test_a_plain_employee_never_receives_scores(): void
@@ -734,13 +759,21 @@ class TotTest extends TestCase
         $session = $this->makeSession(['presenter_employee_id' => $other->id]);
         TotParticipation::create([
             'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
-            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'Very good',
+            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'My own words',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'score' => 2, 'note' => 'Somebody elses words',
         ]);
 
         $response = $this->actingInTenant()->get('/app/tot?year=2026');
 
+        // No aggregate, and never another person's words.
         $response->assertViewHas('scores', fn ($scores) => $scores === []);
-        $response->assertDontSee('Very good');
+        $response->assertDontSee('Somebody elses words');
+
+        // Their own note comes back so the flyout can prefill it for editing.
+        $response->assertSee('My own words', false);
     }
 
     public function test_the_presenter_sees_their_own_average_and_notes(): void

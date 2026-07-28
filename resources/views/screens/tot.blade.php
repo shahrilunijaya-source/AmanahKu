@@ -300,13 +300,7 @@
                         iWatched: @js((bool) $myPart?->watched_at),
                         comments: {{ $sessionCommentCount }},
                         myScore: @js($myPart?->score),
-                        {{-- myNote is deliberately NOT seeded here. Ratings are pseudonymous
-                             even to their own author, so the screen has never echoed a note
-                             back, and TotController::rate() depends on that: a blank note on
-                             submit preserves the saved one precisely because there is no field
-                             to resubmit it from. Task 5 of the plan would reverse this, which
-                             is a product decision, not an implementation detail. --}}
-                        myNote: null,
+                        myNote: @js($myPart?->note),
                         score: @js($sessionScore ? ['average' => $sessionScore['average'], 'count' => $sessionScore['count']] : null),
                         canParticipate: @js($canParticipate),
                     })" @endif>
@@ -370,6 +364,29 @@
                                 </button>
 
                                 <span class="tot-fw" x-show="canParticipate">
+                                    <span class="tot-fly" x-show="flyout === 'rate'" x-cloak
+                                          @mouseleave="flyout = null" @keydown.escape.window="flyout = null"
+                                          x-data="{ noting: false }">
+                                        <template x-if="!noting">
+                                            <span style="display:flex;align-items:center;gap:6px;">
+                                                @foreach ([1, 2, 3, 4, 5] as $n)
+                                                    <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
+                                                            @click="rate({{ $n }}); noting = true">{{ $n }}</button>
+                                                @endforeach
+                                                <span class="tot-note" style="font-size:11.5px;padding-left:4px;max-width:210px;"
+                                                      x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
+                                            </span>
+                                        </template>
+                                        <template x-if="noting">
+                                            <span style="display:flex;align-items:center;gap:6px;">
+                                                <input type="text" maxlength="1000" class="tot-field" style="height:30px;width:210px;"
+                                                       :value="myNote"
+                                                       :placeholder="$store.ui.lang==='en' ? 'Add a note, optional' : 'Tambah nota, pilihan'"
+                                                       @keydown.enter.prevent="saveNote($event.target.value); flyout = null; noting = false"
+                                                       @blur="saveNote($event.target.value); noting = false">
+                                            </span>
+                                        </template>
+                                    </span>
                                     <button type="button" class="tot-act" :data-on="myScore ? '1' : null"
                                             @click="flyout = flyout === 'rate' ? null : 'rate'"
                                             @mouseenter="flyout = 'rate'"

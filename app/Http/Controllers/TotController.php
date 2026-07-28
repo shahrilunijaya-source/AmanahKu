@@ -405,15 +405,12 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        // Only overwrite the note when this submit actually carries one. A score-only
-        // resubmit (the rater just changing their mind on the number) must not silently
-        // wipe a note they wrote earlier, and because the screen never echoes a rater's
-        // own note back into the page (ratings are pseudonymous even to their own author),
-        // there is no form field to resubmit it from. Preserving server-side is the only
-        // option that keeps both promises at once.
+        // The box is prefilled from the rater's own note, so a blank box now means clear it,
+        // while a score-only submit from the flyout carries no note key at all and leaves
+        // the note alone.
         $row->score = $data['score'];
-        if ($request->filled('note')) {
-            $row->note = $data['note'];
+        if ($request->has('note')) {
+            $row->note = $request->input('note') === '' ? null : $data['note'];
         }
         $row->watched_at ??= now();
 
@@ -441,8 +438,8 @@ class TotController extends Controller
                 ->firstOrFail();
 
             $row->score = $data['score'];
-            if ($request->filled('note')) {
-                $row->note = $data['note'];
+            if ($request->has('note')) {
+                $row->note = $request->input('note') === '' ? null : $data['note'];
             }
             $row->watched_at ??= now();
             $row->save();

@@ -520,9 +520,15 @@ header button:hover { background: var(--canvas) !important; }
 .tot-fly-e[data-mine] { filter:none; }
 .tot-fly-e:not([data-mine]) { filter:grayscale(.35); }
 
+.tot-sc { width:30px; height:30px; border-radius:50%; border:1px solid var(--hairline);
+  background:none; font-size:13.5px; color:var(--body); cursor:pointer;
+  transition:transform 140ms cubic-bezier(.2,.9,.3,1.35), border-color 140ms ease; }
+.tot-sc:hover { transform:scale(1.15); border-color:var(--red); color:var(--red); }
+.tot-sc[data-mine] { border-color:var(--red); color:var(--red); font-weight:600; }
+
 @media (prefers-reduced-motion: reduce) {
   .tot-fly, .tot-fly-e { animation:tot-fade-in 150ms both; }
-  .tot-fly-e:hover { transform:none; }
+  .tot-fly-e:hover, .tot-sc:hover { transform:none; }
   @keyframes tot-fade-in { from { opacity:0; } to { opacity:1; } }
 }
 
