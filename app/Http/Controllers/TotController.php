@@ -427,7 +427,9 @@ class TotController extends Controller
             return;
         }
 
-        $session->loadMissing('presenter');
+        // load(), not loadMissing(): presenter_employee_id changed a moment ago, so a
+        // relation loaded before that write would point at the person being replaced.
+        $session->load('presenter');
 
         AppNotification::send(
             $session->presenter?->user_id,
