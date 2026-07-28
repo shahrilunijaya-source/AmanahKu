@@ -300,7 +300,13 @@
                         iWatched: @js((bool) $myPart?->watched_at),
                         comments: {{ $sessionCommentCount }},
                         myScore: @js($myPart?->score),
-                        myNote: @js($myPart?->note),
+                        {{-- myNote is deliberately NOT seeded here. Ratings are pseudonymous
+                             even to their own author, so the screen has never echoed a note
+                             back, and TotController::rate() depends on that: a blank note on
+                             submit preserves the saved one precisely because there is no field
+                             to resubmit it from. Task 5 of the plan would reverse this, which
+                             is a product decision, not an implementation detail. --}}
+                        myNote: null,
                         score: @js($sessionScore ? ['average' => $sessionScore['average'], 'count' => $sessionScore['count']] : null),
                         canParticipate: @js($canParticipate),
                     })" @endif>
