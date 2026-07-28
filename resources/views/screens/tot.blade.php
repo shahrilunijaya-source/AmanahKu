@@ -155,6 +155,11 @@
     .tot-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows 280ms var(--tot-eo);}
     .tot-wrap[data-open="1"]{grid-template-rows:1fr;}
     .tot-wrap>div{overflow:hidden;}
+    /* The 0fr to 1fr collapse needs the inner div to clip while it animates, but a clipping
+       ancestor also cuts the top off the rating flyout, which opens upward past the panel.
+       Stop clipping once the row is open. The delay keeps the clip in place for the whole
+       280ms transition, so nothing spills while the row is still moving. */
+    .tot-wrap[data-open="1"]>div{overflow:visible;transition:overflow 0s 280ms;}
     .tot-panel{padding:2px 6px 22px 72px;background:var(--red-tint);border-radius:0 0 10px 10px;}
     .tot-panel-date{font:600 11px var(--font-mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
 
@@ -373,16 +378,20 @@
                                           @mouseleave="flyout = null; noting = false"
                                           @keydown.escape.window="flyout = null; noting = false"
                                           x-data="{ noting: false }">
+                                        {{-- Two rows: the five scores, then the reassurance under them. Side by
+                                             side the sentence had to compete with the circles for width, which
+                                             either overflowed the pill or squeezed the text into a narrow column. --}}
                                         <template x-if="!noting">
-                                            <span style="display:flex;align-items:center;gap:6px;">
-                                                @foreach ([1, 2, 3, 4, 5] as $n)
-                                                    <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
-                                                            @click="rate({{ $n }}); noting = true">{{ $n }}</button>
-                                                @endforeach
+                                            <span style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
+                                                <span style="display:flex;align-items:center;gap:6px;">
+                                                    @foreach ([1, 2, 3, 4, 5] as $n)
+                                                        <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
+                                                                @click="rate({{ $n }}); noting = true">{{ $n }}</button>
+                                                    @endforeach
+                                                </span>
                                                 {{-- white-space:normal because .tot-fly is nowrap, which the
-                                                     sentence inherits, so max-width alone cannot wrap it and
-                                                     the text runs outside the pill. --}}
-                                                <span class="tot-note" style="font-size:11.5px;padding-left:4px;max-width:210px;white-space:normal;line-height:1.35;"
+                                                     sentence would otherwise inherit and run past the pill. --}}
+                                                <span class="tot-note" style="font-size:11.5px;max-width:230px;white-space:normal;line-height:1.4;"
                                                       x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
                                             </span>
                                         </template>
