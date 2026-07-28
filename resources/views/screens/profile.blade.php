@@ -30,7 +30,7 @@
         @endphp
         <div class="uj-card" style="padding:24px;text-align:center;" x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }">
             <div style="width:88px;height:88px;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:30px;font-weight:600;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">{{ $p->initials }}</div>
-            <h3 style="font-size:18px;font-weight:600;color:var(--ink);margin:0;">{{ $p->name }}</h3>
+            <h3 style="font-size:18px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>
             <p style="font-size:13px;color:var(--muted);margin:4px 0 12px;">{{ $p->positionBand?->title ?? '—' }}</p>
             <span style="display:inline-block;font-size:11px;font-weight:600;color:{{ $stColor }};background:var(--canvas);padding:4px 11px;border-radius:9999px;">{{ $stOpts[$p->status] ?? ucfirst($p->status) }}</span>
             <div style="margin-top:18px;display:flex;gap:8px;">
@@ -55,6 +55,7 @@
                     @csrf
                     @if ($errors->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;">{{ $errors->first() }}</div>@endif
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Full name' : 'Nama penuh'">Full name</span></label><input name="name" type="text" value="{{ old('name', $p->name) }}" required maxlength="120" style="{{ $fs }}" /></div>
+                    <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Nickname' : 'Nama panggilan'">Nickname</span></label><input name="nickname" type="text" value="{{ old('nickname', $p->nickname) }}" maxlength="60" style="{{ $fs }}" />@include('partials.hint', ['en' => 'The short name colleagues use, such as "Hakime". Shown next to the full name in every list and picker.', 'ms' => 'Nama pendek yang digunakan rakan sekerja, contohnya "Hakime". Dipaparkan di sebelah nama penuh dalam setiap senarai dan pemilih.'])</div>
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</span></label><input name="email" type="email" value="{{ old('email', $p->email) }}" maxlength="160" style="{{ $fs }}" /></div>
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></label><input name="staff_id" type="text" value="{{ old('staff_id', $p->staff_id) }}" placeholder="UR-0000" style="{{ $fs }}font-family:var(--font-mono);" /></div>
                     <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span></label><input name="joined_at" type="date" value="{{ old('joined_at', $p->joined_at?->format('Y-m-d')) }}" style="{{ $fs }}margin-bottom:6px;" />@include('partials.hint', ['en' => 'Leave blank to keep the current hire date.', 'ms' => 'Biar kosong untuk kekalkan tarikh menyertai semasa.'])</div>

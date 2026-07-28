@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
@@ -13,6 +14,7 @@ use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -54,30 +56,46 @@ class TotController extends Controller
             'sessions' => $sessions,
             'privileged' => $privileged,
             'canManage' => $privileged,
+            'canAssignPresenter' => $this->canAssignPresenter($request),
+            'assignableEmployees' => $this->assignableEmployees(),
             'reactionCounts' => $this->reactionCounts($ids),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
-            'comments' => $this->commentsBySession($ids),
+            'commentCounts' => $this->commentCounts($ids),
         ];
     }
 
-    /** Privileged-only: create a slot for a month that has none yet. */
+    /**
+     * Create a slot for a month that has none yet. Privileged roles set every field; a
+     * tot.assign holder opens the month with only year, month and presenter_employee_id,
+     * and the slot lands planned.
+     */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        abort_unless($this->canAssignPresenter($request), 403);
+
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         $tenantId = app(CurrentTenant::class)->id();
 
-        $data = $request->validate([
+        $rules = [
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'month' => ['required', 'integer', 'min:1', 'max:12'],
             'presenter_employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-            'presenter_name' => ['nullable', 'string', 'max:120'],
-            'title' => ['nullable', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'status' => ['required', 'in:'.implode(',', TotSession::STATUSES)],
-        ]);
+        ];
+
+        if ($privileged) {
+            $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
+            $rules['title'] = ['nullable', 'string', 'max:200'];
+            $rules['description'] = ['nullable', 'string', 'max:2000'];
+            $rules['status'] = ['required', 'in:'.implode(',', TotSession::STATUSES)];
+        }
+
+        // A holder opens a month and puts a name on it. Everything else about the session,
+        // including whether it happened, stays HR's decision, so their new slot is planned.
+        $data = $request->validate($rules);
+        $data['status'] ??= 'planned';
 
         $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
         abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
@@ -106,6 +124,8 @@ class TotController extends Controller
 
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
+        $this->announcePresenter($session, null);
+
         return back()->with('ok', 'TOT slot saved.');
     }
 
@@ -120,24 +140,44 @@ class TotController extends Controller
 
         $employee = $request->attributes->get('employee');
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $isPresenterOfSlot = $employee && $session->presenter_employee_id === $employee->id;
 
         $this->authorizeSlotEdit($request, $session, $employee);
         $tenantId = app(CurrentTenant::class)->id();
 
-        $rules = [
-            'title' => ['nullable', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'links' => ['nullable', 'array', 'max:12'],
-            'links.*.label' => ['required_with:links', 'string', 'max:60'],
-            'links.*.url' => ['required_with:links', 'url', 'max:2000'],
-            'entry_id' => ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)],
-        ];
+        // The material (title, description, links, cross-link) belongs to the presenter of
+        // THIS slot or a privileged role, not to a tot.assign holder: that override buys
+        // exactly one field, presenter_employee_id, handled below.
+        $rules = [];
+
+        if ($privileged || $isPresenterOfSlot) {
+            $rules['title'] = ['nullable', 'string', 'max:200'];
+            $rules['description'] = ['nullable', 'string', 'max:2000'];
+            $rules['links'] = ['nullable', 'array', 'max:12'];
+            $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
+            $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
+            $rules['entry_id'] = ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)];
+        }
+
+        if ($this->canAssignPresenter($request)) {
+            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
+        }
 
         if ($privileged) {
-            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
             $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
             $rules['status'] = ['nullable', 'in:'.implode(',', TotSession::STATUSES)];
             $rules['held_on'] = ['nullable', 'date'];
+        }
+
+        // The editor always renders one link row, so a slot with no links posts a single
+        // empty label/url pair and the rules below would reject the whole save. A row the
+        // user left completely blank is not a link, so drop it before validating. A row
+        // with only one half filled in still fails, which is the error they should see.
+        if (is_array($request->input('links'))) {
+            $request->merge(['links' => array_values(array_filter(
+                $request->input('links'),
+                fn ($link) => is_array($link) && (filled($link['label'] ?? null) || filled($link['url'] ?? null)),
+            ))]);
         }
 
         // validate() returns only the keys it was given rules for. A non-privileged
@@ -146,8 +186,17 @@ class TotController extends Controller
         $data = $request->validate($rules);
 
         $wasDone = $session->status === 'done';
+        $previousPresenterId = $session->presenter_employee_id;
 
         $session->fill($data);
+
+        // The two presenter columns are one fact stored two ways: a linked employee, or a
+        // free-text name for an imported nickname nobody has matched yet. Whenever this
+        // request decides the linked employee, the stale free-text name goes with it,
+        // unless the same request explicitly supplies one (privileged callers only).
+        if (array_key_exists('presenter_employee_id', $data) && blank($data['presenter_name'] ?? null)) {
+            $session->presenter_name = null;
+        }
 
         // Stamp held_on on the transition INTO done, same rule TotHistorySeeder uses for
         // imported rows, so a session marked done through the UI carries a date too. Only
@@ -157,6 +206,8 @@ class TotController extends Controller
         }
 
         $session->save();
+
+        $this->announcePresenter($session, $previousPresenterId);
 
         // Credit only on the transition INTO done, and only once. Presenting is the thing
         // that earns the month; editing the title afterwards is not.
@@ -170,7 +221,7 @@ class TotController extends Controller
     }
 
     /** Anybody in the workspace may post to a session thread. */
-    public function comment(Request $request, TotSession $session): RedirectResponse
+    public function comment(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -187,11 +238,50 @@ class TotController extends Controller
             'body' => $data['body'],
         ]);
 
-        return back()->with('ok', 'Comment posted.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Comment posted.');
+    }
+
+    /**
+     * One session's thread, oldest first. Loaded when the comment modal opens rather than
+     * with the screen, so twelve months of discussion no longer ride along with every page
+     * view of the year lineup.
+     */
+    public function comments(Request $request, TotSession $session): JsonResponse
+    {
+        $this->assertSameTenant($session);
+
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $rows = TotComment::with('employee')
+            ->where('session_id', $session->id)
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (TotComment $c) => [
+                'id' => $c->id,
+                'name' => $c->employee->name,
+                'initials' => $c->employee->initials ?? '',
+                'color' => $c->employee->avatar_color ?? '#3a6ea5',
+                'presenter' => $session->presenter_employee_id !== null
+                    && $c->employee_id === $session->presenter_employee_id,
+                'body' => $c->body,
+                'at' => $c->created_at?->format('j M') ?? '',
+                'canDelete' => $privileged || ($employee && $c->employee_id === $employee->id),
+            ])
+            ->all();
+
+        $summary = $this->visibleScores(collect([$session->id => $session]), $employee, $privileged);
+
+        return response()->json([
+            'comments' => $rows,
+            'notes' => $summary[$session->id]['notes'] ?? [],
+        ]);
     }
 
     /** The author removes their own comment; HR and management may remove any. */
-    public function deleteComment(Request $request, TotComment $comment): RedirectResponse
+    public function deleteComment(Request $request, TotComment $comment): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($comment);
 
@@ -204,16 +294,19 @@ class TotController extends Controller
             'You can only delete your own comment.'
         );
 
+        $session = $comment->session;
         $comment->delete();
 
-        return back()->with('ok', 'Comment removed.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Comment removed.');
     }
 
     /**
      * Toggle one whitelisted emoji for the acting employee. A repeat POST of the same emoji
      * removes it; different emoji stack, one row each, guarded by the unique key.
      */
-    public function react(Request $request, TotSession $session): RedirectResponse
+    public function react(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -232,7 +325,9 @@ class TotController extends Controller
         if ($existing) {
             $existing->delete();
 
-            return back();
+            return $request->expectsJson()
+                ? response()->json($this->sessionState($request, $session))
+                : back();
         }
 
         try {
@@ -249,11 +344,13 @@ class TotController extends Controller
             }
         }
 
-        return back();
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back();
     }
 
     /** Mark the session watched for the acting employee. Idempotent. */
-    public function watched(Request $request, TotSession $session): RedirectResponse
+    public function watched(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -278,7 +375,9 @@ class TotController extends Controller
             }
         }
 
-        return back()->with('ok', 'Marked as watched.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Marked as watched.');
     }
 
     /**
@@ -289,7 +388,7 @@ class TotController extends Controller
      * and only the presenter and privileged roles see scores at all. Rating implies watching,
      * so the same call stamps watched_at.
      */
-    public function rate(Request $request, TotSession $session): RedirectResponse
+    public function rate(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
 
@@ -306,15 +405,12 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        // Only overwrite the note when this submit actually carries one. A score-only
-        // resubmit (the rater just changing their mind on the number) must not silently
-        // wipe a note they wrote earlier, and because the screen never echoes a rater's
-        // own note back into the page (ratings are pseudonymous even to their own author),
-        // there is no form field to resubmit it from. Preserving server-side is the only
-        // option that keeps both promises at once.
+        // The box is prefilled from the rater's own note, so a blank box now means clear it,
+        // while a score-only submit from the flyout carries no note key at all and leaves
+        // the note alone.
         $row->score = $data['score'];
-        if ($request->filled('note')) {
-            $row->note = $data['note'];
+        if ($request->has('note')) {
+            $row->note = $request->input('note') === '' ? null : $data['note'];
         }
         $row->watched_at ??= now();
 
@@ -342,14 +438,65 @@ class TotController extends Controller
                 ->firstOrFail();
 
             $row->score = $data['score'];
-            if ($request->filled('note')) {
-                $row->note = $data['note'];
+            if ($request->has('note')) {
+                $row->note = $request->input('note') === '' ? null : $data['note'];
             }
             $row->watched_at ??= now();
             $row->save();
         }
 
-        return back()->with('ok', 'Thanks, your rating was saved.');
+        return $request->expectsJson()
+            ? response()->json($this->sessionState($request, $session))
+            : back()->with('ok', 'Thanks, your rating was saved.');
+    }
+
+    /**
+     * Everything a session card draws, for the acting viewer.
+     *
+     * One method so the JSON a live action returns and the data the screen renders can never
+     * drift apart, and so the privacy rule has exactly one home: the score summary is present
+     * only for a viewer visibleScores() would show it to, and it carries an average and a
+     * count, never a name and never the anonymous notes.
+     *
+     * @return array<string, mixed>
+     */
+    private function sessionState(Request $request, TotSession $session): array
+    {
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $mine = $employee
+            ? TotReaction::where('session_id', $session->id)
+                ->where('employee_id', $employee->id)
+                ->pluck('emoji')->all()
+            : [];
+
+        $participation = $employee
+            ? TotParticipation::where('session_id', $session->id)
+                ->where('employee_id', $employee->id)
+                ->first()
+            : null;
+
+        $summary = $this->visibleScores(
+            collect([$session->id => $session]),
+            $employee,
+            $privileged
+        )[$session->id] ?? null;
+
+        return [
+            'id' => $session->id,
+            'reactions' => $this->reactionCounts([$session->id])[$session->id] ?? [],
+            'mine' => $mine,
+            'watched' => $this->watchedCounts([$session->id])[$session->id] ?? 0,
+            'iWatched' => $participation?->watched_at !== null,
+            'comments' => TotComment::where('session_id', $session->id)->count(),
+            'myScore' => $participation?->score,
+            'myNote' => $participation?->note,
+            'score' => $summary === null ? null : [
+                'average' => $summary['average'],
+                'count' => $summary['count'],
+            ],
+        ];
     }
 
     /** Privileged-only: remove a slot entirely. */
@@ -367,6 +514,59 @@ class TotController extends Controller
     }
 
     /**
+     * Tell the newly assigned presenter, and record who decided it.
+     *
+     * Only fires when the linked employee actually changed, so re-saving the same person
+     * is silent. Clearing a presenter announces nothing: the person removed sees it on the
+     * screen, and a "you are no longer presenting" message is noise. In-app only, never
+     * email, matching the rest of the TOT board.
+     */
+    private function announcePresenter(TotSession $session, ?int $previousEmployeeId): void
+    {
+        if ($session->presenter_employee_id === $previousEmployeeId) {
+            return;
+        }
+
+        AuditLog::record(
+            'Assigned TOT presenter',
+            sprintf('%04d-%02d', $session->year, $session->month)
+        );
+
+        if ($session->presenter_employee_id === null) {
+            return;
+        }
+
+        // load(), not loadMissing(): presenter_employee_id changed a moment ago, so a
+        // relation loaded before that write would point at the person being replaced.
+        $session->load('presenter');
+
+        AppNotification::send(
+            $session->presenter?->user_id,
+            'You are presenting TOT on '.$session->session_date->format('j F Y'),
+            'Pick your topic and upload your slides on the TOT board.',
+            route('app.screen', 'tot').'?year='.$session->year,
+            "tot:{$session->id}:assigned:{$session->presenter_employee_id}",
+        );
+    }
+
+    /**
+     * May the actor set who presents a month? True for HR and management by role, and for
+     * anybody given the tot.assign override on the Roles screen. It buys exactly one field,
+     * presenter_employee_id, and nothing else on the slot.
+     */
+    private function canAssignPresenter(Request $request): bool
+    {
+        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+            return true;
+        }
+
+        $tenant = app(CurrentTenant::class)->get();
+
+        return $tenant !== null
+            && $request->user()?->canInTenant($tenant, 'tot.assign') === true;
+    }
+
+    /**
      * 404 unless the route-bound record belongs to the acting tenant.
      *
      * Route-model binding resolves before the BelongsToTenant global scope is active (the
@@ -381,18 +581,33 @@ class TotController extends Controller
         abort_unless($record->tenant_id === app(CurrentTenant::class)->id(), 404);
     }
 
-    /** 403 unless the actor is privileged or is the presenter of this slot. */
+    /** 403 unless the actor is privileged, holds tot.assign, or is the presenter of this slot. */
     private function authorizeSlotEdit(Request $request, TotSession $session, ?Employee $employee): void
     {
-        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+        if ($this->canAssignPresenter($request)) {
             return;
         }
 
         abort_unless(
             $employee && $session->presenter_employee_id === $employee->id,
             403,
-            'Only HR, management, or the presenter of this session can edit it.'
+            'Only HR, management, the TOT organiser, or the presenter of this session can edit it.'
         );
+    }
+
+    /**
+     * The people the presenter picker offers, by name rather than by database id: the person
+     * who runs the roster is not HR and has no reason to know anybody's numeric id.
+     *
+     * Employee::active() (not status = 'active'), because archiving is the separate
+     * archived_at column. Filtering on the status column would drop probation and on-leave
+     * staff, who present TOT sessions like everybody else.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function assignableEmployees(): Collection
+    {
+        return Employee::active()->orderBy('name')->get(['id', 'name', 'nickname']);
     }
 
     /**
@@ -515,24 +730,23 @@ class TotController extends Controller
     }
 
     /**
-     * Thread contents per session, oldest first, so a question asked before the Saturday and
-     * a follow-up posted after it read in the order they happened.
+     * How many comments each session has. The card shows a number; the thread itself loads
+     * only when somebody opens the modal.
      *
      * @param  list<int>  $ids
-     * @return array<int, Collection<int, TotComment>>
+     * @return array<int, int>
      */
-    private function commentsBySession(array $ids): array
+    private function commentCounts(array $ids): array
     {
         if ($ids === []) {
             return [];
         }
 
-        return TotComment::with('employee')
-            ->whereIn('session_id', $ids)
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get()
+        return TotComment::whereIn('session_id', $ids)
+            ->selectRaw('session_id, count(*) as aggregate')
             ->groupBy('session_id')
+            ->pluck('aggregate', 'session_id')
+            ->map(fn ($n) => (int) $n)
             ->all();
     }
 

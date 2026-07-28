@@ -9,6 +9,7 @@ import { registerRolesAdmin } from './roles-admin';
 import { registerServiceWorker } from './pwa';
 import { registerTimesheetCapture } from './timesheet-capture';
 import { registerToast } from './toast';
+import { registerTotCard } from './tot-card';
 import { registerUploadFilenameSanitizer } from './upload-filename';
 import { registerWorkBoard } from './work-board';
 
@@ -25,6 +26,7 @@ registerOrgChart(Alpine);
 registerRolesAdmin(Alpine);
 registerTimesheetCapture(Alpine);
 registerToast(Alpine);
+registerTotCard(Alpine);
 registerUploadFilenameSanitizer();
 registerWorkBoard(Alpine);
 registerServiceWorker();

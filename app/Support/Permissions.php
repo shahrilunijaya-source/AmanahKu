@@ -81,6 +81,7 @@ class Permissions
             'leave.view', 'leave.apply', 'leave.approve', 'leave.manage',
             'attendance.view', 'attendance.manage',
             'role.view', 'role.manage',
+            'tot.assign',
             'report.view', 'report.export',
         ],
         'hr' => [
@@ -92,6 +93,7 @@ class Permissions
             'leave.view', 'leave.apply', 'leave.approve', 'leave.manage',
             'attendance.view', 'attendance.manage',
             'role.view', 'role.manage',
+            'tot.assign',
             'report.view', 'report.export',
         ],
     ];
@@ -134,17 +136,18 @@ class Permissions
     }
 
     /**
-     * Permissions that a per-user override can actually change. An override only bites
-     * where a controller gates on canInTenant(); today that is the staff domain
-     * (EmployeeController create/update/import). The override UI + writer are scoped to
-     * this set so admins are never shown — or able to save — a toggle that does nothing
-     * (AK-AUTHZ-04). Widen this list only in lockstep with new canInTenant() enforcement.
+     * Permissions that a per-user override can actually change. An override only bites where
+     * a controller gates on canInTenant(): the staff domain (EmployeeController
+     * create/update/import) and the TOT presenter field (TotController). The override UI and
+     * writer are scoped to this set so admins are never shown, or able to save, a toggle that
+     * does nothing (AK-AUTHZ-04). Widen this list only in lockstep with new canInTenant()
+     * enforcement.
      *
      * @return array<int, string>
      */
     public static function overridable(): array
     {
-        return ['staff.create', 'staff.update', 'staff.import'];
+        return ['staff.create', 'staff.update', 'staff.import', 'tot.assign'];
     }
 
     /** overridable() grouped by domain (the part before the dot), for the override UI. */

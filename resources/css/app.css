@@ -491,3 +491,78 @@ header button:hover { background: var(--canvas) !important; }
 .wi-sm .wi-title { font-size: 12.5px; margin-bottom: 8px; }
 .wi-sm .wi-foot { font-size: 11px; }
 .wi-sm .wi-meta { gap: 9px; }
+
+/* ── TOT session card reaction pills and icon row ── */
+.tot-pill { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 9px;
+  border-radius:999px; background:var(--hairline-soft); font-size:13px; color:var(--body); }
+.tot-pill[data-mine] { background:var(--red-tint); color:var(--red); }
+.tot-pill b { font-weight:600; font-size:12px; color:var(--muted); }
+
+.tot-actions { display:flex; align-items:center; gap:22px; margin-top:12px; padding-top:10px;
+  border-top:1px solid var(--hairline-soft); }
+.tot-act { display:inline-flex; align-items:center; gap:7px; background:none; border:0; padding:0;
+  cursor:pointer; color:var(--muted); font-size:13.5px; }
+.tot-act:hover { color:var(--red); }
+.tot-act[data-on] { color:var(--red); }
+
+.tot-fw { position:relative; display:inline-flex; }
+.tot-fly { position:absolute; bottom:100%; left:-10px; margin-bottom:10px; display:flex;
+  align-items:center; gap:6px; padding:7px 11px; border-radius:999px; background:var(--card);
+  border:1px solid var(--hairline); white-space:nowrap; z-index:20;
+  animation:tot-fly-in 200ms cubic-bezier(.2,.9,.3,1.35) both; }
+@keyframes tot-fly-in { from { opacity:0; transform:translateY(8px) scale(.92); }
+  to { opacity:1; transform:none; } }
+.tot-fly-e { font-size:23px; line-height:1; background:none; border:0; padding:0; cursor:pointer;
+  transform-origin:bottom center; animation:tot-e-in 260ms var(--d) both; }
+@keyframes tot-e-in { from { opacity:0; transform:translateY(10px) scale(.5); }
+  to { opacity:1; transform:none; } }
+.tot-fly-e:hover { transform:scale(1.4) translateY(-5px); transition:transform 140ms cubic-bezier(.2,.9,.3,1.35); }
+.tot-fly-e[data-mine] { filter:none; }
+.tot-fly-e:not([data-mine]) { filter:grayscale(.35); }
+
+.tot-sc { width:30px; height:30px; border-radius:50%; border:1px solid var(--hairline);
+  background:none; font-size:13.5px; color:var(--body); cursor:pointer;
+  transition:transform 140ms cubic-bezier(.2,.9,.3,1.35), border-color 140ms ease; }
+.tot-sc:hover { transform:scale(1.15); border-color:var(--red); color:var(--red); }
+.tot-sc[data-mine] { border-color:var(--red); color:var(--red); font-weight:600; }
+
+/* The rating flyout stacks a scores row over a sentence, so the pill radius the single-row
+   emoji picker uses reads as a lozenge here. Rounded rectangle, and wide enough that the
+   sentence sets on two lines rather than three. */
+/* Explicit width, because an absolutely positioned box shrink-to-fits against its containing
+   block, and that is the ~30px star wrapper. Without this the sentence wraps into a column
+   barely wider than the five circles. */
+.tot-fly-rate { border-radius:14px; padding:12px 14px; width:300px; max-width:calc(100vw - 32px); }
+
+/* On a phone the rating flyout is wider than the screen, because it carries the five score
+   circles and the full "only the presenter and management see scores" sentence on one nowrap
+   line. Anchoring it to the button cannot help: no anchor fits a 414px box in a 375px viewport.
+   It becomes a bottom sheet instead, which is the ordinary mobile pattern and cannot clip. */
+@media (max-width: 480px) {
+  .tot-fly { position:fixed; left:12px; right:12px; bottom:12px; top:auto; margin:0;
+    white-space:normal; flex-wrap:wrap; justify-content:center; gap:8px; border-radius:14px;
+    padding:12px 14px; z-index:70; }
+}
+
+@keyframes tot-fade-in { from { opacity:0; } to { opacity:1; } }
+
+.tot-modal { position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+  justify-content:center; padding:18px; }
+.tot-modal-back { position:absolute; inset:0; background:rgba(0,0,0,.45);
+  animation:tot-fade-in 150ms both; }
+.tot-modal-card { position:relative; width:100%; max-width:460px; max-height:80vh;
+  display:flex; flex-direction:column; background:var(--card); border-radius:14px;
+  overflow:hidden; animation:tot-modal-in 180ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes tot-modal-in { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:none; } }
+.tot-modal-head { display:flex; align-items:center; gap:10px; padding:12px 16px;
+  border-bottom:1px solid var(--hairline-soft); }
+.tot-modal-body { padding:14px 16px; overflow-y:auto; flex:1; }
+.tot-modal-foot { display:flex; gap:8px; padding:12px 16px;
+  border-top:1px solid var(--hairline-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tot-fly, .tot-fly-e { animation:tot-fade-in 150ms both; }
+  .tot-fly-e:hover, .tot-sc:hover { transform:none; }
+  .tot-modal-card { animation:tot-fade-in 150ms both; }
+}
+

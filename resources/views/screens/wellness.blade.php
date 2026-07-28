@@ -70,9 +70,6 @@
         ],
     ],
 ])
-@if (session('ok'))
-    <div style="background:#e7f4ee;border:1px solid var(--success);color:var(--success);font-size:12.5px;border-radius:8px;padding:10px 14px;margin-bottom:16px;">{{ session('ok') }}</div>
-@endif
 
 {{-- Confidentiality reassurance banner --}}
 <div class="uj-card" style="padding:13px 16px;margin-bottom:16px;display:flex;gap:11px;align-items:flex-start;">

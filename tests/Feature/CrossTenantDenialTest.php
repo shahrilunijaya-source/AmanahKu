@@ -19,6 +19,7 @@ use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
+use App\Models\UserPermission;
 use App\Models\WorkItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -198,6 +199,29 @@ class CrossTenantDenialTest extends TestCase
         $this->assertSame(1, TotComment::withoutGlobalScopes()->where('session_id', $session->id)->count());
         $this->assertSame(0, TotReaction::withoutGlobalScopes()->where('session_id', $session->id)->count());
         $this->assertSame(0, TotParticipation::withoutGlobalScopes()->where('session_id', $session->id)->count());
+    }
+
+    /**
+     * A tot.assign override is a per-tenant row. Holding it in company B must grant nothing
+     * in company A, and the route-bound session must 404 before any of it is even reached.
+     */
+    public function test_a_tot_assign_override_does_not_cross_tenants(): void
+    {
+        UserPermission::create([
+            'tenant_id' => $this->tenantB->id,
+            'user_id' => $this->attackerB->id,
+            'permission' => 'tot.assign',
+            'granted' => true,
+        ]);
+
+        $session = TotSession::create([
+            'tenant_id' => $this->tenantA->id, 'year' => 2026, 'month' => 4,
+            'title' => 'Alpha only', 'status' => 'planned',
+        ]);
+
+        $this->denied("/app/tot/{$session->id}", ['presenter_employee_id' => $this->victimA->id]);
+
+        $this->assertNull(TotSession::withoutGlobalScopes()->find($session->id)->presenter_employee_id);
     }
 
     public function test_foreign_employee_record_cannot_be_updated_or_archived(): void

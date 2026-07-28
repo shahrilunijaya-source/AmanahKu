@@ -31,6 +31,7 @@ class EmployeeController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'nickname' => ['nullable', 'string', 'max:60'],
             // Active-only, tenant-scoped uniqueness (AK-DB-03): two live employees must not
             // share an email/staff id, or login provisioning later marks one email_taken and
             // strands a directory record. Archived rows are excluded so an email frees up on
@@ -54,6 +55,7 @@ class EmployeeController extends Controller
         Employee::create([
             'tenant_id' => $tenantId,
             'name' => $data['name'],
+            'nickname' => $data['nickname'] ?? null,
             'email' => $data['email'] ?? null,
             'staff_id' => $data['staff_id'] ?? null,
             'joined_at' => $data['joined_at'] ?? now()->toDateString(),
@@ -82,6 +84,7 @@ class EmployeeController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'nickname' => ['nullable', 'string', 'max:60'],
             // Active-only, tenant-scoped uniqueness (AK-DB-03), ignoring this row itself.
             'email' => ['nullable', 'email', 'max:160', $this->activeUnique('email', $tenantId, $employee->id)],
             'staff_id' => ['nullable', 'string', 'max:50', $this->activeUnique('staff_id', $tenantId, $employee->id)],
@@ -119,6 +122,7 @@ class EmployeeController extends Controller
 
         $employee->update([
             'name' => $data['name'],
+            'nickname' => $data['nickname'] ?? null,
             'email' => $data['email'] ?? null,
             'staff_id' => $data['staff_id'] ?? null,
             // Hire date never silently clears: keep the existing value when left blank,

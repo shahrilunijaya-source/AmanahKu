@@ -82,7 +82,7 @@
                 <form method="post" action="{{ route('admin.permissions.update', $m) }}" @submit.prevent="save($event.target)">
                     @csrf
                     <div style="background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;padding:14px 16px;">
-                        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Per-member overrides for staff actions (create / update / import). Inherit follows the <strong style="color:var(--ink);text-transform:capitalize;">{{ $m->pivot->role }}</strong> role; grant or deny to override for this member only. Other capabilities follow the role — see the reference below.</p>
+                        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Per-member overrides for staff actions (create, update, import) and for TOT presenter assignment. Inherit follows the <strong style="color:var(--ink);text-transform:capitalize;">{{ $m->pivot->role }}</strong> role; grant or deny to override for this member only. Other capabilities follow the role, see the reference below.</p>
                         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;">
                             @foreach ($permissionGroups as $domain => $perms)
                                 <div>

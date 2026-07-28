@@ -47,9 +47,6 @@
     ],
 ])
 
-@if (session('ok'))
-    <div style="background:#e7f4ee;border:1px solid var(--success);color:var(--success);font-size:12.5px;border-radius:8px;padding:10px 14px;margin-bottom:16px;">{{ session('ok') }}</div>
-@endif
 
 {{-- ── Filter bar: type + status, each chip a link that preserves the other filter ── --}}
 <div class="uj-card" style="padding:14px 18px;margin-bottom:16px;display:flex;flex-direction:column;gap:12px;">

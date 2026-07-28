@@ -275,6 +275,56 @@ class TotTest extends TestCase
         $this->assertSame('Install git on our own server', $session->fresh()->title);
     }
 
+    /**
+     * The links editor renders one blank row for a slot that has none, so the plain
+     * "open the editor, change the topic, save" path posts an empty label/url pair.
+     * That pair used to fail validation and lose the whole save silently.
+     */
+    public function test_a_slot_with_no_links_saves_although_the_editor_posts_a_blank_link_row(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'title' => 'Install git on our own server',
+            'links' => [['label' => '', 'url' => '']],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame('Install git on our own server', $session->fresh()->title);
+        $this->assertSame([], $session->fresh()->links);
+    }
+
+    /** A blank row is not a link, but a half filled row is still a broken link. */
+    public function test_a_link_row_with_a_label_and_no_url_is_still_rejected(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'links' => [['label' => '', 'url' => ''], ['label' => 'Slides', 'url' => '']],
+        ]);
+
+        $response->assertSessionHasErrors('links.0.url');
+    }
+
+    /** The failed save reopens its own slot on the board, with the reason showing. */
+    public function test_a_rejected_save_reopens_the_slot_it_came_from(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'year' => 2026, 'month' => 3]);
+
+        $this->actingInTenant()->from('/app/tot?year=2026')->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'links' => [['label' => 'Slides', 'url' => 'not a url']],
+        ])->assertRedirect('/app/tot?year=2026');
+
+        $response = $this->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertSee('{ open: true, editing: true }', false);
+        $response->assertSee('must be a valid URL', false);
+    }
+
     public function test_an_employee_cannot_edit_a_slot_they_do_not_present(): void
     {
         $other = Employee::create([
@@ -673,6 +723,31 @@ class TotTest extends TestCase
         $this->assertSame('Genuinely useful.', $row->note);
     }
 
+    public function test_a_rater_can_clear_their_own_note(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'First thoughts']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => '']);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertNull($row->note);
+    }
+
+    public function test_a_score_only_submit_leaves_an_existing_note_alone(): void
+    {
+        $session = $this->makeSession();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Keep me']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 2]);
+
+        $row = TotParticipation::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->firstOrFail();
+        $this->assertSame('Keep me', $row->note);
+        $this->assertSame(2, (int) $row->score);
+    }
+
     // ── Rating privacy ────────────────────────────────────────────
 
     public function test_a_plain_employee_never_receives_scores(): void
@@ -684,13 +759,21 @@ class TotTest extends TestCase
         $session = $this->makeSession(['presenter_employee_id' => $other->id]);
         TotParticipation::create([
             'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
-            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'Very good',
+            'employee_id' => $this->employee->id, 'score' => 5, 'note' => 'My own words',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'score' => 2, 'note' => 'Somebody elses words',
         ]);
 
         $response = $this->actingInTenant()->get('/app/tot?year=2026');
 
+        // No aggregate, and never another person's words.
         $response->assertViewHas('scores', fn ($scores) => $scores === []);
-        $response->assertDontSee('Very good');
+        $response->assertDontSee('Somebody elses words');
+
+        // Their own note comes back so the flyout can prefill it for editing.
+        $response->assertSee('My own words', false);
     }
 
     public function test_the_presenter_sees_their_own_average_and_notes(): void
@@ -812,7 +895,11 @@ class TotTest extends TestCase
 
         $response = $this->actingInTenant()->get('/app/tot?year=2026');
 
-        $response->assertViewHas('comments', fn ($comments) => count($comments[$session->id]) === 1);
+        $response->assertViewHas('commentCounts', fn ($counts) => ($counts[$session->id] ?? 0) === 1);
+
+        $this->actingInTenant()->getJson("/app/tot/{$session->id}/comments")
+            ->assertOk()
+            ->assertJsonPath('comments.0.body', 'Saved this one.');
     }
 
     // ── Screen contents ───────────────────────────────────────────
@@ -832,12 +919,111 @@ class TotTest extends TestCase
         $response->assertSee('Install git on our own server');
     }
 
-    public function test_the_rating_notice_names_the_presenter(): void
+    // ── Presenter picker ──────────────────────────────────────────
+
+    /**
+     * Employee::active() is the right scope, not status = 'active': archiving lives in the
+     * separate archived_at column, and probation / on-leave staff present sessions too.
+     */
+    public function test_the_picker_lists_probation_staff_and_leaves_out_archived_ones(): void
     {
+        $probation = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Nur Aizatul Aliya', 'nickname' => 'Aizat',
+            'status' => 'probation', 'workload' => 'green',
+        ]);
+        $archived = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Gone Already',
+            'status' => 'active', 'workload' => 'green', 'archived_at' => now(),
+        ]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertViewHas('assignableEmployees', function ($people) use ($probation, $archived) {
+            $ids = $people->pluck('id')->all();
+
+            return in_array($probation->id, $ids, true) && ! in_array($archived->id, $ids, true);
+        });
+    }
+
+    public function test_the_picker_never_offers_another_tenants_staff(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = Employee::create([
+            'tenant_id' => $otherTenant->id, 'name' => 'Foreign',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertViewHas(
+            'assignableEmployees',
+            fn ($people) => ! in_array($foreign->id, $people->pluck('id')->all(), true)
+        );
+    }
+
+    /**
+     * The roster owner is not HR and does not know anybody's database id, so the presenter
+     * field must be a name dropdown. assertDontSee targets presenter_employee_id itself:
+     * name="title" and name="description" also belong to the layout's Knowledge Bank share
+     * and feedback panels, so asserting on those would answer about a different form.
+     */
+    public function test_the_presenter_field_is_a_name_dropdown_not_a_numeric_id_box(): void
+    {
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
         $this->makeSession();
 
-        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
 
-        $response->assertSee('Only Demo and management see scores', false);
+        $response->assertOk();
+        $response->assertSee('<select class="tot-field" name="presenter_employee_id">', false);
+        $response->assertDontSee('type="number" name="presenter_employee_id"', false);
+        $response->assertSee('Mohd Hakime Bin Md Nasri &quot;Hakime&quot;', false);
+    }
+
+    public function test_assigning_a_presenter_through_the_dropdown_saves(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_name' => 'Hakime']);
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => (string) $hakime->id])
+            ->assertRedirect();
+
+        $session->refresh();
+        $this->assertSame($hakime->id, $session->presenter_employee_id);
+        $this->assertNull($session->presenter_name);
+    }
+
+    /** The blank first option is how a presenter gets cleared again. */
+    public function test_the_blank_option_clears_the_presenter(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $hakime->id]);
+
+        $hr = $this->hrActor();
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => ''])
+            ->assertRedirect();
+
+        $session->refresh();
+        $this->assertNull($session->presenter_employee_id);
+        $this->assertNull($session->presenter_name);
     }
 }

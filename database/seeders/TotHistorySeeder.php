@@ -171,15 +171,23 @@ class TotHistorySeeder extends Seeder
     }
 
     /**
-     * Case-insensitive name match so "Roy" and "ROY" resolve to the same person, ordered
-     * by id so a collision always picks the same employee instead of an arbitrary one.
+     * Case-insensitive match on either name, so "Roy" and "ROY" resolve to the same person,
+     * ordered by id so a collision always picks the same employee instead of an arbitrary one.
+     *
+     * The sheet records who presented by nickname ("Hakime", "Kak Lin") while `name` holds
+     * the full legal name, so matching the legal name alone left every row unlinked. The
+     * nickname column is what closes that gap.
      *
      * @return Collection<int, Employee>
      */
     private function matchEmployees(int $tenantId, string $name): Collection
     {
+        $needle = mb_strtolower(trim($name));
+
         return Employee::where('tenant_id', $tenantId)
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])
+            ->where(fn ($q) => $q
+                ->whereRaw('LOWER(name) = ?', [$needle])
+                ->orWhereRaw('LOWER(nickname) = ?', [$needle]))
             ->orderBy('id')
             ->get();
     }

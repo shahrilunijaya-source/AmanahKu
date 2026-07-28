@@ -18,10 +18,6 @@
     ],
 ])
 
-@if (session('error'))
-    <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:13.5px;border-radius:10px;padding:12px 16px;margin-bottom:16px;">{{ session('error') }}</div>
-@endif
-
 {{-- Overall progress + launch status --}}
 <div class="uj-card" style="padding:24px;margin-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">

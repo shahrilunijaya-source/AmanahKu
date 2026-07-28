@@ -71,6 +71,26 @@ class TotHistorySeederTest extends TestCase
         $this->assertNull($session->presenter_name);
     }
 
+    /**
+     * The sheet records the PIC by nickname while `name` holds the full legal name, so the
+     * legal name alone matched nothing. The nickname column is what links these rows.
+     */
+    public function test_a_nickname_matches_the_employee_behind_the_full_legal_name(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->seed(TotHistorySeeder::class);
+
+        $session = TotSession::where('year', 2024)->where('month', 1)->firstOrFail();
+
+        $this->assertSame($hakime->id, $session->presenter_employee_id);
+        $this->assertNull($session->presenter_name);
+    }
+
     public function test_running_it_twice_does_not_duplicate(): void
     {
         $this->seed(TotHistorySeeder::class);

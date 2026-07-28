@@ -104,9 +104,6 @@
     ],
 ])
 
-@if (session('ok'))
-    <div style="background:#e7f4ee;border:1px solid var(--success);color:var(--success);font-size:12.5px;border-radius:8px;padding:10px 14px;margin-bottom:16px;">{{ session('ok') }}</div>
-@endif
 
 <style>
     /* ── TOT year lineup, ported from docs/superpowers/specs/2026-07-27-tot-sessions-design.html ── */
@@ -158,6 +155,11 @@
     .tot-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows 280ms var(--tot-eo);}
     .tot-wrap[data-open="1"]{grid-template-rows:1fr;}
     .tot-wrap>div{overflow:hidden;}
+    /* The 0fr to 1fr collapse needs the inner div to clip while it animates, but a clipping
+       ancestor also cuts the top off the rating flyout, which opens upward past the panel.
+       Stop clipping once the row is open. The delay keeps the clip in place for the whole
+       280ms transition, so nothing spills while the row is still moving. */
+    .tot-wrap[data-open="1"]>div{overflow:visible;transition:overflow 0s 280ms;}
     .tot-panel{padding:2px 6px 22px 72px;background:var(--red-tint);border-radius:0 0 10px 10px;}
     .tot-panel-date{font:600 11px var(--font-mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
 
@@ -247,14 +249,17 @@
                 $top3 = $session->exists ? collect($reactionCounts[$session->id] ?? [])->sortDesc()->take(3) : collect();
                 $myReact = $session->exists ? ($myReactions[$session->id] ?? []) : [];
                 $myPart = $session->exists ? ($myParticipation[$session->id] ?? null) : null;
-                $sessionComments = $session->exists ? ($comments[$session->id] ?? collect()) : collect();
+                $sessionCommentCount = $session->exists ? ($commentCounts[$session->id] ?? 0) : 0;
                 $sessionScore = $session->exists ? ($scores[$session->id] ?? null) : null;
                 $watched = $session->exists ? ($watchedCounts[$session->id] ?? 0) : 0;
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
                 $isPresenterOfSlot = $session->exists && $employee && $session->presenter_employee_id === $employee->id;
-                $canEditSlot = $canManage || $isPresenterOfSlot;
+                $canEditSlot = $canManage || $canAssignPresenter || $isPresenterOfSlot;
+                // A rejected save redirects back to the whole board, so the slot that failed
+                // names itself in the flashed input and reopens with the error showing.
+                $slotFailed = $session->exists && $errors->any() && old('totform') === (string) $session->id;
             @endphp
-            <div x-data="{ open: false, editing: false }">
+            <div x-data="{ open: {{ $slotFailed ? 'true' : 'false' }}, editing: {{ $slotFailed ? 'true' : 'false' }} }">
                 <button type="button" class="tot-row" @click="open = !open" :aria-expanded="open" style="opacity:{{ $rm['opacity'] }}">
                     <div class="tot-tile" @if ($session->status === 'skipped') data-tone="soft" @endif>
                         <div class="m">{{ $session->session_date->format('M') }}</div>
@@ -292,7 +297,18 @@
                 </button>
 
                 <div class="tot-wrap" :data-open="open ? 1 : 0">
-                    <div><div class="tot-panel">
+                    <div><div class="tot-panel" @if ($session->exists) x-data="totCard({
+                        id: {{ $session->id }},
+                        reactions: @js($reactionCounts[$session->id] ?? (object) []),
+                        mine: @js($myReact),
+                        watched: {{ $watched }},
+                        iWatched: @js((bool) $myPart?->watched_at),
+                        comments: {{ $sessionCommentCount }},
+                        myScore: @js($myPart?->score),
+                        myNote: @js($myPart?->note),
+                        score: @js($sessionScore ? ['average' => $sessionScore['average'], 'count' => $sessionScore['count']] : null),
+                        canParticipate: @js($canParticipate),
+                    })" @endif>
 
                         @if ($session->exists)
                             {{-- Full date and watched count --}}
@@ -310,76 +326,94 @@
                                 @endforelse
                             </div>
 
-                            {{-- Emoji bar + watched --}}
-                            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;align-items:center;">
-                                @foreach (\App\Models\TotSession::EMOJI as $emoji)
-                                    @if ($canParticipate)
-                                        <form method="post" action="{{ route('tot.react', $session) }}">
-                                            @csrf
-                                            <input type="hidden" name="emoji" value="{{ $emoji }}">
-                                            <button type="submit" class="tot-emo" @if (in_array($emoji, $myReact, true)) data-on="1" @endif aria-label="React {{ $emoji }}">{{ $emoji }}@if (! empty($reactionCounts[$session->id][$emoji] ?? null))<b>{{ $reactionCounts[$session->id][$emoji] }}</b>@endif</button>
-                                        </form>
-                                    @else
-                                        <span class="tot-emo">{{ $emoji }}@if (! empty($reactionCounts[$session->id][$emoji] ?? null))<b>{{ $reactionCounts[$session->id][$emoji] }}</b>@endif</span>
-                                    @endif
-                                @endforeach
-
-                                @if ($canParticipate)
-                                    @if ($myPart?->watched_at)
-                                        <span class="tot-pillbtn" style="margin-left:auto;color:var(--success);border-color:var(--success);">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-                                            <span x-text="$store.ui.lang==='en' ? 'Watched' : 'Sudah tonton'">Watched</span>
-                                        </span>
-                                    @else
-                                        <form method="post" action="{{ route('tot.watched', $session) }}" style="margin-left:auto;display:inline-flex;">
-                                            @csrf
-                                            <button type="submit" class="tot-pillbtn">
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted);"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                                <span x-text="$store.ui.lang==='en' ? 'I watched this' : 'Saya sudah tonton'">I watched this</span>
-                                            </button>
-                                        </form>
-                                    @endif
-                                @endif
+                            {{-- Reaction pills: one per emoji that somebody actually pressed, count only, never names. --}}
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;" x-show="reactionTotal > 0">
+                                <template x-for="(count, emoji) in reactions" :key="emoji">
+                                    <span class="tot-pill" :data-mine="mine.includes(emoji) ? '1' : null">
+                                        <span x-text="emoji"></span><b x-text="count"></b>
+                                    </span>
+                                </template>
                             </div>
 
-                            {{-- Rating: the form needs an Employee record to write to, so it stays
-                                 behind $canParticipate. The score summary is a read, and the
-                                 controller (visibleScores()) already decided who may read it,
-                                 so it must render whenever $sessionScore is set, regardless of
-                                 whether the viewer can also fill in the form below it. --}}
-                            @if ($canParticipate || $sessionScore)
-                                <div class="tot-rule">
-                                    @if ($canParticipate)
-                                        <form method="post" action="{{ route('tot.rate', $session) }}">
-                                            @csrf
-                                            <div class="tot-note" style="margin-bottom:9px;"><span x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span></div>
-                                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                                @foreach ([1, 2, 3, 4, 5] as $n)
-                                                    <button type="submit" name="score" value="{{ $n }}" class="tot-score" @if ($myPart?->score === $n) data-mine="1" @endif>{{ $n }}</button>
-                                                @endforeach
-                                            </div>
-                                            {{-- Deliberately never prefilled with the rater's own note text: ratings are
-                                                 pseudonymous even to their own author, so the screen never echoes a note
-                                                 back. Leaving this blank on submit keeps whatever note is already saved
-                                                 (see TotController::rate()); typing here replaces it. --}}
-                                            <textarea name="note" maxlength="1000" :placeholder="$store.ui.lang==='en' ? @js($myPart?->note ? 'Leave blank to keep your existing note, or type a new one' : 'Add a note') : @js($myPart?->note ? 'Biarkan kosong untuk kekalkan nota sedia ada, atau taip nota baharu' : 'Tambah nota')" placeholder="{{ $myPart?->note ? 'Leave blank to keep your existing note, or type a new one' : 'Add a note' }}" class="tot-field" style="margin-top:8px;height:60px;padding-top:8px;resize:vertical;"></textarea>
-                                        </form>
-                                    @endif
+                            <div class="tot-actions">
+                                <span class="tot-fw">
+                                    <span class="tot-fly" x-show="flyout === 'react'" x-cloak
+                                          @mouseleave="flyout = null" @keydown.escape.window="flyout = null">
+                                        @foreach (\App\Models\TotSession::EMOJI as $i => $emoji)
+                                            <button type="button" class="tot-fly-e" style="--d:{{ $i * 30 }}ms"
+                                                    @click="react(@js($emoji)); flyout = null"
+                                                    :data-mine="mine.includes(@js($emoji)) ? '1' : null"
+                                                    aria-label="React {{ $emoji }}">{{ $emoji }}</button>
+                                        @endforeach
+                                    </span>
+                                    <button type="button" class="tot-act" :data-on="mine.length ? '1' : null"
+                                            @click="flyout = flyout === 'react' ? null : 'react'"
+                                            @mouseenter="flyout = 'react'"
+                                            :aria-label="$store.ui.lang==='en' ? 'React to this session' : 'Beri reaksi'">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                                        <span x-text="reactionTotal || ''"></span>
+                                    </button>
+                                </span>
 
-                                    @if ($sessionScore)
-                                        <div class="tot-note" style="margin-top:10px;">
-                                            <span x-text="$store.ui.lang==='en' ? @js('Average '.$sessionScore['average'].' from '.$sessionScore['count'].' '.($sessionScore['count'] === 1 ? 'rating' : 'ratings').'. Scores are shown to you because you are the presenter or management, and never with a name attached.') : @js('Purata '.$sessionScore['average'].' daripada '.$sessionScore['count'].' penilaian. Skor dipaparkan kepada anda kerana anda pembentang atau pengurusan, dan tidak sekali dengan nama.')">Average {{ $sessionScore['average'] }} from {{ $sessionScore['count'] }} {{ $sessionScore['count'] === 1 ? 'rating' : 'ratings' }}. Scores are shown to you because you are the presenter or management, and never with a name attached.</span>
-                                            @if (count($sessionScore['notes']))
-                                                <ul style="margin:6px 0 0;padding-left:16px;">
-                                                    @foreach ($sessionScore['notes'] as $note)
-                                                        <li>{{ $note }}</li>
+                                <button type="button" class="tot-act" @click="openThread()"
+                                        :aria-label="$store.ui.lang==='en' ? 'Open comments' : 'Buka komen'">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-4-.9L3 21l1.9-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>
+                                    <span x-text="comments || ''"></span>
+                                </button>
+
+                                <button type="button" class="tot-act" :data-on="iWatched ? '1' : null"
+                                        @click="toggleWatched()" x-show="canParticipate"
+                                        :aria-label="$store.ui.lang==='en' ? 'Mark as watched' : 'Tanda sudah tonton'">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <span x-text="watched || ''"></span>
+                                </button>
+
+                                <span class="tot-fw" x-show="canParticipate">
+                                    {{-- noting resets whenever the flyout closes. x-show only hides,
+                                         it does not tear the component down, so without this a rater
+                                         who scores and then moves the mouse away reopens on the note
+                                         box instead of the scores, with no way back to change the
+                                         number until the box has been focused and blurred. --}}
+                                    <span class="tot-fly tot-fly-rate" x-show="flyout === 'rate'" x-cloak
+                                          @mouseleave="flyout = null; noting = false"
+                                          @keydown.escape.window="flyout = null; noting = false"
+                                          x-data="{ noting: false }">
+                                        {{-- Two rows: the five scores, then the reassurance under them. Side by
+                                             side the sentence had to compete with the circles for width, which
+                                             either overflowed the pill or squeezed the text into a narrow column. --}}
+                                        <template x-if="!noting">
+                                            <span style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
+                                                <span style="display:flex;align-items:center;gap:6px;">
+                                                    @foreach ([1, 2, 3, 4, 5] as $n)
+                                                        <button type="button" class="tot-sc" :data-mine="myScore === {{ $n }} ? '1' : null"
+                                                                @click="rate({{ $n }}); noting = true">{{ $n }}</button>
                                                     @endforeach
-                                                </ul>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                            @endif
+                                                </span>
+                                                {{-- white-space:normal because .tot-fly is nowrap, which the
+                                                     sentence would otherwise inherit and run past the pill. --}}
+                                                <span class="tot-note" style="font-size:11.5px;max-width:300px;white-space:normal;line-height:1.4;"
+                                                      x-text="$store.ui.lang==='en' ? @js('Only '.($session->presenter?->name ?? $session->presenter_name ?? 'the presenter').' and management see scores, and never with your name.') : @js('Hanya '.($session->presenter?->name ?? $session->presenter_name ?? 'pembentang').' dan pengurusan nampak skor, dan tidak sekali dengan nama anda.')">Only {{ $session->presenter?->name ?? $session->presenter_name ?? 'the presenter' }} and management see scores, and never with your name.</span>
+                                            </span>
+                                        </template>
+                                        <template x-if="noting">
+                                            <span style="display:flex;align-items:center;gap:6px;">
+                                                <input type="text" maxlength="1000" class="tot-field" style="height:30px;width:210px;"
+                                                       :value="myNote"
+                                                       :placeholder="$store.ui.lang==='en' ? 'Add a note, optional' : 'Tambah nota, pilihan'"
+                                                       @keydown.enter.prevent="saveNote($event.target.value); flyout = null; noting = false"
+                                                       @blur="saveNote($event.target.value); noting = false">
+                                            </span>
+                                        </template>
+                                    </span>
+                                    <button type="button" class="tot-act" :data-on="myScore ? '1' : null"
+                                            @click="flyout = flyout === 'rate' ? null : 'rate'"
+                                            @mouseenter="flyout = 'rate'"
+                                            :aria-label="$store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini'">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z"/></svg>
+                                        <span x-text="score ? `${score.average} (${score.count})` : ''"></span>
+                                    </button>
+                                </span>
+                            </div>
 
                             {{-- Related Knowledge Bank entry --}}
                             @if ($session->entry_id && $session->entry)
@@ -389,58 +423,6 @@
                                 </div>
                             @endif
 
-                            {{-- Discussion --}}
-                            <div class="tot-rule">
-                                <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:14px;">
-                                    <span style="font-size:14px;font-weight:600;color:var(--ink);">{{ count($sessionComments) }} <span x-text="$store.ui.lang==='en' ? @js(count($sessionComments) === 1 ? 'comment' : 'comments') : 'komen'">{{ count($sessionComments) === 1 ? 'comment' : 'comments' }}</span></span>
-                                    <span class="tot-note" x-text="$store.ui.lang==='en' ? 'Oldest first' : 'Terlama dahulu'">Oldest first</span>
-                                </div>
-
-                                @forelse ($sessionComments as $comment)
-                                    <div style="display:flex;gap:11px;margin-bottom:16px;">
-                                        <div class="tot-av" style="background:{{ $comment->employee->avatar_color ?? '#3a6ea5' }};color:#fff;">{{ $comment->employee->initials ?? '–' }}</div>
-                                        <div style="min-width:0;flex:1;">
-                                            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
-                                                <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $comment->employee->name }}</span>
-                                                @if ($session->presenter_employee_id && $comment->employee_id === $session->presenter_employee_id)
-                                                    <span class="tot-presenter-tag" x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
-                                                @endif
-                                                <span class="tot-note" style="font-size:12px;">{{ $comment->created_at?->format('j M') }}</span>
-                                                @if ($privileged || ($employee && $comment->employee_id === $employee->id))
-                                                    <form method="post" action="{{ route('tot.comments.delete', $comment) }}" style="margin-left:auto;">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" style="font-size:11px;color:var(--muted);background:none;cursor:pointer;">&times;</button>
-                                                    </form>
-                                                @endif
-                                            </div>
-                                            <div style="font-size:13.5px;color:var(--body);margin-top:2px;">{{ $comment->body }}</div>
-                                        </div>
-                                    </div>
-                                @empty
-                                    <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet. Start the discussion.</div>
-                                @endforelse
-
-                                @if ($canParticipate)
-                                    <form method="post" action="{{ route('tot.comment', $session) }}" style="display:flex;gap:11px;align-items:flex-start;max-width:620px;">
-                                        @csrf
-                                        <div class="tot-av">{{ $employee->initials ?? '–' }}</div>
-                                        <div style="flex:1;">
-                                            <input type="text" name="body" maxlength="2000" required class="tot-field" placeholder="Ask a question or add what you learned" :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'">
-                                            <div style="display:flex;align-items:center;gap:9px;margin-top:8px;">
-                                                <button type="submit" class="tot-btn-p" style="height:34px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Post comment' : 'Hantar komen'">Post comment</button>
-                                                <span class="tot-note" x-text="$store.ui.lang==='en' ? 'Everyone in the workspace can read this.' : 'Semua orang di ruang kerja ini boleh membacanya.'">Everyone in the workspace can read this.</span>
-                                            </div>
-                                        </div>
-                                    </form>
-                                @endif
-                            </div>
-
-                            {{-- Edit this slot. HR and management change everything; the presenter
-                                 of this slot changes only the material (topic, description, links,
-                                 Knowledge Bank cross-link), never the roster fields. Same form for
-                                 both: the presenter's version is the privileged version minus the
-                                 privileged fields, guarded here to match TotController::update(). --}}
                             @if ($canEditSlot)
                                 <div class="tot-rule">
                                     <button type="button" class="tot-pillbtn" @click="editing = !editing">
@@ -449,14 +431,33 @@
                                     </button>
 
                                     <div x-show="editing" x-cloak style="margin-top:14px;">
+                                        @if ($slotFailed)
+                                            <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:14px;max-width:620px;">{{ $errors->first() }}</div>
+                                        @endif
                                         <form method="post" action="{{ route('tot.update', $session) }}">
                                             @csrf
-                                            @if ($canManage)
+                                            <input type="hidden" name="totform" value="{{ $session->id }}">
+                                            @if ($canManage || $canAssignPresenter)
                                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
-                                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID)' : 'Pembentang (ID pekerja)'">Presenter (employee ID)</label><input class="tot-field" type="number" name="presenter_employee_id" value="{{ $session->presenter_employee_id }}"></div>
+                                                    @if ($canManage)
+                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
+                                                    @endif
+                                                    @if ($canAssignPresenter)
+                                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</label>
+                                                            <select class="tot-field" name="presenter_employee_id">
+                                                                {{-- Blank first, so a presenter can be cleared: an empty value nulls
+                                                                     both presenter_employee_id and presenter_name server-side. --}}
+                                                                <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
+                                                                @foreach ($assignableEmployees as $person)
+                                                                    <option value="{{ $person->id }}" @selected($session->presenter_employee_id === $person->id)>{{ $person->display_name }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        </div>
+                                                    @endif
                                                 </div>
-                                                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Linking an employee ID overrides the presenter name above, everywhere this session is shown.' : 'Mengaitkan ID pekerja mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Linking an employee ID overrides the presenter name above, everywhere this session is shown.</div>
+                                            @endif
+                                            @if ($canManage)
+                                                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Picking a presenter overrides the presenter name above, everywhere this session is shown.' : 'Memilih pembentang mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Picking a presenter overrides the presenter name above, everywhere this session is shown.</div>
                                                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                                                     <select class="tot-field" name="status">
                                                         @foreach (\App\Models\TotSession::STATUSES as $st)
@@ -465,6 +466,11 @@
                                                     </select>
                                                 </div>
                                             @endif
+                                            {{-- The material belongs to the presenter of this slot or to a
+                                                 privileged role, matching TotController::update(), which gives
+                                                 a tot.assign holder no rule for any of these. Rendering them
+                                                 to a holder would show fields the save silently discards. --}}
+                                            @if ($canManage || $isPresenterOfSlot)
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title" value="{{ $session->title }}"></div>
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:64px;padding-top:9px;resize:vertical;">{{ $session->description }}</textarea></div>
 
@@ -485,6 +491,7 @@
                                                 <input class="tot-field" type="number" name="entry_id" value="{{ $session->entry_id }}">
                                                 <div class="tot-note" style="margin-top:6px;"><span x-text="$store.ui.lang==='en' ? @js('Optional. Links this session to a lesson the presenter already wrote. It never creates one.'.($session->entry ? ' Currently: '.$session->entry->title.'.' : '')) : @js('Pilihan. Kaitkan sesi ini dengan pengajaran yang telah ditulis pembentang. Ia tidak pernah mencipta satu.'.($session->entry ? ' Sekarang: '.$session->entry->title.'.' : ''))">Optional. Links this session to a lesson the presenter already wrote. It never creates one.@if ($session->entry) Currently: {{ $session->entry->title }}.@endif</span></div>
                                             </div>
+                                            @endif
 
                                             <div class="tot-rule" style="max-width:620px;display:flex;gap:8px;align-items:center;">
                                                 <button type="submit" class="tot-btn-p" x-text="$store.ui.lang==='en' ? 'Save slot' : 'Simpan slot'">Save slot</button>
@@ -504,25 +511,102 @@
                                     </div>
                                 </div>
                             @endif
+
+                            <div class="tot-modal" x-show="modalOpen" x-cloak @keydown.escape.window="modalOpen = false">
+                                <div class="tot-modal-back" @click="modalOpen = false"></div>
+                                <div class="tot-modal-card" role="dialog" aria-modal="true"
+                                     :aria-label="$store.ui.lang==='en' ? 'Discussion' : 'Perbincangan'">
+                                    <div class="tot-modal-head">
+                                        <span style="flex:1;font-size:14.5px;color:var(--ink);">{{ $session->title ?: ($session->session_date->format('F Y')) }}</span>
+                                        <button type="button" class="tot-act" @click="modalOpen = false"
+                                                :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">&times;</button>
+                                    </div>
+
+                                    <div class="tot-modal-body">
+                                        {{-- Anonymous rating notes. Present only for a viewer the server decided may see
+                                             scores, which is the presenter and management. Never a name, never a score
+                                             beside a note. This is where the note list from the old card lives now. --}}
+                                        <template x-if="notes.length">
+                                            <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--hairline-soft);">
+                                                <div class="tot-note" style="margin-bottom:7px;"
+                                                     x-text="$store.ui.lang==='en' ? 'Anonymous notes from raters' : 'Nota tanpa nama daripada penilai'">Anonymous notes from raters</div>
+                                                <template x-for="(n, i) in notes" :key="i">
+                                                    <div style="font-size:13.5px;color:var(--body);margin-bottom:5px;" x-text="n"></div>
+                                                </template>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="thread === null">
+                                            <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
+                                        </template>
+                                        <template x-if="thread !== null && thread.length === 0">
+                                            <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet. Start the discussion.</div>
+                                        </template>
+                                        <template x-for="c in (thread || [])" :key="c.id">
+                                            <div style="display:flex;gap:11px;margin-bottom:16px;">
+                                                <div class="tot-av" :style="`background:${c.color};color:#fff;`" x-text="c.initials"></div>
+                                                <div style="min-width:0;flex:1;">
+                                                    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                                                        <span style="font-size:13.5px;font-weight:600;color:var(--ink);" x-text="c.name"></span>
+                                                        <span class="tot-presenter-tag" x-show="c.presenter"
+                                                              x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
+                                                        <span class="tot-note" style="font-size:12px;" x-text="c.at"></span>
+                                                        <button type="button" x-show="c.canDelete" style="margin-left:auto;font-size:11px;color:var(--muted);background:none;border:0;cursor:pointer;"
+                                                                @click="removeComment(c.id)"
+                                                                :aria-label="$store.ui.lang==='en' ? 'Remove comment' : 'Buang komen'">&times;</button>
+                                                    </div>
+                                                    <div style="font-size:13.5px;color:var(--body);margin-top:2px;" x-text="c.body"></div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    @if ($canParticipate)
+                                        <div class="tot-modal-foot">
+                                            <input type="text" maxlength="2000" class="tot-field" x-ref="composer"
+                                                   :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'"
+                                                   @keydown.enter.prevent="postComment($event.target.value); $event.target.value = ''">
+                                            <button type="button" class="tot-btn-p" style="height:34px;font-size:12.5px;"
+                                                    @click="postComment($refs.composer.value); $refs.composer.value = ''"
+                                                    x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</button>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
                         @else
                             {{-- Nothing saved for this month yet --}}
-                            @if ($canManage)
+                            @if ($canManage || $canAssignPresenter)
+                                {{-- A tot.assign holder opens the month with a presenter and nothing else.
+                                     Their slot lands planned, which is what TotController::store()
+                                     forces for a non-privileged caller, so the privileged fields below
+                                     are hidden rather than merely ignored on submit. --}}
                                 <form method="post" action="{{ route('tot.store') }}">
                                     @csrf
                                     <input type="hidden" name="year" value="{{ $session->year }}">
                                     <input type="hidden" name="month" value="{{ $session->month }}">
-                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
-                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID, optional)' : 'Pembentang (ID pekerja, pilihan)'">Presenter (employee ID, optional)</label><input class="tot-field" type="number" name="presenter_employee_id"></div>
+                                    <div style="display:grid;grid-template-columns:{{ $canManage ? '1fr 1fr' : '1fr' }};gap:12px;max-width:620px;">
+                                        @if ($canManage)
+                                            <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
+                                        @endif
+                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (optional)' : 'Pembentang (pilihan)'">Presenter (optional)</label>
+                                            <select class="tot-field" name="presenter_employee_id">
+                                                <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
+                                                @foreach ($assignableEmployees as $person)
+                                                    <option value="{{ $person->id }}">{{ $person->display_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>
-                                    <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
-                                        <select class="tot-field" name="status">
-                                            @foreach (\App\Models\TotSession::STATUSES as $st)
-                                                <option value="{{ $st }}" @selected($st === 'planned') x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                                    @if ($canManage)
+                                        <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>
+                                        <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
+                                            <select class="tot-field" name="status">
+                                                @foreach (\App\Models\TotSession::STATUSES as $st)
+                                                    <option value="{{ $st }}" @selected($st === 'planned') x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @endif
                                     <div class="tot-rule" style="max-width:620px;">
                                         <button type="submit" class="tot-btn-p">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M12 5v14M5 12h14"/></svg>

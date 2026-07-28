@@ -12,11 +12,17 @@ class TotComment extends Model
 
     protected $guarded = [];
 
+    /**
+     * @return BelongsTo<TotSession, $this>
+     */
     public function session(): BelongsTo
     {
         return $this->belongsTo(TotSession::class, 'session_id');
     }
 
+    /**
+     * @return BelongsTo<Employee, $this>
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
