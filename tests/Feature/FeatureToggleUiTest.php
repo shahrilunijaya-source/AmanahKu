@@ -138,6 +138,39 @@ class FeatureToggleUiTest extends TestCase
             ->assertSee('Save features');
     }
 
+    public function test_descoped_modules_are_hidden_from_the_tenant_panel(): void
+    {
+        $this->useShippedModuleDefaults();
+
+        $this->actingHr()->get('/app/settings')
+            ->assertOk()
+            ->assertSee('module.leave')       // live module — still toggleable
+            ->assertDontSee('module.payroll') // descoped, blade deleted, resolved off
+            ->assertDontSee('module.overtime');
+    }
+
+    public function test_a_descoped_module_a_company_already_enabled_stays_toggleable(): void
+    {
+        // An override that beats Features::OFF must keep its row, or the company
+        // could never switch the module back off again.
+        $this->useShippedModuleDefaults();
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.payroll', true);
+
+        $this->actingHr()->get('/app/settings')
+            ->assertOk()
+            ->assertSee('module.payroll');
+    }
+
+    public function test_super_admin_matrix_still_lists_descoped_modules(): void
+    {
+        // The matrix is the only way back for a descoped module, so it must not filter.
+        $this->useShippedModuleDefaults();
+
+        $this->actingAs($this->superAdmin())->get("/admin/companies/{$this->tenant->slug}/features")
+            ->assertOk()
+            ->assertSee('module.overtime');
+    }
+
     public function test_tenant_toggles_an_unlocked_module_off(): void
     {
         // Submit the form with payroll unchecked → it should be turned off.

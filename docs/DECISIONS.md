@@ -130,3 +130,41 @@ feature registry, not code deletion.
   needs-action tone) for a neutral "of active headcount". `DashboardProbationGatingTest`
   pins both sides of the gate. The `Probation` row in `reportsData()` is a plain status
   breakdown, so it was left alone.
+
+## 2026-07-28 — Descoped screen blades deleted (decision)
+
+**D-0xx · The 38 blades of the 24 `Features::OFF` modules were deleted; their models,
+controllers, routes, and registry entries were not.**
+Follow-up to the scope cut above. The revamp of the UI has to restyle every screen, and
+38 of them were unreachable: no nav entry, no module switched on. Restyling them would
+have been wasted work, so the views go and everything behind them stays.
+
+- **Nothing 500s.** `AppController::screen` resolves the view through
+  `View::exists("screens.$screen") ? … : 'screens.empty'`, so a module switched back on
+  now renders the empty screen instead of crashing. That fallback predates this change;
+  it is what made the deletion safe.
+- **Rollback is a git tag.** `pre-blade-purge` marks the commit before the delete.
+  Everything back: `git checkout pre-blade-purge -- resources/views/screens/`.
+  One module: append `<screen>.blade.php` to that path. The tag is local until someone
+  runs `git push origin pre-blade-purge`.
+- **Five view tests are `markTestSkipped`, not deleted** (overtime approval chain, two
+  performance screens, the achievements leaderboard, shared resources). Each names the
+  blade it lost. Their model and controller coverage is untouched and still runs.
+- **Descoped modules are hidden from the tenant Features panel.**
+  `BuildsSettingsData::featureRows` now skips a module that is both in `Features::OFF`
+  **and** resolves off for that company. Offering a toggle that can only deliver
+  `screens.empty` is worse than offering nothing. The condition is keyed on the resolved
+  value, not on `Features::OFF` alone, so a company that already has an override stays
+  able to switch the module back off.
+- **The super-admin matrix still lists every key.**
+  `SuperAdmin\FeatureController::matrixData` is deliberately unfiltered: it is now the
+  only route back for a descoped module, and reviving one is a platform decision, not a
+  tenant one. Three tests in `FeatureToggleUiTest` pin all three rules.
+- **Reviving a module is now two steps, not one.** Deleting its line from
+  `Features::OFF` still switches it on, but the UI will be the empty screen until the
+  blade is restored from the tag. `Features::OFF`'s own docblock says "brought back by
+  deleting one line" — that sentence is now only true for the gate, not for the screen.
+
+**Known remnant.** `resources/views/partials/pt-question-form.blade.php` was used only by
+the deleted `profile-test` screen and is now orphaned. Left in place: it predates this
+change, and deleting it belongs with a wider partials sweep.

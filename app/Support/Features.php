@@ -115,14 +115,22 @@ class Features
      * reasons land a key here, and both mean the same thing to the resolver:
      *
      *  - descoped — outside the current delivery scope (attendance, timesheets,
-     *    T.A.A., TOT, claims, leave, plus basic HR admin). The code stays so the
-     *    module can be brought back by deleting one line, not by rewriting it.
+     *    T.A.A., TOT, claims, leave, plus basic HR admin). The models, controllers,
+     *    and routes stay so the module can be brought back, not rewritten.
      *  - not signed off — built, but not approved for release yet (module.ai).
      *
-     * This is a DEFAULT, not a lock: a super-admin or tenant admin can still switch
-     * any of these on per company from the Features panel, which writes a tenant
-     * override that beats this list. Kept in one place so "why is this off" is
-     * answerable by reading here instead of hunting for a scattered inline condition.
+     * This is a DEFAULT, not a lock: a super-admin can still switch any of these on
+     * per company from the platform matrix, which writes an override that beats this
+     * list. Kept in one place so "why is this off" is answerable by reading here
+     * instead of hunting for a scattered inline condition.
+     *
+     * Reviving a module takes TWO steps, not one. Deleting its line here restores the
+     * gate, but its screen blade was deleted in the UI revamp, so the screen renders
+     * screens.empty until the blade is restored:
+     *   git checkout pre-blade-purge -- resources/views/screens/<screen>.blade.php
+     * The tenant-facing Features panel hides these rows for the same reason
+     * (BuildsSettingsData::featureRows); the super-admin matrix still lists them all.
+     * See docs/DECISIONS.md, "Descoped screen blades deleted".
      */
     public const OFF = [
         // Descoped — kept in the codebase, hidden from the app.
