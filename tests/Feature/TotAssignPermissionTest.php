@@ -338,4 +338,53 @@ class TotAssignPermissionTest extends TestCase
             ->assertOk()
             ->assertDontSee('name="presenter_employee_id"', false);
     }
+
+    public function test_a_holder_sees_the_create_form_on_an_empty_month(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertSee('Assign PIC')
+            ->assertDontSee('name="presenter_name"', false);
+    }
+
+    public function test_a_manager_without_the_override_sees_no_create_form(): void
+    {
+        $this->seedWorkspace();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('Assign PIC');
+    }
+
+    /**
+     * A holder gets no validation rule for the material, so rendering those fields to them
+     * would show controls the save silently discards. That is the AK-AUTHZ-04 pattern this
+     * codebase already names: never show a control that does nothing.
+     */
+    public function test_a_holder_sees_no_material_fields_on_a_saved_slot(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $this->slot();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertSee('name="presenter_employee_id"', false)
+            ->assertDontSee('name="entry_id"', false);
+    }
+
+    public function test_the_presenter_of_a_slot_still_sees_the_material_fields(): void
+    {
+        $this->seedWorkspace();
+        $session = $this->slot();
+        $presenterEmployee = Employee::where('user_id', $this->manager->id)->firstOrFail();
+        $session->update(['presenter_employee_id' => $presenterEmployee->id]);
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertSee('name="entry_id"', false);
+    }
 }

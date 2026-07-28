@@ -468,6 +468,11 @@
                                                     </select>
                                                 </div>
                                             @endif
+                                            {{-- The material belongs to the presenter of this slot or to a
+                                                 privileged role, matching TotController::update(), which gives
+                                                 a tot.assign holder no rule for any of these. Rendering them
+                                                 to a holder would show fields the save silently discards. --}}
+                                            @if ($canManage || $isPresenterOfSlot)
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title" value="{{ $session->title }}"></div>
                                             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:64px;padding-top:9px;resize:vertical;">{{ $session->description }}</textarea></div>
 
@@ -488,6 +493,7 @@
                                                 <input class="tot-field" type="number" name="entry_id" value="{{ $session->entry_id }}">
                                                 <div class="tot-note" style="margin-top:6px;"><span x-text="$store.ui.lang==='en' ? @js('Optional. Links this session to a lesson the presenter already wrote. It never creates one.'.($session->entry ? ' Currently: '.$session->entry->title.'.' : '')) : @js('Pilihan. Kaitkan sesi ini dengan pengajaran yang telah ditulis pembentang. Ia tidak pernah mencipta satu.'.($session->entry ? ' Sekarang: '.$session->entry->title.'.' : ''))">Optional. Links this session to a lesson the presenter already wrote. It never creates one.@if ($session->entry) Currently: {{ $session->entry->title }}.@endif</span></div>
                                             </div>
+                                            @endif
 
                                             <div class="tot-rule" style="max-width:620px;display:flex;gap:8px;align-items:center;">
                                                 <button type="submit" class="tot-btn-p" x-text="$store.ui.lang==='en' ? 'Save slot' : 'Simpan slot'">Save slot</button>
@@ -509,23 +515,31 @@
                             @endif
                         @else
                             {{-- Nothing saved for this month yet --}}
-                            @if ($canManage)
+                            @if ($canManage || $canAssignPresenter)
+                                {{-- A tot.assign holder opens the month with a presenter and nothing else.
+                                     Their slot lands planned, which is what TotController::store()
+                                     forces for a non-privileged caller, so the privileged fields below
+                                     are hidden rather than merely ignored on submit. --}}
                                 <form method="post" action="{{ route('tot.store') }}">
                                     @csrf
                                     <input type="hidden" name="year" value="{{ $session->year }}">
                                     <input type="hidden" name="month" value="{{ $session->month }}">
-                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
+                                    <div style="display:grid;grid-template-columns:{{ $canManage ? '1fr 1fr' : '1fr' }};gap:12px;max-width:620px;">
+                                        @if ($canManage)
+                                            <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
+                                        @endif
                                         <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (employee ID, optional)' : 'Pembentang (ID pekerja, pilihan)'">Presenter (employee ID, optional)</label><input class="tot-field" type="number" name="presenter_employee_id"></div>
                                     </div>
-                                    <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>
-                                    <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
-                                        <select class="tot-field" name="status">
-                                            @foreach (\App\Models\TotSession::STATUSES as $st)
-                                                <option value="{{ $st }}" @selected($st === 'planned') x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                                    @if ($canManage)
+                                        <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>
+                                        <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
+                                            <select class="tot-field" name="status">
+                                                @foreach (\App\Models\TotSession::STATUSES as $st)
+                                                    <option value="{{ $st }}" @selected($st === 'planned') x-text="$store.ui.lang==='en' ? @js($statusLabels[$st]['en']) : @js($statusLabels[$st]['ms'])">{{ $statusLabels[$st]['en'] }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @endif
                                     <div class="tot-rule" style="max-width:620px;">
                                         <button type="submit" class="tot-btn-p">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M12 5v14M5 12h14"/></svg>
