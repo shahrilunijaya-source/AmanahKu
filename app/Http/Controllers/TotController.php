@@ -54,6 +54,7 @@ class TotController extends Controller
             'sessions' => $sessions,
             'privileged' => $privileged,
             'canManage' => $privileged,
+            'canAssignPresenter' => $this->canAssignPresenter($request),
             'reactionCounts' => $this->reactionCounts($ids),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
@@ -120,21 +121,30 @@ class TotController extends Controller
 
         $employee = $request->attributes->get('employee');
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $isPresenterOfSlot = $employee && $session->presenter_employee_id === $employee->id;
 
         $this->authorizeSlotEdit($request, $session, $employee);
         $tenantId = app(CurrentTenant::class)->id();
 
-        $rules = [
-            'title' => ['nullable', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'links' => ['nullable', 'array', 'max:12'],
-            'links.*.label' => ['required_with:links', 'string', 'max:60'],
-            'links.*.url' => ['required_with:links', 'url', 'max:2000'],
-            'entry_id' => ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)],
-        ];
+        // The material (title, description, links, cross-link) belongs to the presenter of
+        // THIS slot or a privileged role, not to a tot.assign holder: that override buys
+        // exactly one field, presenter_employee_id, handled below.
+        $rules = [];
+
+        if ($privileged || $isPresenterOfSlot) {
+            $rules['title'] = ['nullable', 'string', 'max:200'];
+            $rules['description'] = ['nullable', 'string', 'max:2000'];
+            $rules['links'] = ['nullable', 'array', 'max:12'];
+            $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
+            $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
+            $rules['entry_id'] = ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)];
+        }
+
+        if ($this->canAssignPresenter($request)) {
+            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
+        }
 
         if ($privileged) {
-            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
             $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
             $rules['status'] = ['nullable', 'in:'.implode(',', TotSession::STATUSES)];
             $rules['held_on'] = ['nullable', 'date'];
@@ -367,6 +377,23 @@ class TotController extends Controller
     }
 
     /**
+     * May the actor set who presents a month? True for HR and management by role, and for
+     * anybody given the tot.assign override on the Roles screen. It buys exactly one field,
+     * presenter_employee_id, and nothing else on the slot.
+     */
+    private function canAssignPresenter(Request $request): bool
+    {
+        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+            return true;
+        }
+
+        $tenant = app(CurrentTenant::class)->get();
+
+        return $tenant !== null
+            && $request->user()?->canInTenant($tenant, 'tot.assign') === true;
+    }
+
+    /**
      * 404 unless the route-bound record belongs to the acting tenant.
      *
      * Route-model binding resolves before the BelongsToTenant global scope is active (the
@@ -381,17 +408,17 @@ class TotController extends Controller
         abort_unless($record->tenant_id === app(CurrentTenant::class)->id(), 404);
     }
 
-    /** 403 unless the actor is privileged or is the presenter of this slot. */
+    /** 403 unless the actor is privileged, holds tot.assign, or is the presenter of this slot. */
     private function authorizeSlotEdit(Request $request, TotSession $session, ?Employee $employee): void
     {
-        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+        if ($this->canAssignPresenter($request)) {
             return;
         }
 
         abort_unless(
             $employee && $session->presenter_employee_id === $employee->id,
             403,
-            'Only HR, management, or the presenter of this session can edit it.'
+            'Only HR, management, the TOT organiser, or the presenter of this session can edit it.'
         );
     }
 
