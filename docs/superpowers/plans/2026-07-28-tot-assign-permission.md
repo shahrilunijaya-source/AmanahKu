@@ -813,12 +813,20 @@ and the employee, and a clear stays silent on purpose."
 ## Task 6: Render the picker for a holder
 
 **Files:**
-- Modify: `resources/views/screens/tot.blade.php`
+- Modify: `resources/views/screens/tot.blade.php`, `resources/views/screens/roles.blade.php:85`
 - Test: `tests/Feature/TotAssignPermissionTest.php`
 
 **Interfaces:**
 - Consumes: `$canAssignPresenter` from `screenData()` (Task 2), and the existing `$canManage` and `$sessions` variables the view already receives.
 - Produces: nothing.
+
+**Also fix the Roles screen copy.** `resources/views/screens/roles.blade.php` line 85 describes the override grid as "Per-member overrides for staff actions (create / update / import)". That is now wrong: the grid renders a `tot` group too, and the help text above it says the feature does not cover it. The grid itself needs no change, it already loops over `overridableGrouped()` generically and prints the raw key. Replace only that opening sentence with:
+
+```
+Per-member overrides for staff actions (create, update, import) and for TOT presenter assignment.
+```
+
+Leave the rest of the paragraph exactly as it is.
 
 - [ ] **Step 1: Read the view's current edit form**
 
