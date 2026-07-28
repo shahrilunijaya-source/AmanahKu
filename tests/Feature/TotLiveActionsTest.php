@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Models\TotComment;
 use App\Models\TotSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -136,5 +137,22 @@ class TotLiveActionsTest extends TestCase
             ->postJson("/app/tot/{$session->id}/comment", ['body' => 'Good session'])
             ->assertOk()
             ->assertJsonPath('comments', 1);
+    }
+
+    /**
+     * deleteComment() resolves the parent session before the row goes, so the card can be
+     * told its new count. If that lookup ever moves after the delete it returns null and
+     * this route 500s, which no other test would catch.
+     */
+    public function test_removing_a_comment_returns_the_new_count(): void
+    {
+        $session = $this->slot();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/comment", ['body' => 'Bye']);
+        $comment = TotComment::where('session_id', $session->id)->firstOrFail();
+
+        $this->actingInTenant()->deleteJson("/app/tot/comments/{$comment->id}")
+            ->assertOk()
+            ->assertJsonPath('comments', 0)
+            ->assertJsonPath('id', $session->id);
     }
 }
