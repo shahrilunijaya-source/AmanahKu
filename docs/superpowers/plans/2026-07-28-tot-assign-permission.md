@@ -917,7 +917,11 @@ $canEditSlot = $canManage || $canAssignPresenter || $isPresenterOfSlot;
 
 2. Move the presenter picker out of the `@if ($canManage)` block and into its own `@if ($canAssignPresenter)` block, leaving `presenter_name`, `status`, `held_on` and the delete control inside `@if ($canManage)`. Keep the picker's markup, its label and its bilingual `x-text` exactly as they are; only the surrounding directive changes.
 
-Empty months need no extra work. `$isPresenterOfSlot` is false on an unsaved placeholder because it tests `$session->exists`, but `$canAssignPresenter` does not, so widening `$canEditSlot` in edit 1 already opens the form on all twelve rows. That form posts to `tot.store` for a placeholder, which Task 4 now accepts from a holder.
+3. **Empty months need their own gate.** The placeholder branch, the `@else` after the saved-slot block, has a completely separate `@if ($canManage)` around its create form. It does not read `$canEditSlot` at all, so widening that variable does nothing for it, and without this edit the holder create path built in Task 4 is unreachable from the UI. Change that gate to `@if ($canManage || $canAssignPresenter)` and nest `presenter_name`, `title` and `status` inside an inner `@if ($canManage)`, leaving only `presenter_employee_id` and the submit button for a holder.
+
+4. **Gate the material fields in the edit form.** `title`, `description`, the links repeater and `entry_id` currently render for anybody who passes `$canEditSlot`, which now includes a holder. `update()` gives a holder no rule for any of them, so they would be controls that silently discard what you type. Wrap all four in `@if ($canManage || $isPresenterOfSlot)`.
+
+**A warning about writing these tests.** `assertDontSee('name="title"')` and `assertDontSee('name="description"')` both pass and fail for the wrong reasons on this screen: the app layout embeds a Knowledge Bank share panel and a feedback panel that carry those exact field names, so the assertion sees them no matter what the TOT form does. Assert on `name="entry_id"` or `name="presenter_name"`, which only the TOT form has.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
