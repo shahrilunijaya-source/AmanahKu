@@ -614,7 +614,11 @@ x-data="totCard({
 })"
 ```
 
-Then register the component in the page's Alpine block, next to the other `Alpine.data` registrations in this file, or at the bottom of the view inside a `@push('scripts')` if that is the file's existing convention. Check which the file already uses before choosing.
+**Where the component lives.** This app does not register Alpine components inside Blade. Every reusable one is its own ES module under `resources/js/` exporting a `register<Name>(Alpine)` function, imported and called in `resources/js/app.js`. See `resources/js/work-board.js` and its `registerWorkBoard(Alpine)` call for the closest example, since it also drives a modal and a comment thread over fetch.
+
+So: create `resources/js/tot-card.js` exporting `registerTotCard(Alpine)`, add `import { registerTotCard } from './tot-card';` to the import block in `resources/js/app.js` keeping that block's alphabetical order, and call `registerTotCard(Alpine);` alongside the other register calls.
+
+**Do not disturb the existing row-level `x-data`.** The month row already carries `x-data="{ open: ..., editing: ... }"` and the links repeater carries its own. Put `x-data="totCard({...})"` on the panel element nested inside the row. Alpine scopes nest, so the inner component still reads `open` and `editing` from the row above it.
 
 ```js
 Alpine.data('totCard', (seed) => ({
