@@ -101,14 +101,13 @@ class WorkItemCardHtmlTest extends TestCase
         $this->assertIsString($deleted->json('html'));
     }
 
-    public function test_compact_card_partial_omits_estimate_hours_and_uses_the_compact_modifier(): void
+    public function test_compact_card_partial_uses_the_compact_modifier(): void
     {
-        $item = $this->card(['title' => 'Compact card', 'estimate_hours' => 5]);
+        $item = $this->card(['title' => 'Compact card']);
         $item->load(['participants', 'projectRef', 'assignedBy'])->loadCount('comments');
 
         $html = view('partials.work-card', ['c' => $item, 'compact' => true])->render();
 
         $this->assertStringContainsString('wc--sm', $html);
-        $this->assertStringNotContainsString('5h', $html);
     }
 }

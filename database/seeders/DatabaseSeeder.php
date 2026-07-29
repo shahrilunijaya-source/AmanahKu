@@ -173,13 +173,13 @@ class DatabaseSeeder extends Seeder
         // name, position, dept, branch, level, status, workload, wl label, email, initials, avatar, photo, leave, kpi
         $rows = [
             ['Aisyah Rahman', 'HR Manager', 'People & Culture', 'PJ HQ', 'L6', 'active', 'green', 'Healthy', 'aisyah.rahman@unijaya.example', 'AR', '#3a6ea5', 47, 12.5, 78],
-            ['Nurul Iman binti Hassan', 'Senior HR Executive', 'People & Culture', 'PJ HQ', 'L4', 'active', 'green', 'Healthy', 'nurul.iman@unijaya.example', 'NI', '#1f8a65', 44, 9.0, 91],
+            ['Nurul Iman binti Hassan', 'Senior HR Executive', 'People & Culture', 'PJ HQ', 'L4', 'active', 'green', 'Healthy', 'nurul.iman@unijaya.example', 'NI', '#1d825f', 44, 9.0, 91],
             ['Faizal Othman', 'Operations Lead', 'Operations', 'Seremban 2', 'L5', 'active', 'red', 'Overloaded', 'faizal.othman@unijaya.example', 'FO', '#d6232b', 13, 6.0, 72],
-            ['Tan Wei Ming', 'Finance Analyst', 'Finance', 'PJ HQ', 'L3', 'active', 'amber', 'Near capacity', 'weiming.tan@unijaya.example', 'TW', '#c08532', 33, 8.0, 80],
+            ['Tan Wei Ming', 'Finance Analyst', 'Finance', 'PJ HQ', 'L3', 'active', 'amber', 'Near capacity', 'weiming.tan@unijaya.example', 'TW', '#996a28', 33, 8.0, 80],
             ['Ravi Kumar', 'IT Support Engineer', 'Information Tech', 'PJ HQ', 'L3', 'active', 'green', 'Healthy', 'ravi.kumar@unijaya.example', 'RK', '#7a5bb0', 68, 10.0, 75],
             ['Siti Khadijah', 'Marketing Executive', 'Marketing', 'PJ HQ', 'L3', 'on_leave', 'grey', 'On leave', 'siti.k@unijaya.example', 'SK', '#3a6ea5', 45, 5.0, 66],
-            ['Lim Chee Keong', 'Procurement Officer', 'Procurement', 'Klang', 'L4', 'active', 'amber', 'Near capacity', 'cklim@unijaya.example', 'LC', '#1f8a65', 53, 7.5, 70],
-            ['Farah Aziz', 'Marketing Executive', 'Marketing', 'PJ HQ', 'L2', 'probation', 'green', 'Healthy', 'farah.aziz@unijaya.example', 'FA', '#c08532', 20, 14.0, 60],
+            ['Lim Chee Keong', 'Procurement Officer', 'Procurement', 'Klang', 'L4', 'active', 'amber', 'Near capacity', 'cklim@unijaya.example', 'LC', '#1d825f', 53, 7.5, 70],
+            ['Farah Aziz', 'Marketing Executive', 'Marketing', 'PJ HQ', 'L2', 'probation', 'green', 'Healthy', 'farah.aziz@unijaya.example', 'FA', '#996a28', 20, 14.0, 60],
             ['Daniel Lee', 'Sales Executive', 'Sales', 'Kuala Lumpur', 'L3', 'active', 'green', 'Healthy', 'daniel.lee@unijaya.example', 'DL', '#3a6ea5', 60, 11.0, 84],
             ['Hafiz Zulkifli', 'Warehouse Supervisor', 'Logistics', 'Klang', 'L4', 'active', 'red', 'Overloaded', 'hafiz.z@unijaya.example', 'HZ', '#d6232b', 15, 4.5, 68],
         ];
@@ -250,15 +250,15 @@ class DatabaseSeeder extends Seeder
         // Work items (board + employee dashboard) for Aisyah.
         $aisyah = $emp['Aisyah Rahman']->id;
         foreach ([
-            ['Prepare Q3 payroll reconciliation', 'assignment', 'prog', 'high', 'Due tomorrow', 8, 60],
-            ['Review new hire documents — Farah Aziz', 'task', 'todo', 'medium', 'Due Thu, 25 Jun', 4, 25],
-            ['Urgent: respond to EPF audit query', 'adhoc', 'todo', 'high', 'Due today', 3, 10],
-            ['Update leave policy v3.2 handbook entry', 'assignment', 'review', 'low', 'Due Fri, 26 Jun', 6, 80],
-            ['Draft FY26 leave policy revision', 'assignment', 'review', 'medium', 'Reviewer: Nurul', 8, 90],
-            ['Close FY25 payroll audit', 'task', 'done', 'high', 'Closed', 12, 100],
-            ['Onboarding pack — Farah Aziz', 'task', 'done', 'medium', 'Closed', 5, 100],
+            ['Prepare Q3 payroll reconciliation', 'assignment', 'prog', 'high', 'Due tomorrow', 60],
+            ['Review new hire documents — Farah Aziz', 'task', 'todo', 'medium', 'Due Thu, 25 Jun', 25],
+            ['Urgent: respond to EPF audit query', 'adhoc', 'todo', 'high', 'Due today', 10],
+            ['Update leave policy v3.2 handbook entry', 'assignment', 'review', 'low', 'Due Fri, 26 Jun', 80],
+            ['Draft FY26 leave policy revision', 'assignment', 'review', 'medium', 'Reviewer: Nurul', 90],
+            ['Close FY25 payroll audit', 'task', 'done', 'high', 'Closed', 100],
+            ['Onboarding pack — Farah Aziz', 'task', 'done', 'medium', 'Closed', 100],
         ] as $w) {
-            WorkItem::create(['tenant_id' => $tid, 'employee_id' => $aisyah, 'title' => $w[0], 'type' => $w[1], 'status' => $w[2], 'priority' => $w[3], 'due_label' => $w[4], 'estimate_hours' => $w[5], 'progress' => $w[6]]);
+            WorkItem::create(['tenant_id' => $tid, 'employee_id' => $aisyah, 'title' => $w[0], 'type' => $w[1], 'status' => $w[2], 'priority' => $w[3], 'due_label' => $w[4], 'progress' => $w[5]]);
         }
 
         // Live-workload backing data. The Employee `workload` accessor derives green/amber/red
@@ -598,7 +598,7 @@ class DatabaseSeeder extends Seeder
         $tid = $t->id;
         $dept = Department::create(['tenant_id' => $tid, 'name' => 'Operations'])->id;
         $branch = Branch::create(['tenant_id' => $tid, 'name' => 'Main', 'state' => 'Selangor'])->id;
-        foreach ([['Ahmad Faizal', 'Station Manager', 'AF', '#1f8a65'], ['Mei Ling', 'Cashier Lead', 'ML', '#3a6ea5']] as $r) {
+        foreach ([['Ahmad Faizal', 'Station Manager', 'AF', '#1d825f'], ['Mei Ling', 'Cashier Lead', 'ML', '#3a6ea5']] as $r) {
             Employee::create([
                 'tenant_id' => $tid, 'department_id' => $dept, 'branch_id' => $branch,
                 'name' => $r[0], 'position' => $r[1], 'level' => 'L3', 'status' => 'active',

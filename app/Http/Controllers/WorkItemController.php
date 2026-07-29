@@ -35,7 +35,6 @@ class WorkItemController extends Controller
             'priority' => ['required', 'in:high,medium,low'],
             'status' => ['nullable', 'in:'.implode(',', self::STATUSES)],
             'due_label' => ['nullable', 'string', 'max:60'],
-            'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
         ]);
 
@@ -46,7 +45,6 @@ class WorkItemController extends Controller
             'type' => $data['type'],
             'priority' => $data['priority'],
             'due_label' => $data['due_label'] ?? null,
-            'estimate_hours' => $data['estimate_hours'] ?? null,
             'project_id' => $data['project_id'] ?? null,
             'status' => $status,
             'progress' => 0,
@@ -155,9 +153,9 @@ class WorkItemController extends Controller
      * field on the card.
      *
      * `estimate_hours` is `prohibited`: the drawer dropped the field from its
-     * UI, so a request still carrying it is a stale client, not a partial
-     * edit, and gets rejected rather than silently ignored. The column stays
-     * until Stage 4's migration; nothing here writes to it any more.
+     * UI, and Stage 4 dropped the column itself, so a request still carrying
+     * it is a stale client, not a partial edit, and gets rejected outright
+     * rather than erroring on an unknown column.
      */
     public function update(Request $request, WorkItem $workItem): JsonResponse
     {
@@ -469,7 +467,6 @@ class WorkItemController extends Controller
             'status' => $item->status,
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
-            'estimate_hours' => $item->estimate_hours,
             'labels' => $item->labels ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),

@@ -127,18 +127,18 @@ class BoardCardTest extends TestCase
         $this->assertSame('adhoc', $fresh->type);
     }
 
-    /** The drawer dropped estimate_hours from its UI (Stage 2 of the board redesign);
-     *  a request still carrying it is rejected outright rather than silently ignored,
-     *  and the column — which stays until Stage 4's migration — is left untouched. */
+    /** The drawer dropped estimate_hours from its UI (Stage 2), and Stage 4 dropped
+     *  the column itself; a request still carrying the field is a stale client and
+     *  is rejected outright rather than erroring on an unknown column. */
     public function test_update_rejects_estimate_hours(): void
     {
-        $item = $this->card(['estimate_hours' => 3]);
+        $item = $this->card(['title' => 'Original']);
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'X', 'estimate_hours' => 99,
         ])->assertStatus(422)->assertJsonValidationErrors(['estimate_hours']);
 
-        $this->assertSame(3, (int) $item->fresh()->estimate_hours);
+        $this->assertSame('Original', $item->fresh()->title);
     }
 
     /** The drawer autosaves one field at a time, so a PATCH may carry only the
@@ -181,27 +181,27 @@ class BoardCardTest extends TestCase
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'X', 'type' => 'task', 'priority' => 'low',
-            'due_at' => '2026-08-01', 'labels' => ['urgent', 'review'],
+            'due_at' => '2026-08-01', 'labels' => ['blocked', 'client'],
         ])->assertOk()
-            ->assertJsonPath('card.labels', ['urgent', 'review'])
+            ->assertJsonPath('card.labels', ['blocked', 'client'])
             ->assertJsonPath('card.due_at', '2026-08-01')
             // The real date wins over any free-text label in the card face text.
             ->assertJsonPath('card.due_label', '01 Aug 2026');
 
         $fresh = $item->fresh();
-        $this->assertSame(['urgent', 'review'], $fresh->labels);
+        $this->assertSame(['blocked', 'client'], $fresh->labels);
         $this->assertSame('2026-08-01', $fresh->due_at->format('Y-m-d'));
     }
 
     public function test_board_marks_overdue_open_cards_and_emits_label_data(): void
     {
         // Open past-due card: carries a label and gets the overdue marker.
-        $this->card(['labels' => ['urgent'], 'due_at' => now()->subDay()->toDateString(), 'status' => 'todo']);
+        $this->card(['labels' => ['blocked'], 'due_at' => now()->subDay()->toDateString(), 'status' => 'todo']);
         // A Done card that is also past its date must NOT be flagged overdue.
         $this->card(['due_at' => now()->subDay()->toDateString(), 'status' => 'done', 'title' => 'Shipped']);
 
         $res = $this->actingInTenant()->get('/app/board')->assertOk();
-        $res->assertSee('data-labels="urgent"', false);
+        $res->assertSee('data-labels="blocked"', false);
         $res->assertSee('wc-when--over', false);
         // Exactly one overdue marker — the Done card is excluded.
         $this->assertSame(1, substr_count($res->getContent(), 'wc-when--over'));

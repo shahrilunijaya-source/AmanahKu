@@ -297,7 +297,7 @@
                     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $w->title }}</div>
-                            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;"><span style="color:{{ $tc }};font-weight:600;">{{ $tl }}</span>@if ($w->due_label) · {{ $w->due_label }}@endif @if ($w->estimate_hours) · <span style="font-family:var(--font-mono);">{{ $w->estimate_hours }}h</span>@endif</div>
+                            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;"><span style="color:{{ $tc }};font-weight:600;">{{ $tl }}</span>@if ($w->due_label) · {{ $w->due_label }}@endif</div>
                         </div>
                         @if ($w->priority)<span style="font-size:10.5px;font-weight:600;color:{{ $wPri[$w->priority] ?? 'var(--muted)' }};">{{ ucfirst($w->priority) }}</span>@endif
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $scol }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $scol }};"></span>{{ $sl }}</span>

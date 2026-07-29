@@ -16,14 +16,16 @@ class WorkItem extends Model
 
     /**
      * Fixed kanban label palette: slug => [display name, chip color]. Cards store
-     * an array of these slugs in the `labels` JSON column. Mirror any change in
-     * resources/js/work-board.js (LABELS) so client-side repaint stays in sync.
+     * an array of these slugs in the `labels` JSON column. Pruned from six to
+     * three in the T.A.A. board redesign (Stage 4, 2026-07-29): `urgent`,
+     * `waiting` and `review` each duplicated a field the card already carried
+     * (priority, blocked, status) and could contradict it, so they were folded
+     * or removed by database/migrations/*_migrate_work_item_labels.php. This
+     * palette is passed server-side into the Alpine component as a prop
+     * (`resources/js/work-board.js`), so there is no JS twin to keep in sync.
      */
     public const LABELS = [
-        'urgent' => ['Urgent', '#e5484d'],
         'blocked' => ['Blocked', '#f76808'],
-        'waiting' => ['Waiting', '#9a6700'],
-        'review' => ['Review', '#3a6ea5'],
         'client' => ['Client', '#8a4bdb'],
         'internal' => ['Internal', '#5a6b7b'],
     ];
