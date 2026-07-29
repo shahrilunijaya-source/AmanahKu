@@ -400,7 +400,10 @@ class TotController extends Controller
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
         $data = $request->validate([
-            'score' => ['required', 'integer', 'min:1', 'max:5'],
+            // present + nullable, not nullable alone: clearing a rating must be an
+            // explicit "score": null, so a request that merely forgets the key cannot
+            // silently wipe somebody's score.
+            'score' => ['present', 'nullable', 'integer', 'min:1', 'max:5'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -409,14 +412,29 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        // The box is prefilled from the rater's own note, so a blank box now means clear it,
-        // while a score-only submit from the flyout carries no note key at all and leaves
-        // the note alone.
-        $row->score = $data['score'];
-        if ($request->has('note')) {
-            $row->note = $request->input('note') === '' ? null : $data['note'];
+        if ($data['score'] === null) {
+            // Nothing to clear, and creating the row here would mark the caller
+            // watched as a side effect of a no-op.
+            if (! $row->exists) {
+                return $request->expectsJson()
+                    ? response()->json($this->sessionState($request, $session))
+                    : back();
+            }
+
+            // The note goes with the score. A note with no score is orphaned, and
+            // the presenter would read it with nothing to read it against.
+            $row->score = null;
+            $row->note = null;
+        } else {
+            $row->score = $data['score'];
+            // The box is prefilled from the rater's own note, so a blank box now means
+            // clear it, while a score-only submit from the flyout carries no note key
+            // at all and leaves the note alone.
+            if ($request->has('note')) {
+                $row->note = $request->input('note') === '' ? null : $data['note'];
+            }
+            $row->watched_at ??= now();
         }
-        $row->watched_at ??= now();
 
         try {
             $row->save();

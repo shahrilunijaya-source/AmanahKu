@@ -256,4 +256,61 @@ class TotLiveActionsTest extends TestCase
         $this->assertNull($row->watched_at);
         $this->assertSame(4, $row->score);
     }
+
+    public function test_rating_the_same_score_again_clears_it_and_its_note(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Useful']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null]);
+
+        $response->assertOk()->assertJsonPath('myScore', null);
+
+        $row = TotParticipation::where('session_id', $session->id)->first();
+        $this->assertNull($row->score);
+        $this->assertNull($row->note, 'a note with no score is orphaned');
+        $this->assertNotNull($row->watched_at, 'you still watched it');
+    }
+
+    public function test_clearing_a_rating_you_never_gave_creates_no_row(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null])
+            ->assertOk()
+            ->assertJsonPath('myScore', null)
+            ->assertJsonPath('iWatched', false);
+
+        $this->assertSame(0, TotParticipation::where('session_id', $session->id)->count());
+    }
+
+    public function test_a_cleared_rating_drops_out_of_the_average_and_the_notes(): void
+    {
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->employee->id]);
+
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id, 'employee_id' => $other->id,
+            'score' => 2, 'note' => 'Theirs', 'watched_at' => now(),
+        ]);
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Mine']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null]);
+
+        $response->assertOk()
+            ->assertJsonPath('score.average', 2)
+            ->assertJsonPath('score.count', 1);
+    }
+
+    public function test_an_out_of_range_score_is_still_rejected(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 6])
+            ->assertStatus(422);
+    }
 }
