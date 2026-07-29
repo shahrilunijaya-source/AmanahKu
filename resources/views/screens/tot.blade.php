@@ -131,6 +131,17 @@
         </div>
     </div>
 
+@if ($myMonth)
+    <p class="tot-pic">
+        <span>
+            <b x-text="$store.ui.lang==='en' ? @js('You present in '.$myMonth->session_date->format('F').'.') : @js('Anda membentang pada '.$myMonth->session_date->format('F').'.')">You present in {{ $myMonth->session_date->format('F') }}.</b>
+            <span class="tot-pic-sub">{{ filled($myMonth->title) ? $myMonth->title : '' }}@if (filled($myMonth->title)) · @endif{{ $myMonth->session_date->format('l j F Y') }}</span>
+        </span>
+        <button type="button" @click="$dispatch('tot-open', { month: {{ $myMonth->month }} })"
+                x-text="$store.ui.lang==='en' ? 'Open my slot' : 'Buka slot saya'">Open my slot</button>
+    </p>
+@endif
+
     @if ($allUnassigned)
         <div class="tot-invite">
             <h4 x-text="$store.ui.lang==='en' ? 'Twelve Saturdays, nobody assigned yet' : 'Dua belas Sabtu, belum ada pembentang'">Twelve Saturdays, nobody assigned yet</h4>
@@ -169,9 +180,11 @@
                     canParticipate: @js($canParticipate),
                     editing: {{ $slotFailed ? 'true' : 'false' }},
                     drawerOpen: {{ $slotFailed ? 'true' : 'false' }},
-                })">
+                })"
+                     @tot-open.window="if ($event.detail.month === {{ $session->month }}) { openDrawer() }">
             @else
-                <div x-data="{ drawerOpen: false }">
+                <div x-data="{ drawerOpen: false }"
+                     @tot-open.window="if ($event.detail.month === {{ $session->month }}) { drawerOpen = true }">
             @endif
                 <button type="button" class="tot-row" @if ($rm['kind']) data-kind="{{ $rm['kind'] }}" @endif
                         @if ($session->exists) @click="openDrawer()" @else @click="drawerOpen = true" @endif>

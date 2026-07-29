@@ -1287,7 +1287,7 @@ In `resources/views/screens/tot.blade.php`, directly after the closing `</div>` 
 Then, on the per-session wrapper element in the loop, listen for that event:
 
 ```blade
-@window.tot-open="if ($event.detail.month === {{ $session->month }}) openDrawer()"
+@tot-open.window="if ($event.detail.month === {{ $session->month }}) openDrawer()"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**

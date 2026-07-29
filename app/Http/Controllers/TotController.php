@@ -61,6 +61,13 @@ class TotController extends Controller
             'reactionCounts' => $this->reactionCounts($ids),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
+            // The one slot this viewer presents in the displayed year, if any. A
+            // person presents once a year, so they do not need their own route —
+            // they need the board to point at their month.
+            'myMonth' => $employee
+                ? collect($sessions)->first(fn (TotSession $s) => $s->exists
+                    && $s->presenter_employee_id === $employee->id)
+                : null,
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
             'commentCounts' => $this->commentCounts($ids),

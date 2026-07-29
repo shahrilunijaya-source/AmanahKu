@@ -2040,6 +2040,18 @@ select.wd-inline {
 .tot-btn-g:hover{border-color:var(--muted);}
 .tot-btn-g:active{transform:scale(.97);}
 
+/* The PIC strip. Somebody who presents once a year does not need a route, they
+   need the board to point at their month. */
+.tot-pic { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0;
+  padding:12px 20px; background:var(--red-tint); border-bottom:1px solid var(--hairline);
+  font-size:13.5px; color:var(--ink); }
+.tot-pic b { font-weight:600; }
+.tot-pic-sub { color:var(--body); }
+.tot-pic button { margin-left:auto; border:1px solid var(--red); background:var(--card);
+  color:var(--red-active); border-radius:999px; padding:5px 13px;
+  font:500 12.5px var(--font-sans); cursor:pointer; }
+.tot-pic button:hover { border-color:var(--red-active); }
+
 @media (max-width:640px){
     .tot-mast-y{font-size:40px;}
     .tot-row{grid-template-columns:46px minmax(0,1fr) 14px;gap:12px;}
@@ -2117,5 +2129,7 @@ select.wd-inline {
      sheet at 480px above. */
   .tot-act { min-height:40px; }
   .tot-sc { width:40px; height:40px; }
+  .tot-pic { padding:12px 16px; }
+  .tot-pic button { margin-left:0; width:100%; }
 }
 

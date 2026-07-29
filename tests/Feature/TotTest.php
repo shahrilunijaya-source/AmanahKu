@@ -147,6 +147,41 @@ class TotTest extends TestCase
         $response->assertViewHas('year', (int) now()->year);
     }
 
+    public function test_the_board_points_a_presenter_at_their_own_month(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'planned', 'presenter_employee_id' => $this->employee->id,
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertSee('tot-pic', false)
+            ->assertSee('You present in February');
+    }
+
+    public function test_the_board_shows_no_strip_to_somebody_who_presents_nothing(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'planned',
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertDontSee('tot-pic', false);
+    }
+
+    public function test_the_strip_names_the_topic_when_there_is_one(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'confirmed', 'title' => 'Queue workers in production',
+            'presenter_employee_id' => $this->employee->id,
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertSee('Queue workers in production');
+    }
+
     // ── Roster permissions ────────────────────────────────────────
 
     public function test_an_employee_cannot_create_a_slot(): void
