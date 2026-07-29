@@ -43,10 +43,53 @@ trait BuildsWorkData
                 ->get()
             : collect();
 
+        $startOfWeek = now()->startOfWeek();
+        $endOfWeek = now()->endOfWeek();
+        $startOfMonth = now()->startOfMonth();
+        $endOfMonth = now()->endOfMonth();
+
+        $weekRecords = $records->filter(
+            fn ($r) => $r->date->gte($startOfWeek) && $r->date->lte($endOfWeek)
+        )->values();
+
+        $earlierRecords = $records->filter(
+            fn ($r) => $r->date->lt($startOfWeek)
+        )->values();
+
+        $weekWorkedMinutes = (int) $weekRecords->sum('worked_minutes');
+
+        /**
+         * weekBaselineDeltaMinutes uses expected_min_hours of completed days (clock_out !== null),
+         * which is the same expectation the record's flags were raised from, so the delta cannot
+         * drift from the flags, and no schedule needs re-resolving.
+         */
+        $weekExpectedMinutes = (int) $weekRecords
+            ->filter(fn ($r) => $r->clock_out !== null && $r->expected_min_hours !== null)
+            ->sum(fn ($r) => (int) round((float) $r->expected_min_hours * 60));
+
+        $weekBaselineDeltaMinutes = $weekWorkedMinutes - $weekExpectedMinutes;
+
+        $lateThisMonth = (int) $records->filter(
+            fn ($r) => $r->date->gte($startOfMonth) && $r->date->lte($endOfMonth) && $r->status === 'late'
+        )->count();
+
+        $offSiteThisMonth = (int) $records->filter(
+            fn ($r) => $r->date->gte($startOfMonth)
+                && $r->date->lte($endOfMonth)
+                && is_array($r->flags)
+                && (in_array('out_of_radius_in', $r->flags, true) || in_array('out_of_radius_out', $r->flags, true))
+        )->count();
+
         return [
             'records' => $records,
             'today' => $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
+            'weekRecords' => $weekRecords,
+            'earlierRecords' => $earlierRecords,
+            'weekWorkedMinutes' => $weekWorkedMinutes,
+            'weekBaselineDeltaMinutes' => $weekBaselineDeltaMinutes,
+            'lateThisMonth' => $lateThisMonth,
+            'offSiteThisMonth' => $offSiteThisMonth,
         ];
     }
 
