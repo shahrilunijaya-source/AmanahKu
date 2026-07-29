@@ -647,4 +647,87 @@ class BoardCardTest extends TestCase
 
         $this->assertSame('Theirs', $card->fresh()->title);
     }
+
+    // ── Task 3: the read grant ──────────────────────────────────────────────
+    // canSeeAll() widens who may VIEW a card (management, HR, or an immediate
+    // superior), still bounded by coversCardOwner() exactly like the edit grant.
+    // Nothing here should ever let anyone EDIT more than canManage() already did.
+
+    public function test_a_director_may_open_but_not_edit_another_persons_card(): void
+    {
+        $director = $this->manager('director');
+        $card = $this->card(['title' => 'Not the directors']); // owned by the plain employee
+
+        $this->actingAsManager($director)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+
+        $this->actingAsManager($director)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Hijack'])
+            ->assertForbidden();
+
+        $this->assertSame('Not the directors', $card->fresh()->title);
+    }
+
+    public function test_hr_may_open_another_persons_card_read_only(): void
+    {
+        $hr = $this->manager('hr');
+        $card = $this->card();
+
+        $this->actingAsManager($hr)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+    }
+
+    /**
+     * The hole this guards (AK-AUTHZ-01, reintroduced through the view grant instead
+     * of the edit grant): the `manager` role alone passes canSeeAll(), so without the
+     * coversCardOwner() check a team-scoped manager could open any card in the
+     * tenant just by knowing its id. Their role passes canSeeAll() — this proves the
+     * DataScope check, not the role check, is what stops them.
+     */
+    public function test_a_team_scoped_manager_may_not_open_a_card_outside_their_line(): void
+    {
+        $mgr = $this->scopedManager('team');
+        // $this->employee does not report to $mgr.
+        $card = $this->card(['title' => 'Outside the line']);
+
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")
+            ->assertForbidden();
+
+        $this->assertSame('Outside the line', $card->fresh()->title);
+    }
+
+    public function test_an_employee_with_no_reports_may_not_open_a_colleagues_card(): void
+    {
+        $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green']);
+        $card = $colleague->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Theirs', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")->assertForbidden();
+    }
+
+    /** This is the canSeeAll() fallback clause: an 'employee'-role user with at
+     *  least one direct report still qualifies, with no role change needed. */
+    public function test_an_employee_with_a_direct_report_may_open_that_reports_card(): void
+    {
+        $report = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Report', 'status' => 'active',
+            'workload' => 'green', 'reports_to_id' => $this->employee->id,
+        ]);
+        $card = $report->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'From my report', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+    }
+
+    public function test_team_board_still_403s_for_an_unprivileged_user(): void
+    {
+        // The base actor is a plain 'employee' with no direct reports — canSeeAll()
+        // rejects them, so the screen itself must still 403.
+        $this->actingInTenant()->get('/app/team-board')->assertForbidden();
+    }
 }

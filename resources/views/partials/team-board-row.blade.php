@@ -8,9 +8,11 @@
     read by resources/js/team-board.js for client-side filter/sort; nothing
     here is server round-tripped.
 
-    Not clickable yet: rows carry tabindex/role/data-card-id so Task 3 can
-    wire them to the existing card drawer, but no click handler exists in
-    this task.
+    Clicking (or Enter/Space on) a row navigates to the personal board's
+    `?card=` deep link for data-card-id, opening the existing card drawer
+    there — read-only unless the viewer could already edit it. See
+    team-board.js's openRow() for why this is a navigation rather than a
+    second drawer built on this screen.
 
     @param array $row  One entry from $teamRows: ['item' => WorkItem,
                         'owner_id', 'owner_name', 'owner_initials', 'owner_avatar_color'].

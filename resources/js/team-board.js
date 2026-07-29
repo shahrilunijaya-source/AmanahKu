@@ -5,10 +5,13 @@
 // their data-* attributes, never a fetch. The row markup itself lives in one
 // place, server-side: partials/team-board-row.blade.php.
 //
-// Rows are NOT wired to the card drawer in this task. They already carry
-// tabindex/role/data-card-id so a later task can add the click handler and
-// the read-only grant it needs — see docs/superpowers/plans/
-// 2026-07-29-team-board-redesign.md ("Task 3").
+// Task 3 wires rows to the existing card drawer. This screen has no drawer
+// component of its own (unlike work-board.js's board screen), and building a
+// second one here is exactly what the design doc rules out — so a row opens
+// its card by navigating to the personal board's own `?card=` deep link
+// (see work-board.js's openCardById()/init()), which already renders the
+// drawer read-only when `can_manage` is false. A real cross-screen
+// navigation, not a fetch: there is no drawer on this screen to swap in place.
 
 const STATUS_ORDER = { todo: 0, prog: 1, review: 2, done: 3 };
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
@@ -49,6 +52,29 @@ export function registerTeamBoard(Alpine) {
             // "Open" behaves identically to the initial render.
             this.applyStripSort();
             this.applyFilter();
+
+            // Open a row's card on click, or on Enter/Space from the keyboard —
+            // the row is a role="button" div, not a native control, so neither
+            // activation is free. Mirrors work-board.js's own card-open listeners.
+            this.$root.addEventListener('click', (e) => {
+                const row = e.target.closest('[data-card-id]');
+                if (row && this.$root.contains(row)) this.openRow(row);
+            });
+            this.$root.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+                const row = e.target.closest('[data-card-id][role="button"]');
+                if (!row || !this.$root.contains(row)) return;
+                e.preventDefault();
+                this.openRow(row);
+            });
+        },
+
+        // Navigates to the personal board's card deep link — see the file header
+        // comment for why this is a navigation rather than an in-place drawer.
+        openRow(row) {
+            const id = row.dataset.cardId;
+            if (!id) return;
+            window.location.href = `/app/board?card=${id}`;
         },
 
         // ── Status chip (multi-select: To Do / In Progress / In Review / Done) ──

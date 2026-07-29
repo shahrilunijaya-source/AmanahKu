@@ -301,10 +301,25 @@ class WorkItemController extends Controller
         return $employee;
     }
 
-    /** View / comment / move: the owner, a (tac) assigner, or an included participant. */
+    /**
+     * View / comment / move: the owner, a (tac) assigner, an included participant, a
+     * manager whose data scope covers the card's owner, or anyone whose role passes
+     * Permissions::canSeeAll() (management, HR, or an immediate superior) — bounded,
+     * same as the manager clause, by coversCardOwner().
+     *
+     * The canSeeAll() clause is what lets a director (or HR, or any employee with a
+     * direct report) open a card from the team board without a 403 — see the design
+     * doc's "Permissions" section. It is deliberately strictly wider than canManage():
+     * canSeeAll() decides *whether* someone oversees people, coversCardOwner() decides
+     * *whose* records, and without that second half a team-scoped manager (or anyone
+     * else canSeeAll() admits) could open any card in the tenant by putting its id in
+     * the URL — the same hole AK-AUTHZ-01 exists to close, reintroduced through a
+     * different door.
+     */
     private function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $role = $request->attributes->get('tenantRole', 'employee');
         abort_unless(
             $item->employee_id === $employee->id
             || $this->isAssigner($item, $employee)
@@ -312,7 +327,8 @@ class WorkItemController extends Controller
             // A manager who may edit the card must also be able to open it. Without
             // this they hold edit rights they can never reach: show() would 403 and
             // the drawer would never render.
-            || $this->isManagerOver($request, $item, $employee),
+            || $this->isManagerOver($request, $item, $employee)
+            || (Permissions::canSeeAll($employee, $role) && $this->coversCardOwner($request, $item, $employee)),
             403,
         );
     }
@@ -386,15 +402,29 @@ class WorkItemController extends Controller
         return $owns || $this->isManagerOver($request, $item, $employee);
     }
 
-    /** A `manager` whose data scope includes the employee whose board this card sits on. */
+    /**
+     * A `manager` whose data scope includes the employee whose board this card sits
+     * on. The edit grant: role check plus the DataScope leg (coversCardOwner()). Kept
+     * as its own method — rather than inlined at its one call site in canManage() —
+     * because its name documents what it means there; behaviour is unchanged from
+     * before the DataScope leg was split out.
+     */
     private function isManagerOver(Request $request, WorkItem $item, Employee $employee): bool
     {
         $role = $request->attributes->get('tenantRole', 'employee');
 
-        if (Permissions::effectiveRole($role) !== 'manager') {
-            return false;
-        }
+        return Permissions::effectiveRole($role) === 'manager'
+            && $this->coversCardOwner($request, $item, $employee);
+    }
 
+    /**
+     * Whether $employee's data scope reaches the card's owner — the DataScope leg
+     * alone, no role check. Shared by the edit grant (isManagerOver(), above) and the
+     * wider view grant in authorizeAccess(): canSeeAll() decides *whether* a viewer
+     * oversees people at all, this decides *whose* records that reaches.
+     */
+    private function coversCardOwner(Request $request, WorkItem $item, Employee $employee): bool
+    {
         // A null return means company scope — every employee is in reach.
         $visible = app(DataScope::class)->visibleEmployeeIds(
             $request->attributes->get('tenantScope', 'company'),
