@@ -96,7 +96,7 @@
                                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-bottom:5px;" x-text="e.title"></div>
                                 <div style="font-size:12.5px;color:var(--body);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;" x-text="e.body"></div>
                                 <div style="display:flex;align-items:center;gap:9px;margin-top:11px;">
-                                    <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10.5px;font-weight:600;background:'+e.color" x-text="e.initials"></span>
+                                    <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:'+e.color" x-text="e.initials"></span>
                                     <div style="flex:1;min-width:0;">
                                         <div style="font-size:12px;font-weight:600;color:var(--ink);" x-text="e.author"></div>
                                         <div style="font-size:10px;color:var(--muted);" x-text="e.dept"></div>

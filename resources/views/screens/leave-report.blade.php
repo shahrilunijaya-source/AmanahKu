@@ -140,7 +140,7 @@
     @forelse ($byStaff as $s)
         <a href="{{ $baseUrl }}&emp={{ $s['id'] }}" class="lr-staff-row">
             <span style="display:flex;align-items:center;gap:9px;min-width:0;">
-                <span style="width:28px;height:28px;border-radius:50%;background:{{ $s['color'] ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $s['initials'] }}</span>
+                <span style="width:28px;height:28px;border-radius:50%;background:{{ $s['color'] ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $s['initials'] }}</span>
                 <span style="font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $s['name'] }}</span>
             </span>
             <span style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $s['dept'] ?? '—' }}</span>

@@ -29,7 +29,7 @@
                     <span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:{{ $isVerify ? 'var(--amber)' : 'var(--red)' }};padding:2px 8px;border-radius:9999px;flex-shrink:0;">
                         <span x-text="$store.ui.lang==='en' ? '{{ $isVerify ? 'Verify' : 'Approve' }}' : '{{ $isVerify ? 'Sahkan' : 'Luluskan' }}'">{{ $isVerify ? 'Verify' : 'Approve' }}</span>
                     </span>
-                    <div style="width:26px;height:26px;border-radius:50%;background:{{ $it['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">{{ $it['initials'] }}</div>
+                    <div style="width:26px;height:26px;border-radius:50%;background:{{ $it['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $it['initials'] }}</div>
                     <span style="flex:1;min-width:0;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $it['label'] }} — {{ $it['who'] }}</span>
                     <span aria-hidden="true" style="font-size:16px;color:var(--muted);flex-shrink:0;">›</span>
                 </a>

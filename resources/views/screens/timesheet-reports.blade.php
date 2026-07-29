@@ -170,7 +170,7 @@
                     </div>
                     @foreach ($p['employees'] as $emp)
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                            <div style="width:26px;height:26px;border-radius:50%;background:{{ $emp['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">{{ $emp['initials'] }}</div>
+                            <div style="width:26px;height:26px;border-radius:50%;background:{{ $emp['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $emp['initials'] }}</div>
                             <div style="flex:1;min-width:0;">
                                 <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
                                     <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $emp['name'] }}</span>

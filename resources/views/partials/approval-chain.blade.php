@@ -27,7 +27,7 @@
                 <div style="display:flex;flex-wrap:wrap;gap:10px;">
                     @forelse ($verifiers as $p)
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="width:28px;height:28px;border-radius:50%;background:{{ $p->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->initials }}</span>
+                            <span style="width:28px;height:28px;border-radius:50%;background:{{ $p->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $p->initials }}</span>
                             <span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">
                                 <span style="font-size:13px;color:var(--ink);white-space:nowrap;">{{ $p->name }}</span>
                                 @if ($p->position)<span style="font-size:12px;color:var(--muted);white-space:nowrap;">{{ $p->position }}</span>@endif
@@ -52,7 +52,7 @@
                 <div style="display:flex;flex-wrap:wrap;gap:10px;">
                     @forelse ($approvers as $p)
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="width:28px;height:28px;border-radius:50%;background:{{ $p->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->initials }}</span>
+                            <span style="width:28px;height:28px;border-radius:50%;background:{{ $p->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $p->initials }}</span>
                             <span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">
                                 <span style="font-size:13px;color:var(--ink);white-space:nowrap;">{{ $p->name }}</span>
                                 @if ($p->position)<span style="font-size:12px;color:var(--muted);white-space:nowrap;">{{ $p->position }}</span>@endif
