@@ -1200,6 +1200,172 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
   .uj-ar-hide-sm { display: none; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   SCREEN GUIDE MODAL & STRIP — .uj-guide-*
+   Namespaced uj-guide- ("screen guide card"). Rebuilt card styling, design
+   system type ramp, accessible modal backdrop, and entrance motion.
+   ══════════════════════════════════════════════════════════════════════════ */
+.uj-guide-host { margin-bottom: 16px; }
+
+.uj-guide-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    font-size: var(--t-sm);
+    color: var(--muted);
+    padding: 2px 0;
+    cursor: pointer;
+}
+.uj-guide-trigger:hover { color: var(--ink); }
+
+.uj-guide-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    padding: 40px 16px;
+    background: rgba(18, 18, 30, .42);
+    overflow-y: auto;
+}
+
+.uj-guide-card {
+    width: 100%;
+    max-width: 600px;
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+}
+
+.uj-guide-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--hairline);
+}
+
+.uj-guide-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--red-tint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--red);
+}
+
+.uj-guide-title-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.uj-guide-title {
+    font-size: var(--t-lg);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+}
+
+.uj-guide-who {
+    background: var(--canvas);
+    color: var(--muted);
+    font-size: var(--t-micro);
+}
+
+.uj-guide-close {
+    font-size: var(--t-xl);
+    line-height: 1;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.uj-guide-close:hover { color: var(--ink); }
+
+.uj-guide-body { padding: 18px 20px; }
+
+.uj-guide-text {
+    font-size: var(--t-base);
+    color: var(--body);
+    margin: 0;
+    line-height: 1.6;
+}
+
+.uj-guide-steps {
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.uj-guide-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: var(--t-sm);
+    color: var(--body);
+    line-height: 1.5;
+}
+
+.uj-guide-num {
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: var(--red);
+    color: #fff;
+    font-size: var(--t-micro);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.uj-guide-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--hairline);
+}
+
+.uj-guide-confirm {
+    height: 36px;
+    padding: 0 18px;
+    font-size: var(--t-sm);
+}
+
+/* Entrance motion */
+.uj-guide-fade-enter { transition: opacity 200ms ease-out; }
+.uj-guide-fade-leave { transition: opacity 150ms ease-in; }
+.uj-guide-fade-start { opacity: 0; }
+.uj-guide-fade-end { opacity: 1; }
+
+.uj-guide-card-enter { transition: transform 200ms ease-out, opacity 200ms ease-out; }
+.uj-guide-card-leave { transition: transform 150ms ease-in, opacity 150ms ease-in; }
+.uj-guide-card-start { opacity: 0; transform: translateY(12px); }
+.uj-guide-card-end { opacity: 1; transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+    .uj-guide-card-enter, .uj-guide-card-leave { transition: opacity 150ms ease; }
+    .uj-guide-card-start, .uj-guide-card-end { transform: none; }
+}
+
+
+
 
 
 
