@@ -1,6 +1,4 @@
 @import 'tailwindcss';
-/* Positioning engine for the dashboard grid. Appearance is ours (see .uj-dash-grid). */
-@import 'gridstack/dist/gridstack.min.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -1090,40 +1088,6 @@ select.wd-inline {
 .uj-dq-mini .r { margin-left:auto; font:500 var(--t-micro) var(--font-mono); color:var(--muted-soft); white-space:nowrap; }
 .uj-dq-tag { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--hairline-soft); padding:3px 7px; border-radius:5px; }
 
-/* ── Dashboard grid (gridstack, resources/js/dash-grid.js) ──
-   Gridstack ships its own stylesheet for positioning; everything here is about how
-   the cards LOOK inside it. The grid is static outside Customise mode, so the drag
-   affordances (grab cursor, guide lines, dashed slots) only appear in edit mode. */
-.uj-dash-grid { margin:0 -8px; }
-.uj-dash-grid .grid-stack-item-content { display:flex; overflow:visible; inset:0; }
-.uj-dash-grid .grid-stack-item-content > .uj-card { flex:1; min-width:0; overflow-y:auto; overflow-x:hidden; }
-/* The badges sit inside the card now. Hanging off the top edge worked when cards
-   were in a flow column; in a grid the neighbour above clips them. */
-.uj-dash-grid .uj-dq-card-tools, .uj-dash-grid .uj-dq-pin { top:8px; }
-.uj-dash-grid .uj-card-bare .uj-dq-card-tools { right:auto; left:8px; }
-/* Customise mode shows the lattice the cards snap to. Without it you are dragging
-   against an invisible ruler and every drop looks arbitrary. The pitch comes from
-   gridstack itself (--gs-cell-w / --gs-cell-h, set in dash-grid.js::measure) so the
-   lines land exactly on the snap points at any window width. */
-[data-dq-editing] .uj-dash-grid {
-    background-image:
-        repeating-linear-gradient(to right, var(--hairline) 0 1px, transparent 1px var(--gs-cell-w, 92px)),
-        repeating-linear-gradient(to bottom, var(--hairline) 0 1px, transparent 1px var(--gs-cell-h, 108px));
-    border-radius:12px;
-    outline:1px solid var(--hairline);
-    outline-offset:0;
-}
-[data-dq-editing] .uj-dash-grid .grid-stack-item:not(.ui-draggable-dragging) { cursor:grab; }
-[data-dq-editing] .uj-dash-grid .grid-stack-item.ui-draggable-dragging { cursor:grabbing; }
-/* The card itself has to read as a movable object, not as page furniture. */
-[data-dq-editing] .uj-dash-grid .grid-stack-item > .grid-stack-item-content > .uj-card { box-shadow:0 0 0 1px var(--hairline), 0 6px 16px rgba(38,37,30,.08); }
-[data-dq-editing] .uj-dash-grid .grid-stack-item.ui-draggable-dragging > .grid-stack-item-content > .uj-card { box-shadow:0 10px 26px rgba(38,37,30,.18); }
-.uj-dash-grid .grid-stack-placeholder > .placeholder-content { border:2px dashed var(--hairline); border-radius:12px; background:rgba(58,110,165,.05); }
-/* Cards move but never resize (dash-grid.js sets disableResize). Gridstack's own
-   stylesheet still reserves a hotspot on every edge, which reads as a resize
-   affordance that does nothing, so it is taken out of the layout here. */
-.uj-dash-grid .ui-resizable-handle { display:none; }
-@media (max-width: 800px) { .uj-dash-grid .grid-stack-item-content > .uj-card { overflow-y:visible; } }
 
 /* A card with no chrome of its own: the thing inside IS the card. Used by tiles that
    would otherwise read as a box inside a box. */
@@ -1665,12 +1629,6 @@ select.wd-inline {
     .uj-guide-card-enter, .uj-guide-card-leave { transition: opacity 150ms ease; }
     .uj-guide-card-start, .uj-guide-card-end { transform: none; }
 }
-
-
-
-
-
-
 
 /* ══════════════════════════════════════════════════════════════════════════
    MESSAGES — .uj-msg-*
