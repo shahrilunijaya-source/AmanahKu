@@ -1,18 +1,20 @@
 {{--
-    One row of the team board table — one work item, owned by one person. The
-    row markup has exactly this one home; team-board.blade.php only loops
-    @include-ing this per entry in $teamRows.
+    One task line inside the team board's floating window
+    (resources/views/screens/team-board.blade.php). The whole-company task
+    table this used to belong to is gone — every $teamRows entry now renders
+    once, INSIDE the single shared floating window (teleported to <body>),
+    and resources/js/team-board.js's applyWinFilter() shows only the lines
+    belonging to whichever person's window is currently open. No fetch: all
+    tasks are already on the page from the first response.
 
-    Columns: Person, Task, Type, Status, Priority, Project, Due, Labels — see
-    .tb-cols in app.css for the shared grid. Every data-* attribute here is
-    read by resources/js/team-board.js for client-side filter/sort; nothing
-    here is server round-tripped.
+    Read-only and unclickable — the window IS the detail, there is no further
+    per-task panel to open from here. No Person cell: the window's own header
+    already names the owner, so repeating it per line would be noise.
 
-    Clicking (or Enter/Space on) a row navigates to the personal board's
-    `?card=` deep link for data-card-id, opening the existing card drawer
-    there — read-only unless the viewer could already edit it. See
-    team-board.js's openRow() for why this is a navigation rather than a
-    second drawer built on this screen.
+    Reuses the card face's vocabulary (.wc-type/.wc-dot, .wc-when/.wc-sep/
+    .wc-proj, .wc-labels/.wc-label — see partials/work-card.blade.php) rather
+    than inventing a second one; only the status pill (.tb-pill) and the
+    line's own shell (.tb-tline*) are team-board-specific.
 
     @param array $row  One entry from $teamRows: ['item' => WorkItem,
                         'owner_id', 'owner_name', 'owner_initials', 'owner_avatar_color'].
@@ -27,12 +29,9 @@
     // Same overdue rule as partials.work-card: due_at set, before today, not done.
     $tbOverdue = $tbItem->due_at && $tbItem->status !== 'done' && $tbItem->due_at->lt(today());
 @endphp
-<div class="tb-row tb-cols"
-     tabindex="0" role="button"
+<div class="tb-tline"
      data-card-id="{{ $tbItem->id }}"
      data-owner-id="{{ $row['owner_id'] }}"
-     data-owner-name="{{ mb_strtolower($row['owner_name']) }}"
-     data-title="{{ mb_strtolower($tbItem->title) }}"
      data-type="{{ $tbItem->type }}"
      data-status="{{ $tbItem->status }}"
      data-priority="{{ $tbItem->priority }}"
@@ -41,39 +40,34 @@
      data-due="{{ $tbItem->due_at?->toDateString() }}"
      data-overdue="{{ $tbOverdue ? '1' : '0' }}">
 
-    <div class="tb-row-top">
-        <span class="tb-cell tb-cell--task" title="{{ $tbItem->title }}">{{ $tbItem->title }}</span>
-        <span class="tb-cell tb-cell--person" title="{{ $row['owner_name'] }}">
-            <span class="tb-av tb-av--sm" style="background:{{ $row['owner_avatar_color'] ?? 'var(--muted)' }};">{{ $row['owner_initials'] }}</span>
-            <span class="tb-person-name">{{ $row['owner_name'] }}</span>
-        </span>
+    <div class="tb-tline-top">
+        <span class="wc-type"><span class="wc-dot" style="--wc-type:{{ $tbTypeColor }};"></span>{{ $tbTypeLabel }}</span>
+        <span class="tb-pill" data-status="{{ $tbItem->status }}">{{ $tbStatusLabel[$tbItem->status] ?? $tbItem->status }}</span>
     </div>
 
-    <div class="tb-row-mid">
-        <span class="tb-cell tb-cell--type">
-            <span class="wc-type"><span class="wc-dot" style="--wc-type:{{ $tbTypeColor }};"></span>{{ $tbTypeLabel }}</span>
-        </span>
-        <span class="tb-cell tb-cell--priority" data-priority="{{ $tbItem->priority }}">{{ $tbPriLabel[$tbItem->priority] ?? $tbItem->priority }}</span>
-        <span class="tb-cell tb-cell--project">{{ $tbItem->projectRef->name ?? '—' }}</span>
-    </div>
+    <p class="tb-tline-title">{{ $tbItem->title }}</p>
 
-    <div class="tb-row-bottom">
-        <span class="tb-cell tb-cell--status">
-            <span class="tb-pill" data-status="{{ $tbItem->status }}">{{ $tbStatusLabel[$tbItem->status] ?? $tbItem->status }}</span>
-        </span>
-        <span class="tb-cell tb-cell--due @if ($tbOverdue) tb-due--over @endif">
+    <div class="tb-tline-meta">
+        <span class="tb-tline-pri" data-priority="{{ $tbItem->priority }}">{{ $tbPriLabel[$tbItem->priority] ?? $tbItem->priority }}</span>
+        <span class="wc-sep">·</span>
+        <span class="wc-when @if ($tbOverdue) wc-when--over @endif">
             @if ($tbItem->due_at)
                 {{ $tbItem->due_at->format('d M') }}
             @else
-                <span class="tb-due--none" x-text="$store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir'">No due date</span>
+                <span class="wc-when--none" x-text="$store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir'">No due date</span>
             @endif
         </span>
-        <span class="tb-cell tb-cell--labels">
-            @foreach ($tbItem->labels ?? [] as $tbLabelKey)
+        <span class="wc-sep">·</span>
+        <span class="wc-proj">{{ $tbItem->projectRef->name ?? '—' }}</span>
+    </div>
+
+    @if (! empty($tbItem->labels))
+        <div class="wc-labels">
+            @foreach ($tbItem->labels as $tbLabelKey)
                 @if (isset($tbLabelDef[$tbLabelKey]))
                     <span class="wc-label" style="--wc-l:{{ $tbLabelDef[$tbLabelKey][1] }};">{{ $tbLabelDef[$tbLabelKey][0] }}</span>
                 @endif
             @endforeach
-        </span>
-    </div>
+        </div>
+    @endif
 </div>

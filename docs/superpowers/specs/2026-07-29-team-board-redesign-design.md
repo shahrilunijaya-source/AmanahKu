@@ -35,13 +35,15 @@ One of five, badly. The header summary reads "7 people · 43 open items", an agg
 
 ## Decisions
 
-Confirmed with the user before this spec was written.
+Confirmed with the user before this spec was written — **except the row marked
+2026-07-29 (revision)**, which the user asked for after reviewing the first
+build described below.
 
 | Decision | Choice |
 |---|---|
-| Shape | Summary strip, then a filterable table |
-| Filter bar | This screen gets its own. The personal board's bar is **not** touched |
-| Card detail | Rows open the existing drawer, read-only for overseers |
+| Shape | **2026-07-29 (revision):** one table, one line per person. The original "summary strip, then a filterable task table" shipped first (`aa1180f`) but was rejected on review: two tables answering overlapping questions, and a task row's click navigated away to the personal board's `?card=` deep link, throwing the viewer onto their own (often empty) board and discarding this screen's state |
+| Filter bar | This screen gets its own. The personal board's bar is **not** touched. **Revision:** simplified further — Status chips and the "More filters" disclosure (type/priority/project/label/due window) move into the floating window as task-level filters, since they describe one task, not one person |
+| Card detail | **Revision:** clicking a person opens a floating window listing just that person's tasks (reusing the personal board's `.wd-*` slide-over CSS), not a fetched read-only clone of the personal board's card drawer. No separate per-task panel exists on this screen at all |
 | Edit rights | Unchanged — owner, assigner, and a data-scoped `manager` only |
 
 ## Scope
@@ -52,70 +54,72 @@ Confirmed with the user before this spec was written.
 
 ## Architecture
 
+**2026-07-29 (revision):** this section describes the build as it stands
+after the user reviewed the first version (summary strip above a 50-row task
+table, rows opening a fetched read-only drawer clone) and asked for
+something simpler. The original build's own follow-up fix — a floating panel
+fetched from `GET /app/board/{id}` — is gone too; nothing on this screen
+fetches anything anymore.
+
 ### Files
 
 | File | Change |
 |---|---|
-| `resources/views/screens/team-board.blade.php` | Rewritten. Lanes replaced by strip plus table. |
-| `resources/views/partials/team-board-row.blade.php` | **New.** One table row, so the row markup has one home. |
-| `resources/js/team-board.js` | **New.** Alpine component: filter state, sort state, row → drawer. |
-| `resources/js/app.js` | Register the new component. |
-| `resources/css/app.css` | `.tb-*` rules. |
-| `app/Http/Controllers/Concerns/BuildsWorkData.php` | `teamBoardData()` returns flat rows plus per-person aggregates instead of nested lanes. |
-| `app/Http/Controllers/WorkItemController.php` | Read grant in `authorizeAccess()`. |
-| `app/Support/Permissions.php` | `canSeeAll()` moves here from `AppController`. |
-| `app/Http/Controllers/AppController.php` | Calls the moved helper. |
+| `resources/views/screens/team-board.blade.php` | Rewritten. One table, one line per person, plus the floating window's markup (teleported to `<body>`). |
+| `resources/views/partials/team-board-row.blade.php` | Re-purposed: no longer a table row, now one task line inside the floating window. Same file, new role — see its own header comment. |
+| `resources/views/partials/team-board-panel.blade.php` | **Deleted.** Was the fetch-based read-only drawer clone from the first build's follow-up fix; superseded by the floating window inlined in `team-board.blade.php`, which needs no fetch. |
+| `resources/js/team-board.js` | Rewritten. Person-table filter/sort state, plus the floating window's own open/close/focus-trap and task-level filter state. No `fetch()` anywhere in the file. |
+| `resources/js/app.js` | Unchanged — already registered the component from the first build. |
+| `resources/css/app.css` | `.tb-*` rules reshaped: the old two-table layout's rules (`.tb-table`, `.tb-cols`, `.tb-row*`, `.tb-cell*`, the "More filters" disclosure, the fetched-panel's `.wd-static*`/`.wd-desc-ro`) are dead and removed; the person table's rules (`.tb-strip*`, `.tb-num*`, `.tb-sortbtn`) are reused as-is; new rules cover the floating window's summary/filter row and the task line's stacked layout. |
+| `app/Http/Controllers/Concerns/BuildsWorkData.php` | **Untouched by this revision** — `teamBoardData()` already returns flat `$teamRows` plus per-person `$teamPeople` aggregates from the first build; this revision only changes how the Blade/JS layer presents that same data. |
+| `app/Http/Controllers/WorkItemController.php`, `app/Support/Permissions.php`, `app/Http/Controllers/AppController.php` | **Untouched by this revision.** The read grant these files carry (see "Permissions" below) was added for the first build's fetched panel. This screen no longer calls `GET /app/board/{id}`, so the grant is currently unexercised from here — but it is left in place, since `BoardCardTest` still exercises and asserts it directly, and a director opening a card by URL should still work read-only regardless of which screen sent them there. |
 
-### Summary strip
+### The person table
 
-One row per person, sorted by open count descending, above the table.
+One line per person from `$teamPeople`, sorted by open count descending — this is now the *entire* always-visible content of the screen, not a strip sitting above a second, bigger table.
 
 ```
-Person            Open   Overdue   Blocked   In review
-Dev HR             13        2         1          3
-Faizal Othman       8        1         -          2
-Aisyah Rahman       5        -         1          1
+Person            Open  Overdue  Blocked  In review
+Dev HR             13      2        1         3      <- click opens a floating window
+Faizal Othman       8      1        -         2
+Aisyah Rahman       5      -        1         1
 ```
 
-Numeric columns use `tabular-nums` so they compare at a glance. A zero renders as `–`, not `0`, so a non-zero count is what draws the eye. Overdue counts use `--error`; the rest stay neutral. Sortable by any column.
+Numeric columns use `tabular-nums` so they compare at a glance. A zero renders as `–`, not `0`, so a non-zero count is what draws the eye. Overdue counts use `--error`; the rest stay neutral. Sortable by any column, with a visible direction indicator.
 
-Clicking a person filters the table to them and marks the row as active. Clicking again clears it. This is the interaction that replaces the 3,400px scroll: the strip answers the load question outright, and every other question is one filter away.
+Each line is `tabindex="0" role="button"`, with visible `:hover`/`:focus-visible`, and opens the floating window on click, Enter or Space — the same delegated-listener pattern `resources/js/work-board.js` already uses for its cards, not a native `<button>`.
 
-People with no cards stay excluded, as today.
+People with no cards stay excluded, as before.
 
 ### Filter bar
 
-Its own component, not shared with the personal board.
+Simplified again from the first build: search, Overdue, Blocked, Clear. The Status chips and the "More filters" disclosure (type, priority, project, label, due window) are gone from this bar entirely — those are task-level questions, not person-level ones, so they moved into the floating window instead (see below).
 
-**Always visible:** a search box matching **both** person name and task title; and three chips — **Status** (with Done hidden by default), **Overdue**, **Blocked**.
+The search box matches **both** a person's name and any of that person's task titles (each person line carries a combined, lowercased haystack built server-side), so searching "payroll" surfaces the people who have payroll work, not just people literally named Payroll.
 
-**Behind "More filters":** type, priority, project, label, and a due window (overdue / this week / no date). The disclosure carries a count badge when any are active, plus a Clear.
+### The floating window
 
-The personal board was criticised for hiding filters behind a toggle. The difference here is deliberate and worth stating: there, three stacked rows of low-value filters hid behind a toggle with nothing indicating they were active. Here the three filters that answer the common questions stay visible and the hidden ones announce themselves with a count. If that distinction fails in use, surface all of them — do not add a second toggle.
+Clicking a person line opens a window listing just that person's tasks — the interaction that replaces both the old 3,400px lane scroll *and* the first build's 50-row table-plus-panel.
 
-### Table
+It reuses the personal board's `.wd-*` slide-over CSS **wholesale** (560px, `max-width: 94vw`, full width below 600px, `transform: translateX`, 280ms `cubic-bezier(.32,.72,0,1)`, the `prefers-reduced-motion` cross-fade) — the same visual language as `board.blade.php`'s own drawer, not a second one.
 
-Columns: `Person · Task · Type · Status · Priority · Project · Due · Labels`
+Contents: the person's avatar, name and `position · department` in the header, with a close button; a one-line summary of their counts; then their task lines. Every task line comes from `$teamRows`, rendered **once**, for **every** person, directly inside the window's markup — opening a person only toggles which of those already-rendered lines are visible (matching `data-owner-id` plus the window's own task-level filters). No fetch: the data was already on the page from the very first response.
 
-- **Task** is the widest column and truncates with an ellipsis; the full title is the drawer's job.
-- **Due** is `tabular-nums`, and renders in `--error` when overdue on a card not yet Done — the same rule the card face uses.
-- **Status** is a pill. **Labels** reuse the tinted `.wc-label` chips.
-- Sortable by person, status, priority and due. One sort at a time, direction toggles, the active column shows its direction.
-- Row hover and `:focus-visible` are visible states; rows are keyboard reachable and open on Enter.
+Task-level filters live inside the window, scoped to that one person's lines only: type, priority, project, label, and a status control with Done excluded by default. These never touch the person table's own search/toggles/sort behind the window.
 
-Filtering and sorting run **client-side over already-rendered rows**. No fetch, which is the most region-scoped update available, and comfortable to roughly 500 rows. Past that this needs server-side paging; say so in a comment rather than building it now.
+Everything in the window is read-only: no `<input>`, `<textarea>`, or `contenteditable` anywhere in it — only filter controls (`<select>`, chip `<button>`s) and the close button.
 
-Done cards keep the existing 30-day window.
+### Keyboard and focus
+
+`role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at the person's name heading. Focus moves to the window container itself on open (`tabindex="-1"` on the `<aside>`), never an inner element — same pattern as `work-board.js`'s `openCardCore()`. Escape closes it and returns focus to the person line that opened it. Tab is trapped inside while open, via the same algorithm as `work-board.js`'s `trapFocus()`.
+
+### State survives opening and closing a window
+
+Opening and closing the floating window only touches the window's own nested state (`win.*` in `resources/js/team-board.js`) — the person table's `search`, `overdueOnly`, `blockedOnly` and sort state are never read or written by `openWindow()`/`closeWindow()`. Verified in the browser: set the search to "payroll", open a person, close it, and both the search box's contents and the filtered person list are unchanged.
 
 ### Responsive
 
-Below roughly 700px each row collapses to two lines — title and person on the first, status, due and labels on the second. The table never scrolls sideways.
-
-### Row opens the drawer
-
-The drawer built for the personal board is reused as-is. It already renders read-only when `can_manage` is false, and already explains why rather than greying out in silence.
-
-This screen's rows are therefore **read-only for overseers and editable only for those who could already edit** — the owner, the assigner, and a data-scoped `manager`. A director opening a card from here reads it and cannot change it, which is the rule agreed for the personal board.
+Below roughly 700px the person table's four number columns shrink to just what a one/two-digit count needs, handing the rest to Person. The floating window needs no team-board-specific responsive rule of its own — it already goes full-width below 600px via `.wd-*`. The page body never scrolls sideways at any width.
 
 ## Permissions
 

@@ -1864,17 +1864,18 @@ select.wd-inline {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   TEAM BOARD — summary strip + filterable table — .tb-*
-   Namespaced tb- ("team board"). Replaces the old per-person lane layout
-   (resources/views/screens/team-board.blade.php): a sortable strip (one row
-   per person) above a sortable, filterable table (one row per work item, via
-   partials/team-board-row.blade.php). Filtering and sorting are client-side
-   over these already-rendered rows — see resources/js/team-board.js.
-
-   Both the strip and the table share the same shape: a header row plus body
-   rows using the same grid-template-columns, so header labels line up over
-   their cells without a table element. .wc-label / .wc-type / .wc-dot are
-   REUSED from the work-card block above, not duplicated. ══════════════════ */
+   TEAM BOARD — one table, one line per person — .tb-*
+   Namespaced tb- ("team board"). 2026-07-29 reshape: the old summary strip
+   plus a separate 50-row task table collapsed into ONE table, one line per
+   person (resources/views/screens/team-board.blade.php) — .tb-strip* below
+   is that table now, not a strip above a bigger one. Clicking a person opens
+   a floating window (reusing .wd-* — see the "Card detail drawer" block
+   above) listing just their own tasks, rendered by
+   partials/team-board-row.blade.php as .tb-tline lines. Filtering and
+   sorting are client-side over already-rendered rows — see
+   resources/js/team-board.js. .wc-label / .wc-type / .wc-dot / .wc-when /
+   .wc-sep / .wc-proj are REUSED from the work-card block above, not
+   duplicated. ══════════════════════════════════════════════════════════ */
 
 .tb-strip { border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); margin-bottom: 20px; overflow: hidden; }
 .tb-strip-cols { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px 84px 96px; align-items: center; gap: 10px; }
@@ -1921,71 +1922,12 @@ select.wd-inline {
     cursor: pointer; background: var(--card); color: var(--body); display: inline-flex; align-items: center; gap: 6px;
 }
 .tb-chip[data-on] { background: var(--red); color: #fff; border-color: var(--red); }
-.tb-chip-badge { min-width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 10.5px; font-family: var(--font-mono); background: rgba(255, 255, 255, .28); border-radius: 9999px; padding: 0 4px; }
-.tb-chip:not([data-on]) .tb-chip-badge { background: var(--hairline-soft); color: var(--muted); }
-.tb-more-panel { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 14px; padding: 12px; border: 1px dashed var(--hairline); border-radius: 10px; }
-.tb-more-field { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tb-more-field label { font-size: var(--t-micro); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .tb-select {
     padding: 6px 10px; font-size: var(--t-sm); font-weight: 500; border: 1px solid var(--hairline); border-radius: 8px;
     cursor: pointer; background: var(--card); color: var(--body);
 }
 .tb-clear { font-size: var(--t-sm); font-weight: 600; color: var(--muted); background: transparent; border: 0; cursor: pointer; text-decoration: underline; padding: 0; }
 
-/* ── Table ── */
-.tb-table { border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); overflow: hidden; }
-/* grid-template-columns AND gap must be identical on .tb-thead and .tb-row —
-   both carry .tb-cols, but gap lives here (not repeated per-selector) so the
-   two can never drift out of alignment with each other again.
-   Every track is minmax(0, Nfr) — a 0 floor, not a fixed px one — so a track
-   can shrink all the way down under real pressure instead of forcing the
-   table (and the page body) wider than its container. Task's 3fr against
-   everything else's ≤1.6fr is what keeps it the widest column at both a
-   generous desktop width and a cramped one; per-cell white-space/ellipsis
-   rules below are what actually stop long content from forcing a track wide
-   regardless of its fr share. */
-.tb-cols { grid-template-columns: minmax(0, 1.6fr) minmax(0, 3fr) minmax(0, .7fr) minmax(0, 1fr) minmax(0, .7fr) minmax(0, 1fr) minmax(0, .7fr) minmax(0, 1fr); gap: 10px; align-items: center; }
-.tb-thead { display: grid; padding: 10px 16px; border-bottom: 1px solid var(--hairline); }
-.tb-thead span { font-size: var(--t-micro); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; min-width: 0; }
-.tb-row {
-    display: grid; padding: 11px 16px; border-top: 1px solid var(--hairline-soft);
-    cursor: pointer; transition: background .12s ease;
-}
-.tb-row:first-of-type { border-top: 0; }
-.tb-row:hover { background: var(--canvas); }
-.tb-row:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
-/* The three sub-groups participate directly in the row's own grid on desktop
-   (display:contents drops the wrapper's box, not its children) and become the
-   row's own flex lines at the mobile breakpoint below. Grouping the DOM by
-   mobile line (task+person, then type/priority/project, then status+due+
-   labels) does not match the desktop column order, so each cell is placed
-   explicitly by grid-column/grid-row below rather than relying on source
-   order — grid-row:1 matters as much as grid-column here: auto-placement
-   across several display:contents wrappers does not reliably keep same-row
-   siblings on row 1 without it, and cells silently stack onto separate rows. */
-.tb-row-top, .tb-row-mid, .tb-row-bottom { display: contents; }
-.tb-cell { grid-row: 1; min-width: 0; overflow: hidden; font-size: var(--t-sm); color: var(--body); }
-.tb-cell--person { grid-column: 1; display: flex; align-items: center; gap: 8px; }
-/* The avatar (via .tb-av--sm below) must never give up its size for the name
-   next to it; the name is what should shrink and ellipsize. */
-.tb-cell--person .tb-av { flex-shrink: 0; }
-.tb-person-name { min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-cell--task { grid-column: 2; color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-cell--type { grid-column: 3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-cell--status { grid-column: 4; }
-.tb-cell--priority { grid-column: 5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-cell--priority[data-priority="high"] { color: var(--error); font-weight: 600; }
-.tb-cell--project { grid-column: 6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-cell--due { grid-column: 7; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; }
-.tb-due--over { color: var(--error); font-weight: 600; }
-.tb-due--none { color: var(--muted); }
-/* overflow:visible overrides the .tb-cell base: labels wrap onto a second
-   line rather than clip, growing the row's height instead of hiding a chip. */
-.tb-cell--labels { grid-column: 8; grid-row: 1; display: flex; flex-wrap: wrap; gap: 5px; overflow: visible; }
-/* Smaller than the strip's .tb-av (30px) — the table row already carries
-   eight columns, so the person cell gets a leaner avatar to leave the name
-   more room before it has to ellipsize. */
-.tb-av--sm { width: 22px; height: 22px; font-size: 9.5px; }
 .tb-pill { display: inline-flex; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .tb-pill[data-status="todo"] { background: var(--hairline-soft); color: var(--muted); }
 .tb-pill[data-status="prog"] { background: #e9f0f7; color: var(--info); }
@@ -1996,29 +1938,42 @@ select.wd-inline {
 .tb-empty-body { font-size: var(--t-sm); }
 
 @media (prefers-reduced-motion: reduce) {
-  .tb-strip-row, .tb-row { transition: none; }
+  .tb-strip-row { transition: none; }
 }
 
-/* ── Responsive: below ~700px, a table row collapses to two lines (title +
-   person, then status/due/labels) and the less critical columns (type,
-   priority, project) drop rather than force horizontal scroll. The page body
-   must never scroll sideways — grid tracks above use minmax(0, …) precisely
-   so a track can shrink under its content instead of overflowing. ── */
+/* ── Responsive: below ~700px, the person table's four number columns
+   shrink to just what a one/two-digit count needs, handing the rest to
+   Person — at 375px there is only ~280px of row to divide five ways, and
+   Person (avatar + name) needs most of it. A smaller avatar is what keeps
+   38px still legible. The floating window needs no team-board-specific
+   query here: it already goes full-width below 600px via .wd-* itself
+   (see the "Card detail drawer" block above). ── */
 @media (max-width: 700px) {
-  .tb-thead { display: none; }
-  /* The four number tracks go as narrow as a one/two-digit count needs
-     (38px), handing everything else to Person — at 375px there is only
-     ~280px of row to divide five ways, and Person (avatar + name) needs
-     most of it. A smaller avatar (below) is what makes 38px still legible. */
   .tb-strip-cols { grid-template-columns: minmax(0, 1fr) 38px 38px 38px 44px; gap: 6px; }
   .tb-strip-head, .tb-strip-row { padding-left: 12px; padding-right: 12px; }
   .tb-strip-sub { display: none; }
   .tb-strip-who { gap: 7px; }
   .tb-strip-who .tb-av { width: 24px; height: 24px; font-size: 9.5px; }
-
-  .tb-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 12px; }
-  .tb-row-top, .tb-row-bottom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .tb-row-mid { display: none; }
-  .tb-cell--task { order: 1; flex: 1 1 100%; white-space: normal; }
-  .tb-cell--person { order: 2; flex-shrink: 0; }
 }
+
+/* ── Floating window: one person's tasks (screens/team-board.blade.php) ──
+   The window shell itself is .wd-*, reused wholesale (see above) — nothing
+   here duplicates a .wd-* rule. These are for the two things that shell
+   never needed: a one-line count summary, and a row of task-level filters
+   (.tb-select / .tb-chip, both reused from the bar above). */
+.tb-win-summary { font-size: var(--t-sm); color: var(--muted); margin: 0 0 14px; }
+.tb-win-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+
+/* ── Task line, inside the floating window (partials/team-board-row.blade.php) ──
+   One task per person's window, stacked (not a grid column) — the window is
+   always narrower than the old table ever needed to be, and there is no
+   Person column to align against anymore. Reuses .wc-type/.wc-dot,
+   .wc-when/.wc-sep/.wc-proj and .wc-labels/.wc-label from the card face
+   above; only the shell and the priority text are new here. */
+.tb-tline { padding: 11px 0; border-top: 1px solid var(--hairline-soft); }
+.tb-tline:first-of-type { border-top: 0; }
+.tb-tline-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.tb-tline-title { font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.4; margin: 0 0 6px; text-wrap: pretty; }
+.tb-tline-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--t-micro); color: var(--muted); margin-bottom: 6px; }
+.tb-tline-pri { font-weight: 600; }
+.tb-tline-pri[data-priority="high"] { color: var(--error); }
