@@ -8,6 +8,8 @@ use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
+use App\Services\DataScope;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -112,17 +114,14 @@ class WorkItemController extends Controller
     public function show(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($workItem, $employee);
+        $this->authorizeAccess($request, $workItem, $employee);
 
         $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee']);
 
-        // Mirrors authorizeManage(): only the owner of a self-made card, or a tac's
-        // assigner, may edit fields / set participants / delete. A participant opens
-        // the card read-only (they may still move it and comment). The drawer uses
-        // this to lock its editable fields instead of letting a doomed save 403.
-        $canManage = $workItem->assigned_by_id === null
-            ? $workItem->employee_id === $employee->id
-            : $this->isAssigner($workItem, $employee);
+        // The same call the write gate makes, so the drawer's read-only state can
+        // never disagree with what the server will accept. A participant opens the
+        // card read-only and may still move it and comment.
+        $canManage = $this->canManage($request, $workItem, $employee);
 
         return response()->json([
             'card' => $this->cardPayload($workItem) + [
@@ -160,7 +159,7 @@ class WorkItemController extends Controller
     public function update(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($workItem, $employee);
+        $this->authorizeManage($request, $workItem, $employee);
 
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:160'],
@@ -201,7 +200,7 @@ class WorkItemController extends Controller
     public function move(Request $request, WorkItem $workItem): RedirectResponse|JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($workItem, $employee);
+        $this->authorizeAccess($request, $workItem, $employee);
 
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', self::STATUSES)],
@@ -245,7 +244,7 @@ class WorkItemController extends Controller
     public function destroy(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($workItem, $employee);
+        $this->authorizeManage($request, $workItem, $employee);
 
         $workItem->delete();
 
@@ -256,7 +255,7 @@ class WorkItemController extends Controller
     public function comment(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($workItem, $employee);
+        $this->authorizeAccess($request, $workItem, $employee);
 
         $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
 
@@ -303,13 +302,17 @@ class WorkItemController extends Controller
     }
 
     /** View / comment / move: the owner, a (tac) assigner, or an included participant. */
-    private function authorizeAccess(WorkItem $item, Employee $employee): void
+    private function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
         abort_unless(
             $item->employee_id === $employee->id
             || $this->isAssigner($item, $employee)
-            || $item->participants()->whereKey($employee->id)->exists(),
+            || $item->participants()->whereKey($employee->id)->exists()
+            // A manager who may edit the card must also be able to open it. Without
+            // this they hold edit rights they can never reach: show() would 403 and
+            // the drawer would never render.
+            || $this->isManagerOver($request, $item, $employee),
             403,
         );
     }
@@ -350,13 +353,55 @@ class WorkItemController extends Controller
      * The assignee of a tac is deliberately locked out — their intent stays the
      * assigner's; they can only move it and comment.
      */
-    private function authorizeManage(WorkItem $item, Employee $employee): void
+    private function authorizeManage(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $allowed = $item->assigned_by_id === null
+        abort_unless($this->canManage($request, $item, $employee), 403);
+    }
+
+    /**
+     * May this viewer edit the card's fields, set its participants, or delete it?
+     *
+     * Three ways in: the owner of a self-made card, the assigner of a tac, or a
+     * manager whose data scope covers the card's owner. Moving and commenting are
+     * a wider grant handled by authorizeAccess() — a participant does both without
+     * ever passing this check.
+     *
+     * The manager grant is deliberately bounded by DataScope. A bare role check
+     * would let any manager in the tenant edit any card, including one belonging
+     * to another branch or department they cannot otherwise see (AK-AUTHZ-01). A
+     * company-scoped manager still reaches every card, which is the point of that
+     * scope; a team-scoped one reaches only their reporting line.
+     *
+     * This is the single source for both the 403 gate and the drawer's read-only
+     * state, so the lock a viewer sees can never disagree with what the server
+     * will accept.
+     */
+    private function canManage(Request $request, WorkItem $item, Employee $employee): bool
+    {
+        $owns = $item->assigned_by_id === null
             ? $item->employee_id === $employee->id
             : $this->isAssigner($item, $employee);
-        abort_unless($allowed, 403);
+
+        return $owns || $this->isManagerOver($request, $item, $employee);
+    }
+
+    /** A `manager` whose data scope includes the employee whose board this card sits on. */
+    private function isManagerOver(Request $request, WorkItem $item, Employee $employee): bool
+    {
+        $role = $request->attributes->get('tenantRole', 'employee');
+
+        if (Permissions::effectiveRole($role) !== 'manager') {
+            return false;
+        }
+
+        // A null return means company scope — every employee is in reach.
+        $visible = app(DataScope::class)->visibleEmployeeIds(
+            $request->attributes->get('tenantScope', 'company'),
+            $employee,
+        );
+
+        return $visible === null || in_array($item->employee_id, $visible, true);
     }
 
     private function isAssigner(WorkItem $item, Employee $employee): bool

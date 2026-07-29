@@ -551,4 +551,100 @@ class BoardCardTest extends TestCase
 
         $this->assertDatabaseMissing('work_item_participant', ['work_item_id' => $card->id]);
     }
+
+    // ── Manager edit rights, bounded by data scope ────────────────────────────
+
+    /** Attach a membership with an explicit data scope, which manager() leaves at the default. */
+    private function scopedManager(string $scope): Employee
+    {
+        $u = User::create(['name' => 'Scoped', 'email' => 'scoped@example.com', 'password' => Hash::make('password')]);
+        $u->tenants()->attach($this->tenant->id, ['role' => 'manager', 'data_scope' => $scope]);
+
+        return Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $u->id,
+            'name' => 'Scoped', 'status' => 'active', 'workload' => 'green',
+        ]);
+    }
+
+    public function test_a_company_scoped_manager_may_edit_someone_elses_card(): void
+    {
+        $mgr = $this->scopedManager('company');
+        $card = $this->card(); // owned by the plain employee, no assigner
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Manager edited this'])
+            ->assertOk();
+
+        $this->assertSame('Manager edited this', $card->fresh()->title);
+    }
+
+    public function test_a_team_scoped_manager_may_edit_a_direct_reports_card(): void
+    {
+        $mgr = $this->scopedManager('team');
+        $this->employee->update(['reports_to_id' => $mgr->id]);
+        $card = $this->card();
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'In my line'])
+            ->assertOk();
+
+        $this->assertSame('In my line', $card->fresh()->title);
+    }
+
+    /**
+     * The hole this guards (AK-AUTHZ-01): a bare role check would let any manager in
+     * the tenant edit any card, including one belonging to a branch or department
+     * they cannot otherwise see.
+     */
+    public function test_a_team_scoped_manager_may_not_edit_a_card_outside_their_line(): void
+    {
+        $mgr = $this->scopedManager('team');
+        // $this->employee does not report to $mgr.
+        $card = $this->card(['title' => 'Untouched']);
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Should not land'])
+            ->assertForbidden();
+
+        $this->assertSame('Untouched', $card->fresh()->title);
+    }
+
+    public function test_the_drawers_lock_state_agrees_with_the_write_gate(): void
+    {
+        $mgr = $this->scopedManager('team');
+        $card = $this->card();
+
+        // Out of scope the card is not theirs to see at all, so it is refused on the
+        // way in rather than opening read-only. Read and write agree.
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")->assertForbidden();
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", ['title' => 'No'])
+            ->assertForbidden();
+
+        // Bring the owner into scope: the card opens editable, and the write lands.
+        $this->employee->update(['reports_to_id' => $mgr->id]);
+
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', true);
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", ['title' => 'Yes'])
+            ->assertOk();
+
+        $this->assertSame('Yes', $card->fresh()->title);
+    }
+
+    public function test_an_ordinary_employee_gains_nothing_from_this(): void
+    {
+        $colleague = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $card = $colleague->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Theirs', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Nope'])
+            ->assertForbidden();
+
+        $this->assertSame('Theirs', $card->fresh()->title);
+    }
 }
