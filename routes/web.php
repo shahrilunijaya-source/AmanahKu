@@ -129,6 +129,7 @@ Route::middleware('auth')->group(function () {
     // whose owning module is disabled for the tenant.
     Route::middleware(['tenant', 'company.active', 'not.archived', 'module.enabled'])->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
+        Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
         Route::post('/app/leave/{leaveRequest}/verify', [LeaveController::class, 'verify'])->name('leave.verify');
         Route::post('/app/leave/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leave.approve');

@@ -219,6 +219,8 @@ class SharedResourceTest extends TestCase
 
     public function test_plain_employee_can_view_the_screen(): void
     {
+        $this->markTestSkipped('screens/shared-resources blade removed in the debloat; module.sharedresources is OFF.');
+
         SharedResource::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Company WhatsApp', 'category' => 'comms',
         ]);

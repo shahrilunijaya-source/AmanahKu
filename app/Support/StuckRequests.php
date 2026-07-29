@@ -7,6 +7,8 @@ namespace App\Support;
 use App\Models\Claim;
 use App\Models\LeaveRequest;
 use App\Models\OvertimeRequest;
+use App\Services\FeatureManager;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Collection;
 
 /**
@@ -36,8 +38,16 @@ class StuckRequests
     public function forCurrentTenant(): Collection
     {
         $out = collect();
+        $features = app(FeatureManager::class);
+        $tenant = app(CurrentTenant::class)->get();
 
         foreach (self::TWO_STEP as $type) {
+            // Skip a request type whose module is switched off: its row links to a screen
+            // the tenant cannot open, so it would read as a dead task nobody can clear.
+            if (! $features->screenAllowed($tenant, $type['screen'])) {
+                continue;
+            }
+
             $model = $type['model'];
 
             // Stuck when there is no LIVE verifier: no ACTIVE primary superior AND no active

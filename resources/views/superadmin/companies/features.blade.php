@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $company->name }} · Feature matrix</title>
+    {{-- Self-hosted Poppins + JetBrains Mono. Vite emits the @font-face rules as a
+         non-entry chunk, so @vite never links them: without this line every page
+         silently falls back to the system UI font. See the `fonts` block in
+         vite.config.js and public/build/fonts-manifest.json. --}}
+    {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         .ft-row{display:grid;grid-template-columns:1.6fr 1.1fr 90px 1.1fr auto;gap:12px;align-items:end;padding:14px 18px;border-top:1px solid var(--hairline,#e6e6ec);}

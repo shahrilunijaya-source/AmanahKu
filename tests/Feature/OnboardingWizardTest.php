@@ -185,7 +185,10 @@ class OnboardingWizardTest extends TestCase
 
     public function test_bank_step_writes_encrypted_salary_structure_when_payroll_is_on(): void
     {
-        [$tenant] = $this->company(2); // stage 2 → payroll on
+        [$tenant] = $this->company(2);
+        // Payroll is descoped by default (Features::OFF), and applyCategoryPackage
+        // therefore writes it off at every stage — switch it on the way a company would.
+        app(FeatureManager::class)->setTenant($tenant, 'module.payroll', true);
         [$user, $emp] = $this->staff($tenant, $this->essentialAttrs());
 
         $this->actingAs($user)->withSession(['current_tenant' => $tenant->id])
@@ -233,7 +236,8 @@ class OnboardingWizardTest extends TestCase
 
     public function test_bank_step_refuses_before_personal_details_exist(): void
     {
-        [$tenant] = $this->company(2); // payroll on
+        [$tenant] = $this->company(2);
+        app(FeatureManager::class)->setTenant($tenant, 'module.payroll', true); // descoped by default
         [$user, $emp] = $this->staff($tenant); // no essentials → no NRIC yet
 
         $this->actingAs($user)->withSession(['current_tenant' => $tenant->id])

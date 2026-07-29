@@ -1,114 +1,136 @@
-<aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''" style="width:248px;flex-shrink:0;background:#211f1b;display:flex;flex-direction:column;height:100vh;">
-    <div style="height:60px;display:flex;align-items:center;gap:10px;padding:0 14px 0 18px;border-bottom:1px solid var(--sidebar-line);flex-shrink:0;">
-        <div style="width:28px;height:28px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;">A</div>
-        <span style="font-weight:600;font-size:16px;color:#fff;letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
-        <div style="flex:1;"></div>
-        {{-- Collapse the sidebar (desktop). Same action as the topbar menu button and Ctrl+B. --}}
-        <button type="button" @click="toggleSb()" class="uj-sb-tgl"
+<aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''">
+    <div class="uj-sb-brand">
+        <div style="width:26px;height:26px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:var(--t-base);flex-shrink:0;">A</div>
+        <span class="uj-sb-hide" style="font-weight:600;font-size:var(--t-lg);color:#fff;letter-spacing:-0.2px;white-space:nowrap;">Amanah<span style="color:var(--red);">ku</span></span>
+        <div class="uj-sb-hide" style="flex:1;"></div>
+        {{-- Collapse to the rail (desktop). Same action as the topbar menu button and Ctrl+B. --}}
+        <button type="button" @click="toggleSb()" class="uj-sb-tgl uj-sb-hide"
                 :aria-label="$store.ui.lang==='en' ? 'Collapse sidebar' : 'Kecilkan bar sisi'"
                 :title="$store.ui.lang==='en' ? 'Collapse sidebar (Ctrl+B)' : 'Kecilkan bar sisi (Ctrl+B)'">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg>
         </button>
     </div>
-    <div style="padding:0 18px;">@include('partials.env-badge', ['onDark' => true])</div>
+    <div class="uj-sb-hide" style="padding:0 14px 8px;">@include('partials.env-badge', ['onDark' => true])</div>
 
-    {{-- ── QUICK ACTIONS — persistent white dock above the nav: the 3 daily-driver flows
-         (clock · task · timesheet) reachable from every screen. Shown only when the
-         signed-in user has an employee record (qaShow). ── --}}
+    {{-- ── TODAY — reports the clock state and nothing else. The three screens this
+         dock used to be the only route to (attendance · T.A.A. · timesheet) are
+         ordinary nav rows under My Work now, so collapsing the sidebar no longer
+         hides them. Shown only when the signed-in user has an employee record. ── --}}
     @if (($qaShow ?? false))
         @php
             $qci = $qaCi ? \Illuminate\Support\Str::of($qaCi)->limit(5, '') : null;
             $qco = $qaCo ? \Illuminate\Support\Str::of($qaCo)->limit(5, '') : null;
             $qPct = rtrim(rtrim(number_format($qaTsPct ?? 0, 1), '0'), '.');
+            $qFull = abs(($qaTsPct ?? 0) - 100) < 0.01;
         @endphp
-        <style>
-            .qa-row{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:5px 8px;border-radius:10px;text-decoration:none;transition:background .14s ease;}
-            .qa-row:hover{background:rgba(255,255,255,.06);}
-            .qa-ico{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-            .qa-chev{color:var(--sidebar-dim);font-size:16px;line-height:1;flex-shrink:0;}
-        </style>
-        <div style="margin:12px 10px 4px;background:rgba(255,255,255,.04);border:1px solid var(--sidebar-line);border-radius:12px;padding:5px;">
-            <div style="font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--sidebar-dim);margin:0 3px 9px;" x-text="$store.ui.lang==='en' ? 'Quick actions' : 'Tindakan pantas'">Quick actions</div>
+        <div class="uj-sb-today">
+            <div class="uj-sb-hide" style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+                <span class="uj-sb-eyebrow" x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span>
+                <span style="font-family:var(--font-mono);font-size:var(--t-micro);color:var(--muted-soft);white-space:nowrap;">{{ now()->format('D j M') }}</span>
+            </div>
 
-            {{-- Attendance — redirect to the full Attendance screen (clock in/out, history, selfie). --}}
-            <a href="{{ route('app.screen', 'attendance') }}" class="qa-row">
-                <span class="qa-ico" style="background:rgba(255,255,255,.07);">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ $qci && ! $qco ? 'var(--success)' : ($qco ? 'var(--sidebar-dim)' : 'var(--red)') }}" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            <div class="uj-sb-hide" style="display:flex;align-items:baseline;gap:9px;">
+                <span class="uj-sb-clock">{{ $qci ?: '--:--' }}</span>
+                <span style="font-size:var(--t-micro);color:var(--sidebar-dim);">
+                    @if ($qco)
+                        <span x-text="$store.ui.lang==='en' ? 'clocked out' : 'sudah keluar'">clocked out</span>
+                    @elseif ($qci)
+                        <span x-text="$store.ui.lang==='en' ? 'clocked in' : 'sudah masuk'">clocked in</span>
+                    @else
+                        <span x-text="$store.ui.lang==='en' ? 'not clocked in' : 'belum masuk'">not clocked in</span>
+                    @endif
                 </span>
-                <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;" x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</span>
-                @if ($qco)
-                    <span style="font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 6px;border-radius:6px;color:var(--muted);background:var(--canvas);" x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'">Done</span>
-                @elseif ($qci)
-                    <span style="font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 6px;border-radius:6px;color:var(--success);background:#e7f4ee;">{{ $qci }}</span>
-                @else
-                    <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;color:var(--red);background:var(--red-tint);" x-text="$store.ui.lang==='en' ? 'Clock in' : 'Clock-in'">Clock in</span>
-                @endif
-                <span class="qa-chev">›</span>
-            </a>
+            </div>
 
-            {{-- Board — redirect to the full Tasks, Assignments & Adhoc board. --}}
-            <a href="{{ route('app.screen', 'board') }}" class="qa-row">
-                <span class="qa-ico" style="background:rgba(255,255,255,.07);">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18M15 3v18"></path></svg>
-                </span>
-                <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;line-height:1.2;" x-text="'T.A.A.'">T.A.A.</span>
-                <span class="qa-chev">›</span>
-            </a>
-
-            {{-- Timesheet — today's allocation at a glance + jump to the grid. --}}
-            @if ($qaTsEnabled)
-                <a href="{{ route('app.screen', 'timesheets') }}" class="qa-row">
-                    <span class="qa-ico" style="background:rgba(255,255,255,.07);">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6"></rect><rect x="13" y="7" width="3" height="10"></rect></svg>
-                    </span>
-                    <span style="flex:1;font-size:12.5px;font-weight:600;color:#e9e7df;" x-text="$store.ui.lang==='en' ? 'Timesheet' : 'Lembaran masa'">Timesheet</span>
-                    <span style="font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 6px;border-radius:6px;color:{{ abs($qaTsPct - 100) < 0.01 ? 'var(--success)' : 'var(--muted)' }};background:{{ abs($qaTsPct - 100) < 0.01 ? '#e7f4ee' : 'var(--canvas)' }};">{{ $qPct }}%</span>
-                    <span class="qa-chev">›</span>
+            <div class="uj-sb-hide" style="display:flex;gap:6px;">
+                <a href="{{ route('app.screen', 'attendance') }}" class="uj-sb-ghost" style="text-decoration:none;">
+                    @if ($qco)
+                        <span x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</span>
+                    @elseif ($qci)
+                        <span x-text="$store.ui.lang==='en' ? 'Clock out' : 'Clock-out'">Clock out</span>
+                    @else
+                        <span x-text="$store.ui.lang==='en' ? 'Clock in' : 'Clock-in'">Clock in</span>
+                    @endif
                 </a>
+            </div>
+
+            @if ($qaTsEnabled)
+                <div class="uj-sb-hide">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px;">
+                        <span style="font-size:var(--t-micro);color:var(--sidebar-dim);" x-text="$store.ui.lang==='en' ? 'Timesheet' : 'Lembaran masa'">Timesheet</span>
+                        <span style="font-family:var(--font-mono);font-size:var(--t-micro);font-weight:600;color:{{ $qFull ? 'var(--success)' : 'var(--amber)' }};">{{ $qPct }}%</span>
+                    </div>
+                    <div class="uj-tsbar"><span style="width:{{ min(100, max(0, $qaTsPct ?? 0)) }}%;background:{{ $qFull ? 'var(--success)' : 'var(--amber)' }};"></span></div>
+                </div>
             @endif
+
+            {{-- Rail: the clock only. Everything else in the dock is a nav row. --}}
+            <div class="uj-rail-only" style="flex-direction:column;align-items:center;gap:3px;padding:3px 0;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{ $qci && ! $qco ? 'var(--success)' : ($qco ? 'var(--sidebar-dim)' : 'var(--red)') }}" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                <span style="font-family:var(--font-mono);font-size:var(--t-micro);font-weight:600;color:#fff;">{{ $qci ?: '--:--' }}</span>
+            </div>
         </div>
     @endif
 
-    <nav style="flex:1;overflow-y:auto;padding:10px 10px;">
+    <nav class="uj-sb-nav">
         {{-- Group the flat nav into labelled, collapsible sections. groupBy keeps
              first-seen order, and Amanahku::nav() emits items contiguously per
-             section, so section order is preserved. A section auto-expands when it
-             contains the active screen — keeping the visible list short otherwise. --}}
+             section, so section order is preserved. Sections start OPEN: the tree is
+             about eighteen rows now, so hiding all but the active section cost more
+             in orientation than it saved in height. The headings still collapse. --}}
         @foreach (collect($nav)->groupBy('section') as $section => $items)
-            @php
-                $sectionMs = $items->first()['section_ms'] ?? $section;
-                $sectionActive = $items->contains(fn ($i) => ($i['active'] ?? false) || ($i['expanded'] ?? false));
-            @endphp
-            <div x-data="{ sec: {{ $sectionActive ? 'true' : 'false' }} }" style="margin-bottom:2px;">
-                <button @click="sec = !sec" type="button"
-                        style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 10px 5px;background:none;border:none;cursor:pointer;">
-                    <span style="flex:1;text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--sidebar-dim);"
-                          x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
-                    <span style="font-size:9px;color:var(--sidebar-dim);" x-text="sec ? '▾' : '▸'"></span>
-                </button>
-                <div x-show="sec" x-cloak style="margin-bottom:6px;">
+            @php $sectionMs = $items->first()['section_ms'] ?? $section; @endphp
+            <div x-data="{ sec: true }" class="uj-nav-grp">
+                <button @click="sec = !sec" type="button" class="uj-nav-sec"
+                        x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</button>
+                <div class="uj-nav-rule"></div>
+                {{-- In rail mode there are no section headers to collapse, so the rows
+                     always show; `sec` only governs the expanded sidebar. --}}
+                <div x-show="sec || sbCollapsed" x-cloak>
                     @foreach ($items as $item)
-                        <div x-data="{ open: {{ $item['expanded'] ? 'true' : 'false' }} }" style="margin-bottom:2px;">
+                        <div x-data="sbFly({{ $item['expanded'] ? 'true' : 'false' }})"
+                             @mouseenter="show($event)" @mouseleave="hide()" style="position:relative;">
                             @if ($item['hasChildren'])
-                                <button @click="open = !open" class="{{ $item['active'] ? '' : 'uj-side-link' }}"
-                                        style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:{{ $item['active'] ? '#fff' : 'var(--sidebar-text)' }};background:{{ $item['active'] ? 'var(--red)' : 'transparent' }};">
-                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="{{ $item['icon'] }}"></path></svg>
-                                    <span style="flex:1;text-align:left;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                    <span style="font-size:10px;color:currentColor;" x-text="open ? '▾' : '▸'"></span>
+                                <button type="button" @click="open = !open" class="uj-nav-row" :aria-expanded="open"
+                                        @if ($item['active']) data-on @endif>
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                    <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                    <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
                                 </button>
-                                <div x-show="open" x-cloak style="margin:2px 0 6px 0;">
+                                <div class="uj-nav-kids" x-show="open" x-cloak>
                                     @foreach ($item['children'] as $child)
-                                        <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}" class="{{ $child['active'] ? '' : 'uj-side-link' }}"
-                                           style="display:flex;align-items:center;gap:11px;padding:7px 10px 7px 38px;border-radius:8px;font-size:13px;font-weight:500;text-align:left;text-decoration:none;color:{{ $child['active'] ? '#fff' : 'var(--sidebar-dim)' }};background:{{ $child['active'] ? 'var(--sidebar-soft)' : 'transparent' }};" x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
+                                        <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
+                                           class="uj-nav-kid" @if ($child['active']) data-on @endif
+                                           x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
                                     @endforeach
                                 </div>
                             @else
-                                <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="{{ $item['active'] ? '' : 'uj-side-link' }}"
-                                   style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;text-decoration:none;color:{{ $item['active'] ? '#fff' : 'var(--sidebar-text)' }};background:{{ $item['active'] ? 'var(--red)' : 'transparent' }};">
-                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="{{ $item['icon'] }}"></path></svg>
-                                    <span style="flex:1;text-align:left;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                <a href="{{ route('app.screen', ['screen' => $item['id']]) }}"
+                                   class="uj-nav-row" @if ($item['active']) data-on @endif>
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                    <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
                                 </a>
                             @endif
+
+                            {{-- Rail flyout: the same row again, opened beside the icon. Only
+                                 mounted while hovering, and only while the rail is collapsed. --}}
+                            <template x-if="fly">
+                                <div class="uj-fly" x-ref="fly" data-open>
+                                    <div class="uj-fly-t">
+                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                        <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                    </div>
+                                    @if ($item['hasChildren'])
+                                        <div class="uj-nav-kids">
+                                            @foreach ($item['children'] as $child)
+                                                <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
+                                                   class="uj-nav-kid" @if ($child['active']) data-on @endif
+                                                   x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </div>
+                            </template>
                         </div>
                     @endforeach
                 </div>
@@ -116,24 +138,24 @@
         @endforeach
     </nav>
 
-    {{-- Feedback — pinned above the workspace switcher. Opens the global feedback modal. --}}
-    <div style="padding:12px 14px 0;flex-shrink:0;">
+    <div class="uj-sb-foot">
+        {{-- Feedback — opens the global feedback modal. --}}
         <button type="button" @click="$dispatch('feedback-open')" class="uj-feedback-btn"
-                style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:13px;font-weight:500;text-align:left;">
+                :title="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'"
+                style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:var(--t-sm);font-weight:500;text-align:left;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--red);"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span style="flex:1;" x-text="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'">Send feedback</span>
-            <span x-show="$store.changelog.unseen" x-cloak style="font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--red);border-radius:9999px;padding:2px 6px;">New</span>
+            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'">Send feedback</span>
+            <span x-show="$store.changelog.unseen" x-cloak class="uj-sb-hide" style="font-size:var(--t-micro);font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--red);border-radius:9999px;padding:1px 7px;">New</span>
         </button>
-    </div>
 
-    <div style="padding:12px 14px;border-top:1px solid var(--sidebar-line);flex-shrink:0;margin-top:10px;">
-        <a href="{{ route('tenant.select') }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;text-decoration:none;">
-            <div style="width:30px;height:30px;border-radius:8px;background:{{ $tenant['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ $tenant['initials'] }}</div>
-            <div style="flex:1;min-width:0;text-align:left;">
-                <div style="font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $tenant['name'] }}</div>
-                <div style="font-size:11px;color:var(--sidebar-dim);">{{ $tenant['plan'] }} · <span x-text="$store.ui.lang==='en' ? 'switch' : 'tukar'">switch</span></div>
+        <a href="{{ route('tenant.select') }}" class="uj-sb-ws"
+           :title="$store.ui.lang==='en' ? 'Switch workspace' : 'Tukar ruang kerja'">
+            <div style="width:28px;height:28px;border-radius:8px;background:{{ $tenant['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--t-sm);flex-shrink:0;">{{ $tenant['initials'] }}</div>
+            <div class="uj-sb-hide" style="flex:1;min-width:0;text-align:left;">
+                <div style="font-size:var(--t-sm);font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $tenant['name'] }}</div>
+                <div style="font-size:var(--t-micro);color:var(--muted-soft);">{{ $tenant['plan'] }} · <span x-text="$store.ui.lang==='en' ? 'switch' : 'tukar'">switch</span></div>
             </div>
-            <span style="color:var(--sidebar-dim);font-size:12px;">⇄</span>
+            <svg class="uj-sb-hide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sidebar-dim)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
         </a>
     </div>
 </aside>

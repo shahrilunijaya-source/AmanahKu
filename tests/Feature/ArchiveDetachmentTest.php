@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\Achievement;
 use App\Models\Asset;
 use App\Models\Claim;
 use App\Models\Employee;
@@ -162,25 +161,15 @@ class ArchiveDetachmentTest extends TestCase
     // ── Recognition & visibility feeds ────────────────────────────
 
     /** A staff member who has left must not linger in any live staff-facing feed. */
-    public function test_dashboard_recent_achievements_hide_archived_recipients(): void
-    {
-        $viewer = User::create(['name' => 'Nabil', 'email' => 'nabil@example.com', 'password' => Hash::make('password')]);
-        $viewer->tenants()->attach($this->tenant->id, ['role' => 'employee']);
-        $this->emp('Nabil', ['user_id' => $viewer->id]);
-
-        $active = $this->emp('Active Recipient');
-        $archived = $this->emp('Archived Recipient', ['archived_at' => now()]);
-
-        Achievement::create(['tenant_id' => $this->tenant->id, 'employee_id' => $active->id, 'title' => 'STILL-HERE-AWARD', 'points' => 10, 'date' => now()]);
-        Achievement::create(['tenant_id' => $this->tenant->id, 'employee_id' => $archived->id, 'title' => 'GONE-AWARD', 'points' => 10, 'date' => now()]);
-
-        $response = $this->actingAs($viewer)->withSession(['current_tenant' => $this->tenant->id])->get('/app/dash');
-
-        $response->assertOk();
-        $response->assertSee('STILL-HERE-AWARD');      // current staff still recognised
-        $response->assertDontSee('GONE-AWARD');        // archived recipient dropped from the card
-    }
-
+    /**
+     * The dashboard's recent-achievements card was dropped in the two-scope
+     * dashboard rewrite (BuildsDashboardData), and the Performance module
+     * (Achievements included) is descoped — its screen blade was deleted, so
+     * there is no longer a rendering surface left to assert the archived-
+     * recipient filter against. achievementsData()'s active()-scoped query
+     * itself is unchanged and still backs the KPI/achievements API for when
+     * that module returns.
+     */
     /** canSeeAll() must be driven by LIVE direct reports — an archived report is not a report. */
     public function test_archived_only_direct_report_does_not_unlock_manager_screens(): void
     {

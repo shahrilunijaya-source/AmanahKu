@@ -107,15 +107,15 @@ class FeatureManager
      * Non-module settings (security, payroll, AI assistant) are intentionally left
      * untouched. Locked keys still resolve to the platform value regardless.
      *
-     * Features::NOT_READY modules stay off no matter how high the stage level is —
-     * without this, provisioning a stage-3 company would write an explicit `true`
-     * override and un-hide a module that has not been signed off for release.
+     * Features::OFF modules stay off no matter how high the stage level is — without
+     * this, provisioning a stage-3 company would write an explicit `true` override and
+     * un-hide a module that is descoped or not signed off for release.
      */
     public function applyCategoryPackage(Tenant $tenant, int $level): void
     {
         foreach (Features::MODULES as $key => $def) {
-            $ready = ! in_array($key, Features::NOT_READY, true);
-            $this->setTenant($tenant, $key, $ready && $def[2] <= $level);
+            $shipped = ! in_array($key, Features::OFF, true);
+            $this->setTenant($tenant, $key, $shipped && $def[2] <= $level);
         }
     }
 

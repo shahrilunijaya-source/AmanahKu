@@ -1,5 +1,5 @@
-<header class="uj-header" style="height:60px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:16px;padding:0 24px;">
-    <button @click="toggleSb()" class="uj-nav-toggle" :aria-label="$store.ui.lang==='en' ? 'Open navigation' : 'Buka navigasi'" style="width:36px;height:36px;border-radius:8px;align-items:center;justify-content:center;color:var(--body);flex-shrink:0;background:none;">
+<header class="uj-header">
+    <button @click="toggleSb()" class="uj-nav-toggle uj-hd-ib" :aria-label="$store.ui.lang==='en' ? 'Open navigation' : 'Buka navigasi'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"></path></svg>
     </button>
     <div x-data="{
@@ -30,30 +30,30 @@
          @click.outside="open = false"
          class="uj-hd-search"
          style="flex:1;min-width:0;max-width:420px;position:relative;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4-4"></path></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4-4"></path></svg>
         <input x-model="q" @input="search()" @focus="if (results.length) open = true"
                @keydown.down.prevent="active = Math.min(active + 1, results.length - 1)"
                @keydown.up.prevent="active = Math.max(active - 1, -1)"
                @keydown.enter.prevent="active >= 0 && results[active] ? go(results[active].id) : null"
                :placeholder="$store.ui.lang==='en' ? 'Search people…' : 'Cari pekerja…'" :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari pekerja'" autocomplete="off"
-               style="width:100%;height:38px;padding:0 14px 0 36px;background:var(--canvas);border:1px solid transparent;border-radius:8px;font-size:13.5px;color:var(--ink);outline:none;" />
+               style="width:100%;height:34px;padding:0 12px 0 34px;background:#fff;border:1px solid var(--hairline);border-radius:9px;font-size:var(--t-base);color:var(--ink);outline:none;" />
 
         <div x-show="open" x-cloak
-             style="position:absolute;top:46px;left:0;right:0;background:#fff;border:1px solid var(--hairline);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.12);overflow:hidden;z-index:50;max-height:380px;overflow-y:auto;">
+             style="position:absolute;top:46px;left:0;right:0;background:#fff;border:1px solid var(--hairline);border-radius:10px;box-shadow:var(--shadow-menu);overflow:hidden;z-index:50;max-height:380px;overflow-y:auto;">
             <template x-if="loading">
-                <div style="padding:14px 16px;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Searching…' : 'Mencari…'">Searching…</div>
+                <div style="padding:14px 16px;font-size:var(--t-base);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Searching…' : 'Mencari…'">Searching…</div>
             </template>
             <template x-if="!loading && results.length === 0">
-                <div style="padding:14px 16px;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No matches.' : 'Tiada padanan.'">No matches.</div>
+                <div style="padding:14px 16px;font-size:var(--t-base);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No matches.' : 'Tiada padanan.'">No matches.</div>
             </template>
             <template x-for="(r, i) in results" :key="r.id">
                 <a :href="'{{ url('/app/profile') }}?emp=' + r.id"
                    @mouseenter="active = i"
                    :style="'display:flex;align-items:center;gap:11px;padding:10px 14px;text-decoration:none;border-bottom:1px solid var(--hairline);background:' + (active === i ? 'var(--canvas)' : '#fff')">
-                    <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:' + (r.avatar_color || '#3a6ea5')" x-text="r.initials"></span>
+                    <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--t-micro);font-weight:600;background:' + (r.avatar_color || '#3a6ea5')" x-text="r.initials"></span>
                     <span style="min-width:0;">
-                        <span style="display:block;font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="r.name"></span>
-                        <span style="display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="[r.position, r.department].filter(Boolean).join(' · ')"></span>
+                        <span style="display:block;font-size:var(--t-base);color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="r.name"></span>
+                        <span style="display:block;font-size:var(--t-micro);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="[r.position, r.department].filter(Boolean).join(' · ')"></span>
                     </span>
                 </a>
             </template>
@@ -61,9 +61,9 @@
     </div>
     <div style="flex:1;"></div>
 
-    <div class="uj-hd-fold" style="display:flex;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;padding:2px;gap:1px;" :title="$store.ui.lang==='en' ? 'Interface language' : 'Bahasa antara muka'">
-        <button @click="$store.ui.setLang('en')" :style="'height:30px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='en'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='en'?'#fff':'var(--muted)')">EN</button>
-        <button @click="$store.ui.setLang('ms')" :style="'height:30px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='ms'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='ms'?'#fff':'var(--muted)')">BM</button>
+    <div class="uj-seg uj-hd-fold" :title="$store.ui.lang==='en' ? 'Interface language' : 'Bahasa antara muka'">
+        <button @click="$store.ui.setLang('en')" :data-on="$store.ui.lang==='en'">EN</button>
+        <button @click="$store.ui.setLang('ms')" :data-on="$store.ui.lang==='ms'">BM</button>
     </div>
 
     <button @click="$dispatch('welcome-open')" class="uj-hd-ib uj-hd-fold" :aria-label="$store.ui.lang==='en' ? 'Show welcome guide' : 'Tunjuk panduan selamat datang'" :title="$store.ui.lang==='en' ? 'Welcome guide' : 'Panduan selamat datang'">
@@ -82,7 +82,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z"></path></svg>
         <span class="uj-hd-label" x-text="$store.ui.lang==='en' ? 'Knowledge' : 'Pengetahuan'">Knowledge</span>
         <template x-if="$store.kbadge && $store.kbadge.unread > 0">
-            <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="$store.kbadge.unread"></span>
+            <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:var(--t-micro);display:flex;align-items:center;justify-content:center;" x-text="$store.kbadge.unread"></span>
         </template>
     </button>
     @endif
@@ -95,7 +95,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"></path></svg>
         <span class="uj-hd-label" x-text="$store.ui.lang==='en' ? 'Messages' : 'Mesej'">Messages</span>
         <template x-if="$store.msgbadge && $store.msgbadge.unread > 0">
-            <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="$store.msgbadge.unread"></span>
+            <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:var(--t-micro);display:flex;align-items:center;justify-content:center;" x-text="$store.msgbadge.unread"></span>
         </template>
     </button>
     @endif
@@ -116,42 +116,42 @@
                 :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Lagi tindakan'" :title="$store.ui.lang==='en' ? 'More' : 'Lagi'">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></svg>
         </button>
-        <div x-show="more" x-cloak @click.outside="more = false" @keydown.escape.window="more = false"
-             style="position:absolute;right:0;top:48px;width:232px;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 12px 40px rgba(31,30,26,.14);z-index:60;padding:6px;">
+        <div x-show="more" x-cloak class="uj-hd-panel" @click.outside="more = false" @keydown.escape.window="more = false"
+             style="position:absolute;right:0;top:48px;width:232px;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;padding:6px;">
             @if ($kbEnabled ?? false)
-            <button @click="kb = true; kbView = 'feed'; $store.kbadge.markRead(); more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);background:none;text-align:left;">
+            <button @click="kb = true; kbView = 'feed'; $store.kbadge.markRead(); more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);background:none;text-align:left;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z"></path></svg>
                 <span style="flex:1;" x-text="$store.ui.lang==='en' ? 'Knowledge' : 'Pengetahuan'">Knowledge</span>
                 <template x-if="$store.kbadge && $store.kbadge.unread > 0">
-                    <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="$store.kbadge.unread"></span>
+                    <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:var(--t-micro);display:flex;align-items:center;justify-content:center;" x-text="$store.kbadge.unread"></span>
                 </template>
             </button>
             @endif
             @if ($msgEnabled ?? false)
-            <button @click="msg = true; more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);background:none;text-align:left;">
+            <button @click="msg = true; more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);background:none;text-align:left;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"></path></svg>
                 <span style="flex:1;" x-text="$store.ui.lang==='en' ? 'Messages' : 'Mesej'">Messages</span>
                 <template x-if="$store.msgbadge && $store.msgbadge.unread > 0">
-                    <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="$store.msgbadge.unread"></span>
+                    <span style="min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:var(--t-micro);display:flex;align-items:center;justify-content:center;" x-text="$store.msgbadge.unread"></span>
                 </template>
             </button>
             @endif
             @if ($aiEnabled ?? false)
-            <button @click="ai = true; more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);background:none;text-align:left;">
+            <button @click="ai = true; more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);background:none;text-align:left;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
                 <span style="flex:1;" x-text="$store.ui.lang==='en' ? 'Ask AI' : 'Tanya AI'">Ask AI</span>
             </button>
             @endif
-            <button @click="$dispatch('welcome-open'); more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);background:none;text-align:left;">
+            <button @click="$dispatch('welcome-open'); more = false" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);background:none;text-align:left;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></svg>
                 <span style="flex:1;" x-text="$store.ui.lang==='en' ? 'Welcome guide' : 'Panduan'">Welcome guide</span>
             </button>
             <div style="height:1px;background:var(--hairline-soft);margin:5px 8px;"></div>
             <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
-                <span style="flex:1;font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Language' : 'Bahasa'">Language</span>
-                <div style="display:flex;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;padding:2px;gap:1px;">
-                    <button @click="$store.ui.setLang('en')" :style="'height:28px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='en'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='en'?'#fff':'var(--muted)')">EN</button>
-                    <button @click="$store.ui.setLang('ms')" :style="'height:28px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='ms'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='ms'?'#fff':'var(--muted)')">BM</button>
+                <span style="flex:1;font-size:var(--t-sm);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Language' : 'Bahasa'">Language</span>
+                <div class="uj-seg">
+                    <button @click="$store.ui.setLang('en')" :data-on="$store.ui.lang==='en'">EN</button>
+                    <button @click="$store.ui.setLang('ms')" :data-on="$store.ui.lang==='ms'">BM</button>
                 </div>
             </div>
         </div>
@@ -162,30 +162,30 @@
                 :aria-label="$store.ui.lang==='en' ? @js($unreadCount ? "Notifications ({$unreadCount} unread)" : 'Notifications') : @js($unreadCount ? "Pemberitahuan ({$unreadCount} belum dibaca)" : 'Pemberitahuan')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
             @if ($unreadCount > 0)
-                <span style="position:absolute;top:3px;right:3px;min-width:15px;height:15px;padding:0 3px;background:var(--red);color:#fff;border-radius:9999px;border:1.5px solid #fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
+                <span style="position:absolute;top:3px;right:3px;min-width:15px;height:15px;padding:0 3px;background:var(--red);color:#fff;border-radius:9999px;border:1.5px solid #fff;font-size:var(--t-micro);font-weight:700;display:flex;align-items:center;justify-content:center;">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
             @endif
         </button>
-        <div x-show="notif" x-cloak @click.outside="notif = false" style="position:absolute;right:0;top:46px;width:340px;max-width:88vw;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 12px 40px rgba(31,30,26,.14);z-index:60;overflow:hidden;">
+        <div x-show="notif" x-cloak class="uj-hd-panel" @click.outside="notif = false" style="position:absolute;right:0;top:46px;width:340px;max-width:88vw;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--hairline);">
-                <span style="font-size:13.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Notifications' : 'Pemberitahuan'">Notifications</span>
+                <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Notifications' : 'Pemberitahuan'">Notifications</span>
                 @if ($unreadCount > 0)
-                    <form method="post" action="{{ route('notifications.read') }}">@csrf<button type="submit" style="font-size:12px;color:var(--red);background:none;" x-text="$store.ui.lang==='en' ? 'Mark all read' : 'Tanda semua dibaca'">Mark all read</button></form>
+                    <form method="post" action="{{ route('notifications.read') }}">@csrf<button type="submit" style="font-size:var(--t-sm);color:var(--red);background:none;" x-text="$store.ui.lang==='en' ? 'Mark all read' : 'Tanda semua dibaca'">Mark all read</button></form>
                 @endif
                 {{-- Opt-in must be click-driven: browsers reject a permission request that
                      is not tied to a user gesture. Hidden once granted, denied, or unsupported. --}}
                 <button type="button" x-show="$store.alerts.canAsk" x-cloak @click="$store.alerts.enable()"
-                        style="font-size:12px;color:var(--red);background:none;"
+                        style="font-size:var(--t-sm);color:var(--red);background:none;"
                         x-text="$store.ui.lang==='en' ? 'Turn on alerts' : 'Hidupkan makluman'">Turn on alerts</button>
             </div>
             <div style="max-height:360px;overflow-y:auto;">
                 @forelse ($notifications as $n)
                     <a href="{{ $n->url ?? '#' }}" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;background:{{ $n->read_at ? '#fff' : 'var(--red-tint)' }};">
-                        <div style="font-size:13px;font-weight:600;color:var(--ink);">{{ $n->title }}</div>
-                        @if ($n->body)<div style="font-size:12px;color:var(--body);margin-top:2px;line-height:1.45;">{{ $n->body }}</div>@endif
-                        <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);">{{ $n->created_at->diffForHumans() }}</div>
+                        <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);">{{ $n->title }}</div>
+                        @if ($n->body)<div style="font-size:var(--t-sm);color:var(--body);margin-top:2px;line-height:1.45;">{{ $n->body }}</div>@endif
+                        <div style="font-size:var(--t-micro);color:var(--muted);margin-top:4px;font-family:var(--font-mono);">{{ $n->created_at->diffForHumans() }}</div>
                     </a>
                 @empty
-                    <div style="padding:36px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You\'re all caught up.' : 'Semua sudah dibaca.'">You're all caught up.</div>
+                    <div style="padding:36px 20px;text-align:center;font-size:var(--t-base);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You\'re all caught up.' : 'Semua sudah dibaca.'">You're all caught up.</div>
                 @endforelse
             </div>
         </div>
@@ -197,51 +197,51 @@
          Pinned with flex-shrink:0 so it is always reachable, even on the narrowest phone. --}}
     <div x-data="{ acct: false }" class="uj-hd-acct" style="position:relative;">
         <button @click="acct = ! acct" :aria-label="$store.ui.lang==='en' ? 'Account menu' : 'Menu akaun'" :aria-expanded="acct"
-                style="display:flex;align-items:center;gap:9px;background:none;padding:3px 6px 3px 3px;border-radius:9px;transition:background .15s;"
-                :style="acct ? { background:'var(--canvas)' } : {}">
-            <span aria-hidden="true" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;background:{{ auth()->user()->avatarColor() }};">{{ auth()->user()->initials() }}</span>
+                style="display:flex;align-items:center;gap:9px;background:none;height:40px;padding:0 7px 0 3px;border-radius:10px;transition:background .15s;"
+                :style="acct ? { background:'#eae9e3' } : {}">
+            <span aria-hidden="true" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:var(--t-sm);font-weight:600;background:{{ auth()->user()->avatarColor() }};">{{ auth()->user()->initials() }}</span>
             <div class="uj-hd-acct-text" style="text-align:left;">
                 {{-- Name + Director badge. is_director is an org-status flag (HR-set), separate
                      from the login role — so a director is marked here regardless of persona. --}}
                 <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.2;white-space:nowrap;">{{ auth()->user()->name }}</span>
+                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);line-height:1.2;white-space:nowrap;">{{ auth()->user()->name }}</span>
                     @if ($employee?->is_director)
-                        <span style="flex-shrink:0;font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
+                        <span style="flex-shrink:0;font-size:var(--t-micro);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
                               x-text="$store.ui.lang==='en' ? 'Director' : 'Pengarah'">Director</span>
                     @endif
                 </div>
                 {{-- Real job title from the assigned Position band; falls back to the login-role
                      label only when no band is assigned, so the line is never blank. --}}
-                <div style="font-size:11px;color:var(--muted);white-space:nowrap;">{{ ($employee?->position) ?: $roleLabel }}</div>
+                <div style="font-size:var(--t-micro);color:var(--muted);white-space:nowrap;">{{ ($employee?->position) ?: $roleLabel }}</div>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .15s;" :style="acct ? { transform:'rotate(180deg)' } : {}"><path d="M6 9l6 6 6-6"></path></svg>
         </button>
 
-        <div x-show="acct" x-cloak @click.outside="acct = false" @keydown.escape.window="acct = false"
-             style="position:absolute;right:0;top:50px;width:248px;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 12px 40px rgba(31,30,26,.14);z-index:60;overflow:hidden;">
+        <div x-show="acct" x-cloak class="uj-hd-panel" @click.outside="acct = false" @keydown.escape.window="acct = false"
+             style="position:absolute;right:0;top:50px;width:248px;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
             <div style="padding:13px 16px;border-bottom:1px solid var(--hairline-soft);">
                 <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-                    <span style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ auth()->user()->name }}</span>
+                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ auth()->user()->name }}</span>
                     @if ($employee?->is_director)
-                        <span style="flex-shrink:0;font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
+                        <span style="flex-shrink:0;font-size:var(--t-micro);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
                               x-text="$store.ui.lang==='en' ? 'Director' : 'Pengarah'">Director</span>
                     @endif
                 </div>
                 @if ($employee?->position)
-                    <div style="font-size:11.5px;color:var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $employee->position }}</div>
+                    <div style="font-size:var(--t-micro);color:var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $employee->position }}</div>
                 @endif
-                <div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ auth()->user()->email }}</div>
+                <div style="font-size:var(--t-micro);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ auth()->user()->email }}</div>
             </div>
             <div style="padding:6px;">
-                <a href="{{ ($employee ?? null) ? route('app.screen', ['screen' => 'profile', 'emp' => $employee->id]) : route('app.screen', 'profile') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);text-decoration:none;">
+                <a href="{{ ($employee ?? null) ? route('app.screen', ['screen' => 'profile', 'emp' => $employee->id]) : route('app.screen', 'profile') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);text-decoration:none;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'My profile' : 'Profil saya'">My profile</span>
                 </a>
-                <a href="{{ route('app.screen', 'security') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);text-decoration:none;">
+                <a href="{{ route('app.screen', 'security') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);text-decoration:none;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'Account & security' : 'Akaun & keselamatan'">Account &amp; security</span>
                 </a>
-                <a href="{{ route('tenant.select') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--body);text-decoration:none;">
+                <a href="{{ route('tenant.select') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);text-decoration:none;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'Switch workspace' : 'Tukar ruang kerja'">Switch workspace</span>
                 </a>
@@ -249,7 +249,7 @@
             <div style="padding:6px;border-top:1px solid var(--hairline-soft);">
                 <form action="/logout" method="post">
                     @csrf
-                    <button type="submit" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:13px;color:var(--red);background:none;text-align:left;">
+                    <button type="submit" class="uj-acct-item" style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--red);background:none;text-align:left;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>
                         <span x-text="$store.ui.lang==='en' ? 'Sign out' : 'Log keluar'">Sign out</span>
                     </button>

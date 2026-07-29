@@ -29,11 +29,16 @@ trait BuildsNav
         if (! in_array($role, ['management', 'hr'], true)) {
             $items = array_values(array_filter($items, fn ($i) => ! in_array($i['id'], ['admin', 'cases'], true)));
         }
-        // Probation and the Reports & Audit oversight group are for managers and
-        // above — hidden from plain employees. The screens themselves stay server-
-        // gated in AppController::screen (canSeeAll) for anyone who reaches them by URL.
+        // The whole "My Team" section plus the Insights oversight group are for
+        // managers and above — hidden from plain employees. A plain employee keeps
+        // My Work and Learning, which is everything about their own week. The screens
+        // themselves stay server-gated in AppController::screen (canSeeAll) for anyone
+        // who reaches them by URL, so this is tidiness, not the access control.
         if ($role === 'employee') {
-            $items = array_values(array_filter($items, fn ($i) => ! in_array($i['id'], ['probation', 'oversight'], true)));
+            $items = array_values(array_filter(
+                $items,
+                fn ($i) => $i['section'] !== 'My Team' && $i['id'] !== 'oversight',
+            ));
         }
 
         // Drop nav entries whose gating module is disabled for this tenant. Leaf items

@@ -65,7 +65,13 @@ Findings from an authorization-boundary review. Roles are well *defined* (employ
 | I-020 | medium | `director` role access is inconsistent across modules | `director` is documented as a strict super-set of `management` (`Permissions::effectiveRole`). But 4 controllers reimplement `isPrivileged()` inline with `in_array($role, ['management','hr'])` and skip `effectiveRole()`, so a director is silently treated as a plain employee there: `ComplianceController`, `ProbationController`, `VehicleController`, `Api/V1/ApiController`. Director IS honored in Documents/Rooms/Cases/Wellness (which delegate to `hasTenantRole`). Fails closed (director gets less, not more), so it is a correctness/consistency bug, not a hole. Fix: route every `isPrivileged()` through `hasTenantRole()`. |
 | I-021 | medium | Role enforcement is decentralized with no single source of truth | No Laravel Gates/Policies exist; the `Permissions` matrix is advisory only (its own docblock says so). The real boundary is scattered across ~50 controllers: `authorizeTenantRole()`/`hasTenantRole()` (51 uses), 8 private `isPrivileged()` copies, and inline role literals (`['management','hr']` ×44, `['manager','management','hr']` ×27, `['director','hr']` ×5). I-020 is a symptom of this. Fix: promote `Permissions::ROLE_PERMISSIONS` to authoritative `Gate::define`/policies, then replace the literals and `isPrivileged()` copies with `$this->authorize()` / `roleHas()` calls. |
 
-## Mail delivery broken on staging (found 2026-07-26)
+## Mail delivery broken on staging (found 2026-07-26, RESOLVED 2026-07-28)
+
+**All three are fixed and verified in production use on staging.** A real test mail from
+the staging host reached a Gmail **inbox** with SPF, DKIM and DMARC all passing. Kept in
+full below because the cause is easy to reintroduce and the fix is mostly invisible in
+the codebase. Design record:
+[specs/2026-07-28-staging-mail-delivery-design.md](superpowers/specs/2026-07-28-staging-mail-delivery-design.md).
 
 Surfaced when the staging scheduler and queue-worker crons were created for the first
 time. Mail on staging has never worked; nothing reported it because no worker was
@@ -77,6 +83,32 @@ the risk generically but predates staging having any `MAIL_*` values at all.
 | I-022 | high | `MAIL_SCHEME=tls` is not a valid scheme | Staging `.env` sets `MAIL_SCHEME=tls`. `config/mail.php:42` passes it straight through as `'scheme' => env('MAIL_SCHEME')`, and Symfony Mailer rejects it: `The "tls" scheme is not supported; supported schemes for mailer "smtp" are: "smtp", "smtps".` This throws before any connection is attempted, so it fails regardless of credentials. `tls` is the value of the *old* `MAIL_ENCRYPTION` key, which Laravel 11+ replaced with `MAIL_SCHEME`; the value did not carry over. Fix: for port 587 (STARTTLS) use `MAIL_SCHEME=smtp`; for port 465 (implicit TLS) use `MAIL_SCHEME=smtps` and change `MAIL_PORT` to match. Omitting the key entirely also works — Symfony then infers from the port. |
 | I-023 | high | Staging SMTP credentials are still placeholders | `MAIL_HOST=__smtp_host__`, `MAIL_USERNAME=__smtp_user__`, and `MAIL_FROM_ADDRESS="noreply@amanahku.example"` are literal placeholder strings, never filled in. Even with I-022 fixed, no mail would send and the From domain is a reserved example domain that receiving servers reject. Fix: set real host/username/password plus a From address on a domain the deployment controls. Independent of I-022 — both must be fixed for mail to work. |
 | I-024 | medium | Failed mail jobs accumulate silently | Two `App\Notifications\MemberInvited` jobs are sitting in `failed_jobs` on staging, and `storage/logs/laravel.log` has passed 3.2 MB, almost entirely repeats of the I-022 exception. There is no log rotation and no alerting on `failed_jobs` depth, so a mail outage is invisible until someone reads the log by hand. Fix (after I-022/I-023): `php artisan queue:retry all`, truncate the log, and add either log rotation or a `queue:monitor` check. |
+
+### How each was resolved (2026-07-28)
+
+- **I-022** — staging `.env` now sets `MAIL_SCHEME=smtp` against `MAIL_PORT=587` (STARTTLS).
+  `.env.staging.example` carries the same pairing plus a comment block spelling out the
+  port-to-scheme rule, so copying the template can no longer reproduce this.
+- **I-023** — provider is **Hostinger Business Email**, on a dedicated subdomain
+  `amanahku.myappsonline.net` with the mailbox `noreply@amanahku.myappsonline.net`. The
+  subdomain keeps Amanahku's sending reputation separate from the other apps sharing
+  `myappsonline.net`. Resend was evaluated and rejected; reasoning and accepted trade-offs
+  are in the spec.
+  **DNS needed manual work.** Hostinger writes MX and SPF automatically but **not** DKIM.
+  Three CNAMEs were added by hand in the `myappsonline.net` zone:
+  `hostingermail-{a,b,c}._domainkey.amanahku` → `hostingermail-{a,b,c}.dkim.mail.hostinger.com`.
+  A DMARC TXT record at `_dmarc.amanahku` (`v=DMARC1; p=none`) was added too.
+  Add all three DKIM selectors, not just `-a`: `-b` and `-c` are empty placeholders that
+  Hostinger uses for key rotation, and omitting them breaks signing on the next rotation.
+- **I-024** — three parts. `LOG_CHANNEL=daily` (14-day retention via `LOG_DAILY_DAYS`)
+  replaces `stack`, and the 3.3 MB `laravel.log` was truncated. The 30 stranded jobs (26
+  `MemberInvited` from a bulk import, 4 `WeeklyHrDigest`) were **flushed, not retried** —
+  the app is not yet being shown to staff, and the signed activation links would have
+  expired 2026-08-02 anyway. Re-invite through the app when ready, which mints fresh links.
+  Alerting is now a banner on the super-admin provisioning console
+  (`SuperAdmin\CompanyController@index` + `superadmin.companies.index`) that appears when
+  `failed_jobs` is non-empty. It cannot be an email (mail is what breaks) and cannot be the
+  in-app bell (`AppNotification` is tenant-scoped, a super-admin is not).
 
 **Blast radius while unfixed.** Everything the app sends by mail silently fails:
 `App\Notifications\MemberInvited` (workspace invites), `App\Notifications\WeeklyHrDigest`

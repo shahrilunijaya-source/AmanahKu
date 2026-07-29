@@ -57,6 +57,16 @@ trait BuildsSettingsData
         // the sidebar (nav order), not the registry order.
         $sections = [];
         foreach (Features::MODULES as $key => [$label, $screens]) {
+            // Descoped modules have no screen blade any more, so switching one on here
+            // would render screens.empty rather than the module. Hide the row instead of
+            // offering a toggle that cannot deliver. Keyed on the *resolved* value, not
+            // Features::OFF, so a company that already has an override stays able to
+            // switch it back off. Reviving a module is a super-admin action (the
+            // SuperAdmin\FeatureController matrix still lists every key).
+            if (in_array($key, Features::OFF, true) && ! $features->value($tenant, $key)) {
+                continue;
+            }
+
             $place = $nav[$screens[0]] ?? null;
             $sectionEn = $place['section'] ?? 'Other';
 

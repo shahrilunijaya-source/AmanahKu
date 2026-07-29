@@ -18,6 +18,13 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Sanctum\NewAccessToken;
 
+/**
+ * The `dashboard_prefs` column is a json column with an `array` cast, so it reads
+ * back as an array. Without this annotation static analysis takes the raw column
+ * type and hands DashboardPrefs a string.
+ *
+ * @property array<string, array{hidden?: array<int, string>, order?: array<int, string>}>|null $dashboard_prefs
+ */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
@@ -37,6 +44,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'password_change_required' => 'boolean',
             'is_super_admin' => 'boolean',
+            'dashboard_prefs' => 'array',
         ];
     }
 

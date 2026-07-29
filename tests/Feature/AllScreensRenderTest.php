@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Models\WorkItem;
 use App\Services\FeatureManager;
 use App\Support\WorkforceInsights;
 use Database\Seeders\DatabaseSeeder;
@@ -69,12 +68,15 @@ class AllScreensRenderTest extends TestCase
 
     /**
      * 'workload' is deliberately absent from SCREENS above: it is gated by
-     * `module.ai`, which now defaults OFF (Features::NOT_READY — the AI Workforce
-     * Intelligence dashboard blocks are built but not yet released; see docs/ISSUES.md
-     * I-025). Confirms the new default behaviour instead of masking it.
+     * `module.ai`, which defaults OFF (Features::OFF — the AI Workforce Intelligence
+     * dashboard blocks are built but not yet released; see docs/ISSUES.md I-025).
+     * Confirms the shipped default instead of masking it, so it opts out of the
+     * suite-wide "every module on" override in Tests\TestCase.
      */
     public function test_workload_screen_404s_when_module_ai_is_off_by_default(): void
     {
+        $this->useShippedModuleDefaults();
+
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $this->tenant->id,
             'persona' => 'hr',
@@ -82,70 +84,37 @@ class AllScreensRenderTest extends TestCase
     }
 
     /**
-     * The dashboard persona switcher must only render for privileged roles — the
-     * switch is server-gated, so showing it to a plain employee is a dead control.
-     * Aisyah is HR on Unijaya but a plain employee on Petron, so one user exercises
-     * both sides of the gate.
+     * The dashboard scope switcher must only render for privileged roles — the switch
+     * is server-gated (Amanahku::SCOPE_ACCESS), so showing it to a plain employee is a
+     * dead control that 404s nothing but confuses. Aisyah is HR on Unijaya but a plain
+     * employee on Petron, so one user exercises both sides of the gate.
+     *
+     * Replaces the four-persona version of this test: the `persona=` switcher was
+     * removed with the four-persona dashboard, and the two scopes (`me` / `company`)
+     * took over the same job.
      */
-    public function test_persona_switcher_renders_only_for_privileged_roles(): void
+    public function test_scope_switcher_renders_only_for_privileged_roles(): void
     {
         $petron = Tenant::where('slug', 'petron-tl')->firstOrFail();
 
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $this->tenant->id,
-            'persona' => 'hr',
-        ])->get('/app/dash')->assertSee('persona=manager');
+        ])->get('/app/dash')->assertSee('scope=company');
 
+        // A plain employee has exactly one scope, so the strip must not render at all.
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $petron->id,
-            'persona' => 'employee',
-        ])->get('/app/dash')->assertDontSee('persona=manager');
+        ])->get('/app/dash')->assertDontSee('scope=company');
     }
 
     /**
-     * The manager dashboard's Team-status table must (1) list only the viewer's own direct
-     * reports, not any six active staff, and (2) show a LIVE workload derived from each
-     * report's open work-item count — not the frozen `workload` seed column. Aisyah has three
-     * seeded reports (Nurul, Farah, Siti); Siti is on leave. Nurul's frozen column says
-     * "Healthy", so loading her with seven open items proves the live derivation wins. The
-     * subtitle must echo the same reporting line, replacing the old hardcoded "8 direct reports".
+     * The manager Team-status table was a `manager`-persona-only dashboard block; the
+     * two-scope dashboard rewrite (BuildsDashboardData) dropped it along with the rest
+     * of the four-persona dashboard — a manager's reporting line now surfaces via the
+     * `company` scope's real verify/approve queue instead. See
+     * Tests\Feature\DashboardScopeTest for the replacement coverage (queue routing,
+     * live headline copy).
      */
-    public function test_manager_team_status_is_scoped_to_reports_with_live_workload(): void
-    {
-        $nurul = Employee::where('email', 'nurul.iman@unijaya.example')->firstOrFail();
-
-        // Seven open (not-done) items pushes Nurul past the overloaded threshold live, even
-        // though her persisted workload column is still the seeded 'green'/'Healthy'.
-        for ($i = 0; $i < 7; $i++) {
-            WorkItem::create([
-                'tenant_id' => $this->tenant->id,
-                'employee_id' => $nurul->id,
-                'title' => "Open task {$i}",
-                'status' => 'todo',
-            ]);
-        }
-
-        $res = $this->actingAs($this->hr)->withSession([
-            'current_tenant' => $this->tenant->id,
-            'persona' => 'manager',
-        ])->get('/app/dash')->assertOk();
-
-        // A direct report is listed in the Team-status table.
-        $res->assertSee('Nurul Iman binti Hassan');
-
-        // Live workload (7 open items) overrides Nurul's frozen 'Healthy' column. Faizal/Hafiz
-        // also carry a seeded 'Overloaded' label but are not this manager's reports, so the only
-        // "Overloaded" that can reach the manager dash is Nurul's freshly computed one.
-        $res->assertSee('Overloaded');
-
-        // Header + table are scoped to the real reporting line (three reports, one on leave),
-        // replacing the old hardcoded "8 direct reports" copy. A name-based "don't see" control
-        // is unreliable here: any staff member can surface in the Knowledge Bank / recs blobs
-        // merged into every screen, so the report COUNT is the scoping signal instead.
-        $res->assertSee('3 direct reports');
-        $res->assertSee('1 on leave');
-        $res->assertDontSee('8 direct reports');
-    }
 
     /**
      * Workload colour/label is derived LIVE from each person's open work-item count via the

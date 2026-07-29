@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Setting up · Amanahku</title>
+    {{-- Self-hosted Poppins + JetBrains Mono. Vite emits the @font-face rules as a
+         non-entry chunk, so @vite never links them: without this line every page
+         silently falls back to the system UI font. See the `fonts` block in
+         vite.config.js and public/build/fonts-manifest.json. --}}
+    {{ Vite::fonts() }}
     @vite(['resources/css/app.css'])
 </head>
 <body style="background:var(--canvas);">

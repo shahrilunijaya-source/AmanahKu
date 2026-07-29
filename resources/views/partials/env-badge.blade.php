@@ -7,7 +7,7 @@
     @php($__dark = $onDark ?? false)
     <span style="display:{{ $__dark ? 'flex' : 'inline-flex' }};align-items:center;gap:6px;margin-top:8px;
                  background:{{ $__dark ? 'transparent' : 'var(--red-tint,#fdecec)' }};color:{{ $__dark ? '#f0908f' : 'var(--red,#dc2626)' }};
-                 font:600 10px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.11em;text-transform:uppercase;
+                 font:600 var(--t-micro)/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.11em;text-transform:uppercase;
                  padding:5px 9px;border-radius:999px;border:1px solid {{ $__dark ? 'rgba(240,144,143,.35)' : 'currentColor' }};white-space:nowrap;">
         <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>{{ $__env }}
     </span>

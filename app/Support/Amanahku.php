@@ -50,28 +50,69 @@ class Amanahku
         // `section` / `section_ms` tag; the sidebar renders one collapsible group
         // per section (see partials/sidebar.blade.php). Order here defines both the
         // section order and the item order within each section.
+        //
+        // Sections are named for what a person is trying to do, not for which module
+        // owns the screen: "My Work" is your own week, "My Team" is the people you are
+        // responsible for. A section whose every item is hidden (module off, or role
+        // gate) simply does not render, so with the current six shipped modules a user
+        // sees five sections rather than the eight this list defines. The extra
+        // sections exist so a revived module has somewhere sensible to land.
         $s = fn (string $en, string $ms, array $item) => array_merge(['section' => $en, 'section_ms' => $ms], $item);
 
         return [
             // ── Overview ──────────────────────────────────────────────────────
             $s('Overview', 'Ringkasan', ['id' => 'dash', 'label' => 'Dashboard', 'label_ms' => 'Papan Pemuka', 'icon' => 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z']),
-            // ── Time & People ─────────────────────────────────────────────────
-            $s('Time & People', 'Masa & Warga', ['id' => 'people', 'label' => 'People', 'label_ms' => 'Warga Kerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75', 'children' => [
-                ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja'],
-                ['id' => 'profile', 'label' => 'Employee Profile', 'label_ms' => 'Profil Pekerja'],
-                ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya'],
-                ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi'],
-            ]]),            $s('Time & People', 'Masa & Warga', ['id' => 'roster', 'label' => 'Roster', 'label_ms' => 'Jadual Syif', 'icon' => 'M8 2v3M16 2v3M3.5 9.5h17M5 5h14a1.5 1.5 0 0 1 1.5 1.5V19A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6.5A1.5 1.5 0 0 1 5 5Z']),
-            $s('Time & People', 'Masa & Warga', ['id' => 'shiftswap', 'label' => 'Shift Swaps', 'label_ms' => 'Pertukaran Syif', 'icon' => 'M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7']),
-            $s('Time & People', 'Masa & Warga', ['id' => 'leave', 'label' => 'Leave', 'label_ms' => 'Cuti', 'icon' => 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18']),
-            $s('Time & People', 'Masa & Warga', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
-            $s('Time & People', 'Masa & Warga', ['id' => 'overtime', 'label' => 'Overtime', 'label_ms' => 'Kerja Lebih Masa', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2M12 2v2M2 12h2']),
+
+            // ── My Work ───────────────────────────────────────────────────────
+            // Your own working week, in the order of a working day. Attendance,
+            // T.A.A. and Timesheet used to be reachable ONLY from the quick-actions
+            // dock, which meant they vanished whenever the sidebar was collapsed.
+            // They are ordinary nav rows now; the dock reports state and nothing else.
+            $s('My Work', 'Kerja Saya', ['id' => 'attendance', 'label' => 'Attendance', 'label_ms' => 'Kehadiran', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 7v5l3 2']),
+            $s('My Work', 'Kerja Saya', ['id' => 'board', 'label' => 'T.A.A.', 'label_ms' => 'T.A.A.', 'icon' => 'M3 3h18v18H3zM9 3v18M15 3v18']),
+            $s('My Work', 'Kerja Saya', ['id' => 'timesheets', 'label' => 'Timesheet', 'label_ms' => 'Lembaran Masa', 'icon' => 'M3 3v18h18M7 14h3v3H7zM13 9h3v8h-3z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'leave', 'label' => 'Leave', 'label_ms' => 'Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'claims', 'label' => 'Claims', 'label_ms' => 'Tuntutan', 'icon' => 'M5 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'documents', 'label' => 'Documents', 'label_ms' => 'Dokumen', 'icon' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8']),
+            $s('My Work', 'Kerja Saya', ['id' => 'overtime', 'label' => 'Overtime', 'label_ms' => 'Kerja Lebih Masa', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2M12 2v2M2 12h2']),
+            $s('My Work', 'Kerja Saya', ['id' => 'expenses', 'label' => 'Expense Reports', 'label_ms' => 'Laporan Perbelanjaan', 'icon' => 'M9 14l6-6M9 8h.01M15 14h.01M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'travel', 'label' => 'Travel', 'label_ms' => 'Perjalanan', 'icon' => 'M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'roster', 'label' => 'Roster', 'label_ms' => 'Jadual Syif', 'icon' => 'M8 2v3M16 2v3M3.5 9.5h17M5 5h14a1.5 1.5 0 0 1 1.5 1.5V19A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6.5A1.5 1.5 0 0 1 5 5Z']),
+            $s('My Work', 'Kerja Saya', ['id' => 'shiftswap', 'label' => 'Shift Swaps', 'label_ms' => 'Pertukaran Syif', 'icon' => 'M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7']),
+
+            // ── My Team ───────────────────────────────────────────────────────
+            // The people you are responsible for, and the queues they create. Hidden
+            // wholesale from a plain employee by BuildsNav::navModel; the screens stay
+            // server-gated regardless of what the nav shows.
+            $s('My Team', 'Pasukan Saya', ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi', 'icon' => 'M9 3h6v3H9zM3 18h4v3H3zM17 18h4v3h-4zM12 6v4M5 18v-3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
+            // Verify/approve queues + the company ledger, split out of Claims so that
+            // screen stays personal-only. manager/management/hr only.
+            $s('My Team', 'Pasukan Saya', ['id' => 'claim-approvals', 'label' => 'Claim approvals', 'label_ms' => 'Kelulusan Tuntutan', 'roles' => ['manager', 'management', 'hr'], 'icon' => 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
+                ['id' => 'kpi', 'label' => 'KPI', 'label_ms' => 'KPI'],
+                ['id' => 'achievements', 'label' => 'Achievements', 'label_ms' => 'Pencapaian'],
+                ['id' => 'reviews', 'label' => 'Reviews', 'label_ms' => 'Semakan'],
+                ['id' => 'goals', 'label' => 'Goals & OKRs', 'label_ms' => 'Matlamat & OKR'],
+                ['id' => 'skills', 'label' => 'Skills Matrix', 'label_ms' => 'Matriks Kemahiran'],
+            ]]),
+            $s('My Team', 'Pasukan Saya', ['id' => 'workload', 'label' => 'AI Workforce Intel', 'label_ms' => 'Risikan Tenaga Kerja AI', 'icon' => 'M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z']),
+
+            // ── Learning ──────────────────────────────────────────────────────
+            $s('Learning', 'Pembelajaran', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
+            $s('Learning', 'Pembelajaran', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
+            $s('Learning', 'Pembelajaran', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
+            $s('Learning', 'Pembelajaran', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
+            $s('Learning', 'Pembelajaran', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
+            $s('Learning', 'Pembelajaran', ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
 
             // ── Workplace ─────────────────────────────────────────────────────
             $s('Workplace', 'Tempat Kerja', ['id' => 'events', 'label' => 'Events', 'label_ms' => 'Acara', 'icon' => 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14h.01M16 14h.01M8 18h.01M12 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'rooms', 'label' => 'Room Booking', 'label_ms' => 'Tempahan Bilik', 'icon' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'vehicles', 'label' => 'Vehicle Booking', 'label_ms' => 'Tempahan Kenderaan', 'icon' => 'M5 17h14M5 17a2 2 0 1 0 4 0M5 17a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0M3 17V9l2-4h10l3 4h1a2 2 0 0 1 2 2v6M3 9h15']),
-            $s('Workplace', 'Tempat Kerja', ['id' => 'travel', 'label' => 'Travel', 'label_ms' => 'Perjalanan', 'icon' => 'M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'assets', 'label' => 'Assets', 'label_ms' => 'Aset', 'icon' => 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'shared-resources', 'label' => 'Shared Resources', 'label_ms' => 'Sumber Bersama', 'icon' => 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4']),
 
@@ -81,12 +122,6 @@ class Amanahku
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'pettycash', 'label' => 'Petty Cash', 'label_ms' => 'Wang Runcit', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 12h.01M6 9v6M18 9v6']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'benefits', 'label' => 'Benefits', 'label_ms' => 'Faedah', 'icon' => 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9.5 11l1.7 1.7L14.5 9']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'wellness', 'label' => 'Wellness & EAP', 'label_ms' => 'Kesihatan & EAP', 'icon' => 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z']),
-            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'claims', 'label' => 'Claims', 'label_ms' => 'Tuntutan', 'icon' => 'M5 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z']),
-            // Verify/approve queues + the company ledger, split out of Claims & Requests so
-            // that screen stays personal-only. manager/management/hr only — a plain employee
-            // has nothing to action here.
-            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'claim-approvals', 'label' => 'Claim approvals', 'label_ms' => 'Kelulusan Tuntutan', 'roles' => ['manager', 'management', 'hr'], 'icon' => 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z']),
-            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'expenses', 'label' => 'Expense Reports', 'label_ms' => 'Laporan Perbelanjaan', 'icon' => 'M9 14l6-6M9 8h.01M15 14h.01M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z']),
 
             // ── Talent & Growth ───────────────────────────────────────────────
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'recruitment', 'label' => 'Recruitment', 'label_ms' => 'Pengambilan', 'icon' => 'M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2M10 5h4v2h-4z']),
@@ -96,18 +131,6 @@ class Amanahku
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'onboarding', 'label' => 'Onboarding', 'label_ms' => 'Onboarding', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
             // The content library behind the checklist items — privileged authors only.
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'onboarding-content', 'label' => 'Onboarding Content', 'label_ms' => 'Kandungan Onboarding', 'roles' => ['management', 'hr'], 'icon' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4']),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
-                ['id' => 'kpi', 'label' => 'KPI', 'label_ms' => 'KPI'],
-                ['id' => 'achievements', 'label' => 'Achievements', 'label_ms' => 'Pencapaian'],
-                ['id' => 'reviews', 'label' => 'Reviews', 'label_ms' => 'Semakan'],
-                ['id' => 'goals', 'label' => 'Goals & OKRs', 'label_ms' => 'Matlamat & OKR'],
-                ['id' => 'skills', 'label' => 'Skills Matrix', 'label_ms' => 'Matriks Kemahiran'],
-            ]]),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
-            $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
             // Resignation + exit clearance share one module (module.offboarding);
             // grouped so the two halves of a departure sit under one nav entry.
             $s('Talent & Growth', 'Bakat & Pembangunan', ['id' => 'offboarding', 'label' => 'Offboarding', 'label_ms' => 'Offboarding', 'icon' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9', 'children' => [
@@ -117,24 +140,19 @@ class Amanahku
 
             // ── Compliance & Docs ─────────────────────────────────────────────
             $s('Compliance & Docs', 'Pematuhan & Dokumen', ['id' => 'compliance', 'label' => 'Compliance & Licenses', 'label_ms' => 'Pematuhan & Lesen', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM12 8v4M12 16h.01']),
-            $s('Compliance & Docs', 'Pematuhan & Dokumen', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
-            $s('Compliance & Docs', 'Pematuhan & Dokumen', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
-            $s('Compliance & Docs', 'Pematuhan & Dokumen', ['id' => 'documents', 'label' => 'Documents', 'label_ms' => 'Dokumen', 'icon' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8']),
 
             // ── Insights & Support ────────────────────────────────────────────
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'reports', 'label' => 'Reports', 'label_ms' => 'Laporan', 'icon' => 'M12 20V10M18 20V4M6 20v-4']),
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'surveys', 'label' => 'Surveys', 'label_ms' => 'Tinjauan', 'icon' => 'M3 3v18h18M8 17V9M13 17V5M18 17v-6']),
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'ideas', 'label' => 'Suggestion Box', 'label_ms' => 'Peti Cadangan', 'icon' => 'M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z']),
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'workload', 'label' => 'AI Workforce Intel', 'label_ms' => 'Risikan Tenaga Kerja AI', 'icon' => 'M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z']),
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'helpdesk', 'label' => 'Helpdesk', 'label_ms' => 'Helpdesk', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24']),
-            $s('Insights & Support', 'Analitik & Sokongan', ['id' => 'messages', 'label' => 'Messages', 'label_ms' => 'Mesej', 'icon' => 'M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z']),
+            $s('Insights', 'Analitik', ['id' => 'reports', 'label' => 'Reports', 'label_ms' => 'Laporan', 'icon' => 'M12 20V10M18 20V4M6 20v-4']),
+            $s('Insights', 'Analitik', ['id' => 'surveys', 'label' => 'Surveys', 'label_ms' => 'Tinjauan', 'icon' => 'M3 3v18h18M8 17V9M13 17V5M18 17v-6']),
+            $s('Insights', 'Analitik', ['id' => 'ideas', 'label' => 'Suggestion Box', 'label_ms' => 'Peti Cadangan', 'icon' => 'M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z']),
+            $s('Insights', 'Analitik', ['id' => 'helpdesk', 'label' => 'Helpdesk', 'label_ms' => 'Helpdesk', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24']),
 
-            // ── Reports & Audit ───────────────────────────────────────────────
             // Oversight surface for anyone who manages staff (manager / management /
-            // hr). Pulled out of Administration so managers get these without the full
-            // admin toolset. Nav-gated in BuildsNav::navModel (hidden from employees);
-            // screens server-gated in AppController::screen via canSeeAll.
-            $s('Reports & Audit', 'Laporan & Audit', ['id' => 'oversight', 'label' => 'Reports & Audit', 'label_ms' => 'Laporan & Audit', 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
+            // hr). Sits beside Reports rather than in a section of its own: five report
+            // screens did not justify their own heading. Nav-gated in
+            // BuildsNav::navModel (hidden from employees); screens server-gated in
+            // AppController::screen via canSeeAll.
+            $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
                 ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
@@ -165,32 +183,50 @@ class Amanahku
         ];
     }
 
-    /** Persona definitions for the dashboard role switcher. */
+    /**
+     * Persona definitions for the dashboard view switcher. Labelled by the SCOPE
+     * each view covers rather than by the job title behind it, because that is the
+     * question the tabs answer: whose week am I looking at?
+     *
+     *   Me       your own dashboard
+     *   My team  your department
+     *   Company  the whole workforce
+     *
+     * 'management' and 'hr' both carry the Company label and are never offered
+     * together: personasFor() keeps only the viewer's own top-tier persona, so HR
+     * lands on the HR dashboard and management on the management one. That is what
+     * collapses the old four tabs to three without merging two different dashboards.
+     */
     public static function personas(): array
     {
         return [
-            ['id' => 'employee', 'label' => 'Employee'],
-            ['id' => 'manager', 'label' => 'Manager'],
-            ['id' => 'management', 'label' => 'Management'],
-            ['id' => 'hr', 'label' => 'HR'],
+            ['id' => 'employee', 'label' => 'Me', 'label_ms' => 'Saya'],
+            ['id' => 'manager', 'label' => 'My team', 'label_ms' => 'Pasukan saya'],
+            ['id' => 'management', 'label' => 'Company', 'label_ms' => 'Syarikat'],
+            ['id' => 'hr', 'label' => 'Company', 'label_ms' => 'Syarikat'],
         ];
     }
 
     /**
-     * Which personas a role may PREVIEW in the switcher. Preview is a downward/lateral
-     * courtesy, never an upward one: a manager may look at the employee and manager views,
-     * but must not preview the management or HR dashboards (their elevated stats and queues).
-     * Management/HR are the top tier and may preview everything. Pass the effectiveRole()
-     * value (director already collapsed to management). This is the whitelist that closes
-     * AK-AUTHZ-02 — both the visible tabs and the switch guard read from it.
+     * Which personas a role may PREVIEW in the switcher. Preview is a downward
+     * courtesy, never an upward or sideways one: a manager may look at the employee
+     * and manager views, but must not preview the management or HR dashboards (their
+     * elevated stats and queues). Pass the effectiveRole() value (director already
+     * collapsed to management). This is the whitelist that closes AK-AUTHZ-02 — both
+     * the visible tabs and the switch guard read from it.
+     *
+     * Management and HR each keep their OWN top-tier persona and no longer preview
+     * each other's. Previously both could open all four tabs, which is how the
+     * switcher grew a fourth tab nobody could name. Three tabs now: Me, My team,
+     * Company, where Company resolves to whichever top-tier dashboard is yours.
      *
      * @var array<string, array<int, string>>
      */
     public const PERSONA_ACCESS = [
         'employee' => ['employee'],
         'manager' => ['employee', 'manager'],
-        'management' => ['employee', 'manager', 'management', 'hr'],
-        'hr' => ['employee', 'manager', 'management', 'hr'],
+        'management' => ['employee', 'manager', 'management'],
+        'hr' => ['employee', 'manager', 'hr'],
     ];
 
     /** Persona ids a role is allowed to preview (employee-only fallback for unknown roles). */
@@ -208,6 +244,46 @@ class Amanahku
             self::personas(),
             fn (array $p): bool => in_array($p['id'], $allowed, true),
         ));
+    }
+
+    /**
+     * Dashboard SCOPE access: the two-scope replacement for the old four-persona
+     * dashboard. `me` is everyone's own week; `company` merges the old manager,
+     * management and hr dashboards into one queue, distinguished per-row by a
+     * verify/approve stage badge rather than by separate screens. A plain employee
+     * never reaches `company` — there is nothing routed to them to verify or approve.
+     * Pass Permissions::effectiveRole() output (director already collapsed).
+     *
+     * @var array<string, array<int, string>>
+     */
+    public const SCOPE_ACCESS = [
+        'employee' => ['me'],
+        'manager' => ['me', 'company'],
+        'management' => ['me', 'company'],
+        'hr' => ['me', 'company'],
+    ];
+
+    /** Scope ids a role may view (employee-only fallback for unknown roles). */
+    public static function scopeIdsFor(string $role): array
+    {
+        return self::SCOPE_ACCESS[$role] ?? ['me'];
+    }
+
+    /** Scope switcher tabs for $role: one entry only for a plain employee. */
+    public static function scopesFor(string $role): array
+    {
+        $labels = ['me' => 'Me', 'company' => 'Company'];
+
+        return array_map(
+            fn (string $id): array => ['id' => $id, 'label' => $labels[$id]],
+            self::scopeIdsFor($role),
+        );
+    }
+
+    /** This role's default scope when none/an invalid one was requested. */
+    public static function defaultScope(string $role): string
+    {
+        return $role === 'employee' ? 'me' : 'company';
     }
 
     public static function roleLabel(string $persona): string
@@ -426,11 +502,21 @@ class Amanahku
     {
         $headcount = (int) ($stats['headcount'] ?? 0);
         $onProbation = (int) ($stats['on_probation'] ?? 0);
-        $confirmationsDue = (int) ($stats['confirmations_due'] ?? 0);
         $company = $stats['company'] ?? 'Unijaya Resources';
 
         $employees = $headcount.' '.Str::plural('employee', $headcount);
-        $confirmations = $confirmationsDue.' '.Str::plural('confirmation', $confirmationsDue);
+
+        // The confirmations clause is Probation-module data (see dashStats). The key is
+        // absent when that module is off, and the sentence is built from the clauses that
+        // are actually present, so no dangling "· 0 confirmations due this month" is left.
+        $hrClauses = ["{$headcount} headcount", "{$onProbation} on probation"];
+        $hrClausesMs = ["{$headcount} jumlah pekerja", "{$onProbation} dalam percubaan"];
+
+        if (isset($stats['confirmations_due'])) {
+            $due = (int) $stats['confirmations_due'];
+            $hrClauses[] = $due.' '.Str::plural('confirmation', $due).' due this month';
+            $hrClausesMs[] = "{$due} pengesahan jawatan perlu diputuskan bulan ini";
+        }
 
         // Manager subtitle is driven by the viewer's real reporting line (see
         // BuildsDashboardData::managerHeadingStats), replacing the old fixed "8 direct reports" copy.
@@ -446,7 +532,7 @@ class Amanahku
             'management' => ($stats['ai_insights'] ?? true)
                 ? ['title' => 'Workforce Intelligence', 'title_ms' => 'Workforce Intelligence', 'sub' => "{$company} · {$employees} · live capacity & risk view.", 'sub_ms' => "{$company} · {$headcount} pekerja · paparan kapasiti & risiko secara langsung."]
                 : ['title' => 'Management Overview', 'title_ms' => 'Gambaran Pengurusan', 'sub' => "{$company} · {$employees}.", 'sub_ms' => "{$company} · {$headcount} pekerja."],
-            'hr' => ['title' => 'HR Operations', 'title_ms' => 'Operasi HR', 'sub' => "{$headcount} headcount · {$onProbation} on probation · {$confirmations} due this month.", 'sub_ms' => "{$headcount} jumlah pekerja · {$onProbation} dalam percubaan · {$confirmationsDue} pengesahan jawatan perlu diputuskan bulan ini."],
+            'hr' => ['title' => 'HR Operations', 'title_ms' => 'Operasi HR', 'sub' => implode(' · ', $hrClauses).'.', 'sub_ms' => implode(' · ', $hrClausesMs).'.'],
         ][$persona] ?? ['title' => 'Dashboard', 'sub' => ''];
     }
 

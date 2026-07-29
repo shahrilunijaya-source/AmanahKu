@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Two-factor authentication · Amanahku</title>
+    {{-- Self-hosted Poppins + JetBrains Mono. Vite emits the @font-face rules as a
+         non-entry chunk, so @vite never links them: without this line every page
+         silently falls back to the system UI font. See the `fonts` block in
+         vite.config.js and public/build/fonts-manifest.json. --}}
+    {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body>

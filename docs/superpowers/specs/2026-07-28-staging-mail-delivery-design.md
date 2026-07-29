@@ -64,7 +64,7 @@ conclusion is not obvious and will be questioned again later.
 | Hostinger limit | 1,000 outbound per day per mailbox on Business Starter, rolling 24 hours. Comfortable margin. |
 | Permitted use | Hostinger names password resets and account notifications as intended use. Bulk marketing and cold outreach are prohibited, and Amanahku does neither. |
 | Cost | The Starter Business Email plan is already paid for and unused until 2027-04-21. Resend's free tier would also be $0. Cost does not separate them. |
-| Setup | Hostinger writes SPF and DKIM automatically. Resend needs four DNS records entered by hand, with a known failure mode around relative record names. |
+| Setup | Hostinger writes MX and SPF automatically, but **not** DKIM: three CNAMEs by hand. Resend needs four records by hand. Both share the same failure mode around relative record names. Closer than assumed at decision time, and it does not change the outcome. |
 | Outbound ports | Verified reachable from the staging host on 587 and 465 for both providers. Not a differentiator. |
 
 At this volume, on a domain already owned, a second vendor with a second credential set
@@ -77,6 +77,25 @@ The subdomain matters because sending reputation is per-domain, and `myappsonlin
 shared with at least `financeai` and `unijaya-track-staging`. Complaints against another app
 on the root domain would otherwise degrade Amanahku's password reset delivery with no
 visible cause.
+
+**DNS records.** Attaching the plan creates MX and SPF by itself. DKIM and DMARC do not
+appear on their own, and without DKIM hPanel warns that mail may be rejected or spam-filed.
+Added by hand in the `myappsonline.net` zone:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `hostingermail-a._domainkey.amanahku` | `hostingermail-a.dkim.mail.hostinger.com` |
+| CNAME | `hostingermail-b._domainkey.amanahku` | `hostingermail-b.dkim.mail.hostinger.com` |
+| CNAME | `hostingermail-c._domainkey.amanahku` | `hostingermail-c.dkim.mail.hostinger.com` |
+| TXT | `_dmarc.amanahku` | `v=DMARC1; p=none` |
+
+Two traps. The Name field is **relative to the zone root**, so typing the full
+`...amanahku.myappsonline.net` produces a doubled suffix and verification silently never
+completes. And all three DKIM selectors are needed: `-b` and `-c` publish empty keys today
+and exist for rotation, so omitting them breaks signing later, not now.
+
+`unijaya-track-staging.myappsonline.net` has no DKIM either. Unrelated to Amanahku, but the
+same fix applies if that app's mail matters.
 
 ### Accepted trade-offs
 
@@ -210,12 +229,39 @@ moves the silence into the log file that nobody read last time.
 
 ## Acceptance criteria
 
-1. `MAIL_SCHEME` on staging is a scheme Symfony accepts, and matches `MAIL_PORT`.
-2. A test mail sent from the staging host is delivered to a real external inbox.
-3. `queue:retry all` clears `failed_jobs`, and the two `MemberInvited` invites arrive.
-4. An end-to-end invite from the app arrives without manual intervention.
-5. A password reset requested from the staging login page arrives.
-6. `laravel.log` is rotating daily rather than growing as a single file.
-7. The super-admin console shows a warning when `failed_jobs` is not empty, and the feature
-   test covering both states passes.
-8. `.env.staging.example` no longer contains `MAIL_SCHEME=tls`.
+Outcome recorded 2026-07-28, after deploy `2e515d9`.
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | `MAIL_SCHEME` is a scheme Symfony accepts and matches `MAIL_PORT` | met, `smtp` + 587 |
+| 2 | A test mail from the staging host reaches a real external inbox | met, Gmail **inbox**, SPF/DKIM/DMARC all pass |
+| 3 | `failed_jobs` is cleared | met by `queue:flush`, **not** `queue:retry`, see below |
+| 4 | An end-to-end invite from the app arrives | **not tested**, see below |
+| 5 | A password reset from the staging login page arrives | met, Fortify reset link delivered |
+| 6 | `laravel.log` rotates daily instead of growing as one file | met, channel is `daily`, old 3.3 MB file truncated |
+| 7 | Console warns when `failed_jobs` is non-empty, tests pass | met, 3 tests, 13 passing with the existing suite |
+| 8 | `.env.staging.example` no longer contains `MAIL_SCHEME=tls` | met |
+
+**Criterion 3 changed on purpose.** The spec assumed retrying the stranded jobs. There were
+30, not the 2 recorded in I-024, and 26 were real invites to real Unijaya staff. The app is
+not being shown to anyone yet, so they were flushed rather than sent. Their signed links
+would have expired 2026-08-02 in any case.
+
+**Criterion 5 was closed the same day**, by requesting a reset for a developer-owned
+address from the staging login page. The link arrived. This is the stronger of the two
+remaining checks: it exercises the whole app-level path, meaning Fortify's notification,
+Blade mail rendering and signed-URL generation, not only the raw transport that criterion
+2 covers.
+
+**Criterion 4 stays deliberately unmet.** An invite has to go to a real person, and the
+decision was to tell nobody about the app yet. What criterion 5 does not cover is
+`MemberInvited` specifically: its own template, its 7-day `temporarySignedRoute`
+activation link, and the fact that it is `ShouldQueue` while Fortify's reset is not. So
+the queued path to a real mailbox is still unproven. Check it when the first real invite
+goes out.
+
+**Note on the HR-side reset button.** `MemberController@resetPassword` sends no email by
+design: it mints a temp password and flashes it once on screen for HR to relay in person
+(AK-SEC-10). It is not part of these criteria and its behaviour did not change here.
+Worth knowing, because "HR reset a password and no email arrived" looks like a mail bug
+and is not one.

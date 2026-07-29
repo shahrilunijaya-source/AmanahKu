@@ -62,9 +62,9 @@
 
         {{-- Footer --}}
         <div style="padding:16px 26px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="display:flex;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;padding:2px;gap:1px;">
-                <button @click="$store.ui.setLang('en')" :style="'padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='en'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='en'?'#fff':'var(--muted)')">EN</button>
-                <button @click="$store.ui.setLang('ms')" :style="'padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;background:'+($store.ui.lang==='ms'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='ms'?'#fff':'var(--muted)')">BM</button>
+            <div class="uj-seg">
+                <button @click="$store.ui.setLang('en')" :data-on="$store.ui.lang==='en'">EN</button>
+                <button @click="$store.ui.setLang('ms')" :data-on="$store.ui.lang==='ms'">BM</button>
             </div>
             <button @click="localStorage.setItem('amanahku-welcomed','1'); show = false"
                     class="uj-btn-primary" style="height:42px;padding:0 22px;font-size:13.5px;"
