@@ -4,28 +4,30 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
-use App\Http\Controllers\SetupController;
 use App\Models\Achievement;
 use App\Models\Announcement;
 use App\Models\Claim;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\KnowledgeEntry;
+use App\Models\KnowledgeRead;
 use App\Models\LeaveRequest;
-use App\Models\OnboardingProfile;
-use App\Models\OvertimeRequest;
 use App\Models\PerformanceReview;
-use App\Models\ProbationReview;
 use App\Models\Tenant;
+use App\Models\Timesheet;
 use App\Models\WorkItem;
 use App\Services\FeatureManager;
-use App\Support\Amanahku;
+use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Dashboard, achievements and reviews screen data for AppController::screen().
@@ -35,111 +37,504 @@ use Illuminate\Support\Collection;
 trait BuildsDashboardData
 {
     /**
-     * Live workforce figures for the dashboard heading (management & hr personas only).
-     * Replaces the old hardcoded "186 headcount" seed copy with real, tenant-scoped counts.
-     * Other personas need no stats and get an empty array. "On probation" mirrors the source
-     * used by the HR snapshot tiles (Employee status), so the header and tiles never disagree.
+     * The two-step request types the dashboard queues route: leave and claims only.
+     * Overtime is a real screen but ships OFF by default (Features::OFF), so it is
+     * deliberately absent here rather than filtered per-tenant every call; a tenant
+     * that later turns it on would need this list extended, not just a flag flipped.
+     *
+     * @var list<array{0: string, 1: string, 2: string}> [type, label, gating screen]
      */
-    private function dashStats(Tenant $tenant, string $persona, ?Employee $employee = null): array
+    private const QUEUE_SOURCES = [
+        ['leave', 'Leave', 'leave'],
+        ['claim', 'Claim', 'claims'],
+    ];
+
+    /**
+     * Build the full view-model for one dashboard scope ('me' or 'company'). This is
+     * the single entry point AppController::screen() calls for the 'dash' screen —
+     * everything else in this file below it is a private helper.
+     *
+     * @return array{head: array, chips: array, queue: Collection, queueMeta: array,
+     *     secondary: Collection, secondaryMeta: array, railCards: array}
+     */
+    private function dashboardScopeData(Request $request, string $scope, ?Employee $employee): array
     {
-        if ($persona === 'manager') {
-            return $this->managerHeadingStats($employee);
-        }
-
-        if (! in_array($persona, ['management', 'hr'], true)) {
-            return [];
-        }
-
-        $headcount = $tenant->employees()->active()->count();
-
-        if ($persona === 'management') {
-            // The management heading is the AI Workforce Intelligence branding, so it
-            // follows the same gate as the cards below it — otherwise a "live capacity
-            // & risk view" title sits above a card saying the module is not built yet.
-            return [
-                'headcount' => $headcount,
-                'company' => $tenant->name,
-                'ai_insights' => app(FeatureManager::class)->screenAllowed($tenant, 'workload'),
-            ];
-        }
-
-        // `on_probation` reads employees.status — basic HR data that stays visible.
-        // `confirmations_due` counts ProbationReview rows, which belong to the Probation
-        // module: when that module is off the key is absent entirely, and dashHeading()
-        // drops the clause rather than printing "· 0 confirmations due this month".
-        return [
-            'headcount' => $headcount,
-            'on_probation' => Employee::active()->where('status', 'probation')->count(),
-            ...(app(FeatureManager::class)->screenAllowed($tenant, 'probation') ? [
-                'confirmations_due' => ProbationReview::where('status', 'active')
-                    ->whereHas('employee', fn ($q) => $q->active())
-                    ->whereBetween('end_date', [now()->startOfMonth(), now()->endOfMonth()])
-                    ->count(),
-            ] : []),
-        ];
-    }
-
-    private function dashboardData(string $persona, ?Employee $employee): array
-    {
-        // Gates the AI Workforce Intelligence dashboard blocks (manager's AI
-        // recommendations panel; management's capacity/risk/next-steps cards) behind
-        // the same 'workload' screen gate the nav and route already enforce, so a
-        // disabled module hides consistently everywhere instead of just 404ing the
-        // standalone screen. Keys stay present with empty collections when off so the
-        // Blade never hits an undefined variable.
-        $aiInsights = app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'workload');
-
-        $data = match ($persona) {
-            'manager' => [
-                'team' => $this->managerTeam($employee),
-                'mgrStats' => $this->managerStats(),
-                'recs' => $aiInsights ? app(WorkforceInsights::class)->recommendations() : collect(),
-            ],
-            'management' => [
-                'deptCap' => $aiInsights ? $this->departmentCapacity() : collect(),
-                'risks' => $aiInsights ? Amanahku::operationalRisks() : [],
-                'stuckRequests' => app(StuckRequests::class)->forCurrentTenant(),
-            ],
-            'hr' => [
-                'hrStats' => $this->hrStats(),
-                'onboarding' => OnboardingProfile::with('employee')->whereHas('employee', fn ($q) => $q->active())->get(),
-                'announcements' => Announcement::orderByDesc('date')->take(5)->get(),
-                'setupProgress' => app(SetupController::class)->summary(),
-                'stuckRequests' => app(StuckRequests::class)->forCurrentTenant(),
-            ],
-            default => [
-                'workItems' => $employee?->workItems()->whereIn('status', ['todo', 'prog', 'review'])->take(4)->get() ?? collect(),
-                'announcements' => Announcement::orderByDesc('date')->take(3)->get(),
-                'achievements' => Achievement::with('employee')->whereHas('employee', fn ($q) => $q->active())
-                    ->orderByDesc('date')->orderByDesc('id')->take(2)->get(),
-                'pendingRequests' => $employee?->leaveRequests()->with('leaveType')->latest()->take(3)->get() ?? collect(),
-                'todayAttendance' => $employee?->attendanceRecords()->onDate(now())->first(),
-                ...$this->employeeDashPeople($employee),
-            ],
-        };
-
-        return $data + ['aiInsights' => $aiInsights];
+        return $scope === 'company'
+            ? $this->companyScopeData($request)
+            : $this->meScopeData($employee);
     }
 
     /**
-     * People-centric widgets for the employee dashboard: colleagues on approved leave
-     * over the next week, this month's birthdays (real DOB), and today's birthdays
-     * flagged for the greeting banner + one-tap wish. All exclude the viewer.
-     *
-     * @return array{onLeave: Collection, birthdays: Collection, bdayToday: Collection}
+     * "What do I owe, and where is my stuff stuck?" — the viewer's own obligations
+     * (timesheet, clock, unread lessons) plus their own leave/claim requests in flight.
      */
-    private function employeeDashPeople(?Employee $employee): array
+    private function meScopeData(?Employee $employee): array
     {
-        $birthdays = $this->birthdaysThisMonth($employee);
-        $todayKey = now()->format('m-d');
+        $tenant = app(CurrentTenant::class)->get();
+        $features = app(FeatureManager::class);
+
+        $blankDays = $this->meTimesheetBlankDays($employee, $features, $tenant);
+        $unreadLessons = $this->meUnreadLessonCount($employee, $features, $tenant);
 
         return [
-            'onLeave' => $this->teamOnLeaveSoon($employee),
-            'birthdays' => $birthdays,
-            'bdayToday' => $birthdays->filter(
-                fn (Employee $e) => $e->date_of_birth?->format('m-d') === $todayKey
-            )->values(),
+            'head' => $this->meHead($employee),
+            'chips' => [
+                ['n' => (string) $blankDays, 'label' => 'timesheet days blank', 'hot' => $blankDays > 0],
+                ['n' => $this->trimNumber($employee?->annualLeaveBalance() ?? 0.0), 'label' => 'annual leave days', 'hot' => false],
+                ['n' => (string) $this->meRequestsInFlight($employee, $features, $tenant), 'label' => 'requests in flight', 'hot' => false],
+                ['n' => (string) $unreadLessons, 'label' => 'unread lessons', 'hot' => false],
+            ],
+            'queue' => $this->meQueueRows($employee, $features, $tenant, $blankDays, $unreadLessons),
+            'queueMeta' => [
+                'title' => 'Your obligations',
+                'done_title' => 'All clear',
+                'done_body' => 'Nothing outstanding this week.',
+            ],
+            'secondary' => $this->meSecondaryRows($employee, $features, $tenant),
+            'secondaryMeta' => [
+                'title' => 'Your open requests',
+                'done_title' => 'Nothing in flight',
+                'done_body' => "You don't have any open leave or claim requests.",
+                'link' => null,
+            ],
+            'railCards' => [
+                ['id' => 'around', 'title' => 'Around you', 'rows' => $this->aroundRows($employee)],
+                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows()],
+            ],
         ];
+    }
+
+    /**
+     * "What is waiting on me, and what is quietly rotting?" — the viewer's real
+     * verify+approve queue (leave, claims), merged from the old manager/management/hr
+     * dashboards and distinguished per-row by stage badge, plus StuckRequests as the
+     * "reaching nobody" list.
+     */
+    private function companyScopeData(Request $request): array
+    {
+        $tenant = app(CurrentTenant::class)->get();
+
+        $queue = $this->companyQueueRows($request);
+        $secondary = $this->stuckRows();
+
+        $lateTimesheets = app(TimesheetCompliance::class)
+            ->roster($tenant, now()->startOfWeek())
+            ->where('status', 'late')
+            ->count();
+        $headcount = $tenant->employees()->active()->count();
+
+        return [
+            'head' => $this->companyHead($queue->count()),
+            'chips' => [
+                ['n' => (string) $queue->count(), 'label' => 'waiting on you', 'hot' => $queue->count() > 0],
+                ['n' => (string) $secondary->count(), 'label' => 'reaching nobody', 'hot' => $secondary->count() > 0],
+                ['n' => (string) $lateTimesheets, 'label' => 'timesheets past lock', 'hot' => false],
+                ['n' => (string) $headcount, 'label' => 'active headcount', 'hot' => false],
+            ],
+            'queue' => $queue,
+            'queueMeta' => [
+                'title' => 'Waiting on you',
+                'done_title' => 'All caught up',
+                'done_body' => 'Nothing needs your verification or approval right now.',
+            ],
+            'secondary' => $secondary,
+            'secondaryMeta' => [
+                'title' => 'Reaching nobody',
+                'done_title' => 'Nothing stuck',
+                'done_body' => 'Every submitted request has someone to verify it.',
+                'link' => ['label' => 'Open Employee Directory', 'url' => route('app.screen', 'directory')],
+            ],
+            'railCards' => [
+                ['id' => 'rot', 'title' => 'Quietly rotting', 'rows' => $this->rotRows()],
+                ['id' => 'pop', 'title' => 'Headcount', 'rows' => $this->popRows($tenant)],
+                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows()],
+            ],
+        ];
+    }
+
+    /** "Good afternoon, {firstName}." greeting + today's date and clock state. */
+    private function meHead(?Employee $employee): array
+    {
+        $hour = (int) now()->hour;
+        $greeting = match (true) {
+            $hour < 12 => 'Good morning',
+            $hour < 18 => 'Good afternoon',
+            default => 'Good evening',
+        };
+
+        $name = trim((string) ($employee->name ?? ''));
+        $firstName = $name === '' ? '' : (string) Str::of($name)->squish()->explode(' ')->first();
+        $h1 = $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
+
+        $today = $employee?->attendanceRecords()->onDate(now())->first();
+        $clockState = match (true) {
+            $today === null || ! $today->clock_in => 'not clocked in yet',
+            (bool) $today->clock_out => 'clocked out',
+            default => 'clocked in at '.$today->clock_in,
+        };
+
+        return ['h1' => $h1, 'sub' => now()->format('l, j F Y')." · {$clockState}."];
+    }
+
+    /**
+     * "Four requests are waiting on you." — a live sentence built from the queue
+     * count, with number words for 1–9 and digits above (per copy convention).
+     */
+    private function companyHead(int $waiting): array
+    {
+        $tenant = app(CurrentTenant::class)->get();
+
+        if ($waiting === 0) {
+            $h1 = 'Nothing is waiting on you.';
+        } else {
+            $number = $waiting <= 9 ? $this->numberWord($waiting) : (string) $waiting;
+            $verb = $waiting === 1 ? 'is' : 'are';
+            $h1 = "{$number} ".Str::plural('request', $waiting)." {$verb} waiting on you.";
+        }
+
+        return ['h1' => $h1, 'sub' => ($tenant?->name ?? 'Your company').' · '.now()->format('l, j F Y').'.'];
+    }
+
+    private function numberWord(int $n): string
+    {
+        return ['0' => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine'][$n] ?? (string) $n;
+    }
+
+    /** Trim a float to its shortest useful string: 12.0 → "12", 12.5 → "12.5". */
+    private function trimNumber(float $n): string
+    {
+        return rtrim(rtrim(number_format($n, 1), '0'), '.') ?: '0';
+    }
+
+    /** Weekdays (Mon–Fri) this week not yet summing to 100% for the viewer. */
+    private function meTimesheetBlankDays(?Employee $employee, FeatureManager $features, ?Tenant $tenant): int
+    {
+        if (! $employee || ! $features->screenAllowed($tenant, 'timesheets')) {
+            return 0;
+        }
+
+        $start = now()->startOfWeek();
+        $sheet = Timesheet::with('entries')->where('employee_id', $employee->id)->forWeek($start)->first();
+
+        $byDay = [];
+        foreach ($sheet?->entries ?? [] as $entry) {
+            $day = $entry->entry_date->toDateString();
+            $byDay[$day] = ($byDay[$day] ?? 0) + (float) $entry->percentage;
+        }
+
+        $blank = 0;
+        for ($i = 0; $i < 5; $i++) {
+            $day = $start->copy()->addDays($i)->toDateString();
+            if (($byDay[$day] ?? 0.0) < 100.0 - 0.01) {
+                $blank++;
+            }
+        }
+
+        return $blank;
+    }
+
+    /** How many unread Knowledge Bank lessons exist for the viewer (2 queries, no N+1). */
+    private function meUnreadLessonCount(?Employee $employee, FeatureManager $features, ?Tenant $tenant): int
+    {
+        if (! $employee || ! $features->screenAllowed($tenant, 'knowledge-bank')) {
+            return 0;
+        }
+
+        $readIds = KnowledgeRead::where('employee_id', $employee->id)->pluck('entry_id');
+
+        return KnowledgeEntry::whereNotIn('id', $readIds)->count();
+    }
+
+    /** The viewer's own leave + claim requests still in flight (submitted or verified). */
+    private function meRequestsInFlight(?Employee $employee, FeatureManager $features, ?Tenant $tenant): int
+    {
+        if (! $employee) {
+            return 0;
+        }
+
+        $count = 0;
+        if ($features->screenAllowed($tenant, 'leave')) {
+            $count += $employee->leaveRequests()->whereIn('status', ['submitted', 'verified'])->count();
+        }
+        if ($features->screenAllowed($tenant, 'claims')) {
+            $count += $employee->claims()->whereIn('status', ['submitted', 'verified'])->count();
+        }
+
+        return $count;
+    }
+
+    /** The viewer's own obligation rows: incomplete timesheet, still clocked in, unread lessons. */
+    private function meQueueRows(?Employee $employee, FeatureManager $features, ?Tenant $tenant, int $blankDays, int $unreadLessons): Collection
+    {
+        $rows = collect();
+        $today = now();
+
+        if ($employee && $blankDays > 0 && $features->screenAllowed($tenant, 'timesheets')) {
+            $rows->push([
+                'month' => $today->format('M'), 'day' => $today->format('d'),
+                'kind' => 'Timesheet', 'stage' => 'waiting', 'label' => null,
+                'title' => "This week's timesheet is incomplete",
+                'sub' => $blankDays.' '.Str::plural('day', $blankDays).' left blank',
+                'body' => "Unfilled days don't lock automatically — fill them before the week closes, or your compliance record shows late.",
+                'actions' => [['label' => 'Fill timesheet', 'url' => route('app.screen', 'timesheets'), 'primary' => true]],
+            ]);
+        }
+
+        $attendanceToday = $employee?->attendanceRecords()->onDate($today)->first();
+        if ($attendanceToday && $attendanceToday->clock_in && ! $attendanceToday->clock_out) {
+            $rows->push([
+                'month' => $today->format('M'), 'day' => $today->format('d'),
+                'kind' => 'Attendance', 'stage' => 'waiting', 'label' => null,
+                'title' => 'You are still clocked in',
+                'sub' => 'Clocked in at '.$attendanceToday->clock_in,
+                'body' => "Your clock stays open until you clock out — it keeps counting against today's hours.",
+                'actions' => [['label' => 'Clock out', 'url' => route('app.screen', 'attendance'), 'primary' => true]],
+            ]);
+        }
+
+        if ($unreadLessons > 0) {
+            $rows->push([
+                'month' => $today->format('M'), 'day' => $today->format('d'),
+                'kind' => 'Knowledge Bank', 'stage' => 'waiting', 'label' => null,
+                'title' => $unreadLessons.' unread '.Str::plural('lesson', $unreadLessons).' in the Knowledge Bank',
+                'sub' => 'Shared by your colleagues',
+                'body' => 'Lessons are short and optional to read, but the count keeps growing until you open them.',
+                'actions' => [['label' => 'Open Knowledge Bank', 'url' => route('app.screen', 'knowledge-bank'), 'primary' => true]],
+            ]);
+        }
+
+        return $rows->values();
+    }
+
+    /** The viewer's own open leave/claim requests, with their real verify/approve stage. */
+    private function meSecondaryRows(?Employee $employee, FeatureManager $features, ?Tenant $tenant): Collection
+    {
+        if (! $employee) {
+            return collect();
+        }
+
+        $rows = collect();
+
+        if ($features->screenAllowed($tenant, 'leave')) {
+            foreach ($employee->leaveRequests()->with('leaveType')->whereIn('status', ['submitted', 'verified'])->latest()->take(5)->get() as $r) {
+                $stage = $r->status === 'submitted' ? 'step1' : 'step2';
+                $rows->push([
+                    'month' => $r->date_from?->format('M') ?? '', 'day' => $r->date_from?->format('d') ?? '',
+                    'kind' => ($r->leaveType?->name ?? 'Leave').' leave', 'stage' => $stage,
+                    'label' => $stage === 'step1' ? 'With your manager' : 'With management',
+                    'title' => trim($r->date_from?->format('j M').'–'.$r->date_to?->format('j M').', '.$this->trimNumber((float) $r->days).' days'),
+                    'sub' => 'Submitted '.($r->created_at?->format('j M') ?? ''),
+                    'body' => RequestGuidance::for('leave', 'waiting'),
+                    'actions' => [],
+                ]);
+            }
+        }
+
+        if ($features->screenAllowed($tenant, 'claims')) {
+            foreach ($employee->claims()->whereIn('status', ['submitted', 'verified'])->latest()->take(5)->get() as $r) {
+                $stage = $r->status === 'submitted' ? 'step1' : 'step2';
+                $rows->push([
+                    'month' => $r->date?->format('M') ?? '', 'day' => $r->date?->format('d') ?? '',
+                    'kind' => ucfirst((string) $r->type).' claim', 'stage' => $stage,
+                    'label' => $stage === 'step1' ? 'With your manager' : 'With management',
+                    'title' => 'RM'.number_format((float) $r->amount, 2),
+                    'sub' => 'Submitted '.($r->created_at?->format('j M') ?? ''),
+                    'body' => RequestGuidance::for('claim', 'waiting'),
+                    'actions' => [],
+                ]);
+            }
+        }
+
+        return $rows->values();
+    }
+
+    /**
+     * Colleagues on approved leave, next 7 days, for the "Around you" rail card.
+     * Rail rows are a flat, DIFFERENT shape from the pinned-queue ROW ARRAY — see
+     * partials.dash.rail-card's doc block (title/sub/meta/initials/color/tag/url).
+     */
+    private function aroundRows(?Employee $employee): array
+    {
+        return $this->teamOnLeaveSoon($employee)->map(fn (LeaveRequest $r) => [
+            'title' => $r->employee?->name ?? 'Someone',
+            'sub' => trim($r->date_from?->format('j M').'–'.$r->date_to?->format('j M')),
+            'meta' => $r->leaveType?->name ?? 'Leave',
+            'initials' => $r->employee?->initials ?? '–',
+            'color' => $r->employee?->avatar_color ?? config('amanahku.avatar_color'),
+        ])->all();
+    }
+
+    /** Recent announcements, shared by both scopes' "news" rail card (flat rail-row shape). */
+    private function newsRows(): array
+    {
+        return Announcement::orderByDesc('date')->take(5)->get()->map(fn (Announcement $a) => [
+            'title' => (string) ($a->title ?? ''),
+            'sub' => (string) ($a->body ?? ''),
+            'meta' => $a->date?->format('j M') ?? '',
+            'tag' => 'News',
+        ])->all();
+    }
+
+    /**
+     * The viewer's real verify+approve queue across leave and claims, reusing the
+     * exact authorisation in RoutesApprovalsByReportingLine::scopeToVerify/
+     * scopeToApprove — only the OUTPUT shape changes here, not who is allowed to see
+     * what. A request type whose module is off is dropped entirely (its row would
+     * link to a screen the tenant cannot open).
+     */
+    private function companyQueueRows(Request $request): Collection
+    {
+        $features = app(FeatureManager::class);
+        $tenant = app(CurrentTenant::class)->get();
+
+        $sources = array_filter(self::QUEUE_SOURCES, fn (array $s) => $features->screenAllowed($tenant, $s[2]));
+
+        $rows = collect();
+        foreach ($sources as [$type, $label, $screen]) {
+            $make = fn () => $type === 'leave'
+                ? LeaveRequest::with(['employee', 'leaveType'])
+                : Claim::with('employee');
+
+            foreach ($this->scopeToVerify($make(), $request)->latest()->get() as $r) {
+                $rows->push($this->companyRow($type, $screen, 'verify', $r));
+            }
+            foreach ($this->scopeToApprove($make(), $request)->latest()->get() as $r) {
+                $rows->push($this->companyRow($type, $screen, 'approve', $r));
+            }
+        }
+
+        return $rows->values();
+    }
+
+    /** One verify/approve queue row, in the shared ROW ARRAY shape. */
+    private function companyRow(string $type, string $screen, string $stage, Model $r): array
+    {
+        $employee = $r->employee;
+        $date = $type === 'leave' ? $r->date_from : $r->date;
+        $waitingDays = $r->created_at ? (int) $r->created_at->diffInDays(now()) : 0;
+
+        $title = $type === 'leave'
+            ? trim(($employee?->name ?? 'Someone').' · '.$r->date_from?->format('j M').'–'.$r->date_to?->format('j M').', '.$this->trimNumber((float) $r->days).' days')
+            : trim(($employee?->name ?? 'Someone').' · RM'.number_format((float) $r->amount, 2).' · '.ucfirst((string) $r->type));
+
+        return [
+            'month' => $date?->format('M') ?? '',
+            'day' => $date?->format('d') ?? '',
+            'kind' => $type === 'leave' ? (($r->leaveType?->name ?? 'Leave').' leave') : 'Claim',
+            'stage' => $stage,
+            'label' => null,
+            'title' => $title,
+            'sub' => 'Submitted '.($r->created_at?->format('j M') ?? '').' · '.$waitingDays.' '.Str::plural('day', $waitingDays).' waiting',
+            'body' => RequestGuidance::for($type, $stage),
+            'actions' => [
+                ['label' => ucfirst($stage), 'url' => route('app.screen', $screen), 'primary' => true],
+            ],
+        ];
+    }
+
+    /**
+     * Verified leave/claim requests that have sat waiting for final approval for 5+
+     * days — nobody has actioned them, but they no longer show up as "new" either.
+     * Flat rail-row shape (informational — this is a rail card, not the action queue).
+     */
+    private function rotRows(): array
+    {
+        $features = app(FeatureManager::class);
+        $tenant = app(CurrentTenant::class)->get();
+        $cutoff = now()->subDays(5);
+
+        $rows = collect();
+        if ($features->screenAllowed($tenant, 'leave')) {
+            foreach (LeaveRequest::with(['employee', 'leaveType'])->where('status', 'verified')->where('verified_at', '<=', $cutoff)->latest('verified_at')->take(5)->get() as $r) {
+                $rows->push($this->rotRow('Leave', $r->employee, $r->created_at));
+            }
+        }
+        if ($features->screenAllowed($tenant, 'claims')) {
+            foreach (Claim::with('employee')->where('status', 'verified')->where('verified_at', '<=', $cutoff)->latest('verified_at')->take(5)->get() as $r) {
+                $rows->push($this->rotRow('Claim', $r->employee, $r->created_at));
+            }
+        }
+
+        return $rows->take(5)->values()->all();
+    }
+
+    private function rotRow(string $tag, ?Employee $employee, ?Carbon $since): array
+    {
+        $days = $since ? (int) $since->diffInDays(now()) : 0;
+
+        return [
+            'title' => $employee?->name ?? 'Someone',
+            'sub' => $days.' '.Str::plural('day', $days).' waiting on final approval',
+            'meta' => $tag,
+            'initials' => $employee?->initials ?? '–',
+            'color' => $employee?->avatar_color ?? config('amanahku.avatar_color'),
+        ];
+    }
+
+    /** A couple of live headcount figures for the "Headcount" rail card (flat rail-row shape). */
+    private function popRows(?Tenant $tenant): array
+    {
+        return [
+            [
+                'title' => 'Active headcount',
+                'meta' => (string) ($tenant?->employees()->active()->count() ?? 0),
+                'tag' => 'Live',
+            ],
+            [
+                'title' => 'On leave today',
+                'meta' => (string) Employee::active()->where('status', 'on_leave')->count(),
+                'tag' => 'Live',
+            ],
+        ];
+    }
+
+    /** Submitted leave/claim requests whose submitter has no reporting-line superior. */
+    /**
+     * Stuck requests, one row per PERSON rather than per request.
+     *
+     * The cause is always the same — no reporting-line superior on the org chart — so
+     * a person with a stuck leave request and a stuck claim produced two rows with an
+     * identical name, age and fix, which read as a duplicate rather than as two items.
+     * One row per person, listing what of theirs is stranded, and the single action
+     * that clears all of it at once.
+     */
+    private function stuckRows(): Collection
+    {
+        return app(StuckRequests::class)->forCurrentTenant()
+            ->groupBy(fn (array $s) => $s['employeeId'] ?? $s['employee'])
+            ->map(function (Collection $forPerson) {
+                // The oldest request drives the date and the age: it is the one that has
+                // been ignored longest, and it is what makes the row urgent.
+                $oldest = $forPerson->sortByDesc('ageDays')->first();
+                $date = $oldest['since'];
+                $days = $oldest['ageDays'];
+
+                $kinds = $forPerson->pluck('type')
+                    ->countBy()
+                    ->map(fn (int $n, string $type) => $n > 1 ? "{$n} × {$type}" : $type)
+                    ->values()->implode(' · ');
+
+                $count = $forPerson->count();
+                $waited = $days !== null
+                    ? ($count > 1 ? 'oldest ' : '').$days.' '.Str::plural('day', $days).' unrouted'
+                    : 'unrouted';
+
+                return [
+                    'month' => $date?->format('M') ?? '', 'day' => $date?->format('d') ?? '',
+                    'kind' => $kinds, 'stage' => 'stuck', 'label' => 'No superior assigned',
+                    'title' => $oldest['employee'],
+                    'sub' => $count.' '.Str::plural('request', $count).' · '.$waited,
+                    'body' => RequestGuidance::for('stuck', 'stuck'),
+                    'actions' => [
+                        ['label' => 'Assign a superior', 'url' => route('app.screen', 'directory'), 'primary' => true],
+                    ],
+                    // Sort key only — stripped below so it never reaches the view.
+                    '_age' => $days ?? 0,
+                ];
+            })
+            ->sortByDesc('_age')
+            ->map(fn (array $r) => Arr::except($r, '_age'))
+            ->values();
     }
 
     /** Colleagues on approved leave from today through the next 7 days (bounded). */
@@ -169,62 +564,6 @@ trait BuildsDashboardData
             ->get(['id', 'name', 'initials', 'avatar_color', 'date_of_birth'])
             ->sortBy(fn (Employee $e) => (int) $e->date_of_birth->format('d'))
             ->values();
-    }
-
-    /**
-     * Everything routed to the CURRENT user for action across leave, claims and overtime:
-     * their VERIFY queue (as someone's manager on the org chart) plus their APPROVE queue
-     * (management only — the scope self-empties otherwise). Deliberately keyed off the real
-     * request, not the previewed persona, because these are the real user's obligations.
-     * Bounded to a short actionable list for the dashboard.
-     *
-     * @return array{actionNeeded: Collection, actionNeededTotal: int}
-     */
-    private function pendingActions(Request $request): array
-    {
-        // Fresh builder per call — a Builder is mutable, so the same instance cannot be
-        // fed to both scopeToVerify and scopeToApprove without stacking constraints.
-        // A request type whose module is switched off is dropped: its action row links to
-        // a screen the tenant cannot open, so it would be an obligation nobody can clear.
-        $features = app(FeatureManager::class);
-        $tenant = app(CurrentTenant::class)->get();
-        $sources = array_filter([
-            ['Leave', 'leave', fn () => LeaveRequest::with(['employee', 'leaveType'])],
-            ['Claim', 'claims', fn () => Claim::with(['employee', 'verifiedBy'])],
-            ['Overtime', 'overtime', fn () => OvertimeRequest::with(['employee', 'verifiedBy'])],
-        ], fn (array $s) => $features->screenAllowed($tenant, $s[1]));
-
-        $items = collect();
-        foreach ($sources as [$label, $screen, $make]) {
-            foreach ($this->scopeToVerify($make(), $request)->latest()->get() as $r) {
-                $items->push($this->actionItem($label, 'verify', $screen, $r));
-            }
-            foreach ($this->scopeToApprove($make(), $request)->latest()->get() as $r) {
-                $items->push($this->actionItem($label, 'approve', $screen, $r));
-            }
-        }
-
-        return [
-            'actionNeeded' => $items->take(8)->values(),
-            'actionNeededTotal' => $items->count(),
-        ];
-    }
-
-    /**
-     * Flat display row for one pending action.
-     *
-     * @return array<string, mixed>
-     */
-    private function actionItem(string $label, string $stage, string $screen, Model $record): array
-    {
-        return [
-            'label' => $label,
-            'stage' => $stage,
-            'who' => $record->employee?->name ?? 'Someone',
-            'initials' => $record->employee?->initials ?? '–',
-            'color' => $record->employee?->avatar_color ?? config('amanahku.avatar_color'),
-            'url' => route('app.screen', $screen),
-        ];
     }
 
     private function departmentCapacity(): Collection

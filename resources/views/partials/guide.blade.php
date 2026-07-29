@@ -84,9 +84,9 @@
 
             {{-- footer: language toggle + close --}}
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-top:1px solid var(--hairline);">
-                <div style="display:flex;background:var(--canvas);border:1px solid var(--hairline);border-radius:7px;padding:2px;gap:1px;">
-                    <button type="button" @click="$store.ui.setLang('en')" :style="'padding:3px 8px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;background:'+($store.ui.lang==='en'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='en'?'#fff':'var(--muted)')">EN</button>
-                    <button type="button" @click="$store.ui.setLang('ms')" :style="'padding:3px 8px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;background:'+($store.ui.lang==='ms'?'var(--red)':'transparent')+';color:'+($store.ui.lang==='ms'?'#fff':'var(--muted)')">BM</button>
+                <div class="uj-seg">
+                    <button type="button" @click="$store.ui.setLang('en')" :data-on="$store.ui.lang==='en'">EN</button>
+                    <button type="button" @click="$store.ui.setLang('ms')" :data-on="$store.ui.lang==='ms'">BM</button>
                 </div>
                 <button type="button" @click="open = false" class="uj-btn-primary" style="height:36px;padding:0 18px;font-size:13px;"
                         x-text="$store.ui.lang==='en' ? 'Got it' : 'Faham'"></button>

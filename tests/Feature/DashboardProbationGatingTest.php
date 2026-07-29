@@ -14,12 +14,12 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * The HR dashboard must not surface Probation-module data while `module.probation`
- * is off (it is, by default — see Features::OFF and the 2026-07-28 scope decision).
- *
- * The `on probation` figure itself is employees.status, basic HR data, so it stays
- * on both sides of the gate. Only the ProbationReview-derived confirmations count
- * and the copy that promises a confirmation workflow follow the module.
+ * Probation is a descoped module (Features::OFF) with no presence in the new
+ * two-scope dashboard at all — the old HR persona's heading clause and stat tile
+ * ("N confirmations due this month") were part of the four-persona dashboard this
+ * trait replaced (BuildsDashboardData::dashStats/hrStats, both removed). This test
+ * now pins the negative: toggling `module.probation` must not resurrect any
+ * probation copy on the dash, on either scope, for an hr-role viewer.
  */
 class DashboardProbationGatingTest extends TestCase
 {
@@ -42,8 +42,8 @@ class DashboardProbationGatingTest extends TestCase
             'name' => 'Hr', 'status' => 'active', 'workload' => 'green',
         ]);
 
-        // One employee on probation with a live review ending this month, so both the
-        // status count and the confirmations count are non-zero when the gate is open.
+        // One employee on probation with a live review ending this month — present
+        // regardless of the module flag, to prove the dash never reads it either way.
         $probationer = Employee::create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Probationer', 'status' => 'probation', 'workload' => 'green',
@@ -57,35 +57,39 @@ class DashboardProbationGatingTest extends TestCase
         ]);
     }
 
-    private function hrDash()
+    private function hrDash(string $scope = 'company')
     {
         return $this->actingAs($this->hr)
-            ->withSession(['current_tenant' => $this->tenant->id, 'persona' => 'hr'])
-            ->get('/app/dash');
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/dash?scope='.$scope);
     }
 
-    public function test_heading_and_tile_drop_the_confirmations_copy_when_probation_is_off(): void
+    public function test_dash_carries_no_probation_copy_when_the_module_is_off(): void
     {
         // Asserts the shipped default, so opt out of the suite-wide "every module on".
         $this->useShippedModuleDefaults();
 
-        $dash = $this->hrDash()->assertOk();
-
-        $dash->assertSee('2 headcount · 1 on probation.');
-        $dash->assertDontSee('due this month');
-        $dash->assertDontSee('confirmations pending');
-        // The employment-status figure and its tile are basic HR data — still there.
-        $dash->assertSee('On probation');
-        $dash->assertSee('of active headcount');
+        $this->hrDash()->assertOk()
+            ->assertDontSee('confirmations pending')
+            ->assertDontSee('confirmation due this month')
+            ->assertDontSee('on probation');
     }
 
-    public function test_heading_and_tile_carry_the_confirmations_clause_when_probation_is_on(): void
+    public function test_dash_still_carries_no_probation_copy_when_the_module_is_on(): void
     {
         app(FeatureManager::class)->setTenant($this->tenant, 'module.probation', true);
 
-        $dash = $this->hrDash()->assertOk();
+        $this->hrDash()->assertOk()
+            ->assertDontSee('confirmations pending')
+            ->assertDontSee('confirmation due this month')
+            ->assertDontSee('on probation');
+    }
 
-        $dash->assertSee('2 headcount · 1 on probation · 1 confirmation due this month.');
-        $dash->assertSee('confirmations pending');
+    public function test_me_scope_also_carries_no_probation_copy(): void
+    {
+        $this->hrDash('me')->assertOk()
+            ->assertDontSee('confirmations pending')
+            ->assertDontSee('confirmation due this month')
+            ->assertDontSee('on probation');
     }
 }

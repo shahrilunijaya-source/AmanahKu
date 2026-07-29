@@ -66,11 +66,13 @@ class ReportsAuditAccessTest extends TestCase
         }
     }
 
-    public function test_manager_sidebar_shows_the_reports_and_audit_group(): void
+    public function test_manager_sidebar_shows_the_oversight_group(): void
     {
         $this->actAs($this->userWithRole('manager'), 'manager');
 
-        $this->get('/app/dash')->assertOk()->assertSee('Reports & Audit');
+        // The group sits under the Insights section and is labelled "Oversight";
+        // it used to be a top-level section of its own called "Reports & Audit".
+        $this->get('/app/dash')->assertOk()->assertSee('Oversight');
     }
 
     public function test_plain_employee_is_blocked_from_every_reports_and_audit_screen(): void

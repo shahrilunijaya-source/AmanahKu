@@ -31,16 +31,44 @@
     --amber: #c08532;
     --error: #cf2d56;
     --info: #3a6ea5;
+
+    /* Menus, dropdowns, popovers. These already carry a 1px hairline, which is
+       what defines their edge; the shadow only has to lift them off the page.
+       Was `0 12px 40px rgba(31,30,26,.14)` — a 40px blur softening an edge the
+       border had already drawn, which reads as a generic halo rather than
+       elevation. Modals and slide-overs keep their own larger shadows: those
+       sit much further above the page and the distance is the point. */
+    --shadow-menu: 0 5px 14px rgba(31, 30, 26, .13);
+
+    /* Type ramp — five steps, one role each. Deliberately finer-grained than a
+       strict modular scale at the small end, the same reasoning iOS uses for
+       dense operational UI: 11/12.5/14/16/22 rather than a fixed ratio. Do not
+       add sizes between these. It started life on the dashboard; the app shell
+       now shares it, which is the point of a ramp.
+         micro  badges, eyebrows, mono meta, counts, timestamps
+         sm     sublines, captions, secondary rows
+         base   nav rows, buttons, body copy, inputs
+         lg     section headings, brand word
+         xl     page heading, the sidebar clock */
+    --t-micro: 11px;
+    --t-sm: 12.5px;
+    --t-base: 14px;
+    --t-lg: 16px;
+    --t-xl: 22px;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
     font-family: var(--font-sans);
+    font-size: var(--t-base);
     background: var(--canvas);
     color: var(--body);
     -webkit-font-smoothing: antialiased;
 }
+/* Form controls do not inherit type by default: without this a bare <button>
+   drops to the UA's 13.33px Arial and sits off the ramp. */
+button, input, select, textarea { font: inherit; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #d4d2ca; border-radius: 9999px; border: 3px solid transparent; background-clip: padding-box; }
@@ -330,6 +358,87 @@ body {
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 5px; }
 .uj-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+/* ══ App shell: sidebar ══
+   Widths live here rather than inline so the rail can change one number. */
+.uj-sidebar { width: 248px; flex-shrink: 0; background: #211f1b; display: flex; flex-direction: column; height: 100vh; position: relative; z-index: 30; }
+.uj-sb-brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 18px; flex-shrink: 0; }
+.uj-sb-eyebrow { font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--sidebar-dim); }
+
+/* Today dock: reports clock state, navigates nowhere. Attendance, T.A.A. and
+   Timesheet are ordinary nav rows — they used to live only here, which meant
+   collapsing the sidebar hid three daily screens outright. */
+.uj-sb-today { margin: 0 12px 6px; padding: 12px 13px; border-radius: 12px; background: rgba(255, 255, 255, .045); border: 1px solid var(--sidebar-line); display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+.uj-sb-clock { font-family: var(--font-mono); font-size: var(--t-xl); font-weight: 600; color: #fff; letter-spacing: -.02em; line-height: 1; }
+.uj-sb-ghost { flex: 1; height: 32px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; background: rgba(255, 255, 255, .05); color: #e9e7df; font-size: var(--t-sm); font-weight: 500; cursor: pointer; }
+.uj-sb-ghost:hover { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); }
+.uj-sb-ghost:active { transform: scale(.97); }
+.uj-tsbar { height: 3px; border-radius: 9999px; background: rgba(255, 255, 255, .10); overflow: hidden; }
+.uj-tsbar > span { display: block; height: 100%; border-radius: 9999px; background: var(--amber); }
+
+.uj-sb-nav { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 10px 14px; }
+.uj-sb-nav::-webkit-scrollbar { width: 8px; }
+.uj-sb-nav::-webkit-scrollbar-thumb { background: #3a3730; border: 2px solid transparent; }
+.uj-nav-grp { margin-bottom: 14px; }
+.uj-nav-sec { font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--sidebar-dim); padding: 0 10px 8px; display: block; text-align: left; background: none; border: 0; width: 100%; cursor: pointer; }
+.uj-nav-rule { display: none; height: 1px; background: var(--sidebar-line); margin: 10px 14px; }
+.uj-nav-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border-radius: 8px; font-size: var(--t-base); font-weight: 500; color: var(--sidebar-text); background: none; border: 0; text-align: left; text-decoration: none; cursor: pointer; margin-bottom: 1px; }
+.uj-nav-row > svg { flex-shrink: 0; color: var(--muted-soft); transition: color .14s ease; }
+.uj-nav-row:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.uj-nav-row:hover > svg { color: #c9c6bc; }
+/* Active is a soft wash with a red icon, not a solid red pill: at twenty-plus
+   rows a filled bar dominates the whole column. */
+.uj-nav-row[data-on] { background: rgba(255, 255, 255, .09); color: #fff; }
+.uj-nav-row[data-on] > svg { color: var(--red); }
+.uj-nav-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uj-nav-chev { flex-shrink: 0; color: var(--sidebar-dim); transition: transform .16s cubic-bezier(.23, 1, .32, 1); }
+.uj-nav-row[aria-expanded="true"] .uj-nav-chev { transform: rotate(90deg); }
+.uj-nav-pill { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; color: var(--sidebar-dim); background: rgba(255, 255, 255, .08); border-radius: 9999px; padding: 1px 7px; flex-shrink: 0; }
+/* Children hang off a rule so nesting reads at a glance in a long group. */
+.uj-nav-kids { margin: 1px 0 6px 21px; padding-left: 11px; border-left: 1px solid var(--sidebar-line); }
+.uj-nav-kid { display: block; padding: 6px 10px; border-radius: 7px; font-size: var(--t-sm); font-weight: 500; color: var(--sidebar-dim); text-decoration: none; }
+.uj-nav-kid:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.uj-nav-kid[data-on] { background: var(--sidebar-soft); color: #fff; }
+
+.uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; }
+.uj-sb-ws { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin-top: 8px; border-radius: 9px; text-decoration: none; }
+.uj-sb-ws:hover { background: rgba(255, 255, 255, .06); }
+
+/* ── Rail (collapsed sidebar, desktop only) ──
+   Collapsing SNAPS rather than slides. Ctrl+B is pressed dozens of times a day,
+   and an animation on a keyboard-initiated action is pure added delay; it also
+   avoids animating `width`, which would relayout the main pane every frame. */
+.uj-sb-tgl { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--sidebar-dim); background: none; border: none; cursor: pointer; flex-shrink: 0; }
+.uj-sb-tgl:hover { background: var(--sidebar-soft); color: #fff; }
+.uj-rail-only { display: none; }
+@media (min-width: 901px) {
+    .uj-sb-collapsed .uj-sidebar { width: 64px; }
+    .uj-sb-collapsed .uj-sb-hide { display: none !important; }
+    .uj-sb-collapsed .uj-sb-brand { padding: 0; justify-content: center; }
+    .uj-sb-collapsed .uj-sb-today { margin: 0 8px 4px; padding: 6px 0; gap: 2px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--sidebar-line); border-radius: 0; }
+    .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; }
+    /* Only the in-sidebar children collapse. The flyout is a DOM descendant of the
+       sidebar (it is position:fixed, not detached), so it needs to win this back. */
+    .uj-sb-collapsed .uj-sidebar .uj-nav-kids { display: none; }
+    .uj-sb-collapsed .uj-sidebar .uj-fly .uj-nav-kids { display: block; }
+    .uj-sb-collapsed .uj-nav-sec { display: none; }
+    .uj-sb-collapsed .uj-nav-rule { display: block; }
+    .uj-sb-collapsed .uj-nav-grp { margin-bottom: 2px; }
+    .uj-sb-collapsed .uj-sb-foot { padding: 10px 8px; }
+    .uj-sb-collapsed .uj-sb-ws { justify-content: center; padding: 9px 0; gap: 0; }
+    .uj-sb-collapsed .uj-feedback-btn { justify-content: center; padding: 9px 0 !important; gap: 0 !important; }
+    .uj-sb-collapsed .uj-rail-only { display: flex; }
+    .uj-sb-collapsed .uj-nav-toggle { display: inline-flex; }
+}
+
+/* Rail flyout: hovering a rail icon opens that row in full, with its children.
+   position:fixed so it escapes the nav's own overflow; no border, because a dark
+   panel over the light content area already reads as separate. */
+.uj-fly { position: fixed; z-index: 90; min-width: 200px; max-width: 268px; background: var(--sidebar-soft); border-radius: 11px; box-shadow: 0 6px 16px rgba(0, 0, 0, .42); padding: 6px; opacity: 0; transform: translateX(-6px); pointer-events: none; transition: opacity .13s cubic-bezier(.23, 1, .32, 1), transform .13s cubic-bezier(.23, 1, .32, 1); }
+.uj-fly[data-open] { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.uj-fly-t { display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 13px; font-weight: 600; color: #fff; }
+.uj-fly-t > svg { color: var(--red); flex-shrink: 0; }
+.uj-fly .uj-nav-kids { margin: 2px 0 0; padding-left: 9px; border-left-color: #3d3931; }
+
 /* ── Responsive shell (mobile off-canvas nav) ── */
 .uj-nav-toggle { display: none; }
 .uj-nav-backdrop { display: none; }
@@ -338,8 +447,7 @@ body {
     .uj-sidebar.uj-sidebar-open { transform: translateX(0); box-shadow: 8px 0 44px rgba(31, 30, 26, .28); }
     .uj-nav-toggle { display: inline-flex; }
     .uj-nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(31, 30, 26, .32); z-index: 55; }
-    .uj-subhead { padding: 14px 18px 16px !important; }
-    .uj-main { padding: 18px 16px 40px !important; }
+    .uj-main { padding: 0 16px 44px !important; }
     .uj-header { padding: 0 14px !important; gap: 10px !important; }
 }
 
@@ -377,36 +485,6 @@ body {
     .uj-team-grid { grid-template-columns: 1fr; gap: 4px; }
 }
 
-/* ── Desktop sidebar collapse (Ctrl+B, header menu button, or in-sidebar toggle) ──
-   Slides the fixed-width sidebar off to the left; the flex parent clips it and the
-   main pane grows to fill. State persists in localStorage (see layouts/app.blade.php).
-
-   Both panes move with `transform`, which the compositor animates without re-running
-   layout. The main pane still has to actually GROW by 248px, and that is a layout
-   change no transform can express, so it is done in one step with `margin-right:
-   -248px` (negative margin makes the flex item overflow its slot) rather than
-   interpolated over 240 frames. The `0s` margin transition is a scheduling trick, not
-   an animation: collapsing applies it immediately (the pane is already sliding left,
-   so the extra width sits off the right edge, clipped by the shell's overflow:hidden),
-   while expanding delays it by .24s so the pane keeps its full width until it has
-   slid back into place. Either way nothing ever reflows mid-slide. */
-.uj-sb-tgl { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--sidebar-text); background: none; border: none; cursor: pointer; flex-shrink: 0; }
-.uj-sb-tgl:hover { background: var(--sidebar-soft); color: #fff; }
-@media (min-width: 901px) {
-    .uj-sidebar,
-    .uj-shell-main { transition: transform .24s cubic-bezier(.4, 0, .2, 1), margin-right 0s linear .24s; }
-    .uj-sb-collapsed .uj-sidebar { transform: translateX(-248px); }
-    .uj-sb-collapsed .uj-shell-main {
-        transform: translateX(-248px);
-        margin-right: -248px;
-        transition: transform .24s cubic-bezier(.4, 0, .2, 1), margin-right 0s;
-    }
-    .uj-sb-collapsed .uj-nav-toggle { display: inline-flex; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .uj-sidebar, .uj-shell-main, .uj-sb-collapsed .uj-shell-main { transition: none; }
-}
-
 /* ── Responsive header (priority+ overflow) ──
    The header is a container-query context, so items fold on the header's OWN width —
    not the viewport — which already reflects the sidebar being expanded, collapsed, or
@@ -418,12 +496,55 @@ body {
      ≤720px  fold the secondary actions (Knowledge, Messages, Ask AI, help, language)
              into the More menu — nothing is removed, only relocated
      ≤520px  drop people-search (desktop-oriented) on phones */
-.uj-header { container-type: inline-size; container-name: hdr; position: relative; z-index: 20; }
+/* The header takes the page canvas rather than a colour of its own, so it follows
+   whatever a screen sets. It floats over the scroll area and .uj-hd-fade dissolves
+   content passing beneath it, instead of a border cutting the page in two.
+   The bar itself is opaque: only the fade below it blurs. A blurred bar would put
+   a smeared ghost of the content behind every control, which costs legibility and
+   buys nothing that the opaque canvas does not already give. */
+.uj-header {
+    container-type: inline-size; container-name: hdr;
+    position: absolute; top: 0; left: 0; right: 0; height: 56px; z-index: 20;
+    display: flex; align-items: center; gap: 12px; padding: 0 22px;
+    background: var(--canvas);
+}
+/* The mask tapers the blur as well as the tint, so the edge ramps out instead of
+   ending on a second hard line where the filter stops. */
+.uj-hd-fade {
+    position: absolute; top: 56px; left: 0; right: 0; height: 26px; z-index: 19; pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 80%, transparent) 0%, transparent 100%);
+    /* The blur is NOT here: it is an inline style on the element in
+       layouts/app.blade.php. Lightning CSS (Tailwind v4's pipeline) rewrites a
+       `backdrop-filter` declaration in this file to `-webkit-backdrop-filter`
+       only and drops the standard property, which the browsers we target do not
+       implement, so the blur silently died in the build while working in the raw
+       mock. Routing it through a var() did not help; an inline style is never
+       processed. Move it back here if the pipeline stops rewriting it. */
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .5) 50%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .5) 50%, transparent 100%);
+}
 
-.uj-hd-ib { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
-.uj-hd-pill { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border: 1px solid var(--hairline); border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--ink); background: #fff; flex-shrink: 0; position: relative; cursor: pointer; }
+.uj-hd-ib { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
+.uj-hd-ib:hover { background: #eae9e3; }
+.uj-hd-ib:active { transform: scale(.95); }
+.uj-hd-pill { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--body); background: none; flex-shrink: 0; position: relative; cursor: pointer; }
+.uj-hd-pill:hover { background: var(--hairline-soft); }
+.uj-hd-pill:active { transform: scale(.97); }
+/* Segmented control (interface language). Neutral track with a white active
+   pill: red is the colour of the primary action, not of "which tab am I on". */
+.uj-seg { display: flex; background: var(--hairline-soft); border: 1px solid var(--hairline); border-radius: 9px; padding: 3px; gap: 2px; flex-shrink: 0; }
+.uj-seg > * { height: 26px; padding: 0 11px; display: inline-flex; align-items: center; border: 0; border-radius: 7px; background: none; font-size: var(--t-sm); font-weight: 500; color: var(--muted); white-space: nowrap; cursor: pointer; transition: background .14s ease, color .14s ease, transform .14s ease; }
+.uj-seg > *:hover { color: var(--ink); }
+.uj-seg > *:active { transform: scale(.97); }
+.uj-seg > [data-on] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(38, 37, 30, .08); }
+
 .uj-hd-acct { flex-shrink: 0; }
 .uj-hd-more { display: none; }
+/* Page title block. Sits in the scroll body on the same canvas and scrolls away
+   with the content — it used to be a second white band under a white header. */
+.uj-pagehead { padding: 78px 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.uj-pagehead h1 { font-weight: 500; font-size: var(--t-xl); letter-spacing: -.025em; color: var(--ink); margin: 0; text-wrap: balance; }
+.uj-pagehead p { font-size: var(--t-sm); color: var(--muted); margin: 6px 0 0; }
 
 @container hdr (max-width: 960px) {
     .uj-hd-label, .uj-hd-acct-text { display: none; }
@@ -438,10 +559,12 @@ body {
 
 /* ── Interaction polish ── */
 a, button { transition: background-color .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, opacity .14s ease; }
-header button:hover { background: var(--canvas) !important; }
+/* Scoped to the dropdown panels. It used to be a blanket `header button:hover`,
+   which also repainted the header's own controls — those now carry their own
+   hover states (.uj-hd-ib, .uj-hd-pill) suited to the canvas they sit on. */
+.uj-hd-panel button:hover { background: var(--canvas); }
 .uj-row { transition: background-color .12s ease; }
 .uj-row:hover { background: var(--canvas) !important; }
-.uj-side-link:hover { background: var(--sidebar-soft) !important; color: #fff !important; }
 .uj-card-clickable:hover { box-shadow: 0 4px 16px rgba(31, 30, 26, .07); transform: translateY(-1px); }
 .uj-card-clickable { transition: box-shadow .15s ease, transform .15s ease; }
 
@@ -564,5 +687,185 @@ header button:hover { background: var(--canvas) !important; }
   .tot-fly, .tot-fly-e { animation:tot-fade-in 150ms both; }
   .tot-fly-e:hover, .tot-sc:hover { transform:none; }
   .tot-modal-card { animation:tot-fade-in 150ms both; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Dashboard (resources/views/screens/dash.blade.php) — ported from the
+   approved public/_dash-revamp.html mock. Namespaced uj-dq- ("dash queue")
+   to avoid colliding with the existing .uj-dash-split/.uj-dash-main/
+   .uj-dash-side layout classes, which are reused as-is for the col/rail
+   split (their flex 2/1 + stack-below-900px behaviour matches the mock's
+   1fr/288px split closely enough not to duplicate).
+   ═══════════════════════════════════════════════════════════════════════ */
+.uj-dq-top { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:18px; }
+.uj-dq-top h1 { font-size:var(--t-xl); font-weight:600; color:var(--ink); letter-spacing:-.025em; margin:0 0 3px; text-wrap:balance; }
+.uj-dq-hint { font-size:var(--t-sm); color:var(--muted); margin:-6px 0 14px; }
+
+.uj-dq-chips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.uj-dq-chip { display:flex; align-items:baseline; gap:6px; padding:7px 12px; border-radius:9px; background:#fff; border:1px solid var(--hairline); white-space:nowrap; transition:background .18s ease-out, border-color .18s ease-out; }
+.uj-dq-chip b { font:600 var(--t-lg) var(--font-mono); color:var(--ink); letter-spacing:-.02em; }
+.uj-dq-chip span { font-size:var(--t-sm); color:var(--muted); }
+.uj-dq-chip[data-hot] { background:var(--red-tint); border-color:#f3ced0; }
+.uj-dq-chip[data-hot] b { color:var(--red); }
+.uj-dq-chip[data-ok] { background:#e6f3ee; border-color:#c9e4da; }
+.uj-dq-chip[data-ok] b { color:var(--success); }
+
+/* customise toggle */
+/* ── Type: hold the mock's ramp inside the dashboard ──
+   The shared .uj-card-title is 15px with no tracking. The dashboard's ramp puts a
+   card heading at --t-lg (16px) with -0.01em, which is the step that separates a
+   card heading from a row title (14px); inheriting the 15px shared value collapsed
+   that gap and is why the port did not match the approved comp. Scoped to .uj-dq so
+   no other screen's card titles move. Line-heights are `normal` rather than the
+   body's 1.5 — the comp sets none on these, and headings read tighter than copy. */
+.uj-dq .uj-card-title { font-size:var(--t-lg); line-height:normal; letter-spacing:-.01em; }
+.uj-dq .uj-dq-rail-card .uj-card-title { font-size:var(--t-base); }
+.uj-dq .uj-dq-top h1 { font-size:var(--t-xl); font-weight:600; line-height:normal; letter-spacing:-.025em; margin:0 0 3px; text-wrap:balance; }
+.uj-dq .uj-dq-chip span { line-height:normal; }
+/* Controls sit on a fixed-height row, so the body's 1.5 line-height only shifts
+   their baseline. The card-head link is w500 in the comp — the shared .uj-link is
+   w400, which made "Open Employee Directory" read lighter than its neighbours. */
+.uj-dq .uj-dq-cust, .uj-dq .uj-dq-scope { line-height:normal; }
+.uj-dq .uj-card-head .uj-link { font-weight:500; line-height:normal; }
+
+/* ── Me / Company scope switch ──
+   These are real navigations, so they are the one daily control on the dashboard.
+   They previously carried inline styles and therefore no press feedback at all —
+   the only pressable thing on the screen that did not respond to being pressed. */
+.uj-dq-scopes { display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--hairline-soft); border:1px solid var(--hairline); flex-shrink:0; }
+.uj-dq-scope { height:26px; padding:0 13px; border-radius:7px; font-size:var(--t-sm); font-weight:500; display:flex; align-items:center; text-decoration:none; white-space:nowrap; color:var(--muted);
+    transition:color .14s cubic-bezier(.23,1,.32,1), background .14s cubic-bezier(.23,1,.32,1), transform .16s cubic-bezier(.23,1,.32,1); }
+.uj-dq-scope:hover { color:var(--ink); }
+.uj-dq-scope:active { transform:scale(.97); }
+.uj-dq-scope[data-on] { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(38,37,30,.08); }
+
+.uj-dq-cust { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:9px; border:1px solid var(--hairline); background:#fff; color:var(--body); font-size:var(--t-sm); font-weight:500; transition:border-color .14s ease-out, background .14s ease-out, transform .14s ease-out; }
+.uj-dq-cust:hover { border-color:#d5d2c8; background:#fbfbf9; }
+.uj-dq-cust:active { transform:scale(.97); }
+.uj-dq-cust[data-on] { background:var(--ink); border-color:var(--ink); color:#fff; }
+
+/* count badge on a card header — zero is the good outcome, so it earns the ok tone */
+.uj-dq-count { font:600 var(--t-micro) var(--font-mono); color:var(--muted); background:var(--hairline-soft); border-radius:999px; padding:3px 9px; transition:background .18s ease-out, color .18s ease-out; }
+.uj-dq-count[data-hot] { background:var(--red-tint); color:var(--red); }
+.uj-dq-count[data-ok] { background:#e6f3ee; color:#12654a; }
+
+/* stage badge — the verify/approve distinction */
+.uj-dq-stage { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; padding:4px 8px; border-radius:5px; flex-shrink:0; }
+.uj-dq-stage[data-s="verify"]  { background:#fbf3e6; color:#8a5d18; }
+.uj-dq-stage[data-s="approve"] { background:#e6f3ee; color:#12654a; }
+.uj-dq-stage[data-s="waiting"] { background:var(--hairline-soft); color:var(--muted); }
+.uj-dq-stage[data-s="done"]    { background:#e6f3ee; color:#12654a; }
+.uj-dq-stage[data-s="stuck"]   { background:var(--red-tint); color:var(--red); }
+.uj-dq-stage[data-s="step1"]   { background:#fbf3e6; color:#8a5d18; }
+.uj-dq-stage[data-s="step2"]   { background:#eaf1f8; color:#2b537d; }
+
+.uj-dq-datechip { width:42px; flex-shrink:0; text-align:center; }
+.uj-dq-datechip .m { font:600 var(--t-micro) var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.uj-dq-datechip .d { font:600 var(--t-lg) var(--font-mono); color:var(--ink); line-height:1.1; letter-spacing:-.02em; }
+
+/* ── disclosure row ── */
+.uj-dq-row { border-bottom:1px solid var(--hairline-soft); }
+.uj-dq-row:last-child { border-bottom:0; }
+.uj-dq-row-hd { width:100%; display:flex; align-items:center; gap:13px; padding:13px 18px; text-align:left; transition:background .14s ease-out; }
+.uj-dq-row-hd:hover { background:#fbfbf9; }
+/* press feedback on a full-width row is a background darken, not a scale —
+   scaling a 700px row moves the edges under 2px and repaints the whole width */
+.uj-dq-row-hd:active { background:#f4f3ef; transition-duration:.04s; }
+.uj-dq-row-t { font-size:var(--t-base); font-weight:500; color:var(--ink); line-height:1.35; }
+.uj-dq-row-s { font-size:var(--t-sm); color:var(--muted); margin-top:2px; line-height:1.4; }
+.uj-dq-chev { flex-shrink:0; color:var(--muted-soft); transition:transform .2s ease-out, color .14s ease-out; }
+.uj-dq-row-hd[aria-expanded="true"] .uj-dq-chev { transform:rotate(90deg); color:var(--ink); }
+.uj-dq-row-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s cubic-bezier(.23,1,.32,1); }
+.uj-dq-row-body.uj-dq-open { grid-template-rows:1fr; }
+.uj-dq-row-body > div { overflow:hidden; }
+.uj-dq-row-body p { margin:0; font-size:var(--t-base); line-height:1.6; color:var(--body); max-width:62ch; opacity:0; filter:blur(2px); transition:opacity .2s ease-out .04s, filter .2s ease-out .04s; }
+.uj-dq-row-body.uj-dq-open p { opacity:1; filter:blur(0); }
+.uj-dq-row-body-in { padding:0 18px 16px 73px; }
+.uj-dq-row-acts { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.uj-dq-btn { height:34px; padding:0 14px; border-radius:8px; font-size:var(--t-sm); display:inline-flex; align-items:center; text-decoration:none; }
+
+/* cleared-queue empty state. No overshoot: an HR officer clears this queue most
+   working days, so the moment is routine, not rare — bounce at daily frequency
+   is the thing you notice once and resent after. Same house curve as everything
+   else; the reward is carried by scale and timing, not by a second easing. */
+.uj-dq-done { padding:34px 20px 38px; text-align:center; }
+.uj-dq-done-mark { width:44px; height:44px; margin:0 auto 14px; border-radius:50%; background:#e6f3ee; display:flex; align-items:center; justify-content:center; color:var(--success); opacity:0; transform:scale(.92); animation:uj-dq-pop .38s cubic-bezier(.23,1,.32,1) forwards; }
+@keyframes uj-dq-pop { to { opacity:1; transform:none; } }
+.uj-dq-done h3 { font-size:var(--t-lg); font-weight:600; color:var(--ink); margin:0 0 5px; opacity:0; transform:translateY(6px); animation:uj-dq-rise .3s cubic-bezier(.23,1,.32,1) .06s forwards; }
+.uj-dq-done p { font-size:var(--t-sm); color:var(--muted); margin:0 auto; max-width:38ch; line-height:1.6; opacity:0; transform:translateY(6px); animation:uj-dq-rise .3s cubic-bezier(.23,1,.32,1) .11s forwards; }
+
+/* ── rail (optional/hideable) cards ── */
+.uj-dq-rail-card { padding:16px 17px; }
+.uj-dq-rail-card .uj-card-title { font-size:var(--t-base); margin-bottom:11px; }
+.uj-dq-mini { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hairline-soft); }
+.uj-dq-mini:last-child { border-bottom:0; padding-bottom:0; }
+.uj-dq-mini .av { width:27px; height:27px; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; font-size:var(--t-micro); font-weight:600; flex-shrink:0; }
+.uj-dq-mini .t { font-size:var(--t-sm); color:var(--ink); font-weight:500; line-height:1.35; }
+.uj-dq-mini .s { font-size:var(--t-sm); color:var(--muted); margin-top:1px; }
+.uj-dq-mini .r { margin-left:auto; font:500 var(--t-micro) var(--font-mono); color:var(--muted-soft); white-space:nowrap; }
+.uj-dq-tag { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--hairline-soft); padding:3px 7px; border-radius:5px; }
+
+/* ── Customise mode ── */
+.uj-dq-card-tools { position:absolute; top:-11px; right:12px; display:flex; align-items:center; gap:3px; padding:3px; border-radius:999px; background:#fff; border:1px solid var(--hairline); box-shadow:0 3px 10px rgba(38,37,30,.09); }
+.uj-dq-card-tools button { width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:var(--muted); transition:background .14s ease-out, color .14s ease-out, transform .14s ease-out; }
+.uj-dq-card-tools button:hover { background:var(--hairline-soft); color:var(--ink); }
+.uj-dq-card-tools button:active { transform:scale(.9); }
+.uj-dq-card-tools button:disabled { opacity:.3; cursor:default; }
+.uj-dq-card-tools button[data-hide]:hover { background:var(--red-tint); color:var(--red); }
+.uj-dq-pin { position:absolute; top:-11px; right:12px; display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--hairline-soft); border:1px solid var(--hairline); font-size:var(--t-micro); font-weight:600; color:var(--muted); letter-spacing:.03em; }
+/* editing is a different mode, and the content must read as inert while you
+   are arranging it — not as something you can still act on */
+[data-dq-editing] .uj-card[data-opt],
+[data-dq-editing] .uj-card[data-pin] { position:relative; opacity:.86; transition:opacity .16s ease-out, box-shadow .16s ease-out; }
+[data-dq-editing] .uj-card[data-opt] { opacity:1; box-shadow:0 0 0 2px rgba(58,110,165,.28); }
+[data-dq-editing] .uj-card[data-pin] { opacity:.8; }
+[data-dq-editing] .uj-card [data-dq-inert] { pointer-events:none; }
+
+.uj-dq-tray { margin-top:18px; padding:15px 17px; border-radius:13px; border:1px dashed #d5d2c8; background:#fbfbf9; }
+.uj-dq-tray h3 { font-size:var(--t-base); font-weight:600; color:var(--ink); margin:0 0 3px; }
+.uj-dq-tray p { font-size:var(--t-sm); color:var(--muted); margin:0 0 11px; line-height:1.55; }
+.uj-dq-tray-items { display:flex; gap:8px; flex-wrap:wrap; }
+.uj-dq-tray-chip { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:9px; background:#fff; border:1px solid var(--hairline); font-size:var(--t-sm); font-weight:500; color:var(--body); transition:border-color .14s ease-out, color .14s ease-out, transform .14s ease-out; }
+.uj-dq-tray-chip:hover { border-color:var(--info); color:var(--ink); }
+.uj-dq-tray-chip:active { transform:scale(.97); }
+.uj-dq-tray-empty { font-size:var(--t-sm); color:var(--muted-soft); }
+
+/* entrance — staggered, one authored moment, driven by --i. Runs once on
+   first paint; nothing on this screen destroys/recreates these elements on
+   hide, reorder or edit-mode toggle (those only flip x-show/order), so it
+   never replays. */
+@keyframes uj-dq-rise { to { opacity:1; transform:none; } }
+.uj-dq-stag { opacity:0; transform:translateY(7px); animation:uj-dq-rise .34s cubic-bezier(.23,1,.32,1) forwards; animation-delay:calc(var(--i, 0) * 42ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .uj-dq-stag, .uj-dq-done-mark, .uj-dq-done h3, .uj-dq-done p { animation:none; opacity:1; transform:none; }
+  .uj-dq-row-body { transition:none; }
+  .uj-dq-row-body p { transition:opacity .12s linear; filter:none; }
+  .uj-dq-chev { transition:none; }
+  /* Reduced motion means gentler, not none. The Customise show/hide transitions
+     are opacity-only by design, so they stay — a fade aids comprehension. Only
+     the scope switch has travel to remove. */
+  .uj-dq-scope { transition:color .14s linear, background .14s linear; }
+  .uj-dq-scope:active { transform:none; }
+}
+@media (hover: none) {
+  .uj-dq-row-hd:hover, .uj-dq-cust:hover, .uj-dq-scope:hover { background:initial; }
+}
+
+/* ── mobile — chips become one swipeable strip, rows/buttons grow to real
+   44px touch targets. Sidebar/header/tab-bar chrome is owned by the shell
+   layout, not this screen. ── */
+@media (max-width: 820px) {
+  .uj-dq-top { display:block; margin-bottom:14px; }
+  .uj-dq-top h1 { font-size:19px; letter-spacing:-.02em; }
+  .uj-dq-chips { margin-top:12px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; margin-inline:-14px; padding-inline:14px; }
+  .uj-dq-chips::-webkit-scrollbar { display:none; }
+  .uj-dq-chip { scroll-snap-align:start; }
+  .uj-dq-row-hd { padding:12px 14px; gap:11px; }
+  .uj-dq-row-body-in { padding:0 14px 15px 14px; }
+  .uj-dq-rail-card { padding:14px; }
+  .uj-dq-row-acts .uj-dq-btn { flex:1; justify-content:center; height:44px; font-size:var(--t-base); }
+  .uj-dq-cust { height:38px; }
+  .uj-dq-card-tools button { width:32px; height:32px; }
 }
 

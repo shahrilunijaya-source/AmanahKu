@@ -37,6 +37,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'password_change_required' => 'boolean',
             'is_super_admin' => 'boolean',
+            'dashboard_prefs' => 'array',
         ];
     }
 

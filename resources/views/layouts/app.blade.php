@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Amanahku' }} · Amanahku</title>
+    {{-- Self-hosted Poppins + JetBrains Mono. Vite emits the @font-face rules as a
+         non-entry chunk, so @vite never links them: without this line every page
+         silently falls back to the system UI font. See the `fonts` block in
+         vite.config.js and public/build/fonts-manifest.json. --}}
+    {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     {{-- Installable web app. On iOS this is the only route to notifications at all:
          Safari shows them just for a web app added to the Home Screen. --}}
@@ -35,44 +40,50 @@
         <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
     @endunless
 
-    <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;' }}">
+    <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;position:relative;' }}">
         @unless ($embed)
         @include('partials.header')
+        {{-- Content scrolls under the header and dissolves into the page canvas
+             here, rather than meeting a border. See .uj-hd-fade in app.css.
+             The blur is inline, not in that rule: Lightning CSS (Tailwind v4)
+             rewrites a `backdrop-filter` declaration in app.css to the -webkit-
+             prefix alone and drops the standard property, which the browsers we
+             target do not implement. Inline styles skip that pass. --}}
+        <div class="uj-hd-fade" style="backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);"></div>
         @include('partials.ios-install')
         @include('partials.enable-alerts')
-
-        {{-- Subheader: breadcrumb + title + persona toggle --}}
-        <div class="uj-subhead" style="flex-shrink:0;background:#fff;border-bottom:1px solid var(--hairline);padding:16px 28px 18px;">
-            <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:7px;">
-                @foreach ($crumbs as $i => $crumb)
-                    <span style="color:{{ $i === count($crumbs) - 1 ? 'var(--ink)' : 'var(--muted)' }};"
-                          x-data="{ en: @js($crumb), ms: @js($crumbsMs[$i] ?? $crumb) }"
-                          x-text="$store.ui.lang==='en' ? en : ms">{{ $crumb }}</span>
-                    @if ($i < count($crumbs) - 1)
-                        <span style="color:var(--muted);">/</span>
-                    @endif
-                @endforeach
-            </div>
-            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-                <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
-                    <h1 style="font-weight:400;font-size:25px;letter-spacing:-0.4px;color:var(--ink);margin:0;" x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
-                    <p style="font-size:13.5px;color:var(--muted);margin:5px 0 0;" x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
-                </div>
-                @if ($showPersona)
-                    <div style="display:flex;background:var(--canvas);border:1px solid var(--hairline);border-radius:9px;padding:3px;gap:2px;">
-                        @foreach ($personas as $p)
-                            @php $on = $persona === $p['id']; @endphp
-                            <a href="{{ route('app.screen', ['screen' => $screen, 'persona' => $p['id']]) }}"
-                               style="padding:6px 13px;border-radius:7px;font-size:12.5px;font-weight:500;white-space:nowrap;text-decoration:none;color:{{ $on ? '#fff' : 'var(--body)' }};background:{{ $on ? 'var(--red)' : 'transparent' }};">{{ $p['label'] }}</a>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        </div>
         @endunless
 
-        {{-- Scrollable body --}}
-        <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:24px 28px 48px;' }}">
+        {{-- Scrollable body. The page title block lives INSIDE it now: it used to be
+             a fixed white band between two other white bands, and it says nothing
+             worth keeping on screen once you have started reading. --}}
+        <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+            @unless ($embed)
+                <div class="uj-pagehead">
+                    <div>
+                        {{-- The dashboard renders its own heading in the screen body, beside
+                             its chips and Me/Company switch, so it opts out of the whole page
+                             head here — breadcrumb included. The sidebar already marks where
+                             you are, and "Tenant / Dashboard" above a greeting said nothing. --}}
+                        @unless ($screen === 'dash')
+                            <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--muted);margin-bottom:8px;">
+                                @foreach ($crumbs as $i => $crumb)
+                                    <span style="color:{{ $i === count($crumbs) - 1 ? 'var(--ink)' : 'var(--muted)' }};"
+                                          x-data="{ en: @js($crumb), ms: @js($crumbsMs[$i] ?? $crumb) }"
+                                          x-text="$store.ui.lang==='en' ? en : ms">{{ $crumb }}</span>
+                                    @if ($i < count($crumbs) - 1)
+                                        <span style="color:var(--muted);">/</span>
+                                    @endif
+                                @endforeach
+                            </div>
+                            <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
+                                <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
+                            </div>
+                        @endunless
+                    </div>
+                </div>
+            @endunless
             <div class="uj-fade" style="width:100%;">
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
@@ -85,12 +96,12 @@
                         <div style="display:flex;align-items:flex-start;gap:10px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-weight:600;font-size:13px;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'One-time password for {{ $rp['name'] }}' : 'Kata laluan sekali guna untuk {{ $rp['name'] }}'"></span></div>
-                                <p style="font-size:11.5px;margin:0 0 9px;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'Shown once — copy it now and give it to them. They must set their own password on next sign-in.' : 'Dipaparkan sekali sahaja — salin sekarang dan berikan kepada mereka. Mereka mesti menetapkan kata laluan sendiri semasa log masuk seterusnya.'"></span></p>
+                                <div style="font-weight:600;font-size:var(--t-base);margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'One-time password for {{ $rp['name'] }}' : 'Kata laluan sekali guna untuk {{ $rp['name'] }}'"></span></div>
+                                <p style="font-size:var(--t-micro);margin:0 0 9px;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'Shown once — copy it now and give it to them. They must set their own password on next sign-in.' : 'Dipaparkan sekali sahaja — salin sekarang dan berikan kepada mereka. Mereka mesti menetapkan kata laluan sendiri semasa log masuk seterusnya.'"></span></p>
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                    <code style="font-family:var(--font-mono);font-size:14px;font-weight:600;background:#fff;border:1px solid #e0a94a;border-radius:7px;padding:7px 11px;letter-spacing:0.5px;user-select:all;">{{ $rp['password'] }}</code>
+                                    <code style="font-family:var(--font-mono);font-size:var(--t-base);font-weight:600;background:#fff;border:1px solid #e0a94a;border-radius:7px;padding:7px 11px;letter-spacing:0.5px;user-select:all;">{{ $rp['password'] }}</code>
                                     <button type="button" @click="navigator.clipboard.writeText(pw); copied = true; setTimeout(() => copied = false, 2000)"
-                                            class="uj-btn-ghost" style="height:34px;font-size:12px;padding:0 12px;">
+                                            class="uj-btn-ghost" style="height:34px;font-size:var(--t-sm);padding:0 12px;">
                                         <span x-show="!copied" x-text="$store.ui.lang==='en' ? 'Copy' : 'Salin'">Copy</span>
                                         <span x-show="copied" x-cloak x-text="$store.ui.lang==='en' ? 'Copied' : 'Disalin'"></span>
                                     </button>
@@ -98,14 +109,14 @@
                                 {{-- Whether the reset link also went out by email. HR needs this to
                                      know if relaying the password by hand is actually necessary. --}}
                                 @if (($rp['mail'] ?? null) === 'sent')
-                                    <p style="font-size:11.5px;margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was also emailed to {{ $rp['email'] ?? '' }}, so they can set their own password without this.' : 'Pautan tetapan semula juga dihantar ke {{ $rp['email'] ?? '' }}, jadi mereka boleh menetapkan kata laluan sendiri tanpa ini.'"></span></p>
+                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was also emailed to {{ $rp['email'] ?? '' }}, so they can set their own password without this.' : 'Pautan tetapan semula juga dihantar ke {{ $rp['email'] ?? '' }}, jadi mereka boleh menetapkan kata laluan sendiri tanpa ini.'"></span></p>
                                 @elseif (($rp['mail'] ?? null) === 'throttled')
-                                    <p style="font-size:11.5px;margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was emailed recently, so another was not sent. Give them the password above.' : 'Pautan tetapan semula baru sahaja dihantar, jadi tiada yang baharu dihantar. Berikan kata laluan di atas kepada mereka.'"></span></p>
+                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was emailed recently, so another was not sent. Give them the password above.' : 'Pautan tetapan semula baru sahaja dihantar, jadi tiada yang baharu dihantar. Berikan kata laluan di atas kepada mereka.'"></span></p>
                                 @elseif (($rp['mail'] ?? null) === 'failed')
-                                    <p style="font-size:11.5px;margin:9px 0 0;color:#a8501a;font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'The reset email could not be sent. You must give them the password above.' : 'E-mel tetapan semula tidak dapat dihantar. Anda mesti berikan kata laluan di atas kepada mereka.'"></span></p>
+                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#a8501a;font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'The reset email could not be sent. You must give them the password above.' : 'E-mel tetapan semula tidak dapat dihantar. Anda mesti berikan kata laluan di atas kepada mereka.'"></span></p>
                                 @endif
                             </div>
-                            <button @click="show = false" style="color:#7a5314;font-size:16px;flex-shrink:0;">×</button>
+                            <button @click="show = false" style="color:#7a5314;font-size:var(--t-lg);flex-shrink:0;">×</button>
                         </div>
                     </div>
                 @endif
@@ -129,11 +140,11 @@
                     <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
                         <div class="uj-banner-text" style="flex:1;">
-                            <div style="font-size:13px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
+                            <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
                             <div class="uj-progress" style="margin-top:6px;max-width:260px;"><span style="width:{{ $profileCompletion['pct'] }}%;background:var(--red);"></span></div>
                         </div>
-                        <a href="{{ route('welcome.show') }}" style="white-space:nowrap;font-size:12.5px;font-weight:600;text-decoration:underline;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Complete now' : 'Lengkapkan'">Complete now</a>
-                        <button @click="show = false; localStorage.setItem('profileBannerDismissedUntil', Date.now() + 12*36e5)" style="color:var(--muted);font-size:16px;">×</button>
+                        <a href="{{ route('welcome.show') }}" style="white-space:nowrap;font-size:var(--t-sm);font-weight:600;text-decoration:underline;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Complete now' : 'Lengkapkan'">Complete now</a>
+                        <button @click="show = false; localStorage.setItem('profileBannerDismissedUntil', Date.now() + 12*36e5)" style="color:var(--muted);font-size:var(--t-lg);">×</button>
                     </div>
                 @endif
                 @yield('screen')

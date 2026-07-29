@@ -5,17 +5,16 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Dashboard render coverage for all four personas, plus the `module.ai` gate that
- * hides the AI Workforce Intelligence dashboard blocks (manager's "AI recommendations"
- * panel; management's capacity/risk/next-steps cards) — off by default since
- * `Features::NOT_READY`, restorable per-tenant with a single feature flip (docs/ISSUES.md
- * I-025).
+ * Dashboard render coverage for both scopes (`me` and `company`) across every
+ * role. AI Workforce Intelligence (module.ai / the `workload` screen) is a
+ * descoped module (Features::OFF) with no dashboard presence any more — the
+ * old manager "AI recommendations" panel and management "capacity & risk"
+ * cards were part of the four-persona dashboard this trait replaced.
  */
 class DashboardAiGatingTest extends TestCase
 {
@@ -42,60 +41,48 @@ class DashboardAiGatingTest extends TestCase
         return $u;
     }
 
-    private function dashAs(User $u, string $persona)
+    private function dashAs(User $u, ?string $scope = null)
     {
-        $this->actingAs($u)->withSession([
-            'current_tenant' => $this->tenant->id,
-            'persona' => $persona,
-        ]);
+        $this->actingAs($u)->withSession(['current_tenant' => $this->tenant->id]);
 
-        return $this->get('/app/dash');
+        return $this->get('/app/dash'.($scope ? "?scope={$scope}" : ''));
     }
 
-    /**
-     * An HR-role user may preview every persona (Amanahku::PERSONA_ACCESS), so one
-     * account exercises all four dashboard branches — including management and hr,
-     * which previously had zero render coverage.
-     */
-    public function test_dashboard_renders_for_every_persona(): void
+    /** Both scopes render for every role that may reach them. */
+    public function test_dashboard_renders_for_every_role_and_scope(): void
     {
+        $employee = $this->userWithRole('employee', 'employee@example.com');
+        $manager = $this->userWithRole('manager', 'manager@example.com');
         $hr = $this->userWithRole('hr', 'hr@example.com');
+        $management = $this->userWithRole('management', 'management@example.com');
 
-        foreach (['employee', 'manager', 'management', 'hr'] as $persona) {
-            $this->dashAs($hr, $persona)->assertOk();
+        $this->dashAs($employee)->assertOk();
+
+        foreach ([$manager, $hr, $management] as $u) {
+            $this->dashAs($u, 'me')->assertOk();
+            $this->dashAs($u, 'company')->assertOk();
         }
     }
 
-    public function test_ai_blocks_are_hidden_by_default(): void
+    public function test_ai_workforce_module_has_no_dashboard_presence(): void
     {
-        // Asserts the shipped default, so opt out of the suite-wide "every module on".
+        // module.ai / 'workload' is a descoped module — off by default and not
+        // referenced anywhere in the new two-scope dashboard.
         $this->useShippedModuleDefaults();
 
-        $hr = $this->userWithRole('hr', 'hr@example.com');
+        $boss = $this->userWithRole('management', 'management@example.com');
 
-        $this->dashAs($hr, 'manager')->assertOk()->assertDontSee('AI recommendations');
-
-        $management = $this->dashAs($hr, 'management')->assertOk();
-        $management->assertDontSee('What management should do next');
-        $management->assertDontSee('Open full intelligence view');
+        $this->dashAs($boss, 'company')->assertOk()
+            ->assertDontSee('AI recommendations')
+            ->assertDontSee('What management should do next')
+            ->assertDontSee('Open full intelligence view');
     }
 
-    public function test_ai_blocks_appear_when_module_ai_is_enabled(): void
-    {
-        $hr = $this->userWithRole('hr', 'hr@example.com');
-        app(FeatureManager::class)->setTenant($this->tenant, 'module.ai', true);
-
-        $this->dashAs($hr, 'manager')->assertOk()->assertSee('AI recommendations');
-
-        $management = $this->dashAs($hr, 'management')->assertOk();
-        $management->assertSee('What management should do next');
-        $management->assertSee('Open full intelligence view');
-    }
-
-    public function test_manager_with_no_direct_reports_sees_team_status_empty_state(): void
+    public function test_company_scope_renders_with_no_pending_actions(): void
     {
         $manager = $this->userWithRole('manager', 'mgr@example.com');
 
-        $this->dashAs($manager, 'manager')->assertOk()->assertSee('No direct reports yet');
+        // No direct reports means an empty queue — the screen still renders.
+        $this->dashAs($manager, 'company')->assertOk();
     }
 }
