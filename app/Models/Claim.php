@@ -21,6 +21,7 @@ class Claim extends Model
         return ['date' => 'date', 'amount' => 'float', 'paid_at' => 'datetime', 'verified_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

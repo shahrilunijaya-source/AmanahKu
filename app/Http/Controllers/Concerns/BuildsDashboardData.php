@@ -22,10 +22,10 @@ use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -458,7 +458,7 @@ trait BuildsDashboardData
         return $rows->take(5)->values()->all();
     }
 
-    private function rotRow(string $tag, ?Employee $employee, ?Carbon $since): array
+    private function rotRow(string $tag, ?Employee $employee, ?CarbonInterface $since): array
     {
         $days = $since ? (int) $since->diffInDays(now()) : 0;
 

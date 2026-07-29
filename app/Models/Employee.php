@@ -11,8 +11,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
+/**
+ * `date_of_birth` has a `date` cast, so it reads back as a Carbon instance.
+ * Without this, static analysis takes the raw column type and reports
+ * ->format() as a call on a string.
+ *
+ * @property Carbon|null $date_of_birth
+ */
 class Employee extends Model
 {
     use BelongsToTenant;
