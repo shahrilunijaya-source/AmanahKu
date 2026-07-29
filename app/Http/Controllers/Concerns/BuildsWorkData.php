@@ -201,7 +201,7 @@ trait BuildsWorkData
                 'owner_name' => $e->name,
                 'owner_initials' => $e->initials,
                 'owner_avatar_color' => $e->avatar_color,
-            ]);
+            ])->all();
         })->values();
 
         // Per-person aggregates.

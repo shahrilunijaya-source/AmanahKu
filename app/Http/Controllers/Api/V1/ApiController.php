@@ -66,8 +66,8 @@ class ApiController extends Controller
             'id' => $r->id,
             'employee' => $r->employee?->name,
             'leave_type' => $r->leaveType?->name,
-            'date_from' => $r->date_from?->toDateString(),
-            'date_to' => $r->date_to?->toDateString(),
+            'date_from' => $r->date_from->toDateString(),
+            'date_to' => $r->date_to->toDateString(),
             'days' => $r->days,
             'status' => $r->status,
         ]);

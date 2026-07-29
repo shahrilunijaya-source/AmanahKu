@@ -85,18 +85,6 @@ parameters:
 			path: app/Http/Controllers/AdminController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
-			message: '#^Cannot call method toDateString\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
@@ -113,30 +101,6 @@ parameters:
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
-			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
-			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AppController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload_label\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/AppController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
@@ -165,7 +129,7 @@ parameters:
 		-
 			message: '#^Cannot call method format\(\) on string\.$#'
 			identifier: method.nonObject
-			count: 2
+			count: 1
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -187,27 +151,15 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/AppController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),mixed\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/AppController.php
-
-		-
 			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 2
+			count: 1
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -265,12 +217,6 @@ parameters:
 			path: app/Http/Controllers/AttendanceReportController.php
 
 		-
-			message: '#^Method App\\Http\\Controllers\\AttendanceReportController\:\:byStaff\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: mixed, name\: mixed, initials\: mixed, color\: mixed, dept\: mixed, days\: int, onTime\: int, late\: int, \.\.\.\}\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Http/Controllers/AttendanceReportController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -280,12 +226,6 @@ parameters:
 			message: '#^Cannot call method betweenIncluded\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 2
-			path: app/Http/Controllers/CalendarController.php
-
-		-
-			message: '#^Cannot call method greaterThanOrEqualTo\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
 			path: app/Http/Controllers/CalendarController.php
 
 		-
@@ -517,18 +457,6 @@ parameters:
 			path: app/Http/Controllers/LeaveSetupController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -715,18 +643,6 @@ parameters:
 			path: app/Http/Controllers/RosterController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/SearchController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/SearchController.php
-
-		-
 			message: '#^Constant App\\Http\\Controllers\\SetupController\:\:CRITICAL is unused\.$#'
 			identifier: classConstant.unused
 			count: 1
@@ -871,12 +787,6 @@ parameters:
 			path: app/Http/Controllers/WellnessController.php
 
 		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/WorkItemController.php
-
-		-
 			message: '#^Offset ''done''\|''prog''\|''review''\|''todo'' on array\{todo\: ''To Do'', prog\: ''In Progress'', review\: ''In Review'', done\: ''Done''\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
@@ -892,12 +802,6 @@ parameters:
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array, Closure\(App\\Models\\WorkItemComment\)\: array given\.$#'
 			identifier: argument.type
 			count: 1
-			path: app/Http/Controllers/WorkItemController.php
-
-		-
-			message: '#^Parameter \#1 \$item of method App\\Http\\Controllers\\WorkItemController\:\:cardPayload\(\) expects App\\Models\\WorkItem, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 2
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
@@ -1021,12 +925,6 @@ parameters:
 			path: app/Models/Tenant.php
 
 		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Models/WorkItem.php
-
-		-
 			message: '#^PHPDoc tag @var for constant App\\Services\\Payroll\\PcbCalculator\:\:BANDS with type array\<int, array\{float, float\}\> is incompatible with value array\{array\{5000, 0\}, array\{20000, 1\}, array\{35000, 3\}, array\{50000, 6\}, array\{70000, 11\}, array\{100000, 19\}, array\{400000, 25\}, array\{600000, 26\}, \.\.\.\}\.$#'
 			identifier: classConstant.phpDocType
 			count: 1
@@ -1055,12 +953,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Support/StuckRequests.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$workload\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Support/WorkforceInsights.php
 
 		-
 			message: '#^Cannot call method greaterThan\(\) on string\.$#'

@@ -15,6 +15,10 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class DataScope
 {
+    /**
+     * @param  Builder<Employee>  $query
+     * @return Builder<Employee>
+     */
     public function applyToEmployees(Builder $query, string $scope, ?Employee $self): Builder
     {
         if ($scope === 'company' || ! Permissions::isValidScope($scope)) {

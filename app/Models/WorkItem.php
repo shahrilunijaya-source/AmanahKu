@@ -7,7 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * `due_at` has a `date` cast, so it reads back as a Carbon instance rather than
+ * the string the schema reports.
+ *
+ * @property Carbon|null $due_at
+ */
 class WorkItem extends Model
 {
     use BelongsToTenant;
@@ -51,6 +58,7 @@ class WorkItem extends Model
     }
 
     /** The superior who assigned this task. Null for self-created cards. */
+    /** @return BelongsTo<Employee, $this> */
     public function assignedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'assigned_by_id');

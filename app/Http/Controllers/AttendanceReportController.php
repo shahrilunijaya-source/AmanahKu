@@ -105,14 +105,13 @@ class AttendanceReportController extends Controller
         // Map records and leave requests for O(1) lookup
         $recordsMap = [];
         foreach ($records as $r) {
-            $d = is_string($r->date) ? $r->date : Carbon::parse($r->date)->toDateString();
-            $recordsMap[$r->employee_id][$d] = $r;
+            $recordsMap[$r->employee_id][$r->date->toDateString()] = $r;
         }
 
         $leaveMap = [];
         foreach ($leaveRequests as $l) {
-            $dFrom = is_string($l->date_from) ? $l->date_from : Carbon::parse($l->date_from)->toDateString();
-            $dTo = is_string($l->date_to) ? $l->date_to : Carbon::parse($l->date_to)->toDateString();
+            $dFrom = $l->date_from->toDateString();
+            $dTo = $l->date_to->toDateString();
             $leaveMap[$l->employee_id][] = ['from' => $dFrom, 'to' => $dTo];
         }
 
