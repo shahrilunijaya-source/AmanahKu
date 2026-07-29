@@ -33,11 +33,31 @@
     ],
 ])
 
+{{-- Rebuild per-person lanes from the flat teamRows + teamPeople aggregates.
+     The data contract changed (Task 1) but the rendered page stays identical. --}}
+@php
+    $statuses = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
+    $rowsByOwner = $teamRows->groupBy('owner_id');
+    $teamLanes = $teamPeople->map(function ($person) use ($statuses, $rowsByOwner) {
+        $cols = [];
+        foreach ($statuses as $key => $title) {
+            $cols[$key] = ['title' => $title, 'cards' => collect()];
+        }
+        foreach ($rowsByOwner->get($person['id'], collect()) as $row) {
+            $status = $row['item']->status;
+            if (isset($cols[$status])) {
+                $cols[$status]['cards']->push($row['item']);
+            }
+        }
+        return ['person' => $person, 'cols' => $cols];
+    });
+@endphp
+
 <div x-data="{ q: '' }">
     {{-- Summary + name filter --}}
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $teamPeople }}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $teamPeopleCount }}</span>
             <span style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'people' : 'orang'">people</span>
             <span style="color:var(--hairline);">·</span>
             <span style="font-size:13px;font-weight:600;color:{{ $teamOpenTotal > 0 ? 'var(--amber)' : 'var(--ink)' }};">{{ $teamOpenTotal }}</span>
@@ -50,21 +70,21 @@
     </div>
 
     @forelse ($teamLanes as $lane)
-        @php $e = $lane['emp']; @endphp
-        <div x-show="q === '' || @js(mb_strtolower($e->name)).includes(q.toLowerCase())"
+        @php $p = $lane['person']; @endphp
+        <div x-show="q === '' || @js(mb_strtolower($p['name'])).includes(q.toLowerCase())"
              style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:16px 16px 6px;margin-bottom:16px;box-shadow:0 2px 10px rgba(20,20,40,.04);">
 
             {{-- Lane header: who + how much open --}}
             <div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;">
-                <span style="flex-shrink:0;width:38px;height:38px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:{{ $e->avatar_color ?? 'var(--muted)' }};">{{ $e->initials }}</span>
+                <span style="flex-shrink:0;width:38px;height:38px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:{{ $p['avatar_color'] ?? 'var(--muted)' }};">{{ $p['initials'] }}</span>
                 <div style="min-width:0;">
-                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}"
-                       style="font-size:14px;font-weight:600;color:var(--ink);text-decoration:none;">{{ $e->name }}</a>
-                    <div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ trim(($e->positionBand?->title ?? '').' · '.($e->department?->name ?? ''), ' ·') }}</div>
+                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $p['id']]) }}"
+                       style="font-size:14px;font-weight:600;color:var(--ink);text-decoration:none;">{{ $p['name'] }}</a>
+                    <div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ trim(($p['position'] ?? '').' · '.($p['department'] ?? ''), ' ·') }}</div>
                 </div>
                 <div style="flex:1;"></div>
-                <span style="font-size:11px;font-weight:600;color:{{ $lane['open'] > 0 ? 'var(--amber)' : 'var(--muted)' }};background:{{ $lane['open'] > 0 ? '#fbf3e6' : 'var(--hairline-soft)' }};padding:3px 10px;border-radius:9999px;">
-                    {{ $lane['open'] }} <span x-text="$store.ui.lang==='en' ? 'open' : 'terbuka'">open</span>
+                <span style="font-size:11px;font-weight:600;color:{{ $p['open'] > 0 ? 'var(--amber)' : 'var(--muted)' }};background:{{ $p['open'] > 0 ? '#fbf3e6' : 'var(--hairline-soft)' }};padding:3px 10px;border-radius:9999px;">
+                    {{ $p['open'] }} <span x-text="$store.ui.lang==='en' ? 'open' : 'terbuka'">open</span>
                 </span>
             </div>
 

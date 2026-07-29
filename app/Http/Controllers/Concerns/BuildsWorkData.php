@@ -164,21 +164,17 @@ trait BuildsWorkData
 
     /**
      * Read-only company-wide task board for management / HR / immediate superiors:
-     * every active employee's work items grouped into one lane per person, with the
-     * same four columns as the personal board. People with no work items are omitted
-     * so the view stays scannable. No mutation — the dock's personal T.A.A. board is
-     * where owners actually move cards.
+     * flat rows (one per work item with owner info) and per-person aggregates.
+     * People with no work items are omitted so the view stays scannable.
      */
     private function teamBoardData(Request $request): array
     {
-        $statuses = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
-
         // Data scope: a branch/department-restricted manager only sees their slice of the
         // company board, not every employee's work items (AK-AUTHZ-01).
         $scope = $request->attributes->get('tenantScope', 'company');
         $self = $request->attributes->get('employee');
 
-        $lanes = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self)
+        $employees = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self)
             ->with([
                 'positionBand', 'department',
                 // Same 30-day done-card window as the personal board — the team view
@@ -192,31 +188,46 @@ trait BuildsWorkData
             ])
             ->orderBy('name')
             ->get()
-            ->map(function ($e) use ($statuses) {
-                $cols = [];
-                foreach ($statuses as $key => $title) {
-                    $cols[$key] = ['title' => $title, 'cards' => collect()];
-                }
-                foreach ($e->workItems as $i) {
-                    if (isset($cols[$i->status])) {
-                        $cols[$i->status]['cards']->push($i);
-                    }
-                }
+            ->filter(fn ($e) => $e->workItems->isNotEmpty());
 
-                return [
-                    'emp' => $e,
-                    'cols' => $cols,
-                    'open' => $e->workItems->where('status', '!=', 'done')->count(),
-                    'total' => $e->workItems->count(),
-                ];
-            })
-            ->filter(fn ($lane) => $lane['total'] > 0)
-            ->values();
+        $today = today();
+
+        // Flat rows: one entry per work item, carrying owner info.
+        // Ordered by owner name (from the query), then sort_order, then id (from the eager load).
+        $teamRows = $employees->flatMap(function ($e) {
+            return $e->workItems->map(fn ($item) => [
+                'item' => $item,
+                'owner_id' => $e->id,
+                'owner_name' => $e->name,
+                'owner_initials' => $e->initials,
+                'owner_avatar_color' => $e->avatar_color,
+            ]);
+        })->values();
+
+        // Per-person aggregates.
+        $teamPeople = $employees->map(function ($e) use ($today) {
+            $items = $e->workItems;
+
+            return [
+                'id' => $e->id,
+                'name' => $e->name,
+                'initials' => $e->initials,
+                'avatar_color' => $e->avatar_color,
+                'position' => $e->positionBand?->title,
+                'department' => $e->department?->name,
+                'open' => $items->where('status', '!=', 'done')->count(),
+                'overdue' => $items->filter(fn ($i) => $i->due_at && $i->status !== 'done' && $i->due_at->lt($today))->count(),
+                'blocked' => $items->filter(fn ($i) => in_array('blocked', $i->labels ?? [], true))->count(),
+                'in_review' => $items->where('status', 'review')->count(),
+                'done' => $items->where('status', 'done')->count(),
+            ];
+        })->values();
 
         return [
-            'teamLanes' => $lanes,
-            'teamOpenTotal' => $lanes->sum('open'),
-            'teamPeople' => $lanes->count(),
+            'teamRows' => $teamRows,
+            'teamPeople' => $teamPeople,
+            'teamOpenTotal' => $teamPeople->sum('open'),
+            'teamPeopleCount' => $teamPeople->count(),
         ];
     }
 
