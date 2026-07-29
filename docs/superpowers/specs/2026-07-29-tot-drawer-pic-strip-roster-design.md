@@ -58,7 +58,7 @@ All confirmed with the user before this spec was written.
 | `resources/views/screens/tot.blade.php` | Accordion and centre modal removed. Row opens the drawer. PIC strip added. Page-level `<style>` block deleted. |
 | `resources/views/partials/tot-drawer.blade.php` | **New.** The session detail surface. |
 | `resources/views/screens/tot-roster.blade.php` | **New.** The roster picker. |
-| `resources/css/app.css` | `.tot-row`, `.tot-tile`, `.tot-nm`, `.tot-sb`, `.tot-mast*`, `.tot-av` and the rest of the page-level block move here. `.tot-kick`, `.tot-pic`, `.wd-*` and `.tr-*` added. `.tot-modal*` removed once nothing references it. |
+| `resources/css/app.css` | `.tot-row`, `.tot-tile`, `.tot-nm`, `.tot-sb`, `.tot-mast*`, `.tot-av` and the rest of the page-level block move here. `.tot-kick`, `.tot-pic` and `.tr-*` added. **`.wd-*` is not added — it already exists.** `.tot-modal*` removed. |
 | `resources/js/tot-card.js` | `modalOpen` becomes drawer state. `rate()` and `toggleWatched()` handle the cleared case. |
 | `resources/js/tot-roster.js` | **New.** Cursor, assignment, search. |
 | `app/Http/Controllers/TotController.php` | `watched()` becomes a toggle. `rate()` accepts a null score. `rosterData()` added. |
@@ -117,7 +117,18 @@ Top to bottom: sticky header with the month and a close button; presenter block 
 
 **Keyboard and focus.** `role="dialog"`, `aria-modal="true"`, focus trapped, Escape closes the drawer unless a flyout is open, in which case it closes only the flyout. Focus returns to the row that opened it.
 
-**Reuse, not restatement.** `app.css` already owns `.tot-actions`, `.tot-act`, `.tot-fw`, `.tot-fly`, `.tot-fly-e`, `.tot-pill`, `.tot-sc` and `.tot-fly-rate`, including two non-obvious fixes: `.tot-fly-rate { width:300px }` because an absolutely positioned box shrink-to-fits against its containing block, and a `max-width:480px` rule that turns the flyout into a bottom sheet. **The port must not redeclare these.** An early draft of the prototype did, and reproduced the exact bug the comment above `.tot-fly-rate` warns about.
+**Reuse, not restatement.** This is the single biggest thing the port can get wrong, and it now applies twice.
+
+`app.css` already owns `.tot-actions`, `.tot-act`, `.tot-fw`, `.tot-fly`, `.tot-fly-e`, `.tot-pill`, `.tot-sc` and `.tot-fly-rate`, including two non-obvious fixes: `.tot-fly-rate { width:300px }` because an absolutely positioned box shrink-to-fits against its containing block, and a `max-width:480px` rule that turns the flyout into a bottom sheet. **The port must not redeclare these.** An early draft of the prototype did, and reproduced the exact bug the comment above `.tot-fly-rate` warns about.
+
+**The T.A.A. board has since shipped its drawer**, so `app.css` now also owns the full `.wd-*` vocabulary — 64 rules covering `wd-scrim`, `wd-head`, `wd-body`, `wd-foot`, `wd-title`, `wd-sub`, `wd-props`, `wd-plabel`, `wd-pval`, `wd-sech`, `wd-rule`, `wd-cmts`, `wd-cmt` and its parts, `wd-post`, `wd-ico`, `wd-locked` and more. The TOT drawer is built from these, not from new CSS. In particular:
+
+- **`.wd-locked` is the authoring note.** It is already "a read-only card says why, instead of greying out in silence" — a grey box with an icon and a sentence. The mobile "editing needs a wider screen" message is the same component with different copy. Do not add a `.wd-authnote`.
+- **`.wd-inline--empty`** covers the "Nobody yet" / "No topic yet" empty states.
+
+The genuinely new CSS in this change is small: `.tot-kick`, `.tot-pic`, the two `.tot-row[data-kind]` blocks, and `.tr-*` for the roster. If the port is adding a `.wd-` rule, it is probably wrong — grep first.
+
+Note in passing, not to fix here: `.wd-inline--empty` uses `--muted-soft`, so it inherits the contrast problem listed under "Out, handed off". It arrived with the T.A.A. port and is not this change's to solve.
 
 Avatars use `.tot-av` (28px, 11px initials), not `.wa`. `.wa` is the 20px overlapping stack chip with 9px initials, and borrowing it would both collide and import a known undersized-text problem.
 
@@ -224,7 +235,7 @@ Four stages, sequential. Each leaves the screen working and is reviewed before t
 
 **Stage 1 — CSS move and status treatment.** Move the page-level `<style>` block into `app.css`. Add `.tot-kick` and the `data-kind` rules. Swap `--muted-soft` for `--muted`, and for `--body` on the shelf tile, at TOT's call sites only. Remove `opacity` from the rows. No behaviour change.
 
-**Stage 2 — the drawer.** Add `partials/tot-drawer.blade.php`, point the row at it, delete the accordion, the centre modal and the `overflow` hack. Add the PIC strip. Reuse the existing `.tot-*` flyout classes without redeclaring them.
+**Stage 2 — the drawer.** Add `partials/tot-drawer.blade.php` built from the `.wd-*` classes the T.A.A. port already shipped. Point the row at it. Delete the accordion, the centre modal, `.tot-modal*` from `app.css`, and the `overflow` hack. Add the PIC strip. Reuse the existing `.tot-*` flyout classes and `.wd-locked` without redeclaring anything.
 
 **Stage 3 — undo.** The two endpoint changes, their tests, and the client handling for a cleared score.
 
@@ -239,7 +250,7 @@ This is housekeeping, not a release gate: `.gitignore:49` matches `public/_*.htm
 | Risk | Mitigation |
 |---|---|
 | The port redeclares `.tot-fly` / `.tot-sc` and reintroduces the shrink-to-fit bug | Stage 2 reuses them; grep `app.css` for each `.tot-*` class before adding it |
-| Deleting `.tot-modal*` breaks another screen | Grep `resources/` for `tot-modal` before removing; it should be TOT-only |
+| Deleting `.tot-modal*` breaks another screen | Verified TOT-only: `app.css:952-969` defines it and `tot.blade.php:515` is the sole reference. Safe to delete in Stage 2 |
 | The roster's immediate writes leave a half-assigned year after a failed request | Each slot rolls back independently and toasts; a partial roster is a valid state |
 | Un-watch and score drift out of agreement | Accepted and documented above; no enforcement |
 | Moving the `<style>` block changes another screen that relied on a leaked rule | The block is inside `@section('screen')` for TOT only, but verify the four `.tot-*` classes that also exist in `app.css` do not now double-apply |
