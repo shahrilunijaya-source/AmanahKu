@@ -697,7 +697,10 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
    split (their flex 2/1 + stack-below-900px behaviour matches the mock's
    1fr/288px split closely enough not to duplicate).
    ═══════════════════════════════════════════════════════════════════════ */
-.uj-dq-top { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:18px; }
+/* Stacked, not a two-column header row: the chips read as a summary OF the
+   sentence above them, so they belong under it rather than opposite it. */
+.uj-dq-top { display:flex; flex-direction:column; align-items:stretch; gap:14px; margin-bottom:18px; }
+.uj-dq-titlerow { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
 .uj-dq-top h1 { font-size:var(--t-xl); font-weight:600; color:var(--ink); letter-spacing:-.025em; margin:0 0 3px; text-wrap:balance; }
 .uj-dq-hint { font-size:var(--t-sm); color:var(--muted); margin:-6px 0 14px; }
 

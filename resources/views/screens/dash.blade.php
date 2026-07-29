@@ -79,16 +79,13 @@
     {{-- The dashboard owns its heading. The shared layout suppresses its page-title
          block for this screen (layouts/app.blade.php) so the sentence prints once. --}}
     <div class="uj-dq-top">
-        <div>
-            <h1>{{ $head['h1'] }}</h1>
-            <p style="font-size:var(--t-sm);color:var(--muted);margin:0;line-height:1.55;">{{ $head['sub'] }}</p>
-        </div>
-        <div class="uj-dq-chips">
-            @foreach ($chips as $chip)
-                <div class="uj-dq-chip"@if (! empty($chip['hot'])) data-hot @endif>
-                    <b>{{ $chip['n'] }}</b><span>{{ $chip['label'] }}</span>
-                </div>
-            @endforeach
+        {{-- Title left, scope switch right: the switch changes WHOSE dashboard this is,
+             so it belongs beside the sentence it rewrites, not among the count chips. --}}
+        <div class="uj-dq-titlerow">
+            <div>
+                <h1>{{ $head['h1'] }}</h1>
+                <p style="font-size:var(--t-sm);color:var(--muted);margin:0;line-height:1.55;">{{ $head['sub'] }}</p>
+            </div>
             @if (count($scopes) > 1)
                 <div class="uj-dq-scopes" role="group"
                      :aria-label="$store.ui.lang==='en' ? 'Dashboard scope' : 'Skop papan pemuka'">
@@ -100,6 +97,13 @@
                     @endforeach
                 </div>
             @endif
+        </div>
+        <div class="uj-dq-chips">
+            @foreach ($chips as $chip)
+                <div class="uj-dq-chip"@if (! empty($chip['hot'])) data-hot @endif>
+                    <b>{{ $chip['n'] }}</b><span>{{ $chip['label'] }}</span>
+                </div>
+            @endforeach
             @if (! empty($railCards))
                 <button type="button" class="uj-dq-cust" :data-on="edit" @click="toggleEdit()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4"/></svg>
