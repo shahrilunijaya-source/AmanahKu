@@ -52,8 +52,11 @@
         .lg-stage{ position:relative; z-index:1; width:100%; max-width:404px; display:flex; flex-direction:column; align-items:center; }
 
         @media (max-width:640px){
-          /* Drop the accents so the corners stay simple behind a near-full-width card. */
-          .lg-bg .b2, .lg-bg .b4{ display:none; }
+          /* The card is near-full-width on phones, so a centered-edge background only
+             peeks ~20px slivers past it — reads as an accident, not a decision. Drop
+             the corner stacks entirely; the card (red logo + button) carries the brand
+             on a calm cream canvas. The stacks are a desktop treatment. */
+          .lg-bg{ display:none; }
         }
         .lg-card{
           width:100%;
