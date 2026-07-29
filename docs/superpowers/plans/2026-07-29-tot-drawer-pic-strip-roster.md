@@ -16,6 +16,12 @@
 - **Never redeclare an existing CSS class.** `app.css` already owns `.tot-actions`, `.tot-act`, `.tot-fw`, `.tot-fly`, `.tot-fly-e`, `.tot-fly-rate`, `.tot-pill`, `.tot-sc`, and 64 `.wd-*` rules. Grep `resources/css/app.css` before adding any rule. Redeclaring `.tot-fly` reintroduces a fixed bug.
 - **Do not use `--muted-soft` for text.** It measures 2.92:1–3.55:1 on every surface. Use `--muted` (4.86:1 on `--canvas`), or `--body` on `--shelf`, where `--muted` drops to 4.33:1.
 - **Do not touch the masthead contrast.** `.tot-mast-k` and `.tot-yr` are known-failing and explicitly deferred (KIV). Leave them exactly as they are.
+- **Never add markup, output or a code path whose only purpose is to satisfy a test.**
+  If an assertion no longer matches reality, the assertion is what changes, with a stated
+  reason. This is not hypothetical: Task 5b shipped an HTML comment
+  `<!-- { open: …, editing: … } -->` that existed solely to keep a stale `assertSee`
+  green, and it survived review because the tests passed and the browser looked right.
+  A test satisfied by a comment tests nothing.
 - **Run Pint before every commit:** `vendor/bin/pint --dirty --format agent`
 - **Tests run on the host**, sqlite in-memory, no container: `php artisan test --compact --filter=<Name>`
 - **Bilingual copy.** Every user-facing string needs an `x-text="$store.ui.lang==='en' ? … : …"` pair, matching the existing screen.
@@ -975,6 +981,17 @@ what the heart undoes — there is never a question of which reaction it removes
 - Modify: `resources/js/tot-card.js`
 - Modify: `resources/views/partials/tot-actions.blade.php`
 - Test: `tests/Feature/TotLiveActionsTest.php`
+- Test: `tests/Feature/TotTest.php` — one existing test must be replaced, see Step 1a
+
+**An existing test states the old rule in its name and must be replaced.**
+`TotTest::test_one_person_may_hold_several_different_emoji` reacts with two emoji and
+asserts two rows survive. That is precisely the behaviour this task removes, by product
+decision rather than by accident, so the test cannot stay and cannot be loosened.
+
+Its replacement asserts strictly more: one row survives **and** it holds the newer emoji.
+It also keeps the plain-form-post path covered — `TotTest` posts with `post()` while the
+new tests in `TotLiveActionsTest` use `postJson()`, so the two files exercise different
+branches of the same action.
 
 **Interfaces:**
 - Consumes: `rate()` from Task 3, which already clears on a repeat score.
@@ -1043,11 +1060,35 @@ public function test_replacing_your_emoji_leaves_other_people_alone(): void
 }
 ```
 
+- [ ] **Step 1a: Replace the test that states the old rule**
+
+In `tests/Feature/TotTest.php`, replace
+`test_one_person_may_hold_several_different_emoji` entirely with:
+
+```php
+public function test_one_person_holds_at_most_one_emoji(): void
+{
+    $session = $this->makeSession();
+
+    $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+    $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+    $this->assertSame(1, TotReaction::where('session_id', $session->id)->count());
+    $this->assertSame(
+        '🔥',
+        TotReaction::where('session_id', $session->id)->value('emoji'),
+        'the newer emoji replaces the older one'
+    );
+}
+```
+
+Do not touch any other test in that file.
+
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `php artisan test --compact --filter=TotLiveActionsTest`
+Run: `php artisan test --compact --filter=Tot`
 
-Expected: the first test FAILS with two rows and `mine` holding both emoji.
+Expected: the first new test FAILS with two rows and `mine` holding both emoji.
 
 - [ ] **Step 3: Make `react()` replace**
 

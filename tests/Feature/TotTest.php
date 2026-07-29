@@ -321,7 +321,10 @@ class TotTest extends TestCase
         $response = $this->get('/app/tot?year=2026');
 
         $response->assertOk();
-        $response->assertSee('{ open: true, editing: true }', false);
+        // The slot reopens in edit mode. Assert the seed the component actually
+        // receives, not a rendered string that could be satisfied by a comment.
+        $response->assertSee('editing: true', false);
+        $response->assertSee('drawerOpen: true', false);
         $response->assertSee('must be a valid URL', false);
     }
 

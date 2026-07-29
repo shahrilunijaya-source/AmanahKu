@@ -156,7 +156,6 @@
                 $slotFailed = $session->exists && $errors->any() && old('totform') === (string) $session->id;
             @endphp
             @if ($session->exists)
-                <!-- { open: {{ $slotFailed ? 'true' : 'false' }}, editing: {{ $slotFailed ? 'true' : 'false' }} } -->
                 <div x-data="totCard({
                     id: {{ $session->id }},
                     reactions: @js($reactionCounts[$session->id] ?? (object) []),
