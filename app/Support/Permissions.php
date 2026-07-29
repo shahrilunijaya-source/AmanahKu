@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\Employee;
+
 /**
  * Role → permission map, layered on top of the existing 4-role enum. This is the
  * declarative ACL surface from the spec (§9). Today it is advisory/reference — the
@@ -113,6 +115,31 @@ class Permissions
     public static function isValidScope(string $scope): bool
     {
         return in_array($scope, self::SCOPES, true);
+    }
+
+    /**
+     * True when the signed-in user may see company-wide attendance / tasks / timesheets:
+     * management, HR, or an immediate superior (has at least one direct report). Used to
+     * gate both the dock "See all" links and the screens they open, and — via the
+     * WorkItemController card-view grant — the individual cards those screens link to.
+     *
+     * Moved here (unchanged) from AppController so both the screen gate and the card
+     * gate read from one definition rather than two copies drifting apart.
+     */
+    public static function canSeeAll(?Employee $employee, string $role): bool
+    {
+        // The 'manager' role is an immediate superior by definition; management and HR
+        // oversee everyone. An 'employee'-role user still qualifies if the org chart
+        // gives them at least one direct report (reports_to_id points at them).
+        // effectiveRole() collapses 'director' → 'management' so a board-tier director
+        // (a strict management super-set) reaches every oversight screen without a
+        // direct report of their own — same single hinge hasTenantRole() relies on.
+        if (in_array(self::effectiveRole($role), ['manager', 'management', 'hr'], true)) {
+            return true;
+        }
+
+        return $employee !== null
+            && Employee::active()->where('reports_to_id', $employee->id)->exists();
     }
 
     /** Distinct, sorted catalogue of every permission key across all roles. */

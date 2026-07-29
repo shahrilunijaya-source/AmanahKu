@@ -132,7 +132,7 @@
                     @foreach ($compliance['members'] as $m)
                         @continue($m['submitted'])
                         <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:{{ $m['submitted'] ? '#e9f5ef' : 'var(--red-tint)' }};">
-                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10.5px;font-weight:600;background:{{ $m['color'] ?? '#3a6ea5' }};">{{ $m['initials'] }}</span>
+                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $m['color'] ?? '#3a6ea5' }};">{{ $m['initials'] }}</span>
                             <div style="min-width:0;flex:1;">
                                 <div style="font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m['name'] }}</div>
                                 <div style="font-size:10.5px;font-weight:600;color:{{ $m['submitted'] ? 'var(--success)' : 'var(--error)' }};">
@@ -203,7 +203,7 @@
                 <div x-show="openC" x-cloak style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);display:flex;flex-direction:column;gap:12px;">
                     @forelse ($e->comments as $c)
                         <div style="display:flex;gap:10px;">
-                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:600;background:{{ $c->employee?->avatar_color ?? '#3a6ea5' }};">{{ $c->employee?->initials ?? '–' }}</span>
+                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $c->employee?->avatar_color ?? '#3a6ea5' }};">{{ $c->employee?->initials ?? '–' }}</span>
                             <div style="flex:1;min-width:0;">
                                 <div style="display:flex;align-items:center;gap:8px;">
                                     <span style="font-size:12px;font-weight:600;color:var(--ink);">{{ $c->employee?->name ?? 'Unknown' }}</span>

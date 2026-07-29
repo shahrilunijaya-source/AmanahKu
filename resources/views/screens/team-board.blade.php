@@ -1,11 +1,5 @@
 @extends('layouts.app')
 
-@php
-    $tag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
-    $pri = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
-    $priLabel = ['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
-@endphp
-
 @section('screen')
 {{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
      is reached by that one-way shortcut, so offer a one-tap way back to My tasks
@@ -19,105 +13,234 @@
     'key' => 'team-board',
     'en'  => [
         'title' => 'Team board — all tasks',
-        'body'  => 'A read-only, company-wide view of every staff member\'s work. Each person has a lane with the same four columns as their own board. Use it to see who is carrying what at a glance.',
+        'body'  => 'A read-only, company-wide view of every staff member\'s work: one row per person, showing what they are carrying. Click a person to see their tasks in a window, without leaving this screen.',
         'who'   => 'Management · HR · Immediate superiors',
         'steps' => [
-            'Search a name to jump to one person\'s lane.',
-            'Scan the four columns — To Do, In Progress, In Review, Done — for each person.',
-            'Open a staff member\'s profile to assign them a task, or the personal board to move your own cards.',
+            'Each row is one person, ranked by open items. Click a row (or press Enter) to open that person\'s tasks.',
+            'Search a name or a task title, or switch on Overdue / Blocked to see only people carrying that trouble.',
+            'Inside a person\'s window, filter by type, priority, project, label or status to narrow their own list.',
+            'Click a sortable column heading to sort by it; click again to reverse the order.',
+            'Press Escape, or the close button, to leave a person\'s window — the table underneath keeps your search, toggles and sort exactly as you left them.',
         ],
     ],
     'ms'  => [
         'title' => 'Papan pasukan — semua tugasan',
-        'body'  => 'Paparan baca-sahaja seluruh syarikat bagi kerja setiap staf. Setiap orang mempunyai lorong dengan empat lajur yang sama seperti papan mereka sendiri. Guna untuk lihat siapa memikul apa dengan pantas.',
+        'body'  => 'Paparan baca-sahaja seluruh syarikat bagi kerja setiap staf: satu baris bagi setiap orang, menunjukkan apa yang mereka pikul. Klik seseorang untuk lihat tugasan mereka dalam satu tetingkap, tanpa perlu tinggalkan skrin ini.',
         'who'   => 'Pengurusan · HR · Penyelia terdekat',
         'steps' => [
-            'Cari nama untuk terus ke lorong seseorang.',
-            'Imbas empat lajur — To Do, In Progress, In Review, Done — bagi setiap orang.',
-            'Buka profil staf untuk menugaskan tugasan, atau papan peribadi untuk gerak kad anda sendiri.',
+            'Setiap baris mewakili seorang staf, disusun mengikut item terbuka. Klik baris itu (atau tekan Enter) untuk buka tugasan orang berkenaan.',
+            'Cari mengikut nama atau tajuk tugasan, atau hidupkan suis Lewat / Tersekat untuk lihat sesiapa sahaja yang menghadapi masalah itu.',
+            'Di dalam tetingkap seseorang, tapis mengikut jenis, keutamaan, projek, label atau status untuk sempitkan senarai mereka sendiri.',
+            'Klik kepala lajur yang boleh disusun untuk susun mengikutnya; klik lagi untuk terbalikkan susunan.',
+            'Tekan Escape, atau butang tutup, untuk keluar dari tetingkap seseorang — jadual di bawah kekal dengan carian, suis dan susunan seperti sebelumnya.',
         ],
     ],
 ])
 
-<div x-data="{ q: '' }">
-    {{-- Summary + name filter --}}
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $teamPeople }}</span>
-            <span style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'people' : 'orang'">people</span>
-            <span style="color:var(--hairline);">·</span>
-            <span style="font-size:13px;font-weight:600;color:{{ $teamOpenTotal > 0 ? 'var(--amber)' : 'var(--ink)' }};">{{ $teamOpenTotal }}</span>
-            <span style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'open items' : 'item terbuka'">open items</span>
-        </div>
-        <div style="flex:1;"></div>
-        <input x-model="q" type="search"
-               :placeholder="$store.ui.lang==='en' ? 'Search a name…' : 'Cari nama…'"
-               style="width:240px;max-width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13px;background:#fff;color:var(--ink);outline:none;" />
+@php
+    // One table, one line per person — ranked by open count descending. See
+    // the design doc's "Person table". teamPeople itself stays ordered by
+    // name (that contract belongs to BuildsWorkData::teamBoardData()); this
+    // re-sort is presentation-only, scoped to this view.
+    $tbPeopleByOpen = $teamPeople->sortByDesc('open')->values();
+    // A zero renders as an en dash rather than "0" so a non-zero count is
+    // what draws the eye down the column.
+    $tbZero = fn (int $n) => $n > 0 ? (string) $n : '—';
+
+    // The search box matches a person's name AND any of their own task
+    // titles ("payroll" surfaces the people who have payroll work), so each
+    // row carries a combined, lowercased haystack built once here.
+    $tbRowsByOwner = $teamRows->groupBy('owner_id');
+    $tbSearchText = fn (array $p) => mb_strtolower(
+        trim($p['name'].' '.$tbRowsByOwner->get($p['id'], collect())->pluck('item.title')->implode(' '))
+    );
+
+    // Distinct projects actually referenced among today's rows, for the
+    // floating window's task-level project filter — narrower than, and
+    // always in sync with, loading every active tenant project.
+    $tbProjects = $teamRows->pluck('item.projectRef')->filter()->unique('id')->sortBy('name')->values();
+    $tbLabelDef = \App\Models\WorkItem::LABELS;
+@endphp
+
+<div x-data="teamBoard(@js($tbPeopleByOpen))">
+    {{-- ═══════ Filter bar — always-visible, person-level controls ═══════ --}}
+    <div class="tb-filters">
+        <input x-model="search" @input="applyFilter()" type="search"
+               class="tb-search"
+               :placeholder="$store.ui.lang==='en' ? 'Search a name or task…' : 'Cari nama atau tugasan…'" />
+
+        <button type="button" class="tb-chip" @click="toggleOverdue()" :data-on="overdueOnly ? '' : null">
+            <span x-text="$store.ui.lang==='en' ? 'Overdue' : 'Lewat'">Overdue</span>
+        </button>
+        <button type="button" class="tb-chip" @click="toggleBlocked()" :data-on="blockedOnly ? '' : null">
+            <span x-text="$store.ui.lang==='en' ? 'Blocked' : 'Tersekat'">Blocked</span>
+        </button>
+
+        <span style="flex:1;"></span>
+
+        <button type="button" class="tb-clear" @click="clearAll()" x-show="search || overdueOnly || blockedOnly" x-cloak
+                x-text="$store.ui.lang==='en' ? 'Clear' : 'Kosongkan'">Clear</button>
     </div>
 
-    @forelse ($teamLanes as $lane)
-        @php $e = $lane['emp']; @endphp
-        <div x-show="q === '' || @js(mb_strtolower($e->name)).includes(q.toLowerCase())"
-             style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:16px 16px 6px;margin-bottom:16px;box-shadow:0 2px 10px rgba(20,20,40,.04);">
+    {{-- ═══════ The one table: one line per person, sortable, click to open ═══════ --}}
+    <div class="tb-strip">
+        <div class="tb-strip-head tb-strip-cols">
+            <span>
+                <button type="button" class="tb-sortbtn" @click="sortPeople('person')">
+                    <span x-text="$store.ui.lang==='en' ? 'Person' : 'Orang'">Person</span>
+                    <span class="tb-sort-arrow" x-show="peopleSort.key==='person'" x-cloak x-text="peopleSort.dir==='asc' ? '▲' : '▼'"></span>
+                </button>
+            </span>
+            <span>
+                <button type="button" class="tb-sortbtn" @click="sortPeople('open')">
+                    <span x-text="$store.ui.lang==='en' ? 'Open' : 'Terbuka'">Open</span>
+                    <span class="tb-sort-arrow" x-show="peopleSort.key==='open'" x-cloak x-text="peopleSort.dir==='asc' ? '▲' : '▼'"></span>
+                </button>
+            </span>
+            <span>
+                <button type="button" class="tb-sortbtn" @click="sortPeople('overdue')">
+                    <span x-text="$store.ui.lang==='en' ? 'Overdue' : 'Lewat'">Overdue</span>
+                    <span class="tb-sort-arrow" x-show="peopleSort.key==='overdue'" x-cloak x-text="peopleSort.dir==='asc' ? '▲' : '▼'"></span>
+                </button>
+            </span>
+            <span>
+                <button type="button" class="tb-sortbtn" @click="sortPeople('blocked')">
+                    <span x-text="$store.ui.lang==='en' ? 'Blocked' : 'Tersekat'">Blocked</span>
+                    <span class="tb-sort-arrow" x-show="peopleSort.key==='blocked'" x-cloak x-text="peopleSort.dir==='asc' ? '▲' : '▼'"></span>
+                </button>
+            </span>
+            <span>
+                <button type="button" class="tb-sortbtn" @click="sortPeople('review')">
+                    <span x-text="$store.ui.lang==='en' ? 'In review' : 'Disemak'">In review</span>
+                    <span class="tb-sort-arrow" x-show="peopleSort.key==='review'" x-cloak x-text="peopleSort.dir==='asc' ? '▲' : '▼'"></span>
+                </button>
+            </span>
+        </div>
 
-            {{-- Lane header: who + how much open --}}
-            <div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;">
-                <span style="flex-shrink:0;width:38px;height:38px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:{{ $e->avatar_color ?? 'var(--muted)' }};">{{ $e->initials }}</span>
-                <div style="min-width:0;">
-                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}"
-                       style="font-size:14px;font-weight:600;color:var(--ink);text-decoration:none;">{{ $e->name }}</a>
-                    <div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ trim(($e->positionBand?->title ?? '').' · '.($e->department?->name ?? ''), ' ·') }}</div>
+        <div x-ref="peopleBody">
+            @foreach ($tbPeopleByOpen as $p)
+                <div class="tb-strip-row tb-strip-cols"
+                     tabindex="0" role="button"
+                     data-person-id="{{ $p['id'] }}"
+                     data-person-name="{{ mb_strtolower($p['name']) }}"
+                     data-search="{{ $tbSearchText($p) }}"
+                     data-open="{{ $p['open'] }}"
+                     data-overdue="{{ $p['overdue'] }}"
+                     data-blocked="{{ $p['blocked'] }}"
+                     data-review="{{ $p['in_review'] }}"
+                     :data-active="win.show && win.person && win.person.id === {{ $p['id'] }} ? '' : null">
+                    <span class="tb-strip-who">
+                        <span class="tb-av" style="background:{{ $p['avatar_color'] ?? 'var(--muted)' }};">{{ $p['initials'] }}</span>
+                        <span style="min-width:0;">
+                            <span class="tb-strip-name">{{ $p['name'] }}</span>
+                            <span class="tb-strip-sub">{{ trim(($p['position'] ?? '').' · '.($p['department'] ?? ''), ' ·') ?: '—' }}</span>
+                        </span>
+                    </span>
+                    <span class="tb-num {{ $p['open'] === 0 ? 'tb-num--zero' : '' }}">{{ $tbZero($p['open']) }}</span>
+                    <span class="tb-num {{ $p['overdue'] > 0 ? 'tb-num--overdue' : 'tb-num--zero' }}">{{ $tbZero($p['overdue']) }}</span>
+                    <span class="tb-num {{ $p['blocked'] === 0 ? 'tb-num--zero' : '' }}">{{ $tbZero($p['blocked']) }}</span>
+                    <span class="tb-num {{ $p['in_review'] === 0 ? 'tb-num--zero' : '' }}">{{ $tbZero($p['in_review']) }}</span>
                 </div>
-                <div style="flex:1;"></div>
-                <span style="font-size:11px;font-weight:600;color:{{ $lane['open'] > 0 ? 'var(--amber)' : 'var(--muted)' }};background:{{ $lane['open'] > 0 ? '#fbf3e6' : 'var(--hairline-soft)' }};padding:3px 10px;border-radius:9999px;">
-                    {{ $lane['open'] }} <span x-text="$store.ui.lang==='en' ? 'open' : 'terbuka'">open</span>
-                </span>
+            @endforeach
+        </div>
+
+        @if ($tbPeopleByOpen->isEmpty())
+            <div class="tb-empty">
+                <div class="tb-empty-title" x-text="$store.ui.lang==='en' ? 'No tasks yet' : 'Belum ada tugasan'">No tasks yet</div>
+                <div class="tb-empty-body" x-text="$store.ui.lang==='en' ? 'Nobody has any work items on their board.' : 'Tiada sesiapa mempunyai item kerja pada papan mereka.'">Nobody has any work items on their board.</div>
+            </div>
+        @endif
+
+        {{-- Filtered-to-zero state. Only reachable when people exist server-side
+             but the active search/toggles match none of them. --}}
+        @if ($tbPeopleByOpen->isNotEmpty())
+            <div class="tb-empty" x-show="visibleCount === 0" x-cloak>
+                <div class="tb-empty-title" x-text="$store.ui.lang==='en' ? 'No matches' : 'Tiada padanan'">No matches</div>
+                <div class="tb-empty-body" x-text="$store.ui.lang==='en' ? 'Try widening the search or turning off a toggle.' : 'Cuba luaskan carian atau matikan suis.'">Try widening the search or turning off a toggle.</div>
+            </div>
+        @endif
+    </div>
+
+    {{-- ═══════ Floating window: one person's tasks ═══════
+         Reuses the personal board's .wd-* slide-over shell wholesale (see
+         resources/css/app.css and board.blade.php's drawer) so it looks and
+         moves identically — 560px, 280ms cubic-bezier(.32,.72,0,1), the same
+         prefers-reduced-motion cross-fade. Every task line below is already
+         rendered server-side from $teamRows; opening a person only toggles
+         which lines are visible (resources/js/team-board.js's
+         openWindow()/applyWinFilter()) — no fetch, nothing here writes. --}}
+    <template x-teleport="body">
+    <div>
+        <div class="wd-scrim" x-show="win.show" x-cloak :data-open="win.open ? '' : null" @click="closeWindow()"></div>
+
+        <aside class="wd" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
+               tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tb-win-name"
+               @keydown.escape.window="win.show && closeWindow()" @keydown.tab="trapFocusWindow($event)">
+
+            <div class="wd-head" style="gap:12px;">
+                <span class="tb-av" :style="'background:' + (win.person ? (win.person.avatar_color || 'var(--muted)') : 'var(--muted)')"
+                      x-text="win.person ? win.person.initials : ''"></span>
+                <div style="min-width:0;flex:1;">
+                    <h2 id="tb-win-name" class="wd-title" style="margin:0;font-size:16px;" x-text="win.person ? win.person.name : ''"></h2>
+                    <p class="wd-sub" style="margin:2px 0 0;" x-text="winPersonSub"></p>
+                </div>
+                <button type="button" class="wd-ico" @click="closeWindow()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
             </div>
 
-            {{-- Four read-only columns --}}
-            <div style="display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding-bottom:10px;">
-                @foreach ($lane['cols'] as $key => $col)
-                    <div style="flex:1;min-width:220px;">
-                        <div style="display:flex;align-items:center;gap:7px;padding:0 4px 10px;">
-                            <span style="font-size:12px;font-weight:600;color:var(--muted);">{{ $col['title'] }}</span>
-                            <span style="font-size:10.5px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 7px;border-radius:9999px;">{{ $col['cards']->count() }}</span>
-                        </div>
+            <div class="wd-body">
+                <p class="tb-win-summary" x-text="winSummary"></p>
 
-                        <div style="display:flex;flex-direction:column;gap:9px;min-height:20px;">
-                            @forelse ($col['cards'] as $c)
-                                @php [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)']; @endphp
-                                <div class="wi-sm" @if ($key === 'done') style="opacity:.72;" @endif>
-                                    <div class="wi-head">
-                                        <span class="wi-tag" style="--wi-tag:{{ $tcolor }};">{{ $tlabel }}</span>
-                                        @if ($c->priority)<span class="wi-pri-txt" style="--wi-pri:{{ $pri[$c->priority] }};">{{ $priLabel[$c->priority] ?? ucfirst($c->priority) }}</span>@endif
-                                    </div>
-                                    @if ($c->assigned_by_id)
-                                        <div class="wi-assigned"><span x-text="$store.ui.lang==='en' ? 'Assigned by' : 'Ditugaskan oleh'">Assigned by</span> {{ $c->assignedBy?->name ?? '—' }}</div>
-                                    @endif
-                                    <div class="wi-title">{{ $c->title }}</div>
-                                    <div class="wi-foot">
-                                        <span>{{ $c->dueText() }}</span>
-                                        <span class="wi-meta">
-                                            @if (($c->comments_count ?? 0) > 0)
-                                                <span class="wi-comment-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>
-                                            @endif
-                                            <span class="wi-est">{{ $c->estimate_hours ? $c->estimate_hours.'h' : '' }}</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            @empty
-                                <div style="border:1px dashed var(--hairline);border-radius:9px;padding:12px;text-align:center;font-size:11px;color:var(--muted);">—</div>
-                            @endforelse
-                        </div>
+                {{-- Task-level filters — these narrow only the tasks shown below,
+                     for this one person. They never touch the person table's own
+                     search/toggles/sort behind this window. --}}
+                <div class="tb-win-filters">
+                    <select class="tb-select" x-model="win.typeFilter" @change="applyWinFilter()">
+                        <option value="" x-text="$store.ui.lang==='en' ? 'Any type' : 'Sebarang jenis'">Any type</option>
+                        <option value="task">Task</option>
+                        <option value="assignment">Assignment</option>
+                        <option value="adhoc">Adhoc</option>
+                    </select>
+                    <select class="tb-select" x-model="win.priorityFilter" @change="applyWinFilter()">
+                        <option value="" x-text="$store.ui.lang==='en' ? 'Any priority' : 'Sebarang keutamaan'">Any priority</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select class="tb-select" x-model="win.projectFilter" @change="applyWinFilter()">
+                        <option value="" x-text="$store.ui.lang==='en' ? 'Any project' : 'Sebarang projek'">Any project</option>
+                        @foreach ($tbProjects as $proj)
+                            <option value="{{ $proj->id }}">{{ $proj->name }}</option>
+                        @endforeach
+                    </select>
+                    @foreach ($tbLabelDef as $lk => [$lname, $lcolor])
+                        <button type="button" class="tb-chip" @click="setWinLabelFilter('{{ $lk }}')"
+                                :style="win.labelFilter === '{{ $lk }}' ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' } : {}">{{ $lname }}</button>
+                    @endforeach
+                    @foreach (['todo' => ['To Do', 'To Do'], 'prog' => ['In Progress', 'Sedang Jalan'], 'review' => ['In Review', 'Disemak'], 'done' => ['Done', 'Selesai']] as $sk => $sl)
+                        <button type="button" class="tb-chip" @click="toggleWinStatus('{{ $sk }}')" :data-on="win.statusFilter.includes('{{ $sk }}') ? '' : null">
+                            <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
+                        </button>
+                    @endforeach
+                </div>
+
+                <div x-ref="winTaskBody">
+                    @forelse ($teamRows as $row)
+                        @include('partials.team-board-row', ['row' => $row])
+                    @empty
+                    @endforelse
+                </div>
+
+                @if ($teamRows->isNotEmpty())
+                    <div class="tb-empty" x-show="winVisibleCount === 0" x-cloak>
+                        <div class="tb-empty-title" x-text="$store.ui.lang==='en' ? 'No matching tasks' : 'Tiada tugasan sepadan'">No matching tasks</div>
+                        <div class="tb-empty-body" x-text="$store.ui.lang==='en' ? 'Try widening the filters.' : 'Cuba luaskan penapis.'">Try widening the filters.</div>
                     </div>
-                @endforeach
+                @endif
             </div>
-        </div>
-    @empty
-        <div style="border:1px dashed var(--hairline);border-radius:12px;padding:40px;text-align:center;color:var(--muted);">
-            <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'No tasks yet' : 'Belum ada tugasan'">No tasks yet</div>
-            <div style="font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Nobody has any work items on their board.' : 'Tiada sesiapa mempunyai item kerja pada papan mereka.'">Nobody has any work items on their board.</div>
-        </div>
-    @endforelse
+        </aside>
+    </div>
+    </template>
 </div>
 @endsection

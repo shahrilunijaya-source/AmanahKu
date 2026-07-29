@@ -7,19 +7,13 @@ namespace App\Http\Controllers;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 /**
- * Read-only attendance analytics for management / HR: punctuality over time
- * (the trend) with click-through drill-down to a single staff member. All
- * aggregation is done in PHP over a tenant-scoped record set to stay
- * DB-agnostic (mirrors AppController::achievementsData).
- *
- * Off-site / early / short-hours signals are read from the record `flags`
- * array written by ClockService; punctuality is on_time vs late of clocked days.
+ * Read-only attendance analytics for management / HR: roster view of active staff.
  */
 class AttendanceReportController extends Controller
 {
@@ -33,9 +27,9 @@ class AttendanceReportController extends Controller
     public function screenData(Request $request): array
     {
         $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'month';
-        $days = self::PERIODS[$period];
+        $daysBack = self::PERIODS[$period];
         $end = now()->startOfDay();
-        $start = $end->copy()->subDays($days - 1);
+        $start = $end->copy()->subDays($daysBack - 1);
 
         $dept = $request->query('dept') ?: null;
         $empId = $request->filled('emp') ? (int) $request->query('emp') : null;
@@ -51,11 +45,17 @@ class AttendanceReportController extends Controller
             $empId = null;
         }
 
-        // Tenant scope is automatic (BelongsToTenant). Pull the window once, aggregate in PHP.
+        // Active employee set for the roster.
+        $employees = Employee::active()
+            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
+            ->when($dept, fn ($q) => $q->whereHas('department', fn ($d) => $d->where('name', $dept)))
+            ->where('status', '!=', 'resigned')
+            ->with(['department:id,name'])
+            ->get();
+
+        // Tenant scope is automatic (BelongsToTenant).
         $records = AttendanceRecord::query()
             ->with(['employee:id,name,initials,avatar_color,department_id,branch_id', 'employee.department:id,name', 'employee.branch:id,name'])
-            // Archived staff are excluded from the report so their clock-ins never feed
-            // byStaff / KPIs / coverage (which is measured against active headcount at :66).
             ->whereHas('employee', fn ($q) => $q->active())
             ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
             ->when($visibleIds !== null, fn ($q) => $q->whereIn('employee_id', $visibleIds))
@@ -65,12 +65,229 @@ class AttendanceReportController extends Controller
             ->filter(fn ($r) => $r->employee !== null) // orphan guard
             ->values();
 
-        // Active headcount drives the participation ("coverage") metric.
-        $headcount = Employee::active()
-            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
-            ->when($dept, fn ($q) => $q->whereHas('department', fn ($d) => $d->where('name', $dept)))
-            ->where('status', '!=', 'resigned')
-            ->count();
+        // Approved leave requests for the window.
+        $leaveRequests = LeaveRequest::query()
+            ->where('status', 'approved')
+            ->where('date_from', '<=', $end->toDateString())
+            ->where('date_to', '>=', $start->toDateString())
+            ->when($visibleIds !== null, fn ($q) => $q->whereIn('employee_id', $visibleIds))
+            ->get(['employee_id', 'date_from', 'date_to']);
+
+        // Build working-day list: Mon-Fri plus any date in window on which any visible employee has a record.
+        $recordDates = $records->pluck('date')
+            ->map(fn ($d) => is_string($d) ? $d : Carbon::parse($d)->toDateString())
+            ->unique()
+            ->toArray();
+
+        $days = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $dateStr = $cursor->toDateString();
+            if ($cursor->isWeekday() || in_array($dateStr, $recordDates, true)) {
+                $days[] = $dateStr;
+            }
+            $cursor->addDay();
+        }
+
+        // Determine strip unit and cell labels for day vs week mode
+        $stripUnit = $period === 'quarter' ? 'week' : 'day';
+        $weekBuckets = [];
+        if ($period === 'quarter') {
+            foreach ($days as $idx => $dateStr) {
+                $wStart = Carbon::parse($dateStr)->startOfWeek(Carbon::MONDAY)->toDateString();
+                $weekBuckets[$wStart][] = $idx;
+            }
+            $cells = array_keys($weekBuckets);
+        } else {
+            $cells = $days;
+        }
+
+        // Map records and leave requests for O(1) lookup
+        $recordsMap = [];
+        foreach ($records as $r) {
+            $recordsMap[$r->employee_id][$r->date->toDateString()] = $r;
+        }
+
+        $leaveMap = [];
+        foreach ($leaveRequests as $l) {
+            $dFrom = $l->date_from->toDateString();
+            $dTo = $l->date_to->toDateString();
+            $leaveMap[$l->employee_id][] = ['from' => $dFrom, 'to' => $dTo];
+        }
+
+        // Build roster rows
+        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets) {
+            $strip = '';
+            foreach ($days as $dateStr) {
+                $r = $recordsMap[$emp->id][$dateStr] ?? null;
+                if ($r !== null && $this->hasAnyFlag($r, ['out_of_radius_in', 'out_of_radius_out'])) {
+                    $strip .= 'x';
+                } elseif ($r !== null && $r->status === 'late') {
+                    $strip .= 'l';
+                } elseif ($r !== null && $r->clock_in !== null) {
+                    $strip .= 'o';
+                } else {
+                    $isCoveredByLeave = false;
+                    if (isset($leaveMap[$emp->id])) {
+                        foreach ($leaveMap[$emp->id] as $l) {
+                            if ($dateStr >= $l['from'] && $dateStr <= $l['to']) {
+                                $isCoveredByLeave = true;
+                                break;
+                            }
+                        }
+                    }
+                    $strip .= $isCoveredByLeave ? 'v' : '-';
+                }
+            }
+
+            $onTime = substr_count($strip, 'o');
+            $late = substr_count($strip, 'l');
+            $offsite = substr_count($strip, 'x');
+            $clocked = $onTime + $late + $offsite;
+            $leaveDays = substr_count($strip, 'v');
+
+            $denom = $clocked;
+            $pct = $denom > 0 ? (int) round(($onTime + $offsite) / $denom * 100) : null;
+
+            $lastSeen = null;
+            $gapDays = null;
+            $daysCount = count($days);
+            for ($i = $daysCount - 1; $i >= 0; $i--) {
+                $c = $strip[$i];
+                if ($c !== '-' && $c !== 'v') {
+                    $lastSeen = $days[$i];
+                    $gapDays = ($daysCount - 1) - $i;
+                    break;
+                }
+            }
+
+            $never = ($clocked === 0 && $leaveDays === 0);
+            $stopped = ($clocked > 0 && preg_match('/-{5,}$/', $strip) === 1);
+            $onLeave = ($leaveDays > 0);
+
+            // Fold daily strip into weekly cells for quarter period
+            if ($period === 'quarter') {
+                $displayStrip = '';
+                foreach ($weekBuckets as $dayIndices) {
+                    $wOnTime = 0;
+                    $wLate = 0;
+                    $wOffsite = 0;
+                    $wLeave = 0;
+                    foreach ($dayIndices as $idx) {
+                        $c = $strip[$idx];
+                        if ($c === 'o') {
+                            $wOnTime++;
+                        } elseif ($c === 'l') {
+                            $wLate++;
+                        } elseif ($c === 'x') {
+                            $wOffsite++;
+                        } elseif ($c === 'v') {
+                            $wLeave++;
+                        }
+                    }
+                    $wClocked = $wOnTime + $wLate + $wOffsite;
+                    if ($wClocked > 0) {
+                        $wPct = (int) round(($wOnTime + $wOffsite) / $wClocked * 100);
+                        $displayStrip .= $wPct >= 90 ? 'o' : ($wPct >= 75 ? 'l' : 'x');
+                    } elseif ($wLeave > 0) {
+                        $displayStrip .= 'v';
+                    } else {
+                        $displayStrip .= '-';
+                    }
+                }
+                $rowStrip = $displayStrip;
+            } else {
+                $rowStrip = $strip;
+            }
+
+            return [
+                'id' => $emp->id,
+                'name' => $emp->name,
+                'initials' => $emp->initials,
+                'color' => $emp->avatar_color,
+                'dept' => $emp->department?->name,
+                'strip' => $rowStrip,
+                'clocked' => $clocked,
+                'onTime' => $onTime,
+                'late' => $late,
+                'offsite' => $offsite,
+                'leaveDays' => $leaveDays,
+                'pct' => $pct,
+                'lastSeen' => $lastSeen,
+                'gapDays' => $gapDays,
+                'never' => $never,
+                'stopped' => $stopped,
+                'onLeave' => $onLeave,
+            ];
+        });
+
+        // Sort roster
+        $roster = $rosterUnsorted->sort(function (array $a, array $b): int {
+            // Approved leave is not a problem, so a person whose whole absence is
+            // explained by leave sorts below everyone, not above the worst
+            // attender. Someone who took two days' leave and worked the rest is an
+            // ordinary row and sorts on punctuality like anyone else.
+            $tier = fn (array $r): int => $r['never'] ? 0
+                : ($r['stopped'] ? 1 : (($r['onLeave'] && $r['clocked'] === 0) ? 3 : 2));
+
+            $tierA = $tier($a);
+            $tierB = $tier($b);
+
+            if ($tierA !== $tierB) {
+                return $tierA <=> $tierB;
+            }
+
+            $pctA = $a['pct'];
+            $pctB = $b['pct'];
+
+            if ($pctA !== $pctB) {
+                if ($pctA === null) {
+                    return 1;
+                }
+                if ($pctB === null) {
+                    return -1;
+                }
+
+                return $pctA <=> $pctB;
+            }
+
+            if ($a['late'] !== $b['late']) {
+                return $b['late'] <=> $a['late'];
+            }
+
+            return $a['id'] <=> $b['id'];
+        })->values();
+
+        // Totals
+        $headcount = $roster->count();
+        $reported = $roster->where('clocked', '>', 0)->count();
+        $onLeaveCount = $roster->where('onLeave', true)->count();
+        $neverCount = $roster->where('never', true)->count();
+        $stoppedCount = $roster->where('stopped', true)->count();
+
+        $bucketClocking = $roster->filter(fn ($r) => $r['clocked'] > 0 && ! $r['stopped'])->count();
+        $bucketStopped = $roster->filter(fn ($r) => $r['clocked'] > 0 && $r['stopped'])->count();
+        $bucketOnLeave = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] > 0)->count();
+        $bucketNever = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] === 0)->count();
+
+        $clockedDaysSum = (int) $roster->sum('clocked');
+        $lateDaysSum = (int) $roster->sum('late');
+        $totalsPct = $clockedDaysSum > 0 ? (int) round(($clockedDaysSum - $lateDaysSum) / $clockedDaysSum * 100) : 0;
+
+        $totals = [
+            'headcount' => $headcount,
+            'reported' => $reported,
+            'onLeave' => $onLeaveCount,
+            'never' => $neverCount,
+            'stopped' => $stoppedCount,
+            'bucketClocking' => $bucketClocking,
+            'bucketStopped' => $bucketStopped,
+            'bucketOnLeave' => $bucketOnLeave,
+            'bucketNever' => $bucketNever,
+            'clockedDays' => $clockedDaysSum,
+            'lateDays' => $lateDaysSum,
+            'pct' => $totalsPct,
+        ];
 
         $drill = $empId ? $records->firstWhere('employee_id', $empId)?->employee : null;
         if ($empId && ! $drill) {
@@ -87,164 +304,19 @@ class AttendanceReportController extends Controller
             'rangeLabel' => $start->format('j M').' – '.$end->format('j M Y'),
             'dept' => $dept,
             'departments' => Department::orderBy('name')->pluck('name'),
-            'kpis' => $this->kpis($records, $headcount),
-            'trend' => $this->trend($records, $start, $end, $period),
-            'byStaff' => $this->byStaff($records),
+            'days' => $days,
+            'stripUnit' => $stripUnit,
+            'cells' => $cells,
+            'roster' => $roster,
+            'totals' => $totals,
             'drill' => $drill,
             'drillRecords' => $drillRecords,
-            'drillTrend' => $empId ? $this->trend($drillRecords, $start, $end, $period) : [],
         ];
-    }
-
-    /** Period-wide headline numbers. */
-    private function kpis(Collection $records, int $headcount): array
-    {
-        $clocked = $records->whereNotNull('clock_in');
-        $onTime = $clocked->where('status', 'on_time')->count();
-        $late = $clocked->where('status', 'late')->count();
-        $judged = $onTime + $late;
-
-        $offsite = $records->filter(fn ($r) => $this->hasAnyFlag($r, ['out_of_radius_in', 'out_of_radius_out']))->count();
-        $early = $records->filter(fn ($r) => $this->hasFlag($r, 'early_out'))->count();
-        $short = $records->filter(fn ($r) => $this->hasFlag($r, 'short_hours'))->count();
-
-        $worked = $clocked->whereNotNull('worked_minutes')->where('worked_minutes', '>', 0);
-        $avgMin = $worked->isEmpty() ? 0 : (int) round($worked->avg('worked_minutes'));
-
-        $reported = $records->pluck('employee_id')->unique()->count();
-
-        return [
-            'punctuality' => $judged ? (int) round($onTime / $judged * 100) : 0,
-            'onTime' => $onTime,
-            'late' => $late,
-            'offsite' => $offsite,
-            'early' => $early,
-            'short' => $short,
-            'avgHours' => $this->hm($avgMin),
-            'clockedDays' => $clocked->count(),
-            'coverage' => $headcount ? (int) round($reported / $headcount * 100) : 0,
-            'reported' => $reported,
-            'headcount' => $headcount,
-        ];
-    }
-
-    /**
-     * Punctuality over time. Daily buckets for week/month; weekly buckets for
-     * the quarter so the bar count stays readable. Each bucket carries on-time /
-     * late counts and a punctuality %.
-     *
-     * @return list<array{label:string,sub:string,onTime:int,late:int,total:int,pct:int,weekend:bool}>
-     */
-    private function trend(Collection $records, Carbon $start, Carbon $end, string $period): array
-    {
-        $weekly = $period === 'quarter';
-        $byDate = $records->whereNotNull('clock_in')->groupBy(fn ($r) => Carbon::parse($r->date)->toDateString());
-
-        $buckets = [];
-        $cursor = $start->copy();
-        while ($cursor->lte($end)) {
-            if ($weekly) {
-                $bucketStart = $cursor->copy();
-                $bucketEnd = $cursor->copy()->addDays(6)->min($end);
-                $onTime = $late = 0;
-                $d = $bucketStart->copy();
-                while ($d->lte($bucketEnd)) {
-                    [$o, $l] = $this->dayCounts($byDate, $d);
-                    $onTime += $o;
-                    $late += $l;
-                    $d->addDay();
-                }
-                $buckets[] = $this->bucket($bucketStart->format('j M'), 'wk', $onTime, $late, false);
-                $cursor->addDays(7);
-            } else {
-                [$onTime, $late] = $this->dayCounts($byDate, $cursor);
-                $buckets[] = $this->bucket($cursor->format('j'), $cursor->isoFormat('dd'), $onTime, $late, $cursor->isWeekend());
-                $cursor->addDay();
-            }
-        }
-
-        return $buckets;
-    }
-
-    /** @return array{0:int,1:int} on-time, late counts for one day. */
-    private function dayCounts(Collection $byDate, Carbon $day): array
-    {
-        $rows = $byDate->get($day->toDateString());
-        if (! $rows) {
-            return [0, 0];
-        }
-
-        return [$rows->where('status', 'on_time')->count(), $rows->where('status', 'late')->count()];
-    }
-
-    private function bucket(string $label, string $sub, int $onTime, int $late, bool $weekend): array
-    {
-        $total = $onTime + $late;
-
-        return [
-            'label' => $label,
-            'sub' => $sub,
-            'onTime' => $onTime,
-            'late' => $late,
-            'total' => $total,
-            'pct' => $total ? (int) round($onTime / $total * 100) : 0,
-            'weekend' => $weekend,
-        ];
-    }
-
-    /**
-     * Per-employee roll-up, ordered worst-punctuality first so problem cases
-     * surface at the top.
-     *
-     * @return Collection<int,array<string,mixed>>
-     */
-    private function byStaff(Collection $records): Collection
-    {
-        return $records->groupBy('employee_id')->map(function (Collection $rows) {
-            $emp = $rows->first()->employee;
-            $clocked = $rows->whereNotNull('clock_in');
-            $onTime = $clocked->where('status', 'on_time')->count();
-            $late = $clocked->where('status', 'late')->count();
-            $judged = $onTime + $late;
-            $worked = $clocked->whereNotNull('worked_minutes')->where('worked_minutes', '>', 0);
-            $offsite = $rows->filter(fn ($r) => $this->hasAnyFlag($r, ['out_of_radius_in', 'out_of_radius_out']))->count();
-
-            return [
-                'id' => $emp->id,
-                'name' => $emp->name,
-                'initials' => $emp->initials,
-                'color' => $emp->avatar_color,
-                'dept' => $emp->department?->name,
-                'days' => $clocked->count(),
-                'onTime' => $onTime,
-                'late' => $late,
-                'offsite' => $offsite,
-                'avgHours' => $this->hm($worked->isEmpty() ? 0 : (int) round($worked->avg('worked_minutes'))),
-                'punctuality' => $judged ? (int) round($onTime / $judged * 100) : 0,
-            ];
-        })->sortBy([['punctuality', 'asc'], ['late', 'desc']])->values();
-    }
-
-    private function hasFlag(AttendanceRecord $r, string $flag): bool
-    {
-        return in_array($flag, $r->flags ?? [], true);
     }
 
     /** @param list<string> $flags */
     private function hasAnyFlag(AttendanceRecord $r, array $flags): bool
     {
         return count(array_intersect($flags, $r->flags ?? [])) > 0;
-    }
-
-    /** Minutes → "7h 45m" / "7h" / "—". */
-    private function hm(int $minutes): string
-    {
-        if ($minutes <= 0) {
-            return '—';
-        }
-        $h = intdiv($minutes, 60);
-        $m = $minutes % 60;
-
-        return $m ? "{$h}h {$m}m" : "{$h}h";
     }
 }

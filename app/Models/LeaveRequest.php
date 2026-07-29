@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $date_from
+ * @property Carbon $date_to
  */
 class LeaveRequest extends Model
 {

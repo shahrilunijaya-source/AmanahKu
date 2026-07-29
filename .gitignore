@@ -23,6 +23,10 @@ AGENTS.md
 /public/storage
 /storage/*.key
 /storage/pail
+# Where a mysqldump naturally lands before a migration. This repo is public and
+# a dump carries encrypted NRICs, so it must never be committed — keep backups
+# outside the repo (~/amanahku-backups/) and treat this as the safety net.
+/storage/backups
 /vendor
 _ide_helper.php
 Homestead.json
@@ -44,3 +48,6 @@ skills-lock.json
 
 # Exported Google Sheet TotHistorySeeder was transcribed from (real company data, never commit)
 /2025 2026 TOT Sabtu/
+
+# Design scratch mocks (served locally, never shipped)
+public/_*.html

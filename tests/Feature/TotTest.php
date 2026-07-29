@@ -147,6 +147,41 @@ class TotTest extends TestCase
         $response->assertViewHas('year', (int) now()->year);
     }
 
+    public function test_the_board_points_a_presenter_at_their_own_month(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'planned', 'presenter_employee_id' => $this->employee->id,
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertSee('tot-pic', false)
+            ->assertSee('You present in February');
+    }
+
+    public function test_the_board_shows_no_strip_to_somebody_who_presents_nothing(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'planned',
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertDontSee('tot-pic', false);
+    }
+
+    public function test_the_strip_names_the_topic_when_there_is_one(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 2,
+            'status' => 'confirmed', 'title' => 'Queue workers in production',
+            'presenter_employee_id' => $this->employee->id,
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertSee('Queue workers in production');
+    }
+
     // ── Roster permissions ────────────────────────────────────────
 
     public function test_an_employee_cannot_create_a_slot(): void
@@ -321,7 +356,10 @@ class TotTest extends TestCase
         $response = $this->get('/app/tot?year=2026');
 
         $response->assertOk();
-        $response->assertSee('{ open: true, editing: true }', false);
+        // The slot reopens in edit mode. Assert the seed the component actually
+        // receives, not a rendered string that could be satisfied by a comment.
+        $response->assertSee('editing: true', false);
+        $response->assertSee('drawerOpen: true', false);
         $response->assertSee('must be a valid URL', false);
     }
 
@@ -540,14 +578,19 @@ class TotTest extends TestCase
         ]);
     }
 
-    public function test_one_person_may_hold_several_different_emoji(): void
+    public function test_one_person_holds_at_most_one_emoji(): void
     {
         $session = $this->makeSession();
 
         $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
         $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
 
-        $this->assertSame(2, TotReaction::where('session_id', $session->id)->count());
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)->count());
+        $this->assertSame(
+            '🔥',
+            TotReaction::where('session_id', $session->id)->value('emoji'),
+            'the newer emoji replaces the older one'
+        );
     }
 
     public function test_an_emoji_outside_the_whitelist_is_rejected(): void
@@ -659,24 +702,29 @@ class TotTest extends TestCase
         $this->assertTrue($watchedAt->equalTo($row->watched_at));
     }
 
-    /**
-     * Reverse order of the test above: rate first, then press watched. Pins the same
-     * ??= rule from the other direction, since watched() has its own independent ??=
-     * on the same column and nothing stops the two call orders from drifting apart.
-     */
-    public function test_marking_watched_after_rating_does_not_move_watched_at_forward(): void
+    public function test_rating_marks_you_watched_and_the_eye_can_then_clear_it(): void
     {
         $session = $this->makeSession();
 
         $this->travelTo('2026-03-10 09:00:00');
         $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
-        $watchedAt = TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at;
 
+        $this->assertNotNull(
+            TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at,
+            'rating implies watching'
+        );
+
+        // The eye is a toggle, so pressing it on a session that rating already marked
+        // watched clears the mark. Nothing depends on preserving the original stamp:
+        // watched_at's value is never read, only its null-ness, for iWatched and the
+        // watched count.
         $this->travelTo('2026-03-11 09:00:00');
         $this->actingInTenant()->post("/app/tot/{$session->id}/watched");
 
         $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
-        $this->assertTrue($watchedAt->equalTo($row->watched_at));
+
+        $this->assertNull($row->watched_at);
+        $this->assertSame(4, $row->score, 'the score survives an un-watch');
     }
 
     /**
@@ -1025,5 +1073,33 @@ class TotTest extends TestCase
         $session->refresh();
         $this->assertNull($session->presenter_employee_id);
         $this->assertNull($session->presenter_name);
+    }
+
+    public function test_a_non_tot_month_and_a_skipped_month_are_told_apart_by_kind(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 4,
+            'title' => 'Jamuan raya', 'status' => 'not_tot',
+        ]);
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 9,
+            'status' => 'skipped',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertSee('data-kind="event"', false)
+            ->assertSee('data-kind="skipped"', false);
+    }
+
+    public function test_no_row_dims_itself_with_opacity(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 9,
+            'status' => 'skipped',
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertDontSee('style="opacity:', false);
     }
 }

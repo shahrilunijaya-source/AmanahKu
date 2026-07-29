@@ -12,6 +12,7 @@ class WorkItemComment extends Model
 
     protected $guarded = [];
 
+    /** @return BelongsTo<WorkItem, $this> */
     public function workItem(): BelongsTo
     {
         return $this->belongsTo(WorkItem::class);

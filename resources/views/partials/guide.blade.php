@@ -37,44 +37,71 @@
         copy: {{ \Illuminate\Support\Js::from(['en' => $en, 'ms' => $ms]) }},
         get c() { return this.copy[$store.ui.lang] ?? this.copy.en; }
      }"
-     style="margin-bottom:16px;">
+     x-init="$watch('open', value => {
+         if (value) {
+             $nextTick(() => $refs.closeBtn?.focus());
+         } else {
+             $nextTick(() => $refs.trigger?.focus());
+         }
+     })"
+     class="uj-guide-host">
 
     {{-- Collapsed strip — the only thing shown by default --}}
-    <button @click="open = true"
-            style="display:flex;align-items:center;gap:8px;background:none;font-size:12.5px;color:var(--muted);padding:2px 0;cursor:pointer;">
+    <button type="button"
+            x-ref="trigger"
+            @click="open = true"
+            class="uj-guide-trigger">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
         <span x-text="$store.ui.lang==='en' ? 'What is this screen for?' : 'Apa fungsi skrin ini?'"></span>
     </button>
 
     {{-- Guide modal — teleported to <body> so position:fixed anchors to the viewport --}}
     <template x-teleport="body">
-    <div x-show="open" x-cloak @click.self="open = false" @keydown.escape.window="open = false"
-         style="position:fixed;inset:0;z-index:120;display:flex;padding:40px 16px;background:rgba(18,18,30,.42);overflow-y:auto;">
-        <div class="uj-card" style="width:100%;max-width:600px;margin:auto;padding:0;overflow:hidden;border-top:3px solid var(--red);">
+    <div x-show="open"
+         x-cloak
+         @click.self="open = false"
+         @keydown.escape.window="open = false"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="uj-guide-title"
+         class="uj-guide-overlay"
+         x-transition:enter="uj-guide-fade-enter"
+         x-transition:enter-start="uj-guide-fade-start"
+         x-transition:enter-end="uj-guide-fade-end"
+         x-transition:leave="uj-guide-fade-leave"
+         x-transition:leave-start="uj-guide-fade-end"
+         x-transition:leave-end="uj-guide-fade-start">
+        <div class="uj-card uj-guide-card"
+             x-transition:enter="uj-guide-card-enter"
+             x-transition:enter-start="uj-guide-card-start"
+             x-transition:enter-end="uj-guide-card-end"
+             x-transition:leave="uj-guide-card-leave"
+             x-transition:leave-start="uj-guide-card-end"
+             x-transition:leave-end="uj-guide-card-start">
 
             {{-- header --}}
-            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--hairline);">
-                <div style="width:34px;height:34px;border-radius:9px;background:var(--red-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"></path></svg>
+            <div class="uj-guide-head">
+                <div class="uj-guide-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"></path></svg>
                 </div>
-                <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <h3 style="font-size:15px;font-weight:600;color:var(--ink);margin:0;" x-text="c.title"></h3>
+                <div class="uj-guide-title-wrap">
+                    <h3 id="uj-guide-title" class="uj-guide-title" x-text="c.title"></h3>
                     <template x-if="c.who">
-                        <span class="uj-pill" style="background:var(--canvas);color:var(--muted);font-size:11px;" x-text="c.who"></span>
+                        <span class="uj-pill uj-guide-who" x-text="c.who"></span>
                     </template>
                 </div>
-                <button type="button" @click="open = false" style="font-size:20px;line-height:1;color:var(--muted);background:transparent;cursor:pointer;flex-shrink:0;">&times;</button>
+                <button type="button" x-ref="closeBtn" @click="open = false" class="uj-guide-close">&times;</button>
             </div>
 
             {{-- body --}}
-            <div style="padding:18px 20px;">
-                <p style="font-size:13.5px;color:var(--body);margin:0;line-height:1.6;" x-text="c.body"></p>
+            <div class="uj-guide-body">
+                <p class="uj-guide-text" x-text="c.body"></p>
 
                 <template x-if="c.steps && c.steps.length">
-                    <ol style="margin:14px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;">
+                    <ol class="uj-guide-steps">
                         <template x-for="(step, i) in c.steps" :key="i">
-                            <li style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--body);line-height:1.5;">
-                                <span style="width:19px;height:19px;border-radius:50%;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;" x-text="i + 1"></span>
+                            <li class="uj-guide-step">
+                                <span class="uj-guide-num" x-text="i + 1"></span>
                                 <span x-text="step"></span>
                             </li>
                         </template>
@@ -83,12 +110,12 @@
             </div>
 
             {{-- footer: language toggle + close --}}
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-top:1px solid var(--hairline);">
+            <div class="uj-guide-foot">
                 <div class="uj-seg">
                     <button type="button" @click="$store.ui.setLang('en')" :data-on="$store.ui.lang==='en'">EN</button>
                     <button type="button" @click="$store.ui.setLang('ms')" :data-on="$store.ui.lang==='ms'">BM</button>
                 </div>
-                <button type="button" @click="open = false" class="uj-btn-primary" style="height:36px;padding:0 18px;font-size:13px;"
+                <button type="button" @click="open = false" class="uj-btn-primary uj-guide-confirm"
                         x-text="$store.ui.lang==='en' ? 'Got it' : 'Faham'"></button>
             </div>
         </div>

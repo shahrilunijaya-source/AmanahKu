@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotComment;
 use App\Models\TotParticipation;
+use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -226,5 +227,142 @@ class TotLiveActionsTest extends TestCase
 
         $this->assertSame(1, TotComment::where('session_id', $session->id)->count());
         $this->assertSame(3, TotParticipation::where('session_id', $session->id)->value('score'));
+    }
+
+    public function test_watching_twice_takes_it_back(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+
+        $response->assertOk()
+            ->assertJsonPath('watched', 0)
+            ->assertJsonPath('iWatched', false);
+
+        $this->assertNull(
+            TotParticipation::where('session_id', $session->id)->value('watched_at')
+        );
+    }
+
+    public function test_un_watching_leaves_your_score_alone(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4]);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+
+        $row = TotParticipation::where('session_id', $session->id)->first();
+
+        $this->assertNull($row->watched_at);
+        $this->assertSame(4, $row->score);
+    }
+
+    public function test_rating_the_same_score_again_clears_it_and_its_note(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Useful']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null]);
+
+        $response->assertOk()->assertJsonPath('myScore', null);
+
+        $row = TotParticipation::where('session_id', $session->id)->first();
+        $this->assertNull($row->score);
+        $this->assertNull($row->note, 'a note with no score is orphaned');
+        $this->assertNotNull($row->watched_at, 'you still watched it');
+    }
+
+    public function test_clearing_a_rating_you_never_gave_creates_no_row(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null])
+            ->assertOk()
+            ->assertJsonPath('myScore', null)
+            ->assertJsonPath('iWatched', false);
+
+        $this->assertSame(0, TotParticipation::where('session_id', $session->id)->count());
+    }
+
+    public function test_a_cleared_rating_drops_out_of_the_average_and_the_notes(): void
+    {
+        $session = $this->slot();
+        $session->update(['presenter_employee_id' => $this->employee->id]);
+
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        TotParticipation::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id, 'employee_id' => $other->id,
+            'score' => 2, 'note' => 'Theirs', 'watched_at' => now(),
+        ]);
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4, 'note' => 'Mine']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => null]);
+
+        $response->assertOk()
+            ->assertJsonPath('score.average', 2)
+            ->assertJsonPath('score.count', 1);
+    }
+
+    public function test_an_out_of_range_score_is_still_rejected(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 6])
+            ->assertStatus(422);
+    }
+
+    public function test_a_second_emoji_replaces_the_first(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->count(), 'one emoji per person');
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['🔥' => 1]),
+            json_encode($response->json('reactions')),
+            'the first emoji is gone from the counts, not just from mine'
+        );
+    }
+
+    public function test_pressing_the_same_emoji_still_removes_it(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+
+        $response->assertOk()->assertJsonPath('mine', []);
+        $this->assertSame(0, TotReaction::where('session_id', $session->id)->count());
+    }
+
+    public function test_replacing_your_emoji_leaves_other_people_alone(): void
+    {
+        $session = $this->slot();
+
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        TotReaction::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'emoji' => '👍',
+        ]);
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $other->id)->count(), 'their reaction survives');
+        $this->assertSame(1, $response->json('reactions.👍'), 'and still counts');
     }
 }

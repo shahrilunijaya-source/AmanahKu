@@ -22,6 +22,15 @@ return [
     // Default brand / accent colour for a tenant that has not set its own.
     'brand_color' => '#d6232b',
 
-    // Palette assigned when generating an avatar colour for a new account.
-    'avatar_palette' => ['#3a6ea5', '#1f8a65', '#d6232b', '#c08532', '#7a5bb0', '#2b8a8a'],
+    /*
+     * Palette assigned when generating an avatar colour for a new account.
+     *
+     * Every entry carries white initials, so every entry must clear WCAG AA for
+     * small text (4.5:1) against #fff. The green, amber and teal used to sit at
+     * 4.30, 3.16 and 4.11, so each was scaled toward black on the same RGB ratio
+     * (hue untouched) until it cleared, landing at ~4.74. Do not swap one of
+     * these back for a UI token such as `--success` (#1f8a65): those tokens are
+     * tuned for fills and icons, not for text on top of them.
+     */
+    'avatar_palette' => ['#3a6ea5', '#1d825f', '#d6232b', '#996a28', '#7a5bb0', '#287f7f'],
 ];

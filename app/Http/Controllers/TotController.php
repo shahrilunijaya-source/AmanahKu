@@ -61,9 +61,44 @@ class TotController extends Controller
             'reactionCounts' => $this->reactionCounts($ids),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
+            // The one slot this viewer presents in the displayed year, if any. A
+            // person presents once a year, so they do not need their own route —
+            // they need the board to point at their month.
+            'myMonth' => $employee
+                ? collect($sessions)->first(fn (TotSession $s) => $s->exists
+                    && $s->presenter_employee_id === $employee->id)
+                : null,
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
             'commentCounts' => $this->commentCounts($ids),
+        ];
+    }
+
+    /**
+     * The assignment picker. Twelve slots for any year, saved or not, because
+     * session_date is computed rather than stored — a year needs no rows to exist.
+     *
+     * @return array<string, mixed>
+     */
+    public function rosterData(Request $request, ?Employee $employee): array
+    {
+        abort_unless($this->canAssignPresenter($request), 403);
+
+        $year = (int) ($request->query('year') ?: now()->year);
+
+        $saved = TotSession::with('presenter')->where('year', $year)->get()->keyBy('month');
+
+        $slots = collect(range(1, 12))->map(fn (int $month) => $saved->get($month) ?? new TotSession([
+            'year' => $year,
+            'month' => $month,
+            'status' => 'planned',
+        ]))->all();
+
+        return [
+            'year' => $year,
+            'years' => $this->availableYears($year),
+            'slots' => $slots,
+            'assignableEmployees' => $this->assignableEmployees(),
         ];
     }
 
@@ -72,7 +107,7 @@ class TotController extends Controller
      * tot.assign holder opens the month with only year, month and presenter_employee_id,
      * and the slot lands planned.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         abort_unless($this->canAssignPresenter($request), 403);
 
@@ -126,7 +161,11 @@ class TotController extends Controller
 
         $this->announcePresenter($session, null);
 
-        return back()->with('ok', 'TOT slot saved.');
+        // The roster needs the new id: without it the client still thinks the month is
+        // unsaved and re-POSTs here on the next edit, which the duplicate guard rejects.
+        return $request->expectsJson()
+            ? response()->json(['id' => $session->id])
+            : back()->with('ok', 'TOT slot saved.');
     }
 
     /**
@@ -303,8 +342,8 @@ class TotController extends Controller
     }
 
     /**
-     * Toggle one whitelisted emoji for the acting employee. A repeat POST of the same emoji
-     * removes it; different emoji stack, one row each, guarded by the unique key.
+     * Record or replace the acting employee's reaction (one emoji per person per session).
+     * Pressing the same emoji removes it; a different emoji replaces the existing one.
      */
     public function react(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
@@ -317,30 +356,31 @@ class TotController extends Controller
             'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
         ]);
 
-        $existing = TotReaction::where('session_id', $session->id)
+        // One emoji per person per session. Whatever they had goes, and only a
+        // genuinely different emoji comes back — pressing the one you already
+        // left is the undo.
+        $had = TotReaction::where('session_id', $session->id)
             ->where('employee_id', $employee->id)
-            ->where('emoji', $data['emoji'])
-            ->first();
+            ->pluck('emoji');
 
-        if ($existing) {
-            $existing->delete();
+        TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $employee->id)
+            ->delete();
 
-            return $request->expectsJson()
-                ? response()->json($this->sessionState($request, $session))
-                : back();
-        }
-
-        try {
-            TotReaction::create([
-                'session_id' => $session->id,
-                'employee_id' => $employee->id,
-                'emoji' => $data['emoji'],
-            ]);
-        } catch (QueryException $e) {
-            // 23xxx = the unique (session_id, employee_id, emoji) duplicate-reaction guard.
-            // Anything else is a real DB failure, so do not mask it behind a friendly message.
-            if (! str_starts_with((string) $e->getCode(), '23')) {
-                throw $e;
+        if (! $had->contains($data['emoji'])) {
+            try {
+                TotReaction::create([
+                    'session_id' => $session->id,
+                    'employee_id' => $employee->id,
+                    'emoji' => $data['emoji'],
+                ]);
+            } catch (QueryException $e) {
+                // 23xxx = the unique (session_id, employee_id, emoji) guard raced by a
+                // concurrent insert of the same emoji. The end state is what this
+                // request wanted, so there is nothing to do.
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
             }
         }
 
@@ -362,7 +402,11 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        $row->watched_at ??= now();
+        // A toggle, not a latch. Pressing a lit eye takes the mark back.
+        // Any score on this row survives: they are separate facts, and silently
+        // dropping somebody's rating because they un-marked watched would be a
+        // worse surprise than the mild inconsistency of keeping it.
+        $row->watched_at = $row->watched_at ? null : now();
 
         try {
             $row->save();
@@ -396,7 +440,10 @@ class TotController extends Controller
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
         $data = $request->validate([
-            'score' => ['required', 'integer', 'min:1', 'max:5'],
+            // present + nullable, not nullable alone: clearing a rating must be an
+            // explicit "score": null, so a request that merely forgets the key cannot
+            // silently wipe somebody's score.
+            'score' => ['present', 'nullable', 'integer', 'min:1', 'max:5'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -405,14 +452,29 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        // The box is prefilled from the rater's own note, so a blank box now means clear it,
-        // while a score-only submit from the flyout carries no note key at all and leaves
-        // the note alone.
-        $row->score = $data['score'];
-        if ($request->has('note')) {
-            $row->note = $request->input('note') === '' ? null : $data['note'];
+        if ($data['score'] === null) {
+            // Nothing to clear, and creating the row here would mark the caller
+            // watched as a side effect of a no-op.
+            if (! $row->exists) {
+                return $request->expectsJson()
+                    ? response()->json($this->sessionState($request, $session))
+                    : back();
+            }
+
+            // The note goes with the score. A note with no score is orphaned, and
+            // the presenter would read it with nothing to read it against.
+            $row->score = null;
+            $row->note = null;
+        } else {
+            $row->score = $data['score'];
+            // The box is prefilled from the rater's own note, so a blank box now means
+            // clear it, while a score-only submit from the flyout carries no note key
+            // at all and leaves the note alone.
+            if ($request->has('note')) {
+                $row->note = $request->input('note') === '' ? null : $data['note'];
+            }
+            $row->watched_at ??= now();
         }
-        $row->watched_at ??= now();
 
         try {
             $row->save();

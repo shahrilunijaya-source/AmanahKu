@@ -2,7 +2,7 @@ export function registerTotCard(Alpine) {
     Alpine.data('totCard', (seed) => ({
         ...seed,
         flyout: null,
-        modalOpen: false,
+        drawerOpen: false,
         thread: null,
         notes: [],
         busy: false,
@@ -44,20 +44,56 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/react`, { emoji });
         },
 
+        // The outer icon is the toggle; the flyout is only for choosing. With a
+        // reaction already left, pressing the heart takes it back — one emoji per
+        // person, so there is never a question of which one.
+        heartPress() {
+            if (this.mine.length) {
+                this.flyout = null;
+
+                return this.react(this.mine[0]);
+            }
+
+            this.flyout = this.flyout === 'react' ? null : 'react';
+        },
+
+        starPress() {
+            if (this.myScore) {
+                this.flyout = null;
+
+                return this.rate(this.myScore);   // same score in, cleared out
+            }
+
+            this.flyout = this.flyout === 'rate' ? null : 'rate';
+        },
+
         toggleWatched() {
             return this.act(`/app/tot/${this.id}/watched`);
         },
 
+        // Pressing the score you already gave takes it back, matching the emoji
+        // and the eye. The server clears the note along with the score.
         rate(score) {
-            return this.act(`/app/tot/${this.id}/rate`, { score });
+            return this.act(`/app/tot/${this.id}/rate`, {
+                score: this.myScore === score ? null : score,
+            });
         },
 
+        // With no score there is nothing for a note to annotate, and posting one
+        // would send score:null and clear the row instead of saving the text.
         saveNote(note) {
+            if (this.myScore === null || this.myScore === undefined) return;
+
             return this.act(`/app/tot/${this.id}/rate`, { score: this.myScore, note });
         },
 
+        openDrawer() {
+            this.drawerOpen = true;
+
+            return this.openThread();
+        },
+
         async openThread() {
-            this.modalOpen = true;
             if (this.thread !== null) return;
             try {
                 const res = await fetch(`/app/tot/${this.id}/comments`, {

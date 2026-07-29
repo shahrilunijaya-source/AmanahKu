@@ -19,7 +19,12 @@ use Illuminate\Support\Collection;
  * Without this, static analysis takes the raw column type and reports
  * ->format() as a call on a string.
  *
+ * `position`, `workload` and `workload_label` are accessors, not columns.
+ *
  * @property Carbon|null $date_of_birth
+ * @property-read string|null $position
+ * @property-read string $workload
+ * @property-read string $workload_label
  */
 class Employee extends Model
 {
@@ -177,6 +182,7 @@ class Employee extends Model
         return $this->date_of_birth->diffInYears($asOf) >= 60 ? 2 : 1;
     }
 
+    /** @return BelongsTo<Department, $this> */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
@@ -273,6 +279,7 @@ class Employee extends Model
      * Named positionBand(), not position(), so it never shadows the free-text
      * `position` job-title attribute on magic property access.
      */
+    /** @return BelongsTo<Position, $this> */
     public function positionBand(): BelongsTo
     {
         // Explicit FK: the relation is named positionBand (to avoid shadowing the
@@ -281,6 +288,7 @@ class Employee extends Model
         return $this->belongsTo(Position::class, 'position_id');
     }
 
+    /** @return HasMany<WorkItem, $this> */
     public function workItems(): HasMany
     {
         return $this->hasMany(WorkItem::class);

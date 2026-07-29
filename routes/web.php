@@ -423,6 +423,8 @@ Route::middleware('auth')->group(function () {
         // Must sit above the /app/{screen?} catch-all or they resolve as screen names.
         Route::get('/app/messages/unread', [MessageController::class, 'unread'])->middleware('throttle:120,1')->name('messages.unread');
         Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->name('messages.thread');
+        // The screen's thread column as an HTML fragment — swapped in place of a reload.
+        Route::get('/app/messages/pane', [MessageController::class, 'pane'])->name('messages.pane');
         Route::get('/app/messages/attachments/{attachment}', [MessageController::class, 'attachment'])->name('messages.attachment');
         Route::get('/app/employees/import-template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
         Route::get('/app/position/import-template', [PositionController::class, 'importTemplate'])->name('position.import.template');

@@ -43,10 +43,53 @@ trait BuildsWorkData
                 ->get()
             : collect();
 
+        $startOfWeek = now()->startOfWeek();
+        $endOfWeek = now()->endOfWeek();
+        $startOfMonth = now()->startOfMonth();
+        $endOfMonth = now()->endOfMonth();
+
+        $weekRecords = $records->filter(
+            fn ($r) => $r->date->gte($startOfWeek) && $r->date->lte($endOfWeek)
+        )->values();
+
+        $earlierRecords = $records->filter(
+            fn ($r) => $r->date->lt($startOfWeek)
+        )->values();
+
+        $weekWorkedMinutes = (int) $weekRecords->sum('worked_minutes');
+
+        /**
+         * weekBaselineDeltaMinutes uses expected_min_hours of completed days (clock_out !== null),
+         * which is the same expectation the record's flags were raised from, so the delta cannot
+         * drift from the flags, and no schedule needs re-resolving.
+         */
+        $weekExpectedMinutes = (int) $weekRecords
+            ->filter(fn ($r) => $r->clock_out !== null && $r->expected_min_hours !== null)
+            ->sum(fn ($r) => (int) round((float) $r->expected_min_hours * 60));
+
+        $weekBaselineDeltaMinutes = $weekWorkedMinutes - $weekExpectedMinutes;
+
+        $lateThisMonth = (int) $records->filter(
+            fn ($r) => $r->date->gte($startOfMonth) && $r->date->lte($endOfMonth) && $r->status === 'late'
+        )->count();
+
+        $offSiteThisMonth = (int) $records->filter(
+            fn ($r) => $r->date->gte($startOfMonth)
+                && $r->date->lte($endOfMonth)
+                && is_array($r->flags)
+                && (in_array('out_of_radius_in', $r->flags, true) || in_array('out_of_radius_out', $r->flags, true))
+        )->count();
+
         return [
             'records' => $records,
             'today' => $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
+            'weekRecords' => $weekRecords,
+            'earlierRecords' => $earlierRecords,
+            'weekWorkedMinutes' => $weekWorkedMinutes,
+            'weekBaselineDeltaMinutes' => $weekBaselineDeltaMinutes,
+            'lateThisMonth' => $lateThisMonth,
+            'offSiteThisMonth' => $offSiteThisMonth,
         ];
     }
 
@@ -67,6 +110,15 @@ trait BuildsWorkData
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
             'canAssignPeople' => $canAssignPeople,
+            // A mention notification lands here as /app/board?card={id}. No access
+            // check happens server-side — the value is only relayed to the client,
+            // which opens it through the same authorized GET /app/board/{workItem}
+            // the drawer already uses. That endpoint's authorizeAccess() is what
+            // actually decides visibility, so an inaccessible or nonexistent id
+            // just renders the board normally instead of 403ing the whole screen.
+            'deepLinkCardId' => $request->filled('card') && ctype_digit((string) $request->query('card'))
+                ? (int) $request->query('card')
+                : null,
             // Active projects for the card editor's optional project picker. Tenant
             // scope is applied automatically by BelongsToTenant in a request context.
             'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
@@ -112,56 +164,70 @@ trait BuildsWorkData
 
     /**
      * Read-only company-wide task board for management / HR / immediate superiors:
-     * every active employee's work items grouped into one lane per person, with the
-     * same four columns as the personal board. People with no work items are omitted
-     * so the view stays scannable. No mutation — the dock's personal T.A.A. board is
-     * where owners actually move cards.
+     * flat rows (one per work item with owner info) and per-person aggregates.
+     * People with no work items are omitted so the view stays scannable.
      */
     private function teamBoardData(Request $request): array
     {
-        $statuses = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
-
         // Data scope: a branch/department-restricted manager only sees their slice of the
         // company board, not every employee's work items (AK-AUTHZ-01).
         $scope = $request->attributes->get('tenantScope', 'company');
         $self = $request->attributes->get('employee');
 
-        $lanes = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self)
+        $employees = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self)
             ->with([
                 'positionBand', 'department',
                 // Same 30-day done-card window as the personal board — the team view
                 // loads EVERY employee's items in one request, so the bound matters more.
                 'workItems' => fn ($q) => $q
                     ->where(fn ($w) => $w->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
-                    ->with('assignedBy')->withCount('comments')->orderBy('sort_order')->orderBy('id'),
+                    // participants + projectRef are also loaded here (not just assignedBy) so
+                    // partials.work-card, shared with the personal board, never lazy-loads a
+                    // relation while painting every employee's lane in one request.
+                    ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')->orderBy('sort_order')->orderBy('id'),
             ])
             ->orderBy('name')
             ->get()
-            ->map(function ($e) use ($statuses) {
-                $cols = [];
-                foreach ($statuses as $key => $title) {
-                    $cols[$key] = ['title' => $title, 'cards' => collect()];
-                }
-                foreach ($e->workItems as $i) {
-                    if (isset($cols[$i->status])) {
-                        $cols[$i->status]['cards']->push($i);
-                    }
-                }
+            ->filter(fn ($e) => $e->workItems->isNotEmpty());
 
-                return [
-                    'emp' => $e,
-                    'cols' => $cols,
-                    'open' => $e->workItems->where('status', '!=', 'done')->count(),
-                    'total' => $e->workItems->count(),
-                ];
-            })
-            ->filter(fn ($lane) => $lane['total'] > 0)
-            ->values();
+        $today = today();
+
+        // Flat rows: one entry per work item, carrying owner info.
+        // Ordered by owner name (from the query), then sort_order, then id (from the eager load).
+        $teamRows = $employees->flatMap(function ($e) {
+            return $e->workItems->map(fn ($item) => [
+                'item' => $item,
+                'owner_id' => $e->id,
+                'owner_name' => $e->name,
+                'owner_initials' => $e->initials,
+                'owner_avatar_color' => $e->avatar_color,
+            ])->all();
+        })->values();
+
+        // Per-person aggregates.
+        $teamPeople = $employees->map(function ($e) use ($today) {
+            $items = $e->workItems;
+
+            return [
+                'id' => $e->id,
+                'name' => $e->name,
+                'initials' => $e->initials,
+                'avatar_color' => $e->avatar_color,
+                'position' => $e->positionBand?->title,
+                'department' => $e->department?->name,
+                'open' => $items->where('status', '!=', 'done')->count(),
+                'overdue' => $items->filter(fn ($i) => $i->due_at && $i->status !== 'done' && $i->due_at->lt($today))->count(),
+                'blocked' => $items->filter(fn ($i) => in_array('blocked', $i->labels ?? [], true))->count(),
+                'in_review' => $items->where('status', 'review')->count(),
+                'done' => $items->where('status', 'done')->count(),
+            ];
+        })->values();
 
         return [
-            'teamLanes' => $lanes,
-            'teamOpenTotal' => $lanes->sum('open'),
-            'teamPeople' => $lanes->count(),
+            'teamRows' => $teamRows,
+            'teamPeople' => $teamPeople,
+            'teamOpenTotal' => $teamPeople->sum('open'),
+            'teamPeopleCount' => $teamPeople->count(),
         ];
     }
 

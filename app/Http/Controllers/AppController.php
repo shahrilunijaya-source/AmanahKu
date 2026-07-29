@@ -152,7 +152,7 @@ class AppController extends Controller
         // anyone who oversees other staff. 'audit' moved here from admin-only so the
         // manager role can reach the Audit Logs alongside the two reports.
         if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'feedback'], true)) {
-            abort_unless($this->canSeeAll($employee, $role), 403);
+            abort_unless(Permissions::canSeeAll($employee, $role), 403);
         }
         // Probation tracking also covers managers (their own new hires).
         if ($screen === 'probation') {
@@ -223,10 +223,6 @@ class AppController extends Controller
             'pageSub' => $page['sub'],
             'pageTitleMs' => $page['title_ms'] ?? $page['title'],
             'pageSubMs' => $page['sub_ms'] ?? $page['sub'],
-            'crumbs' => array_merge([$tenant->name], $page['crumb']),
-            // Parallel BM breadcrumb trail. Tenant name (proper noun) is not translated;
-            // each English segment maps through Amanahku::crumbMs(), falling back to itself.
-            'crumbsMs' => array_merge([$tenant->name], array_map([Amanahku::class, 'crumbMs'], $page['crumb'])),
             'aiMessages' => Amanahku::aiMessages($persona, $screen),
             'aiPrompts' => Amanahku::aiPrompts(),
             'employee' => $employee,
@@ -305,29 +301,8 @@ class AppController extends Controller
             'qaTsPct' => $tsPct,
             'qaTsOverdue' => $tsOverdue,
             // Unlocks the "See all" company-wide links under each dock row.
-            'qaCanSeeAll' => $this->canSeeAll($employee, $role),
+            'qaCanSeeAll' => Permissions::canSeeAll($employee, $role),
         ];
-    }
-
-    /**
-     * True when the signed-in user may see company-wide attendance / tasks / timesheets:
-     * management, HR, or an immediate superior (has at least one direct report). Used to
-     * gate both the dock "See all" links and the screens they open.
-     */
-    private function canSeeAll(?Employee $employee, string $role): bool
-    {
-        // The 'manager' role is an immediate superior by definition; management and HR
-        // oversee everyone. An 'employee'-role user still qualifies if the org chart
-        // gives them at least one direct report (reports_to_id points at them).
-        // effectiveRole() collapses 'director' → 'management' so a board-tier director
-        // (a strict management super-set) reaches every oversight screen without a
-        // direct report of their own — same single hinge hasTenantRole() relies on.
-        if (in_array(Permissions::effectiveRole($role), ['manager', 'management', 'hr'], true)) {
-            return true;
-        }
-
-        return $employee !== null
-            && Employee::active()->where('reports_to_id', $employee->id)->exists();
     }
 
     /** Build only the data the requested screen needs. */
@@ -392,6 +367,7 @@ class AppController extends Controller
             'ideas' => app(IdeaController::class)->screenData($request, $employee),
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
+            'tot-roster' => app(TotController::class)->rosterData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),
             'benefits' => app(BenefitController::class)->screenData($request, $employee),
             'expenses' => app(ExpenseController::class)->screenData($request, $employee),

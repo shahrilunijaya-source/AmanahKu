@@ -29,7 +29,7 @@ class ShippedScopeTest extends TestCase
         'attendance', 'attendance-admin', 'attendance-report',
         'timesheets', 'timesheet-setup', 'timesheet-reports',
         'board', 'team-board',
-        'tot', 'knowledge-bank',
+        'tot', 'tot-roster', 'knowledge-bank',
         'claims', 'claim-approvals',
         'leave', 'calendar', 'leave-setup', 'leave-report',
         // Basic HR administration.

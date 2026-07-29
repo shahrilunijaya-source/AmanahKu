@@ -7,12 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * A 1-to-1 direct-message thread between two employees. Participants are stored
  * canonically (low id / high id) so a pair always resolves to a single row; the
  * unique index on (employee_low_id, employee_high_id) makes firstOrCreatePair
  * race-safe. tenant_id is auto-filled on create by BelongsToTenant.
+ *
+ * @property Carbon|null $last_message_at
  */
 class Conversation extends Model
 {

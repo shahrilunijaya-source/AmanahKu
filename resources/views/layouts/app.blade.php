@@ -58,33 +58,7 @@
              a fixed white band between two other white bands, and it says nothing
              worth keeping on screen once you have started reading. --}}
         <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
-            @unless ($embed)
-                <div class="uj-pagehead">
-                    <div>
-                        {{-- The dashboard renders its own heading in the screen body, beside
-                             its chips and Me/Company switch, so it opts out of the whole page
-                             head here — breadcrumb included. The sidebar already marks where
-                             you are, and "Tenant / Dashboard" above a greeting said nothing. --}}
-                        @unless ($screen === 'dash')
-                            <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--muted);margin-bottom:8px;">
-                                @foreach ($crumbs as $i => $crumb)
-                                    <span style="color:{{ $i === count($crumbs) - 1 ? 'var(--ink)' : 'var(--muted)' }};"
-                                          x-data="{ en: @js($crumb), ms: @js($crumbsMs[$i] ?? $crumb) }"
-                                          x-text="$store.ui.lang==='en' ? en : ms">{{ $crumb }}</span>
-                                    @if ($i < count($crumbs) - 1)
-                                        <span style="color:var(--muted);">/</span>
-                                    @endif
-                                @endforeach
-                            </div>
-                            <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
-                                <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
-                                <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
-                            </div>
-                        @endunless
-                    </div>
-                </div>
-            @endunless
-            <div class="uj-fade" style="width:100%;">
+            <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
                 {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
@@ -92,7 +66,7 @@
                 @if (session('reset_password'))
                     @php $rp = session('reset_password'); @endphp
                     <div x-data="{ show: true, copied: false, pw: @js($rp['password']) }" x-show="show"
-                         style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                         style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;border-radius:10px;padding:14px 16px;">
                         <div style="display:flex;align-items:flex-start;gap:10px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                             <div style="flex:1;min-width:0;">
@@ -137,7 +111,7 @@
                     </div>
                 @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
-                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
+                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" x-cloak class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
                         <div class="uj-banner-text" style="flex:1;">
                             <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
@@ -147,6 +121,29 @@
                         <button @click="show = false; localStorage.setItem('profileBannerDismissedUntil', Date.now() + 12*36e5)" style="color:var(--muted);font-size:var(--t-lg);">×</button>
                     </div>
                 @endif
+                @unless ($embed)
+                    <div class="uj-pagehead">
+                        <div>
+                            {{-- The dashboard renders its own heading in the screen body, beside
+                                 its chips and Me/Company switch, so it opts out of the page head
+                                 entirely.
+
+                                 The breadcrumb that used to sit above the heading is gone from
+                                 every screen. Its last segment was always the same word as the
+                                 <h1> directly beneath it ("Unijaya Resources / Messages" over a
+                                 heading reading "Messages"), and the sidebar already marks where
+                                 you are. --}}
+                            @unless ($screen === 'dash')
+                                <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                    <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
+                                    <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
+                                </div>
+                            @endunless
+                        </div>
+                    </div>
+                @endunless
+            </div>
+            <div class="uj-fade" style="width:100%;">
                 @yield('screen')
             </div>
         </main>
@@ -249,64 +246,87 @@
             },
         });
 
-        // Slide-over inline chat: list of conversations → open a thread (fetched) → send
-        // without leaving the page. Seeded with the panel feed from context().
+        // Slide-over messages: a list of conversations, and the SAME thread fragment the
+        // full screen renders, fetched from messages.pane. This component used to carry
+        // its own bubbles, composer, attachment tiles and send logic — a second
+        // implementation that had already fallen behind on run grouping, day dividers and
+        // read receipts. Only the glue lives here now.
+        //
+        // It deliberately does NOT touch history: the panel floats over whatever screen
+        // you are on, and rewriting the URL would strand you somewhere else on refresh.
         Alpine.data('messagesPanel', (threads) => ({
             view: 'list',
             threads: threads,
-            active: null,
-            body: '',
-            files: [],
-            sending: false,
+            activeId: null,
             loading: false,
+            sending: false,
+            error: '',
             csrf() { return document.querySelector('meta[name=csrf-token]').content; },
+
+            /** Fetch the thread fragment and drop it into the panel's pane. */
+            async swap(query) {
+                this.loading = true;
+                this.error = '';
+                try {
+                    const res = await fetch('{{ route('messages.pane') }}?' + query, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (! res.ok) { throw new Error('pane ' + res.status); }
+                    this.$refs.pane.innerHTML = await res.text();
+                    const id = new URLSearchParams(query).get('c');
+                    this.activeId = id ? Number(id) : null;
+                } catch (e) {
+                    // Losing the panel is not worth a navigation — send them to the real
+                    // screen, which is where a broken fragment can be recovered.
+                    window.location = '{{ route('app.screen', 'messages') }}?' + query;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
             open(t) {
                 this.view = 'thread';
-                this.loading = true;
-                this.active = { conversationId: t.id, to: t.other.id, other: t.other, messages: [] };
-                fetch('{{ url('/app/messages/thread') }}/' + t.id, { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json())
-                    .then(d => { if (d.ok) { this.active.messages = d.messages; this.active.other = d.other; this.scrollDown(); } })
-                    .catch(() => {})
-                    .finally(() => { this.loading = false; });
-                if (t.unread > 0) { this.markRead(t.id); t.unread = 0; }
+                if (t.unread > 0) { t.unread = 0; }
+                return this.swap('c=' + t.id);
             },
-            markRead(id) {
-                fetch('{{ url('/app/messages') }}/' + id + '/read', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
-                }).then(r => r.json()).then(d => { if (this.$store.msgbadge) this.$store.msgbadge.unread = d.unread; }).catch(() => {});
-            },
-            addFiles(e) {
-                this.files = this.files.concat(Array.from(e.target.files));
-                e.target.value = '';
-            },
-            send() {
-                const text = this.body.trim();
-                if ((!text && this.files.length === 0) || this.sending || !this.active) return;
+
+            /** The fragment's back button. In the panel that means the conversation list. */
+            back() { this.view = 'list'; this.activeId = null; },
+
+            /** The fragment's composer posts through here. */
+            async send(form) {
+                if (this.sending) { return; }
                 this.sending = true;
-                const fd = new FormData();
-                fd.append('body', text);
-                if (this.active.conversationId) fd.append('conversation_id', this.active.conversationId);
-                else if (this.active.to) fd.append('to', this.active.to);
-                this.files.forEach(f => fd.append('attachments[]', f));
-                fetch('{{ route('messages.send') }}', {
-                    method: 'POST',
-                    // No Content-Type header — the browser sets the multipart boundary.
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
-                    body: fd,
-                }).then(r => r.json()).then(d => {
-                    if (d.ok) {
-                        this.active.conversationId = d.conversationId;
-                        this.active.messages.push(d.message);
-                        this.body = '';
-                        this.files = [];
-                        this.scrollDown();
+                this.error = '';
+                try {
+                    const res = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await res.json();
+                    if (! res.ok) {
+                        this.error = Object.values(data.errors ?? {}).flat()[0]
+                            ?? (this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.');
+                        return;
                     }
-                }).catch(() => {}).finally(() => { this.sending = false; });
+                    this.touch(data.conversationId, data.message);
+                    await this.swap('c=' + data.conversationId);
+                } catch (e) {
+                    this.error = this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.';
+                } finally {
+                    this.sending = false;
+                }
             },
-            back() { this.view = 'list'; this.active = null; this.body = ''; this.files = []; },
-            scrollDown() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight; }); },
+
+            /** Keep the list row honest without refetching the feed. */
+            touch(id, message) {
+                const t = this.threads.find(t => t.id === id);
+                if (! t) { return; }
+                t.snippet = message.body !== '' ? message.body.slice(0, 120) : '📎 Attachment';
+                t.lastMine = true;
+                t.at = this.$store.ui.lang === 'en' ? 'just now' : 'sebentar tadi';
+                t.unread = 0;
+                this.threads = [t, ...this.threads.filter(x => x.id !== id)];
+            },
         }));
         @endif
 

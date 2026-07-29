@@ -119,13 +119,60 @@ class BoardCardTest extends TestCase
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'Renamed', 'description' => 'Now with detail',
-            'type' => 'adhoc', 'priority' => 'high', 'due_label' => 'Mon', 'estimate_hours' => 6,
+            'type' => 'adhoc', 'priority' => 'high', 'due_label' => 'Mon',
         ])->assertOk()->assertJsonPath('card.title', 'Renamed');
 
         $fresh = $item->fresh();
         $this->assertSame('Renamed', $fresh->title);
         $this->assertSame('adhoc', $fresh->type);
-        $this->assertSame(6, (int) $fresh->estimate_hours);
+    }
+
+    /** The drawer dropped estimate_hours from its UI (Stage 2), and Stage 4 dropped
+     *  the column itself; a request still carrying the field is a stale client and
+     *  is rejected outright rather than erroring on an unknown column. */
+    public function test_update_rejects_estimate_hours(): void
+    {
+        $item = $this->card(['title' => 'Original']);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'estimate_hours' => 99,
+        ])->assertStatus(422)->assertJsonValidationErrors(['estimate_hours']);
+
+        $this->assertSame('Original', $item->fresh()->title);
+    }
+
+    /** The drawer autosaves one field at a time, so a PATCH may carry only the
+     *  field that changed — the rest of the card must be left untouched. */
+    public function test_update_accepts_a_single_field_without_the_others(): void
+    {
+        $item = $this->card(['title' => 'Original', 'priority' => 'low', 'type' => 'task']);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['priority' => 'high'])
+            ->assertOk()->assertJsonPath('card.priority', 'high');
+
+        $fresh = $item->fresh();
+        $this->assertSame('high', $fresh->priority);
+        $this->assertSame('Original', $fresh->title);
+        $this->assertSame('task', $fresh->type);
+    }
+
+    /** A participant on a shared (locked) card may still move it and comment — the
+     *  drawer keeps those affordances even though it hides the editable fields. */
+    public function test_locked_participant_can_move_and_comment_but_not_patch_properties(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr, ['title' => 'Shared card']);
+        $card->participants()->attach($this->employee->id);
+
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'title' => 'Hijack', 'type' => 'task', 'priority' => 'low',
+        ])->assertForbidden();
+
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/move", ['status' => 'prog'])->assertOk();
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/comments", ['body' => 'joining in'])->assertCreated();
+
+        $this->assertSame('prog', $card->fresh()->status);
+        $this->assertSame('Shared card', $card->fresh()->title);
     }
 
     public function test_owner_sets_labels_and_real_due_date(): void
@@ -134,30 +181,30 @@ class BoardCardTest extends TestCase
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'X', 'type' => 'task', 'priority' => 'low',
-            'due_at' => '2026-08-01', 'labels' => ['urgent', 'review'],
+            'due_at' => '2026-08-01', 'labels' => ['blocked', 'client'],
         ])->assertOk()
-            ->assertJsonPath('card.labels', ['urgent', 'review'])
+            ->assertJsonPath('card.labels', ['blocked', 'client'])
             ->assertJsonPath('card.due_at', '2026-08-01')
             // The real date wins over any free-text label in the card face text.
             ->assertJsonPath('card.due_label', '01 Aug 2026');
 
         $fresh = $item->fresh();
-        $this->assertSame(['urgent', 'review'], $fresh->labels);
+        $this->assertSame(['blocked', 'client'], $fresh->labels);
         $this->assertSame('2026-08-01', $fresh->due_at->format('Y-m-d'));
     }
 
     public function test_board_marks_overdue_open_cards_and_emits_label_data(): void
     {
         // Open past-due card: carries a label and gets the overdue marker.
-        $this->card(['labels' => ['urgent'], 'due_at' => now()->subDay()->toDateString(), 'status' => 'todo']);
+        $this->card(['labels' => ['blocked'], 'due_at' => now()->subDay()->toDateString(), 'status' => 'todo']);
         // A Done card that is also past its date must NOT be flagged overdue.
         $this->card(['due_at' => now()->subDay()->toDateString(), 'status' => 'done', 'title' => 'Shipped']);
 
         $res = $this->actingInTenant()->get('/app/board')->assertOk();
-        $res->assertSee('data-labels="urgent"', false);
-        $res->assertSee('wi-due--over', false);
+        $res->assertSee('data-labels="blocked"', false);
+        $res->assertSee('wc-when--over', false);
         // Exactly one overdue marker — the Done card is excluded.
-        $this->assertSame(1, substr_count($res->getContent(), 'wi-due--over'));
+        $this->assertSame(1, substr_count($res->getContent(), 'wc-when--over'));
     }
 
     public function test_board_emits_project_data_attribute_for_filtering(): void
@@ -503,5 +550,184 @@ class BoardCardTest extends TestCase
         ])->assertForbidden();
 
         $this->assertDatabaseMissing('work_item_participant', ['work_item_id' => $card->id]);
+    }
+
+    // ── Manager edit rights, bounded by data scope ────────────────────────────
+
+    /** Attach a membership with an explicit data scope, which manager() leaves at the default. */
+    private function scopedManager(string $scope): Employee
+    {
+        $u = User::create(['name' => 'Scoped', 'email' => 'scoped@example.com', 'password' => Hash::make('password')]);
+        $u->tenants()->attach($this->tenant->id, ['role' => 'manager', 'data_scope' => $scope]);
+
+        return Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $u->id,
+            'name' => 'Scoped', 'status' => 'active', 'workload' => 'green',
+        ]);
+    }
+
+    public function test_a_company_scoped_manager_may_edit_someone_elses_card(): void
+    {
+        $mgr = $this->scopedManager('company');
+        $card = $this->card(); // owned by the plain employee, no assigner
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Manager edited this'])
+            ->assertOk();
+
+        $this->assertSame('Manager edited this', $card->fresh()->title);
+    }
+
+    public function test_a_team_scoped_manager_may_edit_a_direct_reports_card(): void
+    {
+        $mgr = $this->scopedManager('team');
+        $this->employee->update(['reports_to_id' => $mgr->id]);
+        $card = $this->card();
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'In my line'])
+            ->assertOk();
+
+        $this->assertSame('In my line', $card->fresh()->title);
+    }
+
+    /**
+     * The hole this guards (AK-AUTHZ-01): a bare role check would let any manager in
+     * the tenant edit any card, including one belonging to a branch or department
+     * they cannot otherwise see.
+     */
+    public function test_a_team_scoped_manager_may_not_edit_a_card_outside_their_line(): void
+    {
+        $mgr = $this->scopedManager('team');
+        // $this->employee does not report to $mgr.
+        $card = $this->card(['title' => 'Untouched']);
+
+        $this->actingAsManager($mgr)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Should not land'])
+            ->assertForbidden();
+
+        $this->assertSame('Untouched', $card->fresh()->title);
+    }
+
+    public function test_the_drawers_lock_state_agrees_with_the_write_gate(): void
+    {
+        $mgr = $this->scopedManager('team');
+        $card = $this->card();
+
+        // Out of scope the card is not theirs to see at all, so it is refused on the
+        // way in rather than opening read-only. Read and write agree.
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")->assertForbidden();
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", ['title' => 'No'])
+            ->assertForbidden();
+
+        // Bring the owner into scope: the card opens editable, and the write lands.
+        $this->employee->update(['reports_to_id' => $mgr->id]);
+
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', true);
+        $this->actingAsManager($mgr)->patchJson("/app/board/{$card->id}", ['title' => 'Yes'])
+            ->assertOk();
+
+        $this->assertSame('Yes', $card->fresh()->title);
+    }
+
+    public function test_an_ordinary_employee_gains_nothing_from_this(): void
+    {
+        $colleague = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $card = $colleague->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Theirs', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Nope'])
+            ->assertForbidden();
+
+        $this->assertSame('Theirs', $card->fresh()->title);
+    }
+
+    // ── Task 3: the read grant ──────────────────────────────────────────────
+    // canSeeAll() widens who may VIEW a card (management, HR, or an immediate
+    // superior), still bounded by coversCardOwner() exactly like the edit grant.
+    // Nothing here should ever let anyone EDIT more than canManage() already did.
+
+    public function test_a_director_may_open_but_not_edit_another_persons_card(): void
+    {
+        $director = $this->manager('director');
+        $card = $this->card(['title' => 'Not the directors']); // owned by the plain employee
+
+        $this->actingAsManager($director)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+
+        $this->actingAsManager($director)
+            ->patchJson("/app/board/{$card->id}", ['title' => 'Hijack'])
+            ->assertForbidden();
+
+        $this->assertSame('Not the directors', $card->fresh()->title);
+    }
+
+    public function test_hr_may_open_another_persons_card_read_only(): void
+    {
+        $hr = $this->manager('hr');
+        $card = $this->card();
+
+        $this->actingAsManager($hr)->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+    }
+
+    /**
+     * The hole this guards (AK-AUTHZ-01, reintroduced through the view grant instead
+     * of the edit grant): the `manager` role alone passes canSeeAll(), so without the
+     * coversCardOwner() check a team-scoped manager could open any card in the
+     * tenant just by knowing its id. Their role passes canSeeAll() — this proves the
+     * DataScope check, not the role check, is what stops them.
+     */
+    public function test_a_team_scoped_manager_may_not_open_a_card_outside_their_line(): void
+    {
+        $mgr = $this->scopedManager('team');
+        // $this->employee does not report to $mgr.
+        $card = $this->card(['title' => 'Outside the line']);
+
+        $this->actingAsManager($mgr)->getJson("/app/board/{$card->id}")
+            ->assertForbidden();
+
+        $this->assertSame('Outside the line', $card->fresh()->title);
+    }
+
+    public function test_an_employee_with_no_reports_may_not_open_a_colleagues_card(): void
+    {
+        $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green']);
+        $card = $colleague->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Theirs', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")->assertForbidden();
+    }
+
+    /** This is the canSeeAll() fallback clause: an 'employee'-role user with at
+     *  least one direct report still qualifies, with no role change needed. */
+    public function test_an_employee_with_a_direct_report_may_open_that_reports_card(): void
+    {
+        $report = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Report', 'status' => 'active',
+            'workload' => 'green', 'reports_to_id' => $this->employee->id,
+        ]);
+        $card = $report->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'From my report', 'type' => 'task',
+            'priority' => 'low', 'status' => 'todo', 'progress' => 0,
+        ]);
+
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.can_manage', false);
+    }
+
+    public function test_team_board_still_403s_for_an_unprivileged_user(): void
+    {
+        // The base actor is a plain 'employee' with no direct reports — canSeeAll()
+        // rejects them, so the screen itself must still 403.
+        $this->actingInTenant()->get('/app/team-board')->assertForbidden();
     }
 }
