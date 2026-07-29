@@ -1026,4 +1026,32 @@ class TotTest extends TestCase
         $this->assertNull($session->presenter_employee_id);
         $this->assertNull($session->presenter_name);
     }
+
+    public function test_a_non_tot_month_and_a_skipped_month_are_told_apart_by_kind(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 4,
+            'title' => 'Jamuan raya', 'status' => 'not_tot',
+        ]);
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 9,
+            'status' => 'skipped',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
+
+        $response->assertSee('data-kind="event"', false)
+            ->assertSee('data-kind="skipped"', false);
+    }
+
+    public function test_no_row_dims_itself_with_opacity(): void
+    {
+        TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 9,
+            'status' => 'skipped',
+        ]);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertDontSee('style="opacity:', false);
+    }
 }

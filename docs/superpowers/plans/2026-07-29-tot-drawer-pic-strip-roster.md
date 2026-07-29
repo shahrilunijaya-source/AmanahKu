@@ -130,8 +130,10 @@ Append to `resources/css/app.css`, directly after the moved block:
 .tot-row[data-kind="skipped"]:hover .tot-tile .d,
 .tot-row[data-kind="skipped"]:hover .tot-nm { color:var(--ink); }
 
-/* The kicker names the kind in words, so shape is never the only carrier. */
-.tot-kick { display:inline-block; font-size:10px; font-weight:600; letter-spacing:.12em;
+/* The kicker names the kind in words, so shape is never the only carrier.
+   11px, not 10: a letterspaced micro-label is still functional text, and 11px is
+   the floor this file already holds everywhere else (.tot-up, .tot-mast-k). */
+.tot-kick { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.12em;
   text-transform:uppercase; color:var(--muted); margin-bottom:3px; }
 ```
 
