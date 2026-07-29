@@ -1977,7 +1977,21 @@ select.wd-inline {
 .tot-yr{background:none;border:0;cursor:pointer;font:600 15px var(--font-mono);color:rgba(255,255,255,.72);padding:2px 0;transition:color 160ms var(--tot-eo);text-decoration:none;}
 .tot-yr:hover{color:rgba(255,255,255,.9);}
 .tot-yr[aria-selected="true"]{color:#fff;}
-.tot-chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
+.tot-chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center;}
+/* Sits on the chips row rather than up in the year list: it is an action, not a year.
+   A .28 black scrim over --red puts white at 8.7:1, where the year links it used to
+   borrow sit at 3.11:1 — a new element should not inherit a deferred defect. */
+.tot-mast-action{margin-left:auto;display:inline-flex;align-items:center;gap:6px;
+  background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.35);border-radius:999px;
+  padding:7px 15px;color:#fff;font:600 12.5px var(--font-sans);text-decoration:none;
+  transition:background 150ms var(--tot-eo),border-color 150ms var(--tot-eo);}
+.tot-mast-action:hover{background:rgba(0,0,0,.4);border-color:#fff;}
+.tot-mast-action:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+@media (max-width:640px){
+  /* .tot-chips becomes a two-column grid here, so the action would otherwise sit in a
+     single cell beside a chip. Span the row instead. */
+  .tot-mast-action{margin-left:0;grid-column:1 / -1;justify-content:center;margin-top:4px;}
+}
 .tot-chip{background:rgba(0,0,0,.15);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;}
 .tot-chip b{font:600 18px var(--font-mono);color:#fff;line-height:1;}
 .tot-chip span{font-size:11px;letter-spacing:.04em;color:#fff;font-weight:500;}
