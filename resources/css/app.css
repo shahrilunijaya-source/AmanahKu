@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Positioning engine for the dashboard grid. Appearance is ours (see .uj-dash-grid). */
+@import 'gridstack/dist/gridstack.min.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -87,6 +89,12 @@ button, input, select, textarea { font: inherit; }
 @keyframes uj-fade { from { opacity: 0; } to { opacity: 1; } }
 .uj-slide { animation: uj-slide .22s ease; }
 .uj-fade { animation: uj-fade .15s ease; }
+
+/* Partial navigation (resources/js/partial-nav.js): the screen body dims while the
+   next screen is being fetched. The sidebar and header are untouched, so only this
+   region reacts. Kept slow to start so a fast swap never flickers. */
+main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .uj-slide { animation: uj-fade .15s ease; } }
 
 /* ── Toast (global $store.toast, host: partials/toast-host.blade.php) ── */
 @keyframes uj-toast-in  { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -608,32 +616,286 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 }
 
 /* ── Work-board cards ──
-   One source of truth for the card anatomy rendered in three places: the
-   personal board blade, the read-only team board blade, and the JS repaint
-   in work-board.js. Per-card colours (type tag, priority) arrive through the
-   --wi-tag / --wi-pri custom properties set inline. The .wi-sm modifier is
-   the team board's compact, canvas-toned variant. */
-.wi-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.wi-tag { font-size: 10px; font-weight: 600; color: #fff; background: var(--wi-tag, var(--info)); padding: 2px 7px; border-radius: 9999px; }
-.wi-pri-txt { font-size: 10.5px; font-weight: 600; color: var(--wi-pri, var(--muted)); }
-.wi-assigned { font-size: 10.5px; font-weight: 600; color: var(--info); background: var(--canvas); border-radius: 6px; padding: 2px 7px; margin-bottom: 8px; display: inline-block; }
-.wi-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.wi-label { font-size: 9.5px; font-weight: 600; color: #fff; padding: 1px 7px; border-radius: 9999px; letter-spacing: .2px; }
-.wi-title { font-size: 13.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin-bottom: 10px; }
-.wi-foot { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--muted); gap: 8px; }
-.wi-meta { display: flex; align-items: center; gap: 10px; }
-.wi-due--over { color: var(--error); font-weight: 600; }
-.wi-comment-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
-.wi-est { font-family: var(--font-mono); }
-.wi-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
-.wi-sm { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 10px; padding: 11px 12px; }
-.wi-sm .wi-head { margin-bottom: 7px; }
-.wi-sm .wi-tag { font-size: 9.5px; }
-.wi-sm .wi-pri-txt { font-size: 10px; }
-.wi-sm .wi-assigned { font-size: 10px; background: #fff; margin-bottom: 7px; }
-.wi-sm .wi-title { font-size: 12.5px; margin-bottom: 8px; }
-.wi-sm .wi-foot { font-size: 11px; }
-.wi-sm .wi-meta { gap: 9px; }
+   One source of truth for the card anatomy: resources/views/partials/work-card.blade.php,
+   rendered on the personal board, the read-only team board (.wc--sm, compact),
+   and every WorkItemController write response via cardHtml(). Reads title-first:
+   the type is a 5px dot, priority only draws when High, and labels are tinted
+   rather than filled. Per-card colours arrive through the --wc-type / --wc-l
+   custom properties set inline. */
+.wc {
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 12px;
+    padding: 12px 13px; cursor: pointer; text-align: left; width: 100%; display: block;
+    transition: border-color .14s cubic-bezier(.23,1,.32,1), box-shadow .14s cubic-bezier(.23,1,.32,1), transform .14s cubic-bezier(.23,1,.32,1);
+}
+.wc:hover { border-color: var(--muted-soft); box-shadow: 0 3px 10px rgba(31,30,26,.07); }
+.wc:active { transform: scale(.993); }
+.wc:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+.wc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.wc-type {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: var(--t-micro); font-weight: 600; color: var(--muted); letter-spacing: .2px;
+}
+.wc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--wc-type, var(--info)); flex-shrink: 0; }
+/* Priority is only ever drawn for High. Medium is the default and Low is noise. */
+.wc-pri { margin-left: auto; font-size: var(--t-micro); font-weight: 600; color: var(--error); letter-spacing: .2px; }
+
+.wc-title {
+    font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.4;
+    letter-spacing: -0.005em; margin: 0 0 9px; text-wrap: pretty;
+}
+
+.wc-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+/* Tinted, not filled: --wc-l is the hue (set inline per label from WorkItem::LABELS),
+   the fill is that hue at low alpha. */
+.wc-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .1px; padding: 2px 8px; border-radius: 6px;
+    color: var(--wc-l); background: color-mix(in srgb, var(--wc-l) 11%, #fff);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wc-l) 20%, transparent);
+}
+
+.wc-foot { display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); color: var(--muted); }
+.wc-when { font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.wc-when--over { color: var(--error); font-weight: 600; }
+.wc-sep { color: var(--muted-soft); flex-shrink: 0; }
+.wc-when--none { color: var(--muted); }
+.wc-proj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-right { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.wc-cmt { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.wc-cmt svg { width: 12px; height: 12px; }
+.wc-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+/* Compact modifier — the team board's smaller-type variant, replacing .wi-sm. */
+.wc--sm { padding: 10px 11px; }
+.wc--sm .wc-top { margin-bottom: 6px; }
+.wc--sm .wc-type { font-size: 10px; }
+.wc--sm .wc-pri { font-size: 10px; }
+.wc--sm .wc-title { font-size: 12.5px; margin-bottom: 7px; }
+.wc--sm .wc-labels { margin-bottom: 7px; }
+.wc--sm .wc-foot { font-size: 10.5px; }
+.wc--sm .wc-right { gap: 7px; }
+
+/* Avatar stack, shared by the card face and (later) the drawer. */
+.wa-stack { display: inline-flex; align-items: center; }
+.wa {
+    width: 20px; height: 20px; border-radius: 50%; margin-left: -6px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff; letter-spacing: .2px;
+    border: 2px solid var(--card); box-shadow: 0 0 0 .5px rgba(31,30,26,.06);
+}
+.wa-stack .wa:first-child { margin-left: 0; }
+.wa--more { background: var(--muted-soft); }
+
+/* Sortable's drag ghost — shared by the work board and the org chart. */
+.uj-drag-ghost { opacity: .4; }
+
+/* ── Card detail drawer (board.blade.php) ──
+   Replaces the old centre modal — see docs/superpowers/specs/2026-07-29-taa-board-
+   redesign-design.md ("Drawer") and public/_proto-board.html, the approved prototype
+   this is lifted from (minus its mention-picker scaffolding, which is Stage 3).
+   Same slide-over grammar as partials/messages-panel.blade.php's .uj-slide, but with
+   a real enter/exit transform transition instead of one entrance keyframe, because
+   this one needs a symmetric close animation the house pattern doesn't bother with. */
+.wd-scrim {
+    position: fixed; inset: 0; background: rgba(31,30,26,.18); z-index: 60;
+    opacity: 0; transition: opacity 260ms cubic-bezier(.32,.72,0,1);
+}
+.wd-scrim[data-open] { opacity: 1; }
+.wd {
+    position: fixed; top: 0; right: 0; z-index: 61;
+    width: 560px; max-width: 94vw; height: 100vh;
+    background: var(--card); border-left: 1px solid var(--hairline);
+    box-shadow: -14px 0 44px rgba(31,30,26,.12);
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 280ms cubic-bezier(.32,.72,0,1);
+}
+.wd[data-open] { transform: translateX(0); }
+/* Focus lands here on open (tabindex="-1"), not on the title — see work-board.js
+   openCard(). It's a programmatic focus target for the dialog pattern, not a
+   control, so it draws no ring of its own. */
+.wd:focus { outline: none; }
+
+.wd-head {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 11px 12px 11px 14px; border-bottom: 1px solid var(--hairline);
+}
+/* Status as a segmented control, not a <select> labelled "Column" — it is the one
+   control that always committed instantly, and now it looks it. */
+.wd-seg { display: inline-flex; background: var(--hairline-soft); border-radius: 9px; padding: 2px; gap: 2px; }
+.wd-seg button {
+    border: 0; background: none; cursor: pointer; border-radius: 7px; padding: 5px 10px;
+    font-size: var(--t-micro); font-weight: 600; color: var(--muted); letter-spacing: .1px;
+    transition: color .14s, background .14s, box-shadow .14s;
+}
+.wd-seg button:hover { color: var(--ink); }
+.wd-seg button[aria-pressed="true"] {
+    background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(31,30,26,.10);
+}
+.wd-seg button:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+.wd-seg button:disabled { cursor: default; opacity: .6; }
+
+.wd-saved {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+    font-size: var(--t-micro); font-weight: 500; color: var(--success-ink);
+    opacity: 0; transition: opacity 180ms ease;
+}
+.wd-saved[data-on] { opacity: 1; }
+.wd-saved svg { width: 12px; height: 12px; }
+
+.wd-ico {
+    width: 30px; height: 30px; flex-shrink: 0; border: 0; background: none; cursor: pointer;
+    border-radius: 8px; color: var(--muted); display: grid; place-items: center;
+    transition: background .12s, color .12s;
+}
+.wd-ico:hover { background: var(--hairline-soft); color: var(--ink); }
+.wd-ico:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+.wd-ico svg { width: 16px; height: 16px; }
+
+.wd-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 24px; }
+
+/* Title reads as a heading and edits in place, with no bordered input. */
+.wd-title {
+    font-size: 19px; font-weight: 600; color: var(--ink); line-height: 1.35; letter-spacing: -0.015em;
+    margin: 0 0 4px; padding: 4px 6px; margin-left: -6px; border-radius: 7px;
+    border: 1px solid transparent; outline: none; text-wrap: pretty;
+    transition: background .12s, border-color .12s;
+}
+.wd-title:hover { background: var(--hairline-soft); }
+.wd-title:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+
+.wd-sub { font-size: var(--t-micro); color: var(--muted); margin: 0 0 18px; min-height: 1em; }
+
+/* Property rows: label left, live control right. Every one autosaves. */
+.wd-props { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
+.wd-plabel { font-size: var(--t-sm); color: var(--muted); }
+.wd-pval { min-width: 0; }
+.wd-inline {
+    border: 1px solid transparent; background: none; border-radius: 7px;
+    font-size: var(--t-sm); font-weight: 500; color: var(--ink); cursor: pointer;
+    /* Sized to its own value, not the column: a caret stranded at the far right of
+       a 380px row stops reading as the control for the word beside it. */
+    padding: 5px 8px; margin-left: -8px; width: auto; max-width: calc(100% + 8px); text-align: left;
+    transition: background .12s, border-color .12s;
+    appearance: none; -webkit-appearance: none;
+}
+select.wd-inline {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236f6c61' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 6px center; padding-right: 26px;
+}
+.wd-inline:hover { background: var(--hairline-soft); }
+.wd-inline:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); outline: none; }
+.wd-inline--empty { color: var(--muted-soft); font-weight: 400; }
+/* A read-only card still shows its values at full strength, because it is the card's
+   truth, not disabled chrome. Only the affordance goes away. */
+.wd-inline:disabled { color: var(--ink); background: none; cursor: default; background-image: none; padding-right: 8px; }
+.wd-chiprow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 3px 0; }
+.wd-add {
+    height: 22px; padding: 0 8px; border-radius: 6px; border: 1px dashed var(--hairline);
+    background: none; color: var(--muted); cursor: pointer; font-size: var(--t-micro);
+    font-weight: 500; line-height: 1; display: inline-flex; align-items: center; gap: 3px;
+    transition: border-color .12s, color .12s;
+}
+.wd-add:hover { border-color: var(--muted-soft); color: var(--ink); }
+.wd-person { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-sm); color: var(--ink); }
+
+.wd-sech {
+    font-size: var(--t-micro); font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px;
+}
+.wd-desc {
+    border: 1px solid transparent; border-radius: 8px; padding: 8px 9px; margin-left: -9px;
+    width: calc(100% + 9px);
+    font: inherit; font-size: 13.5px; color: var(--body); line-height: 1.65; resize: vertical;
+    background: none; outline: none; min-height: 76px;
+    transition: background .12s, border-color .12s;
+}
+.wd-desc:hover { background: var(--hairline-soft); }
+.wd-desc:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.wd-desc::placeholder { color: var(--muted-soft); }
+
+.wd-rule { border: 0; border-top: 1px solid var(--hairline); margin: 22px 0 18px; }
+
+.wd-cmts { display: flex; flex-direction: column; gap: 14px; }
+.wd-cmt { display: flex; gap: 10px; }
+.wd-cmt .wa { width: 28px; height: 28px; font-size: 10.5px; margin: 0; border: 0; }
+.wd-cmt-who { display: flex; align-items: baseline; gap: 8px; }
+.wd-cmt-name { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.wd-cmt-at { font-size: var(--t-micro); color: var(--muted-soft); }
+.wd-cmt-body { font-size: 13.5px; color: var(--body); line-height: 1.6; margin-top: 2px; white-space: pre-wrap; }
+
+/* Composer docks to the panel floor so the thread never hides it. */
+.wd-foot {
+    position: relative; /* anchors .wd-ment, which floats above it */
+    flex-shrink: 0; border-top: 1px solid var(--hairline); padding: 12px 20px;
+    display: flex; gap: 8px; align-items: flex-end; background: var(--card);
+}
+.wd-foot textarea {
+    flex: 1; border: 1px solid var(--hairline); border-radius: 9px; padding: 8px 10px;
+    font: inherit; font-size: 13.5px; color: var(--ink); outline: none; resize: none;
+    min-height: 38px; max-height: 120px;
+}
+.wd-foot textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.wd-post { height: 38px; padding: 0 15px; font-size: var(--t-sm); flex-shrink: 0; border: 0; cursor: pointer; }
+
+/* ── Mentions (Stage 3) ────────────────────────────────────────
+   The picker only lists people already on the card — participants plus the
+   assigner — mirroring authorizeAccess() so a mention can never notify
+   someone who would 403 on opening the card. Lifted from public/_proto-board.html. */
+.wd-ment {
+    position: absolute; left: 20px; right: 20px; bottom: 100%; margin-bottom: 8px; z-index: 63;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 10px;
+    box-shadow: var(--shadow-menu); padding: 4px; display: none; max-height: 208px; overflow-y: auto;
+}
+.wd-ment[data-open] { display: block; }
+.wd-ment button {
+    width: 100%; display: flex; align-items: center; gap: 9px; text-align: left;
+    border: 0; background: none; cursor: pointer; padding: 7px 9px; border-radius: 7px;
+    font-size: var(--t-sm); color: var(--ink);
+}
+.wd-ment button:hover, .wd-ment button[data-active] { background: var(--canvas); }
+.wd-ment .wa { margin: 0; border: 0; }
+.wd-ment-none { padding: 10px 11px; font-size: var(--t-sm); color: var(--muted); line-height: 1.5; }
+/* A mention reads as a reference to a person, so it is tinted, never a raw @handle. */
+.wd-at {
+    font-weight: 600; color: var(--info);
+    background: color-mix(in srgb, var(--info) 10%, #fff);
+    border-radius: 5px; padding: 0 4px; white-space: nowrap;
+}
+
+/* Read-only card: says why, instead of greying out in silence. */
+.wd-locked {
+    display: flex; gap: 9px; align-items: flex-start;
+    background: var(--hairline-soft); border-radius: 9px; padding: 10px 12px; margin-bottom: 18px;
+    font-size: var(--t-sm); color: var(--body); line-height: 1.55;
+}
+.wd-locked svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--muted); }
+.wd-locked b { color: var(--ink); font-weight: 600; }
+
+/* Overflow menu holds Delete, so it stops sitting next to Save (the Save button
+   itself is gone — every field autosaves). Reused for the Labels row's picker.
+   Visibility is x-show (Alpine toggles display inline), not a data-open flag. */
+.wd-menu {
+    position: absolute; top: 46px; right: 12px; z-index: 62; min-width: 168px;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 10px;
+    box-shadow: var(--shadow-menu); padding: 4px;
+}
+.wd-menu button {
+    width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+    padding: 8px 10px; border-radius: 7px; font-size: var(--t-sm); color: var(--ink);
+}
+.wd-menu button:hover { background: var(--canvas); }
+.wd-menu button.is-danger { color: var(--red); }
+
+@media (prefers-reduced-motion: reduce) {
+    .wd, .wd-scrim { transition: opacity 180ms ease; transform: none; }
+    .wd { opacity: 0; }
+    .wd[data-open] { opacity: 1; }
+}
+@media (max-width: 600px) {
+    .wd { width: 100vw; max-width: 100vw; }
+    .wd-seg button { padding: 5px 7px; }
+}
 
 /* ── TOT session card reaction pills and icon row ── */
 .tot-pill { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 9px;
@@ -827,6 +1089,46 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .uj-dq-mini .s { font-size:var(--t-sm); color:var(--muted); margin-top:1px; }
 .uj-dq-mini .r { margin-left:auto; font:500 var(--t-micro) var(--font-mono); color:var(--muted-soft); white-space:nowrap; }
 .uj-dq-tag { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--hairline-soft); padding:3px 7px; border-radius:5px; }
+
+/* ── Dashboard grid (gridstack, resources/js/dash-grid.js) ──
+   Gridstack ships its own stylesheet for positioning; everything here is about how
+   the cards LOOK inside it. The grid is static outside Customise mode, so the drag
+   affordances (grab cursor, guide lines, dashed slots) only appear in edit mode. */
+.uj-dash-grid { margin:0 -8px; }
+.uj-dash-grid .grid-stack-item-content { display:flex; overflow:visible; inset:0; }
+.uj-dash-grid .grid-stack-item-content > .uj-card { flex:1; min-width:0; overflow-y:auto; overflow-x:hidden; }
+/* The badges sit inside the card now. Hanging off the top edge worked when cards
+   were in a flow column; in a grid the neighbour above clips them. */
+.uj-dash-grid .uj-dq-card-tools, .uj-dash-grid .uj-dq-pin { top:8px; }
+.uj-dash-grid .uj-card-bare .uj-dq-card-tools { right:auto; left:8px; }
+/* Customise mode shows the lattice the cards snap to. Without it you are dragging
+   against an invisible ruler and every drop looks arbitrary. The pitch comes from
+   gridstack itself (--gs-cell-w / --gs-cell-h, set in dash-grid.js::measure) so the
+   lines land exactly on the snap points at any window width. */
+[data-dq-editing] .uj-dash-grid {
+    background-image:
+        repeating-linear-gradient(to right, var(--hairline) 0 1px, transparent 1px var(--gs-cell-w, 92px)),
+        repeating-linear-gradient(to bottom, var(--hairline) 0 1px, transparent 1px var(--gs-cell-h, 108px));
+    border-radius:12px;
+    outline:1px solid var(--hairline);
+    outline-offset:0;
+}
+[data-dq-editing] .uj-dash-grid .grid-stack-item:not(.ui-draggable-dragging) { cursor:grab; }
+[data-dq-editing] .uj-dash-grid .grid-stack-item.ui-draggable-dragging { cursor:grabbing; }
+/* The card itself has to read as a movable object, not as page furniture. */
+[data-dq-editing] .uj-dash-grid .grid-stack-item > .grid-stack-item-content > .uj-card { box-shadow:0 0 0 1px var(--hairline), 0 6px 16px rgba(38,37,30,.08); }
+[data-dq-editing] .uj-dash-grid .grid-stack-item.ui-draggable-dragging > .grid-stack-item-content > .uj-card { box-shadow:0 10px 26px rgba(38,37,30,.18); }
+.uj-dash-grid .grid-stack-placeholder > .placeholder-content { border:2px dashed var(--hairline); border-radius:12px; background:rgba(58,110,165,.05); }
+/* Cards move but never resize (dash-grid.js sets disableResize). Gridstack's own
+   stylesheet still reserves a hotspot on every edge, which reads as a resize
+   affordance that does nothing, so it is taken out of the layout here. */
+.uj-dash-grid .ui-resizable-handle { display:none; }
+@media (max-width: 800px) { .uj-dash-grid .grid-stack-item-content > .uj-card { overflow-y:visible; } }
+
+/* A card with no chrome of its own: the thing inside IS the card. Used by tiles that
+   would otherwise read as a box inside a box. */
+.uj-card-bare { background:none; border:0; padding:0; box-shadow:none; }
+.uj-card-bare .uj-dq-card-tools { right:auto; left:12px; }
 
 /* ── Customise mode ── */
 .uj-dq-card-tools { position:absolute; top:-11px; right:12px; display:flex; align-items:center; gap:3px; padding:3px; border-radius:999px; background:#fff; border:1px solid var(--hairline); box-shadow:0 3px 10px rgba(38,37,30,.09); }

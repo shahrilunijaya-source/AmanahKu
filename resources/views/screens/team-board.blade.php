@@ -1,11 +1,5 @@
 @extends('layouts.app')
 
-@php
-    $tag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
-    $pri = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
-    $priLabel = ['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
-@endphp
-
 @section('screen')
 {{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
      is reached by that one-way shortcut, so offer a one-tap way back to My tasks
@@ -85,25 +79,8 @@
 
                         <div style="display:flex;flex-direction:column;gap:9px;min-height:20px;">
                             @forelse ($col['cards'] as $c)
-                                @php [$tlabel, $tcolor] = $tag[$c->type] ?? ['Task', 'var(--info)']; @endphp
-                                <div class="wi-sm" @if ($key === 'done') style="opacity:.72;" @endif>
-                                    <div class="wi-head">
-                                        <span class="wi-tag" style="--wi-tag:{{ $tcolor }};">{{ $tlabel }}</span>
-                                        @if ($c->priority)<span class="wi-pri-txt" style="--wi-pri:{{ $pri[$c->priority] }};">{{ $priLabel[$c->priority] ?? ucfirst($c->priority) }}</span>@endif
-                                    </div>
-                                    @if ($c->assigned_by_id)
-                                        <div class="wi-assigned"><span x-text="$store.ui.lang==='en' ? 'Assigned by' : 'Ditugaskan oleh'">Assigned by</span> {{ $c->assignedBy?->name ?? '—' }}</div>
-                                    @endif
-                                    <div class="wi-title">{{ $c->title }}</div>
-                                    <div class="wi-foot">
-                                        <span>{{ $c->dueText() }}</span>
-                                        <span class="wi-meta">
-                                            @if (($c->comments_count ?? 0) > 0)
-                                                <span class="wi-comment-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>
-                                            @endif
-                                            <span class="wi-est">{{ $c->estimate_hours ? $c->estimate_hours.'h' : '' }}</span>
-                                        </span>
-                                    </div>
+                                <div @if ($key === 'done') style="opacity:.72;" @endif>
+                                    @include('partials.work-card', ['c' => $c, 'compact' => true])
                                 </div>
                             @empty
                                 <div style="border:1px dashed var(--hairline);border-radius:9px;padding:12px;text-align:center;font-size:11px;color:var(--muted);">—</div>

@@ -110,6 +110,15 @@ trait BuildsWorkData
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
             'canAssignPeople' => $canAssignPeople,
+            // A mention notification lands here as /app/board?card={id}. No access
+            // check happens server-side — the value is only relayed to the client,
+            // which opens it through the same authorized GET /app/board/{workItem}
+            // the drawer already uses. That endpoint's authorizeAccess() is what
+            // actually decides visibility, so an inaccessible or nonexistent id
+            // just renders the board normally instead of 403ing the whole screen.
+            'deepLinkCardId' => $request->filled('card') && ctype_digit((string) $request->query('card'))
+                ? (int) $request->query('card')
+                : null,
             // Active projects for the card editor's optional project picker. Tenant
             // scope is applied automatically by BelongsToTenant in a request context.
             'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
@@ -176,7 +185,10 @@ trait BuildsWorkData
                 // loads EVERY employee's items in one request, so the bound matters more.
                 'workItems' => fn ($q) => $q
                     ->where(fn ($w) => $w->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
-                    ->with('assignedBy')->withCount('comments')->orderBy('sort_order')->orderBy('id'),
+                    // participants + projectRef are also loaded here (not just assignedBy) so
+                    // partials.work-card, shared with the personal board, never lazy-loads a
+                    // relation while painting every employee's lane in one request.
+                    ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')->orderBy('sort_order')->orderBy('id'),
             ])
             ->orderBy('name')
             ->get()

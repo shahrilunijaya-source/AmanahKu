@@ -12,6 +12,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 class WorkItemController extends Controller
@@ -54,7 +55,7 @@ class WorkItemController extends Controller
         ]);
 
         if ($request->expectsJson()) {
-            return response()->json(['card' => $this->cardPayload($item)], 201);
+            return response()->json(['card' => $this->cardPayload($item), 'html' => $this->cardHtml($item)], 201);
         }
 
         return back()->with('ok', 'Work item added.');
@@ -109,43 +110,69 @@ class WorkItemController extends Controller
         return back()->with('ok', 'Task assigned to '.$employee->name.'.');
     }
 
-    /** Full card detail + comment thread for the detail modal. */
+    /** Full card detail + comment thread for the detail drawer. */
     public function show(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
         $this->authorizeAccess($workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef']);
+        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee']);
 
         // Mirrors authorizeManage(): only the owner of a self-made card, or a tac's
         // assigner, may edit fields / set participants / delete. A participant opens
-        // the card read-only (they may still move it and comment). The modal uses
+        // the card read-only (they may still move it and comment). The drawer uses
         // this to lock its editable fields instead of letting a doomed save 403.
         $canManage = $workItem->assigned_by_id === null
             ? $workItem->employee_id === $employee->id
             : $this->isAssigner($workItem, $employee);
 
         return response()->json([
-            'card' => $this->cardPayload($workItem) + ['description' => $workItem->description, 'can_manage' => $canManage],
+            'card' => $this->cardPayload($workItem) + [
+                'description' => $workItem->description,
+                'can_manage' => $canManage,
+                // Drawer subline only: "Opened 12 Jul 2026 by X" for a self-made card,
+                // "Assigned 12 Jul 2026 by X" for a tac. Fetched once on open — later
+                // write responses don't repeat these, so the merge in the client just
+                // leaves them as-is.
+                'opened_at' => ($workItem->assigned_by_id ? $workItem->assigned_at : $workItem->created_at)?->format('d M Y'),
+                'owner_name' => $workItem->assigned_by_id ? $workItem->assignedBy?->name : $workItem->employee?->name,
+                // Feeds the drawer's @-mention picker. Participants + assigner only —
+                // see mentionableEmployees() for why the roster stops there.
+                'mentionable' => $this->mentionablePayload($workItem),
+            ],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
         ]);
     }
 
-    /** Edit a card's fields from the detail modal. */
+    /**
+     * Edit a card's fields from the detail drawer. The drawer autosaves one
+     * field at a time (Stage 2 of the board redesign), so every field here is
+     * `sometimes`: a PATCH body carrying only `{ priority: 'high' }` must not
+     * be rejected for lacking a title, and `$workItem->update($data)` must
+     * only touch the columns actually present in the request. Without
+     * `sometimes`, Laravel's validator backfills every absent-but-nullable key
+     * as null, and a single-field autosave would silently wipe every other
+     * field on the card.
+     *
+     * `estimate_hours` is `prohibited`: the drawer dropped the field from its
+     * UI, so a request still carrying it is a stale client, not a partial
+     * edit, and gets rejected rather than silently ignored. The column stays
+     * until Stage 4's migration; nothing here writes to it any more.
+     */
     public function update(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
         $this->authorizeManage($workItem, $employee);
 
         $data = $request->validate([
-            'title' => ['required', 'string', 'max:160'],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'type' => ['required', 'in:assignment,task,adhoc'],
-            'priority' => ['required', 'in:high,medium,low'],
-            'due_at' => ['nullable', 'date'],
-            'due_label' => ['nullable', 'string', 'max:60'],
-            'estimate_hours' => ['nullable', 'integer', 'min:0', 'max:500'],
-            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'title' => ['sometimes', 'required', 'string', 'max:160'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'type' => ['sometimes', 'required', 'in:assignment,task,adhoc'],
+            'priority' => ['sometimes', 'required', 'in:high,medium,low'],
+            'due_at' => ['sometimes', 'nullable', 'date'],
+            'due_label' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'estimate_hours' => ['prohibited'],
+            'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'labels' => ['sometimes', 'array'],
             'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
             'participant_ids' => ['sometimes', 'array'],
@@ -162,7 +189,10 @@ class WorkItemController extends Controller
         $workItem->update($data);
         $workItem->load('participants');
 
-        return response()->json(['card' => $this->cardPayload($workItem) + ['description' => $workItem->description]]);
+        return response()->json([
+            'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
+            'html' => $this->cardHtml($workItem),
+        ]);
     }
 
     /**
@@ -207,7 +237,7 @@ class WorkItemController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'status' => $workItem->status]);
+            return response()->json(['ok' => true, 'status' => $workItem->status, 'html' => $this->cardHtml($workItem)]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
@@ -238,9 +268,15 @@ class WorkItemController extends Controller
         ]);
         $comment->setRelation('employee', $employee);
 
+        $this->notifyMentions($workItem, $employee, $data['body']);
+
         return response()->json([
             'comment' => $this->commentPayload($comment, $employee),
             'count' => $workItem->comments()->count(),
+            // The card's comment badge lives on its face, so a repaint needs the
+            // card's HTML too, not just the count — repaintNode() no longer
+            // rebuilds markup client-side.
+            'html' => $this->cardHtml($workItem),
         ], 201);
     }
 
@@ -250,10 +286,14 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         abort_unless($comment->employee_id === $employee->id, 403);
 
-        $workItemId = $comment->work_item_id;
+        $workItem = $comment->workItem;
         $comment->delete();
 
-        return response()->json(['ok' => true, 'count' => WorkItemComment::where('work_item_id', $workItemId)->count()]);
+        return response()->json([
+            'ok' => true,
+            'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
+            'html' => $this->cardHtml($workItem),
+        ]);
     }
 
     private function employee(Request $request): Employee
@@ -324,6 +364,99 @@ class WorkItemController extends Controller
     private function isAssigner(WorkItem $item, Employee $employee): bool
     {
         return $item->assigned_by_id !== null && $item->assigned_by_id === $employee->id;
+    }
+
+    /**
+     * Who this card may mention: its participants plus its assigner — never the
+     * owner, never the wider tenant roster. This mirrors authorizeAccess()
+     * exactly (owner / assigner / participants may view a card), minus the
+     * owner, so a mention can never notify someone who would 403 opening the
+     * card. It also can't be grown by an ordinary employee: adding a
+     * participant is manager/management/hr-only (see syncParticipants()).
+     *
+     * @return Collection<int, Employee>
+     */
+    private function mentionableEmployees(WorkItem $item): Collection
+    {
+        $item->loadMissing(['participants', 'assignedBy']);
+
+        // ->values() first: participants() returns the live relation collection,
+        // and push()ing the assigner onto it directly would mutate that cached
+        // relation in place, leaking the assigner into every other place the
+        // card's participants are read (e.g. cardPayload()'s participant chips).
+        $pool = $item->participants->values();
+        if ($item->assigned_by_id && $item->assignedBy) {
+            $pool->push($item->assignedBy);
+        }
+
+        return $pool->unique('id')->values();
+    }
+
+    /** @return array<int, array{id:int,name:string,initials:?string,color:?string}> */
+    private function mentionablePayload(WorkItem $item): array
+    {
+        return $this->mentionableEmployees($item)
+            ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Re-parses @Name out of the just-saved comment body against the card's own
+     * mentionable set — never a client-supplied id list — so a crafted request
+     * cannot notify someone who is not on the card. The author never notifies
+     * themselves even if their own name appears (e.g. a participant mentioning
+     * themselves out of habit).
+     *
+     * Two people sharing a full name on one card is an accepted ambiguity (see
+     * the design doc): disambiguating would mean storing resolved employee ids
+     * on the comment, which is a migration this stage deliberately skips. The
+     * first employee encountered with a given name wins; the rest of that name
+     * is silently skipped rather than notifying every same-named person.
+     */
+    private function notifyMentions(WorkItem $item, Employee $author, string $body): void
+    {
+        $seenNames = [];
+        $recipientUserIds = collect();
+
+        foreach ($this->mentionableEmployees($item) as $employee) {
+            if (isset($seenNames[$employee->name])) {
+                continue;
+            }
+            $seenNames[$employee->name] = true;
+
+            if ($employee->id === $author->id || ! str_contains($body, '@'.$employee->name)) {
+                continue;
+            }
+
+            if ($employee->user_id) {
+                $recipientUserIds->push($employee->user_id);
+            }
+        }
+
+        if ($recipientUserIds->isEmpty()) {
+            return;
+        }
+
+        AppNotification::sendMany(
+            $recipientUserIds->unique(),
+            $author->name.' mentioned you on a task',
+            $item->title,
+            route('app.screen', ['screen' => 'board', 'card' => $item->id]),
+        );
+    }
+
+    /**
+     * Render the card partial for a write response, so the client repaints by
+     * swapping markup instead of rebuilding it from a JSON payload in JS. The
+     * one place every write response's HTML comes from — keep it in sync with
+     * cardPayload() below, which still feeds the detail modal's in-memory state.
+     */
+    private function cardHtml(WorkItem $item): string
+    {
+        $item->loadMissing(['participants', 'projectRef', 'assignedBy'])->loadCount('comments');
+
+        return view('partials.work-card', ['c' => $item])->render();
     }
 
     private function cardPayload(WorkItem $item): array

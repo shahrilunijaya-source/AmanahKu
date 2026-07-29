@@ -119,13 +119,60 @@ class BoardCardTest extends TestCase
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'Renamed', 'description' => 'Now with detail',
-            'type' => 'adhoc', 'priority' => 'high', 'due_label' => 'Mon', 'estimate_hours' => 6,
+            'type' => 'adhoc', 'priority' => 'high', 'due_label' => 'Mon',
         ])->assertOk()->assertJsonPath('card.title', 'Renamed');
 
         $fresh = $item->fresh();
         $this->assertSame('Renamed', $fresh->title);
         $this->assertSame('adhoc', $fresh->type);
-        $this->assertSame(6, (int) $fresh->estimate_hours);
+    }
+
+    /** The drawer dropped estimate_hours from its UI (Stage 2 of the board redesign);
+     *  a request still carrying it is rejected outright rather than silently ignored,
+     *  and the column — which stays until Stage 4's migration — is left untouched. */
+    public function test_update_rejects_estimate_hours(): void
+    {
+        $item = $this->card(['estimate_hours' => 3]);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'estimate_hours' => 99,
+        ])->assertStatus(422)->assertJsonValidationErrors(['estimate_hours']);
+
+        $this->assertSame(3, (int) $item->fresh()->estimate_hours);
+    }
+
+    /** The drawer autosaves one field at a time, so a PATCH may carry only the
+     *  field that changed — the rest of the card must be left untouched. */
+    public function test_update_accepts_a_single_field_without_the_others(): void
+    {
+        $item = $this->card(['title' => 'Original', 'priority' => 'low', 'type' => 'task']);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['priority' => 'high'])
+            ->assertOk()->assertJsonPath('card.priority', 'high');
+
+        $fresh = $item->fresh();
+        $this->assertSame('high', $fresh->priority);
+        $this->assertSame('Original', $fresh->title);
+        $this->assertSame('task', $fresh->type);
+    }
+
+    /** A participant on a shared (locked) card may still move it and comment — the
+     *  drawer keeps those affordances even though it hides the editable fields. */
+    public function test_locked_participant_can_move_and_comment_but_not_patch_properties(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr, ['title' => 'Shared card']);
+        $card->participants()->attach($this->employee->id);
+
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'title' => 'Hijack', 'type' => 'task', 'priority' => 'low',
+        ])->assertForbidden();
+
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/move", ['status' => 'prog'])->assertOk();
+        $this->actingInTenant()->postJson("/app/board/{$card->id}/comments", ['body' => 'joining in'])->assertCreated();
+
+        $this->assertSame('prog', $card->fresh()->status);
+        $this->assertSame('Shared card', $card->fresh()->title);
     }
 
     public function test_owner_sets_labels_and_real_due_date(): void
@@ -155,9 +202,9 @@ class BoardCardTest extends TestCase
 
         $res = $this->actingInTenant()->get('/app/board')->assertOk();
         $res->assertSee('data-labels="urgent"', false);
-        $res->assertSee('wi-due--over', false);
+        $res->assertSee('wc-when--over', false);
         // Exactly one overdue marker — the Done card is excluded.
-        $this->assertSame(1, substr_count($res->getContent(), 'wi-due--over'));
+        $this->assertSame(1, substr_count($res->getContent(), 'wc-when--over'));
     }
 
     public function test_board_emits_project_data_attribute_for_filtering(): void
