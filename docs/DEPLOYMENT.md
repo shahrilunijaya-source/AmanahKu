@@ -23,9 +23,17 @@ Target: **staging**, then production. Work top to bottom; do not skip the securi
 ## 2. Build & install
 
 `bash deploy.sh` does all of this (composer install, migrate `--force`, caches, queue
-restart), auto-detecting the tier from `APP_ENV`. Assets are the exception: the Hostinger
-host has **no Node**, so build them **locally** and commit `public/build` before pushing
-(see `ENVIRONMENTS.md` §3).
+restart), auto-detecting the tier from `APP_ENV`. Assets are the exception: build them
+**locally** and commit `public/build` before pushing (see `ENVIRONMENTS.md` §3). The host
+does have Node under `/opt/alt/alt-nodejs*/`, but Vite 8's Rolldown bundler cannot get the
+threads it asks for there, and a build that fails mid-deploy would strand the app in
+maintenance mode — so the host stays build-free on purpose. See `CLAUDE.md` for the detail.
+
+Run `php artisan view:cache` **before** `bun run build`. Tailwind scans the compiled Blade
+cache (`@source` in `resources/css/app.css`), so a partial cache silently drops utilities
+from the stylesheet. CI's `Committed assets match sources` job fails the PR when the
+committed **CSS** does not match a clean rebuild. JS is out of scope there: rolldown emits
+different chunk bytes per machine from the same lockfile, so it cannot be compared this way.
 
 - [ ] Assets built and committed (`public/build/manifest.json` present in the repo).
 - [ ] `git pull && bash deploy.sh` ran clean on the host.
