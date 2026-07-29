@@ -296,6 +296,10 @@ button, input, select, textarea { font: inherit; }
     font-size: 13px;
     line-height: 1.45;
 }
+/* Inside the head stack the gap owns the spacing, so the alert drops its own
+   margin. The global rule stays for layouts/wizard.blade.php, which uses
+   .uj-alert outside any stack. */
+.uj-head-stack .uj-alert { margin-bottom: 0; }
 .uj-alert-icon {
     flex-shrink: 0;
     width: 22px; height: 22px;
@@ -546,9 +550,19 @@ button, input, select, textarea { font: inherit; }
 
 .uj-hd-acct { flex-shrink: 0; }
 .uj-hd-more { display: none; }
+/* The 56px fixed header plus its fade needs clearing by whatever lands first in the
+   scroll body. That used to be .uj-pagehead, so the padding lived there; now a banner
+   can precede the heading, so the clearance belongs to the stack that holds both.
+   `gap` is what makes the dismissed-banner case work: a child hidden with `display:none`
+   produces no gap, so the heading rises into its place with no residue and no JavaScript.
+   Do not reintroduce per-banner margins — they would survive as dead space the moment a
+   banner is conditionally rendered but hidden. */
+.uj-head-stack { display: flex; flex-direction: column; gap: 16px; padding-top: 78px; }
+.uj-head-stack--embed { padding-top: 0; gap: 12px; }
+
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
-.uj-pagehead { padding: 78px 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.uj-pagehead { padding: 0 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .uj-pagehead h1 { font-weight: 500; font-size: var(--t-xl); letter-spacing: -.025em; color: var(--ink); margin: 0; text-wrap: balance; }
 .uj-pagehead p { font-size: var(--t-sm); color: var(--muted); margin: 6px 0 0; }
 

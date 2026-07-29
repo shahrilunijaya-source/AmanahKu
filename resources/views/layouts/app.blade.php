@@ -58,28 +58,7 @@
              a fixed white band between two other white bands, and it says nothing
              worth keeping on screen once you have started reading. --}}
         <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
-            @unless ($embed)
-                <div class="uj-pagehead">
-                    <div>
-                        {{-- The dashboard renders its own heading in the screen body, beside
-                             its chips and Me/Company switch, so it opts out of the page head
-                             entirely.
-
-                             The breadcrumb that used to sit above the heading is gone from
-                             every screen. Its last segment was always the same word as the
-                             <h1> directly beneath it ("Unijaya Resources / Messages" over a
-                             heading reading "Messages"), and the sidebar already marks where
-                             you are. --}}
-                        @unless ($screen === 'dash')
-                            <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
-                                <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
-                                <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
-                            </div>
-                        @endunless
-                    </div>
-                </div>
-            @endunless
-            <div class="uj-fade" style="width:100%;">
+            <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
                 {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
@@ -87,7 +66,7 @@
                 @if (session('reset_password'))
                     @php $rp = session('reset_password'); @endphp
                     <div x-data="{ show: true, copied: false, pw: @js($rp['password']) }" x-show="show"
-                         style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                         style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;border-radius:10px;padding:14px 16px;">
                         <div style="display:flex;align-items:flex-start;gap:10px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                             <div style="flex:1;min-width:0;">
@@ -132,7 +111,7 @@
                     </div>
                 @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
-                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;margin-bottom:16px;">
+                    <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" x-cloak class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
                         <div class="uj-banner-text" style="flex:1;">
                             <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Finish your profile — {{ $profileCompletion['pct'] }}% complete' : 'Lengkapkan profil anda — {{ $profileCompletion['pct'] }}% siap'">Finish your profile — {{ $profileCompletion['pct'] }}% complete</div>
@@ -142,6 +121,29 @@
                         <button @click="show = false; localStorage.setItem('profileBannerDismissedUntil', Date.now() + 12*36e5)" style="color:var(--muted);font-size:var(--t-lg);">×</button>
                     </div>
                 @endif
+                @unless ($embed)
+                    <div class="uj-pagehead">
+                        <div>
+                            {{-- The dashboard renders its own heading in the screen body, beside
+                                 its chips and Me/Company switch, so it opts out of the page head
+                                 entirely.
+
+                                 The breadcrumb that used to sit above the heading is gone from
+                                 every screen. Its last segment was always the same word as the
+                                 <h1> directly beneath it ("Unijaya Resources / Messages" over a
+                                 heading reading "Messages"), and the sidebar already marks where
+                                 you are. --}}
+                            @unless ($screen === 'dash')
+                                <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                    <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
+                                    <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
+                                </div>
+                            @endunless
+                        </div>
+                    </div>
+                @endunless
+            </div>
+            <div class="uj-fade" style="width:100%;">
                 @yield('screen')
             </div>
         </main>
