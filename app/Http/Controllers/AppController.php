@@ -223,10 +223,6 @@ class AppController extends Controller
             'pageSub' => $page['sub'],
             'pageTitleMs' => $page['title_ms'] ?? $page['title'],
             'pageSubMs' => $page['sub_ms'] ?? $page['sub'],
-            'crumbs' => array_merge([$tenant->name], $page['crumb']),
-            // Parallel BM breadcrumb trail. Tenant name (proper noun) is not translated;
-            // each English segment maps through Amanahku::crumbMs(), falling back to itself.
-            'crumbsMs' => array_merge([$tenant->name], array_map([Amanahku::class, 'crumbMs'], $page['crumb'])),
             'aiMessages' => Amanahku::aiMessages($persona, $screen),
             'aiPrompts' => Amanahku::aiPrompts(),
             'employee' => $employee,

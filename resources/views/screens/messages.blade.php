@@ -5,183 +5,215 @@
     'key' => 'messages',
     'en'  => [
         'title' => 'Messages',
-        'body'  => 'Private one-to-one messages with anyone in the company. Pick a conversation on the left, or start a new one with "+ New". You can also message someone straight from their profile using the Message button.',
+        'body'  => 'Private one-to-one messages with anyone in the company. Search the list on the left to open a conversation, or to find a colleague you have not messaged yet. You can also message someone straight from their profile using the Message button.',
     ],
     'ms'  => [
         'title' => 'Mesej',
-        'body'  => 'Mesej peribadi satu-dengan-satu dengan sesiapa dalam syarikat. Pilih perbualan di sebelah kiri, atau mula yang baharu dengan "+ Baharu". Anda juga boleh mesej seseorang terus dari profil mereka guna butang Mesej.',
+        'body'  => 'Mesej peribadi satu-dengan-satu dengan sesiapa dalam syarikat. Cari dalam senarai di sebelah kiri untuk buka perbualan, atau untuk jumpa rakan sekerja yang anda belum mesej. Anda juga boleh mesej seseorang terus dari profil mereka guna butang Mesej.',
     ],
 ])
 
-@php $a = $msgActive ?? null; @endphp
+@php
+    $a = $msgActive ?? null;
+    // ?draft=… seeds a blank composer only (the dashboard's birthday "Wish" button).
+    $draft = (empty($a['conversationId']) && empty($a['messages']) && request()->filled('draft'))
+        ? \Illuminate\Support\Str::limit(request('draft'), 5000, '')
+        : '';
+@endphp
 
-<style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
+{{-- One component owns the whole screen so opening a conversation, sending, and going
+     back all update ONLY the thread column. Nothing here navigates: the URL is kept true
+     with pushState, so refresh, deep links, sharing and the browser back button all still
+     land on the right thread. Rows stay real <a href> elements, so middle-click and
+     "open in new tab" keep working and the screen degrades to plain links without JS. --}}
+<div class="uj-msg" @if ($a) data-thread @endif
+     x-data="{
+        q: '',
+        convos: @js($msgConversations),
+        people: @js($msgCanSend ?? false ? $msgRecipients : []),
+        base: @js(route('app.screen', 'messages')),
+        pane: @js(route('messages.pane')),
+        activeId: @js($a['conversationId'] ?? null),
+        loading: false,
+        sending: false,
+        error: '',
+        rootEl: null,
+        threadEl: null,
 
-<div style="display:flex;gap:16px;align-items:stretch;height:calc(100vh - 240px);min-height:460px;">
+        hit(text) { return this.q === '' || (text ?? '').toLowerCase().includes(this.q.toLowerCase()); },
+        group(bucket) { return this.convos.filter(c => c.bucket === bucket && (this.hit(c.other.name) || this.hit(c.snippet))); },
+        fresh() {
+            if (this.q === '') { return []; }
+            const known = new Set(this.convos.map(c => c.other.id));
+            return this.people.filter(p => ! known.has(p.id) && this.hit(p.name)).slice(0, 8);
+        },
+        get blank() { return this.group('today').length + this.group('week').length + this.group('earlier').length + this.fresh().length === 0; },
 
-    {{-- ── Conversation list ─────────────────────────────────────────────── --}}
-    <div class="uj-card" style="width:330px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;" x-data="{ compose: false, q: '' }">
-        <div style="padding:14px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:8px;flex-shrink:0;">
-            <span style="flex:1;font-size:14px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Conversations' : 'Perbualan'">Conversations</span>
-            @if ($msgCanSend ?? false)
-                <button @click="compose = ! compose; q = ''" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12.5px;"><span x-text="compose ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ New' : '+ Baharu')">+ New</span></button>
-            @endif
-        </div>
+        /* ── Swapping one column ──────────────────────────────────────────── */
 
-        {{-- New-message recipient picker --}}
-        @if ($msgCanSend ?? false)
-            <div x-show="compose" x-cloak style="padding:12px 14px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
-                <input x-model="q" :placeholder="$store.ui.lang==='en' ? 'Search colleagues…' : 'Cari rakan sekerja…'" style="width:100%;height:36px;padding:0 12px;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;color:var(--ink);" />
-                <div style="max-height:240px;overflow-y:auto;margin-top:8px;">
-                    @forelse ($msgRecipients as $r)
-                        <a href="{{ route('app.screen', 'messages') }}?to={{ $r['id'] }}"
-                           x-show="q === '' || @js(strtolower($r['name'])).includes(q.toLowerCase())"
-                           style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;text-decoration:none;">
-                            <span style="width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $r['color'] }};">{{ $r['initials'] }}</span>
-                            <span style="min-width:0;">
-                                <span style="display:block;font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r['name'] }}</span>
-                                <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $r['position'] }}</span>
+        /** Replace the thread column with a freshly rendered one. `query` is `c=…`, `to=…`,
+            or empty for the no-thread-selected state. One path serves opening, sending,
+            going back, and popstate, so all four render through the same partial.
+
+            It works off `rootEl` / `threadEl`, captured once in init(), rather than `$root`
+            and `$refs`. Those magics resolve against whichever element the calling
+            expression is bound to, and the Back button lives inside the fragment this
+            method replaces — from there they came back undefined and every Back fell into
+            the catch below, doing the full navigation this screen exists to avoid. */
+        async load(query, push = true) {
+            this.loading = true;
+            this.error = '';
+            try {
+                const res = await fetch(this.pane + (query ? '?' + query : ''), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (! res.ok) { throw new Error('pane ' + res.status); }
+                this.threadEl.innerHTML = await res.text();
+                const id = new URLSearchParams(query).get('c');
+                this.activeId = id ? Number(id) : null;
+                this.rootEl.toggleAttribute('data-thread', query !== '');
+                if (push) { history.pushState({ q: query }, '', this.base + (query ? '?' + query : '')); }
+            } catch (e) {
+                // A failed swap must not strand the user on a stale pane: fall back to
+                // the navigation the link would have done anyway.
+                window.location = this.base + (query ? '?' + query : '');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        /** Back to the index — a state change on this screen, not a navigation. */
+        back(push = true) { return this.load('', push); },
+
+        /** Post the composer and swap the same column back in with the new message. */
+        async send(form) {
+            if (this.sending) { return; }
+            this.sending = true;
+            this.error = '';
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (! res.ok) {
+                    this.error = Object.values(data.errors ?? {}).flat()[0]
+                        ?? (this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.');
+                    return;
+                }
+                this.touch(data.conversationId, data.message, form);
+                await this.load('c=' + data.conversationId, data.conversationId !== this.activeId);
+            } catch (e) {
+                this.error = this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.';
+            } finally {
+                this.sending = false;
+            }
+        },
+
+        /** Move a thread to the top of Today and update its snippet, without refetching
+            the index — the row is already reactive, so this is cheaper than a round trip.
+            The first message to a colleague has no row yet, so build one from the person
+            already in `people`; only a recipient we somehow do not know falls back to a
+            real navigation. */
+        touch(id, message, form) {
+            let c = this.convos.find(c => c.id === id);
+            if (! c) {
+                const to = Number(form.querySelector('input[name=to]')?.value);
+                const person = this.people.find(p => p.id === to);
+                if (! person) { window.location = this.base + '?c=' + id; return; }
+                c = { id: id, other: person, unread: 0 };
+                this.convos.push(c);
+            }
+            c.snippet = message.body !== '' ? message.body.slice(0, 120) : '📎 Attachment';
+            c.lastMine = true;
+            c.bucket = 'today';
+            c.atShort = message.time;
+            c.atShortMs = message.time;
+            c.unread = 0;
+            this.convos = [c, ...this.convos.filter(x => x.id !== id)];
+        },
+
+        init() {
+            // Captured here, where $el IS the screen root, and used everywhere after.
+            this.rootEl = this.$el;
+            this.threadEl = this.$el.querySelector('.uj-msg-thread');
+            // The browser's own back/forward must move between threads, not out of the screen.
+            window.addEventListener('popstate', () => {
+                this.load(window.location.search.replace(/^\?/, ''), false);
+            });
+        },
+     }"
+     @msg-read="convos.forEach(c => { if (c.id === $event.detail.id) { c.unread = 0; } })">
+
+    {{-- ── Index ──────────────────────────────────────────────────────────────
+         One search field, always present. It filters the conversations you have
+         AND offers colleagues you have not messaged yet, so starting a new thread
+         is not a separate mode that hides the list. --}}
+    <div class="uj-msg-index">
+        <label class="uj-msg-search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+            <input x-model="q" :placeholder="$store.ui.lang==='en' ? 'Search messages or people…' : 'Cari mesej atau orang…'" />
+        </label>
+
+        <div class="uj-msg-list">
+            <template x-for="g in [
+                    { key: 'today',   en: 'Today',     ms: 'Hari ini' },
+                    { key: 'week',    en: 'This week', ms: 'Minggu ini' },
+                    { key: 'earlier', en: 'Earlier',   ms: 'Lebih awal' },
+                ]" :key="g.key">
+                <div x-show="group(g.key).length">
+                    <div class="uj-msg-grp" x-text="$store.ui.lang==='en' ? g.en : g.ms"></div>
+                    <template x-for="c in group(g.key)" :key="c.id">
+                        <a class="uj-msg-row" :href="base + '?c=' + c.id"
+                           @click.prevent="load('c=' + c.id)"
+                           :data-on="c.id === activeId ? '' : null"
+                           :data-unread="c.unread > 0 ? '' : null">
+                            <span class="uj-msg-av" :style="'background:' + c.other.color" x-text="c.other.initials"></span>
+                            <span class="uj-msg-rmid">
+                                <span class="uj-msg-rtop">
+                                    <span class="uj-msg-name" x-text="c.other.name"></span>
+                                    <span class="uj-msg-at" x-text="$store.ui.lang==='en' ? c.atShort : c.atShortMs"></span>
+                                </span>
+                                <span class="uj-msg-pos" x-text="c.other.position"></span>
+                                <span class="uj-msg-snip">
+                                    <span x-show="c.lastMine" x-text="$store.ui.lang==='en' ? 'You: ' : 'Anda: '"></span><span
+                                        x-text="c.snippet || ($store.ui.lang==='en' ? 'No messages yet' : 'Belum ada mesej')"></span>
+                                </span>
+                                <span class="uj-msg-badge" x-show="c.unread > 0">
+                                    <span x-text="c.unread"></span>
+                                    <span x-text="$store.ui.lang==='en' ? 'unread' : 'belum dibaca'"></span>
+                                </span>
                             </span>
                         </a>
-                    @empty
-                        <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No colleagues to message.' : 'Tiada rakan sekerja untuk dimesej.'">No colleagues.</div>
-                    @endforelse
+                    </template>
                 </div>
-            </div>
-        @endif
+            </template>
 
-        <div style="flex:1;overflow-y:auto;">
-            @forelse ($msgConversations as $c)
-                @php $on = $a && $a['conversationId'] === $c['id']; @endphp
-                <a href="{{ route('app.screen', 'messages') }}?c={{ $c['id'] }}"
-                   style="display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;background:{{ $on ? 'var(--canvas)' : '#fff' }};">
-                    <span style="width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;background:{{ $c['other']['color'] }};">{{ $c['other']['initials'] }}</span>
-                    <span style="flex:1;min-width:0;">
-                        <span style="display:flex;align-items:center;gap:7px;">
-                            <span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $c['other']['name'] }}</span>
-                            <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);">{{ $c['at'] }}</span>
+            {{-- Colleagues you have not messaged yet — only once you have typed. --}}
+            <div x-show="fresh().length" x-cloak>
+                <div class="uj-msg-grp" x-text="$store.ui.lang==='en' ? 'Start a new conversation' : 'Mula perbualan baharu'"></div>
+                <template x-for="p in fresh()" :key="p.id">
+                    <a class="uj-msg-row" :href="base + '?to=' + p.id" @click.prevent="load('to=' + p.id)">
+                        <span class="uj-msg-av" :style="'background:' + p.color" x-text="p.initials"></span>
+                        <span class="uj-msg-rmid">
+                            <span class="uj-msg-rtop"><span class="uj-msg-name" x-text="p.name"></span></span>
+                            <span class="uj-msg-pos" x-text="p.position"></span>
                         </span>
-                        <span style="display:flex;align-items:center;gap:7px;margin-top:2px;">
-                            <span style="flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($c['lastMine'])<span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You: ' : 'Anda: '">You: </span>@endif{{ $c['snippet'] ?? '' }}</span>
-                            @if ($c['unread'] > 0)
-                                <span style="flex-shrink:0;min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;">{{ $c['unread'] }}</span>
-                            @endif
-                        </span>
-                    </span>
-                </a>
-            @empty
-                <div style="padding:40px 24px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.5;" x-text="$store.ui.lang==='en' ? 'No conversations yet.' : 'Belum ada perbualan.'">No conversations yet.</div>
-            @endforelse
+                    </a>
+                </template>
+            </div>
+
+            <div class="uj-msg-none" x-show="blank" x-cloak
+                 x-text="q === ''
+                    ? ($store.ui.lang==='en' ? 'No conversations yet. Search for a colleague above to start one.' : 'Belum ada perbualan. Cari rakan sekerja di atas untuk mula.')
+                    : ($store.ui.lang==='en' ? 'Nothing matches that search.' : 'Tiada yang sepadan dengan carian itu.')"></div>
         </div>
     </div>
 
-    {{-- ── Active thread ─────────────────────────────────────────────────── --}}
-    <div class="uj-card" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
-        @if ($a)
-            <div style="padding:14px 18px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:11px;flex-shrink:0;">
-                <span style="width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:600;background:{{ $a['other']['color'] }};">{{ $a['other']['initials'] }}</span>
-                <div style="flex:1;min-width:0;">
-                    <div style="font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $a['other']['name'] }}</div>
-                    <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $a['other']['position'] }}</div>
-                </div>
-                @if ($a['other']['id'])
-                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $a['other']['id']]) }}" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;"><span x-text="$store.ui.lang==='en' ? 'View profile' : 'Lihat profil'">View profile</span></a>
-                @endif
-            </div>
-
-            <div x-ref="msgs" x-data="{
-                    init() {
-                        this.$nextTick(() => { this.$refs.msgs && (this.$refs.msgs.scrollTop = this.$refs.msgs.scrollHeight); });
-                        @if ($a['conversationId'])
-                        fetch('{{ url('/app/messages') }}/{{ $a['conversationId'] }}/read', {
-                            method: 'POST',
-                            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
-                        }).then(r => r.json()).then(d => { if (this.$store.msgbadge) this.$store.msgbadge.unread = d.unread; }).catch(() => {});
-                        @endif
-                    }
-                }"
-                style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:8px;background:var(--canvas);">
-                @forelse ($a['messages'] as $m)
-                    <div style="max-width:70%;{{ $m['mine'] ? 'align-self:flex-end;' : 'align-self:flex-start;' }}">
-                        @if ($m['body'] !== '')
-                            <div style="padding:10px 13px;border-radius:14px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;{{ $m['mine'] ? 'background:var(--red);color:#fff;border-bottom-right-radius:4px;' : 'background:#fff;color:var(--ink);border:1px solid var(--hairline);border-bottom-left-radius:4px;' }}">{{ $m['body'] }}</div>
-                        @endif
-                        @foreach ($m['attachments'] as $att)
-                            <div style="margin-top:{{ $m['body'] !== '' || ! $loop->first ? '6px' : '0' }};">
-                                @if ($att['isImage'])
-                                    <a href="{{ $att['url'] }}" target="_blank" rel="noopener">
-                                        <img src="{{ $att['url'] }}" alt="{{ $att['name'] }}" style="max-width:220px;max-height:220px;border-radius:12px;display:block;border:1px solid var(--hairline);" />
-                                    </a>
-                                @else
-                                    <a href="{{ $att['url'] }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;text-decoration:none;background:#fff;border:1px solid var(--hairline);color:var(--ink);max-width:240px;">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                        <span style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $att['name'] }}</span>
-                                    </a>
-                                @endif
-                            </div>
-                        @endforeach
-                        <div style="font-size:10px;font-family:var(--font-mono);color:var(--muted);margin-top:3px;{{ $m['mine'] ? 'text-align:right;' : '' }}">{{ $m['at'] }}</div>
-                    </div>
-                @empty
-                    <div style="margin:auto;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No messages yet — say hello.' : 'Belum ada mesej — sapa dahulu.'">No messages yet — say hello.</div>
-                @endforelse
-            </div>
-
-            @if ($msgCanSend ?? false)
-                <form method="post" action="{{ route('messages.send') }}" enctype="multipart/form-data"
-                      x-data="{ files: [], sync(e){ this.files = Array.from(this.$refs.file.files); },
-                                add(e){ const dt = new DataTransfer(); this.files.forEach(f => dt.items.add(f));
-                                        Array.from(e.target.files).forEach(f => dt.items.add(f));
-                                        this.$refs.file.files = dt.files; this.files = Array.from(dt.files); e.target.value=''; } }"
-                      style="padding:12px 16px;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
-                    @csrf
-                    {{-- Selected-files preview --}}
-                    <div x-show="files.length" x-cloak style="display:flex;flex-wrap:wrap;gap:6px;">
-                        <template x-for="(f, i) in files" :key="i">
-                            <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;font-size:11.5px;color:var(--ink);max-width:180px;">
-                                <span x-text="f.name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
-                            </span>
-                        </template>
-                    </div>
-                    <div style="display:flex;align-items:flex-end;gap:10px;">
-                    @if ($a['conversationId'])
-                        <input type="hidden" name="conversation_id" value="{{ $a['conversationId'] }}">
-                    @else
-                        <input type="hidden" name="to" value="{{ $a['to'] }}">
-                    @endif
-                    {{-- Deep-link draft (?draft=…) seeds a blank new composer only — e.g. the
-                         "🎂 Wish" button from the dashboard. Blade-escaped; server still caps at 5000. --}}
-                        {{-- Real inputs. `file` holds the batch; camera appends into it. --}}
-                        <input x-ref="file" type="file" name="attachments[]" multiple
-                               accept="{{ '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv' }}"
-                               @change="sync" style="display:none;" />
-                        <input x-ref="cam" type="file" name="attachments[]" accept="image/*" capture="environment"
-                               @change="add" style="display:none;" />
-                        <button type="button" @click="$refs.file.click()" class="uj-btn-ghost" title="Attach"
-                                style="height:44px;width:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-                        </button>
-                        {{-- Camera trigger — mobile/touch only. --}}
-                        <button type="button" @click="$refs.cam.click()" class="uj-btn-ghost uj-cam-only" title="Camera"
-                                style="height:44px;width:44px;flex-shrink:0;display:none;align-items:center;justify-content:center;padding:0;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                        </button>
-                    <textarea name="body" maxlength="5000" rows="1"
-                              x-data @keydown.enter.prevent="$el.form.requestSubmit()"
-                              :placeholder="$store.ui.lang==='en' ? 'Write a message…' : 'Tulis mesej…'"
-                              style="flex:1;min-height:44px;max-height:140px;padding:11px 13px;border:1px solid var(--hairline);border-radius:10px;font-size:13.5px;resize:none;outline:none;font-family:inherit;line-height:1.5;">{{ (empty($a['conversationId']) && empty($a['messages']) && request()->filled('draft')) ? \Illuminate\Support\Str::limit(request('draft'), 5000, '') : '' }}</textarea>
-                    <button type="submit" class="uj-btn-primary" style="height:44px;padding:0 18px;font-size:13.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en' ? 'Send' : 'Hantar'">Send</span></button>
-                    </div>
-                </form>
-            @endif
-        @else
-            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center;">
-                <span style="width:56px;height:56px;border-radius:50%;background:var(--canvas);display:flex;align-items:center;justify-content:center;">
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"></path></svg>
-                </span>
-                <div style="font-size:14px;color:var(--muted);max-width:280px;line-height:1.5;" x-text="$store.ui.lang==='en' ? 'Select a conversation on the left, or start a new one.' : 'Pilih perbualan di sebelah kiri, atau mula yang baharu.'">Select a conversation.</div>
-            </div>
-        @endif
+    {{-- ── Thread ───────────────────────────────────────────────────────────
+         The only region that changes. Its markup lives in one partial that both the
+         first render and MessageController::pane() use, so the two can never drift. --}}
+    <div class="uj-msg-thread" :data-loading="loading ? '' : null">
+        @include('partials.messages-thread', ['a' => $a, 'draft' => $draft])
     </div>
 </div>
 @endsection

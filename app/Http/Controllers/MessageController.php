@@ -11,10 +11,12 @@ use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -52,6 +54,25 @@ class MessageController extends Controller
 
     private const ATTACHMENT_MIMES = 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv';
 
+    /**
+     * BM day and month names. Carbon ships no bundled BM locale here, so this mirrors
+     * the hand-map already used by Amanahku::todayLabel, KnowledgeController::monthLabels
+     * and timesheet-capture.js. Kept local rather than extracted: three other call sites
+     * would have to move with it, which is a bigger change than this screen.
+     *
+     * @var array<int, string>
+     */
+    private const MS_DAYS = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+
+    /** @var array<int, string> */
+    private const MS_DAYS_SHORT = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+
+    /** @var array<int, string> */
+    private const MS_MONTHS = [1 => 'Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+    /** @var array<int, string> */
+    private const MS_MONTHS_SHORT = [1 => 'Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+
     // ── Full page ───────────────────────────────────────────────────────────
 
     /**
@@ -87,6 +108,27 @@ class MessageController extends Controller
             'msgRecipients' => $recipients,
             'msgCanSend' => true,
         ];
+    }
+
+    /**
+     * Just the thread column of the messages screen, rendered as an HTML fragment.
+     *
+     * The screen swaps this one region in when you open a conversation or send a message,
+     * instead of navigating and re-rendering the whole shell (sidebar, notification feed
+     * and context() run on every full render). It shares its Blade partial with the first
+     * page render, so the two paths cannot drift.
+     */
+    public function pane(Request $request): View
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403);
+
+        return view('partials.messages-thread', [
+            'a' => $this->resolveActive($request, $employee),
+            'msgCanSend' => true,
+            // ?draft= seeds the first render only; a swap never re-seeds it.
+            'draft' => '',
+        ]);
     }
 
     // ── Global chrome context (merged into every screen) ─────────────────────
@@ -235,7 +277,7 @@ class MessageController extends Controller
             ->with('attachments')
             ->orderBy('id')
             ->limit(self::THREAD_LIMIT)
-            ->get(['id', 'sender_id', 'body', 'created_at'])
+            ->get(['id', 'sender_id', 'body', 'created_at', 'read_at'])
             ->map(fn (Message $m) => $this->messageArr($m, $employee))
             ->values()->all();
 
@@ -356,6 +398,7 @@ class MessageController extends Controller
                 'to' => $other->id,
                 'other' => $this->personArr($other),
                 'messages' => [],
+                'runs' => [],
             ];
         }
 
@@ -371,7 +414,7 @@ class MessageController extends Controller
             ->with('attachments')
             ->orderBy('id')
             ->limit(self::THREAD_LIMIT)
-            ->get(['id', 'sender_id', 'body', 'created_at'])
+            ->get(['id', 'sender_id', 'body', 'created_at', 'read_at'])
             ->map(fn (Message $m) => $this->messageArr($m, $viewer))
             ->values()->all();
 
@@ -380,7 +423,72 @@ class MessageController extends Controller
             'to' => $other?->id,
             'other' => $this->personArr($other),
             'messages' => $messages,
+            'runs' => $this->runsFor($messages),
         ];
+    }
+
+    /**
+     * Fold a flat message list into display runs.
+     *
+     * A run is a burst from one sender on one date. The screen prints one timestamp per
+     * run instead of one per message, which is what made a five-message burst print the
+     * same 10px string five times. A `day` entry is emitted whenever the date changes,
+     * so a thread spanning weeks stops reading as one continuous block.
+     *
+     * @param  array<int, array<string, mixed>>  $messages  ascending by id
+     * @return array<int, array{day?: string, dayMs?: string, mine?: bool, time?: string, read?: bool, bubbles?: array<int, string>, attachments?: array<int, array<string, mixed>>}>
+     */
+    private function runsFor(array $messages): array
+    {
+        $runs = [];
+        $date = null;
+        $sender = null;
+
+        foreach ($messages as $m) {
+            if ($m['date'] !== $date) {
+                $date = $m['date'];
+                $sender = null; // a new day always starts a new run
+                $runs[] = ['day' => $this->dayLabel($date, 'en'), 'dayMs' => $this->dayLabel($date, 'ms')];
+            }
+
+            if ($m['senderId'] !== $sender) {
+                $sender = $m['senderId'];
+                $runs[] = ['mine' => $m['mine'], 'time' => $m['time'], 'read' => $m['read'], 'bubbles' => [], 'attachments' => []];
+            }
+
+            $i = array_key_last($runs);
+            if ($m['body'] !== '') {
+                $runs[$i]['bubbles'][] = $m['body'];
+            }
+            $runs[$i]['attachments'] = array_merge($runs[$i]['attachments'], $m['attachments']);
+            // The run's stamp is its LAST message, and it is read only once every
+            // message in it has been read.
+            $runs[$i]['time'] = $m['time'];
+            $runs[$i]['read'] = $runs[$i]['read'] && $m['read'];
+        }
+
+        return $runs;
+    }
+
+    /** "Today" / "Yesterday" / "Monday, 21 July", in EN or BM. */
+    private function dayLabel(?string $date, string $lang): string
+    {
+        if ($date === null) {
+            return '';
+        }
+
+        $d = Carbon::parse($date)->startOfDay();
+
+        if ($d->isToday()) {
+            return $lang === 'en' ? 'Today' : 'Hari ini';
+        }
+        if ($d->isYesterday()) {
+            return $lang === 'en' ? 'Yesterday' : 'Semalam';
+        }
+
+        return $lang === 'en'
+            ? $d->format('l, j F')
+            : self::MS_DAYS[$d->dayOfWeek].', '.$d->day.' '.self::MS_MONTHS[(int) $d->month];
     }
 
     /**
@@ -396,9 +504,14 @@ class MessageController extends Controller
             'other' => $this->personArr($other),
             // An empty-body latest message can only exist if it carried attachments
             // (empty sends are rejected), so label it without loading the files here.
-            'snippet' => $last ? ($last->body !== '' ? Str::limit($last->body, 60) : '📎 Attachment') : null,
+            // 120, not 60: the screen's row gives the snippet two lines.
+            'snippet' => $last ? ($last->body !== '' ? Str::limit($last->body, 120) : '📎 Attachment') : null,
             'lastMine' => $last ? ($last->sender_id === $viewer->id) : false,
+            // `at` stays diffForHumans for the slide-over panel, which reads it.
             'at' => $conversation->last_message_at?->diffForHumans(),
+            'bucket' => $this->bucketFor($conversation->last_message_at),
+            'atShort' => $this->shortStamp($conversation->last_message_at, 'en'),
+            'atShortMs' => $this->shortStamp($conversation->last_message_at, 'ms'),
             'unread' => (int) ($conversation->unread_count ?? 0),
         ];
     }
@@ -411,8 +524,15 @@ class MessageController extends Controller
         return [
             'id' => $message->id,
             'mine' => $message->sender_id === $viewer->id,
+            'senderId' => $message->sender_id,
             'body' => $message->body,
             'at' => $message->created_at?->format('d M, H:i'),
+            // Grouping keys for runsFor(): `date` starts a new day divider, `time` is the
+            // one timestamp the whole run carries. `read` is what the sender never used
+            // to see, even though markRead() has been writing it all along.
+            'date' => $message->created_at?->format('Y-m-d'),
+            'time' => $message->created_at?->format('H:i'),
+            'read' => $message->read_at !== null,
             'attachments' => $message->attachments->map(fn (MessageAttachment $a) => [
                 'id' => $a->id,
                 'name' => $a->name,
@@ -420,6 +540,41 @@ class MessageController extends Controller
                 'url' => route('messages.attachment', $a),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Which heading a conversation files under in the index: `today`, `week` (the last
+     * seven days), or `earlier`. A thread that has never been written to files as
+     * `earlier` rather than inventing a fourth group for it.
+     */
+    private function bucketFor(?Carbon $at): string
+    {
+        if ($at === null) {
+            return 'earlier';
+        }
+        if ($at->isToday()) {
+            return 'today';
+        }
+
+        return $at->greaterThan(now()->subDays(7)) ? 'week' : 'earlier';
+    }
+
+    /** Index stamp: "09:41" today, "Mon" within the week, "24 Jul" beyond it. */
+    private function shortStamp(?Carbon $at, string $lang): string
+    {
+        if ($at === null) {
+            return '';
+        }
+        if ($at->isToday()) {
+            return $at->format('H:i');
+        }
+        if ($at->greaterThan(now()->subDays(7))) {
+            return $lang === 'en' ? $at->format('D') : self::MS_DAYS_SHORT[$at->dayOfWeek];
+        }
+
+        return $lang === 'en'
+            ? $at->format('j M')
+            : $at->day.' '.self::MS_MONTHS_SHORT[(int) $at->month];
     }
 
     /**

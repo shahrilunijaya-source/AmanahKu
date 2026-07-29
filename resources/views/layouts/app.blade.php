@@ -62,20 +62,15 @@
                 <div class="uj-pagehead">
                     <div>
                         {{-- The dashboard renders its own heading in the screen body, beside
-                             its chips and Me/Company switch, so it opts out of the whole page
-                             head here — breadcrumb included. The sidebar already marks where
-                             you are, and "Tenant / Dashboard" above a greeting said nothing. --}}
+                             its chips and Me/Company switch, so it opts out of the page head
+                             entirely.
+
+                             The breadcrumb that used to sit above the heading is gone from
+                             every screen. Its last segment was always the same word as the
+                             <h1> directly beneath it ("Unijaya Resources / Messages" over a
+                             heading reading "Messages"), and the sidebar already marks where
+                             you are. --}}
                         @unless ($screen === 'dash')
-                            <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--muted);margin-bottom:8px;">
-                                @foreach ($crumbs as $i => $crumb)
-                                    <span style="color:{{ $i === count($crumbs) - 1 ? 'var(--ink)' : 'var(--muted)' }};"
-                                          x-data="{ en: @js($crumb), ms: @js($crumbsMs[$i] ?? $crumb) }"
-                                          x-text="$store.ui.lang==='en' ? en : ms">{{ $crumb }}</span>
-                                    @if ($i < count($crumbs) - 1)
-                                        <span style="color:var(--muted);">/</span>
-                                    @endif
-                                @endforeach
-                            </div>
                             <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
                                 <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
                                 <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
@@ -249,64 +244,87 @@
             },
         });
 
-        // Slide-over inline chat: list of conversations → open a thread (fetched) → send
-        // without leaving the page. Seeded with the panel feed from context().
+        // Slide-over messages: a list of conversations, and the SAME thread fragment the
+        // full screen renders, fetched from messages.pane. This component used to carry
+        // its own bubbles, composer, attachment tiles and send logic — a second
+        // implementation that had already fallen behind on run grouping, day dividers and
+        // read receipts. Only the glue lives here now.
+        //
+        // It deliberately does NOT touch history: the panel floats over whatever screen
+        // you are on, and rewriting the URL would strand you somewhere else on refresh.
         Alpine.data('messagesPanel', (threads) => ({
             view: 'list',
             threads: threads,
-            active: null,
-            body: '',
-            files: [],
-            sending: false,
+            activeId: null,
             loading: false,
+            sending: false,
+            error: '',
             csrf() { return document.querySelector('meta[name=csrf-token]').content; },
+
+            /** Fetch the thread fragment and drop it into the panel's pane. */
+            async swap(query) {
+                this.loading = true;
+                this.error = '';
+                try {
+                    const res = await fetch('{{ route('messages.pane') }}?' + query, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (! res.ok) { throw new Error('pane ' + res.status); }
+                    this.$refs.pane.innerHTML = await res.text();
+                    const id = new URLSearchParams(query).get('c');
+                    this.activeId = id ? Number(id) : null;
+                } catch (e) {
+                    // Losing the panel is not worth a navigation — send them to the real
+                    // screen, which is where a broken fragment can be recovered.
+                    window.location = '{{ route('app.screen', 'messages') }}?' + query;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
             open(t) {
                 this.view = 'thread';
-                this.loading = true;
-                this.active = { conversationId: t.id, to: t.other.id, other: t.other, messages: [] };
-                fetch('{{ url('/app/messages/thread') }}/' + t.id, { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json())
-                    .then(d => { if (d.ok) { this.active.messages = d.messages; this.active.other = d.other; this.scrollDown(); } })
-                    .catch(() => {})
-                    .finally(() => { this.loading = false; });
-                if (t.unread > 0) { this.markRead(t.id); t.unread = 0; }
+                if (t.unread > 0) { t.unread = 0; }
+                return this.swap('c=' + t.id);
             },
-            markRead(id) {
-                fetch('{{ url('/app/messages') }}/' + id + '/read', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
-                }).then(r => r.json()).then(d => { if (this.$store.msgbadge) this.$store.msgbadge.unread = d.unread; }).catch(() => {});
-            },
-            addFiles(e) {
-                this.files = this.files.concat(Array.from(e.target.files));
-                e.target.value = '';
-            },
-            send() {
-                const text = this.body.trim();
-                if ((!text && this.files.length === 0) || this.sending || !this.active) return;
+
+            /** The fragment's back button. In the panel that means the conversation list. */
+            back() { this.view = 'list'; this.activeId = null; },
+
+            /** The fragment's composer posts through here. */
+            async send(form) {
+                if (this.sending) { return; }
                 this.sending = true;
-                const fd = new FormData();
-                fd.append('body', text);
-                if (this.active.conversationId) fd.append('conversation_id', this.active.conversationId);
-                else if (this.active.to) fd.append('to', this.active.to);
-                this.files.forEach(f => fd.append('attachments[]', f));
-                fetch('{{ route('messages.send') }}', {
-                    method: 'POST',
-                    // No Content-Type header — the browser sets the multipart boundary.
-                    headers: { 'X-CSRF-TOKEN': this.csrf(), 'Accept': 'application/json' },
-                    body: fd,
-                }).then(r => r.json()).then(d => {
-                    if (d.ok) {
-                        this.active.conversationId = d.conversationId;
-                        this.active.messages.push(d.message);
-                        this.body = '';
-                        this.files = [];
-                        this.scrollDown();
+                this.error = '';
+                try {
+                    const res = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await res.json();
+                    if (! res.ok) {
+                        this.error = Object.values(data.errors ?? {}).flat()[0]
+                            ?? (this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.');
+                        return;
                     }
-                }).catch(() => {}).finally(() => { this.sending = false; });
+                    this.touch(data.conversationId, data.message);
+                    await this.swap('c=' + data.conversationId);
+                } catch (e) {
+                    this.error = this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.';
+                } finally {
+                    this.sending = false;
+                }
             },
-            back() { this.view = 'list'; this.active = null; this.body = ''; this.files = []; },
-            scrollDown() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = this.$refs.scroll.scrollHeight; }); },
+
+            /** Keep the list row honest without refetching the feed. */
+            touch(id, message) {
+                const t = this.threads.find(t => t.id === id);
+                if (! t) { return; }
+                t.snippet = message.body !== '' ? message.body.slice(0, 120) : '📎 Attachment';
+                t.lastMine = true;
+                t.at = this.$store.ui.lang === 'en' ? 'just now' : 'sebentar tadi';
+                t.unread = 0;
+                this.threads = [t, ...this.threads.filter(x => x.id !== id)];
+            },
         }));
         @endif
 
