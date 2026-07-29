@@ -527,4 +527,23 @@ class TotAssignPermissionTest extends TestCase
             'presenter_employee_id' => $this->presenter->id,
         ])->assertRedirect();
     }
+
+    public function test_the_board_offers_a_holder_the_roster_link(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertSee('tot-roster', false);
+    }
+
+    public function test_the_board_hides_the_roster_link_without_the_override(): void
+    {
+        $this->seedWorkspace();
+
+        $this->actingAsManager()->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('tot-roster', false);
+    }
 }

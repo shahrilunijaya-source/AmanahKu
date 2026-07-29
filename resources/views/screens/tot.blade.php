@@ -122,6 +122,11 @@
                     <a href="{{ route('app.screen', ['screen' => 'tot', 'year' => $y]) }}" class="tot-yr" @if ($y === $year) aria-selected="true" @endif>{{ $y }}</a>
                 @endforeach
             </div>
+            @if ($canAssignPresenter)
+                <a href="{{ route('app.screen', ['screen' => 'tot-roster', 'year' => $year]) }}"
+                   class="tot-yr" style="margin-top:8px;text-decoration:underline;text-underline-offset:3px;"
+                   x-text="$store.ui.lang==='en' ? 'Edit roster' : 'Sunting jadual'">Edit roster</a>
+            @endif
         </div>
         <div class="tot-chips">
             <div class="tot-chip"><b>{{ $heldCount }}</b><span x-text="$store.ui.lang==='en' ? 'Held' : 'Selesai'">Held</span></div>
