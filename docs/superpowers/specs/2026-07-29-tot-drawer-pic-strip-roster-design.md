@@ -105,7 +105,9 @@ Two rules behind this. First, a non-TOT month is a real thing that happened, so 
 
 ### The drawer
 
-560px, right-anchored, `max-width:94vw`, full width below 640px. Same geometry, easing and scrim as the T.A.A. drawer, so the app ends up with one slide-over and not two.
+560px, right-anchored, `max-width:94vw`, full width below 600px. Same geometry, easing and scrim as the T.A.A. drawer, so the app ends up with one slide-over and not two.
+
+That 600px is not a number this spec chooses — `app.css:893` already sets it, and the port must leave it alone. Editing a rule the board drawer also uses, to satisfy a breakpoint invented here, is the same mistake as redeclaring `.tot-fly`.
 
 Top to bottom: sticky header with the month and a close button; presenter block with avatar, name and full date; the topic as a heading; property rows for status, presenter and material; description; links; the reaction pills; the action row; then a rule, the anonymous rater notes where permitted, and the thread. The composer docks to the panel floor.
 
