@@ -48,11 +48,19 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/watched`);
         },
 
+        // Pressing the score you already gave takes it back, matching the emoji
+        // and the eye. The server clears the note along with the score.
         rate(score) {
-            return this.act(`/app/tot/${this.id}/rate`, { score });
+            return this.act(`/app/tot/${this.id}/rate`, {
+                score: this.myScore === score ? null : score,
+            });
         },
 
+        // With no score there is nothing for a note to annotate, and posting one
+        // would send score:null and clear the row instead of saving the text.
         saveNote(note) {
+            if (this.myScore === null || this.myScore === undefined) return;
+
             return this.act(`/app/tot/${this.id}/rate`, { score: this.myScore, note });
         },
 
