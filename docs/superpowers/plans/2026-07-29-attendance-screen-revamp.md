@@ -117,10 +117,12 @@ and a `@media (hover: none)` block that neutralises row hover backgrounds.
 - `earlierRecords` — the remaining fetched records, older than this week.
 - `weekWorkedMinutes` — `int`, sum of `worked_minutes` over `weekRecords`.
 - `weekBaselineDeltaMinutes` — `int`, `weekWorkedMinutes` minus the expected minutes
-  for the **completed** days in `weekRecords`. Expected minutes per day come from the
-  resolved site's `workStart`/`workEnd` window. Add a docblock noting this
-  approximates when a person's schedule varies mid-week; resolving the schedule
-  per-date would cost one query per day for a single chip.
+  for the **completed** days in `weekRecords`. `attendance_records.expected_min_hours`
+  already stores the expectation the punch was judged against, so the expected figure
+  is `round(expected_min_hours * 60)` summed over records that have a `clock_out`.
+  Rows with a null `expected_min_hours` contribute nothing to either side. This is
+  exact: no schedule needs re-resolving, and the delta is measured against the same
+  expectation the flags were raised from.
 - `lateThisMonth` — `int`, count of records in the current calendar month with
   `status === 'late'`.
 - `offSiteThisMonth` — `int`, count of records in the current calendar month whose
