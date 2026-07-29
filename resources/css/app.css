@@ -949,24 +949,9 @@ select.wd-inline {
 
 @keyframes tot-fade-in { from { opacity:0; } to { opacity:1; } }
 
-.tot-modal { position:fixed; inset:0; z-index:60; display:flex; align-items:center;
-  justify-content:center; padding:18px; }
-.tot-modal-back { position:absolute; inset:0; background:rgba(0,0,0,.45);
-  animation:tot-fade-in 150ms both; }
-.tot-modal-card { position:relative; width:100%; max-width:460px; max-height:80vh;
-  display:flex; flex-direction:column; background:var(--card); border-radius:14px;
-  overflow:hidden; animation:tot-modal-in 180ms cubic-bezier(.22,1,.36,1) both; }
-@keyframes tot-modal-in { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:none; } }
-.tot-modal-head { display:flex; align-items:center; gap:10px; padding:12px 16px;
-  border-bottom:1px solid var(--hairline-soft); }
-.tot-modal-body { padding:14px 16px; overflow-y:auto; flex:1; }
-.tot-modal-foot { display:flex; gap:8px; padding:12px 16px;
-  border-top:1px solid var(--hairline-soft); }
-
 @media (prefers-reduced-motion: reduce) {
   .tot-fly, .tot-fly-e { animation:tot-fade-in 150ms both; }
   .tot-fly-e:hover, .tot-sc:hover { transform:none; }
-  .tot-modal-card { animation:tot-fade-in 150ms both; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2025,17 +2010,6 @@ select.wd-inline {
 .tot-meta-mobile{display:none;gap:9px;align-items:center;margin-top:5px;font-size:12px;color:var(--muted);}
 .tot-meta-mobile b{font:600 11px var(--font-mono);color:var(--muted);margin-left:2px;}
 
-.tot-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows 280ms var(--tot-eo);}
-.tot-wrap[data-open="1"]{grid-template-rows:1fr;}
-.tot-wrap>div{overflow:hidden;}
-/* The 0fr to 1fr collapse needs the inner div to clip while it animates, but a clipping
-   ancestor also cuts the top off the rating flyout, which opens upward past the panel.
-   Stop clipping once the row is open. The delay keeps the clip in place for the whole
-   280ms transition, so nothing spills while the row is still moving. */
-.tot-wrap[data-open="1"]>div{overflow:visible;transition:overflow 0s 280ms;}
-.tot-panel{padding:2px 6px 22px 72px;background:var(--red-tint);border-radius:0 0 10px 10px;}
-.tot-panel-date{font:600 11px var(--font-mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
-
 .tot-emo{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;border:1px solid var(--hairline);background:var(--card);font-size:14px;line-height:1;cursor:pointer;font-family:inherit;transition:transform 140ms var(--tot-eo),border-color 140ms var(--tot-eo),background 140ms var(--tot-eo);}
 .tot-emo:hover{border-color:var(--muted);}
 .tot-emo:active{transform:scale(.94);}
@@ -2071,7 +2045,6 @@ select.wd-inline {
     .tot-row{grid-template-columns:46px minmax(0,1fr) 14px;gap:12px;}
     .tot-tile .d{font-size:21px;}
     .tot-nm{font-size:16px;}
-    .tot-panel{padding:2px 4px 18px 4px;}
     .tot-row .tot-meta{display:none;}
     .tot-meta-mobile{display:flex;}
     .tot-yr-list{flex-direction:row;gap:6px;}
@@ -2081,7 +2054,7 @@ select.wd-inline {
     .tot-score{flex:1;width:auto;}
 }
 @media (prefers-reduced-motion:reduce){
-    .tot-row,.tot-tile,.tot-wrap,.tot-emo,.tot-nm,.tot-yr,.tot-lk,.tot-chev,.tot-pillbtn,.tot-score,.tot-btn-p,.tot-btn-g{transition:none;}
+    .tot-row,.tot-tile,.tot-emo,.tot-nm,.tot-yr,.tot-lk,.tot-chev,.tot-pillbtn,.tot-score,.tot-btn-p,.tot-btn-g{transition:none;}
     .tot-row:hover .tot-tile,.tot-row:active .tot-tile,.tot-emo:active,.tot-pillbtn:active,.tot-score:active,.tot-btn-p:active,.tot-btn-g:active{transform:none;}
 }
 
@@ -2121,4 +2094,28 @@ select.wd-inline {
    the floor this file already holds everywhere else (.tot-up, .tot-mast-k). */
 .tot-kick { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.12em;
   text-transform:uppercase; color:var(--muted); margin-bottom:3px; }
+
+/* Standalone avatar. NOT .wa — that is the 20px overlapping stack chip with 9px
+   initials, which would collide and import a known undersized-text problem. */
+.tot-av-c { width:34px; height:34px; border-radius:50%; flex-shrink:0; display:inline-flex;
+  align-items:center; justify-content:center; font:700 12px var(--font-sans); color:#fff; }
+
+/* Authoring is a desk task. This is a policy line, not a fitting problem: the
+   edit form sits inside the 560px drawer, so it is the same width on a phone and
+   would fit. It is gated because setting a roster or writing up a topic is
+   deliberate work — so it must never fail silently. Below 900px the button is
+   replaced by a sentence, never simply removed. */
+@media (max-width:899px) {
+  .tot-authoring { display:none !important; }
+  .tot-authoring-note { display:flex !important; }
+}
+.tot-authoring-note { display:none; }
+
+@media (max-width:640px) {
+  /* app.css gives .tot-act padding:0 and no height — a fine mouse target and a
+     poor thumb one. The flyouts need nothing here: they already become a bottom
+     sheet at 480px above. */
+  .tot-act { min-height:40px; }
+  .tot-sc { width:40px; height:40px; }
+}
 

@@ -1,3 +1,4 @@
+<div class="tot-authoring">
 <div class="tot-rule">
     <button type="button" class="tot-pillbtn" @click="editing = !editing">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -83,4 +84,9 @@
             </form>
         @endif
     </div>
+</div>
+</div>
+<div class="wd-locked tot-authoring-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    <span x-text="$store.ui.lang==='en' ? 'Editing your slot needs a wider screen. Your topic, description and links are set from a laptop. Everything else here works on a phone.' : 'Menyunting slot anda memerlukan skrin lebih lebar. Topik, penerangan dan pautan ditetapkan dari komputer riba. Selebihnya di sini berfungsi pada telefon.'">Editing your slot needs a wider screen.</span>
 </div>

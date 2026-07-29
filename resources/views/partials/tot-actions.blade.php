@@ -18,12 +18,6 @@
         </button>
     </span>
 
-    <button type="button" class="tot-act" @click="openThread()"
-            :aria-label="$store.ui.lang==='en' ? 'Open comments' : 'Buka komen'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-4-.9L3 21l1.9-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>
-        <span x-text="comments || ''"></span>
-    </button>
-
     <button type="button" class="tot-act" :data-on="iWatched ? '1' : null"
             @click="toggleWatched()" x-show="canParticipate"
             :aria-label="$store.ui.lang==='en' ? 'Mark as watched' : 'Tanda sudah tonton'">

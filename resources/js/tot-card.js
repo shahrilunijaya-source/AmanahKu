@@ -2,7 +2,7 @@ export function registerTotCard(Alpine) {
     Alpine.data('totCard', (seed) => ({
         ...seed,
         flyout: null,
-        modalOpen: false,
+        drawerOpen: false,
         thread: null,
         notes: [],
         busy: false,
@@ -64,8 +64,13 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/rate`, { score: this.myScore, note });
         },
 
+        openDrawer() {
+            this.drawerOpen = true;
+
+            return this.openThread();
+        },
+
         async openThread() {
-            this.modalOpen = true;
             if (this.thread !== null) return;
             try {
                 const res = await fetch(`/app/tot/${this.id}/comments`, {
