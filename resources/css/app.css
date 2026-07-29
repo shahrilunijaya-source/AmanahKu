@@ -1088,6 +1088,110 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
   .uj-at-row:hover, .uj-at-ghost:hover { background: initial; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Attendance report roster (resources/views/screens/attendance-report.blade.php) —
+   ported from the approved public/_attendance-report-revamp.html mock.
+   Namespaced uj-ar- ("attendance report").
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Centred single-task column ──
+   The desktop reference width is 1920 (~1600px content area), so max-width
+   920px keeps the screen focused and centred, matching .uj-at-wrap. */
+.uj-ar-wrap { max-width: 920px; margin: 0 auto; }
+
+.uj-ar-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
+.uj-ar-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
+.uj-ar-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.uj-ar-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+.uj-ar-figsub { font-size: var(--t-base); color: var(--body); max-width: 36ch; line-height: 1.5; }
+.uj-ar-figsub b { font-weight: 600; color: var(--ink); }
+.uj-ar-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.uj-ar-pills { display: inline-flex; background: var(--card); border: 1px solid var(--shelf-line); border-radius: 10px; padding: 3px; gap: 2px; }
+.uj-ar-pill { padding: 7px 13px; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--muted); background: none; border: 0; cursor: pointer; white-space: nowrap; text-decoration: none; transition: color .14s cubic-bezier(.23, 1, .32, 1), background .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-ar-pill:hover { color: var(--ink); }
+.uj-ar-pill[data-on], .uj-ar-pill.uj-ar-on { background: var(--shelf); color: var(--ink); font-weight: 600; }
+.uj-ar-sel { padding: 8px 12px; border: 1px solid var(--shelf-line); border-radius: 10px; font: inherit; font-size: var(--t-sm); color: var(--ink); background: var(--card); outline: none; cursor: pointer; }
+.uj-ar-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.uj-ar-range { font-size: var(--t-sm); color: var(--muted); margin-left: auto; font-family: var(--font-mono); }
+
+.uj-ar-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: var(--t-micro); font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: .02em; }
+/* .ar-name and .ar-sub are display:block. As inline spans, a short name and its
+   department share a line while a long one wraps, and the list loses its baseline grid. */
+.uj-ar-name { display: block; font-size: var(--t-base); color: var(--ink); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uj-ar-sub { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.uj-ar-sect { margin-top: 34px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.uj-ar-sect h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
+.uj-ar-sect .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.uj-ar-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
+.uj-ar-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.uj-ar-tag[data-t="ok"] { background: #e7f4ee; color: var(--success-ink); }
+.uj-ar-tag[data-t="late"] { background: #faf1e2; color: #7a5210; }
+.uj-ar-tag[data-t="out"] { background: #fdecf1; color: #a01840; }
+.uj-ar-tag[data-t="leave"] { background: #e9f0f7; color: #2b537c; }
+.uj-ar-tag[data-t="none"] { background: var(--hairline-soft); color: var(--muted); }
+
+/* ── the day strip: one cell per working day ── */
+.uj-ar-strip { display: flex; gap: 3px; align-items: center; }
+.uj-ar-cell { width: 10px; height: 22px; border-radius: 2px; flex-shrink: 0; }
+.uj-ar-cell[data-s="o"] { background: var(--success); }
+.uj-ar-cell[data-s="l"] { background: var(--amber); }
+.uj-ar-cell[data-s="x"] { background: var(--error); }
+.uj-ar-cell[data-s="v"] { background: #c3d5e6; }
+/* The day cell for a missing day is filled (background:#dedbd2), not an outline.
+   At 10px an outline-only cell disappears, and a row of 22 of them reads as blank space,
+   which is the exact thing this screen exists to make visible. */
+.uj-ar-cell[data-s="-"] { background: #dedbd2; }
+.uj-ar-cell[data-today] { box-shadow: inset 0 0 0 1px var(--ink); }
+.uj-ar-anim .uj-ar-cell { animation: uj-ar-in .34s cubic-bezier(.23, 1, .32, 1) both; }
+@keyframes uj-ar-in { from { opacity: 0; transform: translateY(4px) scaleY(.5); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .uj-ar-anim .uj-ar-cell { animation: none; } }
+
+.uj-ar-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--t-micro); color: var(--muted); margin-top: 14px; }
+.uj-ar-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.uj-ar-legend b { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* ── Coverage bar & key ── */
+.uj-ar-cov { display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin-top: 20px; background: var(--shelf-line); }
+.uj-ar-cov i { display: block; height: 100%; }
+.uj-ar-covkey { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: var(--t-sm); color: var(--body); }
+.uj-ar-covkey span { display: inline-flex; align-items: center; gap: 6px; }
+.uj-ar-covkey b { width: 8px; height: 8px; border-radius: 2px; }
+
+/* ── Roster rows ── */
+.uj-ar-list { margin-top: 12px; }
+.uj-ar-r { border-top: 1px solid #e2ded4; }
+.uj-ar-r:first-child { border-top: 0; }
+/* Any multi-column grid holding nowrap names or time pills uses minmax(0,1fr), never plain 1fr.
+   A plain fr track floors at min-content, so the column overflows instead of ellipsing inside it. */
+.uj-ar-rbtn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 20px; padding: 14px 8px; background: none; border: 0; text-align: left; cursor: pointer; border-radius: 10px; font: inherit; text-decoration: none; color: inherit; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-ar-rbtn:hover { background: #f1efe8; }
+.uj-ar-rbtn:active { background: #eceae2; transition-duration: .04s; }
+.uj-ar-who { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 auto; }
+.uj-ar-who > span { min-width: 0; }
+.uj-ar-pct { font: 600 var(--t-lg) var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; letter-spacing: -.02em; }
+.uj-ar-pct[data-p="hi"] { color: var(--success-ink); }
+.uj-ar-pct[data-p="mid"] { color: #7a5210; }
+.uj-ar-pct[data-p="lo"] { color: #a01840; }
+.uj-ar-pct[data-p="none"] { color: var(--muted-soft); }
+.uj-ar-pct em { display: block; font: 400 var(--t-micro)/1.5 var(--font-sans); color: var(--muted); font-style: normal; letter-spacing: 0; }
+.uj-ar-flag { font-size: var(--t-sm); color: #a01840; font-weight: 500; margin-top: 3px; }
+.uj-ar-flag[data-t="leave"] { color: #2b537c; }
+
+@media (max-width: 640px) {
+  .uj-ar-shelf { padding: 20px 18px 18px; border-radius: 13px; }
+  .uj-ar-fig { font-size: 42px; }
+  .uj-ar-figsub { font-size: var(--t-sm); }
+  .uj-ar-range { margin-left: 0; width: 100%; }
+  .uj-ar-rbtn { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 13px 6px; }
+  .uj-ar-rbtn .uj-ar-strip { grid-column: 1 / -1; order: 3; }
+  .uj-ar-cell { width: 9px; height: 19px; }
+}
+
+
+
 
 
 /* ══════════════════════════════════════════════════════════════════════════

@@ -309,4 +309,49 @@ class AttendanceReportDataTest extends TestCase
             $this->assertSame($countAfter, strlen($row['strip']));
         }
     }
+
+    public function test_a_fully_absent_employee_on_leave_sorts_below_a_poor_attender(): void
+    {
+        $onLeaveEmp = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Full Leave Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $onLeaveEmp->id,
+            'leave_type_id' => $this->leaveType->id,
+            'date_from' => '2026-06-01',
+            'date_to' => '2026-07-31',
+            'days' => 60,
+            'status' => 'approved',
+        ]);
+
+        $poorAttender = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Poor Attender Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $poorAttender->id,
+            'date' => '2026-07-14',
+            'status' => 'late',
+            'clock_in' => '10:00:00',
+        ]);
+
+        $data = $this->getScreenData();
+        $roster = collect($data['roster']);
+
+        $poorIndex = $roster->search(fn ($r) => $r['id'] === $poorAttender->id);
+        $leaveIndex = $roster->search(fn ($r) => $r['id'] === $onLeaveEmp->id);
+
+        $this->assertNotFalse($poorIndex);
+        $this->assertNotFalse($leaveIndex);
+        $this->assertLessThan($leaveIndex, $poorIndex, 'Poor attender must sort before a fully absent employee on leave.');
+    }
 }
