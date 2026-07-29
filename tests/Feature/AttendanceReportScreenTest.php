@@ -83,6 +83,7 @@ class AttendanceReportScreenTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Unclocked Staff Member');
+        $response->assertSee('emp='.$noRecordEmp->id);
     }
 
     public function test_approved_leave_reads_as_leave_not_absence(): void

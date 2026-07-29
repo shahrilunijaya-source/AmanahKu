@@ -75,7 +75,7 @@
         {{-- ── Single-staff drill-down (UNTOUCHED) ────────────────────────── --}}
         <div class="uj-card">
             <div class="uj-card-head" style="display:flex;align-items:center;gap:12px;">
-                <div class="ar-av" style="background:{{ $drill->avatar_color }};">{{ $drill->initials }}</div>
+                <div class="uj-ar-av" style="background:{{ $drill->avatar_color }};">{{ $drill->initials }}</div>
                 <div style="min-width:0;">
                     <h3 class="uj-card-title" style="margin:0;">{{ $drill->name }}</h3>
                     <div style="font-size:11.5px;color:var(--muted);">{{ trim(($drill->position ?? '').' · '.($drill->department?->name ?? ''), ' ·') }}</div>
@@ -85,11 +85,11 @@
                 </a>
             </div>
 
-            <div class="ar-staff-row ar-staff-head" style="background:none;">
+            <div class="uj-ar-drow uj-ar-dhead" style="background:none;">
                 <span x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</span>
                 <span style="text-align:right;">In</span>
-                <span style="text-align:right;" class="ar-hide-sm">Out</span>
-                <span style="text-align:right;" class="ar-hide-sm"><span x-text="$store.ui.lang==='en' ? 'Worked' : 'Bekerja'">Worked</span></span>
+                <span style="text-align:right;" class="uj-ar-hide-sm">Out</span>
+                <span style="text-align:right;" class="uj-ar-hide-sm"><span x-text="$store.ui.lang==='en' ? 'Worked' : 'Bekerja'">Worked</span></span>
                 <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></span>
                 <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Flags' : 'Tanda'">Flags</span></span>
             </div>
@@ -101,11 +101,11 @@
                     $worked = $wm > 0 ? intdiv($wm, 60).'h'.($wm % 60 ? ($wm % 60).'m' : '') : '—';
                     $sl = $stLabel[$r->status] ?? [$r->status, $r->status];
                 @endphp
-                <div class="ar-staff-row" style="cursor:default;">
+                <div class="uj-ar-drow" style="cursor:default;">
                     <span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $r->date->format('D, j M') }}</span>
-                    <span class="ar-num">{{ $rin }}</span>
-                    <span class="ar-num ar-hide-sm">{{ $rout }}</span>
-                    <span class="ar-num ar-hide-sm" style="font-weight:500;color:var(--muted);">{{ $worked }}</span>
+                    <span class="uj-ar-num">{{ $rin }}</span>
+                    <span class="uj-ar-num uj-ar-hide-sm">{{ $rout }}</span>
+                    <span class="uj-ar-num uj-ar-hide-sm" style="font-weight:500;color:var(--muted);">{{ $worked }}</span>
                     <span style="text-align:right;font-size:12px;font-weight:600;color:{{ $stColor[$r->status] ?? 'var(--muted)' }};">
                         <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
                     </span>
