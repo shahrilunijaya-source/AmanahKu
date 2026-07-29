@@ -58,6 +58,60 @@ jobs:
       - name: Tests
         run: php artisan test
 
+  # ── Committed-asset freshness (AK-BUILD-01). The staging host builds nothing: it ──
+  # ── serves the public/build committed to the repo, so a source change with no ─────
+  # ── rebuild ships the previous stylesheet and fails silently — no error, no failing
+  # ── test, just the old look. This job rebuilds and fails if the result differs.
+  # ──
+  # ── `view:cache` is not optional. resources/css/app.css has
+  # ── `@source '../../storage/framework/views/*.php'`, so Tailwind reads the compiled
+  # ── Blade cache. Left to whatever a machine happens to have compiled, that makes the
+  # ── CSS vary per machine; compiling every view first makes the cache a pure function
+  # ── of the Blade sources, which is what makes this comparison meaningful at all.
+  assets:
+    name: Committed assets match sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, gd, zip
+          coverage: none
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      # Tailwind scans this directory; compile every view so the scan is deterministic.
+      - name: Compile all Blade views
+        run: php artisan view:cache
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Rebuild assets
+        run: bun run build
+
+      - name: Fail if public/build is stale
+        run: |
+          if [ -n "$(git status --porcelain -- public/build)" ]; then
+            echo "::error::public/build does not match the sources. Run 'php artisan view:cache && bun run build' and commit public/build."
+            git status --porcelain -- public/build
+            exit 1
+          fi
+          echo "public/build is current."
+
   # ── Static analysis (PHPStan + Larastan). Larastan is installed here rather than ──
   # ── pinned in composer.json so the runtime lock stays lean; bump the constraint ───
   # ── into require-dev once the baseline in phpstan.neon is clean at the target level.

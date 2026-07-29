@@ -68,15 +68,33 @@ Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH hos
 `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, which tracks the
 `main` branch of the public GitHub repo. There is no prod host yet.
 
-**The host has no Node**, so assets are built locally and the compiled `public/build` is
-committed. Deploy is `git pull && bash deploy.sh` on the server. `deploy.sh` is idempotent
+**Assets are built locally and the compiled `public/build` is committed**; the host builds
+nothing. Deploy is `git pull && bash deploy.sh` on the server. `deploy.sh` is idempotent
 and safe to re-run: maintenance-down, `composer install`, `migrate --force`, skips asset
 build (uses committed `public/build`), warms config/route/view caches, restarts the queue,
 brings the app back up. View-cache warming is what makes new Blade changes take effect.
 
+The host *does* have Node, contrary to what this file said before 2026-07-30: CloudLinux
+ships it at `/opt/alt/alt-nodejs{18,20,22,24}/root/usr/bin/node`, just not on `PATH`. It is
+still useless for building. Vite 8 bundles with Rolldown, which asks rayon for one thread
+per core (the box reports 64), and the account's thread cap refuses them:
+`ThreadPoolBuildError ... WouldBlock`. `RAYON_NUM_THREADS=4` does make it build, but the
+server-side build was rejected deliberately — a build that dies mid-deploy leaves the app
+in maintenance mode. Do not revive the idea without that tradeoff in mind. Under bun the
+same panic surfaces as a bare `SIGABRT` with no message at all.
+
+**Always `view:cache` before building.** `resources/css/app.css` has
+`@source '../../storage/framework/views/*.php'`, so Tailwind scans the compiled Blade
+cache. Build against a partial cache and the CSS silently omits whatever was not compiled —
+this is exactly how staging came to be missing `.animate-spin`, the `focus-visible:` ring
+utilities and the `disabled:` states. Compiling every view first makes the cache a pure
+function of the Blade sources, and the build then reproduces byte for byte on any machine.
+CI enforces the match in the `Committed assets match sources` job.
+
 Safe sequence (run from local repo root):
 ```fish
-bun run build                                   # rebuild assets if JS/CSS/Blade changed
+lerd artisan view:cache                          # REQUIRED: makes the Tailwind scan complete
+bun run build                                    # rebuild assets if JS/CSS/Blade changed
 git add public/build && git commit ...           # commit assets alongside the change
 # merge the change into main via PR, then:
 ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git status -sb'   # LOOK FIRST (read-only)
