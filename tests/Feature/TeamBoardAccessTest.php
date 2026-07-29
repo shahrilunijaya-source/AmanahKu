@@ -98,8 +98,8 @@ class TeamBoardAccessTest extends TestCase
     {
         $this->actor('hr');
 
-        // Each personal screen carries an icon button to its company-wide counterpart.
-        $this->get('/app/attendance')->assertOk()->assertSee('See all staff attendance');
+        // Attendance screen carries this affordance as a text link in its week heading rather than through partials/see-all-btn.
+        $this->get('/app/attendance')->assertOk()->assertSee('All staff attendance');
         $this->get('/app/board')->assertOk()->assertSee('See all staff tasks');
         $this->get('/app/timesheets')->assertOk()->assertSee('See all staff timesheets');
     }
@@ -108,7 +108,8 @@ class TeamBoardAccessTest extends TestCase
     {
         $this->actor('employee');
 
-        $this->get('/app/attendance')->assertOk()->assertDontSee('See all staff attendance');
+        // Attendance screen carries this affordance as a text link in its week heading rather than through partials/see-all-btn.
+        $this->get('/app/attendance')->assertOk()->assertDontSee('All staff attendance');
         $this->get('/app/board')->assertOk()->assertDontSee('See all staff tasks');
         $this->get('/app/timesheets')->assertOk()->assertDontSee('See all staff timesheets');
     }
