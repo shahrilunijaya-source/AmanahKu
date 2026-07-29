@@ -960,6 +960,206 @@ ancestor. The speech bubble goes with it: the thread is in the panel now."
 
 ---
 
+### Task 5c: One emoji per person, and the outer icons undo
+
+Added after review. Tasks 2 to 4 made undo reachable only *inside* the flyouts: to
+remove a reaction you had to reopen the picker and press your selection again. The eye
+was the only control where the icon itself toggled. The heart and the star now behave the
+same way.
+
+Confirmed with the user: **a person leaves at most one emoji per session.** That settles
+what the heart undoes — there is never a question of which reaction it removes.
+
+**Files:**
+- Modify: `app/Http/Controllers/TotController.php` (the `react` method)
+- Modify: `resources/js/tot-card.js`
+- Modify: `resources/views/partials/tot-actions.blade.php`
+- Test: `tests/Feature/TotLiveActionsTest.php`
+
+**Interfaces:**
+- Consumes: `rate()` from Task 3, which already clears on a repeat score.
+- Produces: `react()` replaces rather than accumulates. `heartPress()` and `starPress()`
+  on the Alpine component.
+
+**The rule, in one line:** the outer icon is the toggle, the flyout is only for choosing.
+
+| You have | Click the icon | Pick from the flyout |
+|---|---|---|
+| nothing | opens the flyout | sets it |
+| something | removes it | replaces it |
+
+- [ ] **Step 1: Write the failing tests**
+
+```php
+public function test_a_second_emoji_replaces_the_first(): void
+{
+    $session = $this->slot();
+
+    $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+    $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+    $response->assertOk()->assertJsonPath('mine', ['🔥']);
+
+    $this->assertSame(1, TotReaction::where('session_id', $session->id)
+        ->where('employee_id', $this->employee->id)->count(), 'one emoji per person');
+    $this->assertJsonStringEqualsJsonString(
+        json_encode(['🔥' => 1]),
+        json_encode($response->json('reactions')),
+        'the first emoji is gone from the counts, not just from mine'
+    );
+}
+
+public function test_pressing_the_same_emoji_still_removes_it(): void
+{
+    $session = $this->slot();
+
+    $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+    $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+
+    $response->assertOk()->assertJsonPath('mine', []);
+    $this->assertSame(0, TotReaction::where('session_id', $session->id)->count());
+}
+
+public function test_replacing_your_emoji_leaves_other_people_alone(): void
+{
+    $session = $this->slot();
+
+    $other = Employee::create([
+        'tenant_id' => $this->tenant->id, 'name' => 'Other',
+        'status' => 'active', 'workload' => 'green',
+    ]);
+    TotReaction::create([
+        'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+        'employee_id' => $other->id, 'emoji' => '👍',
+    ]);
+
+    $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+    $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+    $response->assertOk()->assertJsonPath('mine', ['🔥']);
+    $this->assertSame(1, TotReaction::where('session_id', $session->id)
+        ->where('employee_id', $other->id)->count(), 'their reaction survives');
+    $this->assertSame(1, $response->json('reactions.👍'), 'and still counts');
+}
+```
+
+- [ ] **Step 2: Run them and watch them fail**
+
+Run: `php artisan test --compact --filter=TotLiveActionsTest`
+
+Expected: the first test FAILS with two rows and `mine` holding both emoji.
+
+- [ ] **Step 3: Make `react()` replace**
+
+Replace the whole body between the `$data = $request->validate([...])` call and the
+final `return`, keeping the validation as it is:
+
+```php
+        // One emoji per person per session. Whatever they had goes, and only a
+        // genuinely different emoji comes back — pressing the one you already
+        // left is the undo.
+        $had = TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $employee->id)
+            ->pluck('emoji');
+
+        TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $employee->id)
+            ->delete();
+
+        if (! $had->contains($data['emoji'])) {
+            try {
+                TotReaction::create([
+                    'session_id' => $session->id,
+                    'employee_id' => $employee->id,
+                    'emoji' => $data['emoji'],
+                ]);
+            } catch (QueryException $e) {
+                // 23xxx = the unique (session_id, employee_id, emoji) guard raced by a
+                // concurrent insert of the same emoji. The end state is what this
+                // request wanted, so there is nothing to do.
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
+            }
+        }
+```
+
+**Known limit, accepted.** Two near-simultaneous picks of *different* emoji can interleave
+delete/insert and leave that person with two rows. The unique index is on
+`(session_id, employee_id, emoji)`, so it cannot catch that; only an index on
+`(session_id, employee_id)` could, and that is a migration this change does not make. The
+client's `busy` flag already blocks the double-press that would cause it, and the next
+press self-corrects. Revisit if it is ever seen in real data.
+
+- [ ] **Step 4: Add the two press handlers**
+
+In `resources/js/tot-card.js`, add next to `react()`:
+
+```js
+        // The outer icon is the toggle; the flyout is only for choosing. With a
+        // reaction already left, pressing the heart takes it back — one emoji per
+        // person, so there is never a question of which one.
+        heartPress() {
+            if (this.mine.length) {
+                this.flyout = null;
+
+                return this.react(this.mine[0]);
+            }
+
+            this.flyout = this.flyout === 'react' ? null : 'react';
+        },
+
+        starPress() {
+            if (this.myScore) {
+                this.flyout = null;
+
+                return this.rate(this.myScore);   // same score in, cleared out
+            }
+
+            this.flyout = this.flyout === 'rate' ? null : 'rate';
+        },
+```
+
+- [ ] **Step 5: Point the two buttons at them**
+
+In `resources/views/partials/tot-actions.blade.php`, on the heart button replace
+`@click="flyout = flyout === 'react' ? null : 'react'"` with `@click="heartPress()"`, and
+on the star button replace `@click="flyout = flyout === 'rate' ? null : 'rate'"` with
+`@click="starPress()"`.
+
+Leave both `@mouseenter` bindings alone. Hovering still opens the picker, which is how
+you *change* a reaction; clicking the icon is how you remove one.
+
+Update the two `aria-label` bindings so the control announces what it will do:
+
+```blade
+:aria-label="mine.length
+    ? ($store.ui.lang==='en' ? 'Remove your reaction' : 'Buang reaksi anda')
+    : ($store.ui.lang==='en' ? 'React to this session' : 'Beri reaksi')"
+```
+
+```blade
+:aria-label="myScore
+    ? ($store.ui.lang==='en' ? 'Remove your rating' : 'Buang penilaian anda')
+    : ($store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini')"
+```
+
+- [ ] **Step 6: Run the suite**
+
+Run: `php artisan test --compact --filter=Tot`
+
+Expected: PASS, with the three new tests green.
+
+- [ ] **Step 7: Commit**
+
+```bash
+vendor/bin/pint --dirty --format agent
+git add app/Http/Controllers/TotController.php resources/js/tot-card.js resources/views/partials/tot-actions.blade.php tests/Feature/TotLiveActionsTest.php public/build
+git commit -m "feat(tot): press the heart or the star to undo"
+```
+
+---
+
 ### Task 6: The PIC strip
 
 **Files:**
