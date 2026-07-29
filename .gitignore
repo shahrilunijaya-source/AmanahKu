@@ -23,6 +23,10 @@ AGENTS.md
 /public/storage
 /storage/*.key
 /storage/pail
+# Where a mysqldump naturally lands before a migration. This repo is public and
+# a dump carries encrypted NRICs, so it must never be committed — keep backups
+# outside the repo (~/amanahku-backups/) and treat this as the safety net.
+/storage/backups
 /vendor
 _ide_helper.php
 Homestead.json
