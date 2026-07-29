@@ -659,24 +659,29 @@ class TotTest extends TestCase
         $this->assertTrue($watchedAt->equalTo($row->watched_at));
     }
 
-    /**
-     * Reverse order of the test above: rate first, then press watched. Pins the same
-     * ??= rule from the other direction, since watched() has its own independent ??=
-     * on the same column and nothing stops the two call orders from drifting apart.
-     */
-    public function test_marking_watched_after_rating_does_not_move_watched_at_forward(): void
+    public function test_rating_marks_you_watched_and_the_eye_can_then_clear_it(): void
     {
         $session = $this->makeSession();
 
         $this->travelTo('2026-03-10 09:00:00');
         $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
-        $watchedAt = TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at;
 
+        $this->assertNotNull(
+            TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at,
+            'rating implies watching'
+        );
+
+        // The eye is a toggle, so pressing it on a session that rating already marked
+        // watched clears the mark. Nothing depends on preserving the original stamp:
+        // watched_at's value is never read, only its null-ness, for iWatched and the
+        // watched count.
         $this->travelTo('2026-03-11 09:00:00');
         $this->actingInTenant()->post("/app/tot/{$session->id}/watched");
 
         $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
-        $this->assertTrue($watchedAt->equalTo($row->watched_at));
+
+        $this->assertNull($row->watched_at);
+        $this->assertSame(4, $row->score, 'the score survives an un-watch');
     }
 
     /**

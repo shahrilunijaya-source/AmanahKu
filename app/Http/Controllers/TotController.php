@@ -362,7 +362,11 @@ class TotController extends Controller
             'employee_id' => $employee->id,
         ]);
 
-        $row->watched_at ??= now();
+        // A toggle, not a latch. Pressing a lit eye takes the mark back.
+        // Any score on this row survives: they are separate facts, and silently
+        // dropping somebody's rating because they un-marked watched would be a
+        // worse surprise than the mild inconsistency of keeping it.
+        $row->watched_at = $row->watched_at ? null : now();
 
         try {
             $row->save();

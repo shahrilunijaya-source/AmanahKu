@@ -227,4 +227,33 @@ class TotLiveActionsTest extends TestCase
         $this->assertSame(1, TotComment::where('session_id', $session->id)->count());
         $this->assertSame(3, TotParticipation::where('session_id', $session->id)->value('score'));
     }
+
+    public function test_watching_twice_takes_it_back(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+
+        $response->assertOk()
+            ->assertJsonPath('watched', 0)
+            ->assertJsonPath('iWatched', false);
+
+        $this->assertNull(
+            TotParticipation::where('session_id', $session->id)->value('watched_at')
+        );
+    }
+
+    public function test_un_watching_leaves_your_score_alone(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 4]);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/watched");
+
+        $row = TotParticipation::where('session_id', $session->id)->first();
+
+        $this->assertNull($row->watched_at);
+        $this->assertSame(4, $row->score);
+    }
 }
