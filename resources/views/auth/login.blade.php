@@ -18,192 +18,275 @@
     {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
-        /* Login-scoped polish. Inline styles can't express :focus / :hover / media queries. */
-        .lg-field { transition: border-color .15s, box-shadow .15s; }
-        .lg-field:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
-        .lg-primary { transition: background .15s, transform .04s; }
-        .lg-primary:active { transform: translateY(1px); }
-        .lg-passkey { transition: border-color .15s, background .15s; }
-        .lg-passkey:hover { border-color:var(--muted); background: var(--canvas); }
-        .lg-quick { transition: border-color .15s, background .15s, transform .04s; }
-        .lg-quick:hover { border-color: var(--red); background: var(--red-tint); }
-        .lg-quick:active { transform: translateY(1px); }
-        .lg-link { transition: opacity .15s; }
-        .lg-link:hover { opacity: .7; }
-        /* Env chip: hero copy shows on desktop; the compact (form) copy shows only when the hero is hidden. */
-        .lg-badge-compact { display: none; }
-        /* Animated hero grid + slow drift. */
-        @keyframes lg-drift { from { background-position: 0 0, 0 0; } to { background-position: 56px 56px, 56px 56px; } }
-        @media (max-width: 880px) {
-            .lg-hero { display: none !important; }
-            .lg-formwrap { padding: 32px 22px !important; }
-            .lg-badge-compact { display: block !important; }
+        /* ── Login-scoped tokens ── */
+        :root{
+          --out:cubic-bezier(.23,1,.32,1);
+          --ease-in-out:cubic-bezier(.77,0,.175,1);
+        }
+        *{box-sizing:border-box;}
+        html,body{margin:0;height:100%;}
+        body{
+          font-family:var(--font-sans);
+          color:var(--body);
+          background:var(--canvas);
+          -webkit-font-smoothing:antialiased;
+          display:flex; flex-direction:column;
+          align-items:center; justify-content:center;
+          min-height:100vh; padding:32px 20px;
+        }
+
+        /* ── Card rise entrance ── */
+        @keyframes lg-rise{
+          from{ opacity:0; transform:translateY(14px) scale(.986); filter:blur(5px); }
+          to  { opacity:1; transform:none; filter:blur(0); }
+        }
+        /* ── Corner stacks: solid red blocks anchored to opposite corners, three tones.
+           Flat, crisp, static — the card rise is the only motion. Behind the stage. ── */
+        .lg-bg{ position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+        .lg-bg .b{ position:absolute; }
+        .lg-bg .b1{ left:0; bottom:0; width:clamp(120px,20vw,300px); height:clamp(150px,34vh,340px); background:var(--red); border-radius:0 14px 0 0; }
+        .lg-bg .b2{ left:clamp(120px,20vw,300px); bottom:0; width:clamp(48px,7vw,110px); height:clamp(72px,18vh,180px); background:var(--red-active); }
+        .lg-bg .b3{ right:0; top:0; width:clamp(130px,22vw,320px); height:clamp(130px,30vh,300px); background:var(--red-tint); border-radius:0 0 0 14px; }
+        .lg-bg .b4{ right:0; top:0; width:clamp(46px,7vw,108px); height:clamp(60px,15vh,150px); background:var(--red); }
+
+        .lg-stage{ position:relative; z-index:1; width:100%; max-width:404px; display:flex; flex-direction:column; align-items:center; }
+
+        @media (max-width:640px){
+          /* Drop the accents so the corners stay simple behind a near-full-width card. */
+          .lg-bg .b2, .lg-bg .b4{ display:none; }
+        }
+        .lg-card{
+          width:100%;
+          background:#fff;
+          border:1px solid var(--hairline);
+          border-radius:16px;
+          padding:38px 36px 32px;
+          /* Defined edge (hairline) carries the card; one tight shadow lifts it off the canvas. */
+          box-shadow:0 4px 14px -6px rgba(38,37,30,.14);
+          animation:lg-rise .62s var(--out) both;
+        }
+
+        /* Brand lockup */
+        .lg-brand{ display:flex; align-items:center; gap:11px; margin-bottom:26px; }
+        .lg-logo{
+          width:34px; height:34px; border-radius:9px;
+          display:flex; align-items:center; justify-content:center;
+          color:#fff; font-weight:700; font-size:17px; letter-spacing:-.02em;
+          box-shadow:0 1px 2px rgba(214,35,43,.35);
+        }
+        .lg-word{ font-weight:600; font-size:18px; color:var(--ink); letter-spacing:-.02em; }
+        .lg-word span{ color:var(--red); }
+
+        /* Heading */
+        .lg-h1{ font-size:25px; font-weight:600; color:var(--ink); letter-spacing:-.025em; margin:0 0 6px; line-height:1.15; }
+        .lg-sub{ font-size:14px; color:var(--muted); margin:0 0 24px; line-height:1.5; }
+
+        /* Quick login (LOCAL ONLY in production) */
+        .lg-quick-label{ font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:9px; }
+        .lg-quick-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .lg-quick{
+          display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+          padding:10px 12px; border:1px solid var(--hairline); border-radius:11px;
+          background:#fff; text-align:left; cursor:pointer; font-family:inherit;
+          transition:border-color .15s var(--out), background .15s var(--out), transform .12s var(--out);
+        }
+        .lg-quick:hover{ border-color:var(--red); background:var(--red-tint); }
+        .lg-quick:active{ transform:scale(.98); }
+        .lg-quick b{ font-size:13px; font-weight:600; color:var(--ink); }
+        .lg-quick span{ font-size:11px; color:var(--muted); }
+        .lg-quick-hint{ font-size:11.5px; color:var(--muted); margin:9px 0 0; line-height:1.5; }
+
+        /* Divider */
+        .lg-div{ display:flex; align-items:center; gap:10px; margin:22px 0; }
+        .lg-div span:first-child, .lg-div span:last-child{ flex:1; height:1px; background:var(--hairline); }
+        .lg-div em{ font-size:11px; font-style:normal; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+
+        /* Fields */
+        .lg-label{ display:block; font-size:13px; font-weight:500; color:var(--ink); margin-bottom:6px; }
+        .lg-field{
+          width:100%; height:44px; padding:0 14px;
+          border:1px solid var(--hairline); border-radius:10px;
+          font-size:14px; font-family:inherit; color:var(--ink); background:#fff;
+          outline:none; transition:border-color .15s var(--out), box-shadow .15s var(--out);
+        }
+        .lg-field::placeholder{ color:var(--muted-soft); }
+        .lg-field:focus{ border-color:var(--red); box-shadow:0 0 0 3px var(--red-tint); }
+        .lg-field-gap{ margin-bottom:16px; }
+
+        /* Password reveal toggle — a control: instant icon swap, only press feedback. */
+        .lg-pass-wrap{ position:relative; }
+        .lg-pass-wrap .lg-field{ padding-right:44px; }
+        .lg-eye{
+          position:absolute; top:0; right:0; height:44px; width:42px;
+          display:flex; align-items:center; justify-content:center;
+          background:none; border:none; cursor:pointer; color:var(--muted-soft);
+          transition:color .15s var(--out), transform .12s var(--out);
+        }
+        .lg-eye:hover{ color:var(--muted); }
+        .lg-eye:active{ transform:scale(.9); }
+
+        /* Inline helper — the recovery message. The shake just points at it. */
+        .lg-help{ font-size:12.5px; color:var(--red); margin:6px 0 0; line-height:1.45; display:none; }
+
+        /* Failed-login feedback: the canonical macOS shake, scoped to the field. */
+        @keyframes lg-shake{
+          0%,100%{ transform:translateX(0); }
+          15%,45%,75%{ transform:translateX(-5px); }
+          30%,60%,90%{ transform:translateX(5px); }
+        }
+        .lg-invalid .lg-field{ border-color:var(--red); animation:lg-shake .4s var(--ease-in-out); }
+        .lg-invalid .lg-help{ display:block; }
+
+        .lg-row{ display:flex; align-items:center; justify-content:space-between; margin:14px 0 22px; }
+        .lg-remember{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--body); cursor:pointer; }
+        .lg-remember input{ accent-color:var(--red); width:15px; height:15px; }
+        .lg-link{ font-size:13px; color:var(--red); text-decoration:none; transition:opacity .15s; }
+        .lg-link:hover{ opacity:.7; }
+
+        /* Buttons */
+        .lg-primary{
+          width:100%; height:46px; border:none; border-radius:10px;
+          background:var(--red); color:#fff; font-size:14px; font-weight:500; font-family:inherit;
+          cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+          transition:background .15s var(--out), transform .12s var(--out);
+        }
+        .lg-primary:hover{ background:var(--red-active); }
+        .lg-primary:active{ transform:scale(.98); }
+        .lg-primary svg{ transition:transform .2s var(--out); }
+        .lg-primary:hover svg{ transform:translateX(2px); }
+
+        .lg-ghost{
+          width:100%; height:46px; border:1px solid var(--hairline); border-radius:10px;
+          background:#fff; color:var(--ink); font-size:14px; font-family:inherit;
+          cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+          text-decoration:none; transition:border-color .15s var(--out), background .15s var(--out);
+        }
+        .lg-ghost:hover{ border-color:var(--muted-soft); background:var(--canvas); }
+        .lg-ghost + .lg-ghost{ margin-top:10px; }
+
+        /* Foot */
+        .lg-foot{ font-size:13px; color:var(--muted); margin:22px 0 0; text-align:center; }
+        .lg-foot a{ color:var(--red); text-decoration:none; font-weight:500; }
+        .lg-demo{
+          margin-top:14px; background:var(--canvas); border:1px dashed var(--hairline);
+          border-radius:10px; padding:10px 12px; font-size:12px; color:var(--muted); text-align:center;
+        }
+        .lg-demo b{ color:var(--ink); font-weight:600; font-family:var(--font-mono); }
+        .lg-protected{ font-size:11.5px; color:var(--muted); margin:18px 0 0; text-align:center; }
+
+        .lg-under{ font-size:11.5px; color:var(--muted); margin-top:22px; text-align:center; }
+
+        @media (prefers-reduced-motion: reduce){
+          .lg-card{ animation:none; }
+          .lg-primary svg{ transition:none; }
+          /* Keep the red border + helper text; drop only the shake. */
+          .lg-invalid .lg-field{ animation:none; }
         }
     </style>
 </head>
 <body>
-<div style="min-height:100vh;display:flex;background:var(--canvas);">
+{{-- Corner-stacks background — default login only (branded tenants get a plain canvas). --}}
+@unless ($brandTenant)
+<div class="lg-bg" aria-hidden="true">
+  <span class="b b1"></span><span class="b b2"></span>
+  <span class="b b3"></span><span class="b b4"></span>
+</div>
+@endunless
+<div class="lg-stage">
+  <form class="lg-card" action="/login" method="post">
+    @csrf
+    @if ($brandTenant)<input type="hidden" name="tenant_slug" value="{{ $brandTenant->slug }}">@endif
 
-    {{-- ── Brand hero (left) ── --}}
-    <div class="lg-hero" style="flex:1.05;position:relative;overflow:hidden;color:#fff;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(120% 120% at 0% 0%, #2b2a25 0%, var(--sidebar) 55%, #161510 100%);">
-        {{-- Grid texture --}}
-        <div aria-hidden="true" style="position:absolute;inset:0;opacity:.5;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);background-size:56px 56px;animation:lg-drift 40s linear infinite;"></div>
-        {{-- Warm accent glow --}}
-        <div aria-hidden="true" style="position:absolute;top:-120px;right:-120px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle, rgba(214,35,43,.22), transparent 70%);pointer-events:none;"></div>
-
-        {{-- Wordmark --}}
-        <div style="position:relative;display:flex;align-items:center;gap:11px;">
-            @if ($brandTenant && $brandLogo)
-                <img src="{{ $brandLogo }}" alt="{{ $brandTenant->name }}" style="width:34px;height:34px;border-radius:9px;object-fit:cover;">
-            @else
-                <div style="width:34px;height:34px;border-radius:9px;background:{{ $brandColor }};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">{{ $brandTenant?->initials ?? 'A' }}</div>
-            @endif
-            <div>
-                @if ($brandTenant)
-                    <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">{{ $brandTenant->name }}</div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Powered by Amanahku</div>
-                @else
-                    <div style="font-weight:600;font-size:18px;letter-spacing:-0.2px;">Amanah<span style="color:#ff6b6b;">ku</span></div>
-                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--sidebar-dim);">Workforce OS</div>
-                @endif
-            </div>
-        </div>
-
-        {{-- Environment chip — under the wordmark on non-production tiers (hero is desktop-only) --}}
-        <div style="position:relative;">@include('partials.env-badge')</div>
-
-        {{-- Headline --}}
-        <div style="position:relative;max-width:460px;">
-            @if ($brandTenant)
-                <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:#ff6b6b;margin-bottom:22px;">{{ $brandTenant->name }} workspace</div>
-                <h1 style="font-weight:400;font-size:38px;line-height:1.2;letter-spacing:-1px;color:#fff;margin:0 0 22px;">{{ $brandTenant->welcome_message ?: 'Welcome to your '.$brandTenant->name.' workspace.' }}</h1>
-                <p style="font-size:15px;line-height:1.65;color:#b8b6ad;margin:0;max-width:400px;">Sign in to your {{ $brandTenant->name }} workforce management workspace on Amanahku.</p>
-            @else
-                <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:#ff6b6b;margin-bottom:22px;">HR · Work · AI Intelligence</div>
-                <h1 style="font-weight:400;font-size:40px;line-height:1.18;letter-spacing:-1px;color:#fff;margin:0 0 22px;">Know who is working,<br>on what, and what<br>to do <span style="color:#ff6b6b;font-style:italic;font-family:var(--font-serif,Georgia,serif);">next.</span></h1>
-                <p style="font-size:15px;line-height:1.65;color:#b8b6ad;margin:0 0 30px;max-width:400px;">One platform for workforce management, weekly work tracking, and AI capacity intelligence — built for medium-sized companies.</p>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    @foreach (['Workforce', 'Weekly tracking', 'Payroll', 'AI assistant'] as $chip)
-                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#d8d6cd;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9999px;padding:6px 13px;">
-                            <span style="width:5px;height:5px;border-radius:50%;background:#ff6b6b;"></span>{{ $chip }}
-                        </span>
-                    @endforeach
-                </div>
-            @endif
-        </div>
-
-        {{-- Stat row + footer --}}
-        <div style="position:relative;">
-            @unless ($brandTenant)
-                <div style="display:flex;gap:40px;margin-bottom:28px;">
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">3</div><div style="font-size:12.5px;color:var(--sidebar-dim);">tenants live</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">412</div><div style="font-size:12.5px;color:var(--sidebar-dim);">employees</div></div>
-                    <div><div style="font-size:28px;font-weight:600;color:#fff;font-family:var(--font-mono);letter-spacing:-1px;">17</div><div style="font-size:12.5px;color:var(--sidebar-dim);">modules</div></div>
-                </div>
-            @endunless
-            <div style="font-size:11.5px;color:var(--sidebar-dim);">© {{ date('Y') }} Amanahku{{ $brandTenant ? ' · '.$brandTenant->name : '' }}</div>
-        </div>
+    {{-- Brand lockup --}}
+    <div class="lg-brand">
+        @if ($brandTenant && $brandLogo)
+            <img src="{{ $brandLogo }}" alt="{{ $brandTenant->name }}" style="width:34px;height:34px;border-radius:9px;object-fit:cover;">
+            <div class="lg-word">{{ $brandTenant->name }}</div>
+        @elseif ($brandTenant)
+            <div class="lg-logo" style="background:{{ $brandColor }};">{{ $brandTenant->initials }}</div>
+            <div class="lg-word">{{ $brandTenant->name }}</div>
+        @else
+            <div class="lg-logo" style="background:var(--red);">A</div>
+            <div class="lg-word">Amanah<span>ku</span></div>
+        @endif
     </div>
 
-    {{-- ── Sign-in form (right) ── --}}
-    <div class="lg-formwrap" style="flex:1;display:flex;align-items:center;justify-content:center;padding:48px;">
-        <form action="/login" method="post" style="width:100%;max-width:380px;">
-            @csrf
-            @if ($brandTenant)<input type="hidden" name="tenant_slug" value="{{ $brandTenant->slug }}">@endif
+    @include('partials.env-badge')
 
-            {{-- Compact brand (shows when hero is hidden) --}}
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:34px;">
-                @if ($brandTenant && $brandLogo)
-                    <img src="{{ $brandLogo }}" alt="{{ $brandTenant->name }}" style="width:30px;height:30px;border-radius:7px;object-fit:cover;">
-                    <span style="font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-0.2px;">{{ $brandTenant->name }}</span>
-                @elseif ($brandTenant)
-                    <div style="width:30px;height:30px;border-radius:7px;background:{{ $brandColor }};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;">{{ $brandTenant->initials }}</div>
-                    <span style="font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-0.2px;">{{ $brandTenant->name }}</span>
-                @else
-                    <div style="width:30px;height:30px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">A</div>
-                    <span style="font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
-                @endif
-            </div>
+    <h1 class="lg-h1">Welcome back</h1>
+    @if ($brandTenant)
+        <p class="lg-sub">{{ $brandTenant->welcome_message ?: 'Sign in to your '.$brandTenant->name.' workspace.' }}</p>
+    @else
+        <p class="lg-sub">Sign in to continue to your workspace.</p>
+    @endif
 
-            <div class="lg-badge-compact">@include('partials.env-badge')</div>
+    {{-- Failed-login errors surface as the inline helper under the password field
+         (see .lg-invalid below), not a second banner here. --}}
 
-            <h2 style="font-weight:400;font-size:30px;letter-spacing:-0.6px;color:var(--ink);margin:0 0 8px;">Welcome back</h2>
-            <p style="font-size:14px;color:var(--muted);margin:0 0 26px;">Sign in to your workforce management workspace.</p>
-
-            @if ($errors->any())
-                <div style="display:flex;align-items:flex-start;gap:9px;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:13px;border-radius:9px;padding:11px 14px;margin-bottom:20px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
-                    <span>{{ $errors->first() }}</span>
-                </div>
-            @endif
-
-            @if (! $brandTenant && app()->isLocal())
-            {{-- Quick login (demo) — local development only; never rendered in staging/production. --}}
-            <div style="margin-bottom:22px;">
-                <div style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:9px;">Quick login · demo</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"
-                            style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#fff;text-align:left;cursor:pointer;">
-                        <span style="font-size:13px;font-weight:600;color:var(--ink);">HR</span>
-                        <span style="font-size:11px;color:var(--muted);">Unijaya HR</span>
-                    </button>
-                    <button type="button" class="lg-quick" onclick="quickLogin('superadmin@amanahku.com')"
-                            style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#fff;text-align:left;cursor:pointer;">
-                        <span style="font-size:13px;font-weight:600;color:var(--ink);">Super Admin</span>
-                        <span style="font-size:11px;color:var(--muted);">Platform console</span>
-                    </button>
-                </div>
-                <p style="font-size:11.5px;color:var(--muted);margin:8px 0 0;">One click signs you in. HR demo picks a workspace next: Unijaya (HR), Shell (Manager), Petron (Employee).</p>
-            </div>
-
-            <div style="display:flex;align-items:center;gap:10px;margin:0 0 22px;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">or sign in</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
-            @endif
-
-            <label for="email" style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">Work email</label>
-            <input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="username" required class="lg-field" style="width:100%;height:44px;padding:0 14px;border:1px solid var(--hairline);border-radius:9px;font-size:14px;color:var(--ink);background:#fff;margin-bottom:18px;outline:none;" />
-
-            <label for="password" style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required class="lg-field" style="width:100%;height:44px;padding:0 14px;border:1px solid var(--hairline);border-radius:9px;font-size:14px;color:var(--ink);background:#fff;margin-bottom:14px;outline:none;" />
-
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--body);cursor:pointer;"><input type="checkbox" name="remember" checked style="accent-color:var(--red);width:15px;height:15px;" /> Remember me</label>
-                <a href="{{ route('password.request') }}" class="lg-link" style="font-size:13px;color:var(--red);text-decoration:none;">Forgot password?</a>
-            </div>
-
-            <button type="submit" class="uj-btn-primary lg-primary" style="width:100%;height:46px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;">
-                Sign in
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
-            </button>
-
-            <div style="display:flex;align-items:center;gap:10px;margin:18px 0;"><span style="flex:1;height:1px;background:var(--hairline);"></span><span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">or</span><span style="flex:1;height:1px;background:var(--hairline);"></span></div>
-
-            <button type="button" id="passkey-signin" class="lg-passkey" style="width:100%;height:46px;font-size:14px;background:#fff;border:1px solid var(--hairline);border-radius:9px;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v3h6v-3M12 2a5 5 0 0 0-5 5c0 2 1 3 1 3M12 2a5 5 0 0 1 5 5M12 7v.01M8 21l4-9 4 9"/></svg>
-                Sign in with a passkey
-            </button>
-            <div id="passkey-error" style="display:none;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:9px;padding:9px 12px;margin-top:12px;"></div>
-
-            @if (\App\Services\OidcClient::fromConfig()->configured())
-                <a href="{{ route('oidc.redirect') }}" class="lg-passkey" style="width:100%;height:46px;margin-top:12px;font-size:14px;background:#fff;border:1px solid var(--hairline);border-radius:9px;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Sign in with SSO
-                </a>
-            @endif
-
-            @unless ($brandTenant)
-                <p style="font-size:13px;color:var(--muted);margin-top:22px;text-align:center;">New to Amanahku? <a href="{{ route('register') }}" class="lg-link" style="color:var(--red);text-decoration:none;font-weight:500;">Create an account</a></p>
-                @if (app()->isLocal())
-                    {{-- Demo credential hint — local development only. --}}
-                    <div style="margin-top:14px;background:var(--canvas);border:1px dashed var(--hairline);border-radius:9px;padding:10px 12px;font-size:12px;color:var(--muted);text-align:center;">Demo password — <span style="color:var(--ink);font-weight:600;font-family:var(--font-mono);">password</span></div>
-                @endif
-            @else
-                @if ($brandTenant->email || $brandTenant->contact_number)
-                    <p style="font-size:12.5px;color:var(--muted);margin-top:22px;text-align:center;">Need help signing in? Contact <span style="color:var(--ink);">{{ $brandTenant->email ?: $brandTenant->contact_number }}</span></p>
-                @endif
-            @endunless
-            <p style="font-size:11.5px;color:var(--muted);margin-top:18px;text-align:center;">Protected by Amanahku · Multi-tenant SSO</p>
-        </form>
+    @if (! $brandTenant && app()->isLocal())
+    {{-- Quick login (demo) — local development only; never rendered in staging/production. --}}
+    <div class="lg-quick-label">Quick login · demo</div>
+    <div class="lg-quick-grid">
+        <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"><b>HR</b><span>Unijaya HR</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('superadmin@amanahku.com')"><b>Super Admin</b><span>Platform console</span></button>
     </div>
+    <p class="lg-quick-hint">One click signs you in. HR demo picks a workspace next.</p>
+
+    <div class="lg-div"><span></span><em>or sign in</em><span></span></div>
+    @endif
+
+    <label class="lg-label" for="email">Work email</label>
+    <input class="lg-field lg-field-gap" id="email" name="email" type="email" value="{{ old('email') }}" placeholder="you@company.com" autocomplete="username" required>
+
+    <label class="lg-label" for="password">Password</label>
+    <div class="lg-pass-wrap{{ $errors->any() ? ' lg-invalid' : '' }}" id="pass-wrap">
+        <input class="lg-field" id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+        <button type="button" class="lg-eye" id="lg-eye" aria-label="Show password">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <p class="lg-help" id="pass-help">{{ $errors->first() }}</p>
+    </div>
+
+    <div class="lg-row">
+        <label class="lg-remember"><input type="checkbox" name="remember" checked> Remember me</label>
+        <a class="lg-link" href="{{ route('password.request') }}">Forgot password?</a>
+    </div>
+
+    <button type="submit" class="lg-primary">
+        Sign in
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+
+    <div class="lg-div"><span></span><em>or</em><span></span></div>
+
+    <button type="button" id="passkey-signin" class="lg-ghost">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v3h6v-3M12 2a5 5 0 0 0-5 5c0 2 1 3 1 3M12 2a5 5 0 0 1 5 5M12 7v.01M8 21l4-9 4 9"/></svg>
+        Sign in with a passkey
+    </button>
+    <div id="passkey-error" style="display:none;background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:9px;padding:9px 12px;margin-top:12px;"></div>
+
+    @if (\App\Services\OidcClient::fromConfig()->configured())
+        <a href="{{ route('oidc.redirect') }}" class="lg-ghost" style="margin-top:10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Sign in with SSO
+        </a>
+    @endif
+
+    @unless ($brandTenant)
+        <p class="lg-foot">New to Amanahku? <a href="{{ route('register') }}">Create an account</a></p>
+        @if (app()->isLocal())
+            {{-- Demo credential hint — local development only. --}}
+            <div class="lg-demo">Demo password — <b>password</b></div>
+        @endif
+    @else
+        @if ($brandTenant->email || $brandTenant->contact_number)
+            <p style="font-size:12.5px;color:var(--muted);margin-top:22px;text-align:center;">Need help signing in? Contact <span style="color:var(--ink);">{{ $brandTenant->email ?: $brandTenant->contact_number }}</span></p>
+        @endif
+    @endunless
+    <p class="lg-protected">Protected by Amanahku · Multi-tenant SSO</p>
+  </form>
+
+  <p class="lg-under">© {{ date('Y') }} Amanahku</p>
 </div>
 
 <script>
@@ -216,6 +299,18 @@
         document.querySelector('form[action="/login"]').submit();
     }
     @endif
+
+    // Password reveal — instant swap (a control, not a moment).
+    const pw = document.getElementById('password');
+    const eye = document.getElementById('lg-eye');
+    const EYE = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const EYE_OFF = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22M9.88 9.88a3 3 0 1 0 4.24 4.24"/></svg>';
+    eye.addEventListener('click', () => {
+        const show = pw.type === 'password';
+        pw.type = show ? 'text' : 'password';
+        eye.innerHTML = show ? EYE_OFF : EYE;
+        eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
 
     document.getElementById('passkey-signin')?.addEventListener('click', async function () {
         const err = document.getElementById('passkey-error');
