@@ -597,7 +597,73 @@ save the text."
 
 ---
 
-### Task 5: The drawer replaces the accordion and the modal
+### Task 5a: Extract the action row and the edit form, changing nothing
+
+Split out of the original Task 5. The drawer rewrite touches five files at once, which
+leaves no way to tell a faithful port from a subtly wrong one. This half is a pure
+extraction that **must render identical HTML**, which is cheap to prove and makes the
+next half's diff small enough to read.
+
+**Files:**
+- Create: `resources/views/partials/tot-actions.blade.php`
+- Create: `resources/views/partials/tot-edit-form.blade.php`
+- Modify: `resources/views/screens/tot.blade.php` (replace two blocks with `@include`s)
+
+**Interfaces:**
+- Consumes: the row markup from Task 1.
+- Produces: two partials that Task 5b re-includes from inside the drawer.
+
+- [ ] **Step 1: Move the action row out verbatim**
+
+Cut the whole `<div class="tot-actions">…</div>` element from `tot.blade.php` into
+`resources/views/partials/tot-actions.blade.php`. Change nothing inside it — not
+whitespace, not attribute order. Replace it in place with:
+
+```blade
+@include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
+```
+
+- [ ] **Step 2: Move the edit form out verbatim**
+
+Cut everything inside the `@if ($canEditSlot)` block — the `Edit slot` button, the
+`x-show="editing"` div, the update form and the delete form — into
+`resources/views/partials/tot-edit-form.blade.php`. Replace it with:
+
+```blade
+@if ($canEditSlot)
+    @include('partials.tot-edit-form', [
+        'session' => $session, 'canManage' => $canManage,
+        'canAssignPresenter' => $canAssignPresenter,
+        'isPresenterOfSlot' => $isPresenterOfSlot,
+        'assignableEmployees' => $assignableEmployees,
+        'statusLabels' => $statusLabels, 'slotFailed' => $slotFailed,
+    ])
+@endif
+```
+
+- [ ] **Step 3: Prove it changed nothing**
+
+Run: `php artisan test --compact --filter=Tot`
+
+Expected: PASS, 142 tests, with no test edited. The board's rendered HTML must be
+equivalent to before: 12 rows, 12 `.tot-panel`, 12 `.tot-modal`, 12 `.tot-actions`.
+This is the whole point of the split — if the counts move, the extraction dropped
+something.
+
+- [ ] **Step 4: Commit**
+
+```bash
+vendor/bin/pint --dirty --format agent
+git add resources/views/partials/tot-actions.blade.php resources/views/partials/tot-edit-form.blade.php resources/views/screens/tot.blade.php
+git commit -m "refactor(tot): extract the action row and the edit form
+
+No behaviour change. The drawer needs both blocks in a second place, and
+copying them would mean two copies drifting apart."
+```
+
+---
+
+### Task 5b: The drawer replaces the accordion and the modal
 
 **Files:**
 - Create: `resources/views/partials/tot-drawer.blade.php`
@@ -815,11 +881,13 @@ Create `resources/views/partials/tot-drawer.blade.php`. It expects `$session`, `
 </template>
 ```
 
-- [ ] **Step 5: Extract the action row and the edit form**
+- [ ] **Step 5: Adjust the two partials Task 5a extracted**
 
-Create `resources/views/partials/tot-actions.blade.php` by moving the existing `<div class="tot-actions">…</div>` block out of `tot.blade.php` unchanged, except: **delete the speech-bubble button entirely**. The thread is in the same panel now, so a button that scrolls to something already on screen is noise.
+In `resources/views/partials/tot-actions.blade.php`, **delete the speech-bubble button
+entirely**. The thread is in the same panel now, so a button that scrolls to something
+already on screen is noise. Change nothing else.
 
-Create `resources/views/partials/tot-edit-form.blade.php` by moving the existing `@if ($canEditSlot)` block's contents out of `tot.blade.php` unchanged, with two edits:
+In `resources/views/partials/tot-edit-form.blade.php`, make two edits:
 
 1. Wrap the `Edit slot` button and the form in `<div class="tot-authoring">…</div>`.
 2. Immediately after that div, add the note that replaces it on a narrow screen:
