@@ -44,3 +44,6 @@ skills-lock.json
 
 # Exported Google Sheet TotHistorySeeder was transcribed from (real company data, never commit)
 /2025 2026 TOT Sabtu/
+
+# Design scratch mocks (served locally, never shipped)
+public/_*.html
