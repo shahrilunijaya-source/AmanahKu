@@ -89,6 +89,19 @@ class AttendanceReportController extends Controller
             $cursor->addDay();
         }
 
+        // Determine strip unit and cell labels for day vs week mode
+        $stripUnit = $period === 'quarter' ? 'week' : 'day';
+        $weekBuckets = [];
+        if ($period === 'quarter') {
+            foreach ($days as $idx => $dateStr) {
+                $wStart = Carbon::parse($dateStr)->startOfWeek(Carbon::MONDAY)->toDateString();
+                $weekBuckets[$wStart][] = $idx;
+            }
+            $cells = array_keys($weekBuckets);
+        } else {
+            $cells = $days;
+        }
+
         // Map records and leave requests for O(1) lookup
         $recordsMap = [];
         foreach ($records as $r) {
@@ -104,7 +117,7 @@ class AttendanceReportController extends Controller
         }
 
         // Build roster rows
-        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap) {
+        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets) {
             $strip = '';
             foreach ($days as $dateStr) {
                 $r = $recordsMap[$emp->id][$dateStr] ?? null;
@@ -153,13 +166,48 @@ class AttendanceReportController extends Controller
             $stopped = ($clocked > 0 && preg_match('/-{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
 
+            // Fold daily strip into weekly cells for quarter period
+            if ($period === 'quarter') {
+                $displayStrip = '';
+                foreach ($weekBuckets as $dayIndices) {
+                    $wOnTime = 0;
+                    $wLate = 0;
+                    $wOffsite = 0;
+                    $wLeave = 0;
+                    foreach ($dayIndices as $idx) {
+                        $c = $strip[$idx];
+                        if ($c === 'o') {
+                            $wOnTime++;
+                        } elseif ($c === 'l') {
+                            $wLate++;
+                        } elseif ($c === 'x') {
+                            $wOffsite++;
+                        } elseif ($c === 'v') {
+                            $wLeave++;
+                        }
+                    }
+                    $wClocked = $wOnTime + $wLate + $wOffsite;
+                    if ($wClocked > 0) {
+                        $wPct = (int) round(($wOnTime + $wOffsite) / $wClocked * 100);
+                        $displayStrip .= $wPct >= 90 ? 'o' : ($wPct >= 75 ? 'l' : 'x');
+                    } elseif ($wLeave > 0) {
+                        $displayStrip .= 'v';
+                    } else {
+                        $displayStrip .= '-';
+                    }
+                }
+                $rowStrip = $displayStrip;
+            } else {
+                $rowStrip = $strip;
+            }
+
             return [
                 'id' => $emp->id,
                 'name' => $emp->name,
                 'initials' => $emp->initials,
                 'color' => $emp->avatar_color,
                 'dept' => $emp->department?->name,
-                'strip' => $strip,
+                'strip' => $rowStrip,
                 'clocked' => $clocked,
                 'onTime' => $onTime,
                 'late' => $late,
@@ -258,6 +306,8 @@ class AttendanceReportController extends Controller
             'dept' => $dept,
             'departments' => Department::orderBy('name')->pluck('name'),
             'days' => $days,
+            'stripUnit' => $stripUnit,
+            'cells' => $cells,
             'roster' => $roster,
             'totals' => $totals,
             'drill' => $drill,

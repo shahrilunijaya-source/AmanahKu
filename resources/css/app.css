@@ -1164,9 +1164,8 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .uj-ar-list { margin-top: 12px; }
 .uj-ar-r { border-top: 1px solid #e2ded4; }
 .uj-ar-r:first-child { border-top: 0; }
-/* Any multi-column grid holding nowrap names or time pills uses minmax(0,1fr), never plain 1fr.
-   A plain fr track floors at min-content, so the column overflows instead of ellipsing inside it. */
-.uj-ar-rbtn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 20px; padding: 14px 8px; background: none; border: 0; text-align: left; cursor: pointer; border-radius: 10px; font: inherit; text-decoration: none; color: inherit; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
+/* Floor of 200px prevents track collapse: a bare 1fr resolved to 0px at 64 cells and wrapped the name one word per line */
+.uj-ar-rbtn { width: 100%; display: grid; grid-template-columns: minmax(200px, 1fr) auto 56px; align-items: center; gap: 20px; padding: 14px 8px; background: none; border: 0; text-align: left; cursor: pointer; border-radius: 10px; font: inherit; text-decoration: none; color: inherit; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
 .uj-ar-rbtn:hover { background: #f1efe8; }
 .uj-ar-rbtn:active { background: #eceae2; transition-duration: .04s; }
 .uj-ar-who { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 auto; }

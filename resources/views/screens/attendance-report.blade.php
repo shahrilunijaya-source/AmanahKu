@@ -234,6 +234,11 @@
             <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? 'Approved leave' : 'Cuti diluluskan'">Approved leave</span></span>
             <span><b style="background:#dedbd2;"></b><span x-text="$store.ui.lang==='en' ? 'No record' : 'Tiada rekod'">No record</span></span>
         </div>
+        @if ($stripUnit === 'week')
+            <div style="font-size:var(--t-micro);color:var(--muted);margin-top:6px;">
+                <span x-text="$store.ui.lang==='en' ? 'Each cell represents 1 week.' : 'Setiap petak mewakili 1 minggu.'">Each cell represents 1 week.</span>
+            </div>
+        @endif
 
         {{-- ── Roster List ──────────────────────────────────────────────────── --}}
         <div class="uj-ar-list">
@@ -242,6 +247,8 @@
                     $pTone = $p['pct'] === null ? 'none' : ($p['pct'] >= 90 ? 'hi' : ($p['pct'] >= 75 ? 'mid' : 'lo'));
                     $lastSeenFormatted = $p['lastSeen'] ? Carbon::parse($p['lastSeen'])->format('j M') : '';
                     $daysCount = count($days);
+                    $cellsCount = count($cells);
+                    $stripChars = str_split($p['strip']);
                 @endphp
                 <div class="uj-ar-r">
                     <a href="{{ $baseUrl.'&emp='.$p['id'] }}" class="uj-ar-rbtn">
@@ -273,8 +280,17 @@
                         </span>
 
                         <span class="uj-ar-strip" role="img" aria-label="{{ $p['clocked'] }} of {{ $daysCount }} working days clocked, {{ $p['late'] }} late">
-                            @foreach (str_split($p['strip']) as $k => $c)
-                                <span class="uj-ar-cell" data-s="{{ $c }}" {!! $k === $daysCount - 1 ? 'data-today' : '' !!}></span>
+                            @foreach ($cells as $k => $cell)
+                                @php
+                                    $c = $stripChars[$k] ?? '-';
+                                    $cellDateFormatted = Carbon::parse($cell)->format('j M');
+                                    $cellTitleEn = $stripUnit === 'week' ? "Week of {$cellDateFormatted}" : $cellDateFormatted;
+                                    $cellTitleMs = $stripUnit === 'week' ? "Minggu {$cellDateFormatted}" : $cellDateFormatted;
+                                @endphp
+                                <span class="uj-ar-cell" data-s="{{ $c }}" {!! $k === $cellsCount - 1 ? 'data-today' : '' !!}
+                                      title="{{ $cellTitleEn }}" aria-label="{{ $cellTitleEn }}"
+                                      x-bind:title="$store.ui.lang==='en' ? @js($cellTitleEn) : @js($cellTitleMs)"
+                                      x-bind:aria-label="$store.ui.lang==='en' ? @js($cellTitleEn) : @js($cellTitleMs)"></span>
                             @endforeach
                         </span>
 

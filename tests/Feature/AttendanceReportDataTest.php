@@ -481,4 +481,109 @@ class AttendanceReportDataTest extends TestCase
         $this->assertGreaterThan(0, $totals['bucketClocking']);
         $this->assertSame(0, $totals['bucketOnLeave']);
     }
+
+    public function test_the_quarter_strip_is_bucketed_by_week(): void
+    {
+        $data = $this->getScreenData(['period' => 'quarter']);
+
+        $this->assertSame('week', $data['stripUnit']);
+        $this->assertLessThan(20, count($data['cells']));
+        $this->assertGreaterThan(50, count($data['days']));
+        $this->assertNotEmpty($data['roster']);
+
+        $cellsCount = count($data['cells']);
+        foreach ($data['roster'] as $row) {
+            $this->assertSame($cellsCount, strlen($row['strip']), "Strip length for {$row['name']} must equal cells count.");
+        }
+    }
+
+    public function test_the_month_strip_is_still_daily(): void
+    {
+        $data = $this->getScreenData(['period' => 'month']);
+
+        $this->assertSame('day', $data['stripUnit']);
+        $this->assertSame(count($data['days']), count($data['cells']));
+    }
+
+    public function test_quarter_totals_are_still_counted_in_days(): void
+    {
+        $quarterEmp = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Quarter Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        // Seed 10 attendance records across 2 weeks in the quarter window (2026-04-16 to 2026-07-15)
+        for ($d = 1; $d <= 5; $d++) {
+            AttendanceRecord::create([
+                'tenant_id' => $this->tenant->id,
+                'employee_id' => $quarterEmp->id,
+                'date' => sprintf('2026-06-%02d', $d),
+                'status' => 'on_time',
+                'clock_in' => '08:00:00',
+            ]);
+        }
+        for ($d = 8; $d <= 12; $d++) {
+            AttendanceRecord::create([
+                'tenant_id' => $this->tenant->id,
+                'employee_id' => $quarterEmp->id,
+                'date' => sprintf('2026-06-%02d', $d),
+                'status' => 'on_time',
+                'clock_in' => '08:00:00',
+            ]);
+        }
+
+        $data = $this->getScreenData(['period' => 'quarter']);
+        $roster = collect($data['roster']);
+        $row = $roster->firstWhere('id', $quarterEmp->id);
+
+        $this->assertNotNull($row);
+        $this->assertSame(10, $row['clocked'], 'Clocked count must report actual days (10), not week count.');
+    }
+
+    public function test_a_week_with_mostly_on_time_days_is_not_painted_as_a_problem(): void
+    {
+        $emp = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Mostly On Time Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        // ISO week starting 2026-07-06 (Mon 2026-07-06 to Sun 2026-07-12).
+        // Seed 4 on-time days and 1 offsite day inside this single ISO week.
+        $onTimeDates = ['2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09'];
+        foreach ($onTimeDates as $date) {
+            AttendanceRecord::create([
+                'tenant_id' => $this->tenant->id,
+                'employee_id' => $emp->id,
+                'date' => $date,
+                'status' => 'on_time',
+                'clock_in' => '08:00:00',
+            ]);
+        }
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'date' => '2026-07-10',
+            'status' => 'on_time',
+            'clock_in' => '08:00:00',
+            'flags' => ['out_of_radius_in'],
+        ]);
+
+        $data = $this->getScreenData(['period' => 'quarter']);
+        $roster = collect($data['roster']);
+        $row = $roster->firstWhere('id', $emp->id);
+
+        $this->assertNotNull($row);
+        // Find index of week 2026-07-06 in $data['cells']
+        $weekIndex = array_search('2026-07-06', $data['cells'], true);
+        $this->assertNotFalse($weekIndex, 'Week start 2026-07-06 must be in cells list.');
+
+        $cellChar = $row['strip'][$weekIndex];
+        // 4 on-time + 1 offsite = 100% punctuality (>= 90%), mapped to 'o'.
+        // A worst-day rule looking for any problem ('x') would paint 'x', failing this.
+        $this->assertSame('o', $cellChar);
+    }
 }
