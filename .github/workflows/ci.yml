@@ -103,14 +103,23 @@ jobs:
       - name: Rebuild assets
         run: bun run build
 
-      - name: Fail if public/build is stale
+      # CSS only, deliberately. Tailwind staleness is the silent failure — a dropped
+      # utility just stops applying, with no error anywhere — and the CSS bytes are
+      # identical across every machine tested (this runner, a local dev box, the
+      # staging host). Rolldown's JS chunk bytes are NOT: same lockfile, same bun
+      # 1.3.14, same rolldown 1.0.3, yet the module order inside app-*.js differs per
+      # environment, so gating on JS would fail for reasons that have nothing to do
+      # with staleness. A stale JS bundle is also the louder failure of the two: the
+      # feature is missing or the console throws. Revisit if rolldown output becomes
+      # reproducible.
+      - name: Fail if committed CSS is stale
         run: |
-          if [ -n "$(git status --porcelain -- public/build)" ]; then
-            echo "::error::public/build does not match the sources. Run 'php artisan view:cache && bun run build' and commit public/build."
-            git status --porcelain -- public/build
+          if [ -n "$(git status --porcelain -- 'public/build/assets/*.css')" ]; then
+            echo "::error::Committed CSS does not match the sources. Run 'php artisan view:cache && bun run build' and commit public/build."
+            git status --porcelain -- 'public/build/assets/*.css'
             exit 1
           fi
-          echo "public/build is current."
+          echo "Committed CSS matches a clean rebuild."
 
   # ── Static analysis (PHPStan + Larastan). Larastan is installed here rather than ──
   # ── pinned in composer.json so the runtime lock stays lean; bump the constraint ───

@@ -88,8 +88,11 @@ same panic surfaces as a bare `SIGABRT` with no message at all.
 cache. Build against a partial cache and the CSS silently omits whatever was not compiled —
 this is exactly how staging came to be missing `.animate-spin`, the `focus-visible:` ring
 utilities and the `disabled:` states. Compiling every view first makes the cache a pure
-function of the Blade sources, and the build then reproduces byte for byte on any machine.
-CI enforces the match in the `Committed assets match sources` job.
+function of the Blade sources, and the CSS then reproduces byte for byte on any machine.
+CI enforces the CSS match in the `Committed assets match sources` job. It checks CSS only:
+rolldown's JS chunk bytes differ per machine even with an identical lockfile, bun and
+rolldown version, so JS cannot be compared this way. Stale JS is the louder failure anyway
+(missing feature, console error), while a dropped Tailwind utility fails silently.
 
 Safe sequence (run from local repo root):
 ```fish

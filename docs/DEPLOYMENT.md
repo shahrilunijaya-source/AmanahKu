@@ -32,7 +32,8 @@ maintenance mode — so the host stays build-free on purpose. See `CLAUDE.md` fo
 Run `php artisan view:cache` **before** `bun run build`. Tailwind scans the compiled Blade
 cache (`@source` in `resources/css/app.css`), so a partial cache silently drops utilities
 from the stylesheet. CI's `Committed assets match sources` job fails the PR when the
-committed bundle does not match a clean rebuild.
+committed **CSS** does not match a clean rebuild. JS is out of scope there: rolldown emits
+different chunk bytes per machine from the same lockfile, so it cannot be compared this way.
 
 - [ ] Assets built and committed (`public/build/manifest.json` present in the repo).
 - [ ] `git pull && bash deploy.sh` ran clean on the host.
