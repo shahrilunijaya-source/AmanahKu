@@ -44,6 +44,29 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/react`, { emoji });
         },
 
+        // The outer icon is the toggle; the flyout is only for choosing. With a
+        // reaction already left, pressing the heart takes it back — one emoji per
+        // person, so there is never a question of which one.
+        heartPress() {
+            if (this.mine.length) {
+                this.flyout = null;
+
+                return this.react(this.mine[0]);
+            }
+
+            this.flyout = this.flyout === 'react' ? null : 'react';
+        },
+
+        starPress() {
+            if (this.myScore) {
+                this.flyout = null;
+
+                return this.rate(this.myScore);   // same score in, cleared out
+            }
+
+            this.flyout = this.flyout === 'rate' ? null : 'rate';
+        },
+
         toggleWatched() {
             return this.act(`/app/tot/${this.id}/watched`);
         },

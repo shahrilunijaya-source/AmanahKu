@@ -543,14 +543,19 @@ class TotTest extends TestCase
         ]);
     }
 
-    public function test_one_person_may_hold_several_different_emoji(): void
+    public function test_one_person_holds_at_most_one_emoji(): void
     {
         $session = $this->makeSession();
 
         $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
         $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
 
-        $this->assertSame(2, TotReaction::where('session_id', $session->id)->count());
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)->count());
+        $this->assertSame(
+            '🔥',
+            TotReaction::where('session_id', $session->id)->value('emoji'),
+            'the newer emoji replaces the older one'
+        );
     }
 
     public function test_an_emoji_outside_the_whitelist_is_rejected(): void

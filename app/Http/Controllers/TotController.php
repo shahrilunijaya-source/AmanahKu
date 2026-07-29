@@ -303,8 +303,8 @@ class TotController extends Controller
     }
 
     /**
-     * Toggle one whitelisted emoji for the acting employee. A repeat POST of the same emoji
-     * removes it; different emoji stack, one row each, guarded by the unique key.
+     * Record or replace the acting employee's reaction (one emoji per person per session).
+     * Pressing the same emoji removes it; a different emoji replaces the existing one.
      */
     public function react(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
@@ -317,30 +317,31 @@ class TotController extends Controller
             'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
         ]);
 
-        $existing = TotReaction::where('session_id', $session->id)
+        // One emoji per person per session. Whatever they had goes, and only a
+        // genuinely different emoji comes back — pressing the one you already
+        // left is the undo.
+        $had = TotReaction::where('session_id', $session->id)
             ->where('employee_id', $employee->id)
-            ->where('emoji', $data['emoji'])
-            ->first();
+            ->pluck('emoji');
 
-        if ($existing) {
-            $existing->delete();
+        TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $employee->id)
+            ->delete();
 
-            return $request->expectsJson()
-                ? response()->json($this->sessionState($request, $session))
-                : back();
-        }
-
-        try {
-            TotReaction::create([
-                'session_id' => $session->id,
-                'employee_id' => $employee->id,
-                'emoji' => $data['emoji'],
-            ]);
-        } catch (QueryException $e) {
-            // 23xxx = the unique (session_id, employee_id, emoji) duplicate-reaction guard.
-            // Anything else is a real DB failure, so do not mask it behind a friendly message.
-            if (! str_starts_with((string) $e->getCode(), '23')) {
-                throw $e;
+        if (! $had->contains($data['emoji'])) {
+            try {
+                TotReaction::create([
+                    'session_id' => $session->id,
+                    'employee_id' => $employee->id,
+                    'emoji' => $data['emoji'],
+                ]);
+            } catch (QueryException $e) {
+                // 23xxx = the unique (session_id, employee_id, emoji) guard raced by a
+                // concurrent insert of the same emoji. The end state is what this
+                // request wanted, so there is nothing to do.
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
             }
         }
 

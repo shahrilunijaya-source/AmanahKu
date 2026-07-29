@@ -10,9 +10,11 @@
             @endforeach
         </span>
         <button type="button" class="tot-act" :data-on="mine.length ? '1' : null"
-                @click="flyout = flyout === 'react' ? null : 'react'"
+                @click="heartPress()"
                 @mouseenter="flyout = 'react'"
-                :aria-label="$store.ui.lang==='en' ? 'React to this session' : 'Beri reaksi'">
+                :aria-label="mine.length
+                    ? ($store.ui.lang==='en' ? 'Remove your reaction' : 'Buang reaksi anda')
+                    : ($store.ui.lang==='en' ? 'React to this session' : 'Beri reaksi')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
             <span x-text="reactionTotal || ''"></span>
         </button>
@@ -63,9 +65,11 @@
             </template>
         </span>
         <button type="button" class="tot-act" :data-on="myScore ? '1' : null"
-                @click="flyout = flyout === 'rate' ? null : 'rate'"
+                @click="starPress()"
                 @mouseenter="flyout = 'rate'"
-                :aria-label="$store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini'">
+                :aria-label="myScore
+                    ? ($store.ui.lang==='en' ? 'Remove your rating' : 'Buang penilaian anda')
+                    : ($store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z"/></svg>
             <span x-text="score ? `${score.average} (${score.count})` : ''"></span>
         </button>

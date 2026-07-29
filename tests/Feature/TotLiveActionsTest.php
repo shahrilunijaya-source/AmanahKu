@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotComment;
 use App\Models\TotParticipation;
+use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -312,5 +313,56 @@ class TotLiveActionsTest extends TestCase
 
         $this->actingInTenant()->postJson("/app/tot/{$session->id}/rate", ['score' => 6])
             ->assertStatus(422);
+    }
+
+    public function test_a_second_emoji_replaces_the_first(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $this->employee->id)->count(), 'one emoji per person');
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['🔥' => 1]),
+            json_encode($response->json('reactions')),
+            'the first emoji is gone from the counts, not just from mine'
+        );
+    }
+
+    public function test_pressing_the_same_emoji_still_removes_it(): void
+    {
+        $session = $this->slot();
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+
+        $response->assertOk()->assertJsonPath('mine', []);
+        $this->assertSame(0, TotReaction::where('session_id', $session->id)->count());
+    }
+
+    public function test_replacing_your_emoji_leaves_other_people_alone(): void
+    {
+        $session = $this->slot();
+
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Other',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        TotReaction::create([
+            'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
+            'employee_id' => $other->id, 'emoji' => '👍',
+        ]);
+
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+
+        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+        $this->assertSame(1, TotReaction::where('session_id', $session->id)
+            ->where('employee_id', $other->id)->count(), 'their reaction survives');
+        $this->assertSame(1, $response->json('reactions.👍'), 'and still counts');
     }
 }
