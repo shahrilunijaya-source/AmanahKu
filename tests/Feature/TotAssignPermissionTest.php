@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\TotSession;
 use App\Models\User;
 use App\Models\UserPermission;
+use App\Services\FeatureManager;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -386,5 +387,53 @@ class TotAssignPermissionTest extends TestCase
         $this->actingAsManager()->get('/app/tot')
             ->assertOk()
             ->assertSee('name="entry_id"', false);
+    }
+
+    public function test_a_holder_can_reach_the_roster_screen(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->get('/app/tot-roster')->assertOk();
+    }
+
+    public function test_a_manager_without_the_override_cannot_reach_the_roster(): void
+    {
+        $this->seedWorkspace();
+
+        $this->actingAsManager()->get('/app/tot-roster')->assertForbidden();
+    }
+
+    public function test_the_roster_renders_a_year_that_has_no_rows(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $response = $this->actingAsManager()->get('/app/tot-roster?year=2031');
+
+        $response->assertOk()->assertSee('2031');
+        $this->assertSame(0, TotSession::where('year', 2031)->count());
+    }
+
+    public function test_the_roster_lists_every_assignable_person(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->get('/app/tot-roster?year=2026')
+            ->assertOk()
+            ->assertSee($this->presenter->name);
+    }
+
+    public function test_the_roster_is_gated_by_the_knowledge_module(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.knowledge', false);
+
+        // AppController aborts 404, not 403, for a screen whose module is off:
+        // a disabled module should look absent, not forbidden.
+        $this->actingAsManager()->get('/app/tot-roster')->assertNotFound();
     }
 }

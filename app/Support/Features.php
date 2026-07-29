@@ -52,7 +52,7 @@ class Features
         'module.assets' => ['Asset Register', ['assets'], 2],
         'module.reports' => ['Reports', ['reports'], 1],
         'module.surveys' => ['Surveys & Suggestions', ['surveys', 'ideas'], 2],
-        'module.knowledge' => ['Knowledge Bank', ['knowledge-bank', 'tot'], 2],
+        'module.knowledge' => ['Knowledge Bank', ['knowledge-bank', 'tot', 'tot-roster'], 2],
         'module.messages' => ['Messaging', ['messages'], 2],
         'module.sharedresources' => ['Shared Resources', ['shared-resources'], 2],
         'module.profiletest' => ['Employee Profile Test', ['profile-test', 'profile-test-admin'], 2],

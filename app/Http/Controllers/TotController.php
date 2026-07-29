@@ -75,6 +75,34 @@ class TotController extends Controller
     }
 
     /**
+     * The assignment picker. Twelve slots for any year, saved or not, because
+     * session_date is computed rather than stored — a year needs no rows to exist.
+     *
+     * @return array<string, mixed>
+     */
+    public function rosterData(Request $request, ?Employee $employee): array
+    {
+        abort_unless($this->canAssignPresenter($request), 403);
+
+        $year = (int) ($request->query('year') ?: now()->year);
+
+        $saved = TotSession::with('presenter')->where('year', $year)->get()->keyBy('month');
+
+        $slots = collect(range(1, 12))->map(fn (int $month) => $saved->get($month) ?? new TotSession([
+            'year' => $year,
+            'month' => $month,
+            'status' => 'planned',
+        ]))->all();
+
+        return [
+            'year' => $year,
+            'years' => $this->availableYears($year),
+            'slots' => $slots,
+            'assignableEmployees' => $this->assignableEmployees(),
+        ];
+    }
+
+    /**
      * Create a slot for a month that has none yet. Privileged roles set every field; a
      * tot.assign holder opens the month with only year, month and presenter_employee_id,
      * and the slot lands planned.
