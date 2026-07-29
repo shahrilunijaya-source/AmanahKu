@@ -225,10 +225,26 @@ can share it."
 **Files:**
 - Modify: `app/Http/Controllers/TotController.php` (the `watched` method)
 - Test: `tests/Feature/TotLiveActionsTest.php`
+- Test: `tests/Feature/TotTest.php` — one existing test must be replaced, see Step 3a
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: `POST /app/tot/{session}/watched` now clears `watched_at` when it is already set. The JSON shape is unchanged — `sessionState()` still returns `watched` (int) and `iWatched` (bool).
+
+**An existing test encodes the old contract and must be replaced.**
+`TotTest::test_marking_watched_after_rating_does_not_move_watched_at_forward` asserts
+latch semantics: rate at T1, press the eye at T2, and `watched_at` must still equal T1.
+A toggle necessarily breaks that, so the test fails and cannot simply be deleted or
+loosened.
+
+Replacing it is correct here, and the reason is checkable rather than a matter of taste:
+**`watched_at`'s value is never read anywhere in the app.** Only its null-ness is, at
+`TotController.php:495` (`iWatched`) and `:702` (`whereNotNull` for the watched count).
+Grep confirms no view, report or ordering touches the timestamp itself. The old test
+therefore protects a property nothing depends on, while the behaviour it blocks is the
+feature being built.
+
+The replacement asserts strictly more than the original, so this is not a weakening.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -291,11 +307,46 @@ with:
 
 Leave the `QueryException` catch exactly as it is. Its reasoning still holds: the only way to hit a unique violation here is a concurrent *insert*, and in that case the row the winner created is already `watched`, which is what a first press wanted.
 
+- [ ] **Step 3a: Replace the test that encodes the old latch contract**
+
+In `tests/Feature/TotTest.php`, replace
+`test_marking_watched_after_rating_does_not_move_watched_at_forward` entirely with:
+
+```php
+public function test_rating_marks_you_watched_and_the_eye_can_then_clear_it(): void
+{
+    $session = $this->makeSession();
+
+    $this->travelTo('2026-03-10 09:00:00');
+    $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 4]);
+
+    $this->assertNotNull(
+        TotParticipation::where('session_id', $session->id)->firstOrFail()->watched_at,
+        'rating implies watching'
+    );
+
+    // The eye is a toggle, so pressing it on a session that rating already marked
+    // watched clears the mark. Nothing depends on preserving the original stamp:
+    // watched_at's value is never read, only its null-ness, for iWatched and the
+    // watched count.
+    $this->travelTo('2026-03-11 09:00:00');
+    $this->actingInTenant()->post("/app/tot/{$session->id}/watched");
+
+    $row = TotParticipation::where('session_id', $session->id)->firstOrFail();
+
+    $this->assertNull($row->watched_at);
+    $this->assertSame(4, $row->score, 'the score survives an un-watch');
+}
+```
+
+Do not touch any other test in that file.
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `php artisan test --compact --filter=TotLiveActionsTest`
+Run: `php artisan test --compact --filter=Tot`
 
-Expected: PASS, all tests in the file including the pre-existing `test_watching_returns_the_new_state`.
+Expected: PASS across the whole TOT suite, including the pre-existing
+`test_watching_returns_the_new_state`.
 
 - [ ] **Step 5: Commit**
 
