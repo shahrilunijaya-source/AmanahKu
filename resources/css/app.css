@@ -31,6 +31,8 @@
     --amber: #c08532;
     --error: #cf2d56;
     --info: #3a6ea5;
+    --shelf: #ece9e1;
+    --shelf-line: #ddd9cf;
 
     /* Menus, dropdowns, popovers. These already carry a 1px hairline, which is
        what defines their edge; the shadow only has to lift them off the page.
@@ -871,4 +873,201 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
   .uj-dq-cust { height:38px; }
   .uj-dq-card-tools button { width:32px; height:32px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Attendance (resources/views/screens/attendance.blade.php) — ported from
+   the approved public/_attendance-revamp.html mock. Namespaced uj-at-
+   ("attendance") to avoid colliding with uj-dq- or shared uj-card/uj-btn
+   classes.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Centred single-task column ──
+   The desktop reference width is 1920 (~1600px content area), so a full-bleed
+   shelf would put the figure and the clock button ~1500px apart. Max-width
+   920px keeps the single task focused and centred. */
+/* .uj-at-wrap is the single source of the screen's measure; children must not set their own. */
+.uj-at-wrap { max-width: 920px; margin: 0 auto; }
+
+/* ── The shelf ──
+   One banner that answers "where am I, what time is it, what do I press".
+   Warm tint (--shelf) rather than white so the white chips and white ghost
+   buttons read as sitting ON something. */
+.uj-at-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 20px; }
+.uj-at-shelf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.uj-at-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
+.uj-at-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.uj-at-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.uj-at-figsub { font-size: var(--t-base); color: var(--body); }
+.uj-at-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Where you are meant to be, and whether you are. The geofence verdict is inline
+   here rather than a separate badge: it is a clause of the expectation sentence. */
+.uj-at-where { font-size: 13px; color: var(--body); margin-top: 7px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.uj-at-fence { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+.uj-at-fence i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.uj-at-fence[data-f="in"] { background: #e7f4ee; color: #14614a; }
+.uj-at-fence[data-f="out"] { background: #faf1e2; color: #7a5210; }
+.uj-at-fence[data-f="wait"] { background: var(--hairline-soft); color: var(--muted); }
+/* On .uj-at-fence[data-f="wait"] i: this pulse is a transient loading state
+   that stops once the geolocation call resolves, not a decorative infinite animation. */
+.uj-at-fence[data-f="wait"] i { animation: uj-at-ping 1.4s ease-in-out infinite; }
+@keyframes uj-at-ping { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+/* ── Actions: selfie, remark, and punch button ── */
+.uj-at-acts { display: flex; gap: 10px; align-items: center; flex-shrink: 0; padding-top: 6px; flex-wrap: wrap; }
+.uj-at-ghost { height: 44px; padding: 0 16px; background: #fff; border: 1px solid var(--shelf-line); border-radius: 10px; color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-ghost:hover { border-color: var(--muted-soft); }
+.uj-at-ghost:active { transform: scale(.97); }
+.uj-at-ghost[data-on] { border-color: var(--ink); background: #fff; }
+.uj-at-ghost svg { color: var(--muted); flex-shrink: 0; }
+.uj-at-ghost[data-on] svg { color: var(--success); }
+.uj-at-go { height: 44px; padding: 0 26px; background: var(--red); color: #fff; border: 0; border-radius: 10px; font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-go:hover { background: var(--red-active); }
+.uj-at-go:active { transform: scale(.97); }
+.uj-at-go:disabled { background: #fff; border: 1px solid var(--shelf-line); color: var(--muted); cursor: default; transform: none; display: inline-flex; align-items: center; gap: 8px; }
+.uj-at-go:disabled svg { color: var(--success); }
+
+/* ── The remark box ──
+   Collapsed to a button until it has something to say. Two jobs, one box: optional
+   note normally, REQUIRED reason when off-site or early. It opens itself in that case.
+   On .uj-at-note: the 16px gap rides on the label's padding-top, INSIDE the
+   clipped grid child. Padding on the clipped <div> itself survives a 0fr row and
+   leaves a permanent 16px ghost. Only grid-template-rows is transitioned;
+   animating margin here thrashes layout for the same visual result. */
+.uj-at-note { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-note[data-open] { grid-template-rows: 1fr; }
+.uj-at-note > div { overflow: hidden; }
+.uj-at-note label { display: block; padding-top: 16px; font-size: var(--t-sm); font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+.uj-at-note[data-req] label { color: var(--red-active); }
+.uj-at-note textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--shelf-line); border-radius: 10px; font-size: 13.5px; color: var(--ink); background: #fff; outline: none; resize: vertical; min-height: 66px; line-height: 1.55; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-note textarea::placeholder { color: var(--muted-soft); }
+.uj-at-note textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.uj-at-note[data-req] textarea { border-color: var(--red); }
+
+/* ── Chips ──
+   The four numbers a person asks this screen for: worked this week, over baseline,
+   late this month, off-site this month. */
+.uj-at-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.uj-at-chip { background: #fff; border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.uj-at-chip b { font: 600 18px var(--font-mono); color: var(--ink); line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.uj-at-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
+.uj-at-chip[data-tone="ok"] b { color: #14614a; }
+.uj-at-chip[data-tone="amber"] b { color: #7a5210; }
+
+/* ── Week reading list & disclosure rows ──
+   Each day is a disclosure: row carries the facts, panel carries the plain-English
+   account of why flagged, note attached, and selfie/where-line evidence. */
+.uj-at-listhd { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 34px; }
+.uj-at-listhd h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
+.uj-at-listhd .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-at-seeall { font-size: var(--t-sm); color: var(--muted); text-decoration: none; font-weight: 500; transition: color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-seeall:hover { color: var(--red); }
+
+.uj-at-day { border-top: 1px solid #e2ded4; }
+.uj-at-day:first-child { border-top: 0; }
+.uj-at-row { width: 100%; display: flex; gap: 18px; align-items: center; padding: 18px 6px; background: none; border: 0; text-align: left; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1); border-radius: 10px; }
+.uj-at-row:hover { background: #f1efe8; }
+.uj-at-row:active { background: #eceae2; transition-duration: .04s; }
+
+/* Date tile — tone tints it for visual scanning before reading text */
+.uj-at-tile { width: 52px; flex-shrink: 0; text-align: center; padding: 7px 0 8px; border-radius: 10px; background: var(--hairline-soft); }
+.uj-at-tile .m { font: 600 11px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.uj-at-tile .d { font: 600 22px/1 var(--font-mono); color: var(--ink); margin-top: 2px; letter-spacing: -.03em; }
+.uj-at-day[data-tone="success"] .uj-at-tile { background: #e7f4ee; }
+.uj-at-day[data-tone="amber"] .uj-at-tile { background: #faf1e2; }
+.uj-at-day[data-tone="red"] .uj-at-tile { background: var(--red-tint); }
+.uj-at-day[data-tone="success"] .uj-at-tile .m { color: #14614a; }
+.uj-at-day[data-tone="amber"] .uj-at-tile .m { color: #7a5210; }
+.uj-at-day[data-tone="red"] .uj-at-tile .m { color: var(--red-active); }
+
+.uj-at-rowmid { flex: 1; min-width: 0; }
+.uj-at-rowmid .uj-at-status { display: none; }
+.uj-at-rowt { font-size: 15.5px; font-weight: 600; color: var(--ink); line-height: 1.35; }
+.uj-at-rows { font-size: var(--t-sm); color: var(--muted); margin-top: 3px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uj-at-rowend { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.uj-at-status { padding: 4px 11px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+.uj-at-status[data-tone="success"] { background: #e7f4ee; color: #14614a; }
+.uj-at-status[data-tone="amber"] { background: #faf1e2; color: #7a5210; }
+.uj-at-status[data-tone="red"] { background: var(--red-tint); color: var(--red-active); }
+.uj-at-status[data-tone="muted"] { background: var(--hairline-soft); color: var(--muted); }
+.uj-at-chev { flex-shrink: 0; color: var(--muted); transition: transform .22s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-row[aria-expanded="true"] .uj-at-chev { transform: rotate(180deg); color: var(--ink); }
+
+.uj-at-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-panel[data-open] { grid-template-rows: 1fr; }
+.uj-at-panel > div { overflow: hidden; }
+.uj-at-panel-in { padding: 0 6px 30px 76px; }
+.uj-at-panel p { font-size: 14.5px; line-height: 1.7; color: #3f3e38; max-width: 64ch; margin: 0; text-wrap: pretty; opacity: 0; filter: blur(2px); transition: opacity .2s cubic-bezier(.23, 1, .32, 1) .05s, filter .2s cubic-bezier(.23, 1, .32, 1) .05s; }
+.uj-at-panel[data-open] p { opacity: 1; filter: blur(0); }
+.uj-at-quote { margin-top: 16px; border-left: 2px solid var(--shelf-line); padding: 2px 0 2px 14px; }
+.uj-at-quote .lbl { font: 600 11px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.uj-at-quote .txt { font-size: 14px; color: #3f3e38; margin-top: 5px; line-height: 1.6; }
+.uj-at-evid { display: flex; gap: 14px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+.uj-at-where-line { flex: 1; min-width: 200px; display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.55; color: var(--body); }
+.uj-at-where-line svg { color: var(--muted); flex-shrink: 0; margin-top: 3px; }
+.uj-at-shot { width: 132px; height: 96px; border-radius: 10px; border: 1px solid var(--shelf-line); background: var(--hairline-soft); overflow: hidden; }
+.uj-at-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── Empty state ──
+   Teaches the screen instead of saying "nothing here" */
+.uj-at-empty { padding: 34px 8px 30px; max-width: 52ch; }
+.uj-at-empty h3 { font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+.uj-at-empty p { font-size: var(--t-base); color: var(--muted); margin: 0; line-height: 1.65; }
+
+.uj-at-dock { display: none; }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .uj-at-panel, .uj-at-note { transition: none; }
+  .uj-at-panel p { transition: opacity .12s linear; filter: none; }
+  .uj-at-chev { transition: color .14s linear; }
+  .uj-at-fence[data-f="wait"] i { animation: none; }
+  .uj-at-go:active, .uj-at-ghost:active,
+  .uj-at-dock-go:active { transform: none; }
+}
+
+/* ── Mobile action dock & responsive behaviour (≤640px) ── */
+@media (max-width: 640px) {
+  .uj-at-dock {
+    display: flex; gap: 9px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: var(--card); border-top: 1px solid var(--hairline);
+  }
+  .uj-at-dock-sq {
+    width: 52px; height: 52px; flex-shrink: 0;
+    border: 1px solid var(--hairline); border-radius: 13px; background: #fff;
+    display: grid; place-items: center; cursor: pointer; color: var(--muted);
+  }
+  .uj-at-dock-sq[data-on] { border-color: var(--success); color: var(--success); }
+  .uj-at-dock-sq[data-on] svg { color: var(--success); }
+  .uj-at-dock-go {
+    flex: 1; height: 52px; background: var(--red); color: #fff; border: 0;
+    border-radius: 13px; font-size: 15.5px; font-weight: 600; cursor: pointer;
+    transition: background .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1);
+  }
+  .uj-at-dock-go:active { transform: scale(.98); }
+  .uj-at-dock-go:disabled { background: #fff; border: 1px solid var(--hairline); color: var(--muted); transform: none; cursor: default; }
+
+  .uj-at-wrap { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .uj-at-shelf { padding: 18px; }
+  .uj-at-fig { font-size: 46px; margin-top: 8px; }
+  .uj-at-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .uj-at-chip { padding: 7px 11px; }
+  .uj-at-chip b { font-size: 15px; }
+  .uj-at-chip span { font-size: 11px; }
+  .uj-at-acts .uj-at-go,
+  .uj-at-acts [data-selfie] { display: none; }
+  .uj-at-acts [data-notebtn] { width: 100%; height: 44px; min-height: 44px; margin-top: 6px; justify-content: center; font-size: var(--t-sm); }
+  .uj-at-row { padding: 14px 6px; min-height: 44px; }
+  .uj-at-rowmid .uj-at-status { display: inline-block; margin-top: 6px; }
+  .uj-at-rowend .uj-at-status { display: none; }
+  .uj-at-panel-in { padding: 0 2px 24px; }
+}
+
+/* ── Touch devices (hover neutralisation) ── */
+@media (hover: none) {
+  .uj-at-row:hover, .uj-at-ghost:hover { background: initial; }
+}
+
 
