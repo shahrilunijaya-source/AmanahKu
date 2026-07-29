@@ -217,6 +217,12 @@ class AttendanceReportController extends Controller
         $onLeaveCount = $roster->where('onLeave', true)->count();
         $neverCount = $roster->where('never', true)->count();
         $stoppedCount = $roster->where('stopped', true)->count();
+
+        $bucketClocking = $roster->filter(fn ($r) => $r['clocked'] > 0 && ! $r['stopped'])->count();
+        $bucketStopped = $roster->filter(fn ($r) => $r['clocked'] > 0 && $r['stopped'])->count();
+        $bucketOnLeave = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] > 0)->count();
+        $bucketNever = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] === 0)->count();
+
         $clockedDaysSum = (int) $roster->sum('clocked');
         $lateDaysSum = (int) $roster->sum('late');
         $totalsPct = $clockedDaysSum > 0 ? (int) round(($clockedDaysSum - $lateDaysSum) / $clockedDaysSum * 100) : 0;
@@ -227,6 +233,10 @@ class AttendanceReportController extends Controller
             'onLeave' => $onLeaveCount,
             'never' => $neverCount,
             'stopped' => $stoppedCount,
+            'bucketClocking' => $bucketClocking,
+            'bucketStopped' => $bucketStopped,
+            'bucketOnLeave' => $bucketOnLeave,
+            'bucketNever' => $bucketNever,
             'clockedDays' => $clockedDaysSum,
             'lateDays' => $lateDaysSum,
             'pct' => $totalsPct,

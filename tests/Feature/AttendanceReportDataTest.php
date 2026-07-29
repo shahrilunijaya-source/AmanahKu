@@ -354,4 +354,131 @@ class AttendanceReportDataTest extends TestCase
         $this->assertNotFalse($leaveIndex);
         $this->assertLessThan($leaveIndex, $poorIndex, 'Poor attender must sort before a fully absent employee on leave.');
     }
+
+    public function test_the_coverage_buckets_partition_the_roster(): void
+    {
+        // 1. Bucket clocking (without leave)
+        $empClocking = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Clocking Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empClocking->id,
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '08:00:00',
+        ]);
+
+        // 2. Bucket clocking (WITH both clocked days and approved leave days)
+        $empBoth = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Clocking And Leave Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empBoth->id,
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '08:00:00',
+        ]);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empBoth->id,
+            'leave_type_id' => $this->leaveType->id,
+            'date_from' => '2026-07-01',
+            'date_to' => '2026-07-02',
+            'days' => 2,
+            'status' => 'approved',
+        ]);
+
+        // 3. Bucket stopped (clocked on 2026-07-01, then 5+ trailing working days missing)
+        $empStopped = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Stopped Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empStopped->id,
+            'date' => '2026-07-01',
+            'status' => 'on_time',
+            'clock_in' => '08:00:00',
+        ]);
+
+        // 4. Bucket on leave (clocked === 0 && leaveDays > 0)
+        $empOnLeave = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'On Leave Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empOnLeave->id,
+            'leave_type_id' => $this->leaveType->id,
+            'date_from' => '2026-07-01',
+            'date_to' => '2026-07-15',
+            'days' => 11,
+            'status' => 'approved',
+        ]);
+
+        // Bucket never: $this->employee (created in setUp, no attendance, no leave)
+
+        $data = $this->getScreenData();
+        $totals = $data['totals'];
+        $roster = $data['roster'];
+
+        $this->assertSame(
+            $totals['headcount'],
+            $totals['bucketClocking'] + $totals['bucketStopped'] + $totals['bucketOnLeave'] + $totals['bucketNever']
+        );
+        $this->assertSame($totals['headcount'], count($roster));
+    }
+
+    public function test_an_employee_with_leave_and_clocked_days_counts_as_clocking(): void
+    {
+        $empBoth = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Clocked And On Leave Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empBoth->id,
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '08:00:00',
+        ]);
+
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $empBoth->id,
+            'leave_type_id' => $this->leaveType->id,
+            'date_from' => '2026-07-01',
+            'date_to' => '2026-07-02',
+            'days' => 2,
+            'status' => 'approved',
+        ]);
+
+        $data = $this->getScreenData();
+        $roster = collect($data['roster']);
+        $row = $roster->firstWhere('id', $empBoth->id);
+
+        $this->assertNotNull($row);
+        $this->assertTrue($row['onLeave']);
+        $this->assertGreaterThan(0, $row['clocked']);
+        $this->assertGreaterThan(0, $row['leaveDays']);
+
+        $totals = $data['totals'];
+        $this->assertGreaterThan(0, $totals['bucketClocking']);
+        $this->assertSame(0, $totals['bucketOnLeave']);
+    }
 }

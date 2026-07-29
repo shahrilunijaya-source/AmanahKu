@@ -29,11 +29,10 @@
     $stoppedFirst = $stoppedStaff->first();
 
     $hc = max($totals['headcount'], 1);
-    $activeClocking = max(0, $totals['reported'] - $totals['stopped']);
-    $wActive = number_format($activeClocking / $hc * 100, 1).'%';
-    $wStopped = number_format($totals['stopped'] / $hc * 100, 1).'%';
-    $wLeave = number_format($totals['onLeave'] / $hc * 100, 1).'%';
-    $wNever = number_format($totals['never'] / $hc * 100, 1).'%';
+    $wActive = number_format($totals['bucketClocking'] / $hc * 100, 1).'%';
+    $wStopped = number_format($totals['bucketStopped'] / $hc * 100, 1).'%';
+    $wLeave = number_format($totals['bucketOnLeave'] / $hc * 100, 1).'%';
+    $wNever = number_format($totals['bucketNever'] / $hc * 100, 1).'%';
 @endphp
 
 @section('screen')
@@ -142,8 +141,31 @@
                 <span class="uj-ar-fig">{{ $totals['reported'] }}<span style="color:var(--muted-soft)">/{{ $totals['headcount'] }}</span></span>
                 <span class="uj-ar-figsub">
                     @php
-                        $neverTextEn = $neverNames->count() > 0 ? implode(' and ', $neverNames->toArray()).' never did' : '0 staff never did';
-                        $neverTextMs = $neverNames->count() > 0 ? implode(' dan ', $neverNames->toArray()).' tidak pernah clock in' : '0 staf tidak pernah clock in';
+                        $formatNeverNames = function (\Illuminate\Support\Collection $names, string $lang): string {
+                            $count = $names->count();
+                            if ($count === 0) {
+                                return $lang === 'en' ? '0 staff never clocked in' : '0 staf tidak pernah clock in';
+                            }
+                            if ($count === 1) {
+                                $list = $names[0];
+                            } elseif ($count === 2) {
+                                $and = $lang === 'en' ? ' and ' : ' dan ';
+                                $list = $names[0] . $and . $names[1];
+                            } elseif ($count === 3) {
+                                $and = $lang === 'en' ? ' and ' : ' dan ';
+                                $list = $names[0] . ', ' . $names[1] . $and . $names[2];
+                            } else {
+                                $others = $count - 3;
+                                $and = $lang === 'en' ? " and {$others} others" : " dan {$others} lagi";
+                                $list = $names[0] . ', ' . $names[1] . ', ' . $names[2] . $and;
+                            }
+
+                            $suffix = $lang === 'en' ? ' never clocked in' : ' tidak pernah clock in';
+                            return $list . $suffix;
+                        };
+
+                        $neverTextEn = $formatNeverNames($neverNames, 'en');
+                        $neverTextMs = $formatNeverNames($neverNames, 'ms');
                         $stoppedTextEn = $stoppedFirst ? $stoppedFirst['name'].' stopped '.$stoppedFirst['gapDays'].' days ago.' : '';
                         $stoppedTextMs = $stoppedFirst ? $stoppedFirst['name'].' terhenti '.$stoppedFirst['gapDays'].' hari lepas.' : '';
                     @endphp
@@ -167,10 +189,10 @@
             </div>
 
             <div class="uj-ar-covkey">
-                <span><b style="background:var(--success);"></b><span x-text="$store.ui.lang==='en' ? '{{ $activeClocking }} clocking' : '{{ $activeClocking }} aktif clocking'">{{ $activeClocking }} clocking</span></span>
-                <span><b style="background:var(--amber);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['stopped'] }} stopped' : '{{ $totals['stopped'] }} terhenti'">{{ $totals['stopped'] }} stopped</span></span>
-                <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['onLeave'] }} on leave' : '{{ $totals['onLeave'] }} bercuti'">{{ $totals['onLeave'] }} on leave</span></span>
-                <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['never'] }} never clocked' : '{{ $totals['never'] }} tidak pernah clock'">{{ $totals['never'] }} never clocked</span></span>
+                <span><b style="background:var(--success);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketClocking'] }} clocking' : '{{ $totals['bucketClocking'] }} aktif clocking'">{{ $totals['bucketClocking'] }} clocking</span></span>
+                <span><b style="background:var(--amber);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketStopped'] }} stopped' : '{{ $totals['bucketStopped'] }} terhenti'">{{ $totals['bucketStopped'] }} stopped</span></span>
+                <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketOnLeave'] }} on leave' : '{{ $totals['bucketOnLeave'] }} bercuti'">{{ $totals['bucketOnLeave'] }} on leave</span></span>
+                <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketNever'] }} never clocked' : '{{ $totals['bucketNever'] }} tidak pernah clock'">{{ $totals['bucketNever'] }} never clocked</span></span>
             </div>
         </div>
 

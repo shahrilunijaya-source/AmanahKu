@@ -182,4 +182,51 @@ class AttendanceReportScreenTest extends TestCase
 
         $this->assertNotEquals(200, $response->getStatusCode());
     }
+
+    public function test_the_never_clocked_sentence_names_at_most_three(): void
+    {
+        $names = [
+            'Alpha NeverName',
+            'Beta NeverName',
+            'Gamma NeverName',
+            'Delta NeverName',
+            'Epsilon NeverName',
+            'Zeta NeverName',
+        ];
+
+        foreach ($names as $name) {
+            Employee::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => $name,
+                'status' => 'active',
+                'workload' => 'green',
+            ]);
+        }
+
+        $response = $this->actAsHr()->get('/app/attendance-report');
+        $response->assertOk();
+
+        $content = $response->getContent();
+
+        // Scope assertion strictly to the shelf lead sentence HTML block
+        $shelfStart = strpos($content, 'class="uj-ar-figsub"');
+        $this->assertNotFalse($shelfStart, 'Shelf figsub element must exist.');
+        $shelfEnd = strpos($content, 'class="uj-ar-cov"', $shelfStart);
+        $this->assertNotFalse($shelfEnd, 'Shelf coverage bar element must exist.');
+        $shelfHtml = substr($content, $shelfStart, $shelfEnd - $shelfStart);
+
+        // At most 3 names listed (HR Manager from setUp + Alpha + Beta)
+        $this->assertStringContainsString('HR Manager', $shelfHtml);
+        $this->assertStringContainsString('Alpha NeverName', $shelfHtml);
+        $this->assertStringContainsString('Beta NeverName', $shelfHtml);
+
+        // Overflow wording present (6 seeded + 1 HR Manager from setUp = 7 never clocked; 7 - 3 = 4 others)
+        $this->assertStringContainsString('and 4 others', $shelfHtml);
+
+        // Fourth and subsequent names are omitted from the shelf sentence
+        $this->assertStringNotContainsString('Gamma NeverName', $shelfHtml);
+        $this->assertStringNotContainsString('Delta NeverName', $shelfHtml);
+        $this->assertStringNotContainsString('Epsilon NeverName', $shelfHtml);
+        $this->assertStringNotContainsString('Zeta NeverName', $shelfHtml);
+    }
 }
