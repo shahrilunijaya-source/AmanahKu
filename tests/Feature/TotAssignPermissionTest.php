@@ -436,4 +436,95 @@ class TotAssignPermissionTest extends TestCase
         // a disabled module should look absent, not forbidden.
         $this->actingAsManager()->get('/app/tot-roster')->assertNotFound();
     }
+
+    public function test_a_holder_assigning_from_the_roster_creates_a_planned_slot(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2026, 'month' => 5,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertRedirect();
+
+        $session = TotSession::where('year', 2026)->where('month', 5)->first();
+
+        $this->assertNotNull($session);
+        $this->assertSame('planned', $session->status);
+        $this->assertSame($this->presenter->id, $session->presenter_employee_id);
+    }
+
+    public function test_assigning_over_an_existing_slot_changes_only_the_presenter(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $session = TotSession::create([
+            'tenant_id' => $this->tenant->id, 'year' => 2026, 'month' => 5,
+            'title' => 'Barcode rollout', 'status' => 'done',
+        ]);
+
+        $this->actingAsManager()->post("/app/tot/{$session->id}", [
+            'totform' => $session->id,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertRedirect();
+
+        $session->refresh();
+
+        $this->assertSame($this->presenter->id, $session->presenter_employee_id);
+        $this->assertSame('Barcode rollout', $session->title, 'the roster must not touch the material');
+        $this->assertSame('done', $session->status, 'the roster must not touch the status');
+    }
+
+    public function test_hr_can_assign_from_the_roster_without_sending_a_status(): void
+    {
+        $this->seedWorkspace();
+
+        $hr = User::create(['name' => 'HR', 'email' => 'hr-roster@example.com', 'password' => Hash::make('password')]);
+        $hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+
+        // store() puts status in the rule set only for a privileged role, where it is
+        // required. The roster sends status=planned so HR and a tot.assign holder both
+        // create the same row instead of HR alone getting a 422.
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/tot', [
+                'year' => 2026, 'month' => 7,
+                'presenter_employee_id' => $this->presenter->id,
+                'status' => 'planned',
+            ])->assertRedirect();
+
+        $session = TotSession::where('year', 2026)->where('month', 7)->first();
+
+        $this->assertNotNull($session, 'HR must be able to assign from the roster');
+        $this->assertSame('planned', $session->status);
+        $this->assertSame($this->presenter->id, $session->presenter_employee_id);
+    }
+
+    public function test_creating_a_slot_returns_its_id_to_a_json_caller(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        // The roster needs the new id, or it keeps thinking the month is unsaved and
+        // re-POSTs to store(), which the duplicate guard then rejects.
+        $response = $this->actingAsManager()->postJson('/app/tot', [
+            'year' => 2026, 'month' => 8,
+            'presenter_employee_id' => $this->presenter->id,
+        ]);
+
+        $session = TotSession::where('year', 2026)->where('month', 8)->firstOrFail();
+
+        $response->assertOk()->assertJsonPath('id', $session->id);
+    }
+
+    public function test_a_plain_form_create_still_redirects(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+
+        $this->actingAsManager()->post('/app/tot', [
+            'year' => 2026, 'month' => 9,
+            'presenter_employee_id' => $this->presenter->id,
+        ])->assertRedirect();
+    }
 }

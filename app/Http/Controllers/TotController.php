@@ -107,7 +107,7 @@ class TotController extends Controller
      * tot.assign holder opens the month with only year, month and presenter_employee_id,
      * and the slot lands planned.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         abort_unless($this->canAssignPresenter($request), 403);
 
@@ -161,7 +161,11 @@ class TotController extends Controller
 
         $this->announcePresenter($session, null);
 
-        return back()->with('ok', 'TOT slot saved.');
+        // The roster needs the new id: without it the client still thinks the month is
+        // unsaved and re-POSTs here on the next edit, which the duplicate guard rejects.
+        return $request->expectsJson()
+            ? response()->json(['id' => $session->id])
+            : back()->with('ok', 'TOT slot saved.');
     }
 
     /**

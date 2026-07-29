@@ -13,6 +13,7 @@ import { registerTeamBoard } from './team-board';
 import { registerTimesheetCapture } from './timesheet-capture';
 import { registerToast } from './toast';
 import { registerTotCard } from './tot-card';
+import { registerTotRoster } from './tot-roster';
 import { registerUploadFilenameSanitizer } from './upload-filename';
 import { registerWorkBoard } from './work-board';
 
@@ -33,6 +34,7 @@ registerTeamBoard(Alpine);
 registerTimesheetCapture(Alpine);
 registerToast(Alpine);
 registerTotCard(Alpine);
+registerTotRoster(Alpine);
 registerUploadFilenameSanitizer();
 registerWorkBoard(Alpine);
 registerServiceWorker();

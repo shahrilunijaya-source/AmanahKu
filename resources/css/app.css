@@ -2133,3 +2133,54 @@ select.wd-inline {
   .tot-pic button { margin-left:0; width:100%; }
 }
 
+/* ── TOT roster picker ─────────────────────────────────────────
+   Twelve slots beside the roster, with a cursor that advances to the
+   next empty month after each pick. Filling a year is twelve clicks;
+   correcting one month is two.
+   ─────────────────────────────────────────────────────────── */
+.tr { display:grid; grid-template-columns:400px minmax(0,1fr); gap:22px; align-items:start; }
+.tr-panel { background:var(--card); border:1px solid var(--hairline); border-radius:14px; padding:14px; }
+.tr-slots { display:flex; flex-direction:column; }
+.tr-slot { display:grid; grid-template-columns:26px 62px minmax(0,1fr) 26px; align-items:center; gap:10px;
+  width:100%; text-align:left; background:none; border:0; border-top:1px solid var(--hairline-soft);
+  padding:9px 6px; cursor:pointer; font-family:inherit; border-radius:9px; transition:background .13s, box-shadow .13s; }
+.tr-slot:first-child { border-top:0; }
+.tr-slot:hover { background:var(--hairline-soft); }
+.tr-slot[data-cursor] { background:var(--red-tint); box-shadow:inset 0 0 0 1.5px var(--red); }
+.tr-num { width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+  font:600 11px var(--font-mono); background:var(--hairline-soft); color:var(--muted); }
+.tr-slot[data-filled] .tr-num { background:var(--red); color:#fff; }
+.tr-mon { font:600 12px var(--font-sans); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.tr-mon span { display:block; font:500 11px var(--font-mono); letter-spacing:0; text-transform:none; color:var(--muted); }
+.tr-who { display:flex; align-items:center; gap:8px; min-width:0; }
+.tr-who-n { font-size:13.5px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-empty { font-size:13px; color:var(--muted); border:1px dashed var(--hairline); border-radius:8px; padding:4px 10px; }
+.tr-empty--event { color:var(--body); border-style:solid; background:var(--shelf); border-color:var(--shelf-line); }
+.tr-x { width:24px; height:24px; border:0; background:none; border-radius:7px; cursor:pointer;
+  color:var(--muted); display:grid; place-items:center; visibility:hidden; }
+.tr-slot[data-filled] .tr-x { visibility:visible; }
+.tr-x:hover { background:var(--hairline); color:var(--red); }
+.tr-search { width:100%; height:36px; padding:0 12px; border:1px solid var(--hairline); border-radius:9px;
+  font:inherit; font-size:13px; color:var(--ink); outline:none; margin-bottom:12px; background:#fff; }
+.tr-search:focus { border-color:var(--red); box-shadow:0 0 0 3px var(--red-tint); }
+.tr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(158px,1fr)); gap:8px; }
+.tr-p { position:relative; display:flex; align-items:center; gap:9px; padding:9px 10px;
+  border:1px solid var(--hairline); border-radius:11px; background:var(--card); cursor:pointer;
+  font-family:inherit; text-align:left; min-width:0; transition:border-color .13s, box-shadow .13s; }
+.tr-p:hover { border-color:var(--red); box-shadow:0 3px 10px rgba(31,30,26,.07); }
+.tr-p-n { font-size:13px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-badges { position:absolute; top:-7px; right:-6px; display:flex; gap:3px; }
+.tr-badge { min-width:19px; height:19px; padding:0 4px; border-radius:999px; background:var(--red); color:#fff;
+  font:600 10.5px var(--font-mono); display:grid; place-items:center; box-shadow:0 0 0 2px var(--canvas); }
+.tr-desk { display:none; background:var(--card); border:1px solid var(--hairline); border-radius:14px;
+  padding:22px; text-align:center; }
+.tr-desk h3 { margin:0 0 6px; font-size:15px; font-weight:600; color:var(--ink); }
+.tr-desk p { margin:0; font-size:var(--t-sm); color:var(--body); line-height:1.6; }
+
+/* The picker needs both columns visible at once for the cursor to make sense. */
+@media (max-width:899px) {
+  .tr { display:none; }
+  .tr-desk { display:block; }
+}
+
+
