@@ -451,15 +451,14 @@ class TimesheetController extends Controller
                 ->get(['employee_id', 'week_start']);
 
             foreach ($submittedTs as $t) {
-                $ws = $t->week_start instanceof Carbon ? $t->week_start->toDateString() : Carbon::parse((string) $t->week_start)->toDateString();
-                $submittedWeekStartsByEmployee[$t->employee_id][$ws] = true;
+                $submittedWeekStartsByEmployee[$t->employee_id][$t->week_start->toDateString()] = true;
             }
         }
 
         $empWeekStats = function (Employee $emp) use ($periodWeeks, $submittedWeekStartsByEmployee) {
             $weeksIn = 0;
             $missingWeeks = [];
-            $joinDateStr = $emp->joined_at ? ($emp->joined_at instanceof Carbon ? $emp->joined_at->toDateString() : Carbon::parse($emp->joined_at)->toDateString()) : null;
+            $joinDateStr = $emp->joined_at?->toDateString();
 
             foreach ($periodWeeks as $w) {
                 $wStr = $w->toDateString();

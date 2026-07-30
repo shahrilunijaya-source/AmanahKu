@@ -11,7 +11,15 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * `week_start` has a `date` cast over a NOT NULL column, so it always reads back as
+ * a Carbon instance. Without this, static analysis takes the raw column type and
+ * reports ->toDateString() as a call on a string.
+ *
+ * @property Carbon $week_start
+ */
 class Timesheet extends Model
 {
     use BelongsToTenant;
@@ -47,6 +55,7 @@ class Timesheet extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /** @return HasMany<TimesheetEntry, $this> */
     public function entries(): HasMany
     {
         return $this->hasMany(TimesheetEntry::class);

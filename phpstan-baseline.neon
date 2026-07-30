@@ -331,6 +331,12 @@ parameters:
 			path: app/Http/Controllers/GoalController.php
 
 		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\KnowledgeComment\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/KnowledgeController.php
+
+		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\KnowledgeEntry\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
@@ -351,19 +357,19 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 1
+			count: 2
 			path: app/Http/Controllers/KnowledgeController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 1
+			count: 2
 			path: app/Http/Controllers/KnowledgeController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 1
+			count: 2
 			path: app/Http/Controllers/KnowledgeController.php
 
 		-
@@ -721,24 +727,6 @@ parameters:
 			path: app/Http/Controllers/TimesheetController.php
 
 		-
-			message: '#^Cannot call method toDateString\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 4
-			path: app/Http/Controllers/TimesheetController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/TimesheetController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{entry_date\: mixed, percentage\: float\}, Closure\(App\\Models\\TimesheetEntry\)\: array\{entry_date\: mixed, percentage\: float\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/TimesheetController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string\}, Closure\(App\\Models\\ProjectSubPillar\)\: array\{id\: int, name\: string\} given\.$#'
 			identifier: argument.type
 			count: 1
@@ -753,7 +741,13 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 3
+			count: 2
+			path: app/Http/Controllers/TimesheetController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
 			path: app/Http/Controllers/TimesheetController.php
 
 		-
@@ -955,7 +949,7 @@ parameters:
 			path: app/Support/StuckRequests.php
 
 		-
-			message: '#^Cannot call method greaterThan\(\) on string\.$#'
-			identifier: method.nonObject
+			message: '#^Method App\\Timesheet\\TimesheetCompliance\:\:roster\(\) should return Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\>\.$#'
+			identifier: return.type
 			count: 1
 			path: app/Timesheet/TimesheetCompliance.php

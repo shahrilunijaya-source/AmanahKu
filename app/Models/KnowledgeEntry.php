@@ -46,6 +46,7 @@ class KnowledgeEntry extends Model
         return $this->hasMany(KnowledgeStar::class, 'entry_id');
     }
 
+    /** @return HasMany<KnowledgeComment, $this> */
     public function comments(): HasMany
     {
         return $this->hasMany(KnowledgeComment::class, 'entry_id');

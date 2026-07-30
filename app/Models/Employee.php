@@ -15,13 +15,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * `date_of_birth` has a `date` cast, so it reads back as a Carbon instance.
- * Without this, static analysis takes the raw column type and reports
- * ->format() as a call on a string.
+ * `date_of_birth` and `joined_at` have a `date` cast, so they read back as Carbon
+ * instances. Without this, static analysis takes the raw column type and reports
+ * ->format() or ->gt() as a call on a string.
  *
  * `position`, `workload` and `workload_label` are accessors, not columns.
  *
  * @property Carbon|null $date_of_birth
+ * @property Carbon|null $joined_at
  * @property-read string|null $position
  * @property-read string $workload
  * @property-read string $workload_label
