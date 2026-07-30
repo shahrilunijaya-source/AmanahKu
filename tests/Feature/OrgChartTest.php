@@ -49,26 +49,42 @@ class OrgChartTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_orgchart_renders_root_and_nested_reports(): void
+    public function test_orgchart_ships_the_whole_reporting_graph_to_the_navigator(): void
     {
         // Act
         $response = $this->actingInTenant()->get('/app/orgchart');
 
-        // Assert — the root manager and her direct reports all render in one tree.
+        // Assert — the screen navigates one seat at a time in the browser, so the manager
+        // and everyone under her must be in the payload even though only one ring of the
+        // chart is drawn at a time.
         $response->assertOk();
-        $response->assertSee('Aisyah Rahman');      // root
+        $response->assertSee('Aisyah Rahman');           // root
         $response->assertSee('Nurul Iman binti Hassan'); // child
-        $response->assertSee('Farah Aziz');          // child
+        $response->assertSee('Farah Aziz');              // child
     }
 
-    public function test_orgchart_shows_summary_strip(): void
+    public function test_a_seat_shows_a_face_and_carries_the_name_for_hover_and_focus(): void
+    {
+        $html = $this->actingInTenant()->get('/app/orgchart')->assertOk()->getContent();
+
+        // A seat holds the person's photo or initials, never their name as circle text.
+        $this->assertStringContainsString('class="oc-av"', $html);
+        // The name rides on data-name, which the ::after tooltip reveals on hover AND on
+        // keyboard focus — hover alone would strand touch and keyboard users.
+        $this->assertStringContainsString(':data-name="person(id).name"', $html);
+        $this->assertStringContainsString(':data-name="subject.name"', $html);
+        // The only word left inside a circle belongs to the band, which is not a person.
+        $this->assertSame(1, substr_count($html, 'class="oc-name"'));
+    }
+
+    public function test_orgchart_shows_the_summary_line(): void
     {
         // Act
         $response = $this->actingInTenant()->get('/app/orgchart');
 
-        // Assert — aggregate labels from the summary strip are present.
+        // Assert — headcount and depth, in the one mono line that replaced the stat cards.
         $response->assertOk();
-        $response->assertSee('Headcount');
-        $response->assertSee('Reporting depth');
+        $response->assertSee('staff');
+        $response->assertSee('levels deep');
     }
 }

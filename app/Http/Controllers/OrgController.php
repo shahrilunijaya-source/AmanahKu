@@ -6,26 +6,26 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Support\Amanahku;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class OrgController extends Controller
 {
     /**
-     * Build the full recursive reporting tree for the current tenant.
+     * Build the reporting graph for the current tenant.
      *
-     * Roots are employees with no manager (or whose manager_id points outside the
-     * tenant set). The whole tree is built from a SINGLE query: group every employee
-     * by reports_to_id once, then recurse over the in-memory map — no per-node queries.
-     * Tenant isolation is automatic via BelongsToTenant.
+     * The screen navigates one seat at a time rather than drawing the whole tree, so the
+     * view is handed a FLAT graph (person → their manager) and walks it in the browser.
+     * The nested tree is still built here, but only to measure depth. Everything comes
+     * from a SINGLE query: group every employee by reports_to_id once, then recurse over
+     * the in-memory map. Tenant isolation is automatic via BelongsToTenant.
      *
      * @return array{
-     *     roots: array<int, array{emp: Employee, children: array<int, mixed>, count: int}>,
+     *     chart: array{people: array<int, mixed>, parents: array<int, int|null>, verifiers: array<int, array<int, int>>, roots: array<int, int>, directors: array<int, int>},
      *     headcount: int,
-     *     rootCount: int,
      *     maxDepth: int,
      *     byDept: Collection<string, int>,
      * }
@@ -88,95 +88,82 @@ class OrgController extends Controller
         // Build each root's subtree, recursing through the grouped map.
         $tree = $roots->map(fn (Employee $e) => $this->node($e, $byManager, $directorIds))->all();
 
-        // HR/management get the inline bulk editor: one row per person with a manager
-        // picker, so the whole chart can be wired in a single screen. $editStaff carries
-        // just the fields the editor binds to, sorted by name for a scannable list. It
-        // always spans every active staff member, not just the filtered scope.
+        // The whole graph the navigator needs, in one payload. Every person in scope is
+        // carried, placed or not: an unplaced person is exactly one the chart must let
+        // someone place, so the rail lists them from the same source as the seats.
         $canEdit = $this->hasTenantRole($request, ['management', 'hr']);
-        $editStaff = $canEdit
-            ? $all->sortBy('name')->map(fn (Employee $e) => [
-                'id' => $e->id,
-                'name' => $e->name,
-                'reports_to_id' => $e->reports_to_id,
-                'extra_manager_ids' => $e->additionalManagers->modelKeys(),
-            ])->values()
-            : collect();
 
         return [
             'directors' => $directors,
-            'roots' => $tree,
+            'chart' => [
+                'people' => $scope->merge($directors)->unique('id')
+                    ->sortBy('name')
+                    ->map(fn (Employee $e) => [
+                        'id' => $e->id,
+                        'name' => $e->name,
+                        'role' => $e->position ?: null,
+                        'dept' => $e->department?->name,
+                        'initials' => $e->initials,
+                        'color' => $e->avatar_color,
+                        'photo' => $e->photo && str_starts_with($e->photo, '/') ? $e->photo : null,
+                        'swatch' => Amanahku::SWATCH[$e->workload] ?? null,
+                    ])->values()->all(),
+                'parents' => $scope->mapWithKeys(fn (Employee $e) => [
+                    $e->id => in_array($e->reports_to_id, $ids, true) && ! in_array($e->reports_to_id, $directorIds, true)
+                        ? $e->reports_to_id
+                        : null,
+                ])->all(),
+                'verifiers' => $scope->mapWithKeys(fn (Employee $e) => [
+                    $e->id => $e->additionalManagers->modelKeys(),
+                ])->all(),
+                'roots' => $roots->modelKeys(),
+                'directors' => $directorIds,
+            ],
             'headcount' => $scope->count(),
-            // Top-level entries = the directors band plus the remaining non-director roots.
-            'rootCount' => $directors->count() + $roots->count(),
             'maxDepth' => $this->depth($tree),
             'byDept' => $this->headcountByDept($all),
             'selectedDept' => $selectedDept,
             'canEdit' => $canEdit,
-            'editStaff' => $editStaff,
         ];
     }
 
     /**
-     * Bulk-set reporting lines from the org-chart editor. Input is manager[employeeId] =
-     * managerId for every active staff member. The whole submission is validated as one
-     * graph — any self-link or loop rejects the entire save (nothing is written), so the
-     * tree builder can never be handed a cycle. Only HR/management may reach this.
+     * Replace one employee's additional (dotted-line) managers. Any of them may verify
+     * that person's leave, claims and overtime, so this is a permission change, not
+     * decoration: HR/management only. The primary line is untouched — it moves through
+     * `move` — and an id that is the employee, their primary manager, or outside the
+     * tenant's active set is dropped rather than rejected, so a stale rail cannot wedge
+     * the save.
      */
-    public function updateLines(Request $request): RedirectResponse
+    public function setVerifiers(Request $request, Employee $employee): JsonResponse
     {
-        $this->authorizeTenantRole($request, ['management', 'hr']);
-
-        $all = Employee::active()->with('additionalManagers:id')->get(['id', 'name', 'reports_to_id']);
-        $validIds = $all->pluck('id')->all();
-        $input = (array) $request->input('manager', []);
-        $extrasInput = (array) $request->input('extra_managers', []);
-
-        // Proposed graph: every active employee → chosen PRIMARY manager (or null). Values
-        // outside the tenant's active set, and self-links, collapse to null up front.
-        $proposed = [];
-        foreach ($all as $e) {
-            $managerId = isset($input[$e->id]) && $input[$e->id] !== '' ? (int) $input[$e->id] : null;
-            if ($managerId === $e->id || ! in_array($managerId, $validIds, true)) {
-                $managerId = null;
-            }
-            $proposed[$e->id] = $managerId;
+        if (! $this->hasTenantRole($request, ['management', 'hr'])) {
+            return response()->json(['error' => 'Not allowed.'], 403);
         }
 
-        // Only the PRIMARY line forms the tree, so only it is cycle-checked. Additional
-        // managers never recurse (verify is a flat one-level lookup), so they can't loop.
-        if ($this->graphHasCycle($proposed)) {
-            return back()->with('error', 'Those reporting lines form a loop — no changes were saved. Check who reports to whom.');
+        // Route-model binding resolves across every tenant, so ownership is checked here.
+        if (! Employee::active()->whereKey($employee->id)->exists()) {
+            return response()->json(['error' => 'Staff member not found.'], 422);
         }
 
-        // Additional (dotted-line) managers per employee: valid active ids, never self, and
-        // never a duplicate of the primary line (that manager already verifies).
-        $extras = [];
-        foreach ($all as $e) {
-            $extras[$e->id] = collect($extrasInput[$e->id] ?? [])
-                ->map(fn ($v) => (int) $v)
-                ->filter(fn (int $id) => $id !== $e->id && $id !== $proposed[$e->id] && in_array($id, $validIds, true))
-                ->unique()
-                ->values()
-                ->all();
+        $data = $request->validate(['verifiers' => ['array'], 'verifiers.*' => ['integer']]);
+        $validIds = Employee::active()->pluck('id')->all();
+
+        $ids = collect($data['verifiers'] ?? [])
+            ->map(fn ($v) => (int) $v)
+            ->filter(fn (int $id) => $id !== $employee->id
+                && $id !== $employee->reports_to_id
+                && in_array($id, $validIds, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        $sync = $employee->additionalManagers()->sync($ids);
+        if ($sync['attached'] !== [] || $sync['detached'] !== []) {
+            AuditLog::record('Updated who verifies for', $employee->name);
         }
 
-        // Apply only the rows that actually change, so the audit/log stays meaningful.
-        $changed = 0;
-        foreach ($all as $e) {
-            if ($e->reports_to_id !== $proposed[$e->id]) {
-                $e->update(['reports_to_id' => $proposed[$e->id]]);
-                $changed++;
-            }
-
-            $sync = $e->additionalManagers()->sync($extras[$e->id]);
-            if ($sync['attached'] !== [] || $sync['detached'] !== []) {
-                $changed++;
-            }
-        }
-
-        AuditLog::record('Updated reporting lines', $changed.' change(s)');
-
-        return back()->with('ok', $changed === 0 ? 'No reporting lines changed.' : "$changed reporting line(s) updated.");
+        return response()->json(['ok' => true, 'verifiers' => $ids]);
     }
 
     /**
@@ -244,30 +231,6 @@ class OrgController extends Controller
             }
             $seen[$cursor] = true;
             $cursor = Employee::whereKey($cursor)->value('reports_to_id');
-        }
-
-        return false;
-    }
-
-    /**
-     * Does the proposed [employeeId => managerId|null] map contain a cycle? Walks each
-     * node up its manager chain with a per-walk visited guard; a node reachable from
-     * itself is a loop. O(n²) worst case, fine for a single company's headcount.
-     *
-     * @param  array<int, int|null>  $proposed
-     */
-    private function graphHasCycle(array $proposed): bool
-    {
-        foreach (array_keys($proposed) as $start) {
-            $cursor = $proposed[$start];
-            $seen = [$start => true];
-            while ($cursor !== null) {
-                if (isset($seen[$cursor])) {
-                    return true;
-                }
-                $seen[$cursor] = true;
-                $cursor = $proposed[$cursor] ?? null;
-            }
         }
 
         return false;

@@ -83,12 +83,6 @@ if (app()->environment('local') && file_exists(__DIR__.'/dev-login.php')) {
     require __DIR__.'/dev-login.php';
 }
 
-// Local-only prototype surface (design exploration, writes nothing). Delete with
-// routes/prototypes.php and resources/views/prototypes/ once a direction is promoted.
-if (app()->environment('local') && file_exists(__DIR__.'/prototypes.php')) {
-    require __DIR__.'/prototypes.php';
-}
-
 // Enterprise SSO (OIDC, authorization-code flow). Guest-accessible; the controller
 // 404s when OIDC isn't configured. Sign-in only — no tenant/role is ever granted here.
 Route::get('/auth/oidc/redirect', [OidcController::class, 'redirect'])->name('oidc.redirect');
@@ -199,8 +193,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
-        Route::post('/app/org/reporting-lines', [OrgController::class, 'updateLines'])->name('org.reporting-lines');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
+        Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
         Route::post('/app/onboarding/tasks/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.toggle');
         Route::post('/app/onboarding/start', [OnboardingController::class, 'start'])->name('onboarding.start');
         Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');

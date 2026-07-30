@@ -177,51 +177,98 @@ class MatrixReportingTest extends TestCase
         $this->assertCount(1, app(StuckRequests::class)->forCurrentTenant());
     }
 
-    // --- Org-chart editor: extra managers + director ------------------------
+    // --- Extra verifiers (org.verifiers) ------------------------------------
 
-    public function test_bulk_editor_saves_extra_managers_and_excludes_self_and_primary(): void
+    public function test_hr_can_set_extra_verifiers_excluding_self_and_the_primary_manager(): void
     {
         $hr = $this->emp('HR Admin', 'hr');
         $primary = $this->emp('Primary Boss', 'manager');
         $extra = $this->emp('Second Boss', 'manager');
-        $report = $this->emp('Reportee', 'employee');
+        $report = $this->emp('Reportee', 'employee', $primary->id);
 
-        $this->actingAsEmployee($hr)->post(route('org.reporting-lines'), [
-            'manager' => [$report->id => $primary->id],
-            'extra_managers' => [$report->id => [$extra->id, $report->id, $primary->id]],
-        ])->assertRedirect()->assertSessionHas('ok');
+        $this->actingAsEmployee($hr)
+            ->postJson(route('org.verifiers', $report), ['verifiers' => [$extra->id, $report->id, $primary->id]])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'verifiers' => [$extra->id]]);
 
-        // Self ($report) and the primary ($primary, already verifies) are dropped; only $extra remains.
+        // Self ($report) and the primary ($primary, who already verifies) are dropped.
         $this->assertSame([$extra->id], $report->fresh()->additionalManagers->modelKeys());
+        // The reporting line is untouched — that moves through org.move.
         $this->assertSame($primary->id, $report->fresh()->reports_to_id);
     }
 
-    public function test_a_plain_employee_cannot_save_extra_managers(): void
+    public function test_setting_extra_verifiers_replaces_the_previous_set(): void
+    {
+        $hr = $this->emp('HR Admin', 'hr');
+        $first = $this->emp('First Verifier', 'manager');
+        $second = $this->emp('Second Verifier', 'manager');
+        $report = $this->emp('Reportee', 'employee');
+        $report->additionalManagers()->sync([$first->id]);
+
+        $this->actingAsEmployee($hr)
+            ->postJson(route('org.verifiers', $report), ['verifiers' => [$second->id]])
+            ->assertOk();
+
+        $this->assertSame([$second->id], $report->fresh()->additionalManagers->modelKeys());
+    }
+
+    public function test_an_empty_verifier_list_removes_everyone(): void
+    {
+        $hr = $this->emp('HR Admin', 'hr');
+        $extra = $this->emp('Second Boss', 'manager');
+        $report = $this->emp('Reportee', 'employee');
+        $report->additionalManagers()->sync([$extra->id]);
+
+        $this->actingAsEmployee($hr)
+            ->postJson(route('org.verifiers', $report), ['verifiers' => []])
+            ->assertOk();
+
+        $this->assertCount(0, $report->fresh()->additionalManagers);
+    }
+
+    public function test_a_plain_employee_cannot_set_extra_verifiers(): void
     {
         $plain = $this->emp('Plain', 'employee');
         $report = $this->emp('Reportee', 'employee');
         $extra = $this->emp('Second Boss', 'manager');
 
-        $this->actingAsEmployee($plain)->post(route('org.reporting-lines'), [
-            'manager' => [$report->id => ''],
-            'extra_managers' => [$report->id => [$extra->id]],
-        ])->assertForbidden();
+        $this->actingAsEmployee($plain)
+            ->postJson(route('org.verifiers', $report), ['verifiers' => [$extra->id]])
+            ->assertStatus(403);
 
         $this->assertCount(0, $report->fresh()->additionalManagers);
     }
 
+    public function test_verifiers_cannot_be_set_on_another_tenants_employee(): void
+    {
+        $hr = $this->emp('HR Admin', 'hr');
+        $extra = $this->emp('Second Boss', 'manager');
+
+        // Route-model binding resolves across every tenant, so the controller has to check
+        // ownership itself — a bound model is never tenant-safe on its own.
+        $other = Tenant::create(['slug' => 'other-co', 'name' => 'Other Co', 'initials' => 'OC']);
+        $foreign = Employee::create([
+            'tenant_id' => $other->id, 'name' => 'Outsider', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAsEmployee($hr)
+            ->postJson(route('org.verifiers', $foreign), ['verifiers' => [$extra->id]])
+            ->assertStatus(422);
+
+        $this->assertCount(0, $foreign->fresh()->additionalManagers);
+    }
+
     // --- Director badge in the chart ----------------------------------------
 
-    public function test_director_shows_a_badge_in_the_chart(): void
+    public function test_a_director_is_marked_as_holding_final_approval(): void
     {
         $viewer = $this->emp('Viewer', 'employee');
         $this->emp('Aisyah Rahman', 'director');
 
-        // Viewer is a plain employee, so no list editor renders — the only "Director" on the
-        // page is the badge on Aisyah's band card.
+        // The gold badge is gone; the band states what being a director means instead.
         $this->actingAsEmployee($viewer)->get('/app/orgchart')->assertOk()
             ->assertSee('Aisyah Rahman')
-            ->assertSee('Director');
+            ->assertSee('final approval');
     }
 
     public function test_a_director_with_no_reports_still_appears_in_the_top_band(): void
