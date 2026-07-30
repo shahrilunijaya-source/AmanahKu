@@ -1475,6 +1475,18 @@ select.wd-inline {
 .uj-tr-chip[data-t="warn"] b { color: var(--amber-ink); }
 .uj-tr-chip[data-t="good"] b { color: var(--success-ink); }
 
+/* Screen-level tabs. Deliberately NOT styled like .uj-tr-pills: the report tab holds a
+   pill group of its own, and two identical rows would read as one control with six
+   options. An underline says "this switches the page"; a pill says "this filters it". */
+.uj-tr-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--hairline); margin-bottom: 20px; }
+.uj-tr-tab { display: inline-flex; align-items: center; gap: 7px; padding: 0 1px 11px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: var(--t-base); font-weight: 500; color: var(--muted); cursor: pointer; transition: color .14s var(--ease), border-color .14s var(--ease); }
+.uj-tr-tab:hover { color: var(--ink); }
+.uj-tr-tab[data-on] { color: var(--ink); font-weight: 600; border-bottom-color: var(--red); }
+.uj-tr-tab:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 3px; }
+/* The count is the whole reason the chase tab can sit behind a click: an unfilled sheet
+   stays visible without switching. Amber, because it is a number that wants attention. */
+.uj-tr-tabcount { font: 600 var(--t-micro) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--amber-ink); background: #faf1e2; border-radius: 999px; padding: 2px 7px; }
+
 .uj-tr-pills { display: inline-flex; background: var(--card); border: 1px solid var(--shelf-line); border-radius: 10px; padding: 3px; gap: 2px; }
 .uj-tr-pill { padding: 7px 13px; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--muted); background: none; border: 0; cursor: pointer; white-space: nowrap; transition: color .14s var(--ease), background .14s var(--ease); }
 .uj-tr-pill:hover { color: var(--ink); }
@@ -2341,7 +2353,10 @@ select.wd-inline {
 .oc-canvas {
     display: flex;
     align-items: flex-start;
-    justify-content: center;
+    /* `justify-content: center` would centre the stage but make its left overflow
+       unreachable once a wide row makes the stage wider than the canvas. `margin: auto`
+       on the child centres it while keeping both ends scrollable. */
+    justify-content: flex-start;
     min-height: 460px;
     padding: 30px 22px 40px;
     border: 1px solid var(--hairline);
@@ -2351,7 +2366,7 @@ select.wd-inline {
     background-size: 22px 22px;
     overflow-x: auto;
 }
-.oc-stage { display: flex; flex-direction: column; align-items: center; will-change: transform, opacity, filter; }
+.oc-stage { display: flex; flex-direction: column; align-items: center; margin: auto; will-change: transform, opacity, filter; }
 
 /* Trail: where am I, and one click back to any level above. */
 .oc-trail { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; margin-bottom: 22px; font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: .03em; }
@@ -2419,8 +2434,13 @@ select.wd-inline {
 .oc-subrole { margin-top: 11px; max-width: 300px; font-size: var(--t-sm); color: var(--muted); text-align: center; line-height: 1.45; }
 
 /* Fan gap matches the elbow's negative margins (2 × 13px), so adjacent brackets meet
-   instead of leaving a hairline gap in the rail. */
-.oc-fan { display: flex; align-items: flex-start; gap: 26px; flex-wrap: wrap; justify-content: center; max-width: 920px; }
+   instead of leaving a hairline gap in the rail.
+
+   It must not wrap. Each seat draws its own half of the bracket, so a wrapped second row
+   would hang its elbows off a rail that stopped on the first row — the lattice would be
+   drawing a reporting line that is not there. A wide row scrolls the canvas instead,
+   which is honest, and one seat rarely has enough reports for it to bite. */
+.oc-fan { display: flex; align-items: flex-start; gap: 26px; flex-wrap: nowrap; justify-content: center; }
 
 /* ── Directors band ──────────────────────────────────────────────────────────────
    Was a gold gradient card with its own uppercase label. Gold appeared nowhere else in

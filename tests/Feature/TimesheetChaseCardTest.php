@@ -313,4 +313,60 @@ class TimesheetChaseCardTest extends TestCase
         $response->assertOk();
         $response->assertDontSee('PENDING', false);
     }
+
+    public function test_the_screen_offers_both_tabs(): void
+    {
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('Where time went', false);
+        $response->assertSee('This week', false);
+    }
+
+    /**
+     * The chase tab sits behind a click, so its count is the only thing telling an HR user
+     * that a sheet is missing. Without it the tab is a place nobody looks.
+     */
+    public function test_the_week_tab_carries_the_owed_count(): void
+    {
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('uj-tr-tabcount', false);
+
+        $this->fillFullWeek($this->hrEmployee);
+        $this->fillFullWeek($this->targetEmployee);
+
+        $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports')
+            ->assertOk()
+            ->assertDontSee('uj-tr-tabcount', false);
+    }
+
+    public function test_the_report_tab_opens_by_default_and_tab_week_deep_links_the_other(): void
+    {
+        $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports')
+            ->assertOk()
+            ->assertSee("tab: 'report'", false);
+
+        $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports?tab=week')
+            ->assertOk()
+            ->assertSee("tab: 'week'", false);
+    }
+
+    /**
+     * An unknown ?tab= must land somewhere real rather than rendering a screen with both
+     * panels hidden, which would read as a broken page.
+     */
+    public function test_an_unknown_tab_falls_back_to_the_report(): void
+    {
+        $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports?tab=nonsense')
+            ->assertOk()
+            ->assertSee("tab: 'report'", false);
+    }
 }

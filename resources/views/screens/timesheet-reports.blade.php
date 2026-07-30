@@ -20,6 +20,14 @@
     $selProjName = $selProject ? $filterProjects->firstWhere('id', (int) $selProject)?->name : null;
     $activeFilterParts = array_filter([$selCatName, $selProjName]);
     $activeFilterName = count($activeFilterParts) > 0 ? implode(' + ', $activeFilterParts) : 'This period';
+
+    // Which tab opens. Defaults to the report, because that is what this screen is called
+    // in the nav and what its subtitle promises; the week tab carries a count so an
+    // unfilled sheet is visible without switching. ?tab=week deep-links the other one.
+    $tab = request()->query('tab') === 'week' ? 'week' : 'report';
+
+    // Rows the chase tab is about, so the tab label can carry the number.
+    $oweCount = collect($tsRoster ?? [])->where('status', '!=', 'done')->count();
 @endphp
 
 @section('screen')
@@ -56,6 +64,16 @@
         const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})
         return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal
     },
+    /* Two jobs, two tabs: chasing this week's missing sheets, and reading where a
+       period's time and money went. They shared one scroll before. The tab is
+       client state, but ?tab= is kept true so a link can point at either one. */
+    tab: @js($tab),
+    setTab(t) {
+        this.tab = t
+        const url = new URL(location)
+        url.searchParams.set('tab', t)
+        history.replaceState(null, '', url)
+    },
     formatMissingWeeks(p) {
         if (!p || !p.missingWeeks || p.missingWeeks.length === 0) return ''
         const mw = p.missingWeeks
@@ -83,9 +101,11 @@
             'body'  => 'See where staff time and money went, drawn from submitted timesheets. "By category" answers spend questions like how much went to Study or Leave; "by project" shows cost and effort per project; "by staff" breaks one person down. Time is in person-days (a day at 100% = one person-day); cost is RM, derived from each person\'s salary band.',
             'who'   => 'Managers, Management & HR',
             'steps' => [
-                'Set the period (defaults to this month). Optionally filter to one category or project, then press Apply.',
-                'Read the summary strip for total person-days and total RM in the period.',
-                'Switch tabs: By category, By project, or By staff. Bars show each slice as a share of its group.',
+                'Two tabs. "Where time went" reads a closed period; "This week" chases the sheets still missing, and its number tells you how many.',
+                'On the report tab, set the period (defaults to this month), optionally filter to one category or project, then press Apply.',
+                'Pick a breakdown: By category, By project, or By person. Bars show each slice as a share of the total.',
+                'Click any row to open the panel beside it: a category or project lists the people inside it, and a person shows the weeks and lines behind their number.',
+                'On the week tab, each person who still owes a sheet can be reminded, which sends them the same bell the Friday reminder sends.',
             ],
         ],
         'ms'  => [
@@ -93,16 +113,37 @@
             'body'  => 'Lihat ke mana masa dan wang staf pergi, daripada timesheet yang dihantar. "Mengikut kategori" menjawab soalan perbelanjaan seperti berapa untuk Belajar atau Cuti; "mengikut projek" menunjukkan kos dan usaha setiap projek; "mengikut staf" memecahkan seorang. Masa dalam hari-orang (sehari pada 100% = satu hari-orang); kos dalam RM, diambil daripada band gaji setiap orang.',
             'who'   => 'Pengurus, Pengurusan & HR',
             'steps' => [
-                'Tetapkan tempoh (lalai bulan ini). Pilihan: tapis kepada satu kategori atau projek, kemudian tekan Guna.',
-                'Baca jalur ringkasan untuk jumlah hari-orang dan jumlah RM dalam tempoh.',
-                'Tukar tab: Mengikut kategori, projek, atau staf. Bar menunjukkan setiap bahagian sebagai peratus kumpulannya.',
+                'Dua tab. "Ke mana masa pergi" membaca tempoh yang telah tutup; "Minggu ini" mengejar lembaran yang masih belum masuk, dan nombornya memberitahu berapa banyak.',
+                'Pada tab laporan, tetapkan tempoh (lalai bulan ini), pilihan tapis kepada satu kategori atau projek, kemudian tekan Guna.',
+                'Pilih pecahan: Mengikut kategori, projek, atau individu. Bar menunjukkan setiap bahagian sebagai peratus jumlah.',
+                'Klik mana-mana baris untuk membuka panel di sebelahnya: kategori atau projek menyenaraikan orang di dalamnya, dan seorang individu menunjukkan minggu dan baris di sebalik nombornya.',
+                'Pada tab minggu, setiap orang yang masih belum hantar boleh diingatkan, yang menghantar loceng sama seperti peringatan Jumaat.',
             ],
         ],
     ])
 
+    {{-- Two tabs, because this screen does two jobs: chase the week that is open, and read
+         the period that is closed. An underline bar, not another uj-tr-pills group — the
+         report tab already contains one, and two identical pill rows would read as one
+         control with six options. --}}
+    <div class="uj-tr-tabs" role="tablist">
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='report'"
+            :aria-selected="tab==='report'" @click="setTab('report')">
+            <span x-text="$store.ui.lang==='en' ? 'Where time went' : 'Ke mana masa pergi'">Where time went</span>
+        </button>
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='week'"
+            :aria-selected="tab==='week'" @click="setTab('week')">
+            <span x-text="$store.ui.lang==='en' ? 'This week' : 'Minggu ini'">This week</span>
+            @if ($oweCount > 0)
+                <span class="uj-tr-tabcount">{{ $oweCount }}</span>
+            @endif
+        </button>
+    </div>
+
     {{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
          403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check
          here. Always the current week, independent of the report period below. --}}
+    <div x-show="tab==='week'" x-cloak role="tabpanel">
     @php
         $tsRoster = collect($tsRoster ?? []);
         $tsDoneCount = $tsRoster->where('status', 'done')->count();
@@ -255,7 +296,9 @@
         </div>
     </div>
     @endif
+    </div>{{-- /tab: week --}}
 
+    <div x-show="tab==='report'" x-cloak role="tabpanel">
     {{-- Shelf --}}
     <div class="uj-tr-shelf">
         <div class="uj-tr-lede">
@@ -479,5 +522,6 @@
             </aside>
         </div>
     @endif
+    </div>{{-- /tab: report --}}
 </div>
 @endsection
