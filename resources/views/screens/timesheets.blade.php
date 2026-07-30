@@ -98,7 +98,7 @@
         </button>
     </div>
 
-    <div x-show="tab==='record'" x-transition.opacity.duration.150ms x-cloak role="tabpanel">
+    <div x-show="tab==='record'" x-cloak role="tabpanel">
 {{-- ===================== CAPTURE (per-day cards) ===================== --}}
     <div class="uj-card" style="width:100%;padding:22px;position:relative;"
          x-data="timesheetCapture({
@@ -115,6 +115,29 @@
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
          })">
+
+        {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
+             scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
+        <div style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:20px 22px;margin:-4px -4px 18px;">
+            <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
+                <span style="font:600 46px/1 var(--font-mono);color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;"
+                    x-text="Math.round(dayDates().filter(d=>!isOffDay(d)).reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, dayDates().filter(d=>!isOffDay(d)).length*100) * 100) + '%'">0%</span>
+                <span style="font-size:13.5px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'">of the week allocated</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--muted);margin-top:7px;" x-text="$store.ui.lang==='en' ? 'Every working day must reach 100% before the week can be submitted.' : 'Setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.'">Every working day must reach 100% before the week can be submitted.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+                    <b style="font:600 17px/1 var(--font-mono);color:var(--success-ink,#1f8a65);"
+                       x-text="dayDates().filter(d=>!isOffDay(d) && ['done','locked'].includes(dayState(d))).length"></b>
+                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'days at 100%' : 'hari pada 100%'">days at 100%</span>
+                </div>
+                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+                    <b style="font:600 17px/1 var(--font-mono);color:var(--amber-ink,#c08532);"
+                       x-text="dayDates().filter(d=>!isOffDay(d) && !['done','locked'].includes(dayState(d))).length"></b>
+                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'left to fill' : 'lagi untuk diisi'">left to fill</span>
+                </div>
+            </div>
+        </div>
 
         {{-- ---- Today header: the date opens the jump sheet; total + progress on the right ---- --}}
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
@@ -534,7 +557,7 @@
     </div>
     </div>
 
-    <div x-show="tab==='review'" x-transition.opacity.duration.150ms x-cloak role="tabpanel">
+    <div x-show="tab==='review'" x-cloak role="tabpanel">
     {{-- ===================== REFERENCE PANELS: My timesheets · My time spent ===================== --}}
     {{-- Un-nested: the two panels stack under the Review tab, each with a section heading,
          instead of the old inner tab bar. --}}
