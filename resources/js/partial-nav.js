@@ -87,7 +87,12 @@ async function go(url, { push = true } = {}) {
         return;
     }
 
-    main.innerHTML = doc.querySelector(MAIN).innerHTML;
+    const fresh = doc.querySelector(MAIN);
+    // The measure classes (.uj-measured / .uj-main--wide / .uj-main--full) live on <main>
+    // itself, so swapping only innerHTML left the previous screen's width in place: a board
+    // reached from a 920px screen stayed capped and centred until a full reload.
+    main.className = fresh.className;
+    main.innerHTML = fresh.innerHTML;
     // The new screen arrives from the side, so the swap reads as one region changing
     // rather than the whole page blinking.
     main.querySelector('.uj-fade')?.classList.add('uj-slide');
