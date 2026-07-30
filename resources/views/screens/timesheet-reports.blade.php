@@ -4,218 +4,247 @@
     $canSeeCost = $canSeeCost ?? false;
     $md = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
     $rm = fn ($v) => 'RM '.number_format((float) $v, 2);
-    $totals = $reportTotals ?? ['days' => 0, 'cost' => 0, 'uncostedDays' => 0];
+    $totals = $reportTotals ?? ['days' => 0, 'cost' => 0, 'uncostedDays' => 0, 'weeksTotal' => 0, 'weeksNotIn' => 0];
+
+    $fromDate = \Illuminate\Support\Carbon::parse($from);
+    $toDate = \Illuminate\Support\Carbon::parse($to);
+    if ($fromDate->month === $toDate->month && $fromDate->year === $toDate->year) {
+        $dateRange = $fromDate->format('j').' – '.$toDate->format('j M Y');
+    } elseif ($fromDate->year === $toDate->year) {
+        $dateRange = $fromDate->format('j M').' – '.$toDate->format('j M Y');
+    } else {
+        $dateRange = $fromDate->format('j M Y').' – '.$toDate->format('j M Y');
+    }
+
+    $selCatName = $selCategory ? $filterCategories->firstWhere('id', (int) $selCategory)?->name : null;
+    $selProjName = $selProject ? $filterProjects->firstWhere('id', (int) $selProject)?->name : null;
+    $activeFilterParts = array_filter([$selCatName, $selProjName]);
+    $activeFilterName = count($activeFilterParts) > 0 ? implode(' + ', $activeFilterParts) : 'This period';
 @endphp
 
 @section('screen')
-{{-- Reciprocal of the "see all staff" icon on the personal timesheet screen: this
-     report is reached by that one-way shortcut, so offer a one-tap way back to My
-     timesheets rather than leaving the browser Back button as the only exit. --}}
-<div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-    <a href="{{ route('app.screen', 'timesheets') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
-        <span x-text="$store.ui.lang==='en' ? '← My timesheets' : '← Timesheet saya'">← My timesheets</span>
-    </a>
-</div>
-@include('partials.guide', [
-    'key' => 'timesheet-reports',
-    'en'  => [
-        'title' => 'Timesheet reports',
-        'body'  => 'See where staff time and money went, drawn from submitted timesheets. "By category" answers spend questions like how much went to Study or Leave; "by project" shows cost and effort per project; "by staff" breaks one person down. Time is in person-days (a day at 100% = one person-day); cost is RM, derived from each person\'s salary band.',
-        'who'   => 'Managers, Management & HR',
-        'steps' => [
-            'Set the period (defaults to this month). Optionally filter to one category or project, then press Apply.',
-            'Read the summary strip for total person-days and total RM in the period.',
-            'Switch tabs: By category, By project, or By staff. Bars show each slice as a share of its group.',
-        ],
-    ],
-    'ms'  => [
-        'title' => 'Laporan lembaran masa',
-        'body'  => 'Lihat ke mana masa dan wang staf pergi, daripada timesheet yang dihantar. "Mengikut kategori" menjawab soalan perbelanjaan seperti berapa untuk Belajar atau Cuti; "mengikut projek" menunjukkan kos dan usaha setiap projek; "mengikut staf" memecahkan seorang. Masa dalam hari-orang (sehari pada 100% = satu hari-orang); kos dalam RM, diambil daripada band gaji setiap orang.',
-        'who'   => 'Pengurus, Pengurusan & HR',
-        'steps' => [
-            'Tetapkan tempoh (lalai bulan ini). Pilihan: tapis kepada satu kategori atau projek, kemudian tekan Guna.',
-            'Baca jalur ringkasan untuk jumlah hari-orang dan jumlah RM dalam tempoh.',
-            'Tukar tab: Mengikut kategori, projek, atau staf. Bar menunjukkan setiap bahagian sebagai peratus kumpulannya.',
-        ],
-    ],
-])
-
-{{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
-     403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check
-     here. Always the current week, independent of the report period below. --}}
-@php
-    $tsRoster = collect($tsRoster ?? []);
-    $tsDone = $tsRoster->where('status', 'done')->count();
-    $tsTotal = $tsRoster->count();
-    // Only chips for people who still owe a sheet — a full done/pending grid is a
-    // wall of grey most of the week. Header keeps the done/total ratio for context.
-    $tsPending = $tsRoster->where('status', '!=', 'done')->values();
-    $tsPill = ['done' => 'var(--success)', 'pending' => 'var(--muted)', 'late' => 'var(--red)'];
-@endphp
-@if ($tsTotal)
-<div class="uj-card" style="margin-bottom:16px;padding:14px 18px;" x-data="{ open: true }">
-    <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
-        <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
-        <span style="font-size:12.5px;color:var(--muted);">{{ $tsDone }} / {{ $tsTotal }} <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span></span>
-        <span x-text="open ? '▾' : '▸'" style="color:var(--muted);"></span>
+<div class="uj-tr-wrap" x-data="{
+    lens: 'category',
+    category: @js($lensCategory),
+    project: @js($lensProject),
+    staff: @js($lensStaff),
+    rows() {
+        return this.lens === 'category' ? this.category
+             : this.lens === 'project' ? this.project : this.staff;
+    }
+}">
+    {{-- Reciprocal of the "see all staff" icon on the personal timesheet screen: this
+         report is reached by that one-way shortcut, so offer a one-tap way back to My
+         timesheets rather than leaving the browser Back button as the only exit. --}}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+        <a href="{{ route('app.screen', 'timesheets') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
+            <span x-text="$store.ui.lang==='en' ? '← My timesheets' : '← Timesheet saya'">← My timesheets</span>
+        </a>
     </div>
-    <div x-show="open" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
-        @forelse ($tsPending as $row)
-            <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;background:var(--surface-2,#f3f4f6);font-size:12px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:{{ $tsPill[$row['status']] }};flex:none;"></span>
-                <span>{{ $row['employee']->name }}</span>
-                <span style="color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;">
-                    @if ($row['status'] === 'late')
-                        <span x-text="$store.ui.lang==='en' ? 'late' : 'lewat'">late</span>
-                    @else
-                        <span x-text="$store.ui.lang==='en' ? 'pending' : 'belum'">pending</span>
-                    @endif
+
+    @include('partials.guide', [
+        'key' => 'timesheet-reports',
+        'en'  => [
+            'title' => 'Timesheet reports',
+            'body'  => 'See where staff time and money went, drawn from submitted timesheets. "By category" answers spend questions like how much went to Study or Leave; "by project" shows cost and effort per project; "by staff" breaks one person down. Time is in person-days (a day at 100% = one person-day); cost is RM, derived from each person\'s salary band.',
+            'who'   => 'Managers, Management & HR',
+            'steps' => [
+                'Set the period (defaults to this month). Optionally filter to one category or project, then press Apply.',
+                'Read the summary strip for total person-days and total RM in the period.',
+                'Switch tabs: By category, By project, or By staff. Bars show each slice as a share of its group.',
+            ],
+        ],
+        'ms'  => [
+            'title' => 'Laporan lembaran masa',
+            'body'  => 'Lihat ke mana masa dan wang staf pergi, daripada timesheet yang dihantar. "Mengikut kategori" menjawab soalan perbelanjaan seperti berapa untuk Belajar atau Cuti; "mengikut projek" menunjukkan kos dan usaha setiap projek; "mengikut staf" memecahkan seorang. Masa dalam hari-orang (sehari pada 100% = satu hari-orang); kos dalam RM, diambil daripada band gaji setiap orang.',
+            'who'   => 'Pengurus, Pengurusan & HR',
+            'steps' => [
+                'Tetapkan tempoh (lalai bulan ini). Pilihan: tapis kepada satu kategori atau projek, kemudian tekan Guna.',
+                'Baca jalur ringkasan untuk jumlah hari-orang dan jumlah RM dalam tempoh.',
+                'Tukar tab: Mengikut kategori, projek, atau staf. Bar menunjukkan setiap bahagian sebagai peratus kumpulannya.',
+            ],
+        ],
+    ])
+
+    {{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
+         403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check
+         here. Always the current week, independent of the report period below. --}}
+    @php
+        $tsRoster = collect($tsRoster ?? []);
+        $tsDone = $tsRoster->where('status', 'done')->count();
+        $tsTotal = $tsRoster->count();
+        $tsPending = $tsRoster->where('status', '!=', 'done')->values();
+        $tsPill = ['done' => 'var(--success)', 'pending' => 'var(--muted)', 'late' => 'var(--red)'];
+    @endphp
+    @if ($tsTotal)
+    <div class="uj-card" style="margin-bottom:16px;padding:14px 18px;" x-data="{ open: true }">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
+            <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
+            <span style="font-size:12.5px;color:var(--muted);">{{ $tsDone }} / {{ $tsTotal }} <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span></span>
+            <span x-text="open ? '▾' : '▸'" style="color:var(--muted);"></span>
+        </div>
+        <div x-show="open" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+            @forelse ($tsPending as $row)
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;background:var(--surface-2,#f3f4f6);font-size:12px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:{{ $tsPill[$row['status']] }};flex:none;"></span>
+                    <span>{{ $row['employee']->name }}</span>
+                    <span style="color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;">
+                        @if ($row['status'] === 'late')
+                            <span x-text="$store.ui.lang==='en' ? 'late' : 'lewat'">late</span>
+                        @else
+                            <span x-text="$store.ui.lang==='en' ? 'pending' : 'belum'">pending</span>
+                        @endif
+                    </span>
                 </span>
-            </span>
-        @empty
-            <span style="font-size:12px;color:var(--success);" x-text="$store.ui.lang==='en' ? 'Everyone is in for this week.' : 'Semua sudah hantar minggu ini.'">Everyone is in for this week.</span>
-        @endforelse
-    </div>
-</div>
-@endif
-
-{{-- Period + slice filters --}}
-<form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-card" style="padding:16px 20px;margin-bottom:16px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;">
-    <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
-        <input type="date" name="from" value="{{ $from }}" style="height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-    </div>
-    <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
-        <input type="date" name="to" value="{{ $to }}" style="height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-    </div>
-    <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span></label>
-        <select name="category" style="height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;outline:none;min-width:150px;">
-            <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
-            @foreach ($filterCategories as $c)
-                <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
-            @endforeach
-        </select>
-    </div>
-    <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>
-        <select name="project" style="height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;outline:none;min-width:150px;">
-            <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
-            @foreach ($filterProjects as $p)
-                <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
-            @endforeach
-        </select>
-    </div>
-    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
-</form>
-
-@unless ($reportEmpty)
-    {{-- Summary strip: total person-days + total RM for the period --}}
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-        <div class="uj-card uj-stat" style="flex:1;min-width:180px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Total person-days' : 'Jumlah hari-orang'">Total person-days</span></div><div class="uj-stat-value">{{ $md($totals['days']) }}</div></div>
-        @if ($canSeeCost)
-            <div class="uj-card uj-stat" style="flex:1;min-width:180px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Total cost' : 'Jumlah kos'">Total cost</span></div><div class="uj-stat-value" style="color:var(--success);">{{ $rm($totals['cost']) }}</div></div>
-        @endif
-        @if ($canSeeCost && (float) $totals['uncostedDays'] > 0)
-            <div class="uj-card uj-stat" style="flex:1;min-width:180px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Uncosted (no salary band)' : 'Tanpa kos (tiada band gaji)'">Uncosted</span></div><div class="uj-stat-value" style="color:var(--amber);">{{ $md($totals['uncostedDays']) }} <span style="font-size:13px;font-weight:400;color:var(--muted);">md</span></div></div>
-        @endif
-    </div>
-@endunless
-
-@if ($reportEmpty)
-    <div class="uj-card" style="padding:36px;text-align:center;font-size:13px;color:var(--muted);">
-        <span x-text="$store.ui.lang==='en' ? 'No submitted timesheet entries match this period and filter.' : 'Tiada entri timesheet dihantar yang sepadan dengan tempoh dan tapisan ini.'">No timesheet entries in this period.</span>
-    </div>
-@else
-    <div x-data="{ tab: 'category' }">
-        {{-- Tabs --}}
-        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-            <button type="button" @click="tab='category'" :class="tab==='category' ? 'uj-btn-primary' : 'uj-btn-ghost'" class="uj-btn-ghost" style="height:36px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span></button>
-            <button type="button" @click="tab='project'" :class="tab==='project' ? 'uj-btn-primary' : 'uj-btn-ghost'" class="uj-btn-ghost" style="height:36px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span></button>
-            <button type="button" @click="tab='staff'" :class="tab==='staff' ? 'uj-btn-primary' : 'uj-btn-ghost'" class="uj-btn-ghost" style="height:36px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'By staff' : 'Mengikut staf'">By staff</span></button>
-        </div>
-
-        {{-- ===================== BY CATEGORY ===================== --}}
-        <div x-show="tab==='category'">
-            <div class="uj-card" style="padding:8px 0;">
-                @foreach ($byCategory as $row)
-                    <div style="padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:7px;">
-                            <div style="min-width:0;">
-                                <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $row['label'] }}</span>
-                                <span style="font-size:11.5px;color:var(--muted);margin-left:8px;">{{ $row['people'] }} <span x-text="$store.ui.lang==='en' ? (({{ $row['people'] }})===1 ? 'person' : 'people') : 'orang'">people</span></span>
-                            </div>
-                            <div style="text-align:right;flex-shrink:0;font-family:var(--font-mono);">
-                                @if ($canSeeCost)<span style="font-size:13px;font-weight:600;color:var(--success);">{{ $rm($row['cost']) }}</span>@endif
-                                <span style="font-size:11.5px;color:var(--muted);margin-left:8px;">{{ $md($row['days']) }} md · {{ $row['pct'] }}%</span>
-                            </div>
-                        </div>
-                        <div style="height:8px;border-radius:9999px;background:var(--canvas);overflow:hidden;"><div style="height:100%;width:{{ $row['pct'] }}%;background:var(--info);border-radius:9999px;"></div></div>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-
-        {{-- ===================== BY PROJECT ===================== --}}
-        <div x-show="tab==='project'" x-cloak>
-            @forelse ($byProject as $p)
-                <div class="uj-card" style="padding:16px 20px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px;">
-                        <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;">{{ $p['project'] }}</h3>
-                        <span style="font-size:12.5px;font-family:var(--font-mono);">
-                            @if ($canSeeCost)<span style="color:var(--success);font-weight:600;">{{ $rm($p['cost']) }}</span> · @endif
-                            <span style="color:var(--muted);">{{ $md($p['days']) }} <span x-text="$store.ui.lang==='en' ? 'person-days' : 'hari-orang'">person-days</span></span>
-                        </span>
-                    </div>
-                    @foreach ($p['employees'] as $emp)
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                            <div style="width:26px;height:26px;border-radius:50%;background:{{ $emp['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $emp['initials'] }}</div>
-                            <div style="flex:1;min-width:0;">
-                                <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $emp['name'] }}</span>
-                                    <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">@if ($canSeeCost){{ $rm($emp['cost']) }} · @endif{{ $md($emp['days']) }} md · {{ $emp['pct'] }}%</span>
-                                </div>
-                                <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;">
-                                    <div style="height:100%;width:{{ $emp['pct'] }}%;background:{{ $emp['color'] }};border-radius:9999px;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
             @empty
-                <div class="uj-card" style="padding:28px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No project-linked time in this period.' : 'Tiada masa berkaitan projek dalam tempoh ini.'">No project-linked time in this period.</span></div>
+                <span style="font-size:12px;color:var(--success);" x-text="$store.ui.lang==='en' ? 'Everyone is in for this week.' : 'Semua sudah hantar minggu ini.'">Everyone is in for this week.</span>
             @endforelse
         </div>
+    </div>
+    @endif
 
-        {{-- ===================== BY STAFF ===================== --}}
-        <div x-show="tab==='staff'" x-cloak>
-            @foreach ($byStaff as $s)
-                <div class="uj-card" style="padding:16px 20px;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                        <div style="width:30px;height:30px;border-radius:50%;background:{{ $s['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $s['initials'] }}</div>
-                        <h3 style="flex:1;font-size:14px;font-weight:600;color:var(--ink);margin:0;">{{ $s['name'] }}</h3>
-                        <span style="font-size:12.5px;font-family:var(--font-mono);">
-                            @if ($canSeeCost)<span style="color:var(--success);font-weight:600;">{{ $rm($s['cost']) }}</span> · @endif
-                            <span style="color:var(--muted);">{{ $md($s['days']) }} <span x-text="$store.ui.lang==='en' ? 'person-days' : 'hari-orang'">person-days</span></span>
-                        </span>
-                    </div>
-                    @foreach ($s['rows'] as $row)
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                            <div style="flex:1;min-width:0;">
-                                <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $row['label'] }}</span>
-                                    <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">@if ($canSeeCost){{ $rm($row['cost']) }} · @endif{{ $md($row['days']) }} md · {{ $row['pct'] }}%</span>
-                                </div>
-                                <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;">
-                                    <div style="height:100%;width:{{ $row['pct'] }}%;background:var(--info);border-radius:9999px;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
+    {{-- Shelf --}}
+    <div class="uj-tr-shelf">
+        <div class="uj-tr-lede">
+            <span x-text="$store.ui.lang==='en' ? 'Submitted timesheets' : 'Timesheet dihantar'">Submitted timesheets</span> · <b>{{ $dateRange }}</b>
+        </div>
+        <div class="uj-tr-figrow">
+            <span class="uj-tr-fig">{{ $md($totals['days']) }}</span>
+            <span class="uj-tr-figsub">
+                <b><span x-text="$store.ui.lang==='en' ? 'person-days recorded' : 'hari-orang direkod'">person-days recorded</span></b>@if($totals['cost'] > 0), <span x-text="$store.ui.lang==='en' ? 'worth' : 'bernilai'">worth</span> {{ $rm($totals['cost']) }} <span x-text="$store.ui.lang==='en' ? 'at charge-out rates.' : 'pada kadar caj.'">at charge-out rates.</span>@else.@endif
+                @if ($totals['uncostedDays'] > 0)
+                    {{ $md($totals['uncostedDays']) }} md <span x-text="$store.ui.lang==='en' ? 'have no band and no cost.' : 'tiada band dan tiada kos.'">have no band and no cost.</span>
+                @endif
+            </span>
+        </div>
+        <div class="uj-tr-chips">
+            <div class="uj-tr-chip">
+                <b>{{ $md($totals['days']) }}</b>
+                <span x-text="$store.ui.lang==='en' ? 'PERSON-DAYS' : 'HARI-ORANG'">PERSON-DAYS</span>
+            </div>
+            @if (count($lensStaff) > 0)
+                <div class="uj-tr-chip">
+                    <b>{{ $md($totals['days'] / count($lensStaff)) }}</b>
+                    <span x-text="$store.ui.lang==='en' ? 'PER HEAD' : 'SETIAP ORANG'">PER HEAD</span>
                 </div>
-            @endforeach
+            @endif
+            @if ($totals['uncostedDays'] > 0)
+                <div class="uj-tr-chip" data-t="warn">
+                    <b>{{ $md($totals['uncostedDays']) }}</b>
+                    <span x-text="$store.ui.lang==='en' ? 'UNCOSTED MD' : 'MD TANPA KOS'">UNCOSTED MD</span>
+                </div>
+            @endif
+            @if ($totals['weeksNotIn'] > 0)
+                <div class="uj-tr-chip" data-t="warn">
+                    <b>{{ $totals['weeksNotIn'] }}</b>
+                    <span x-text="$store.ui.lang==='en' ? 'WEEKS NOT IN' : 'MINGGU BELUM MASUK'">WEEKS NOT IN</span>
+                </div>
+            @endif
         </div>
     </div>
-@endif
+
+    {{-- Filter row --}}
+    <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
+        <div>
+            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
+            <input type="date" name="from" value="{{ $from }}" class="uj-tr-sel" />
+        </div>
+        <div>
+            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
+            <input type="date" name="to" value="{{ $to }}" class="uj-tr-sel" />
+        </div>
+        <div>
+            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span></label>
+            <select name="category" class="uj-tr-sel">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
+                @foreach ($filterCategories as $c)
+                    <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>
+            <select name="project" class="uj-tr-sel">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
+                @foreach ($filterProjects as $p)
+                    <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <button type="submit" class="uj-tr-btn" data-primary style="align-self:flex-end;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
+        <span class="uj-tr-range">{{ $dateRange }}</span>
+    </form>
+
+    {{-- Lens control --}}
+    <div style="margin-top:20px;">
+        <div class="uj-tr-pills" role="group" aria-label="Break down by">
+            <button type="button" class="uj-tr-pill" :data-on="lens==='category'" :class="{ 'uj-tr-on': lens==='category' }" @click="lens='category'">
+                <span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span>
+            </button>
+            <button type="button" class="uj-tr-pill" :data-on="lens==='project'" :class="{ 'uj-tr-on': lens==='project' }" @click="lens='project'">
+                <span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span>
+            </button>
+            <button type="button" class="uj-tr-pill" :data-on="lens==='staff'" :class="{ 'uj-tr-on': lens==='staff' }" @click="lens='staff'">
+                <span x-text="$store.ui.lang==='en' ? 'By person' : 'Mengikut individu'">By person</span>
+            </button>
+        </div>
+    </div>
+
+    {{-- Bar list / Empty state --}}
+    @if ($reportEmpty)
+        <div class="uj-tr-card">
+            <div class="uj-tr-empty">
+                <b x-text="$store.ui.lang==='en' ? 'No submitted time matches this filter' : 'Tiada masa dihantar yang sepadan dengan tapisan ini'">No submitted time matches this filter</b>
+                <div>{{ $activeFilterName }}</div>
+                <span x-text="$store.ui.lang==='en' ? 'Clear a filter, or widen the period.' : 'Kosongkan satu tapisan, atau luaskan tempoh.'">Clear a filter, or widen the period.</span>
+            </div>
+        </div>
+    @else
+        <div class="uj-tr-card uj-tr-anim">
+            <template x-if="rows().length === 0">
+                <div class="uj-tr-empty"
+                     x-text="lens === 'category' ? ($store.ui.lang === 'en' ? 'No categorised time in this period.' : 'Tiada masa berkategori dalam tempoh ini.')
+                           : (lens === 'project' ? ($store.ui.lang === 'en' ? 'No project-linked time in this period.' : 'Tiada masa berkaitan projek dalam tempoh ini.')
+                           : ($store.ui.lang === 'en' ? 'Nobody has submitted time in this period.' : 'Tiada sesiapa menghantar masa dalam tempoh ini.'))">
+                    No project-linked time in this period.
+                </div>
+            </template>
+            <template x-for="(row, index) in rows()" :key="row.id || row.label || index">
+                <button type="button" class="uj-tr-lensrow">
+                    <div class="uj-tr-barrow">
+                        <span class="lbl">
+                            <span x-text="row.name || row.label"></span>
+                            <span class="uj-tr-sub" style="display:inline;margin-left:6px"
+                                  x-text="lens === 'staff' ? (row.title || '')
+                                        : ((row.members ? row.members.length : 0) + ' ' +
+                                           ($store.ui.lang === 'en'
+                                               ? ((row.members ? row.members.length : 0) === 1 ? 'person' : 'people')
+                                               : 'orang'))">
+                            </span>
+                        </span>
+                        <span class="val">
+                            <template x-if="(lens === 'staff' && !row.costed) || !(row.cost > 0)">
+                                <span style="color:var(--amber-ink)" x-text="$store.ui.lang==='en' ? 'uncosted' : 'tanpa kos'">uncosted</span>
+                            </template>
+                            <template x-if="row.cost > 0 && !(lens === 'staff' && !row.costed)">
+                                <b x-text="'RM ' + Number(row.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></b>
+                            </template>
+                            <span x-text="' · ' + (Math.round((row.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md'"></span>
+                            <template x-if="lens === 'staff' && row.weeksIn < row.weeksTotal">
+                                <span class="dim" x-text="' · ' + row.weeksIn + '/' + row.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'wk' : 'mgu')"></span>
+                            </template>
+                            <span x-text="' · ' + (row.pct || 0) + '%'"></span>
+                        </span>
+                    </div>
+                    <div class="uj-tr-bar">
+                        <i :style="'width:' + Math.max(row.pct || 0, 1.5) + '%;background:' + (lens === 'category' ? 'var(--info)' : (lens === 'project' ? 'var(--success)' : (row.color || 'var(--info)'))) + ';animation-delay:' + (index * 45) + 'ms'"></i>
+                    </div>
+                </button>
+            </template>
+        </div>
+        @if ($totals['weeksNotIn'] > 0)
+            <div class="uj-tr-note" x-text="$store.ui.lang==='en' ? 'A row short of its weeks is short a submitted sheet, not short of work.' : 'Baris yang kurang minggunya kekurangan lembaran dihantar, bukan kekurangan kerja.'">A row short of its weeks is short a submitted sheet, not short of work.</div>
+        @endif
+    @endif
+</div>
 @endsection

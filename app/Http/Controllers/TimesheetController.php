@@ -490,71 +490,6 @@ class TimesheetController extends Controller
             $weeksNotIn += count($stats['missingWeeks']);
         }
 
-        // Legacy rollups kept temporarily for timesheet-reports.blade.php until a later task switches it to lens keys.
-        // ----- By category: category -> days + RM (answers "how much on Study") -----
-        $byCategory = $entries->groupBy(fn ($e) => $e->category?->name ?? 'Uncategorised')
-            ->map(function (Collection $rows, string $label) use ($days, $cost, $grandDays) {
-                $d = $days($rows);
-
-                return [
-                    'label' => $label,
-                    'days' => $d,
-                    'cost' => $cost($rows),
-                    'people' => $rows->pluck('timesheet.employee_id')->unique()->count(),
-                    'pct' => $grandDays > 0 ? (int) round($d / $grandDays * 100) : 0,
-                ];
-            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
-
-        // ----- By project: project -> employees, in person-days + RM -----
-        $byProject = $entries->filter(fn ($e) => $e->projectRef)
-            ->groupBy(fn ($e) => $e->projectRef->name)
-            ->map(function (Collection $rows, string $projectName) use ($days, $cost) {
-                $total = $days($rows);
-                $employees = $rows->groupBy(fn ($e) => $e->timesheet->employee->name)
-                    ->map(function (Collection $empRows) use ($total, $days, $cost) {
-                        $emp = $empRows->first()->timesheet->employee;
-                        $d = $days($empRows);
-
-                        return [
-                            'name' => $emp->name,
-                            'initials' => $emp->initials,
-                            'color' => $emp->avatar_color ?? config('amanahku.avatar_color'),
-                            'days' => $d,
-                            'cost' => $cost($empRows),
-                            'pct' => $total > 0 ? (int) round($d / $total * 100) : 0,
-                        ];
-                    })->values()->sortByDesc('days')->values()->all();
-
-                return ['project' => $projectName, 'days' => $total, 'cost' => $cost($rows), 'employees' => $employees];
-            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
-
-        // ----- By staff: person -> project/category breakdown, in person-days + RM -----
-        $byStaff = $entries->groupBy(fn ($e) => $e->timesheet->employee->name)
-            ->map(function (Collection $rows) use ($days, $cost) {
-                $emp = $rows->first()->timesheet->employee;
-                $total = $days($rows);
-                $breakdown = $rows->groupBy(fn ($e) => $e->projectRef?->name ?: ($e->category?->name ?? 'Uncategorised'))
-                    ->map(function (Collection $g, string $label) use ($total, $days, $cost) {
-                        $d = $days($g);
-
-                        return [
-                            'label' => $label,
-                            'days' => $d,
-                            'cost' => $cost($g),
-                            'pct' => $total > 0 ? (int) round($d / $total * 100) : 0,
-                        ];
-                    })->values()->sortByDesc('days')->values()->all();
-
-                return [
-                    'name' => $emp->name,
-                    'initials' => $emp->initials,
-                    'color' => $emp->avatar_color ?? config('amanahku.avatar_color'),
-                    'days' => $total,
-                    'cost' => $cost($rows),
-                    'rows' => $breakdown,
-                ];
-            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
-
         // ----- Lens category: category -> days + RM + members -----
         $lensCategory = $entries->groupBy(fn ($e) => $e->category_id ?? 'uncategorised')
             ->map(function (Collection $rows) use ($days, $cost, $grandDays) {
@@ -710,9 +645,6 @@ class TimesheetController extends Controller
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
             'canSeeCost' => $canSeeCost,
-            'byCategory' => $byCategory,
-            'byProject' => $byProject,
-            'byStaff' => $byStaff,
             'lensCategory' => $lensCategory,
             'lensProject' => $lensProject,
             'lensStaff' => $lensStaff,
