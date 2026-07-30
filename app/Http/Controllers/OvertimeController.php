@@ -62,22 +62,34 @@ class OvertimeController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        OvertimeRequest::create([
+        $overtime = OvertimeRequest::create([
             'employee_id' => $employee->id,
             'ot_date' => $data['ot_date'],
             'hours' => $data['hours'],
             'rate_multiplier' => $data['rate_multiplier'],
             'reason' => $data['reason'],
-            'status' => 'submitted',
+            ...$this->openingStatusColumns($request),
         ]);
 
-        // Step 1 of the gate: routed to the immediate superior (org chart) to verify.
-        $this->notifyManagerToVerify(
-            $employee,
-            'Overtime awaiting your verification',
-            $employee->name.' · '.number_format((float) $data['hours'], 2).'h @ '.$data['rate_multiplier'].'x',
-            route('app.screen', 'overtime'),
-        );
+        $body = $employee->name.' · '.number_format((float) $data['hours'], 2).'h @ '.$data['rate_multiplier'].'x';
+
+        if ($this->skipsVerification($request)) {
+            // HR reports straight to the directors: no verify step, straight to final approval.
+            $this->notifyManagementToApprove(
+                $overtime->tenant_id,
+                'Overtime awaiting final approval',
+                $body,
+                route('app.screen', 'overtime'),
+            );
+        } else {
+            // Step 1 of the gate: routed to the immediate superior (org chart) to verify.
+            $this->notifyManagerToVerify(
+                $employee,
+                'Overtime awaiting your verification',
+                $body,
+                route('app.screen', 'overtime'),
+            );
+        }
 
         return back()->with('ok', number_format((float) $data['hours'], 2).'h overtime submitted for approval.');
     }
@@ -109,7 +121,7 @@ class OvertimeController extends Controller
         AppNotification::send(
             $overtime->employee->user_id,
             'Overtime verified',
-            'Your overtime was verified and is awaiting management approval',
+            'Your overtime was verified and is awaiting final approval',
             route('app.screen', 'overtime'),
         );
 

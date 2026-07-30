@@ -74,6 +74,31 @@
     </div>
 @endif
 
+@php $tab = request()->query('tab') === 'review' ? 'review' : 'record'; @endphp
+<div x-data="{
+    tab: @js($tab),
+    setTab(t) {
+        this.tab = t
+        const url = new URL(location)
+        url.searchParams.set('tab', t)
+        history.replaceState(null, '', url)
+    },
+}">
+    {{-- Two tabs: Record writes the week, Review reads it back. An underline bar mirroring
+         the all-staff report screen. Record opens by default — the nav names this screen
+         "Timesheet" and the daily job is filling it in. --}}
+    <div class="uj-tr-tabs" role="tablist">
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='record'"
+            :aria-selected="tab==='record'" @click="setTab('record')">
+            <span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span>
+        </button>
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='review'"
+            :aria-selected="tab==='review'" @click="setTab('review')">
+            <span x-text="$store.ui.lang==='en' ? 'Review' : 'Semak'">Review</span>
+        </button>
+    </div>
+
+    <div x-show="tab==='record'" x-cloak role="tabpanel">
 {{-- ===================== CAPTURE (per-day cards) ===================== --}}
     <div class="uj-card" style="width:100%;padding:22px;position:relative;"
          x-data="timesheetCapture({
@@ -90,6 +115,29 @@
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
          })">
+
+        {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
+             scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
+        <div style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:20px 22px;margin:-4px -4px 18px;">
+            <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
+                <span style="font:600 46px/1 var(--font-mono);color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;"
+                    x-text="Math.round(dayDates().filter(d=>!isOffDay(d)).reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, dayDates().filter(d=>!isOffDay(d)).length*100) * 100) + '%'">0%</span>
+                <span style="font-size:13.5px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'">of the week allocated</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--muted);margin-top:7px;" x-text="$store.ui.lang==='en' ? 'Every working day must reach 100% before the week can be submitted.' : 'Setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.'">Every working day must reach 100% before the week can be submitted.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+                    <b style="font:600 17px/1 var(--font-mono);color:var(--success-ink,#1f8a65);"
+                       x-text="dayDates().filter(d=>!isOffDay(d) && ['done','locked'].includes(dayState(d))).length"></b>
+                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'days at 100%' : 'hari pada 100%'">days at 100%</span>
+                </div>
+                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+                    <b style="font:600 17px/1 var(--font-mono);color:var(--amber-ink,#c08532);"
+                       x-text="dayDates().filter(d=>!isOffDay(d) && !['done','locked'].includes(dayState(d))).length"></b>
+                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'left to fill' : 'lagi untuk diisi'">left to fill</span>
+                </div>
+            </div>
+        </div>
 
         {{-- ---- Today header: the date opens the jump sheet; total + progress on the right ---- --}}
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
@@ -507,25 +555,19 @@
             </div>
         </div>
     </div>
+    </div>
 
-    {{-- ===================== REFERENCE PANELS (tabbed): My timesheets · My time spent ===================== --}}
-    <div class="uj-card" x-data="{ tab: 'sheets' }" style="margin-top:16px;">
-        <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
-            <button type="button" @click="tab = 'sheets'"
-                style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
-                :style="tab === 'sheets' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
-                <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span> ({{ $myTimesheets->count() }})
-            </button>
-            @if (! empty($myBreakdown))
-                <button type="button" @click="tab = 'spent'"
-                    style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
-                    :style="tab === 'spent' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
-                    <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
-                </button>
-            @endif
+    <div x-show="tab==='review'" x-cloak role="tabpanel">
+    {{-- ===================== REFERENCE PANELS: My timesheets · My time spent ===================== --}}
+    {{-- Un-nested: the two panels stack under the Review tab, each with a section heading,
+         instead of the old inner tab bar. --}}
+    <div class="uj-card">
+        <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
+            <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span>
+            <span style="color:var(--muted);font-weight:400;">({{ $myTimesheets->count() }})</span>
         </div>
 
-        <div x-show="tab === 'sheets'">
+        <div>
         @forelse ($myTimesheets as $t)
             <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 20px;">
@@ -569,10 +611,13 @@
         @endforelse
         </div>
 
-        {{-- Panel: My time spent (personal, person-days only — never RM) --}}
+        {{-- Section: My time spent (personal, person-days only — never RM) --}}
         @if (! empty($myBreakdown))
             @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-            <div x-show="tab === 'spent'" x-cloak style="padding:20px 22px;">
+            <div style="padding:16px 20px 4px;border-top:1px solid var(--hairline);font-size:13px;font-weight:600;color:var(--ink);">
+                <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
+            </div>
+            <div style="padding:16px 22px 20px;">
                 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
                     <div>
                 <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Where your recorded time went — by category and project. Submitted weeks only.' : 'Ke mana masa anda direkod — mengikut kategori dan projek. Minggu dihantar sahaja.'"></span></div>
@@ -630,4 +675,6 @@
     </div>
 @endif
     </div>
+    </div>{{-- /tab=review panel --}}
+</div>{{-- /tab root --}}
 @endsection

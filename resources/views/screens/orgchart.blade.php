@@ -5,51 +5,29 @@
     'key' => 'orgchart',
     'en'  => [
         'title' => 'Organisation chart',
-        'body'  => 'Shows the company\'s reporting lines — who reports to whom, from the top down. Use it to see team structure, spot where a manager has too many direct reports, or find who covers a role. HR and management can drag people to re-arrange reporting lines.',
+        'body'  => 'Shows the company\'s reporting lines — who reports to whom. The chart shows one seat at a time: the manager above, the person in the middle, and their direct reports below. Choose any circle to move the chart onto that person. HR and management can fill an empty slot to set who someone reports to, because that line is what decides who verifies their leave, claims and overtime.',
     ],
     'ms'  => [
         'title' => 'Carta organisasi',
-        'body'  => 'Menunjukkan talian pelaporan syarikat — siapa melapor kepada siapa, dari atas ke bawah. Guna untuk lihat struktur pasukan, kesan di mana seorang pengurus ada terlalu banyak orang bawahan terus, atau cari siapa pegang sesuatu peranan. HR dan pengurusan boleh seret orang untuk susun semula talian pelaporan.',
+        'body'  => 'Menunjukkan talian pelaporan syarikat — siapa melapor kepada siapa. Carta menunjukkan satu kerusi pada satu masa: pengurus di atas, orang itu di tengah, dan orang bawahan terus di bawah. Pilih mana-mana bulatan untuk alihkan carta kepada orang itu. HR dan pengurusan boleh isi slot kosong untuk tetapkan siapa seseorang melapor kepadanya, kerana talian itu yang menentukan siapa mengesahkan cuti, tuntutan dan kerja lebih masa mereka.',
     ],
 ])
 
-@if ($canEdit)
-    {{-- Arrange-mode affordances: every drop zone reads as a dashed box, cards become
-         grab handles. Scoped to .org-arranging so the read-only tree is untouched. --}}
-    <style>
-        .org-arranging [data-node] { cursor: grab; }
-        .org-arranging [data-node]:active { cursor: grabbing; }
-        .org-arranging [data-node] a { cursor: grab; }
-        .org-arranging [data-children] {
-            min-height: 30px !important;
-            border: 1px dashed var(--hairline) !important;
-            border-radius: 8px;
-            margin: 8px 0 0 40px !important;
-            padding: 6px 8px !important;
-        }
-        .org-arranging .uj-drag-ghost { opacity: .45; }
-    </style>
-@endif
+<div style="display:flex;flex-direction:column;gap:16px;"
+     x-data="orgChart(@js($chart), @js($canEdit))">
 
-<div style="display:flex;flex-direction:column;gap:18px;" @if ($canEdit) x-data="orgChart()" @endif>
-    {{-- Summary strip --}}
-    <div style="display:flex;flex-wrap:wrap;gap:12px;">
-        @php
-            $stats = [
-                ['Headcount', 'Bilangan kakitangan', $headcount, 'headcount'],
-                ['Top-level roots', 'Punca peringkat atas', $rootCount, 'roots'],
-                ['Reporting depth', 'Kedalaman pelaporan', $maxDepth, 'depth'],
-            ];
-        @endphp
-        @foreach ($stats as $stat)
-            <div class="uj-card" style="padding:14px 18px;min-width:150px;flex:1;">
-                <div style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? '{{ $stat[0] }}' : '{{ $stat[1] }}'">{{ $stat[0] }}</div>
-                <div data-stat="{{ $stat[3] }}" style="font-size:24px;font-weight:600;color:var(--ink);line-height:1.2;margin-top:2px;">{{ $stat[2] }}</div>
-            </div>
-        @endforeach
+    {{-- One mono line in place of the three stat cards. Same three numbers; the cards
+         were a metric template that said nothing the chart itself could not. --}}
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-family:var(--font-mono);font-size:var(--t-sm);color:var(--muted);">
+        <span>{{ $headcount }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'kakitangan'">staff</span></span>
+        <span style="color:var(--oc-line);">/</span>
+        <span>{{ $maxDepth }} <span x-text="$store.ui.lang==='en' ? 'levels deep' : 'aras'">levels deep</span></span>
+        <span style="color:var(--oc-line);">/</span>
+        <span :style="kidsOf(null).length ? 'color:var(--amber)' : ''"
+              x-text="kidsOf(null).length + ($store.ui.lang==='en' ? ' with no manager' : ' tiada pengurus')"></span>
     </div>
 
-    {{-- Department lens: click a chip to filter the chart to one department; "All" clears it. --}}
+    {{-- Department lens: choose a chip to build the chart from one department only. --}}
     @if ($byDept->isNotEmpty())
         @php
             $chipBase = 'font-size:12px;padding:4px 11px;border-radius:9999px;text-decoration:none;border:1px solid transparent;white-space:nowrap;';
@@ -64,142 +42,165 @@
         </div>
     @endif
 
-    {{-- Arrange + precise-edit toolbar (HR / management). Drag is the intuitive path;
-         the dropdown editor below is the precise / keyboard-accessible fallback. --}}
-    @if ($canEdit)
-        <div x-data="{ orgEdit: false }">
-            <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:6px;">
-                <span x-show="busy" x-cloak style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Saving…' : 'Menyimpan…'">Saving…</span></span>
-                <button @click="toggleArrange()" :class="arranging ? 'uj-btn-primary' : 'uj-btn-ghost'" style="height:38px;padding:0 16px;font-size:13px;">
-                    <span x-text="arranging ? ($store.ui.lang==='en' ? 'Done arranging' : 'Selesai susun') : ($store.ui.lang==='en' ? 'Arrange (drag & drop)' : 'Susun (seret & lepas)')"></span>
-                </button>
-                <button @click="orgEdit = ! orgEdit" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;">
-                    <span x-text="orgEdit ? ($store.ui.lang==='en' ? 'Close editor' : 'Tutup penyunting') : ($store.ui.lang==='en' ? 'Edit as list' : 'Sunting senarai')"></span>
-                </button>
-            </div>
+    <div x-show="error" x-cloak role="alert"
+         style="border:1px solid #f0cdcf;background:var(--red-tint);color:var(--red-active);border-radius:10px;padding:11px 14px;font-size:var(--t-sm);line-height:1.5;"
+         x-text="error"></div>
 
-            {{-- Drag hint, only while arranging --}}
-            <div x-show="arranging" x-cloak style="background:var(--info-tint,var(--hairline-soft));border:1px solid var(--hairline);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--body);line-height:1.5;">
-                <span x-text="$store.ui.lang==='en' ? 'Drag a person onto someone to make them report to that person. Drag to the top area to make them a top-level lead. Changes save as you drop.' : 'Seret seseorang ke atas orang lain untuk jadikan mereka melapor kepada orang itu. Seret ke kawasan atas untuk jadikan ketua peringkat atasan. Perubahan disimpan apabila dilepaskan.'"></span>
-            </div>
+    @if ($headcount === 0 && $directors->isEmpty())
+        <div class="uj-card" style="padding:28px 20px;text-align:center;">
+            <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Nothing to chart yet' : 'Tiada apa untuk dipetakan lagi'"></span></div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Add employees first. The chart builds itself from who reports to whom.' : 'Tambah pekerja dahulu. Carta akan terbina sendiri daripada siapa melapor kepada siapa.'"></span></div>
+        </div>
+    @else
+        <div class="oc-canvas">
+            <div class="oc-stage" x-ref="stage">
 
-            {{-- Precise list editor --}}
-            <div x-show="orgEdit" x-cloak class="uj-card" style="padding:20px;margin-bottom:16px;">
-                <h3 class="uj-card-title" style="margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Reporting lines' : 'Garis pelaporan'">Reporting lines</span></h3>
-                <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px;"><span x-text="$store.ui.lang==='en' ? 'Set who each person reports to. Leave a person blank to keep them at the top level. Add extra managers if someone answers to more than one boss — any of them can verify that person\'s leave, claims and overtime. Directors sit in their own band above the chart — flag their position as a Director band on the Position &amp; Manday Rates screen (or assign the Director login role). The chart rebuilds when you save.' : 'Tetapkan siapa setiap orang melapor kepadanya. Biar kosong untuk kekalkan di peringkat atasan. Tambah pengurus tambahan jika seseorang ada lebih daripada satu ketua — mana-mana daripada mereka boleh sahkan cuti, tuntutan dan kerja lebih masa orang itu. Pengarah berada di jalur mereka sendiri di atas carta — tandakan pangkat mereka sebagai Band Pengarah di skrin Pangkat &amp; Kadar Manday (atau berikan peranan Director log masuk). Carta dibina semula bila disimpan.'">Set who each person reports to. Add extra managers for a second boss. Flag their position as a Director band on the Position &amp; Manday Rates screen.</span></p>
-                <form method="post" action="{{ route('org.reporting-lines') }}">
-                    @csrf
-                    <div style="display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;padding-right:4px;">
-                        @foreach ($editStaff as $s)
-                            <div style="display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
-                                {{-- Name --}}
-                                <div style="font-size:13px;color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $s['name'] }}</div>
-                                {{-- Primary reporting line --}}
-                                <div style="display:flex;align-items:center;gap:10px;">
-                                    <span style="font-size:11px;color:var(--muted);width:96px;flex-shrink:0;text-align:right;"><span x-text="$store.ui.lang==='en' ? 'reports to' : 'melapor kepada'">reports to</span></span>
-                                    <select name="manager[{{ $s['id'] }}]" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);">
-                                        <option value="">—</option>
-                                        @foreach ($editStaff as $m)
-                                            @continue($m['id'] === $s['id'])
-                                            <option value="{{ $m['id'] }}" @selected($s['reports_to_id'] === $m['id'])>{{ $m['name'] }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                {{-- Additional (dotted-line) managers — any may verify this person.
-                                     Chip picker: chosen people show as removable pills, the dropdown
-                                     adds more. Hidden inputs carry the ids on submit. --}}
-                                @php
-                                    $extraOptions = $editStaff
-                                        ->reject(fn ($m) => $m['id'] === $s['id'])
-                                        ->map(fn ($m) => ['id' => (string) $m['id'], 'name' => $m['name']])
-                                        ->values();
-                                    $extraSelected = array_map('strval', $s['extra_manager_ids']);
-                                @endphp
-                                <div style="display:flex;align-items:flex-start;gap:10px;"
-                                     x-data="{
-                                        selected: @js($extraSelected),
-                                        options: @js($extraOptions),
-                                        nameOf(id) { return (this.options.find(o => o.id === id) || {}).name || ''; },
-                                        get available() { return this.options.filter(o => ! this.selected.includes(o.id)); },
-                                        add(id) { if (id && ! this.selected.includes(id)) this.selected.push(id); },
-                                        remove(id) { this.selected = this.selected.filter(x => x !== id); },
-                                     }">
-                                    <span style="font-size:11px;color:var(--muted);width:96px;flex-shrink:0;text-align:right;padding-top:9px;"><span x-text="$store.ui.lang==='en' ? 'also verified by' : 'juga disahkan oleh'">also verified by</span></span>
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:24px;">
-                                            <template x-for="id in selected" :key="id">
-                                                <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);background:var(--hairline-soft);border:1px solid var(--hairline);border-radius:9999px;padding:3px 6px 3px 11px;">
-                                                    <span x-text="nameOf(id)"></span>
-                                                    <button type="button" @click="remove(id)" aria-label="Remove" style="width:16px;height:16px;line-height:1;border:none;border-radius:50%;background:var(--muted-soft,#e5e5e5);color:var(--ink);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>
-                                                    <input type="hidden" name="extra_managers[{{ $s['id'] }}][]" :value="id">
-                                                </span>
+                {{-- Trail: where am I, and one click back to any level above. --}}
+                <nav class="oc-trail" :aria-label="$store.ui.lang==='en' ? 'Chart position' : 'Kedudukan dalam carta'">
+                    <button type="button" @click="dive(null, -1)"
+                            x-text="$store.ui.lang==='en' ? 'Top' : 'Atas'"></button>
+                    <template x-for="a in (focus === null ? [] : ancestors(focus))" :key="a">
+                        <span style="display:flex;align-items:center;gap:7px;">
+                            <span class="oc-trail-sep" aria-hidden="true">/</span>
+                            <button type="button" @click="dive(a, -1)" x-text="person(a).name"></button>
+                        </span>
+                    </template>
+                    <template x-if="focus !== null">
+                        <span style="display:flex;align-items:center;gap:7px;">
+                            <span class="oc-trail-sep" aria-hidden="true">/</span>
+                            <span class="oc-trail-here" x-text="subject.name"></span>
+                        </span>
+                    </template>
+                </nav>
+
+                {{-- Ring above: the manager, or the band that gives final approval. --}}
+                <template x-if="focus !== null && (parents[focus] !== null || directors.length)">
+                    <div class="oc-up">
+                        <div class="oc-uplabel"
+                             x-text="parents[focus] !== null
+                                ? ($store.ui.lang==='en' ? 'reports to' : 'melapor kepada')
+                                : ($store.ui.lang==='en' ? 'final approval' : 'kelulusan akhir')"></div>
+                        <button type="button" class="oc-circle"
+                                :data-name="parents[focus] !== null ? person(parents[focus]).name : null"
+                                @click="dive(parents[focus] ?? null, -1)"
+                                :aria-label="parents[focus] !== null ? person(parents[focus]).name : ($store.ui.lang==='en' ? 'Top of the chart' : 'Atas carta')">
+                            <template x-if="parents[focus] !== null">
+                                @include('partials.org-face', ['p' => 'person(parents[focus])'])
+                            </template>
+                            {{-- The band is not a person, so this one seat keeps a word. --}}
+                            <template x-if="parents[focus] === null">
+                                <span class="oc-name" x-text="$store.ui.lang==='en' ? 'Directors' : 'Pengarah'"></span>
+                            </template>
+                        </button>
+                        <div class="oc-stem" style="height:30px;" aria-hidden="true"></div>
+                    </div>
+                </template>
+
+                {{-- The subject. At the top of the chart that is the directors band. --}}
+                <template x-if="focus === null">
+                    @include('partials.org-band')
+                </template>
+
+                <template x-if="focus !== null">
+                    <div class="oc-subject">
+                        <button type="button" class="oc-circle"
+                                :class="{ 'is-sel': sel === focus, 'is-new': justPlaced === focus }"
+                                @click="sel = focus"
+                                :data-name="subject.name"
+                                :aria-label="subject.name">
+                            @include('partials.org-face', ['p' => 'subject'])
+                            <template x-if="subject.swatch">
+                                <span class="oc-dot" :style="`background:${subject.swatch}`" aria-hidden="true"></span>
+                            </template>
+                        </button>
+                        <div class="oc-subrole"
+                             x-text="[subject.role, subject.dept].filter(Boolean).join(' · ')
+                                || ($store.ui.lang==='en' ? 'No position or department set' : 'Tiada pangkat atau bahagian')"></div>
+
+                        {{-- Extra verifiers: approval power without a reporting line, so they
+                             orbit the seat rather than sitting in it. --}}
+                        <template x-if="subjectVerifiers.length">
+                            <div class="oc-also">
+                                <span class="oc-also-label"
+                                      x-text="$store.ui.lang==='en' ? 'also verified by' : 'juga disahkan oleh'"></span>
+                                <template x-for="p in subjectVerifiers" :key="p.id">
+                                    <span class="oc-chip">
+                                        <template x-if="p.photo">
+                                            <img :src="p.photo" alt="" width="20" height="20">
+                                        </template>
+                                        <template x-if="! p.photo">
+                                            <span class="oc-chip-av" :style="`background:${p.color}`" x-text="p.initials"></span>
+                                        </template>
+                                        <span x-text="p.name"></span>
+                                        @if ($canEdit)
+                                            <button type="button" @click="removeVerifier(p.id)" :disabled="busy"
+                                                    :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + p.name">&times;</button>
+                                        @endif
+                                    </span>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                {{-- Ring below: direct reports, plus one open slot while editing. --}}
+                <template x-if="reports.length || canEdit">
+                    <div style="display:flex;flex-direction:column;align-items:center;">
+                        <div class="oc-stem" style="height:32px;" aria-hidden="true"></div>
+                        <div class="oc-fan">
+                            <template x-for="(id, i) in reports" :key="id">
+                                <div class="oc-branch">
+                                    <div class="oc-conn" aria-hidden="true">
+                                        <div class="oc-conn-l" :class="i > 0 && 'is-on'"></div>
+                                        <div class="oc-conn-r" :class="(i < reports.length - 1 || canEdit) && 'is-on'"></div>
+                                    </div>
+                                    <div class="oc-col">
+                                        <button type="button" class="oc-circle"
+                                                :class="{ 'is-sel': sel === id, 'is-new': justPlaced === id }"
+                                                @click="dive(id, 1)"
+                                                :data-name="person(id).name"
+                                                :aria-label="($store.ui.lang==='en' ? 'Move chart to ' : 'Alih carta ke ') + person(id).name">
+                                            @include('partials.org-face', ['p' => 'person(id)'])
+                                            <template x-if="person(id).swatch">
+                                                <span class="oc-dot" :style="`background:${person(id).swatch}`" aria-hidden="true"></span>
                                             </template>
-                                            <span x-show="selected.length === 0" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></span>
-                                        </div>
-                                        <select @change="add($event.target.value); $event.target.value=''" x-show="available.length > 0" style="margin-top:7px;width:100%;min-width:0;height:34px;padding:0 10px;border:1px dashed var(--hairline);border-radius:8px;font-size:12.5px;background:#fff;color:var(--muted);">
-                                            <option value="" x-text="$store.ui.lang==='en' ? '+ Add a manager' : '+ Tambah pengurus'"></option>
-                                            <template x-for="o in available" :key="o.id">
-                                                <option :value="o.id" x-text="o.name"></option>
-                                            </template>
-                                        </select>
+                                        </button>
+                                        {{-- Falls back to the name: a face over a blank line, with the
+                                             name only on hover, leaves nothing to identify on a touch
+                                             screen. Plenty of staff have no position set. --}}
+                                        <div class="oc-role" x-text="person(id).role || person(id).name"></div>
                                     </div>
                                 </div>
-                            </div>
-                        @endforeach
-                    </div>
-                    <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;margin-top:16px;"><span x-text="$store.ui.lang==='en' ? 'Save reporting lines' : 'Simpan garis pelaporan'">Save reporting lines</span></button>
-                </form>
-            </div>
-        </div>
-    @endif
+                            </template>
 
-    {{-- Directors band: a FLAT leadership row above the whole chart. Co-equal cards, no
-         subtree beneath any of them — directors are the approval authority on top, not tree
-         nodes. Their reports appear at the top of the tree below. Not a drop zone (director
-         status is the editor checkbox, never a drag). --}}
-    @if ($directors->isNotEmpty())
-        <div class="uj-card" style="padding:18px 20px;border:1px solid #f2d675;background:linear-gradient(180deg,#fffdf5,#fff);">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-                <span style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a6d00;" x-text="$store.ui.lang==='en' ? 'Directors' : 'Pengarah'">Directors</span>
-                <span style="height:1px;flex:1;background:#f2d675;opacity:.6;"></span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;">
-                @foreach ($directors as $e)
-                    <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" class="uj-card-clickable" style="flex:1 1 320px;min-width:260px;max-width:520px;display:flex;align-items:center;gap:12px;text-decoration:none;border:1px solid #f2d675;border-radius:12px;padding:12px 16px;background:#fff;">
-                        @if ($e->photo && str_starts_with($e->photo, '/'))
-                            <img src="{{ $e->photo }}" alt="" width="42" height="42" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;">
-                        @else
-                            <div style="width:42px;height:42px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
-                        @endif
-                        <div style="min-width:0;flex:1;">
-                            <div style="display:flex;align-items:center;gap:7px;min-width:0;">
-                                <span style="font-size:14.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->name }}</span>
-                                <span style="flex-shrink:0;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 7px;line-height:1.4;" x-text="$store.ui.lang==='en' ? 'Director' : 'Pengarah'">Director</span>
-                            </div>
-                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">{{ collect([$e->position, $e->department?->name])->filter()->implode(' · ') }}</div>
+                            @if ($canEdit)
+                                <div class="oc-branch">
+                                    <div class="oc-conn is-open" aria-hidden="true">
+                                        <div class="oc-conn-l" :class="reports.length > 0 && 'is-on'"></div>
+                                        <div class="oc-conn-r"></div>
+                                    </div>
+                                    <div class="oc-col">
+                                        <button type="button" class="oc-circle is-open"
+                                                :class="picking && picking.parent === focus && 'is-sel'"
+                                                @click="openSlot(focus)"
+                                                :aria-label="$store.ui.lang==='en' ? 'Add someone who reports here' : 'Tambah orang yang melapor di sini'">
+                                            <span class="oc-plus" aria-hidden="true">+</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
-                        <span style="width:8px;height:8px;border-radius:50%;background:{{ \App\Support\Amanahku::SWATCH[$e->workload] ?? 'var(--muted-soft)' }};flex-shrink:0;"></span>
-                    </a>
-                @endforeach
-            </div>
-        </div>
-    @endif
+                    </div>
+                </template>
 
-    {{-- Recursive reporting tree. The outermost [data-children] is the top level
-         (data-parent=""): dropping a card here clears its manager. --}}
-    @if (! empty($roots))
-        <div class="uj-card" style="padding:20px;">
-            <div data-children data-parent="" style="display:flex;flex-direction:column;gap:16px;">
-                @foreach ($roots as $node)
-                    @include('partials.org-node', ['node' => $node, 'canEdit' => $canEdit])
-                @endforeach
+                <template x-if="! reports.length && ! canEdit">
+                    <p class="oc-empty"
+                       x-text="$store.ui.lang==='en' ? 'Nobody reports to this person.' : 'Tiada sesiapa melapor kepada orang ini.'"></p>
+                </template>
             </div>
         </div>
-    @elseif ($directors->isEmpty())
-        <div class="uj-card" style="padding:28px 20px;text-align:center;">
-            <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'No reporting lines to chart yet' : 'Tiada talian pelaporan untuk dipetakan lagi'"></span></div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Add employees and set who each one reports to (in their profile) — the chart builds itself from those links.' : 'Tambah pekerja dan tetapkan siapa setiap seorang melapor kepada (dalam profil mereka) — carta akan terbina sendiri daripada pautan tersebut.'"></span></div>
-        </div>
+
+        @include('partials.org-panel', ['canEdit' => $canEdit])
     @endif
 </div>
 @endsection

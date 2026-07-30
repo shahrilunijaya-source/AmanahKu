@@ -29,7 +29,7 @@
     ],
 ])
 
-<div style="max-width:760px;display:flex;flex-direction:column;gap:18px;">
+<div style="max-width:760px;margin-inline:auto;display:flex;flex-direction:column;gap:18px;">
     @forelse ($releases as $rel)
         <article class="uj-card" style="padding:22px 24px;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:16px;border-bottom:1px solid var(--hairline-soft);padding-bottom:14px;">

@@ -566,6 +566,21 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-head-stack { display: flex; flex-direction: column; gap: 16px; padding-top: 78px; }
 .uj-head-stack--embed { padding-top: 0; gap: 12px; }
 
+/* Shared page measure. Every screen — its header (h1 + guide text) AND its body —
+   sits in one centred column, so screens read consistently instead of some
+   stretching edge-to-edge and others pinning left. Focused screens use 920px
+   (the width attendance's .uj-at-wrap already proved out); data-dense screens
+   opt into a wider centred cap with .uj-main--wide. Embed (wizard iframe) opts
+   out: it is sized to its content, not the viewport. */
+.uj-measured > .uj-head-stack,
+.uj-measured > .uj-fade { max-width: 920px; margin-inline: auto; }
+.uj-main--wide > .uj-head-stack,
+.uj-main--wide > .uj-fade { max-width: 1280px; }
+/* Workspace canvases (board, org chart) use the whole width — no cap — so they
+   grow with the sidebar collapse. They keep the 28px gutter from .uj-main. */
+.uj-main--full > .uj-head-stack,
+.uj-main--full > .uj-fade { max-width: none; }
+
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
 .uj-pagehead { padding: 0 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
@@ -1159,15 +1174,17 @@ select.wd-inline {
 
 /* ── The shelf ──
    One banner that answers "where am I, what time is it, what do I press".
+   Shared with the leave screen (.uj-lv-shelf), which opens with the same hero
+   over its balance figure — the selectors are shared rather than duplicated.
    Warm tint (--shelf) rather than white so the white chips and white ghost
    buttons read as sitting ON something. */
-.uj-at-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 20px; }
-.uj-at-shelf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.uj-at-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
-.uj-at-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
-.uj-at-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.uj-at-figsub { font-size: var(--t-base); color: var(--body); }
-.uj-at-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-at-shelf, .uj-lv-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 20px; }
+.uj-at-shelf-top, .uj-lv-shelf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.uj-at-kicker, .uj-lv-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
+.uj-at-figrow, .uj-lv-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.uj-at-fig, .uj-lv-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.uj-at-figsub, .uj-lv-figsub { font-size: var(--t-base); color: var(--body); }
+.uj-at-figsub b, .uj-lv-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* Where you are meant to be, and whether you are. The geofence verdict is inline
    here rather than a separate badge: it is a clause of the expectation sentence. */
@@ -1216,12 +1233,12 @@ select.wd-inline {
 /* ── Chips ──
    The four numbers a person asks this screen for: worked this week, over baseline,
    late this month, off-site this month. */
-.uj-at-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-.uj-at-chip { background: #fff; border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
-.uj-at-chip b { font: 600 18px var(--font-mono); color: var(--ink); line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.uj-at-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
-.uj-at-chip[data-tone="ok"] b { color: #14614a; }
-.uj-at-chip[data-tone="amber"] b { color: #7a5210; }
+.uj-at-chips, .uj-lv-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.uj-at-chip, .uj-lv-chip { background: #fff; border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.uj-at-chip b, .uj-lv-chip b { font: 600 18px var(--font-mono); color: var(--ink); line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.uj-at-chip span, .uj-lv-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
+.uj-at-chip[data-tone="ok"] b, .uj-lv-chip[data-tone="ok"] b { color: #14614a; }
+.uj-at-chip[data-tone="amber"] b, .uj-lv-chip[data-tone="amber"] b { color: #7a5210; }
 
 /* ── Week reading list & disclosure rows ──
    Each day is a disclosure: row carries the facts, panel carries the plain-English
@@ -1451,6 +1468,139 @@ select.wd-inline {
   .uj-ar-hide-sm { display: none; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Timesheet report (resources/views/screens/timesheet-reports.blade.php) —
+   ported from the approved public/_timesheet-report-revamp.html mock.
+   Namespaced uj-tr- ("timesheet report").
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.uj-tr-wrap { max-width: 980px; margin: 0 auto; }
+
+.uj-tr-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
+.uj-tr-lede { font-size: var(--t-sm); letter-spacing: .02em; color: var(--body); font-weight: 500; }
+.uj-tr-lede b { color: var(--ink); font-weight: 600; }
+.uj-tr-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.uj-tr-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+.uj-tr-figsub { font-size: var(--t-base); color: var(--body); max-width: 38ch; line-height: 1.5; }
+.uj-tr-figsub b { font-weight: 600; color: var(--ink); }
+.uj-tr-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.uj-tr-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.uj-tr-chip { background: var(--card); border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; }
+.uj-tr-chip b { font: 600 18px/1 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.uj-tr-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
+.uj-tr-chip[data-t="warn"] b { color: var(--amber-ink); }
+.uj-tr-chip[data-t="good"] b { color: var(--success-ink); }
+
+/* Screen-level tabs. Deliberately NOT styled like .uj-tr-pills: the report tab holds a
+   pill group of its own, and two identical rows would read as one control with six
+   options. An underline says "this switches the page"; a pill says "this filters it". */
+.uj-tr-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--hairline); margin-bottom: 20px; }
+.uj-tr-tab { display: inline-flex; align-items: center; gap: 7px; padding: 0 1px 11px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: var(--t-base); font-weight: 500; color: var(--muted); cursor: pointer; transition: color .14s var(--ease), border-color .14s var(--ease); }
+.uj-tr-tab:hover { color: var(--ink); }
+.uj-tr-tab[data-on] { color: var(--ink); font-weight: 600; border-bottom-color: var(--red); }
+.uj-tr-tab:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 3px; }
+/* The count is the whole reason the chase tab can sit behind a click: an unfilled sheet
+   stays visible without switching. Amber, because it is a number that wants attention. */
+.uj-tr-tabcount { font: 600 var(--t-micro) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--amber-ink); background: #faf1e2; border-radius: 999px; padding: 2px 7px; }
+
+.uj-tr-pills { display: inline-flex; background: var(--card); border: 1px solid var(--shelf-line); border-radius: 10px; padding: 3px; gap: 2px; }
+.uj-tr-pill { padding: 7px 13px; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--muted); background: none; border: 0; cursor: pointer; white-space: nowrap; transition: color .14s var(--ease), background .14s var(--ease); }
+.uj-tr-pill:hover { color: var(--ink); }
+.uj-tr-pill[data-on], .uj-tr-pill.uj-tr-on { background: var(--shelf); color: var(--ink); font-weight: 600; }
+.uj-tr-pill:focus-visible, .uj-tr-sel:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-tr-sel { padding: 8px 12px; border: 1px solid var(--shelf-line); border-radius: 10px; font: inherit; font-size: var(--t-sm); color: var(--ink); background: var(--card); outline: none; cursor: pointer; }
+.uj-tr-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.uj-tr-range { font-size: var(--t-sm); color: var(--muted); margin-left: auto; font-family: var(--font-mono); }
+
+.uj-tr-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: var(--t-micro); font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: .02em; }
+.uj-tr-who { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 auto; }
+.uj-tr-who > span { min-width: 0; }
+.uj-tr-name { display: block; font-size: var(--t-base); color: var(--ink); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uj-tr-sub { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.uj-tr-sect { margin-top: 34px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.uj-tr-sect h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
+.uj-tr-sect .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-tr-note { margin-top: 8px; font-size: var(--t-sm); color: var(--muted); line-height: 1.5; max-width: 64ch; }
+
+.uj-tr-card { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; margin-top: 14px; overflow: hidden; }
+
+.uj-tr-owe { border-top: 1px solid #e2ded4; padding: 15px 18px; display: grid; grid-template-columns: 1fr 132px auto; gap: 18px; align-items: center; }
+.uj-tr-owe:first-child { border-top: 0; }
+.uj-tr-owe .prog { min-width: 0; }
+.uj-tr-owe .prog .cap { font-size: var(--t-micro); color: var(--muted); margin-bottom: 5px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-tr-owe .act { display: flex; gap: 7px; flex-shrink: 0; }
+
+.uj-tr-clock { display: flex; align-items: baseline; gap: 9px; padding: 13px 18px; background: var(--hairline-soft); border-top: 1px solid #e2ded4; font-size: var(--t-sm); color: var(--body); }
+.uj-tr-clock b { font-family: var(--font-mono); color: var(--ink); font-weight: 600; }
+
+.uj-tr-bar { height: 8px; border-radius: 999px; background: var(--hairline-soft); overflow: hidden; }
+.uj-tr-bar i { display: block; height: 100%; border-radius: 999px; transform-origin: left center; }
+.uj-tr-anim .uj-tr-bar i { animation: uj-tr-grow .42s var(--ease) both; }
+@keyframes uj-tr-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.uj-tr-barrow { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: var(--t-sm); margin-bottom: 5px; }
+.uj-tr-barrow .lbl { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uj-tr-barrow .val { color: var(--muted); flex-shrink: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-tr-barrow .val b { color: var(--success-ink); font-weight: 600; }
+
+.uj-tr-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
+.uj-tr-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.uj-tr-tag[data-t="in"] { background: #e7f4ee; color: var(--success-ink); }
+.uj-tr-tag[data-t="part"] { background: #faf1e2; color: var(--amber-ink); }
+.uj-tr-tag[data-t="none"] { background: var(--hairline-soft); color: var(--muted); }
+
+.uj-tr-btn { height: 32px; padding: 0 13px; border: 1px solid var(--shelf-line); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease); }
+.uj-tr-btn:hover { border-color: var(--muted-soft); }
+.uj-tr-btn:active { background: var(--hairline-soft); transition-duration: .04s; }
+.uj-tr-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-tr-btn[data-primary] { background: var(--red); border-color: var(--red); color: #fff; font-weight: 500; }
+.uj-tr-btn[data-primary]:hover { background: var(--red-active); border-color: var(--red-active); }
+.uj-tr-btn[disabled] { opacity: .5; cursor: default; background: var(--hairline-soft); }
+.uj-tr-btn[data-done] { color: var(--success-ink); border-color: #bfe0d1; background: #e7f4ee; }
+
+.uj-tr-empty { padding: 34px 22px; text-align: center; font-size: var(--t-sm); color: var(--muted); line-height: 1.6; }
+.uj-tr-empty b { display: block; color: var(--ink); font-size: var(--t-base); font-weight: 600; margin-bottom: 4px; }
+
+.uj-tr-lens { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; margin-top: 14px; }
+.uj-tr-lensrow { width: 100%; display: block; text-align: left; background: none; border: 0; border-top: 1px solid var(--hairline-soft); padding: 13px 18px; font: inherit; color: inherit; cursor: pointer; transition: background .14s var(--ease); }
+.uj-tr-lensrow:first-child { border-top: 0; }
+.uj-tr-lensrow:hover { background: #faf9f5; }
+.uj-tr-lensrow:active { background: var(--hairline-soft); transition-duration: .04s; }
+.uj-tr-lensrow[data-on] { background: var(--red-tint); }
+.uj-tr-lensrow:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+
+.uj-tr-panel { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px; position: sticky; top: 24px; }
+.uj-tr-panel .hd { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 14px; }
+.uj-tr-panel h3 { margin: 0; font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.3; }
+
+.uj-tr-wk { border-top: 1px solid var(--hairline-soft); padding: 11px 0; }
+.uj-tr-wk .hdr { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-micro); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-bottom: 7px; }
+.uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0; }
+.uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; }
+.uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
+
+.uj-tr-anim .uj-tr-panel, .uj-tr-panel[data-fresh] { animation: uj-tr-panel-in .3s var(--ease) both; }
+@keyframes uj-tr-panel-in { from { opacity: 0; transform: translateX(14px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .uj-tr-anim .uj-tr-bar i { animation: none; }
+  .uj-tr-anim .uj-tr-panel, .uj-tr-panel[data-fresh] { animation: uj-tr-fade .2s ease-out both; }
+  @keyframes uj-tr-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
+@media (max-width: 640px) {
+  .uj-tr-shelf { padding: 20px 18px 18px; border-radius: 12px; }
+  .uj-tr-fig { font-size: 40px; }
+  .uj-tr-figsub { font-size: var(--t-sm); }
+  .uj-tr-range { margin-left: 0; width: 100%; }
+  .uj-tr-owe { grid-template-columns: 1fr; gap: 11px; }
+  .uj-tr-owe .act { justify-content: flex-start; }
+  .uj-tr-lens { grid-template-columns: 1fr; }
+  .uj-tr-panel { position: static; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SCREEN GUIDE MODAL & STRIP — .uj-guide-*
    Namespaced uj-guide- ("screen guide card"). Rebuilt card styling, design
@@ -1665,6 +1815,8 @@ select.wd-inline {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   margin-top: 5px; font-size: 12.5px; line-height: 1.45; color: var(--body);
 }
+.uj-msg-row[data-unread] { background: #fff; border-color: var(--hairline); }
+.uj-msg-row[data-unread] .uj-msg-name { font-weight: 700; }
 .uj-msg-row[data-unread] .uj-msg-snip { color: var(--ink); }
 .uj-msg-badge { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: var(--red-tint); color: var(--red-active); font-size: var(--t-micro); font-weight: 600; }
 
@@ -2198,3 +2350,435 @@ select.wd-inline {
 }
 
 
+
+/* ══ Org chart (resources/views/screens/orgchart.blade.php + resources/js/org-chart.js) ══
+
+   The chart is navigated one seat at a time, not surveyed: the manager above, the
+   subject in the middle, its direct reports fanned below, and every circle re-centres
+   the chart on itself. That is what lets it stay the same size at any headcount — the
+   previous indented tree grew without bound in both directions, and at this company's
+   shape (most people with no manager at all) it was mostly blank indent.
+
+   One vocabulary throughout: people are circles on a hairline lattice, drawn in the
+   incumbent tokens. Ring size is set per region through --oc-seat, so a single set of
+   circle rules serves all three rings. */
+:root {
+    --oc-line: #c9c6bc;        /* placed connector + seat edge */
+    --oc-line-open: #bdb9ad;   /* unfilled slot */
+    --oc-grid: #dedcd3;        /* canvas dot */
+    --oc-seat: 96px;
+}
+
+.oc-canvas {
+    display: flex;
+    align-items: flex-start;
+    /* `justify-content: center` would centre the stage but make its left overflow
+       unreachable once a wide row makes the stage wider than the canvas. `margin: auto`
+       on the child centres it while keeping both ends scrollable. */
+    justify-content: flex-start;
+    min-height: 460px;
+    padding: 30px 22px 40px;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    background: var(--canvas);
+    background-image: radial-gradient(var(--oc-grid) 1px, transparent 1px);
+    background-size: 22px 22px;
+    overflow-x: auto;
+}
+.oc-stage { display: flex; flex-direction: column; align-items: center; margin: auto; will-change: transform, opacity, filter; }
+
+/* Trail: where am I, and one click back to any level above. */
+.oc-trail { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; margin-bottom: 22px; font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: .03em; }
+.oc-trail button { border: none; background: transparent; padding: 0; font: inherit; color: var(--muted); cursor: pointer; transition: color 120ms ease-out; }
+.oc-trail button:hover { color: var(--red); }
+.oc-trail-sep { color: var(--oc-line); }
+.oc-trail-here { font-weight: 500; color: var(--ink); }
+
+/* ── Circles ── */
+.oc-circle {
+    width: var(--oc-seat);
+    height: var(--oc-seat);
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* A seat holds a face, not a label. The 3px keeps a white matte between the photo and
+       the ring so the circle still reads as a seat on the lattice rather than a loose
+       avatar — the ring is what the connectors are drawn to. */
+    padding: 3px;
+    text-align: center;
+    background: var(--card);
+    border: 1.5px solid var(--oc-line);
+    box-shadow: 0 6px 16px rgba(38, 37, 30, .07);
+    cursor: pointer;
+    transition: transform 160ms cubic-bezier(.16, 1, .3, 1), box-shadow 160ms cubic-bezier(.16, 1, .3, 1), border-color 120ms ease-out;
+}
+
+/* The face. Initials on the person's own colour when there is no photo, sized off the
+   ring so one rule serves every ring in the chart. */
+.oc-av {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    font-size: calc(var(--oc-seat) * .3);
+}
+.oc-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The name, on demand. Below the circle rather than above it: the canvas scrolls
+   horizontally, which makes its vertical overflow scrollable too, so a tooltip above the
+   top row would be clipped. It answers to focus as well as hover — hover does not exist
+   on a touch screen or a keyboard, and the name is the only thing identifying the seat. */
+.oc-circle::after {
+    content: attr(data-name);
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 50%;
+    z-index: 5;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: var(--ink);
+    color: #fff;
+    font-size: var(--t-micro);
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(.96);
+    transform-origin: top center;
+    transition: opacity 140ms ease-out, transform 140ms cubic-bezier(.16, 1, .3, 1);
+}
+.oc-circle:hover::after,
+.oc-circle:focus-visible::after { opacity: 1; transform: translate(-50%, 0) scale(1); }
+/* Nothing to name: the open slot and the "Directors" label are not people. */
+.oc-circle:not([data-name])::after { content: none; }
+.oc-circle:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(38, 37, 30, .12); }
+.oc-circle:active { transform: translateY(0) scale(.975); transition-duration: 90ms; }
+.oc-circle:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.oc-circle[disabled] { cursor: default; }
+.oc-circle[disabled]:hover { transform: none; box-shadow: 0 6px 16px rgba(38, 37, 30, .07); }
+.oc-circle.is-open { border: 1.5px dashed var(--oc-line-open); box-shadow: none; }
+.oc-circle.is-open:hover { border-color: var(--red); transform: translateY(0) scale(1.03); }
+.oc-circle.is-sel { border: 2px solid var(--red); box-shadow: 0 0 0 5px var(--red-tint), 0 6px 16px rgba(38, 37, 30, .07); }
+/* Text inside a circle is now only for the one circle that is not a person: the
+   "Directors" seat above a top-level subject. */
+.oc-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; letter-spacing: -.1px; }
+.oc-plus { font-size: 25px; font-weight: 300; color: var(--muted-soft); line-height: 1; }
+.oc-role { margin-top: 8px; max-width: 148px; font-size: var(--t-micro); color: var(--muted); line-height: 1.3; text-align: center; }
+.oc-col { display: flex; flex-direction: column; align-items: center; }
+
+/* Workload dot, kept from the old node card: it is the one thing the chart said about
+   a person beyond their name, and losing it would be a regression. */
+.oc-dot { position: absolute; right: 6px; bottom: 8px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--card); }
+.oc-circle { position: relative; }
+
+/* ── Lattice ── */
+.oc-stem { width: 0; border-left: 1.5px solid var(--oc-line); }
+.oc-branch { display: flex; flex-direction: column; align-items: center; }
+/* Elbow joining a seat up to its parent's stem. The inner half always draws the drop;
+   the top edge only draws toward a sibling, so the first and last seat close the
+   bracket instead of overhanging it. */
+.oc-conn { width: calc(100% + 26px); margin: 0 -13px; min-width: 118px; height: 30px; display: flex; }
+.oc-conn > * { flex: 1; }
+.oc-conn-l { border-right: 1.5px solid var(--oc-line); }
+.oc-conn-l.is-on, .oc-conn-r.is-on { border-top: 1.5px solid var(--oc-line); }
+.oc-conn.is-open .oc-conn-l, .oc-conn.is-open .oc-conn-r { border-color: var(--oc-line-open); border-style: dashed; }
+
+.oc-up { --oc-seat: 84px; display: flex; flex-direction: column; align-items: center; }
+.oc-up .oc-name { font-size: 11.5px; }
+.oc-up .oc-circle { background: rgba(255, 255, 255, .72); box-shadow: none; }
+.oc-uplabel { margin-bottom: 7px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted-soft); }
+
+.oc-subject { --oc-seat: 132px; display: flex; flex-direction: column; align-items: center; }
+.oc-subject .oc-circle { box-shadow: 0 10px 26px rgba(38, 37, 30, .11); }
+.oc-subrole { margin-top: 11px; max-width: 300px; font-size: var(--t-sm); color: var(--muted); text-align: center; line-height: 1.45; }
+
+/* Fan gap matches the elbow's negative margins (2 × 13px), so adjacent brackets meet
+   instead of leaving a hairline gap in the rail.
+
+   It must not wrap. Each seat draws its own half of the bracket, so a wrapped second row
+   would hang its elbows off a rail that stopped on the first row — the lattice would be
+   drawing a reporting line that is not there. A wide row scrolls the canvas instead,
+   which is honest, and one seat rarely has enough reports for it to bite. */
+.oc-fan { display: flex; align-items: flex-start; gap: 26px; flex-wrap: nowrap; justify-content: center; }
+
+/* ── Directors band ──────────────────────────────────────────────────────────────
+   Was a gold gradient card with its own uppercase label. Gold appeared nowhere else in
+   Amanahku, so it read as a sticker on top of the chart rather than the top of it.
+
+   No container of any kind now: the circles simply sit side by side at the top. The
+   caption states what they are and the ink ring states which they are, so a box around
+   them was drawing a boundary the chart does not have — directors are not a seat, they
+   are the level above every seat. The meaning is unchanged from the gold card: a flat
+   authority row, no subtree under any one director. */
+.oc-band { display: flex; flex-direction: column; align-items: center; }
+.oc-band-row { display: flex; align-items: flex-start; gap: 30px; }
+/* Authority is the ring: a dark fill held white text, and a face has to sit where that
+   text was, so the weight moved to the edge. */
+.oc-band .oc-circle { --oc-seat: 120px; border: 2px solid var(--ink); box-shadow: 0 8px 20px rgba(38, 37, 30, .16); }
+.oc-band .oc-role { max-width: 124px; }
+.oc-caption { margin-top: 11px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); }
+
+/* Verifier satellites: the "also verified by" people, small and dim beside the subject,
+   because they carry approval power without sitting in the reporting line. */
+.oc-also { display: flex; align-items: center; gap: 7px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+.oc-also-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--muted-soft); }
+.oc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--hairline); border-radius: 9999px; background: var(--card); font-size: var(--t-micro); color: var(--body); }
+.oc-chip img, .oc-chip .oc-chip-av { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.oc-chip-av { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+.oc-chip button { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 50%; background: var(--hairline-soft); color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; }
+.oc-chip button:hover { background: var(--red-tint); color: var(--red-active); }
+
+/* The one authored moment: a person arriving in the chart. Not a fade — the circle
+   resolves out of the lattice, blur and scale together, so it reads as the seat being
+   filled rather than an element appearing. */
+@keyframes oc-arrive {
+    from { opacity: 0; transform: scale(.86); filter: blur(7px); }
+    60%  { opacity: 1; }
+    to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.oc-circle.is-new { animation: oc-arrive 420ms cubic-bezier(.16, 1, .3, 1); }
+
+.oc-empty { margin-top: 26px; font-size: var(--t-sm); color: var(--muted-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+    .oc-circle { transition-duration: 1ms; }
+    .oc-circle::after { transition: opacity 100ms ease-out; transform: translate(-50%, 0); }
+    .oc-circle:hover, .oc-circle.is-open:hover { transform: none; }
+    .oc-circle.is-new { animation: none; }
+    .oc-stage { transform: none !important; filter: none !important; opacity: 1 !important; }
+}
+
+/* ═══ Leave ═══
+   screens/leave.blade.php + partials/leave-apply, partials/leave-review-queue.
+   Ported from public/_leave-revamp.html.
+
+   The screen used to stack eleven blocks in one scroll, with the two
+   superior/management review queues sitting in the middle of a staff
+   application form. It is now three tabs: Apply and My leave for everyone,
+   Approvals only when a review queue actually has rows in it.
+
+   Idiom is attendance's: one warm --shelf hero carrying the figure you opened
+   the screen for, mono numerals, .23,1,.32,1 easing, disclosure by
+   grid-template-rows. Numbers are var(--font-mono) with tabular-nums
+   throughout, the same way .uj-at-fig and .uj-at-chip b set them. */
+
+.uj-lv { display: flex; flex-direction: column; gap: 18px; }
+
+/* Tabs. Track-and-white-pill, the same control .uj-seg and .uj-dq-scopes use
+   for "which view am I on" — red stays the colour of the primary action. Taller
+   than those two because this is the screen's primary navigation, not a toggle
+   parked in the header. Client-side (Alpine), because partial-nav only
+   intercepts sidebar links: a real href here would full-reload the page. */
+.uj-lv-tabs { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: var(--hairline-soft); border: 1px solid var(--hairline); align-self: flex-start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.uj-lv-tabs::-webkit-scrollbar { display: none; }
+.uj-lv-tab { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 15px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: var(--t-base); font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-tab:hover { color: var(--ink); }
+.uj-lv-tab:active { transform: scale(.97); }
+.uj-lv-tab[data-on] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(38, 37, 30, .08); }
+.uj-lv-tab-n { font: 700 var(--t-micro) var(--font-mono); background: var(--red); color: #fff; border-radius: 999px; padding: 2px 7px; font-variant-numeric: tabular-nums; }
+
+/* Section spacing inside a tab panel. This MUST live in a class: `x-show` removes
+   the inline `display` property when it reveals an element, so an inline
+   `display:flex;gap:…` on the panel is silently dropped the first time the tab is
+   switched, and every section collapses back to block-flow margins. */
+.uj-lv-panel { display: flex; flex-direction: column; gap: 26px; }
+
+/* Shelf line under the figure: what is pending, and whether anything waits on you. */
+.uj-lv-where { font-size: 13px; color: var(--body); margin-top: 7px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+/* ── Apply: three steps, one open at a time ── */
+.uj-lv-steps { display: flex; flex-direction: column; gap: 12px; }
+.uj-lv-step { background: #fff; border: 1px solid var(--hairline); border-radius: 14px; box-shadow: 0 1px 2px rgba(38, 37, 30, .05); overflow: hidden; transition: box-shadow .22s cubic-bezier(.23, 1, .32, 1), opacity .22s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-step[data-open] { box-shadow: 0 4px 12px rgba(38, 37, 30, .1); }
+/* A step you cannot answer yet is dimmed and inert rather than hidden, so the
+   shape of the whole task is visible from the first frame. */
+.uj-lv-step[data-locked] { opacity: .5; box-shadow: none; }
+.uj-lv-step[data-locked] .uj-lv-step-head { cursor: default; }
+.uj-lv-step-head { display: flex; align-items: center; gap: 13px; width: 100%; padding: 15px 17px; background: none; border: 0; text-align: left; cursor: pointer; }
+.uj-lv-step-n { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 var(--t-micro) var(--font-mono); background: var(--shelf); color: var(--body); transition: background .22s cubic-bezier(.23, 1, .32, 1), color .22s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-step[data-open] .uj-lv-step-n { background: var(--ink); color: #fff; }
+.uj-lv-step[data-done]:not([data-open]) .uj-lv-step-n { background: color-mix(in srgb, var(--success) 13%, #fff); color: #14614a; }
+.uj-lv-step-q { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-lv-step-a { font-size: var(--t-sm); color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uj-lv-step-edit { font-size: var(--t-sm); font-weight: 500; color: var(--red); flex-shrink: 0; }
+/* Same clipped-grid disclosure as .uj-at-note: the bottom gap rides on the
+   inner element's padding, never on the clipped child, or a 0fr row leaves a
+   permanent ghost. Only grid-template-rows animates. */
+.uj-lv-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-step[data-open] .uj-lv-fold { grid-template-rows: 1fr; }
+.uj-lv-fold > div { overflow: hidden; }
+.uj-lv-fold-in { padding: 0 17px 17px; }
+
+/* Type picker. Balance sits on the row you are choosing, which is why the four
+   summary stat cards that used to head this screen are gone: a number you have
+   to remember while you scroll to a form is worse than one beside the choice. */
+.uj-lv-types { display: flex; flex-direction: column; gap: 1px; background: var(--hairline-soft); border-radius: 11px; overflow: hidden; }
+.uj-lv-type { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 13px; background: #fff; border: 0; text-align: left; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-type:hover { background: #fbfbf9; }
+.uj-lv-type:active { background: #f1f0ec; }
+.uj-lv-type[aria-pressed="true"] { background: var(--red-tint); }
+.uj-lv-type-ico { flex: 0 0 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; }
+.uj-lv-type-ico svg { width: 18px; height: 18px; }
+.uj-lv-type-n { font-size: var(--t-base); color: var(--ink); font-weight: 500; }
+.uj-lv-type-d { font-size: var(--t-sm); color: var(--muted); margin-top: 1px; line-height: 1.45; }
+.uj-lv-type-bal { text-align: right; flex-shrink: 0; }
+.uj-lv-type-bal b { display: block; font: 600 var(--t-lg) var(--font-mono); color: var(--ink); line-height: 1.2; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.uj-lv-type-bal span { font-size: var(--t-micro); color: var(--body); letter-spacing: .03em; }
+.uj-lv-type-bal[data-low] b { color: #7a5210; }
+.uj-lv-type-bal[data-none] b { font-size: var(--t-sm); font-weight: 500; color: var(--body); letter-spacing: 0; }
+.uj-lv-tick { flex: 0 0 16px; color: var(--red); opacity: 0; transform: scale(.6); transition: opacity .22s cubic-bezier(.23, 1, .32, 1), transform .22s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-type[aria-pressed="true"] .uj-lv-tick { opacity: 1; transform: none; }
+
+.uj-lv-more { margin-top: 10px; background: none; border: 0; padding: 6px 0; font-size: var(--t-sm); font-weight: 500; color: var(--red); cursor: pointer; }
+
+/* Rule notes. Only the ones that apply to the chosen type are rendered, which
+   is what replaced the four hint paragraphs that used to sit open permanently. */
+.uj-lv-note { font-size: var(--t-sm); line-height: 1.5; border-radius: 10px; padding: 10px 12px; margin-top: 12px; border: 1px solid; }
+.uj-lv-note b { font-weight: 600; }
+.uj-lv-note[data-tone="info"] { background: #eaf1f8; border-color: #cfe0ef; color: #1b4a72; }
+.uj-lv-note[data-tone="warn"] { background: color-mix(in srgb, var(--amber) 13%, #fff); border-color: #ead6b4; color: #7a5210; }
+.uj-lv-note[data-tone="bad"] { background: var(--red-tint); border-color: #f2ccce; color: var(--red-active); }
+
+.uj-lv-field { display: block; font-size: var(--t-sm); font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+.uj-lv-req { font-size: var(--t-micro); font-weight: 700; color: var(--red); letter-spacing: .05em; text-transform: uppercase; }
+.uj-lv-opt { font-size: var(--t-sm); font-weight: 400; color: var(--muted); }
+.uj-lv-row2 { display: flex; gap: 12px; }
+.uj-lv-row2 > * { flex: 1; min-width: 0; }
+.uj-lv-in { width: 100%; height: 44px; padding: 0 12px; background: #fff; border: 1px solid var(--hairline); border-radius: 10px; font-size: var(--t-base); color: var(--ink); outline: none; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
+textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-height: 1.55; resize: vertical; }
+.uj-lv-in:hover { border-color: var(--muted-soft); }
+.uj-lv-in:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.uj-lv-in::placeholder { color: var(--muted-soft); }
+
+/* Half-day: three buttons rather than a select, because there are exactly three
+   answers and the middle one is not a default anybody scrolls to find. */
+.uj-lv-half { display: flex; gap: 2px; padding: 3px; background: var(--hairline-soft); border: 1px solid var(--hairline); border-radius: 10px; }
+.uj-lv-half button { flex: 1; height: 36px; border: 0; border-radius: 7px; background: none; font-size: var(--t-sm); font-weight: 500; color: var(--muted); cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-half button:hover { color: var(--ink); }
+.uj-lv-half button[data-on] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(38, 37, 30, .08); }
+
+/* The reckoning: what this request costs, against what is left. Deliberately a
+   step below the shelf figure in size — the shelf owns the big numeral, this
+   owns the arithmetic. */
+.uj-lv-reckon { margin-top: 14px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); overflow: hidden; }
+.uj-lv-reckon-top { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 9px; flex-wrap: wrap; }
+.uj-lv-reckon-n { font: 600 var(--t-xl) var(--font-mono); color: var(--ink); letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.uj-lv-reckon-w { font-size: var(--t-sm); color: var(--body); }
+.uj-lv-reckon-d { margin-left: auto; font-size: var(--t-sm); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.uj-lv-bar { height: 6px; margin: 0 14px; border-radius: 999px; background: var(--shelf); display: flex; overflow: hidden; }
+.uj-lv-bar i { height: 100%; transition: width .3s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-bar i[data-k="used"] { background: #c6c2b6; }
+.uj-lv-bar i[data-k="want"] { background: var(--red); }
+.uj-lv-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 9px 14px 12px; font-size: var(--t-micro); color: var(--body); }
+.uj-lv-legend s { width: 7px; height: 7px; border-radius: 2px; display: inline-block; margin-right: 5px; text-decoration: none; }
+.uj-lv-legend b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Overlap warning belongs inside the reckoning, at the step where the dates can
+   still be changed — not in a sidebar panel you read after submitting. */
+.uj-lv-clash { border-top: 1px solid var(--hairline); padding: 9px 14px; font-size: var(--t-sm); line-height: 1.5; background: color-mix(in srgb, var(--amber) 13%, #fff); color: #7a5210; }
+
+.uj-lv-file { display: flex; align-items: center; gap: 12px; padding: 13px; border: 1px dashed var(--shelf-line); border-radius: 11px; background: #fbfbf9; }
+.uj-lv-file input { font-size: var(--t-sm); color: var(--ink); min-width: 0; }
+
+/* Commit bar. Sticky rather than fixed so it stops at the end of the form
+   instead of hovering over the other two tabs. Carries the whole request as one
+   sentence, which is the last chance to notice it says something you did not mean. */
+.uj-lv-commit { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 16px; margin-top: 14px; padding: 13px 16px; border: 1px solid var(--hairline); border-radius: 13px; background: rgba(255, 255, 255, .86); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); }
+.uj-lv-commit-t { flex: 1; min-width: 0; }
+.uj-lv-commit-t b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-lv-commit-t span { font-size: var(--t-sm); color: var(--muted); }
+.uj-lv-commit .uj-btn-primary:disabled { background: var(--hairline-soft); color: var(--body); cursor: not-allowed; transform: none; }
+
+/* ── My leave ── */
+.uj-lv-led { display: flex; align-items: center; gap: 14px; padding: 13px 20px; border-top: 1px solid var(--hairline-soft); }
+.uj-lv-led:first-child { border-top: 0; }
+.uj-lv-led-ico { flex: 0 0 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; }
+.uj-lv-led-ico svg { width: 17px; height: 17px; }
+.uj-lv-led-n { flex: 0 0 150px; font-size: var(--t-base); color: var(--ink); }
+.uj-lv-led-bar { flex: 1; min-width: 60px; height: 6px; border-radius: 999px; background: var(--shelf); display: flex; overflow: hidden; }
+.uj-lv-led-bar i[data-k="used"] { background: #c6c2b6; }
+.uj-lv-led-bar i[data-k="pend"] { background: var(--amber); }
+.uj-lv-led-v { flex: 0 0 104px; text-align: right; font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.uj-lv-led-v b { font: 600 var(--t-lg) var(--font-mono); color: var(--ink); letter-spacing: -.02em; }
+.uj-lv-led-v em { display: block; font-style: normal; font-size: var(--t-micro); color: #7a5210; }
+
+.uj-lv-rw { border-top: 1px solid var(--hairline-soft); }
+.uj-lv-rw:first-child { border-top: 0; }
+.uj-lv-rw-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 20px; background: none; border: 0; text-align: left; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-rw-head:hover { background: #fbfbf9; }
+.uj-lv-rw-ico { flex: 0 0 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; }
+.uj-lv-rw-ico svg { width: 17px; height: 17px; }
+.uj-lv-rw-t { flex: 1; min-width: 0; }
+.uj-lv-rw-1 { font-size: var(--t-base); color: var(--ink); font-weight: 500; }
+.uj-lv-rw-2 { font-size: var(--t-sm); color: var(--muted); margin-top: 1px; }
+.uj-lv-chev { flex: 0 0 10px; color: var(--muted-soft); transition: transform .26s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-rw[data-open] .uj-lv-chev { transform: rotate(90deg); }
+.uj-lv-rw-in { padding: 0 20px 15px 64px; }
+.uj-lv-quote { font-size: var(--t-sm); color: var(--muted); font-style: italic; margin-bottom: 11px; }
+
+.uj-lv-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.uj-lv-mini { display: flex; align-items: center; gap: 11px; padding: 9px 20px; border-top: 1px solid var(--hairline-soft); }
+.uj-lv-mini:first-of-type { border-top: 0; }
+.uj-lv-mini-n { flex: 1; min-width: 0; font-size: var(--t-base); color: var(--ink); }
+.uj-lv-mini-n em { display: block; font-style: normal; font-size: var(--t-sm); color: var(--muted); }
+.uj-lv-mini-d { font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.uj-lv-ref { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 12px; }
+.uj-lv-ref-i { display: flex; gap: 12px; padding: 15px; }
+.uj-lv-ref-ico { flex: 0 0 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+.uj-lv-ref-ico svg { width: 18px; height: 18px; }
+.uj-lv-ref-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.uj-lv-ref-n { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-lv-ref-q { font: 600 var(--t-micro) var(--font-mono); letter-spacing: .03em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.uj-lv-ref-d { font-size: var(--t-sm); color: var(--muted); line-height: 1.5; margin: 3px 0 0; }
+.uj-lv-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.uj-lv-tag { font-size: var(--t-micro); padding: 2px 8px; border-radius: 999px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--body); }
+.uj-lv-tag[data-warn] { background: var(--red-tint); border-color: #f2ccce; color: var(--red-active); }
+
+/* ── Approvals ── */
+.uj-lv-qbar { display: flex; gap: 8px; flex-wrap: wrap; }
+.uj-lv-qchip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--hairline); background: #fff; color: var(--body); font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-qchip:hover { border-color: #d5d2c8; background: #fbfbf9; }
+.uj-lv-qchip[data-on] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.uj-lv-qchip b { font: 600 var(--t-micro) var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-lv-selall { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-sm); color: var(--muted); cursor: pointer; }
+.uj-lv-ar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; flex-wrap: wrap; }
+.uj-lv-ar-t { flex: 1; min-width: 180px; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+/* The number an approver actually needs and never had: what this person is left
+   with if you say yes. */
+.uj-lv-after { display: block; font-size: var(--t-micro); color: var(--body); margin-top: 2px; }
+.uj-lv-after b { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.uj-lv-acts { display: flex; gap: 8px; flex-shrink: 0; }
+.uj-lv-bulk { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.uj-lv-bulk span { font-size: var(--t-sm); color: var(--muted); }
+.uj-lv-ck { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; flex-shrink: 0; }
+
+.uj-lv-empty { padding: 34px 20px; text-align: center; }
+.uj-lv-empty b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-lv-empty span { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.55; max-width: 40ch; margin: 3px auto 0; }
+
+@media (max-width: 760px) {
+    .uj-lv-duo { grid-template-columns: 1fr; }
+    .uj-lv-row2 { flex-direction: column; }
+    .uj-lv-led-bar { display: none; }
+    .uj-lv-led-n { flex-basis: 104px; }
+    .uj-lv-rw-in { padding-left: 20px; }
+    .uj-lv-acts { width: 100%; }
+    .uj-lv-acts > form { flex: 1; }
+    .uj-lv-acts .uj-btn-primary, .uj-lv-acts .uj-btn-ghost { width: 100%; }
+    .uj-lv-commit { flex-wrap: wrap; }
+    .uj-lv-commit-t span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .uj-lv-fold { transition-duration: .01ms; }
+    .uj-lv-bar i, .uj-lv-chev, .uj-lv-tick { transition-duration: .01ms; }
+}

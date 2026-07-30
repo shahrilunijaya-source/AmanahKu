@@ -141,16 +141,23 @@ class ReportingLineTest extends TestCase
         $manager = $this->staff('Aisyah Rahman');
         $report = $this->staff('Nurul Iman');
 
-        // Before any link every person is a flat root — depth 1.
-        $this->get('/app/orgchart')->assertOk()->assertSee('Reporting depth');
+        // The graph reaches the browser through @js, which emits JSON.parse('…') with every
+        // quote escaped as " so it survives inside the x-data attribute.
+        $q = '\u0022';
+        $edge = fn (string $value): string => $q.$report->id.$q.':'.$value;
+
+        // Before any link every person is a flat root, so nobody has a parent.
+        $before = $this->get('/app/orgchart')->assertOk()->getContent();
+        $this->assertStringContainsString($edge('null'), $before);
 
         $this->post("/app/employees/{$report->id}", $this->payload($report, ['reports_to_id' => $manager->id]))
             ->assertRedirect();
 
-        // After the link the chart nests the report under the manager.
-        $html = $this->get('/app/orgchart')->assertOk()->getContent();
-        $this->assertStringContainsString('Aisyah Rahman', $html);
-        $this->assertStringContainsString('Nurul Iman', $html);
+        // After the link the graph the navigator walks carries the new edge, and the
+        // summary line reports two levels rather than one.
+        $after = $this->get('/app/orgchart')->assertOk()->getContent();
+        $this->assertStringContainsString($edge((string) $manager->id), $after);
+        $this->assertStringContainsString('>2 <span', $after);
     }
 
     // --- CSV import reports_to column ---------------------------------------
@@ -199,83 +206,33 @@ class ReportingLineTest extends TestCase
         $this->assertNull($report->reports_to_id);
     }
 
-    // --- Bulk org-chart editor ----------------------------------------------
+    // --- Who may edit the chart ----------------------------------------------
 
-    public function test_hr_can_bulk_set_reporting_lines(): void
-    {
-        $this->actingAsRole('hr');
-        $manager = $this->staff('Aisyah Rahman');
-        $a = $this->staff('Nurul Iman');
-        $b = $this->staff('Ali Bin');
-
-        $this->post(route('org.reporting-lines'), ['manager' => [
-            $a->id => $manager->id,
-            $b->id => $manager->id,
-        ]])->assertRedirect()->assertSessionHas('ok');
-
-        $this->assertSame($manager->id, $a->fresh()->reports_to_id);
-        $this->assertSame($manager->id, $b->fresh()->reports_to_id);
-    }
-
-    public function test_bulk_editor_rejects_a_cycle_and_saves_nothing(): void
-    {
-        $this->actingAsRole('hr');
-        $a = $this->staff('Aisyah Rahman');
-        $b = $this->staff('Nurul Iman');
-
-        // a → b and b → a at once is a loop; the whole submission must be rejected.
-        $this->post(route('org.reporting-lines'), ['manager' => [
-            $a->id => $b->id,
-            $b->id => $a->id,
-        ]])->assertRedirect()->assertSessionHas('error');
-
-        $this->assertNull($a->fresh()->reports_to_id);
-        $this->assertNull($b->fresh()->reports_to_id);
-    }
-
-    public function test_bulk_editor_ignores_a_self_reference(): void
-    {
-        $this->actingAsRole('hr');
-        $a = $this->staff('Aisyah Rahman');
-
-        $this->post(route('org.reporting-lines'), ['manager' => [$a->id => $a->id]])
-            ->assertRedirect();
-
-        $this->assertNull($a->fresh()->reports_to_id);
-    }
-
-    public function test_a_plain_employee_cannot_bulk_edit_reporting_lines(): void
-    {
-        $this->actingAsRole('employee');
-        $a = $this->staff('Aisyah Rahman');
-        $b = $this->staff('Nurul Iman');
-
-        $this->post(route('org.reporting-lines'), ['manager' => [$b->id => $a->id]])
-            ->assertForbidden();
-
-        $this->assertNull($b->fresh()->reports_to_id);
-    }
-
-    public function test_org_chart_editor_is_visible_to_hr_only(): void
+    public function test_the_chart_offers_editing_to_hr_only(): void
     {
         $this->staff('Aisyah Rahman');
 
-        // Both the drag toggle and the list editor only render for HR / management.
-        $this->actingAsRole('hr')->get('/app/orgchart')->assertOk()->assertSee('Edit as list')->assertSee('orgChart()');
+        // The open slot under a seat is the only way to set a reporting line, so its
+        // presence is what "HR can edit the chart" means now.
+        $this->actingAsRole('hr')->get('/app/orgchart')->assertOk()
+            ->assertSee('Add someone who reports here')
+            ->assertSee('Add a verifier');
     }
 
-    public function test_org_chart_editor_is_hidden_from_plain_employees(): void
+    public function test_the_chart_offers_no_editing_to_plain_employees(): void
     {
         $this->staff('Aisyah Rahman');
 
+        // A plain employee still gets the navigator — they just cannot change a line.
         $this->actingAsRole('employee')->get('/app/orgchart')->assertOk()
-            ->assertDontSee('Edit as list')
-            ->assertDontSee('orgChart()');
+            ->assertSee('orgChart(')
+            ->assertDontSee('Add someone who reports here')
+            ->assertDontSee('Add a verifier');
     }
 
-    // --- Drag-and-drop single move (org.move) -------------------------------
+    // --- Single re-parent (org.move) -------------------------------
 
-    public function test_drag_move_sets_a_manager(): void
+    public function test_filling_a_slot_sets_a_manager(): void
     {
         $this->actingAsRole('hr');
         $manager = $this->staff('Aisyah Rahman');
@@ -288,7 +245,7 @@ class ReportingLineTest extends TestCase
         $this->assertSame($manager->id, $report->fresh()->reports_to_id);
     }
 
-    public function test_drag_to_top_level_clears_the_manager(): void
+    public function test_removing_a_line_clears_the_manager(): void
     {
         $this->actingAsRole('hr');
         $manager = $this->staff('Aisyah Rahman');
@@ -300,7 +257,7 @@ class ReportingLineTest extends TestCase
         $this->assertNull($report->fresh()->reports_to_id);
     }
 
-    public function test_drag_move_rejects_a_self_reference(): void
+    public function test_a_move_rejects_a_self_reference(): void
     {
         $this->actingAsRole('hr');
         $report = $this->staff('Nurul Iman');
@@ -311,7 +268,7 @@ class ReportingLineTest extends TestCase
         $this->assertNull($report->fresh()->reports_to_id);
     }
 
-    public function test_drag_move_rejects_a_loop(): void
+    public function test_a_move_rejects_a_loop(): void
     {
         $this->actingAsRole('hr');
         // Aisyah already reports to Nurul; moving Nurul under Aisyah closes the loop.
@@ -324,7 +281,7 @@ class ReportingLineTest extends TestCase
         $this->assertNull($nurul->fresh()->reports_to_id);
     }
 
-    public function test_drag_move_rejects_a_manager_from_another_tenant(): void
+    public function test_a_move_rejects_a_manager_from_another_tenant(): void
     {
         $this->actingAsRole('hr');
         $report = $this->staff('Nurul Iman');
@@ -340,7 +297,7 @@ class ReportingLineTest extends TestCase
         $this->assertNull($report->fresh()->reports_to_id);
     }
 
-    public function test_a_plain_employee_cannot_drag_move(): void
+    public function test_a_plain_employee_cannot_move_anyone(): void
     {
         $this->actingAsRole('employee');
         $manager = $this->staff('Aisyah Rahman');
@@ -361,7 +318,7 @@ class ReportingLineTest extends TestCase
         $this->staff('Aisyah Admin', null, $admin->id);
         $this->staff('Omar Ops', null, $ops->id);
 
-        // View as a plain employee so the global list editor (HR only) can't leak names.
+        // View as a plain employee: nothing HR-only can leak an out-of-scope name.
         $this->actingAsRole('employee');
 
         $this->get('/app/orgchart?dept=Administration')->assertOk()

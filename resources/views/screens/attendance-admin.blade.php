@@ -55,14 +55,15 @@
     ],
 ])
 
-<div x-data="{ tab: localStorage.getItem('attTab') || 'branches' }" x-init="$watch('tab', v => localStorage.setItem('attTab', v))">
+@php
+    // Branch geofences moved to Company Settings (a branch is defined in one place). A
+    // stale localStorage 'branches' from before the move would select a tab that no longer
+    // exists, so fall back to 'sites'.
+@endphp
+<div x-data="{ tab: (['sites','wfh','arr'].includes(localStorage.getItem('attTab')) ? localStorage.getItem('attTab') : 'sites') }" x-init="$watch('tab', v => localStorage.setItem('attTab', v))">
 
 {{-- ── Tab switcher (segmented control) ─────────────────────────────── --}}
 <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--canvas);border:1px solid var(--hairline);border-radius:11px;padding:4px;width:fit-content;max-width:100%;overflow-x:auto;">
-    <button type="button" @click="tab='branches'" style="{{ $tabBtn }}"
-        :style="tab==='branches' ? { background:'#fff', color:'var(--ink)', fontWeight:'600', boxShadow:'0 1px 2px rgba(0,0,0,.07)' } : { background:'transparent', color:'var(--muted)', fontWeight:'500' }">
-        <span x-text="$store.ui.lang==='en' ? 'Branches' : 'Cawangan'">Branches</span> <span style="{{ $tabBadge }}">{{ $branches->count() }}</span>
-    </button>
     <button type="button" @click="tab='sites'" style="{{ $tabBtn }}"
         :style="tab==='sites' ? { background:'#fff', color:'var(--ink)', fontWeight:'600', boxShadow:'0 1px 2px rgba(0,0,0,.07)' } : { background:'transparent', color:'var(--muted)', fontWeight:'500' }">
         <span x-text="$store.ui.lang==='en' ? 'Client sites' : 'Lokasi klien'">Client sites</span> <span style="{{ $tabBadge }}">{{ $sites->count() }}</span>
@@ -82,53 +83,10 @@
     </button>
 </div>
 
-{{-- ══ TAB 1 · BRANCHES ══ --}}
-<div x-show="tab==='branches'" x-cloak>
-{{-- 1. Branch geofences --}}
-<div class="uj-card" style="margin-bottom:16px;padding:22px;">
-    <div class="uj-card-head" style="padding:0 0 14px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Branch geofences & hours' : 'Geofence & waktu cawangan'">Branch geofences &amp; hours</h3></div>
-    @forelse ($branches as $b)
-        <form method="post" action="{{ route('attendance.admin.branch', $b) }}" style="{{ $panel }}">
-            @csrf
-            <div style="{{ $panelHead }}">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:14px;font-weight:700;color:var(--ink);">{{ $b->name }}</span>
-                    <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);border-radius:20px;padding:2px 9px;" x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
-                    <button type="submit" form="delete-branch-{{ $b->id }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;color:var(--red);"><span x-text="$store.ui.lang==='en' ? 'Remove' : 'Buang'">Remove</span></button>
-                </div>
-            </div>
-            <div style="{{ $segWrap }}">
-                <div>
-                    <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</span>
-                    <div style="{{ $seg }}">
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Latitude' : 'Latitud'">Latitude</span></label><input id="lat-branch-{{ $b->id }}" name="latitude" value="{{ $b->latitude }}" style="{{ $fs }}width:120px;{{ $mono }}" /></div>
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Longitude' : 'Longitud'">Longitude</span></label><input id="lng-branch-{{ $b->id }}" name="longitude" value="{{ $b->longitude }}" style="{{ $fs }}width:120px;{{ $mono }}" /></div>
-                        <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-branch-{{ $b->id }}', lngId: 'lng-branch-{{ $b->id }}', title: @js($b->name) } }))" class="uj-btn-ghost" style="height:38px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en' ? 'Map' : 'Peta'">Map</span></button>
-                        <div><label style="{{ $lbl }}">Radius (m)</label><input name="radius_m" type="number" min="20" max="5000" value="{{ $b->radius_m ?? 200 }}" required style="{{ $fs }}width:90px;{{ $mono }}" /></div>
-                    </div>
-                </div>
-                <div style="{{ $segDiv }}">
-                    <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Working hours' : 'Waktu kerja'">Working hours</span>
-                    <div style="{{ $seg }}">
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</span></label><input name="work_start" type="time" value="{{ $hhmm($b->work_start) }}" style="{{ $fs }}width:120px;" /></div>
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'End' : 'Tamat'">End</span></label><input name="work_end" type="time" value="{{ $hhmm($b->work_end) }}" style="{{ $fs }}width:120px;" /></div>
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Min hrs' : 'Jam min'">Min hrs</span></label><input name="min_hours" type="number" step="0.5" min="0" max="24" value="{{ $b->min_hours }}" style="{{ $fs }}width:84px;{{ $mono }}" /></div>
-                    </div>
-                </div>
-            </div>
-        </form>
-        <form id="delete-branch-{{ $b->id }}" method="post" action="{{ route('admin.branches.delete', $b) }}" onsubmit="return confirm('Remove {{ $b->name }}? Only works if no staff or petty cash use this branch.')">@csrf</form>
-    @empty
-        <p style="font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No branches yet. Add branches under Company Settings.' : 'Belum ada cawangan. Tambah cawangan di Tetapan Syarikat.'">No branches yet. Add branches under Company Settings.</p>
-    @endforelse
-</div>
+{{-- Branch geofences & hours now live on Company Settings → Branches, so a branch is
+     defined in one place. This screen covers only the non-branch policies below. --}}
 
-</div>{{-- /tab branches --}}
-
-{{-- ══ TAB 2 · CLIENT SITES ══ --}}
+{{-- ══ TAB · CLIENT SITES ══ --}}
 <div x-show="tab==='sites'" x-cloak>
 {{-- 2. Client sites --}}
 <div class="uj-card" style="margin-bottom:16px;padding:22px;">
@@ -332,49 +290,5 @@
 </div>{{-- /tab arr --}}
 </div>{{-- /tabs --}}
 
-{{-- Shared Leaflet map picker — every geofence row opens this one modal --}}
-<div x-data="mapPicker" x-cloak>
-    <template x-teleport="body">
-    <div x-show="open" x-transition.opacity @keydown.escape.window="close()"
-         style="position:fixed;inset:0;z-index:1000;background:rgba(15,18,20,.55);display:flex;align-items:center;justify-content:center;padding:20px;">
-        <div @click.outside="close()"
-             style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:calc(100% - 40px);max-width:720px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35);">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--hairline);">
-                <div>
-                    <div style="font-size:15px;font-weight:700;color:var(--ink);" x-text="title"></div>
-                    <div style="font-size:12px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? 'Click the map (or drag the pin) to set the exact location.' : 'Klik peta (atau seret pin) untuk tetapkan lokasi tepat.'">Click the map (or drag the pin) to set the exact location.</div>
-                </div>
-                <button type="button" @click="close()" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:14px;">✕</button>
-            </div>
-            <div style="position:relative;z-index:1100;padding:12px 20px;border-bottom:1px solid var(--hairline);">
-                <div style="display:flex;gap:8px;">
-                    <input type="text" x-model="query" @keydown.enter.prevent="runSearch()" @keydown.escape.stop="results = []"
-                           :placeholder="$store.ui.lang==='en' ? 'Search address or place…' : 'Cari alamat atau tempat…'" placeholder="Search address or place…"
-                           style="flex:1;height:38px;border:1px solid var(--hairline);border-radius:9px;padding:0 12px;font-size:13px;color:var(--ink);background:#fff;" />
-                    <button type="button" @click="runSearch()" :disabled="searching || !query.trim()" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;">
-                        <span x-show="!searching" x-text="$store.ui.lang==='en' ? 'Search' : 'Cari'">Search</span><span x-show="searching" x-cloak>…</span>
-                    </button>
-                </div>
-                <div x-show="searchError" x-text="searchError" x-cloak style="font-size:12px;color:#c8102e;margin-top:6px;"></div>
-                <div x-show="results.length" x-cloak @click.outside="results = []"
-                     style="position:absolute;left:20px;right:20px;top:54px;z-index:10;background:#fff;border:1px solid var(--hairline);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);max-height:220px;overflow-y:auto;">
-                    <template x-for="(r, i) in results" :key="i">
-                        <button type="button" @click="pickResult(r)"
-                                style="display:block;width:100%;text-align:left;padding:10px 14px;font-size:12.5px;line-height:1.4;color:var(--ink);background:transparent;border:none;border-bottom:1px solid var(--hairline);cursor:pointer;"
-                                x-text="r.display_name"></button>
-                    </template>
-                </div>
-            </div>
-            <div x-ref="canvas" style="height:420px;width:100%;background:#e8eef1;"></div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--hairline);">
-                <span style="font-size:12.5px;color:var(--muted);font-family:var(--font-mono);" x-text="coordLabel"></span>
-                <div style="display:flex;gap:8px;">
-                    <button type="button" @click="close()" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span></button>
-                    <button type="button" @click="confirm()" :disabled="lat === null" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Use this location' : 'Guna lokasi ini'">Use this location</span></button>
-                </div>
-            </div>
-        </div>
-    </div>
-    </template>
-</div>
+@include('partials.map-picker')
 @endsection

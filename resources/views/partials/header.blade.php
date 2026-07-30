@@ -204,7 +204,7 @@
                 {{-- Name + Director badge. is_director is an org-status flag (HR-set), separate
                      from the login role — so a director is marked here regardless of persona. --}}
                 <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);line-height:1.2;white-space:nowrap;">{{ auth()->user()->name }}</span>
+                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);line-height:1.2;white-space:nowrap;">{{ $employee?->display_name ?: auth()->user()->name }}</span>
                     @if ($employee?->is_director)
                         <span style="flex-shrink:0;font-size:var(--t-micro);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
                               x-text="$store.ui.lang==='en' ? 'Director' : 'Pengarah'">Director</span>
@@ -221,7 +221,7 @@
              style="position:absolute;right:0;top:50px;width:248px;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
             <div style="padding:13px 16px;border-bottom:1px solid var(--hairline-soft);">
                 <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ auth()->user()->name }}</span>
+                    <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $employee?->display_name ?: auth()->user()->name }}</span>
                     @if ($employee?->is_director)
                         <span style="flex-shrink:0;font-size:var(--t-micro);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8a6d00;background:#fdf1c4;border:1px solid #f2d675;border-radius:9999px;padding:1px 6px;line-height:1.5;"
                               x-text="$store.ui.lang==='en' ? 'Director' : 'Pengarah'">Director</span>

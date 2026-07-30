@@ -74,18 +74,21 @@ class TimesheetCostTest extends TestCase
         return $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id])->get('/app/timesheets');
     }
 
-    public function test_money_role_sees_rm_on_their_own_timesheet(): void
+    /**
+     * Give $role a costed employee record plus one submitted 8h week (RM 900.00), and
+     * return the user, so a role's view of its OWN money can be asserted either way.
+     */
+    private function actorWithOwnCostedWeek(string $role): User
     {
-        // The timesheets screen shows RM for the viewer's OWN weeks when they are a money role
-        // (manager/management/HR). Cross-employee cost lives in the report, not here.
+        $this->seq++;
         $position = Position::create([
-            'tenant_id' => $this->tenant->id, 'title' => 'Ops Lead', 'max_salary' => 10000,
+            'tenant_id' => $this->tenant->id, 'title' => 'Ops Lead '.$this->seq, 'max_salary' => 10000,
         ]);
-        $user = User::create(['name' => 'Mgr', 'email' => 'ownmgr@example.com', 'password' => Hash::make('password')]);
-        $user->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        $user = User::create(['name' => ucfirst($role), 'email' => "own{$role}{$this->seq}@example.com", 'password' => Hash::make('password')]);
+        $user->tenants()->attach($this->tenant->id, ['role' => $role]);
         $emp = Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
-            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green', 'position_id' => $position->id,
+            'name' => ucfirst($role), 'status' => 'active', 'workload' => 'green', 'position_id' => $position->id,
         ]);
         $ts = Timesheet::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $emp->id,
@@ -95,7 +98,21 @@ class TimesheetCostTest extends TestCase
             'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15', 'project' => 'X', 'hours' => 8,
         ]);
 
-        $this->viewTimesheetsAs($user)->assertOk()->assertSee('RM 900.00');
+        return $user;
+    }
+
+    public function test_money_role_sees_rm_on_their_own_timesheet(): void
+    {
+        // The timesheets screen shows RM for the viewer's OWN weeks when they are a money
+        // role (management/HR). Cross-employee cost lives in the report, not here.
+        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('hr'))->assertOk()->assertSee('RM 900.00');
+    }
+
+    public function test_manager_does_not_see_rm_on_their_own_timesheet(): void
+    {
+        // A line manager is not a money role: RM comes from the salary band, and a manager
+        // has no business reading a salary-derived figure, not even their own.
+        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('manager'))->assertOk()->assertDontSee('RM 900.00');
     }
 
     public function test_staff_does_not_see_rm_cost_on_their_own_timesheet(): void
@@ -118,14 +135,24 @@ class TimesheetCostTest extends TestCase
         $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('RM 900.00');
     }
 
-    public function test_manager_can_open_report_and_see_cost(): void
+    public function test_manager_cannot_open_the_all_staff_report(): void
     {
-        $this->viewReportAs($this->actor('manager'))->assertOk()->assertSee('RM 900.00');
+        // The all-staff view is a salary-derived cost report, so it is management/HR only.
+        // A line manager reads their team's time on the team screens, never their money.
+        $this->viewReportAs($this->actor('manager'))->assertForbidden();
     }
 
     public function test_management_report_shows_cost(): void
     {
         $this->viewReportAs($this->actor('management'))->assertOk()->assertSee('RM 900.00');
+    }
+
+    public function test_director_report_shows_cost(): void
+    {
+        // 'director' is a management super-set (Permissions::effectiveRole), so it must pass
+        // both the screen gate and the money gate — the money gate used the raw role string
+        // before, which let a director in and then showed them a report with no RM in it.
+        $this->viewReportAs($this->actor('director'))->assertOk()->assertSee('RM 900.00');
     }
 
     public function test_plain_employee_cannot_open_the_timesheet_report(): void

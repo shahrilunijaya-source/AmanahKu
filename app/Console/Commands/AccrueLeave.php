@@ -83,6 +83,13 @@ class AccrueLeave extends Command
      */
     private function accrueOne(Employee $employee, LeaveType $type, Carbon $now): bool
     {
+        // Mid-year joiners are prorated by omission: no grant for a month that ended
+        // before they started. Joining any day of the run month earns the full month.
+        // A null joined_at (unknown start, e.g. pre-migration staff) accrues as normal.
+        if ($employee->joined_at !== null && $employee->joined_at->gt($now->copy()->endOfMonth())) {
+            return false;
+        }
+
         $balance = LeaveBalance::query()
             ->where('employee_id', $employee->id)
             ->where('leave_type_id', $type->id)

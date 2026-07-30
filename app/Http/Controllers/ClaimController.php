@@ -81,7 +81,7 @@ class ClaimController extends Controller
             $receiptName = $file->getClientOriginalName();
         }
 
-        $employee->claims()->create([
+        $claim = $employee->claims()->create([
             'type' => $data['type'],
             'title' => $data['title'],
             'amount' => $data['amount'],
@@ -89,16 +89,28 @@ class ClaimController extends Controller
             'reason' => $data['reason'] ?? null,
             'receipt_path' => $receiptPath,
             'receipt_name' => $receiptName,
-            'status' => 'submitted',
+            ...$this->openingStatusColumns($request),
         ]);
 
-        // Step 1 of the gate: routed to the immediate superior (org chart) to verify.
-        $this->notifyManagerToVerify(
-            $employee,
-            'Claim awaiting your verification',
-            $data['title'].' · RM '.number_format((float) $data['amount'], 2),
-            route('app.screen', 'claims'),
-        );
+        $body = $data['title'].' · RM '.number_format((float) $data['amount'], 2);
+
+        if ($this->skipsVerification($request)) {
+            // HR reports straight to the directors: no verify step, straight to final approval.
+            $this->notifyManagementToApprove(
+                $claim->tenant_id,
+                'Claim awaiting final approval',
+                $employee->name.' · '.$body,
+                route('app.screen', 'claims'),
+            );
+        } else {
+            // Step 1 of the gate: routed to the immediate superior (org chart) to verify.
+            $this->notifyManagerToVerify(
+                $employee,
+                'Claim awaiting your verification',
+                $body,
+                route('app.screen', 'claims'),
+            );
+        }
 
         return back()->with('ok', 'Claim submitted for RM '.number_format((float) $data['amount'], 2).'.');
     }
@@ -130,7 +142,7 @@ class ClaimController extends Controller
         AppNotification::send(
             $claim->employee->user_id,
             'Claim verified',
-            $claim->title.' was verified and is awaiting management approval',
+            $claim->title.' was verified and is awaiting final approval',
             route('app.screen', 'claims'),
         );
 

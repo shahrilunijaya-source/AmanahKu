@@ -151,8 +151,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
         // Auth-gated clock selfie stream from the private disk — {slot} is 'in' or 'out' (AK-SEC-05).
         Route::get('/app/attendance/photos/{record}/{slot}', [AttendanceController::class, 'photo'])->name('attendance.photo');
-        // Attendance setup (geofence + work arrangements) — privileged; screen GET is role-gated in AppController.
-        Route::post('/app/attendance-admin/branches/{branch}', [AttendanceAdminController::class, 'updateBranch'])->name('attendance.admin.branch');
+        // Attendance setup (client sites + work arrangements) — privileged; screen GET is role-gated in AppController.
+        // Branch geofences moved to Company Settings → Branches (admin.branches.*).
         Route::post('/app/attendance-admin/sites', [AttendanceAdminController::class, 'storeSite'])->name('attendance.admin.sites.store');
         Route::post('/app/attendance-admin/sites/{site}', [AttendanceAdminController::class, 'updateSite'])->name('attendance.admin.sites.update');
         Route::post('/app/attendance-admin/sites/{site}/delete', [AttendanceAdminController::class, 'deleteSite'])->name('attendance.admin.sites.delete');
@@ -193,8 +193,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
-        Route::post('/app/org/reporting-lines', [OrgController::class, 'updateLines'])->name('org.reporting-lines');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
+        Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
         Route::post('/app/onboarding/tasks/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.toggle');
         Route::post('/app/onboarding/start', [OnboardingController::class, 'start'])->name('onboarding.start');
         Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');
@@ -316,6 +316,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/knowledge-bank/segments', [KnowledgeController::class, 'storeSegment'])->name('knowledge.segments');
         Route::post('/app/knowledge-bank/read-all', [KnowledgeController::class, 'markAllRead'])->name('knowledge.read');
         Route::post('/app/knowledge-bank/{entry}/star', [KnowledgeController::class, 'toggleStar'])->name('knowledge.star');
+        Route::post('/app/knowledge-bank/{entry}/react', [KnowledgeController::class, 'react'])->name('knowledge.react');
+        Route::get('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'commentsList'])->name('knowledge.comments.list');
         Route::post('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'comment'])->name('knowledge.comments');
         Route::delete('/app/knowledge-bank/comments/{comment}', [KnowledgeController::class, 'deleteComment'])->name('knowledge.comments.delete');
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
@@ -364,6 +366,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/{timesheet}/submit', [TimesheetController::class, 'submit'])->name('timesheets.submit');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
+        Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Per-staff reusable allocation templates (owned by the acting employee)
         Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
         Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');

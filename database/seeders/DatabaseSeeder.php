@@ -145,19 +145,21 @@ class DatabaseSeeder extends Seeder
             ->mapWithKeys(fn ($n) => [$n => Department::create(['tenant_id' => $tid, 'name' => $n])->id]);
 
         $branches = collect([
-            ['PJ HQ', 'Selangor'], ['Seremban 2', 'Negeri Sembilan'], ['Klang', 'Selangor'], ['Kuala Lumpur', 'WP Kuala Lumpur'],
+            ['PJ HQ', 'Selangor'], ['Seremban 2', 'Negeri Sembilan'], ['Klang', 'Selangor'], ['Unijaya Resources', 'WP Kuala Lumpur'],
         ])->mapWithKeys(fn ($b) => [$b[0] => Branch::create(['tenant_id' => $tid, 'name' => $b[0], 'state' => $b[1]])->id]);
 
-        // Geofence + standard office hours (10:00–19:00, 8h minimum, 200m radius) per branch.
+        // Geofence + standard office hours (10:00–19:00, 8h minimum) per branch: lat, lng, radius.
+        // Unijaya Resources is the real office (Megan Avenue 1, 189 Jalan Tun Razak) on a tight
+        // 100m fence; the other three are demo branches on town-centre placeholder coordinates.
         $branchGeo = [
-            'PJ HQ' => [3.1073000, 101.6067000],
-            'Seremban 2' => [2.7297000, 101.9381000],
-            'Klang' => [3.0449000, 101.4451000],
-            'Kuala Lumpur' => [3.1390000, 101.6869000],
+            'PJ HQ' => [3.1073000, 101.6067000, 200],
+            'Seremban 2' => [2.7297000, 101.9381000, 200],
+            'Klang' => [3.0449000, 101.4451000, 200],
+            'Unijaya Resources' => [3.1627800, 101.7172189, 100],
         ];
-        foreach ($branchGeo as $bname => [$blat, $blng]) {
+        foreach ($branchGeo as $bname => [$blat, $blng, $bradius]) {
             Branch::where('tenant_id', $tid)->where('name', $bname)->update([
-                'latitude' => $blat, 'longitude' => $blng, 'radius_m' => 200,
+                'latitude' => $blat, 'longitude' => $blng, 'radius_m' => $bradius,
                 'work_start' => '10:00', 'work_end' => '19:00', 'min_hours' => 8.0,
             ]);
         }
@@ -180,7 +182,7 @@ class DatabaseSeeder extends Seeder
             ['Siti Khadijah', 'Marketing Executive', 'Marketing', 'PJ HQ', 'L3', 'on_leave', 'grey', 'On leave', 'siti.k@unijaya.example', 'SK', '#3a6ea5', 45, 5.0, 66],
             ['Lim Chee Keong', 'Procurement Officer', 'Procurement', 'Klang', 'L4', 'active', 'amber', 'Near capacity', 'cklim@unijaya.example', 'LC', '#1d825f', 53, 7.5, 70],
             ['Farah Aziz', 'Marketing Executive', 'Marketing', 'PJ HQ', 'L2', 'probation', 'green', 'Healthy', 'farah.aziz@unijaya.example', 'FA', '#996a28', 20, 14.0, 60],
-            ['Daniel Lee', 'Sales Executive', 'Sales', 'Kuala Lumpur', 'L3', 'active', 'green', 'Healthy', 'daniel.lee@unijaya.example', 'DL', '#3a6ea5', 60, 11.0, 84],
+            ['Daniel Lee', 'Sales Executive', 'Sales', 'Unijaya Resources', 'L3', 'active', 'green', 'Healthy', 'daniel.lee@unijaya.example', 'DL', '#3a6ea5', 60, 11.0, 84],
             ['Hafiz Zulkifli', 'Warehouse Supervisor', 'Logistics', 'Klang', 'L4', 'active', 'red', 'Overloaded', 'hafiz.z@unijaya.example', 'HZ', '#d6232b', 15, 4.5, 68],
         ];
 

@@ -7,7 +7,15 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * `entry_date` has a `date` cast over a NOT NULL column, so it always reads back as
+ * a Carbon instance. Without this, static analysis takes the raw column type and
+ * reports ->toDateString() as a call on a string.
+ *
+ * @property Carbon $entry_date
+ */
 class TimesheetEntry extends Model
 {
     use BelongsToTenant;

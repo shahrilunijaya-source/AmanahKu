@@ -22,7 +22,12 @@ class ReportsAuditAccessTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const SCREENS = ['attendance-report', 'timesheet-reports', 'audit'];
+    /**
+     * Oversight screens open to anyone who oversees staff. 'timesheet-reports' is NOT here:
+     * it carries salary-derived RM cost, so it is management/HR only and has its own cases
+     * below.
+     */
+    private const SCREENS = ['attendance-report', 'audit'];
 
     private Tenant $tenant;
 
@@ -73,6 +78,28 @@ class ReportsAuditAccessTest extends TestCase
         // The group sits under the Insights section and is labelled "Oversight";
         // it used to be a top-level section of its own called "Reports & Audit".
         $this->get('/app/dash')->assertOk()->assertSee('Oversight');
+    }
+
+    public function test_only_management_and_hr_reach_the_all_staff_timesheet_report(): void
+    {
+        foreach (['management', 'hr'] as $role) {
+            $this->actAs($this->userWithRole($role), $role);
+            $this->get('/app/timesheet-reports')->assertOk();
+        }
+
+        foreach (['manager', 'employee'] as $role) {
+            $this->actAs($this->userWithRole($role), $role);
+            $this->get('/app/timesheet-reports')->assertForbidden();
+        }
+    }
+
+    public function test_manager_sidebar_hides_the_timesheet_report_link(): void
+    {
+        $this->actAs($this->userWithRole('manager'), 'manager');
+
+        // The Oversight group still shows (attendance + audit remain reachable), but the
+        // one money-bearing child is filtered out by its nav 'roles' allowlist.
+        $this->get('/app/dash')->assertOk()->assertSee('Oversight')->assertDontSee('Timesheet Reports');
     }
 
     public function test_plain_employee_is_blocked_from_every_reports_and_audit_screen(): void

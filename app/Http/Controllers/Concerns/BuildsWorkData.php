@@ -84,6 +84,12 @@ trait BuildsWorkData
             'records' => $records,
             'today' => $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
+            // Every geofenced location in the tenant, so the attendance screen's live chip
+            // can name the site the staff member is standing in — the same match the server
+            // makes on the punch (ScheduleResolver::matchActualSite).
+            'geofencedSites' => $employee
+                ? app(ScheduleResolver::class)->configuredSites($employee->tenant_id)
+                : [],
             'weekRecords' => $weekRecords,
             'earlierRecords' => $earlierRecords,
             'weekWorkedMinutes' => $weekWorkedMinutes,
@@ -232,9 +238,15 @@ trait BuildsWorkData
     }
 
     /**
-     * Personal-only claims data for the `claims` screen: the viewer's own claims, their
-     * approval chain and the medical-cap figures the new-claim drawer needs. Company-wide
-     * data and the verify/approve queues live in claimApprovalsData() instead — see there.
+     * Claims screen data, role-aware. Every viewer gets their own claims, approval chain
+     * and medical-cap figures for the new-claim sheet. Approvers (manager/management/hr)
+     * additionally get the two-step verify/approve queues (see RoutesApprovalsByReportingLine
+     * — immediate superior verifies, then management approves) for the "Approvals" tab, and
+     * management/hr get the full company ledger for the "All claims" tab. Non-privileged
+     * viewers never receive the queue/company keys at all, so those tabs cannot leak.
+     *
+     * The `claim-approvals` slug renders this same screen (defaulting to the Approvals tab)
+     * so existing deep links keep working — see AppController::screen().
      */
     private function claimsData(Request $request, ?Employee $employee): array
     {
@@ -248,43 +260,43 @@ trait BuildsWorkData
             ->filter(fn (Claim $c) => $c->date?->year === now()->year)
             ->sum('amount');
 
-        return [
+        // An approver has a verify/approve queue; a privileged viewer (management/hr) also
+        // sees the company-wide ledger. A plain employee is neither, and gets no extra keys.
+        $isApprover = $this->hasTenantRole($request, ['manager', 'management', 'hr']);
+        $privileged = $this->hasTenantRole($request, ['management', 'hr']);
+
+        $data = [
             'myClaims' => $myClaims,
             'approvalChain' => $this->approvalChain($employee),
             'medicalCap' => (float) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'claims.medical_cap'),
             'medicalUsedYtd' => $medicalUsedYtd,
-        ];
-    }
-
-    /**
-     * Company-wide claims data for the `claim-approvals` screen: the two-step approval
-     * queues (see RoutesApprovalsByReportingLine — immediate superior verifies, then
-     * management approves) plus, for management/hr, the full company ledger.
-     */
-    private function claimApprovalsData(Request $request, ?Employee $employee): array
-    {
-        $privileged = $this->hasTenantRole($request, ['management', 'hr']);
-
-        return [
+            'isApprover' => $isApprover,
             'privileged' => $privileged,
-            'claimsToVerify' => $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get(),
-            'claimsToApprove' => $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get(),
+        ];
+
+        if ($isApprover) {
+            $data['claimsToVerify'] = $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get();
+            $data['claimsToApprove'] = $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get();
+        }
+
+        if ($privileged) {
             // Company-wide claims view, management/hr only. Totals come from one grouped
             // aggregate query (not summed in PHP), and the claim list is capped at the
             // latest 50 rows on purpose so this screen doesn't grow heavier forever.
-            'claimTotals' => $privileged
-                ? Claim::query()->selectRaw('status, COUNT(*) as count, SUM(amount) as total')->groupBy('status')->get()->keyBy('status')
-                : collect(),
-            'allClaims' => $privileged
-                ? Claim::with('employee')->latest('date')->take(50)->get()
-                : collect(),
-        ];
+            $data['claimTotals'] = Claim::query()->selectRaw('status, COUNT(*) as count, SUM(amount) as total')->groupBy('status')->get()->keyBy('status');
+            $data['allClaims'] = Claim::with('employee')->latest('date')->take(50)->get();
+        }
+
+        return $data;
     }
 
     private function leaveData(Request $request, ?Employee $employee): array
     {
         // Two-step gate (see RoutesApprovalsByReportingLine): the immediate superior sees
         // their reports' submitted requests to verify; management sees verified ones to approve.
+        // Both queues eager-load the requester's balances: the review row states what the
+        // person is left with if you approve, which is the number an approver needs and
+        // which used to be absent from the queue entirely.
         // Approval chain (verifier[s] + management approver pool) shown up front so the
         // applicant knows who signs off before they submit. Also feeds the pending-verify
         // name in "My requests" timelines.
@@ -296,8 +308,11 @@ trait BuildsWorkData
             'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'])->latest()->get() ?? collect(),
             'approvalChain' => $chain,
             'leaveVerifiers' => $chain['verifiers'],
-            'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
-            'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
+            // HR reports straight to the directors, so their own requests open already
+            // verified. The Apply form must promise the right chain, not the generic one.
+            'leaveSkipsVerification' => $this->skipsVerification($request),
+            'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
+            'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             // active() owner: a since-archived person holds no live leave — drop their
             // approved requests from the team-leave widget (mirrors the approval queues).
             'teamLeave' => LeaveRequest::with('employee')->where('status', 'approved')

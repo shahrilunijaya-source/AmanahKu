@@ -28,25 +28,35 @@
                     <button @click="msg = false" style="width:30px;height:30px;border-radius:7px;color:var(--muted);font-size:18px;flex-shrink:0;">×</button>
                 </div>
 
-                <div style="flex:1;overflow-y:auto;">
-                    <template x-for="t in threads" :key="t.id">
-                        <button @click="open(t)" style="width:100%;display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;text-align:left;">
-                            <span :style="'width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;background:'+t.other.color" x-text="t.other.initials"></span>
-                            <span style="flex:1;min-width:0;">
-                                <span style="display:flex;align-items:center;gap:7px;">
-                                    <span style="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="t.other.name"></span>
-                                    <span style="flex-shrink:0;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);" x-text="t.at"></span>
+                <div class="uj-msg-list" style="flex:1;padding:6px 10px;">
+                    <template x-for="g in [
+                            { key: 'today',   en: 'Today',     ms: 'Hari ini' },
+                            { key: 'week',    en: 'This week', ms: 'Minggu ini' },
+                            { key: 'earlier', en: 'Earlier',   ms: 'Lebih awal' },
+                        ]" :key="g.key">
+                    <div x-show="threads.some(t => t.bucket === g.key)">
+                    <div class="uj-msg-grp" x-text="$store.ui.lang==='en' ? g.en : g.ms"></div>
+                    <template x-for="t in threads.filter(t => t.bucket === g.key)" :key="t.id">
+                        <button class="uj-msg-row" @click="open(t)" :data-unread="t.unread > 0 ? '' : null">
+                            <span class="uj-msg-av" :style="'background:' + t.other.color" x-text="t.other.initials"></span>
+                            <span class="uj-msg-rmid">
+                                <span class="uj-msg-rtop">
+                                    <span class="uj-msg-name" x-text="t.other.name"></span>
+                                    <span class="uj-msg-at" x-text="$store.ui.lang==='en' ? t.atShort : t.atShortMs"></span>
                                 </span>
-                                <span style="display:flex;align-items:center;gap:7px;margin-top:2px;">
-                                    <span style="flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                        <span x-show="t.lastMine" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'You: ' : 'Anda: ')"></span><span x-text="t.snippet || ($store.ui.lang==='en' ? 'No messages yet' : 'Belum ada mesej')"></span>
-                                    </span>
-                                    <template x-if="t.unread > 0">
-                                        <span style="flex-shrink:0;min-width:18px;height:18px;padding:0 5px;background:var(--red);color:#fff;border-radius:9999px;font-family:var(--font-mono);font-weight:600;font-size:10.5px;display:flex;align-items:center;justify-content:center;" x-text="t.unread"></span>
-                                    </template>
+                                <span class="uj-msg-pos" x-text="t.other.position"></span>
+                                <span class="uj-msg-snip">
+                                    <span x-show="t.lastMine" x-text="$store.ui.lang==='en' ? 'You: ' : 'Anda: '"></span><span
+                                        x-text="t.snippet || ($store.ui.lang==='en' ? 'No messages yet' : 'Belum ada mesej')"></span>
+                                </span>
+                                <span class="uj-msg-badge" x-show="t.unread > 0">
+                                    <span x-text="t.unread"></span>
+                                    <span x-text="$store.ui.lang==='en' ? 'unread' : 'belum dibaca'"></span>
                                 </span>
                             </span>
                         </button>
+                    </template>
+                    </div>
                     </template>
                     <template x-if="threads.length === 0">
                         <div style="padding:40px 24px;text-align:center;">

@@ -147,6 +147,13 @@ class AppController extends Controller
         if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
+        // The all-staff timesheet view is narrower than the rest of the oversight surface:
+        // it is a salary-derived cost report, so it is management/HR only. canSeeAll would
+        // also admit the manager role and any employee with one direct report, which is too
+        // wide for money. Keep it above the canSeeAll block so the tighter gate wins.
+        if ($screen === 'timesheet-reports') {
+            $this->authorizeTenantRole($request, ['management', 'hr']);
+        }
         // Reports & Audit oversight surface + company-wide "see all" views (reachable
         // from the quick-action dock) open to management, HR, and immediate superiors —
         // anyone who oversees other staff. 'audit' moved here from admin-only so the
@@ -195,7 +202,10 @@ class AppController extends Controller
             ];
         }
 
-        $view = View::exists("screens.$screen") ? "screens.$screen" : 'screens.empty';
+        // claim-approvals was merged into the unified claims screen; the slug still resolves
+        // (deep links, notifications) and lands on the Approvals tab, driven by $screen.
+        $viewScreen = $screen === 'claim-approvals' ? 'claims' : $screen;
+        $view = View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty';
 
         return view($view, array_merge([
             'screen' => $screen,
@@ -328,8 +338,9 @@ class AppController extends Controller
             'reviews' => $this->reviewsData($employee, $request->attributes->get('tenantRole', 'employee')),
             'onboarding' => app(OnboardingController::class)->screenData($request, $employee),
             'onboarding-content' => app(OnboardingContentController::class)->screenData($request),
-            'claims' => $this->claimsData($request, $employee),
-            'claim-approvals' => $this->claimApprovalsData($request, $employee),
+            // Both slugs render the unified claims screen (claim-approvals just defaults to
+            // the Approvals tab — see screens/claims.blade.php and the view resolve below).
+            'claims', 'claim-approvals' => $this->claimsData($request, $employee),
             'assets' => $this->assetsData($request),
             'training' => $this->trainingData($request),
             'orgchart' => app(OrgController::class)->screenData($request, $employee),

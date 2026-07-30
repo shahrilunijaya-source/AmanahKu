@@ -57,7 +57,19 @@
         {{-- Scrollable body. The page title block lives INSIDE it now: it used to be
              a fixed white band between two other white bands, and it says nothing
              worth keeping on screen once you have started reading. --}}
-        <main class="uj-main" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+        @php
+            // Shared page measure (see .uj-measured / .uj-main--wide in app.css). Every
+            // non-embed screen centres in one column: focused screens at 920px, data-dense
+            // screens (tables, boards, the org canvas) in a wider centred cap.
+            $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
+                'audit', 'roles', 'calendar', 'leave-report', 'timesheet-reports', 'attendance-report',
+                'attendance-admin', 'tot', 'tot-roster', 'messages', 'documents'];
+            // Board and the org chart take the whole width, no centred cap.
+            $fullScreens = ['board', 'orgchart'];
+            $isFull = ! $embed && in_array($screen ?? null, $fullScreens, true);
+            $isWide = ! $embed && ! $isFull && in_array($screen ?? null, $wideScreens, true);
+        @endphp
+        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $isFull ? 'uj-main--full' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}

@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Attendance\ClockService;
 use App\Attendance\ScheduleResolver;
 use App\Attendance\SiteSpec;
+use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Tenancy\CurrentTenant;
@@ -177,5 +178,85 @@ class ClockServiceTest extends TestCase
         $this->assertSame(101.70, (float) $fresh->home_longitude);
         $this->assertNotNull($fresh->home_locked_at);
         $this->assertSame('wfh', $this->employee->attendanceRecords()->onDate($now)->first()->type);
+    }
+
+    /**
+     * Staff do not pick their location. Standing inside a different configured branch is
+     * matched automatically, so a Klang visit is not an off-site punch against PJ HQ.
+     */
+    public function test_clock_in_matches_another_configured_branch_the_staff_is_standing_in(): void
+    {
+        Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Klang',
+            'latitude' => 3.0449, 'longitude' => 101.4451, 'radius_m' => 200,
+            'work_start' => '08:00', 'work_end' => '17:00', 'min_hours' => 6.0,
+        ]);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.0450, 101.4452, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('Klang', $record->location);
+        $this->assertTrue((bool) $record->in_radius);
+        $this->assertSame([], $record->flags ?? []);
+        // Hours stay the employee's own (09:00 start), not Klang's 08:00 — so 08:55 is early,
+        // not late, even though the branch they walked into opens earlier. Compared through
+        // Carbon because a TIME column reads back as 'H:i:s' on MySQL but echoes the written
+        // 'H:i' on sqlite, and the schedule is what this asserts, not the driver's formatting.
+        $this->assertSame('09:00', Carbon::parse($record->expected_start)->format('H:i'));
+        $this->assertSame('on_time', $record->status);
+    }
+
+    /** A fix inside no configured site still falls back to the assigned one. */
+    public function test_clock_in_far_from_every_configured_site_stays_off_site(): void
+    {
+        Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Klang',
+            'latitude' => 3.0449, 'longitude' => 101.4451, 'radius_m' => 200,
+        ]);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 4.50, 100.30, null, null, $now);
+
+        $this->assertSame('needs_justification', $res['status']);
+        $this->assertStringContainsString('HQ', $res['message']);
+    }
+
+    /** Another tenant's branch is never a match, even at the exact same coordinates. */
+    public function test_a_branch_in_another_tenant_is_not_matched(): void
+    {
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        Branch::create([
+            'tenant_id' => $other->id, 'name' => 'Their Office',
+            'latitude' => 3.0449, 'longitude' => 101.4451, 'radius_m' => 200,
+        ]);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.0450, 101.4452, null, null, $now);
+
+        $this->assertSame('needs_justification', $res['status']);
+    }
+
+    /**
+     * A home day spent at the office must clock against the office. If the match ran after
+     * home capture instead of before it, the office would be locked in as the staff's home.
+     */
+    public function test_a_home_day_at_the_office_does_not_register_the_office_as_home(): void
+    {
+        Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'PJ HQ',
+            'latitude' => 3.1073, 'longitude' => 101.6067, 'radius_m' => 200,
+        ]);
+        $home = new SiteSpec('home', 'Work from home', null, null, 200, '09:00', '18:00', 8.0, needsHomeCapture: true);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($home)->clockIn($this->employee, 3.1074, 101.6068, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $this->assertNull($this->employee->fresh()->home_latitude);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('PJ HQ', $record->location);
+        $this->assertSame('standard', $record->type);
     }
 }

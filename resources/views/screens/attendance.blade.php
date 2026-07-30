@@ -53,7 +53,7 @@
         'who'   => 'Everyone clocks their own time',
         'steps' => [
             'The banner shows where you are expected today and your hours.',
-            'Tap "Clock in" and allow location so the system can confirm you are on-site.',
+            'Tap "Clock in" and allow location. Location is required — the clock will not record without it.',
             'Add a remark if there is something your manager should know about the day. It is optional.',
             'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting).',
             'Clock out when you finish. Leaving before your end time or off-site needs a reason too.',
@@ -65,7 +65,7 @@
         'who'   => 'Semua orang rekod masa sendiri',
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
-            'Tekan "Clock in" dan benarkan lokasi supaya sistem boleh sahkan anda di lokasi.',
+            'Tekan "Clock in" dan benarkan lokasi. Lokasi adalah wajib — clock tidak akan direkod tanpanya.',
             'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
             'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
             'Clock out bila habis. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
@@ -95,6 +95,11 @@
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               workStart: '{{ $site?->workStart ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
+              geoError: '',
+              // [type, label, lat, lng, radius] for every geofenced branch and client site.
+              sites: @js($geofencedSites ?? []),
+              assignedLabel: @js($site?->label ?? ''),
+              matchedLabel: '',
               fenceStatus: 'wait',
               fenceDistM: null,
               noteOpen: {{ (session('attendance_justify') || $errors->has('justification') || old('justification', '')) ? 'true' : 'false' }},
@@ -106,18 +111,25 @@
               init() {
                   this.tick();
                   setInterval(() => this.tick(), 1000);
-                  if (this.siteLat !== null && navigator.geolocation) {
+                  if (navigator.geolocation) {
                       navigator.geolocation.getCurrentPosition(
                           (pos) => {
-                              const d = this.distM(pos.coords.latitude, pos.coords.longitude);
-                              this.fenceDistM = Math.round(d);
-                              if (d <= this.radius) {
+                              const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
+                              if (m) {
+                                  this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
+                                  this.fenceDistM = Math.round(m.d);
                                   this.fenceStatus = 'in';
-                              } else {
+                              } else if (this.siteLat !== null) {
+                                  this.matchedLabel = '';
+                                  this.fenceDistM = Math.round(this.distTo(pos.coords.latitude, pos.coords.longitude, this.siteLat, this.siteLng));
                                   this.fenceStatus = 'out';
+                              } else {
+                                  this.fenceStatus = 'none';
                               }
                           },
-                          () => {
+                          (err) => {
+                              // Warn on load rather than letting the staff discover it on tap.
+                              if (err.code === 1) { this.geoFail('denied'); }
                               this.fenceStatus = 'none';
                           },
                           { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
@@ -185,6 +197,11 @@
                       const dStr = this.fenceDistM < 1000
                           ? this.fenceDistM + 'm'
                           : (this.fenceDistM / 1000).toFixed(1) + ' km';
+                      if (this.matchedLabel) {
+                          return lang === 'en'
+                              ? ('At ' + this.matchedLabel + ' · ' + dStr)
+                              : ('Di ' + this.matchedLabel + ' · ' + dStr);
+                      }
                       return lang === 'en' ? ('You are inside · ' + dStr) : ('Anda di dalam · ' + dStr);
                   }
                   if (this.fenceStatus === 'out') {
@@ -198,12 +215,26 @@
                   }
                   return '';
               },
-              distM(lat, lng) {
-                  if (this.siteLat === null || this.siteLng === null) return 0;
+              distTo(lat, lng, tLat, tLng) {
                   const R = 6371000, toR = (x) => x * Math.PI / 180;
-                  const dLa = toR(lat - this.siteLat), dLo = toR(lng - this.siteLng);
-                  const a = Math.sin(dLa/2)**2 + Math.cos(toR(this.siteLat))*Math.cos(toR(lat))*Math.sin(dLo/2)**2;
+                  const dLa = toR(lat - tLat), dLo = toR(lng - tLng);
+                  const a = Math.sin(dLa/2)**2 + Math.cos(toR(tLat))*Math.cos(toR(lat))*Math.sin(dLo/2)**2;
                   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              },
+              // Mirror of ScheduleResolver::matchActualSite — nearest configured site the
+              // fix lands inside, or null when it lands inside none of them.
+              matchSite(lat, lng) {
+                  let best = null;
+                  for (const [, label, sLat, sLng, radius] of this.sites) {
+                      const d = this.distTo(lat, lng, sLat, sLng);
+                      if (d <= radius && (best === null || d < best.d)) { best = { label, d }; }
+                  }
+                  // A registered home is not in the tenant site list — check it separately.
+                  if (best === null && this.siteLat !== null) {
+                      const d = this.distTo(lat, lng, this.siteLat, this.siteLng);
+                      if (d <= this.radius) { best = { label: this.assignedLabel, d }; }
+                  }
+                  return best;
               },
               earlyNow() {
                   if (!this.expectedEnd) return false;
@@ -213,7 +244,7 @@
               },
               proceed(lat, lng) {
                   let need = false;
-                  if (this.siteLat !== null && lat !== null && this.distM(lat, lng) > this.radius) need = true;
+                  if (this.siteLat !== null && !this.matchSite(lat, lng)) need = true;
                   if (this.action === 'out' && this.earlyNow()) need = true;
                   if (need && !this.reason.trim()) {
                       this.serverJustify = true;
@@ -222,18 +253,35 @@
                       this.$nextTick(() => this.$refs.reason?.focus());
                       return;
                   }
-                  if (lat !== null) { this.$refs.lat.value = lat; this.$refs.lng.value = lng; }
+                  this.$refs.lat.value = lat; this.$refs.lng.value = lng;
                   this.$el.submit();
               },
+              // Location is mandatory — the punch is never submitted without coordinates.
               submit() {
                   if (this.submitting) return;
                   this.submitting = true;
-                  if (!navigator.geolocation) { this.proceed(null, null); return; }
+                  this.geoError = '';
+                  if (!navigator.geolocation) { this.geoFail('unsupported'); return; }
                   navigator.geolocation.getCurrentPosition(
                       (pos) => this.proceed(pos.coords.latitude, pos.coords.longitude),
-                      () => this.proceed(null, null),
+                      (err) => this.geoFail(err.code === 1 ? 'denied' : 'unavailable'),
                       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
                   );
+              },
+              geoFail(kind) {
+                  this.submitting = false;
+                  this.fenceStatus = 'none';
+                  const en = {
+                      denied: 'Location is blocked for this site, so you cannot clock in or out. Tap the lock icon in the address bar, allow location, then try again.',
+                      unavailable: 'Could not read your location. Move somewhere with a clearer signal, turn location services on, then try again.',
+                      unsupported: 'This browser cannot share location, so clocking is not possible here. Use the app on your phone browser instead.',
+                  };
+                  const ms = {
+                      denied: 'Lokasi disekat untuk laman ini, jadi anda tidak boleh clock in atau clock out. Tekan ikon kunci di bar alamat, benarkan lokasi, kemudian cuba lagi.',
+                      unavailable: 'Tidak dapat membaca lokasi anda. Pindah ke tempat dengan isyarat lebih baik, hidupkan servis lokasi, kemudian cuba lagi.',
+                      unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
+                  };
+                  this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
               },
               triggerSelfie() {
                   if (!window.matchMedia('(pointer:coarse)').matches) {
@@ -346,12 +394,12 @@
                             @if ($site->needsHomeCapture) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'home registers on this clock-in' : 'rumah didaftar pada clock in ini'">home registers on this clock-in</span>@endif
                         </span>
 
-                        @if ($site->hasGeofence())
-                            <span class="uj-at-fence" x-show="fenceStatus !== 'none'" :data-f="fenceStatus" x-cloak>
-                                <i></i>
-                                <span x-text="fenceText($store.ui.lang)"></span>
-                            </span>
-                        @endif
+                        {{-- Shown even when the assigned site has no geofence: the fix may
+                             still land inside another configured branch or client site. --}}
+                        <span class="uj-at-fence" x-show="fenceStatus !== 'none' && fenceStatus !== 'wait'" :data-f="fenceStatus" x-cloak>
+                            <i></i>
+                            <span x-text="fenceText($store.ui.lang)"></span>
+                        </span>
                     </div>
                 @endif
             </div>
@@ -416,6 +464,9 @@
                 <span x-text="$store.ui.lang==='en' ? 'Off-site this month' : 'Luar lokasi bulan ini'">Off-site this month</span>
             </div>
         </div>
+
+        <div x-show="geoError" x-cloak x-text="geoError" style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
+        @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 

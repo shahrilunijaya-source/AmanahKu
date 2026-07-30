@@ -87,9 +87,9 @@ class Amanahku
             $s('My Team', 'Pasukan Saya', ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75']),
             $s('My Team', 'Pasukan Saya', ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi', 'icon' => 'M9 3h6v3H9zM3 18h4v3H3zM17 18h4v3h-4zM12 6v4M5 18v-3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3']),
             $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
-            // Verify/approve queues + the company ledger, split out of Claims so that
-            // screen stays personal-only. manager/management/hr only.
-            $s('My Team', 'Pasukan Saya', ['id' => 'claim-approvals', 'label' => 'Claim approvals', 'label_ms' => 'Kelulusan Tuntutan', 'roles' => ['manager', 'management', 'hr'], 'icon' => 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z']),
+            // Verify/approve queues + the company ledger now live as role-aware tabs on the
+            // Claims screen itself (My Work), so there is no separate My Team entry. The
+            // `claim-approvals` slug still resolves to that screen for old deep links.
             $s('My Team', 'Pasukan Saya', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
@@ -155,7 +155,9 @@ class Amanahku
             $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
-                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
+                // Management/HR only: the report carries salary-derived RM cost, so it is
+                // gated tighter than its siblings (AppController::screen mirrors this).
+                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
                 ['id' => 'feedback', 'label' => 'Feedback Inbox', 'label_ms' => 'Peti Maklum Balas'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
             ]]),
@@ -323,7 +325,9 @@ class Amanahku
             'documents' => ['title' => 'Document Vault', 'title_ms' => 'Peti Dokumen', 'sub' => 'Contracts, certificates and IDs — stored privately per employee.', 'sub_ms' => 'Kontrak, sijil dan kad pengenalan — disimpan secara peribadi bagi setiap pekerja.', 'crumb' => ['Documents']],
             'surveys' => ['title' => 'Pulse Surveys', 'title_ms' => 'Tinjauan Pulse', 'sub' => 'Short engagement and eNPS pulses — one response per person.', 'sub_ms' => 'Tinjauan penglibatan dan eNPS ringkas — satu maklum balas setiap orang.', 'crumb' => ['Surveys']],
             'ideas' => ['title' => 'Suggestion Box', 'title_ms' => 'Peti Cadangan', 'sub' => 'Share ideas and upvote the best — HR triages each through to done.', 'sub_ms' => 'Kongsi idea dan undi yang terbaik — HR menyaring setiap satu hingga selesai.', 'crumb' => ['Suggestion Box']],
-            'leave' => ['title' => 'Apply for Leave', 'title_ms' => 'Mohon Cuti', 'sub' => '12.5 days annual leave remaining · check team calendar before applying.', 'sub_ms' => '12.5 hari cuti tahunan berbaki · semak kalendar pasukan sebelum memohon.', 'crumb' => ['Leave', 'New Application']],
+            // The balance is printed live in the screen's own shelf, so the subtitle no
+            // longer carries a hardcoded "12.5 days" that was true for nobody.
+            'leave' => ['title' => 'Leave', 'title_ms' => 'Cuti', 'sub' => 'Apply for leave, follow your own requests, and review anything waiting on you.', 'sub_ms' => 'Mohon cuti, ikuti permohonan anda sendiri, dan semak apa-apa yang menunggu anda.', 'crumb' => ['Leave', 'New Application']],
             'calendar' => ['title' => 'Time-off Calendar', 'title_ms' => 'Kalendar Cuti', 'sub' => 'Company-wide leave, holidays and events — who is out and when.', 'sub_ms' => 'Cuti, cuti umum dan acara seluruh syarikat — siapa tiada dan bila.', 'crumb' => ['Time-off Calendar']],
             'overtime' => ['title' => 'Overtime Requests', 'title_ms' => 'Permohonan Overtime', 'sub' => 'Log overtime hours and track approvals.', 'sub_ms' => 'Rekod jam overtime dan jejak kelulusan.', 'crumb' => ['Overtime']],
             'resignation' => ['title' => 'Resignation & Exit', 'title_ms' => 'Perletakan Jawatan & Exit', 'sub' => 'Submit a resignation, track notice and exit interviews.', 'sub_ms' => 'Hantar perletakan jawatan, jejak notis dan temu duga exit.', 'crumb' => ['Resignation']],

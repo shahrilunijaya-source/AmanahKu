@@ -1,12 +1,13 @@
-// Draggable organisation chart. HR / management flip on "Arrange" and drag a
-// person's card into another person's reports zone to set who they report to.
+// Organisation chart navigator. One seat at a time: the manager above, the subject in
+// the middle, its direct reports fanned below, and every circle re-centres the chart on
+// itself. The whole reporting graph arrives once from OrgController::screenData, so
+// walking it is local and instant; only a change to a reporting line goes to the server.
 //
-// The tree is server-rendered nested lists: every node owns a [data-children] list
-// tagged with its own id (data-parent), and all lists share one SortableJS group.
-// Dropping a node into a list therefore re-parents it — the destination list's
-// data-parent becomes the dragged person's new manager (empty = top level). The
-// server validates self/loop moves and is the source of truth; the UI also blocks
-// the obvious bad drop (a manager into their own subtree) before any request.
+// It replaces the drag-and-drop indented tree. Dragging was the intuitive gesture but it
+// needed the whole tree on screen to aim at, which is exactly what does not fit once a
+// company has more than a couple of levels. Choosing an empty slot and then a person is
+// two deliberate clicks, works from the keyboard, and never depends on the drop target
+// being visible.
 
 const api = async (url, token, body) => {
     const res = await fetch(url, {
@@ -21,134 +22,235 @@ const api = async (url, token, body) => {
     });
     const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
     if (!res.ok) {
-        throw new Error(data.error || 'Request failed.');
+        throw new Error(data.error || 'That change could not be saved.');
     }
     return data;
 };
 
-/** Direct [data-node] children of a [data-children] list (not descendants). */
-const directNodes = (list) => [...list.children].filter((el) => el.matches?.('[data-node]'));
+// One critically-damped spring, retargetable mid-flight. Re-centring twice quickly does
+// not restart the motion: push() displaces the value that is currently on screen and
+// keeps the velocity it already had, which is what stops the second click reading as a
+// jump. Apple's damping/response pair rather than mass/stiffness/damping.
+const spring = (onFrame, damping = 1, response = 0.42) => {
+    const w = (2 * Math.PI) / response;
+    let x = 1;
+    let v = 0;
+    let target = 1;
+    let last = 0;
+    let raf = null;
 
-/** Deepest nesting under a [data-children] list. 0 = empty, 1 = leaf row. */
-const listDepth = (list) => {
-    const nodes = directNodes(list);
-    if (nodes.length === 0) return 0;
-    let max = 0;
-    nodes.forEach((node) => {
-        const childList = node.querySelector(':scope > [data-children]');
-        max = Math.max(max, childList ? listDepth(childList) : 0);
-    });
-    return max + 1;
+    const tick = (now) => {
+        const dt = Math.min((now - last) / 1000, 0.032);
+        last = now;
+        v += (-w * w * (x - target) - 2 * damping * w * v) * dt;
+        x += v * dt;
+        onFrame(x);
+        if (Math.abs(x - target) < 0.0015 && Math.abs(v) < 0.02) {
+            x = target;
+            v = 0;
+            onFrame(x);
+            raf = null;
+            return;
+        }
+        raf = requestAnimationFrame(tick);
+    };
+
+    return {
+        push(delta) {
+            x = Math.max(-0.25, x + delta);
+            target = 1;
+            if (raf === null) {
+                last = performance.now();
+                raf = requestAnimationFrame(tick);
+            }
+        },
+        settle() {
+            x = 1;
+            v = 0;
+            target = 1;
+            onFrame(1);
+        },
+    };
 };
 
 export function registerOrgChart(Alpine) {
-    Alpine.data('orgChart', () => ({
-        arranging: false,
+    /**
+     * @param chart {{people: array, parents: object, verifiers: object, roots: array, directors: array}}
+     * @param canEdit {boolean} HR/management may change reporting lines.
+     */
+    Alpine.data('orgChart', (chart, canEdit) => ({
+        canEdit,
+        people: chart.people,
+        byId: Object.fromEntries(chart.people.map((p) => [p.id, p])),
+        parents: { ...chart.parents },
+        verifiers: { ...chart.verifiers },
+        directorIds: chart.directors,
+
+        focus: null, // null = the directors band, the top of the chart
+        dir: 1, // travel direction of the last move, so the motion points where the eye goes
+        sel: null,
+        picking: null, // {parent: id|null} while a slot is being filled
+        pickingVerifier: false,
+        q: '',
         busy: false,
         error: '',
+        justPlaced: null,
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-        sortables: [],
-        rootEl: null,
+
+        stage: null,
+        reduce: false,
 
         init() {
-            // Capture the true component root NOW. The Arrange button lives inside a nested
-            // x-data (the toolbar's `{ orgEdit }` scope), so `this.$root` evaluated from that
-            // button resolves to the toolbar div, not this component — enable() then bound
-            // Sortable to zero tree lists. init() runs on the component element itself, so
-            // $root is correct here; every method uses this.rootEl instead.
-            this.rootEl = this.$root;
-
-            // While arranging, a card is a drag handle, not a profile link — swallow the
-            // navigation click. Outside arrange mode the listener is a no-op.
-            this.rootEl.addEventListener(
-                'click',
-                (e) => {
-                    if (this.arranging && e.target.closest('[data-node] a')) {
-                        e.preventDefault();
-                    }
-                },
-                true,
-            );
-        },
-
-        toggleArrange() {
-            this.error = '';
-            this.arranging = !this.arranging;
-            this.arranging ? this.enable() : this.disable();
-        },
-
-        enable() {
-            this.rootEl.classList.add('org-arranging');
-            this.rootEl.querySelectorAll('[data-children]').forEach((list) => {
-                this.sortables.push(
-                    window.Sortable.create(list, {
-                        group: 'org',
-                        draggable: '[data-node]',
-                        animation: 150,
-                        fallbackOnBody: true,
-                        ghostClass: 'uj-drag-ghost',
-                        // Cancel a drop into the dragged node's own subtree — that would
-                        // make a person their own (grand)manager. Server guards it too.
-                        onMove: (evt) => !evt.dragged.contains(evt.to),
-                        onEnd: (evt) => this.persist(evt),
-                    }),
-                );
+            this.reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this.stage = spring((k) => {
+                const el = this.$refs.stage;
+                if (!el) return;
+                el.style.opacity = (0.4 + 0.6 * k).toFixed(3);
+                el.style.transform = `translateY(${((1 - k) * 30 * this.dir).toFixed(2)}px)`;
+                el.style.filter = k > 0.995 ? 'none' : `blur(${((1 - k) * 5).toFixed(2)}px)`;
             });
         },
 
-        disable() {
-            this.sortables.forEach((s) => s.destroy());
-            this.sortables = [];
-            this.rootEl.classList.remove('org-arranging');
+        // ── reads ───────────────────────────────────────────────────────────────
+        person(id) {
+            return this.byId[id];
+        },
+        /** Direct reports of a seat, by name. `null` yields the top level. */
+        kidsOf(id) {
+            return Object.keys(this.parents)
+                .map(Number)
+                .filter((k) => (this.parents[k] ?? null) === (id ?? null) && !this.directorIds.includes(k))
+                .sort((a, b) => this.person(a).name.localeCompare(this.person(b).name));
+        },
+        /** Seats from the top down to, but not including, this one. */
+        ancestors(id) {
+            const out = [];
+            for (let cur = this.parents[id] ?? null; cur !== null; cur = this.parents[cur] ?? null) {
+                out.unshift(cur);
+                if (out.length > 32) break; // a stored loop must not spin the render
+            }
+            return out;
+        },
+        isAncestor(candidate, of) {
+            return this.ancestors(of).includes(candidate) || candidate === of;
+        },
+        get directors() {
+            return this.directorIds.map((id) => this.person(id)).filter(Boolean);
+        },
+        get reports() {
+            return this.kidsOf(this.focus);
+        },
+        get subject() {
+            return this.focus === null ? null : this.person(this.focus);
+        },
+        /** People with no manager: nobody can verify their leave, claims or overtime. */
+        get unmanaged() {
+            return this.kidsOf(null).filter((id) => id !== this.focus);
         },
 
-        async persist(evt) {
-            const employeeId = evt.item.dataset.emp;
-            const managerId = evt.to.dataset.parent || null;
-            // No structural change (dropped back into the same list) — nothing to save.
-            if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return;
+        /**
+         * Who may fill the open slot under `picking.parent`. A person cannot report to
+         * themselves or to anyone already below them, and someone already reporting to
+         * this seat would be a no-op. Directors answer to nobody in the chart.
+         */
+        get candidates() {
+            const parent = this.picking?.parent ?? null;
+            const q = this.q.trim().toLowerCase();
 
+            return this.people
+                .filter((p) => !this.directorIds.includes(p.id))
+                .filter((p) => (this.parents[p.id] ?? null) !== parent)
+                .filter((p) => parent === null || !this.isAncestor(p.id, parent))
+                .filter((p) => !q || `${p.name} ${p.role ?? ''} ${p.dept ?? ''}`.toLowerCase().includes(q))
+                .sort((a, b) => {
+                    // People with no manager first: those are the ones the chart is missing.
+                    const open = ((this.parents[b.id] ?? null) === null) - ((this.parents[a.id] ?? null) === null);
+                    return open || a.name.localeCompare(b.name);
+                });
+        },
+        /** Who may be added as an extra verifier for the subject. */
+        get verifierCandidates() {
+            const q = this.q.trim().toLowerCase();
+            const chosen = this.verifiers[this.focus] ?? [];
+
+            return this.people
+                .filter((p) => p.id !== this.focus && !chosen.includes(p.id) && p.id !== (this.parents[this.focus] ?? null))
+                .filter((p) => !q || `${p.name} ${p.role ?? ''} ${p.dept ?? ''}`.toLowerCase().includes(q));
+        },
+        get subjectVerifiers() {
+            return (this.verifiers[this.focus] ?? []).map((id) => this.person(id)).filter(Boolean);
+        },
+
+        // ── navigation ──────────────────────────────────────────────────────────
+        dive(id, dir) {
+            this.dir = dir;
+            this.focus = id;
+            this.sel = id;
+            this.picking = null;
+            this.pickingVerifier = false;
+            this.q = '';
+            this.error = '';
+            this.reduce ? this.stage.settle() : this.stage.push(-1);
+        },
+        openSlot(parentId) {
+            this.picking = { parent: parentId };
+            this.pickingVerifier = false;
+            this.q = '';
+            this.error = '';
+            this.$nextTick(() => this.$refs.search?.focus());
+        },
+        cancel() {
+            this.picking = null;
+            this.pickingVerifier = false;
+            this.q = '';
+        },
+
+        // ── writes ──────────────────────────────────────────────────────────────
+        async moveTo(employeeId, managerId) {
             this.busy = true;
             this.error = '';
             try {
-                await api('/app/org/move', this.token, {
-                    employee_id: Number(employeeId),
-                    manager_id: managerId ? Number(managerId) : null,
-                });
-                this.refresh();
+                await api('/app/org/move', this.token, { employee_id: employeeId, manager_id: managerId });
+                this.parents[employeeId] = managerId;
+                this.justPlaced = employeeId;
+                setTimeout(() => {
+                    this.justPlaced = null;
+                }, 520);
+                this.cancel();
             } catch (err) {
-                // The server rejected the move (loop, gone, etc). Reload to the clean
-                // server-rendered tree so the DOM never drifts from the saved state.
+                // Nothing local changed, so there is no drift to repair — say what went
+                // wrong and leave the chart exactly as the server has it.
                 this.error = err.message;
-                window.location.reload();
             } finally {
                 this.busy = false;
             }
         },
-
-        // Recompute the live counters from the DOM after a successful drop, so the
-        // "N reports" pills and the summary strip stay correct without a full reload.
-        refresh() {
-            this.rootEl.querySelectorAll('[data-node]').forEach((node) => {
-                const childList = node.querySelector(':scope > [data-children]');
-                const count = childList ? directNodes(childList).length : 0;
-                const pill = node.querySelector(':scope > [data-row] [data-count]');
-                if (pill) {
-                    pill.textContent = count > 0 ? `${count} report${count > 1 ? 's' : ''}` : '';
-                    pill.style.display = count > 0 ? '' : 'none';
-                }
-            });
-
-            const rootList = this.rootEl.querySelector('[data-children][data-parent=""]');
-            if (rootList) {
-                this.setStat('roots', directNodes(rootList).length);
-                this.setStat('depth', listDepth(rootList));
-            }
+        place(employeeId) {
+            return this.moveTo(employeeId, this.picking?.parent ?? null);
+        },
+        detach(employeeId) {
+            return this.moveTo(employeeId, null);
         },
 
-        setStat(name, value) {
-            const el = this.rootEl.querySelector(`[data-stat="${name}"]`);
-            if (el) el.textContent = value;
+        async saveVerifiers(ids) {
+            this.busy = true;
+            this.error = '';
+            try {
+                const res = await api(`/app/org/verifiers/${this.focus}`, this.token, { verifiers: ids });
+                this.verifiers[this.focus] = res.verifiers ?? ids;
+                this.pickingVerifier = false;
+                this.q = '';
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.busy = false;
+            }
+        },
+        addVerifier(id) {
+            return this.saveVerifiers([...(this.verifiers[this.focus] ?? []), id]);
+        },
+        removeVerifier(id) {
+            return this.saveVerifiers((this.verifiers[this.focus] ?? []).filter((x) => x !== id));
         },
     }));
 }

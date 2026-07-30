@@ -154,7 +154,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->request($stranger);
 
         $this->actingAsEmployee($manager)->get('/app/leave')->assertOk()
-            ->assertSee('To verify')
+            ->assertSee('Yours to verify')
             ->assertSee('Mine Reportee')
             ->assertDontSee('Stranger Person');
     }
@@ -167,7 +167,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->request($report, 'verified', $manager->id);
 
         $this->actingAsEmployee($mgmt)->get('/app/leave')->assertOk()
-            ->assertSee('To approve')
+            ->assertSee('Waiting for final approval')
             ->assertSee('Reportee');
     }
 
@@ -284,5 +284,50 @@ class LeaveApprovalRoutingTest extends TestCase
 
         $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/reject")->assertStatus(422);
         $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    // --- HR skips the verify step (reports straight to the directors) --------
+
+    public function test_hr_leave_opens_pre_verified_and_goes_to_the_directors(): void
+    {
+        $director = $this->member('director', 'Shahril');
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/leave', [
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::where('employee_id', $hr->id)->firstOrFail();
+        $this->assertSame('verified', $req->status);
+        $this->assertNull($req->verified_by_id);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $director->user_id, 'title' => 'Leave awaiting final approval',
+        ]);
+
+        // The timeline says the step was skipped, not that an unnamed superior verified it.
+        $this->actingAsEmployee($hr)->get('/app/leave')->assertOk()
+            ->assertSee('No verification needed')
+            ->assertDontSee('Verified by superior');
+    }
+
+    public function test_hr_gives_final_approval_on_someone_elses_verified_leave(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $hr = $this->member('hr', 'HR Officer');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = $this->request($report, 'verified', $manager->id);
+
+        $this->actingAsEmployee($hr)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    public function test_hr_cannot_approve_their_own_pre_verified_leave(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $req = $this->request($hr, 'verified');
+
+        $this->actingAsEmployee($hr)->post("/app/leave/{$req->id}/approve")->assertForbidden();
+        $this->assertSame('verified', $req->fresh()->status);
     }
 }

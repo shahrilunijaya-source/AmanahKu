@@ -12,6 +12,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,12 +20,15 @@ use Illuminate\Support\Collection;
  *
  * One flow for leave, claims, overtime (and any future request type):
  *
- *   submitted ──verify(immediate superior)──▶ verified ──approve(management)──▶ approved
+ *   submitted ──verify(immediate superior)──▶ verified ──approve(HR / director)──▶ approved
  *
  * - VERIFY is the requester's direct manager only (employees.reports_to_id) — the link the
  *   org chart configures. They recommend; they cannot give final approval.
- * - APPROVE is the `management` role only, and only once a request is verified. HR no
- *   longer gives final approval here (HR still runs settings).
+ * - APPROVE is HR or the management tier (director), and only once a request is verified.
+ * - HR SKIPS VERIFY: an HR-role requester reports straight to the directors, so there is no
+ *   intermediate superior to recommend their own request. Theirs opens already `verified`
+ *   (with no verifier recorded) and goes straight to the final-approval queue, where a
+ *   director signs it off — HR cannot approve their own request.
  * - Segregation of duties: nobody acts on their own request, and the verifier may not also
  *   approve. A request with no superior set stays at `submitted` until one is assigned.
  *
@@ -34,13 +38,37 @@ use Illuminate\Support\Collection;
 trait RoutesApprovalsByReportingLine
 {
     /**
-     * Roles that give final approval (after verification): management and director. Listed
-     * explicitly (not just via effectiveRole) because notifyManagementToApprove() queries the
-     * tenant_user pivot by literal role — a director must be pinged, not only permitted.
+     * Roles that give final approval (after verification): HR, management and director.
+     * Listed explicitly (not just via effectiveRole) because notifyManagementToApprove()
+     * queries the tenant_user pivot by literal role — a director must be pinged, not only
+     * permitted.
      */
     private function approvalManagerRoles(): array
     {
-        return Permissions::MANAGEMENT_TIER;
+        return Permissions::FINAL_APPROVAL_ROLES;
+    }
+
+    /**
+     * True when the acting user's own request needs no verification step: HR reports directly
+     * to the directors, so no manager sits between them and final approval.
+     */
+    protected function skipsVerification(Request $request): bool
+    {
+        return $this->tenantRole($request) === 'hr';
+    }
+
+    /**
+     * Status columns for a two-step request the acting user is creating for themselves —
+     * `submitted` normally, already `verified` for an HR requester (see skipsVerification()).
+     * Spread into the create() array so every module opens at the same stage.
+     *
+     * @return array{status: string, verified_at?: Carbon}
+     */
+    protected function openingStatusColumns(Request $request): array
+    {
+        return $this->skipsVerification($request)
+            ? ['status' => 'verified', 'verified_at' => now()]
+            : ['status' => 'submitted'];
     }
 
     private function assertSameTenant(int $recordTenantId): void
@@ -114,7 +142,7 @@ trait RoutesApprovalsByReportingLine
         abort_unless(
             $this->hasTenantRole($request, $this->approvalManagerRoles()),
             403,
-            'Only management can give final approval.',
+            'Only HR or a director can give final approval.',
         );
 
         abort_if(
@@ -205,12 +233,17 @@ trait RoutesApprovalsByReportingLine
         }
     }
 
-    /** Notify every management user that a verified request awaits final approval. */
+    /**
+     * Notify every final approver (HR + management tier) that a verified request awaits their
+     * approval. The acting user is skipped: they either just verified it, or they are the HR
+     * requester whose own request opened pre-verified — neither needs telling.
+     */
     protected function notifyManagementToApprove(int $tenantId, string $title, ?string $body, string $url): void
     {
         $userIds = Tenant::find($tenantId)
             ?->users()
             ->wherePivotIn('role', $this->approvalManagerRoles())
+            ->whereKeyNot(auth()->id() ?? 0)
             ->pluck('users.id')
             ->all() ?? [];
 

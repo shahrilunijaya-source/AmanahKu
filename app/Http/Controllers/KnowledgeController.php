@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\KnowledgeComment;
 use App\Models\KnowledgeContribution;
 use App\Models\KnowledgeEntry;
+use App\Models\KnowledgeReaction;
 use App\Models\KnowledgeRead;
 use App\Models\KnowledgeSegment;
 use App\Models\KnowledgeStar;
@@ -33,8 +34,11 @@ use Illuminate\Validation\Rule;
  */
 class KnowledgeController extends Controller
 {
-    /** Roles allowed to see the monthly compliance grid. */
+    /** Roles allowed to moderate (delete) any comment. */
     private const PRIVILEGED_ROLES = ['manager', 'management', 'hr'];
+
+    /** Roles allowed to see the monthly compliance grid (who owes a lesson). */
+    private const COMPLIANCE_ROLES = ['management', 'hr'];
 
     /** Unread / "New" window: entries newer than this count toward the badge. */
     private const NEW_DAYS = 30;
@@ -95,17 +99,21 @@ class KnowledgeController extends Controller
 
         $role = $request->attributes->get('tenantRole', 'employee');
         $privileged = in_array($role, self::PRIVILEGED_ROLES, true);
+        $canSeeCompliance = in_array($role, self::COMPLIANCE_ROLES, true);
 
         return array_merge([
             'segments' => $segments,
             'entries' => $entries,
             'readIds' => $readIds,
             'starredIds' => $starredIds,
+            'reactionCounts' => $this->reactionCounts($entryIds->all()),
+            'myReactions' => $this->myReactions($entryIds->all(), $employee),
             'newCutoff' => now()->subDays(self::NEW_DAYS),
             'filters' => ['seg' => $seg, 'subseg' => $subseg, 'q' => $q],
             'canSubmit' => (bool) $employee,
             'privileged' => $privileged,
-            'compliance' => $privileged ? $this->compliance() : null,
+            'canSeeCompliance' => $canSeeCompliance,
+            'compliance' => $canSeeCompliance ? $this->compliance() : null,
         ], $this->stats(), $this->monthLabels());
     }
 
@@ -288,7 +296,7 @@ class KnowledgeController extends Controller
     }
 
     /** Toggle the current employee's star on an entry (one per person). */
-    public function toggleStar(Request $request, KnowledgeEntry $entry): RedirectResponse
+    public function toggleStar(Request $request, KnowledgeEntry $entry): RedirectResponse|JsonResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
@@ -298,29 +306,162 @@ class KnowledgeController extends Controller
             ->where('employee_id', $employee->id)
             ->first();
 
+        $message = 'Starred.';
+
         if ($existing) {
             $existing->delete();
-
-            return back()->with('ok', 'Star removed.');
-        }
-
-        try {
-            KnowledgeStar::create(['entry_id' => $entry->id, 'employee_id' => $employee->id]);
-        } catch (QueryException $e) {
-            // 23xxx = the unique (entry_id, employee_id) duplicate-star guard. Anything else
-            // is a real DB failure — don't mask it behind a friendly message.
-            if (! str_starts_with((string) $e->getCode(), '23')) {
-                throw $e;
+            $message = 'Star removed.';
+        } else {
+            try {
+                KnowledgeStar::create(['entry_id' => $entry->id, 'employee_id' => $employee->id]);
+            } catch (QueryException $e) {
+                // 23xxx = the unique (entry_id, employee_id) duplicate-star guard. Anything else
+                // is a real DB failure — don't mask it behind a friendly message.
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
+                $message = 'You already starred this.';
             }
-
-            return back()->with('ok', 'You already starred this.');
         }
 
-        return back()->with('ok', 'Starred.');
+        if ($request->expectsJson()) {
+            return response()->json($this->entryState($entry, $employee));
+        }
+
+        return back()->with('ok', $message);
+    }
+
+    /**
+     * Toggle one emoji reaction for the acting employee. One emoji per person per
+     * entry — pressing the one you left is the undo. Mirrors TotController::react.
+     */
+    public function react(Request $request, KnowledgeEntry $entry): RedirectResponse|JsonResponse
+    {
+        abort_unless($entry->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'emoji' => ['required', 'string', 'in:'.implode(',', KnowledgeEntry::EMOJI)],
+        ]);
+
+        $had = KnowledgeReaction::where('entry_id', $entry->id)
+            ->where('employee_id', $employee->id)
+            ->pluck('emoji');
+
+        KnowledgeReaction::where('entry_id', $entry->id)
+            ->where('employee_id', $employee->id)
+            ->delete();
+
+        if (! $had->contains($data['emoji'])) {
+            try {
+                KnowledgeReaction::create([
+                    'entry_id' => $entry->id,
+                    'employee_id' => $employee->id,
+                    'emoji' => $data['emoji'],
+                ]);
+            } catch (QueryException $e) {
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
+            }
+        }
+
+        return $request->expectsJson()
+            ? response()->json($this->entryState($entry, $employee))
+            : back();
+    }
+
+    /**
+     * The reactive header of one entry — reaction tallies, this viewer's own
+     * reaction and star, and the live comment count. Returned by react() and
+     * toggleStar() so the drawer re-syncs after every action.
+     *
+     * @return array<string, mixed>
+     */
+    private function entryState(KnowledgeEntry $entry, ?Employee $employee): array
+    {
+        $reactions = $entry->reactions()->get();
+
+        return [
+            'reactions' => $reactions->groupBy('emoji')->map->count()->all(),
+            'mine' => $employee ? $reactions->where('employee_id', $employee->id)->pluck('emoji')->values()->all() : [],
+            'stars' => $entry->stars()->count(),
+            'starred' => $employee ? $entry->stars()->where('employee_id', $employee->id)->exists() : false,
+            'commentsCount' => $entry->comments()->count(),
+        ];
+    }
+
+    /**
+     * Emoji tallies per entry, keyed entry id => [emoji => count].
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array<string, int>>
+     */
+    private function reactionCounts(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return KnowledgeReaction::whereIn('entry_id', $ids)
+            ->get()
+            ->groupBy('entry_id')
+            ->map(fn (Collection $rows) => $rows->groupBy('emoji')->map->count()->all())
+            ->all();
+    }
+
+    /**
+     * The acting employee's own reactions, keyed entry id => list of emoji.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, list<string>>
+     */
+    private function myReactions(array $ids, ?Employee $employee): array
+    {
+        if ($ids === [] || ! $employee) {
+            return [];
+        }
+
+        return KnowledgeReaction::whereIn('entry_id', $ids)
+            ->where('employee_id', $employee->id)
+            ->get()
+            ->groupBy('entry_id')
+            ->map(fn (Collection $rows) => $rows->pluck('emoji')->values()->all())
+            ->all();
+    }
+
+    /**
+     * The discussion for one entry, as JSON — feeds the slide-over comment
+     * drawer (the same shape the T.O.T. drawer consumes).
+     */
+    public function commentsList(Request $request, KnowledgeEntry $entry): JsonResponse
+    {
+        abort_unless($entry->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        $comments = $entry->comments()
+            ->with('employee:id,name,initials,avatar_color')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (KnowledgeComment $c): array => [
+                'id' => $c->id,
+                'name' => $c->employee?->name ?? 'Unknown',
+                'initials' => $c->employee?->initials ?? '–',
+                'color' => $c->employee?->avatar_color ?? '#3a6ea5',
+                'at' => $c->created_at?->diffForHumans(),
+                'body' => $c->body,
+                'canDelete' => $privileged || ($employee && $c->employee_id === $employee->id),
+            ]);
+
+        return response()->json(['comments' => $comments, 'commentsCount' => $comments->count()]);
     }
 
     /** Add a comment to an entry. Any employee in the workspace may comment. */
-    public function comment(Request $request, KnowledgeEntry $entry): RedirectResponse
+    public function comment(Request $request, KnowledgeEntry $entry): RedirectResponse|JsonResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
@@ -336,11 +477,15 @@ class KnowledgeController extends Controller
             'body' => $data['body'],
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json(['commentsCount' => $entry->comments()->count()]);
+        }
+
         return back()->with('ok', 'Comment posted.');
     }
 
     /** Delete a comment — the author, or a privileged role, only. */
-    public function deleteComment(Request $request, KnowledgeComment $comment): RedirectResponse
+    public function deleteComment(Request $request, KnowledgeComment $comment): RedirectResponse|JsonResponse
     {
         abort_unless($comment->tenant_id === app(CurrentTenant::class)->id(), 403);
 
@@ -348,7 +493,12 @@ class KnowledgeController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         abort_unless($privileged || ($employee && $comment->employee_id === $employee->id), 403);
 
+        $entryId = $comment->entry_id;
         $comment->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json(['commentsCount' => KnowledgeComment::where('entry_id', $entryId)->count()]);
+        }
 
         return back()->with('ok', 'Comment deleted.');
     }

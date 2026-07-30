@@ -78,12 +78,28 @@ class WritePathsTest extends TestCase
 
     public function test_clock_in_creates_a_record_for_today(): void
     {
-        $this->actingInTenant()->post('/app/attendance/clock', ['action' => 'in'])->assertRedirect();
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'latitude' => '3.1039000',
+            'longitude' => '101.6021000',
+        ])->assertRedirect();
 
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
         $this->assertNotNull($record);
         $this->assertSame($this->tenant->id, $record->tenant_id);
         $this->assertNotNull($record->clock_in);
+    }
+
+    /**
+     * GPS is mandatory. Without it the punch cannot be judged against the geofence, so
+     * denying location would be the cheapest way to avoid an off-site flag.
+     */
+    public function test_clock_in_without_coordinates_is_rejected(): void
+    {
+        $this->actingInTenant()->post('/app/attendance/clock', ['action' => 'in'])
+            ->assertSessionHasErrors(['latitude', 'longitude']);
+
+        $this->assertDatabaseCount('attendance_records', 0);
     }
 
     /**
@@ -109,6 +125,8 @@ class WritePathsTest extends TestCase
     {
         $this->actingInTenant()->post('/app/attendance/clock', [
             'action' => 'in',
+            'latitude' => '3.1039000',
+            'longitude' => '101.6021000',
             'justification' => 'Starting at the client office this morning.',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
@@ -122,11 +140,15 @@ class WritePathsTest extends TestCase
     {
         $this->actingInTenant()->post('/app/attendance/clock', [
             'action' => 'in',
+            'latitude' => '3.1039000',
+            'longitude' => '101.6021000',
             'justification' => 'Morning note.',
         ])->assertRedirect();
 
         $this->actingInTenant()->post('/app/attendance/clock', [
             'action' => 'out',
+            'latitude' => '3.1039000',
+            'longitude' => '101.6021000',
             'justification' => 'Evening note.',
         ])->assertRedirect();
 

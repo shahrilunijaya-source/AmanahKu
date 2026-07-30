@@ -102,12 +102,30 @@ class EmployeeNicknameTest extends TestCase
         $this->assertNull($employee->fresh()->nickname);
     }
 
-    /** One format everywhere: the legal name first, then the short name in quotes. */
-    public function test_display_name_appends_the_nickname_in_quotes(): void
+    /** One format everywhere: the nickname alone when there is one. */
+    public function test_display_name_is_the_nickname_alone(): void
     {
         $employee = new Employee(['name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime']);
 
-        $this->assertSame('Mohd Hakime Bin Md Nasri "Hakime"', $employee->display_name);
+        $this->assertSame('Hakime', $employee->display_name);
+    }
+
+    /**
+     * The header account chip reads the User row, which has no nickname column, so it has to
+     * go through the employee record for the current tenant to show the short name.
+     */
+    public function test_the_header_account_chip_shows_the_nickname(): void
+    {
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $this->hr->id,
+            'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $html = $this->actingHr()->get('/app/dash')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('Mohd Hakime Bin Md Nasri', $html);
+        $this->assertStringContainsString('>Hakime</span>', $html);
     }
 
     public function test_display_name_falls_back_to_the_full_name_with_no_nickname(): void

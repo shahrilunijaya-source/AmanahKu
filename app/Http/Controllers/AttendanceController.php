@@ -31,14 +31,20 @@ class AttendanceController extends Controller
 
         $validated = $request->validate([
             'action' => ['required', 'in:in,out'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            // GPS is mandatory: a punch with no coordinates cannot be judged against the
+            // geofence, so allowing it would make denying location the cheapest way to
+            // avoid an off-site flag.
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'justification' => ['nullable', 'string', 'max:500'],
+        ], [
+            'latitude.required' => 'Location is required to clock in or out. Allow location access and try again.',
+            'longitude.required' => 'Location is required to clock in or out. Allow location access and try again.',
         ]);
 
-        $lat = isset($validated['latitude']) ? (float) $validated['latitude'] : null;
-        $lng = isset($validated['longitude']) ? (float) $validated['longitude'] : null;
+        $lat = (float) $validated['latitude'];
+        $lng = (float) $validated['longitude'];
         $justification = $validated['justification'] ?? null;
         $now = Carbon::now();
 

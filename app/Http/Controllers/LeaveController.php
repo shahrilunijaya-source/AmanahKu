@@ -88,7 +88,7 @@ class LeaveController extends Controller
         }
 
         // tenant_id is auto-filled by the BelongsToTenant trait.
-        $employee->leaveRequests()->create([
+        $leave = $employee->leaveRequests()->create([
             'leave_type_id' => $data['leave_type_id'],
             'date_from' => $data['date_from'],
             'date_to' => $data['date_to'],
@@ -97,17 +97,29 @@ class LeaveController extends Controller
             'reason' => $data['reason'] ?? null,
             'attachment_path' => $attachmentPath,
             'attachment_name' => $attachmentName,
-            'status' => 'submitted',
+            ...$this->openingStatusColumns($request),
         ]);
 
-        // Step 1 of the gate: the request goes to the immediate superior (org chart) to
-        // verify. No superior set → it waits at 'submitted' until one is assigned.
-        $this->notifyManagerToVerify(
-            $employee,
-            'Leave awaiting your verification',
-            $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's'),
-            route('app.screen', 'leave'),
-        );
+        $body = $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's');
+
+        if ($this->skipsVerification($request)) {
+            // HR reports straight to the directors: no verify step, straight to final approval.
+            $this->notifyManagementToApprove(
+                $leave->tenant_id,
+                'Leave awaiting final approval',
+                $body,
+                route('app.screen', 'leave'),
+            );
+        } else {
+            // Step 1 of the gate: the request goes to the immediate superior (org chart) to
+            // verify. No superior set → it waits at 'submitted' until one is assigned.
+            $this->notifyManagerToVerify(
+                $employee,
+                'Leave awaiting your verification',
+                $body,
+                route('app.screen', 'leave'),
+            );
+        }
 
         return back()->with('ok', "Leave application submitted ({$days} day".($days == 1 ? '' : 's').').');
     }
@@ -211,7 +223,7 @@ class LeaveController extends Controller
         AppNotification::send(
             $leaveRequest->employee->user_id,
             'Leave verified',
-            'Your leave was verified and is awaiting management approval',
+            'Your leave was verified and is awaiting final approval',
             route('app.screen', 'leave'),
         );
     }
