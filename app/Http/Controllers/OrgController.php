@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Support\Amanahku;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,10 +65,12 @@ class OrgController extends Controller
         // Two independent signals make someone a director, unioned:
         //   1. Their assigned position (rank band) is flagged a director band — a STAFF
         //      attribute, so a directory-only director with no login account still pins.
-        //   2. Their login account holds the tenant `director` role (kept so directors
-        //      designated purely by role don't regress).
+        //   2. Their login account holds a management-tier tenant role. Permissions already
+        //      collapse `director` into `management` (Permissions::effectiveRole), so the band
+        //      mirrors that: both `management` and `director` pin as directors. Platform admins
+        //      are cross-tenant and hold no tenant role, so they never appear here.
         $directorUserIds = app(CurrentTenant::class)->get()
-            ->users()->wherePivot('role', 'director')->pluck('users.id')->all();
+            ->users()->wherePivotIn('role', Permissions::MANAGEMENT_TIER)->pluck('users.id')->all();
         $directors = $all
             ->filter(fn (Employee $e) => (bool) $e->positionBand?->is_director
                 || ($e->user_id !== null && in_array($e->user_id, $directorUserIds, true)))

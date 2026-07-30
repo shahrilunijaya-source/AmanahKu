@@ -2,10 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\OrgController;
+use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
@@ -75,6 +80,27 @@ class OrgChartTest extends TestCase
         $this->assertStringContainsString(':data-name="subject.name"', $html);
         // The only word left inside a circle belongs to the band, which is not a person.
         $this->assertSame(1, substr_count($html, 'class="oc-name"'));
+    }
+
+    public function test_a_management_tier_account_pins_to_the_directors_band(): void
+    {
+        // A user whose only tenant role is `management` (no director role, no director
+        // position band) must still land in the leadership band — permissions already
+        // collapse director → management, and the chart mirrors that collapse.
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $boss = User::create(['name' => 'Head of Ops', 'email' => 'head@acme.example', 'password' => Hash::make('password')]);
+        $boss->tenants()->attach($tenant->id, ['role' => 'management']);
+        $employee = Employee::create([
+            'tenant_id' => $tenant->id, 'user_id' => $boss->id,
+            'name' => 'Head of Ops', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        app(CurrentTenant::class)->set($tenant);
+        $this->actingAs($boss)->withSession(['current_tenant' => $tenant->id]);
+
+        $data = app(OrgController::class)->screenData(Request::create('/app/orgchart'), $employee);
+
+        $this->assertContains($employee->id, $data['chart']['directors']);
     }
 
     public function test_orgchart_shows_the_summary_line(): void
