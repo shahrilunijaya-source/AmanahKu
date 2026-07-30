@@ -11,6 +11,9 @@ class KnowledgeEntry extends Model
 {
     use BelongsToTenant;
 
+    /** The only reactions the UI offers. Anything else is rejected with a 422. */
+    public const EMOJI = ['👍', '👏', '🔥', '💡', '🤔', '❤️'];
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -46,5 +49,10 @@ class KnowledgeEntry extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(KnowledgeComment::class, 'entry_id');
+    }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(KnowledgeReaction::class, 'entry_id');
     }
 }

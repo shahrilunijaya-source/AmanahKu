@@ -52,21 +52,19 @@
                         </div>
                     @endif
 
-                    {{-- Culture metrics --}}
-                    <div style="display:flex;border:1px solid var(--hairline);border-radius:12px;overflow:hidden;margin-bottom:14px;">
-                        <div style="flex:1;padding:12px;text-align:center;">
-                            <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--ink);">{{ $kbTotal }}</div>
-                            <div style="font-size:10.5px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? 'Lessons' : 'Pengajaran'">Lessons</div>
-                        </div>
-                        <div style="width:1px;background:var(--hairline);"></div>
-                        <div style="flex:1;padding:12px;text-align:center;">
-                            <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--ink);">{{ $kbSegCount }}</div>
-                            <div style="font-size:10.5px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</div>
-                        </div>
-                        <div style="width:1px;background:var(--hairline);"></div>
-                        <div style="flex:1;padding:12px;text-align:center;">
-                            <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--success);">{{ $kbContribPct }}%</div>
-                            <div style="font-size:10.5px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? 'Contributed' : 'Menyumbang'">Contributed</div>
+                    {{-- Culture hero --}}
+                    <div style="background:var(--shelf);border:1px solid var(--shelf-line);border-radius:14px;padding:16px 16px 14px;margin-bottom:14px;">
+                        <div style="font-size:10.5px;letter-spacing:.19em;text-transform:uppercase;color:var(--muted);font-weight:600;" x-text="$store.ui.lang==='en' ? 'Knowledge bank' : 'Bank pengetahuan'">Knowledge bank</div>
+                        <div style="font:600 40px/1 var(--font-mono);color:var(--ink);margin-top:6px;letter-spacing:-.03em;">{{ $kbTotal }}</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+                            <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:7px 11px;display:flex;align-items:baseline;gap:6px;">
+                                <b style="font:600 15px var(--font-mono);color:var(--ink);line-height:1;">{{ $kbSegCount }}</b>
+                                <span style="font-size:10.5px;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</span>
+                            </div>
+                            <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:7px 11px;display:flex;align-items:baseline;gap:6px;">
+                                <b style="font:600 15px var(--font-mono);color:var(--success);line-height:1;">{{ $kbContribPct }}%</b>
+                                <span style="font-size:10.5px;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Contributed' : 'Menyumbang'">Contributed</span>
+                            </div>
                         </div>
                     </div>
 
@@ -87,14 +85,14 @@
                     {{-- Entries --}}
                     <div style="display:flex;flex-direction:column;gap:11px;">
                         <template x-for="e in filtered" :key="e.id">
-                            <div style="border:1px solid var(--hairline);border-radius:12px;padding:14px 15px;">
+                            <div x-data="{ open: false }" @click="open = !open" style="border:1px solid var(--hairline);border-radius:12px;padding:14px 15px;cursor:pointer;">
                                 <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
                                     <span style="font-size:10.5px;color:var(--body);background:var(--canvas);border:1px solid var(--hairline);padding:2px 8px;border-radius:9999px;" x-text="e.seg"></span>
                                     <template x-if="e.isNew"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);"></span></template>
                                     <span style="margin-left:auto;font-size:10.5px;font-family:var(--font-mono);color:var(--muted);" x-text="e.date"></span>
                                 </div>
                                 <div style="font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-bottom:5px;" x-text="e.title"></div>
-                                <div style="font-size:12.5px;color:var(--body);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;" x-text="e.body"></div>
+                                <div :style="'font-size:12.5px;color:var(--body);line-height:1.55;'+(open ? '' : 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;')" x-text="e.body"></div>
                                 <div style="display:flex;align-items:center;gap:9px;margin-top:11px;">
                                     <span :style="'width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:'+e.color" x-text="e.initials"></span>
                                     <div style="flex:1;min-width:0;">

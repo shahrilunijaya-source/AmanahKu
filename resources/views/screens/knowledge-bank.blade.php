@@ -5,6 +5,7 @@
     $starSet = collect($starredIds);
     $activeSeg = $filters['seg'] ?? null;
     $activeSub = $filters['subseg'] ?? null;
+    $activeSegModel = $activeSeg ? $segments->firstWhere('id', (int) $activeSeg) : null;
 @endphp
 
 @section('screen')
@@ -16,7 +17,7 @@
         'who'   => 'Everyone shares monthly · HR sees who has contributed',
         'steps' => [
             'Use "Add a lesson" (top right) — pick a segment, give it a clear title and a short write-up.',
-            'Filter by segment on the left, or search to find a past lesson fast.',
+            'Filter by segment with the chips, or search to find a past lesson fast.',
             'Tap "helpful" on entries that saved you time so the best ones stand out.',
         ],
     ],
@@ -26,98 +27,52 @@
         'who'   => 'Semua kongsi setiap bulan · HR nampak siapa telah menyumbang',
         'steps' => [
             'Guna "Add a lesson" (atas kanan) — pilih segmen, beri tajuk jelas dan penerangan ringkas.',
-            'Tapis ikut segmen di sebelah kiri, atau cari untuk jumpa pengajaran lampau dengan pantas.',
+            'Tapis ikut segmen dengan cip, atau cari untuk jumpa pengajaran lampau dengan pantas.',
             'Tekan "helpful" pada entri yang menjimatkan masa anda supaya yang terbaik menonjol.',
         ],
     ],
 ])
 
-{{-- ── Culture stats ─────────────────────────────────────────────────────── --}}
-<div style="display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
-    <div class="uj-card" style="flex:1;min-width:170px;padding:18px 20px;">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;" x-text="$store.ui.lang==='en' ? 'Total lessons' : 'Jumlah pengajaran'">Total lessons</div>
-        <div style="font-family:var(--font-mono);font-size:28px;font-weight:600;color:var(--ink);margin-top:6px;">{{ $total }}</div>
-    </div>
-    <div class="uj-card" style="flex:1;min-width:170px;padding:18px 20px;">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</div>
-        <div style="font-family:var(--font-mono);font-size:28px;font-weight:600;color:var(--ink);margin-top:6px;">{{ $segCount }}</div>
-    </div>
-    <div class="uj-card" style="flex:1;min-width:170px;padding:18px 20px;">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;" x-text="$store.ui.lang==='en' ? '% Contributed' : '% Menyumbang'">% Contributed</div>
-        <div style="font-family:var(--font-mono);font-size:28px;font-weight:600;color:var(--success);margin-top:6px;">{{ $contribPct }}%</div>
-    </div>
-    <div style="flex:1;min-width:170px;padding:18px 20px;border-radius:12px;background:var(--sidebar);">
-        <div style="font-size:11px;font-weight:600;color:var(--sidebar-text);text-transform:uppercase;letter-spacing:.5px;" x-text="$store.ui.lang==='en' ? 'Team streak' : 'Streak pasukan'">Team streak</div>
-        <div style="font-family:var(--font-mono);font-size:28px;font-weight:600;color:#fff;margin-top:6px;">{{ $teamStreak }} <span style="font-size:13px;color:var(--sidebar-text);font-weight:500;" x-text="$store.ui.lang==='en' ? ({{ $teamStreak }}===1?'month':'months') : 'bulan'">months</span></div>
-    </div>
-</div>
+{{-- ── Hero + contributions carousel ─────────────────────────────────────────
+     Two full-width slides you swipe between: the culture stats, then (for HR /
+     management) the monthly compliance grid. Dots drive it on desktop where
+     there is no touch swipe. Single slide for everyone else — no dots. --}}
+@php $hasCompliance = $canSeeCompliance && $compliance; @endphp
+<div x-data="{ i: 0, go(n) { this.$refs.kbTrack.scrollTo({ left: n * this.$refs.kbTrack.clientWidth, behavior: 'smooth' }); } }" style="margin-bottom:20px;">
+    <div x-ref="kbTrack" @scroll.passive.debounce.60ms="i = Math.round($el.scrollLeft / $el.clientWidth)"
+         style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
 
-{{-- ── Search + Add ──────────────────────────────────────────────────────── --}}
-<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-    <form method="get" action="{{ route('app.screen', 'knowledge-bank') }}" style="flex:1;min-width:260px;position:relative;">
-        @if ($activeSeg)<input type="hidden" name="seg" value="{{ $activeSeg }}">@endif
-        @if ($activeSub)<input type="hidden" name="subseg" value="{{ $activeSub }}">@endif
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4-4"></path></svg>
-        <input name="q" value="{{ $filters['q'] }}" @input.debounce.500ms="$el.form.submit()" :placeholder="$store.ui.lang==='en' ? 'Search lessons…' : 'Cari pengajaran…'"
-               style="width:100%;height:42px;padding:0 14px 0 38px;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;color:var(--ink);outline:none;" />
-    </form>
-    @if ($canSubmit)
-        <button @click="kb = true; kbView = 'add'" class="uj-btn-primary" style="height:42px;padding:0 18px;font-size:13.5px;display:flex;align-items:center;gap:7px;flex-shrink:0;">
-            <span style="font-size:17px;line-height:1;">＋</span><span x-text="$store.ui.lang==='en' ? 'Add a lesson' : 'Tambah pengajaran'">Add a lesson</span>
-        </button>
-    @endif
-</div>
-
-{{-- ── Two-column layout ─────────────────────────────────────────────────── --}}
-<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-    {{-- Left: segment tree --}}
-    <div class="uj-card" style="width:220px;flex-shrink:0;padding:8px;min-width:200px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px 6px;">
-            <span style="font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</span>
-            <span style="font-size:11px;font-family:var(--font-mono);color:var(--muted);">{{ $segments->count() }}</span>
+        {{-- Slide 1 — culture stats --}}
+        <div style="flex:0 0 100%;scroll-snap-align:start;">
+            <div style="background:var(--shelf);border:1px solid var(--shelf-line);border-radius:14px;padding:24px 26px 20px;height:100%;">
+                <div style="font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:var(--muted);font-weight:600;" x-text="$store.ui.lang==='en' ? 'Knowledge bank' : 'Bank pengetahuan'">Knowledge bank</div>
+                <div style="font:600 54px/1 var(--font-mono);color:var(--ink);margin-top:8px;letter-spacing:-.03em;">{{ $total }}</div>
+                <div style="font-size:13px;color:var(--body);margin-top:7px;">
+                    <span x-text="$store.ui.lang==='en'
+                        ? 'One lesson from everyone, every month.{{ $teamStreak > 0 ? ' '.$teamStreak.' '.($teamStreak === 1 ? 'month' : 'months').' unbroken.' : '' }}'
+                        : 'Satu pengajaran daripada semua, setiap bulan.{{ $teamStreak > 0 ? ' '.$teamStreak.' bulan berturut.' : '' }}'">One lesson from everyone, every month.</span>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
+                        <b style="font:600 18px var(--font-mono);color:var(--ink);line-height:1;">{{ $segCount }}</b>
+                        <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</span>
+                    </div>
+                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
+                        <b style="font:600 18px var(--font-mono);color:var(--success);line-height:1;">{{ $contribPct }}%</b>
+                        <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Contributed' : 'Menyumbang'">Contributed</span>
+                    </div>
+                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
+                        <b style="font:600 18px var(--font-mono);color:var(--ink);line-height:1;">{{ $teamStreak }}</b>
+                        <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? ({{ $teamStreak }}===1 ? 'month streak' : 'months streak') : 'bulan berturut'">months streak</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <a href="{{ route('app.screen', 'knowledge-bank') }}"
-           style="display:flex;align-items:center;width:100%;padding:9px 11px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;margin-bottom:2px;color:{{ ! $activeSeg ? '#fff' : 'var(--body)' }};background:{{ ! $activeSeg ? 'var(--red)' : 'transparent' }};"
-           x-text="$store.ui.lang==='en' ? 'All lessons' : 'Semua pengajaran'">All lessons</a>
-
-        @foreach ($segments as $seg)
-            @php $segActive = (int) $activeSeg === $seg->id; @endphp
-            <div x-data="{ open: {{ $segActive && $seg->children->count() ? 'true' : 'false' }} }" style="margin-bottom:1px;">
-                <div style="display:flex;align-items:center;gap:2px;">
-                    <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id]) }}"
-                       style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;color:{{ $segActive && ! $activeSub ? '#fff' : 'var(--body)' }};background:{{ $segActive && ! $activeSub ? 'var(--red)' : 'transparent' }};">
-                        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $seg->label }}</span>
-                        <span style="font-size:11px;font-family:var(--font-mono);color:{{ $segActive && ! $activeSub ? 'rgba(255,255,255,.7)' : 'var(--muted)' }};">{{ $seg->entries()->count() }}</span>
-                    </a>
-                    @if ($seg->children->count())
-                        <button @click="open = !open" type="button" style="width:30px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:none;color:var(--muted);font-size:11px;border-radius:7px;cursor:pointer;" x-text="open ? '▾' : '▸'"></button>
-                    @endif
-                </div>
-                @if ($seg->children->count())
-                    <div x-show="open" x-cloak style="margin:1px 0 4px;">
-                        @foreach ($seg->children as $child)
-                            @php $subActive = (int) $activeSub === $child->id; @endphp
-                            <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id, 'subseg' => $child->id]) }}"
-                               style="display:block;padding:6px 11px 6px 28px;border-radius:7px;text-decoration:none;font-size:12.5px;color:{{ $subActive ? 'var(--red)' : 'var(--muted)' }};font-weight:{{ $subActive ? '600' : '400' }};">{{ $child->label }}</a>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        @endforeach
-
-        @if ($canSubmit)
-            <button @click="kb = true; kbView = 'newseg'" type="button"
-                    style="width:100%;margin-top:6px;padding:9px 11px;border-top:1px solid var(--hairline-soft);background:none;color:var(--muted);font-size:12.5px;font-weight:500;text-align:left;cursor:pointer;">
-                <span x-text="$store.ui.lang==='en' ? '+ Add segment' : '+ Tambah segmen'">+ Add segment</span>
-            </button>
-        @endif
-    </div>
-
-    {{-- Right: compliance + entries --}}
-    <div style="flex:1;min-width:340px;display:flex;flex-direction:column;gap:16px;">
-        @if ($privileged && $compliance)
-            <div class="uj-card" style="padding:20px;">
+        @if ($hasCompliance)
+        {{-- Slide 2 — monthly compliance grid (HR / management) --}}
+        <div style="flex:0 0 100%;scroll-snap-align:start;">
+            <div style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:20px;height:100%;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                     <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? @js($monthEn.' contributions') : @js($monthMs.' sumbangan')">{{ $monthEn }} contributions</span></h3>
                     <span style="font-size:12.5px;font-weight:600;font-family:var(--font-mono);color:var(--success);">{{ $compliance['progressPct'] }}%</span>
@@ -131,116 +86,144 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;">
                     @foreach ($compliance['members'] as $m)
                         @continue($m['submitted'])
-                        <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:{{ $m['submitted'] ? '#e9f5ef' : 'var(--red-tint)' }};">
+                        <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:var(--red-tint);">
                             <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $m['color'] ?? '#3a6ea5' }};">{{ $m['initials'] }}</span>
                             <div style="min-width:0;flex:1;">
                                 <div style="font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $m['name'] }}</div>
-                                <div style="font-size:10.5px;font-weight:600;color:{{ $m['submitted'] ? 'var(--success)' : 'var(--error)' }};">
-                                    @if ($m['submitted'])<span x-text="$store.ui.lang==='en' ? 'Submitted' : 'Dihantar'">Submitted</span>@else<span x-text="$store.ui.lang==='en' ? 'Not yet' : 'Belum'">Not yet</span>@endif
-                                </div>
+                                <div style="font-size:10.5px;font-weight:600;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Not yet' : 'Belum'">Not yet</div>
                             </div>
                         </div>
                     @endforeach
                 </div>
                 @endif
             </div>
-        @endif
-
-        {{-- Entry cards --}}
-        @forelse ($entries as $e)
-            @php
-                $isNew = ! $readSet->contains($e->id) && $e->created_at && $e->created_at->gte($newCutoff);
-                $starred = $starSet->contains($e->id);
-            @endphp
-            <div class="uj-card" style="padding:16px 18px;" x-data="{ openC: false }">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                    <span style="font-size:11px;font-weight:500;color:var(--body);background:var(--canvas);border:1px solid var(--hairline);padding:3px 9px;border-radius:9999px;">{{ $e->segment?->label }}</span>
-                    @if ($e->subSegment)
-                        <span style="font-size:11px;font-weight:500;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:3px 9px;border-radius:9999px;">{{ $e->subSegment->label }}</span>
-                    @endif
-                    @if ($isNew)
-                        <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--red);"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);"></span><span x-text="$store.ui.lang==='en' ? 'New' : 'Baharu'">New</span></span>
-                    @endif
-                    <span style="margin-left:auto;font-size:11px;font-family:var(--font-mono);color:var(--muted);">{{ $e->created_at?->format('d M Y') }}</span>
-                </div>
-                <h3 style="font-size:15px;font-weight:600;color:var(--ink);margin:0 0 6px;">{{ $e->title }}</h3>
-                <div style="font-size:13px;color:var(--body);line-height:1.6;margin:0 0 12px;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
-                @if (! empty($e->tags))
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-                        @foreach ($e->tags as $tag)
-                            <span style="font-size:11px;color:var(--muted);background:var(--hairline-soft);padding:2px 8px;border-radius:6px;">#{{ $tag }}</span>
-                        @endforeach
-                    </div>
-                @endif
-                <div style="display:flex;align-items:center;gap:10px;padding-top:10px;border-top:1px solid var(--hairline-soft);">
-                    <span style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $e->employee?->avatar_color ?? '#3a6ea5' }};">{{ $e->employee?->initials ?? '–' }}</span>
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-size:12.5px;font-weight:600;color:var(--ink);">{{ $e->employee?->name ?? 'Unknown' }}</div>
-                        @if ($e->employee?->position)<div style="font-size:10.5px;color:var(--muted);">{{ $e->employee->position }}</div>@endif
-                    </div>
-
-                    {{-- Star (one per person; toggle) --}}
-                    @if ($canSubmit)
-                        <form method="post" action="{{ route('knowledge.star', $e) }}">
-                            @csrf
-                            <button type="submit" :title="$store.ui.lang==='en' ? @js($starred ? 'Remove star' : 'Star this lesson') : @js($starred ? 'Buang bintang' : 'Bintangkan')" style="display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--font-mono);background:none;border:1px solid {{ $starred ? 'var(--amber)' : 'var(--hairline)' }};border-radius:8px;padding:5px 10px;cursor:pointer;color:{{ $starred ? 'var(--amber)' : 'var(--muted)' }};">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="{{ $starred ? 'var(--amber)' : 'none' }}" stroke="{{ $starred ? 'var(--amber)' : 'currentColor' }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                                <span>{{ $e->stars_count }}</span>
-                            </button>
-                        </form>
-                    @else
-                        <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--font-mono);color:var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>{{ $e->stars_count }}</span>
-                    @endif
-
-                    {{-- Comments toggle --}}
-                    <button @click="openC = !openC" style="display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--font-mono);background:none;border:1px solid var(--hairline);border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--muted);">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        <span>{{ $e->comments_count }}</span>
-                    </button>
-                </div>
-
-                {{-- Comments thread --}}
-                <div x-show="openC" x-cloak style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);display:flex;flex-direction:column;gap:12px;">
-                    @forelse ($e->comments as $c)
-                        <div style="display:flex;gap:10px;">
-                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $c->employee?->avatar_color ?? '#3a6ea5' }};">{{ $c->employee?->initials ?? '–' }}</span>
-                            <div style="flex:1;min-width:0;">
-                                <div style="display:flex;align-items:center;gap:8px;">
-                                    <span style="font-size:12px;font-weight:600;color:var(--ink);">{{ $c->employee?->name ?? 'Unknown' }}</span>
-                                    <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--muted);">{{ $c->created_at?->diffForHumans() }}</span>
-                                    @if ($privileged || ($employee && $c->employee_id === $employee->id))
-                                        <form method="post" action="{{ route('knowledge.comments.delete', $c) }}" style="margin-left:auto;">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" :title="$store.ui.lang==='en' ? 'Delete' : 'Padam'" style="font-size:11px;color:var(--muted);background:none;cursor:pointer;">×</button>
-                                        </form>
-                                    @endif
-                                </div>
-                                <div style="font-size:12.5px;color:var(--body);line-height:1.5;margin-top:2px;">{!! \App\Support\Amanahku::linkify($c->body) !!}</div>
-                            </div>
-                        </div>
-                    @empty
-                        <div style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No comments yet — start the discussion.' : 'Tiada komen lagi — mulakan perbincangan.'">No comments yet.</div>
-                    @endforelse
-
-                    @if ($canSubmit)
-                        <form method="post" action="{{ route('knowledge.comments', $e) }}" style="display:flex;gap:8px;align-items:flex-end;">
-                            @csrf
-                            <textarea name="body" required maxlength="2000" rows="1" :placeholder="$store.ui.lang==='en' ? 'Add a comment…' : 'Tambah komen…'" style="flex:1;padding:8px 11px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;resize:vertical;outline:none;font-family:inherit;line-height:1.4;"></textarea>
-                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</span></button>
-                        </form>
-                    @endif
-                </div>
-            </div>
-        @empty
-            <div class="uj-card" style="padding:40px 24px;text-align:center;">
-                <div style="font-size:14px;color:var(--ink);font-weight:500;margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'No lessons here yet' : 'Belum ada pengajaran di sini'"></span></div>
-                <div style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:420px;margin:0 auto;"><span x-text="$store.ui.lang==='en' ? 'Be the first to share — use \'Add a lesson\'. Every shared lesson becomes part of the company\'s collective knowledge.' : 'Jadilah yang pertama berkongsi — guna \'Add a lesson\'. Setiap pengajaran menjadi sebahagian pengetahuan kolektif syarikat.'"></span></div>
-            </div>
-        @endforelse
-
-        @if ($entries->hasPages())
-            <div style="padding:6px 2px;">{{ $entries->onEachSide(1)->links() }}</div>
+        </div>
         @endif
     </div>
+
+    @if ($hasCompliance)
+    {{-- Labeled tab switcher — clearer than dots about what each slide holds.
+         Arrows flank it so a swipe is never the only way across. --}}
+    @php $tab = 'height:30px;padding:0 15px;border:0;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;'; @endphp
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;">
+        <button type="button" @click="go(Math.max(0, i - 1))" :disabled="i === 0"
+                :style="'width:30px;height:30px;border:1px solid var(--shelf-line);border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;transition:opacity .15s;'+(i === 0 ? 'opacity:.35;cursor:default;' : 'cursor:pointer;')"
+                :aria-label="$store.ui.lang==='en' ? 'Previous' : 'Sebelum'">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+
+        <div style="display:inline-flex;background:var(--shelf);border:1px solid var(--shelf-line);border-radius:999px;padding:3px;">
+            <button type="button" @click="go(0)" :style="'{{ $tab }}'+(i === 0 ? 'background:var(--ink);color:#fff;' : 'background:none;color:var(--muted);')"
+                    x-text="$store.ui.lang==='en' ? 'Overview' : 'Ringkasan'">Overview</button>
+            <button type="button" @click="go(1)" :style="'{{ $tab }}'+(i === 1 ? 'background:var(--ink);color:#fff;' : 'background:none;color:var(--muted);')"
+                    x-text="$store.ui.lang==='en' ? @js($monthEn.' contributions') : @js($monthMs.' sumbangan')">{{ $monthEn }} contributions</button>
+        </div>
+
+        <button type="button" @click="go(Math.min(1, i + 1))" :disabled="i === 1"
+                :style="'width:30px;height:30px;border:1px solid var(--shelf-line);border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;transition:opacity .15s;'+(i === 1 ? 'opacity:.35;cursor:default;' : 'cursor:pointer;')"
+                :aria-label="$store.ui.lang==='en' ? 'Next' : 'Seterusnya'">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+    </div>
+    @endif
+</div>
+
+{{-- ── Search ────────────────────────────────────────────────────────────── --}}
+<form method="get" action="{{ route('app.screen', 'knowledge-bank') }}" style="position:relative;margin-bottom:16px;">
+    @if ($activeSeg)<input type="hidden" name="seg" value="{{ $activeSeg }}">@endif
+    @if ($activeSub)<input type="hidden" name="subseg" value="{{ $activeSub }}">@endif
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-soft)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4-4"></path></svg>
+    <input name="q" value="{{ $filters['q'] }}" @input.debounce.500ms="$el.form.submit()" :placeholder="$store.ui.lang==='en' ? 'Search lessons…' : 'Cari pengajaran…'"
+           style="width:100%;height:42px;padding:0 14px 0 38px;background:var(--canvas);border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;color:var(--ink);outline:none;" />
+</form>
+
+{{-- ── Segment chips + Add ───────────────────────────────────────────────── --}}
+@php $chipBase = 'height:32px;padding:0 15px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:7px;'; @endphp
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <a href="{{ route('app.screen', 'knowledge-bank') }}"
+       style="{{ $chipBase }}border:1px solid {{ ! $activeSeg ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ ! $activeSeg ? 'var(--ink)' : 'transparent' }};color:{{ ! $activeSeg ? '#fff' : 'var(--muted)' }};"
+       x-text="$store.ui.lang==='en' ? 'All lessons' : 'Semua'">All lessons</a>
+    @foreach ($segments as $seg)
+        @php $segActive = (int) $activeSeg === $seg->id; @endphp
+        <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id]) }}"
+           style="{{ $chipBase }}border:1px solid {{ $segActive ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ $segActive ? 'var(--ink)' : 'transparent' }};color:{{ $segActive ? '#fff' : 'var(--muted)' }};">
+            <span>{{ $seg->label }}</span>
+        </a>
+    @endforeach
+    <div style="flex:1;"></div>
+    @if ($canSubmit)
+        <button @click="kb = true; kbView = 'add'" type="button" style="height:32px;padding:0 15px;background:var(--red);color:#fff;border:0;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span style="font-size:15px;line-height:1;">＋</span><span x-text="$store.ui.lang==='en' ? 'Add a lesson' : 'Tambah pengajaran'">Add a lesson</span>
+        </button>
+    @endif
+</div>
+
+{{-- Sub-segment chips (only when the active segment has children) --}}
+@if ($activeSegModel && $activeSegModel->children->count())
+    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-left:2px;">
+        @foreach ($activeSegModel->children as $child)
+            @php $subActive = (int) $activeSub === $child->id; @endphp
+            <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $activeSegModel->id, 'subseg' => $child->id]) }}"
+               style="height:27px;padding:0 12px;border-radius:999px;font-size:11.5px;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;border:1px solid {{ $subActive ? 'var(--red)' : 'var(--hairline)' }};background:{{ $subActive ? 'var(--red-tint)' : 'transparent' }};color:{{ $subActive ? 'var(--red)' : 'var(--muted)' }};">{{ $child->label }}</a>
+        @endforeach
+    </div>
+@endif
+
+{{-- ── Entries — each opens a slide-over detail panel ────────────────────────── --}}
+<div style="margin-top:20px;">
+    @forelse ($entries as $e)
+        @php
+            $isNew = ! $readSet->contains($e->id) && $e->created_at && $e->created_at->gte($newCutoff);
+            $starred = $starSet->contains($e->id);
+        @endphp
+        <div style="border-top:1px solid var(--hairline);"
+             x-data="kbCard({
+                 id: {{ $e->id }},
+                 reactions: @js((object) ($reactionCounts[$e->id] ?? [])),
+                 mine: @js($myReactions[$e->id] ?? []),
+                 stars: {{ $e->stars_count }},
+                 starred: {{ $starred ? 'true' : 'false' }},
+                 commentsCount: {{ $e->comments_count }},
+             })">
+            {{-- Summary row — click opens the detail panel (drawer) --}}
+            <div @click="openDrawer()" style="display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:18px;align-items:start;padding:22px 4px;cursor:pointer;">
+                <div style="border-radius:9px;padding:6px 0;text-align:center;margin-top:2px;">
+                    <div style="font:600 10px 'Poppins',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);">{{ $e->created_at?->format('M') }}</div>
+                    <div style="font:600 22px/1 var(--font-mono);margin-top:2px;letter-spacing:-.03em;color:var(--ink);">{{ $e->created_at?->format('d') }}</div>
+                </div>
+                <div style="min-width:0;">
+                    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+                        <span style="font-size:11.5px;color:var(--muted);">{{ $e->segment?->label }}</span>
+                        @if ($e->subSegment)
+                            <span style="width:3px;height:3px;border-radius:50%;background:#c9c6bc;"></span>
+                            <span style="font-size:11.5px;color:var(--muted);">{{ $e->subSegment->label }}</span>
+                        @endif
+                        @if ($isNew)
+                            <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--red);"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);"></span><span x-text="$store.ui.lang==='en' ? 'New' : 'Baharu'">New</span></span>
+                        @endif
+                    </div>
+                    <div style="font-size:18px;font-weight:600;line-height:1.35;margin-top:6px;color:var(--ink);">{{ $e->title }}</div>
+                    <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
+                    <span x-show="reactionTotal" style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">♥ <span x-text="reactionTotal"></span></span>
+                    <span style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">★ <span x-text="stars"></span></span>
+                    <span style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">◍ <span x-text="commentsCount"></span></span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+            </div>
+
+            @include('partials.knowledge-comments-drawer', ['e' => $e])
+        </div>
+    @empty
+        <div class="uj-card" style="padding:40px 24px;text-align:center;border-top:1px solid var(--hairline);">
+            <div style="font-size:14px;color:var(--ink);font-weight:500;margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'No lessons here yet' : 'Belum ada pengajaran di sini'"></span></div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:420px;margin:0 auto;"><span x-text="$store.ui.lang==='en' ? 'Be the first to share — use \'Add a lesson\'. Every shared lesson becomes part of the company\'s collective knowledge.' : 'Jadilah yang pertama berkongsi — guna \'Add a lesson\'. Setiap pengajaran menjadi sebahagian pengetahuan kolektif syarikat.'"></span></div>
+        </div>
+    @endforelse
+
+    @if ($entries->hasPages())
+        <div style="padding:16px 2px 6px;border-top:1px solid var(--hairline);">{{ $entries->onEachSide(1)->links() }}</div>
+    @endif
 </div>
 @endsection
