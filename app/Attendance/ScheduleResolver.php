@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Attendance;
 
+use App\Models\Branch;
 use App\Models\Employee;
+use App\Models\WorkSite;
+use App\Support\Geo;
 use Carbon\CarbonInterface;
 
 /**
@@ -29,6 +32,80 @@ class ScheduleResolver
                 : $this->homeSite($employee),
             default => $this->officeSite($employee),
         };
+    }
+
+    /**
+     * Where the staff member actually is, out of every location HR has configured.
+     *
+     * Staff never pick their site from a list — being near a company location is not the
+     * same as working there, and a free choice would let anyone living near any branch
+     * clock "on-site" forever. Instead the GPS fix is matched against every branch and
+     * client site in the tenant, and the one it lands inside wins (nearest, if several
+     * overlap). Falls back to the assigned site when the fix is inside none of them.
+     *
+     * The matched site contributes only its geofence and label. Working hours stay those
+     * of the employee's own arrangement, so visiting a client on an 08:30 shift does not
+     * make a 09:00 office worker late.
+     */
+    public function matchActualSite(Employee $employee, SiteSpec $assigned, ?float $lat, ?float $lng): SiteSpec
+    {
+        if ($lat === null || $lng === null) {
+            return $assigned;
+        }
+
+        // Already standing at the expected site — the common case, and no query for it.
+        if ($assigned->hasGeofence()
+            && Geo::distanceMeters($lat, $lng, $assigned->latitude, $assigned->longitude) <= $assigned->radiusM) {
+            return $assigned;
+        }
+
+        $best = null;
+        $bestDistance = null;
+
+        foreach ($this->configuredSites($employee->tenant_id) as [$type, $label, $sLat, $sLng, $radius]) {
+            $distance = Geo::distanceMeters($lat, $lng, $sLat, $sLng);
+            if ($distance <= $radius && ($bestDistance === null || $distance < $bestDistance)) {
+                $best = [$type, $label, $sLat, $sLng, $radius];
+                $bestDistance = $distance;
+            }
+        }
+
+        if ($best === null) {
+            return $assigned;
+        }
+
+        [$type, $label, $sLat, $sLng, $radius] = $best;
+
+        return new SiteSpec(
+            type: $type,
+            label: $label,
+            latitude: $sLat,
+            longitude: $sLng,
+            radiusM: $radius,
+            workStart: $assigned->workStart,
+            workEnd: $assigned->workEnd,
+            minHours: $assigned->minHours,
+        );
+    }
+
+    /**
+     * Every geofenced branch and client site in the tenant.
+     *
+     * @return list<array{0:string,1:string,2:float,3:float,4:int}> type, label, lat, lng, radius
+     */
+    public function configuredSites(int $tenantId): array
+    {
+        // ponytail: a full scan of the tenant's sites, one query per clock event. A single
+        // company has tens of them, not thousands — add a bounding-box WHERE if that changes.
+        $branches = Branch::where('tenant_id', $tenantId)
+            ->whereNotNull('latitude')->whereNotNull('longitude')->get()
+            ->map(fn (Branch $b) => ['office', $b->name, (float) $b->latitude, (float) $b->longitude, (int) $b->radius_m]);
+
+        $sites = WorkSite::where('tenant_id', $tenantId)
+            ->whereNotNull('latitude')->whereNotNull('longitude')->get()
+            ->map(fn (WorkSite $s) => ['client', $s->name, (float) $s->latitude, (float) $s->longitude, (int) $s->radius_m]);
+
+        return $branches->concat($sites)->values()->all();
     }
 
     private function officeSite(Employee $employee): SiteSpec

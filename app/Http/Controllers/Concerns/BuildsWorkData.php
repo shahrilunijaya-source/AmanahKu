@@ -84,6 +84,12 @@ trait BuildsWorkData
             'records' => $records,
             'today' => $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
+            // Every geofenced location in the tenant, so the attendance screen's live chip
+            // can name the site the staff member is standing in — the same match the server
+            // makes on the punch (ScheduleResolver::matchActualSite).
+            'geofencedSites' => $employee
+                ? app(ScheduleResolver::class)->configuredSites($employee->tenant_id)
+                : [],
             'weekRecords' => $weekRecords,
             'earlierRecords' => $earlierRecords,
             'weekWorkedMinutes' => $weekWorkedMinutes,

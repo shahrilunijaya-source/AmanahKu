@@ -28,10 +28,15 @@ class ClockService
             return ['status' => 'noop', 'message' => 'Already clocked in today.'];
         }
 
-        $site = $this->resolver->resolve($employee, $now);
+        $assigned = $this->resolver->resolve($employee, $now);
+
+        // Clock against whichever configured location the staff member is actually standing
+        // in. Runs before home capture, so someone on a home day who walks into the office
+        // is matched to the office instead of registering the office as their home.
+        $site = $this->resolver->matchActualSite($employee, $assigned, $lat, $lng);
 
         // First home / hybrid-home clock-in registers the home location and locks it.
-        if ($site->type === 'home' && $site->needsHomeCapture && $lat !== null && $lng !== null) {
+        if ($site === $assigned && $site->type === 'home' && $site->needsHomeCapture && $lat !== null && $lng !== null) {
             $employee->update([
                 'home_latitude' => $lat,
                 'home_longitude' => $lng,
@@ -100,7 +105,7 @@ class ClockService
             return ['status' => 'noop', 'message' => 'Already clocked out today.'];
         }
 
-        $site = $this->resolver->resolve($employee, $now);
+        $site = $this->resolver->matchActualSite($employee, $this->resolver->resolve($employee, $now), $lat, $lng);
         $outRadius = $this->within($site, $lat, $lng);
         $worked = $this->minutesBetween($record->clock_in, $now);
         $early = $this->isEarly($record->expected_end, $now);
