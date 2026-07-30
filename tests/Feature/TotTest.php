@@ -1035,7 +1035,7 @@ class TotTest extends TestCase
         $response->assertOk();
         $response->assertSee('<select class="tot-field" name="presenter_employee_id">', false);
         $response->assertDontSee('type="number" name="presenter_employee_id"', false);
-        $response->assertSee('Mohd Hakime Bin Md Nasri &quot;Hakime&quot;', false);
+        $response->assertSee('>Hakime</option>', false);
     }
 
     public function test_assigning_a_presenter_through_the_dropdown_saves(): void

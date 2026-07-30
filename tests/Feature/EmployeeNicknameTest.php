@@ -102,12 +102,12 @@ class EmployeeNicknameTest extends TestCase
         $this->assertNull($employee->fresh()->nickname);
     }
 
-    /** One format everywhere: the legal name first, then the short name in quotes. */
-    public function test_display_name_appends_the_nickname_in_quotes(): void
+    /** One format everywhere: the nickname alone when there is one. */
+    public function test_display_name_is_the_nickname_alone(): void
     {
         $employee = new Employee(['name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime']);
 
-        $this->assertSame('Mohd Hakime Bin Md Nasri "Hakime"', $employee->display_name);
+        $this->assertSame('Hakime', $employee->display_name);
     }
 
     public function test_display_name_falls_back_to_the_full_name_with_no_nickname(): void

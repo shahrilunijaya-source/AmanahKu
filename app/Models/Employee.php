@@ -46,15 +46,14 @@ class Employee extends Model
     }
 
     /**
-     * The one name format the whole app shows: `Mohd Hakime Bin Md Nasri "Hakime"`, falling
-     * back to the full legal name when nobody has recorded a nickname. Legal name first, so
-     * a list stays sorted and scannable the way it always was, with the short name people
-     * actually say added on.
+     * The one name format the whole app shows: the nickname people actually say ("Hakime"),
+     * falling back to the full legal name when nobody has recorded one. The legal name stays
+     * in `name` for documents and payroll.
      */
     protected function displayName(): Attribute
     {
         return Attribute::make(
-            get: fn () => blank($this->nickname) ? $this->name : $this->name.' "'.$this->nickname.'"',
+            get: fn () => blank($this->nickname) ? $this->name : $this->nickname,
         );
     }
 
