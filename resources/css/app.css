@@ -1497,6 +1497,15 @@ select.wd-inline {
 
 .uj-tr-card { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; margin-top: 14px; overflow: hidden; }
 
+.uj-tr-owe { border-top: 1px solid #e2ded4; padding: 15px 18px; display: grid; grid-template-columns: 1fr 132px auto; gap: 18px; align-items: center; }
+.uj-tr-owe:first-child { border-top: 0; }
+.uj-tr-owe .prog { min-width: 0; }
+.uj-tr-owe .prog .cap { font-size: var(--t-micro); color: var(--muted); margin-bottom: 5px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-tr-owe .act { display: flex; gap: 7px; flex-shrink: 0; }
+
+.uj-tr-clock { display: flex; align-items: baseline; gap: 9px; padding: 13px 18px; background: var(--hairline-soft); border-top: 1px solid #e2ded4; font-size: var(--t-sm); color: var(--body); }
+.uj-tr-clock b { font-family: var(--font-mono); color: var(--ink); font-weight: 600; }
+
 .uj-tr-bar { height: 8px; border-radius: 999px; background: var(--hairline-soft); overflow: hidden; }
 .uj-tr-bar i { display: block; height: 100%; border-radius: 999px; transform-origin: left center; }
 .uj-tr-anim .uj-tr-bar i { animation: uj-tr-grow .42s var(--ease) both; }
@@ -1557,6 +1566,8 @@ select.wd-inline {
   .uj-tr-fig { font-size: 40px; }
   .uj-tr-figsub { font-size: var(--t-sm); }
   .uj-tr-range { margin-left: 0; width: 100%; }
+  .uj-tr-owe { grid-template-columns: 1fr; gap: 11px; }
+  .uj-tr-owe .act { justify-content: flex-start; }
   .uj-tr-lens { grid-template-columns: 1fr; }
   .uj-tr-panel { position: static; }
 }
@@ -2308,3 +2319,148 @@ select.wd-inline {
 }
 
 
+
+/* ══ Org chart (resources/views/screens/orgchart.blade.php + resources/js/org-chart.js) ══
+
+   The chart is navigated one seat at a time, not surveyed: the manager above, the
+   subject in the middle, its direct reports fanned below, and every circle re-centres
+   the chart on itself. That is what lets it stay the same size at any headcount — the
+   previous indented tree grew without bound in both directions, and at this company's
+   shape (most people with no manager at all) it was mostly blank indent.
+
+   One vocabulary throughout: people are circles on a hairline lattice, drawn in the
+   incumbent tokens. Ring size is set per region through --oc-seat, so a single set of
+   circle rules serves all three rings. */
+:root {
+    --oc-line: #c9c6bc;        /* placed connector + seat edge */
+    --oc-line-open: #bdb9ad;   /* unfilled slot */
+    --oc-grid: #dedcd3;        /* canvas dot */
+    --oc-seat: 96px;
+}
+
+.oc-canvas {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 460px;
+    padding: 30px 22px 40px;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    background: var(--canvas);
+    background-image: radial-gradient(var(--oc-grid) 1px, transparent 1px);
+    background-size: 22px 22px;
+    overflow-x: auto;
+}
+.oc-stage { display: flex; flex-direction: column; align-items: center; will-change: transform, opacity, filter; }
+
+/* Trail: where am I, and one click back to any level above. */
+.oc-trail { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; margin-bottom: 22px; font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: .03em; }
+.oc-trail button { border: none; background: transparent; padding: 0; font: inherit; color: var(--muted); cursor: pointer; transition: color 120ms ease-out; }
+.oc-trail button:hover { color: var(--red); }
+.oc-trail-sep { color: var(--oc-line); }
+.oc-trail-here { font-weight: 500; color: var(--ink); }
+
+/* ── Circles ── */
+.oc-circle {
+    width: var(--oc-seat);
+    height: var(--oc-seat);
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 13px;
+    text-align: center;
+    background: var(--card);
+    border: 1.5px solid var(--oc-line);
+    box-shadow: 0 6px 16px rgba(38, 37, 30, .07);
+    cursor: pointer;
+    transition: transform 160ms cubic-bezier(.16, 1, .3, 1), box-shadow 160ms cubic-bezier(.16, 1, .3, 1), border-color 120ms ease-out;
+}
+.oc-circle:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(38, 37, 30, .12); }
+.oc-circle:active { transform: translateY(0) scale(.975); transition-duration: 90ms; }
+.oc-circle:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.oc-circle[disabled] { cursor: default; }
+.oc-circle[disabled]:hover { transform: none; box-shadow: 0 6px 16px rgba(38, 37, 30, .07); }
+.oc-circle.is-open { border: 1.5px dashed var(--oc-line-open); box-shadow: none; }
+.oc-circle.is-open:hover { border-color: var(--red); transform: translateY(0) scale(1.03); }
+.oc-circle.is-sel { border: 2px solid var(--red); box-shadow: 0 0 0 5px var(--red-tint), 0 6px 16px rgba(38, 37, 30, .07); }
+.oc-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; letter-spacing: -.1px; }
+.oc-plus { font-size: 25px; font-weight: 300; color: var(--muted-soft); line-height: 1; }
+.oc-role { margin-top: 8px; max-width: 148px; font-size: var(--t-micro); color: var(--muted); line-height: 1.3; text-align: center; }
+.oc-col { display: flex; flex-direction: column; align-items: center; }
+.oc-photo { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
+/* Workload dot, kept from the old node card: it is the one thing the chart said about
+   a person beyond their name, and losing it would be a regression. */
+.oc-dot { position: absolute; right: 6px; bottom: 8px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--card); }
+.oc-circle { position: relative; }
+
+/* ── Lattice ── */
+.oc-stem { width: 0; border-left: 1.5px solid var(--oc-line); }
+.oc-branch { display: flex; flex-direction: column; align-items: center; }
+/* Elbow joining a seat up to its parent's stem. The inner half always draws the drop;
+   the top edge only draws toward a sibling, so the first and last seat close the
+   bracket instead of overhanging it. */
+.oc-conn { width: calc(100% + 26px); margin: 0 -13px; min-width: 118px; height: 30px; display: flex; }
+.oc-conn > * { flex: 1; }
+.oc-conn-l { border-right: 1.5px solid var(--oc-line); }
+.oc-conn-l.is-on, .oc-conn-r.is-on { border-top: 1.5px solid var(--oc-line); }
+.oc-conn.is-open .oc-conn-l, .oc-conn.is-open .oc-conn-r { border-color: var(--oc-line-open); border-style: dashed; }
+
+.oc-up { --oc-seat: 84px; display: flex; flex-direction: column; align-items: center; }
+.oc-up .oc-name { font-size: 11.5px; }
+.oc-up .oc-circle { background: rgba(255, 255, 255, .72); box-shadow: none; }
+.oc-uplabel { margin-bottom: 7px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted-soft); }
+
+.oc-subject { --oc-seat: 132px; display: flex; flex-direction: column; align-items: center; }
+.oc-subject .oc-name { font-size: var(--t-base); }
+.oc-subject .oc-circle { box-shadow: 0 10px 26px rgba(38, 37, 30, .11); }
+.oc-subrole { margin-top: 11px; max-width: 300px; font-size: var(--t-sm); color: var(--muted); text-align: center; line-height: 1.45; }
+
+/* Fan gap matches the elbow's negative margins (2 × 13px), so adjacent brackets meet
+   instead of leaving a hairline gap in the rail. */
+.oc-fan { display: flex; align-items: flex-start; gap: 26px; flex-wrap: wrap; justify-content: center; max-width: 920px; }
+
+/* ── Directors band ──────────────────────────────────────────────────────────────
+   Was a gold gradient card with its own uppercase label. Gold appeared nowhere else in
+   Amanahku, so it read as a sticker on top of the chart rather than the top of it. The
+   meaning is unchanged — a flat authority row, no subtree under any one director — but
+   it now says so in the chart's own vocabulary: one bracketed seat, filled dark because
+   these are the people who give final approval. Padding is set by the stadium curve,
+   which eats anything within ~30px of the left and right edges. */
+.oc-band { display: flex; flex-direction: column; align-items: center; }
+.oc-band-seat { display: flex; align-items: flex-start; gap: 24px; padding: 16px 34px 20px; border: 1.5px solid var(--ink); border-radius: 96px; background: rgba(255, 255, 255, .62); }
+.oc-band .oc-circle { --oc-seat: 120px; background: var(--ink); border-color: var(--ink); box-shadow: 0 8px 20px rgba(38, 37, 30, .16); }
+.oc-band .oc-name { color: #fff; font-size: 13px; }
+.oc-band .oc-role { max-width: 124px; }
+.oc-caption { margin-top: 11px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); }
+
+/* Verifier satellites: the "also verified by" people, small and dim beside the subject,
+   because they carry approval power without sitting in the reporting line. */
+.oc-also { display: flex; align-items: center; gap: 7px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+.oc-also-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--muted-soft); }
+.oc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--hairline); border-radius: 9999px; background: var(--card); font-size: var(--t-micro); color: var(--body); }
+.oc-chip img, .oc-chip .oc-chip-av { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.oc-chip-av { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+.oc-chip button { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 50%; background: var(--hairline-soft); color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; }
+.oc-chip button:hover { background: var(--red-tint); color: var(--red-active); }
+
+/* The one authored moment: a person arriving in the chart. Not a fade — the circle
+   resolves out of the lattice, blur and scale together, so it reads as the seat being
+   filled rather than an element appearing. */
+@keyframes oc-arrive {
+    from { opacity: 0; transform: scale(.86); filter: blur(7px); }
+    60%  { opacity: 1; }
+    to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.oc-circle.is-new { animation: oc-arrive 420ms cubic-bezier(.16, 1, .3, 1); }
+
+.oc-empty { margin-top: 26px; font-size: var(--t-sm); color: var(--muted-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+    .oc-circle { transition-duration: 1ms; }
+    .oc-circle:hover, .oc-circle.is-open:hover { transform: none; }
+    .oc-circle.is-new { animation: none; }
+    .oc-stage { transform: none !important; filter: none !important; opacity: 1 !important; }
+}

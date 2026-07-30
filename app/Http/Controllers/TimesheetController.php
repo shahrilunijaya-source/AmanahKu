@@ -643,6 +643,17 @@ class TimesheetController extends Controller
             $staffWeeks[$empId] = $weekBlocks;
         }
 
+        $tsRoster = app(TimesheetCompliance::class)
+            ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek(), $visibleIds);
+        $weekKey = Carbon::now()->startOfWeek()->toDateString();
+        $ids = $tsRoster->pluck('employee.id');
+        $keys = $ids->map(fn ($id) => "timesheet-nudge:{$id}:{$weekKey}");
+        $nudgedDedupeKeys = AppNotification::whereIn('dedupe_key', $keys)->pluck('dedupe_key')->all();
+        $tsNudged = $ids->filter(fn ($id) => in_array("timesheet-nudge:{$id}:{$weekKey}", $nudgedDedupeKeys, true))
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
         return [
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
@@ -662,10 +673,10 @@ class TimesheetController extends Controller
             // This-week compliance roster (who still owes a sheet). Lives here on the
             // all-staff oversight surface, not the personal capture screen. Always the
             // current week, independent of the from/to report period above.
-            'tsRoster' => app(TimesheetCompliance::class)
-                ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek(), $visibleIds),
+            'tsRoster' => $tsRoster,
             'tsDeadline' => app(TimesheetCompliance::class)->deadline(Carbon::now()->startOfWeek()),
             'tsWeekStart' => Carbon::now()->startOfWeek()->toDateString(),
+            'tsNudged' => $tsNudged,
             // Filter dropdown options + current selection.
             'filterCategories' => TimesheetCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterProjects' => Project::where('is_active', true)->orderBy('name')->get(['id', 'name']),

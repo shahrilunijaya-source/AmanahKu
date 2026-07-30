@@ -105,34 +105,153 @@
          here. Always the current week, independent of the report period below. --}}
     @php
         $tsRoster = collect($tsRoster ?? []);
-        $tsDone = $tsRoster->where('status', 'done')->count();
-        $tsTotal = $tsRoster->count();
-        $tsPending = $tsRoster->where('status', '!=', 'done')->values();
-        $tsPill = ['done' => 'var(--success)', 'pending' => 'var(--muted)', 'late' => 'var(--red)'];
+        $tsDoneCount = $tsRoster->where('status', 'done')->count();
+        $tsTotalCount = $tsRoster->count();
+        $tsNudged = $tsNudged ?? [];
+
+        $statusOrder = ['late' => 0, 'pending' => 1];
+        $tsOweRows = $tsRoster
+            ->reject(fn ($r) => $r['status'] === 'done')
+            ->sort(function ($a, $b) use ($statusOrder) {
+                $sa = $statusOrder[$a['status']] ?? 2;
+                $sb = $statusOrder[$b['status']] ?? 2;
+                if ($sa !== $sb) {
+                    return $sa <=> $sb;
+                }
+                if ($a['filledDays'] !== $b['filledDays']) {
+                    return $a['filledDays'] <=> $b['filledDays'];
+                }
+                return strcasecmp($a['employee']->name, $b['employee']->name);
+            })
+            ->values();
+
+        $tsDeadlineObj = isset($tsDeadline) ? \Illuminate\Support\Carbon::parse($tsDeadline) : null;
+        $tsDeadlineIsFuture = $tsDeadlineObj ? $tsDeadlineObj->isFuture() : false;
+        $tsDeadlineFormatted = $tsDeadlineObj ? $tsDeadlineObj->format('l j M, H:i') : '';
+        $tsDeadlineDiff = $tsDeadlineObj ? $tsDeadlineObj->diffForHumans() : '';
     @endphp
-    @if ($tsTotal)
-    <div class="uj-card" style="margin-bottom:16px;padding:14px 18px;" x-data="{ open: true }">
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
+    @if ($tsTotalCount)
+    <div class="uj-card" style="margin-bottom:16px;overflow:hidden;" x-data="{ open: true, showAll: false }">
+        <div style="padding:14px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
             <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
-            <span style="font-size:12.5px;color:var(--muted);">{{ $tsDone }} / {{ $tsTotal }} <span x-text="$store.ui.lang==='en' ? 'done' : 'selesai'">done</span></span>
+            <span style="font-size:12.5px;color:var(--body);">
+                <b style="font-family:var(--font-mono);font-weight:600;color:var(--ink);">{{ $tsDoneCount }}</b>
+                <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span>
+                <b style="font-family:var(--font-mono);font-weight:600;color:var(--ink);">{{ $tsTotalCount }}</b>
+                <span x-text="$store.ui.lang==='en' ? 'sheets in' : 'lembaran masuk'">sheets in</span>
+            </span>
             <span x-text="open ? '▾' : '▸'" style="color:var(--muted);"></span>
         </div>
-        <div x-show="open" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
-            @forelse ($tsPending as $row)
-                <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;background:var(--surface-2,#f3f4f6);font-size:12px;">
-                    <span style="width:8px;height:8px;border-radius:50%;background:{{ $tsPill[$row['status']] }};flex:none;"></span>
-                    <span>{{ $row['employee']->name }}</span>
-                    <span style="color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;">
-                        @if ($row['status'] === 'late')
-                            <span x-text="$store.ui.lang==='en' ? 'late' : 'lewat'">late</span>
-                        @else
-                            <span x-text="$store.ui.lang==='en' ? 'pending' : 'belum'">pending</span>
-                        @endif
+
+        <div x-show="open">
+            @if ($tsOweRows->isEmpty())
+                <div style="padding:15px 18px;border-top:1px solid #e2ded4;display:flex;align-items:center;gap:10px;">
+                    <span class="uj-stamp" data-tone="success">✓</span>
+                    <span style="font-size:13px;color:var(--success-ink);font-weight:500;"
+                          x-text="$store.ui.lang==='en' ? 'Every sheet is in for this week.' : 'Semua lembaran sudah masuk untuk minggu ini.'">
+                        Every sheet is in for this week.
                     </span>
-                </span>
-            @empty
-                <span style="font-size:12px;color:var(--success);" x-text="$store.ui.lang==='en' ? 'Everyone is in for this week.' : 'Semua sudah hantar minggu ini.'">Everyone is in for this week.</span>
-            @endforelse
+                </div>
+            @else
+                <div>
+                    @foreach ($tsOweRows as $idx => $row)
+                        <div class="uj-tr-owe" @if ($idx >= 8) x-show="showAll" @endif>
+                            <span class="uj-tr-who">
+                                <span class="uj-tr-av" style="background: {{ $row['employee']->avatar_color ?: config('amanahku.avatar_color', '#1f8a65') }}">
+                                    {{ $row['employee']->initials }}
+                                </span>
+                                <span>
+                                    <span class="uj-tr-name">
+                                        {{ $row['employee']->name }}
+                                        @if ($row['status'] === 'late')
+                                            <span class="uj-stamp" data-tone="red" style="margin-left:6px;" x-text="$store.ui.lang==='en' ? 'Overdue' : 'Lewat'">Overdue</span>
+                                        @endif
+                                    </span>
+                                    @if ($row['employee']->positionBand?->title)
+                                        <span class="uj-tr-sub">{{ $row['employee']->positionBand->title }}</span>
+                                    @endif
+                                </span>
+                            </span>
+
+                            <div class="prog">
+                                <div class="cap">
+                                    @if ($row['expectedDays'] == 0)
+                                        <span x-text="$store.ui.lang==='en' ? 'Nothing expected' : 'Tiada dijangka'">Nothing expected</span>
+                                    @elseif ($row['filledDays'] == 0)
+                                        <span x-text="$store.ui.lang==='en' ? 'Nothing yet' : 'Belum ada apa-apa'">Nothing yet</span>
+                                    @else
+                                        <span>
+                                            <b style="font-family:var(--font-mono);">{{ $row['filledDays'] }}</b>
+                                            <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span>
+                                            <b style="font-family:var(--font-mono);">{{ $row['expectedDays'] }}</b>
+                                            <span x-text="$store.ui.lang==='en' ? 'days at 100%' : 'hari pada 100%'">days at 100%</span>
+                                        </span>
+                                    @endif
+                                </div>
+                                @if ($row['expectedDays'] > 0)
+                                    @php
+                                        $pct = round(($row['filledDays'] / $row['expectedDays']) * 100);
+                                        $barColor = $row['status'] === 'late' ? 'var(--red)' : 'var(--amber)';
+                                    @endphp
+                                    <div class="uj-tr-bar">
+                                        <i style="width: {{ max($row['filledDays'] > 0 ? 1.5 : 0, $pct) }}%; background: {{ $barColor }};"></i>
+                                    </div>
+                                @endif
+                                <div style="font-size:var(--t-micro);color:var(--muted);margin-top:4px;">
+                                    @if ($row['lastTouched'])
+                                        <span x-text="$store.ui.lang==='en' ? 'Saved' : 'Disimpan'">Saved</span> {{ $row['lastTouched']->format('D j M, H:i') }}
+                                    @else
+                                        <span x-text="$store.ui.lang==='en' ? 'No draft yet' : 'Belum ada draf'">No draft yet</span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="act">
+                                @if ($row['employee']->user_id === null)
+                                    <button type="button" class="uj-tr-btn" disabled>
+                                        <span x-text="$store.ui.lang==='en' ? 'No login' : 'Tiada akaun'">No login</span>
+                                    </button>
+                                @elseif (in_array($row['employee']->id, $tsNudged, true))
+                                    <button type="button" class="uj-tr-btn" data-done disabled>
+                                        <span x-text="$store.ui.lang==='en' ? 'Reminded' : 'Sudah diingatkan'">Reminded</span>
+                                    </button>
+                                @else
+                                    <form method="post" action="{{ route('timesheet.reports.nudge', $row['employee']) }}" style="display:inline;">
+                                        @csrf
+                                        <button type="submit" class="uj-tr-btn" data-primary>
+                                            <span x-text="$store.ui.lang==='en' ? 'Remind' : 'Ingatkan'">Remind</span>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $tsWeekStart]) }}" class="uj-tr-btn" style="display:inline-flex;align-items:center;text-decoration:none;">
+                                    <span x-text="$store.ui.lang==='en' ? 'Open week' : 'Buka minggu'">Open week</span>
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
+
+                    @if ($tsOweRows->count() > 8)
+                        <div x-show="!showAll" style="padding:10px 18px;border-top:1px solid #e2ded4;text-align:center;">
+                            <button type="button" class="uj-tr-btn" @click="showAll = true">
+                                +{{ $tsOweRows->count() - 8 }} <span x-text="$store.ui.lang==='en' ? 'more' : 'lagi'">more</span>
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            @if ($tsDeadlineObj)
+                <div class="uj-tr-clock">
+                    @if ($tsDeadlineIsFuture)
+                        <span x-text="$store.ui.lang==='en' ? 'Locks' : 'Tutup'">Locks</span>
+                        <b>{{ $tsDeadlineFormatted }}</b>
+                    @else
+                        <span x-text="$store.ui.lang==='en' ? 'Locked' : 'Ditutup'">Locked</span>
+                        <b>{{ $tsDeadlineFormatted }}</b> · {{ $tsDeadlineDiff }}
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
     @endif

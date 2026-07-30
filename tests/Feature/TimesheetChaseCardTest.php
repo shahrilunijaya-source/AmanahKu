@@ -6,6 +6,8 @@ use App\Http\Controllers\TimesheetController;
 use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -204,5 +206,111 @@ class TimesheetChaseCardTest extends TestCase
 
         $this->assertContains($this->targetEmployee->id, $rosterEmpIds);
         $this->assertNotContains($otherEmp->id, $rosterEmpIds);
+    }
+
+    private function fillFullWeek(Employee $emp, string $weekStart = '2026-06-15'): void
+    {
+        $cat = TimesheetCategory::firstOrCreate(
+            ['tenant_id' => $this->tenant->id, 'name' => 'Others'],
+            ['requires_project' => false]
+        );
+        $ts = Timesheet::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'week_start' => $weekStart,
+            'status' => 'submitted',
+            'total_hours' => 40,
+        ]);
+        $mon = Carbon::parse($weekStart);
+        for ($i = 0; $i < 5; $i++) {
+            $ts->entries()->create([
+                'tenant_id' => $this->tenant->id,
+                'entry_date' => $mon->copy()->addDays($i)->toDateString(),
+                'category_id' => $cat->id,
+                'percentage' => 100,
+                'hours' => 8,
+            ]);
+        }
+    }
+
+    public function test_a_person_who_owes_gets_a_row_and_a_done_person_does_not(): void
+    {
+        $this->fillFullWeek($this->hrEmployee);
+
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('uj-tr-owe', false);
+        $response->assertSee('Target Worker');
+
+        $html = $response->getContent();
+        $this->assertSame(1, substr_count($html, 'uj-tr-owe'));
+    }
+
+    public function test_the_lead_line_counts_sheets_in(): void
+    {
+        $this->fillFullWeek($this->hrEmployee);
+
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSeeInOrder(['1', 'of', '2', 'sheets in'], false);
+    }
+
+    public function test_the_deadline_renders_in_full(): void
+    {
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('19:00', false);
+    }
+
+    public function test_a_person_with_no_entries_reads_nothing_yet(): void
+    {
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('Nothing yet', false);
+        $response->assertDontSee('0 of', false);
+    }
+
+    public function test_an_already_nudged_person_shows_reminded(): void
+    {
+        $this->actingInTenant($this->hrUser)
+            ->post("/app/timesheet-reports/nudge/{$this->targetEmployee->id}")
+            ->assertRedirect();
+
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('Reminded', false);
+        $response->assertDontSee(route('timesheet.reports.nudge', $this->targetEmployee), false);
+    }
+
+    public function test_everyone_in_collapses_the_card(): void
+    {
+        $this->fillFullWeek($this->hrEmployee);
+        $this->fillFullWeek($this->targetEmployee);
+
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertSee('Every sheet is in for this week.', false);
+        $response->assertDontSee('uj-tr-owe', false);
+    }
+
+    public function test_the_old_chip_wording_is_gone(): void
+    {
+        $response = $this->actingInTenant($this->hrUser)
+            ->get('/app/timesheet-reports');
+
+        $response->assertOk();
+        $response->assertDontSee('PENDING', false);
     }
 }
