@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Models\Employee;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
@@ -230,5 +232,68 @@ class TimesheetComplianceTest extends TestCase
 
         $this->assertFalse($this->svc->isLate($emp, Carbon::parse('2026-06-22')));
         $this->assertSame(0, $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'))->count());
+    }
+
+    public function test_roster_reports_filled_and_expected_days(): void
+    {
+        $emp = $this->employee();
+        $sheet = $this->sheet($emp, '2026-06-22', [
+            '2026-06-22' => 100, '2026-06-23' => 100, '2026-06-24' => 100,
+        ]);
+
+        $roster = $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'));
+        $item = $roster->firstWhere('employee.id', $emp->id);
+
+        $this->assertNotNull($item);
+        $this->assertSame(3, $item['filledDays']);
+        $this->assertSame(5, $item['expectedDays']);
+        $this->assertNotNull($item['lastTouched']);
+        $this->assertSame($sheet->updated_at->toIso8601String(), $item['lastTouched']->toIso8601String());
+    }
+
+    public function test_roster_excludes_a_fully_locked_day_from_expected(): void
+    {
+        $emp = $this->employee();
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-06-22',
+            'date_to' => '2026-06-22',
+            'days' => 1,
+            'status' => 'approved',
+        ]);
+
+        $roster = $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'));
+        $item = $roster->firstWhere('employee.id', $emp->id);
+
+        $this->assertNotNull($item);
+        $this->assertSame(4, $item['expectedDays']);
+    }
+
+    public function test_roster_reports_no_progress_and_no_touch_without_a_sheet(): void
+    {
+        $emp = $this->employee();
+
+        $roster = $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'));
+        $item = $roster->firstWhere('employee.id', $emp->id);
+
+        $this->assertNotNull($item);
+        $this->assertSame(0, $item['filledDays']);
+        $this->assertNull($item['lastTouched']);
+    }
+
+    public function test_roster_restricts_to_visible_ids_when_given(): void
+    {
+        $emp1 = $this->employee(['name' => 'Alice']);
+        $emp2 = $this->employee(['name' => 'Bob']);
+
+        $fullRoster = $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'), null);
+        $this->assertCount(2, $fullRoster);
+
+        $scopedRoster = $this->svc->roster($this->tenant, Carbon::parse('2026-06-22'), [$emp1->id]);
+        $this->assertCount(1, $scopedRoster);
+        $this->assertSame($emp1->id, $scopedRoster->first()['employee']->id);
     }
 }

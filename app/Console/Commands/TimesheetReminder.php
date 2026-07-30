@@ -27,9 +27,9 @@ class TimesheetReminder extends Command
 
     protected $description = 'Bell-notify staff whose current-week timesheet is not fully filled in (Friday 5pm reminder).';
 
-    private const TITLE = 'Timesheet reminder';
+    public const TITLE = 'Timesheet reminder';
 
-    private const BODY = "Your timesheet for this week isn't fully filled in. Please complete it to 100% for each day.";
+    public const BODY = "Your timesheet for this week isn't fully filled in. Please complete it to 100% for each day.";
 
     public function handle(CurrentTenant $context, TimesheetCompliance $compliance): int
     {

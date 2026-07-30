@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Console\Commands\TimesheetReminder;
+use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
@@ -661,13 +663,44 @@ class TimesheetController extends Controller
             // all-staff oversight surface, not the personal capture screen. Always the
             // current week, independent of the from/to report period above.
             'tsRoster' => app(TimesheetCompliance::class)
-                ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek()),
+                ->roster(app(CurrentTenant::class)->get(), Carbon::now()->startOfWeek(), $visibleIds),
+            'tsDeadline' => app(TimesheetCompliance::class)->deadline(Carbon::now()->startOfWeek()),
+            'tsWeekStart' => Carbon::now()->startOfWeek()->toDateString(),
             // Filter dropdown options + current selection.
             'filterCategories' => TimesheetCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterProjects' => Project::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'selCategory' => $categoryId,
             'selProject' => $projectId,
         ];
+    }
+
+    public function nudge(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+
+        abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $scope = $request->attributes->get('tenantScope', 'company');
+        $actor = $request->attributes->get('employee');
+        $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $actor);
+        if ($visibleIds !== null) {
+            abort_unless(in_array($employee->id, $visibleIds, true), 403);
+        }
+
+        abort_if($employee->user_id === null, 422, 'Employee has no user account.');
+
+        $weekStart = Carbon::now()->startOfWeek()->toDateString();
+        $dedupeKey = "timesheet-nudge:{$employee->id}:{$weekStart}";
+
+        AppNotification::send(
+            $employee->user_id,
+            TimesheetReminder::TITLE,
+            TimesheetReminder::BODY,
+            route('app.screen', 'timesheets'),
+            $dedupeKey
+        );
+
+        return back()->with('ok', "Reminded {$employee->name}.");
     }
 
     /**

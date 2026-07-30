@@ -83,6 +83,12 @@ if (app()->environment('local') && file_exists(__DIR__.'/dev-login.php')) {
     require __DIR__.'/dev-login.php';
 }
 
+// Local-only prototype surface (design exploration, writes nothing). Delete with
+// routes/prototypes.php and resources/views/prototypes/ once a direction is promoted.
+if (app()->environment('local') && file_exists(__DIR__.'/prototypes.php')) {
+    require __DIR__.'/prototypes.php';
+}
+
 // Enterprise SSO (OIDC, authorization-code flow). Guest-accessible; the controller
 // 404s when OIDC isn't configured. Sign-in only — no tenant/role is ever granted here.
 Route::get('/auth/oidc/redirect', [OidcController::class, 'redirect'])->name('oidc.redirect');
@@ -364,6 +370,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/{timesheet}/submit', [TimesheetController::class, 'submit'])->name('timesheets.submit');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
+        Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Per-staff reusable allocation templates (owned by the acting employee)
         Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
         Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');

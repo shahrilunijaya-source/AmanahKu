@@ -133,9 +133,10 @@ final class TimesheetCompliance
      * Every active, eligible employee of $tenant with their status for $weekStart.
      * Sorted late → pending → done, then by name.
      *
-     * @return Collection<int, array{employee: Employee, status: 'done'|'pending'|'late'}>
+     * @param  list<int>|null  $visibleIds
+     * @return Collection<int, array{employee: Employee, status: 'done'|'pending'|'late', filledDays: int, expectedDays: int, lastTouched: ?CarbonImmutable}>
      */
-    public function roster(Tenant $tenant, CarbonInterface $weekStart): Collection
+    public function roster(Tenant $tenant, CarbonInterface $weekStart, ?array $visibleIds = null): Collection
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $pastDeadline = CarbonImmutable::now()->greaterThanOrEqualTo($this->deadline($start));
@@ -143,6 +144,7 @@ final class TimesheetCompliance
         $employees = Employee::active()->where('tenant_id', $tenant->id)
             ->where('status', 'active')
             ->where(fn ($q) => $q->whereNull('joined_at')->orWhereDate('joined_at', '<=', $start->toDateString()))
+            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
             ->orderBy('name')
             ->get();
 
@@ -165,14 +167,25 @@ final class TimesheetCompliance
         $rank = ['late' => 0, 'pending' => 1, 'done' => 2];
 
         return $employees
-            ->map(function (Employee $e) use ($sheets, $start, $pastDeadline) {
+            ->map(function (Employee $e) use ($sheets, $start, $pastDeadline, $lockedByEmployee) {
                 $sheet = $sheets->get($e->id);
                 $complete = $sheet !== null
                     && $this->isFinalised($sheet)
                     && $this->weekdaysComplete($sheet->entries, $start);
                 $status = $complete ? 'done' : ($pastDeadline ? 'late' : 'pending');
 
-                return ['employee' => $e, 'status' => $status];
+                $filledDays = $sheet !== null ? $this->countFilledDays($sheet->entries, $start) : 0;
+                $lockedMap = $lockedByEmployee[$e->id] ?? [];
+                $expectedDays = $this->countExpectedDays($lockedMap, $start);
+                $lastTouched = $sheet?->updated_at ? CarbonImmutable::parse($sheet->updated_at) : null;
+
+                return [
+                    'employee' => $e,
+                    'status' => $status,
+                    'filledDays' => $filledDays,
+                    'expectedDays' => $expectedDays,
+                    'lastTouched' => $lastTouched,
+                ];
             })
             ->sortBy(fn (array $r) => sprintf('%d-%s', $rank[$r['status']], $r['employee']->name))
             ->values();
@@ -191,8 +204,8 @@ final class TimesheetCompliance
             ->values();
     }
 
-    /** All five weekdays Mon–Fri present and each summing to 100% (±0.01). */
-    private function weekdaysComplete(Collection $entries, CarbonImmutable $weekStart): bool
+    /** Count how many weekdays Mon–Fri have entries summing to 100% (±0.01). */
+    private function countFilledDays(Collection $entries, CarbonImmutable $weekStart): int
     {
         $byDay = [];
         foreach ($entries as $e) {
@@ -200,13 +213,39 @@ final class TimesheetCompliance
             $byDay[$d] = ($byDay[$d] ?? 0) + (float) $e->percentage;
         }
 
+        $filled = 0;
         for ($i = 0; $i < 5; $i++) {
             $day = $weekStart->addDays($i)->toDateString();
-            if (! isset($byDay[$day]) || abs($byDay[$day] - 100) >= self::EPSILON) {
-                return false;
+            if (isset($byDay[$day]) && abs($byDay[$day] - 100) < self::EPSILON) {
+                $filled++;
             }
         }
 
-        return true;
+        return $filled;
+    }
+
+    /**
+     * How many weekdays Mon–Fri are expected (not fully locked 100% by leave or holiday).
+     *
+     * @param  array<string, array{percentage: float}>  $locked
+     */
+    private function countExpectedDays(array $locked, CarbonImmutable $weekStart): int
+    {
+        $expected = 0;
+        for ($i = 0; $i < 5; $i++) {
+            $day = $weekStart->addDays($i)->toDateString();
+            $dayLocked = $locked[$day] ?? null;
+            if ($dayLocked === null || $dayLocked['percentage'] < 100) {
+                $expected++;
+            }
+        }
+
+        return $expected;
+    }
+
+    /** All five weekdays Mon–Fri present and each summing to 100% (±0.01). */
+    private function weekdaysComplete(Collection $entries, CarbonImmutable $weekStart): bool
+    {
+        return $this->countFilledDays($entries, $weekStart) === 5;
     }
 }
