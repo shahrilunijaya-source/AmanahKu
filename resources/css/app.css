@@ -566,18 +566,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-head-stack { display: flex; flex-direction: column; gap: 16px; padding-top: 78px; }
 .uj-head-stack--embed { padding-top: 0; gap: 12px; }
 
-/* Screens that centre their body on a measure must centre the heading on the same
-   measure, or the h1 hangs off to the left of the content it names. Width comes
-   from that screen's own wrapper (.uj-at-wrap, .uj-ar-wrap, .uj-tr-wrap).
-   The guide strip ("What is this screen for?") is included above the wrapper, so it
-   needs the same treatment. */
-.uj-main[data-screen="attendance"] .uj-head-stack,
-.uj-main[data-screen="attendance"] .uj-guide-host,
-.uj-main[data-screen="attendance-report"] .uj-head-stack,
-.uj-main[data-screen="attendance-report"] .uj-guide-host { max-width: 920px; margin-inline: auto; width: 100%; }
-.uj-main[data-screen="timesheet-reports"] .uj-head-stack,
-.uj-main[data-screen="timesheet-reports"] .uj-guide-host { max-width: 980px; margin-inline: auto; width: 100%; }
-
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
 .uj-pagehead { padding: 0 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
