@@ -26,6 +26,13 @@ class Permissions
     public const MANAGEMENT_TIER = ['management', 'director'];
 
     /**
+     * Roles that give FINAL approval on a verified leave / claim / overtime request: the
+     * management tier plus HR. HR sits directly under the directors, so the two of them
+     * together are the last gate — the manager above the requester only verifies.
+     */
+    public const FINAL_APPROVAL_ROLES = ['management', 'director', 'hr'];
+
+    /**
      * Collapse a stored role to the role whose permission set / gates it inherits. Director
      * is management for every access decision; every other role maps to itself. This is the
      * single hinge that lets `director` exist without touching the ~30 `['management', …]`

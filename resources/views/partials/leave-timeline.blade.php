@@ -9,15 +9,22 @@
     $pendingVerifierNames = $assignedVerifiers->pluck('name')->filter()->implode(', ') ?: null;
     $pendingVerifierRole = $assignedVerifiers->count() === 1 ? $assignedVerifiers->first()?->position : null;
 
+    // A request that opened already verified with nobody recorded as the verifier (HR, who
+    // reports straight to the directors) skipped step 1 — say so, rather than showing an
+    // anonymous "Verified by superior" with no name against it.
+    $verifyDone = $r->verified_at && ! $r->verified_by_id
+        ? ['state' => 'done', 'en' => 'No verification needed', 'ms' => 'Tiada pengesahan diperlukan', 'who' => null, 'whoRole' => null, 'whoI18n' => ['en' => 'Reports to the directors', 'ms' => 'Melapor terus kepada pengarah'], 'at' => $r->verified_at]
+        : ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at];
+
     $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'whoRole' => null, 'at' => $r->created_at]];
     if ($r->status === 'rejected') {
-        if ($r->verified_at) { $steps[] = ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at]; }
+        if ($r->verified_at) { $steps[] = $verifyDone; }
         $steps[] = ['state' => 'rejected', 'en' => 'Declined', 'ms' => 'Ditolak', 'who' => $r->rejectedBy?->name, 'whoRole' => $r->rejectedBy?->position, 'at' => $r->rejected_at];
     } else {
         // Verify: once done, the actual verifier (name + position); while pending, the
         // assigned superior(s) so the applicant knows who is holding it.
         $steps[] = $r->verified_at
-            ? ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at]
+            ? $verifyDone
             : ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $pendingVerifierNames, 'whoRole' => $pendingVerifierRole, 'at' => null];
         // Approve: once done, the actual approver (name + position). Before that, no single
         // approver is assigned — final approval is any management member — so label the body.

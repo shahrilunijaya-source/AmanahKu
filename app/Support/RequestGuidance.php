@@ -25,19 +25,19 @@ class RequestGuidance
 
         return match ($stage) {
             'verify' => match ($type) {
-                'leave' => 'Verifying passes it to management for final approval — it is not the final approval, and it does not decrement the balance yet.',
-                'claim' => 'Verifying passes it to management for final approval — it is not the final approval, and nothing is queued for payment yet.',
-                default => "Verifying passes this {$label} to management for final approval — it is not the final approval yet.",
+                'leave' => 'Verifying passes it to HR and the directors for final approval — it is not the final approval, and it does not decrement the balance yet.',
+                'claim' => 'Verifying passes it to HR and the directors for final approval — it is not the final approval, and nothing is queued for payment yet.',
+                default => "Verifying passes this {$label} to HR and the directors for final approval — it is not the final approval yet.",
             },
             'approve' => match ($type) {
-                'claim' => 'Already verified by their manager, so this one is yours to approve. Approving queues it for the next payroll run; nothing pays out until that run is finalised.',
-                'leave' => 'Already verified by their manager, so this one is yours to approve. Approving decrements their leave balance and confirms the time off.',
-                default => "Already verified by their manager, so this {$label} is yours to approve. Approving finalises it.",
+                'claim' => 'Already past the verify step, so this one is yours to approve. Approving queues it for the next payroll run; nothing pays out until that run is finalised.',
+                'leave' => 'Already past the verify step, so this one is yours to approve. Approving decrements their leave balance and confirms the time off.',
+                default => "Already past the verify step, so this {$label} is yours to approve. Approving finalises it.",
             },
             'stuck' => 'They have no superior on the org chart, so the request was never routed to a verify queue and never will be. Assign a superior and it moves the same day.',
             'waiting' => 'Waiting on someone else — there is nothing for you to do here yet.',
-            'step1' => 'With your manager for the first check. They verify it, then it moves to management for final approval.',
-            'step2' => 'Verified by your manager and now with management for final approval. This is the last step.',
+            'step1' => 'With your manager for the first check. They verify it, then it moves to HR and the directors for final approval.',
+            'step2' => 'Now with HR and the directors for final approval. This is the last step.',
             'done' => 'Approved — nothing left to do.',
             default => 'No action needed right now.',
         };

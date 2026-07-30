@@ -456,4 +456,47 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertSee('75.25')
             ->assertDontSee('1074.25');
     }
+
+    // --- HR skips the verify step (reports straight to the directors) --------
+
+    public function test_an_hr_claim_opens_pre_verified_and_goes_to_the_directors(): void
+    {
+        $director = $this->member('director', 'Shahril');
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/claims', [
+            'type' => 'mileage', 'title' => 'HR Run', 'amount' => 40, 'date' => '2026-06-21',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $claim = Claim::where('title', 'HR Run')->firstOrFail();
+        $this->assertSame('verified', $claim->status);
+        $this->assertNull($claim->verified_by_id, 'No verifier is recorded when the step is skipped.');
+        $this->assertNotNull($claim->verified_at);
+
+        // The directors are asked to approve; the HR requester is not pinged about their own.
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $director->user_id, 'title' => 'Claim awaiting final approval',
+        ]);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $hr->user_id]);
+    }
+
+    public function test_hr_gives_final_approval_on_someone_elses_verified_claim(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $hr = $this->member('hr', 'HR Officer');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $claim = $this->claim($report, 'verified', $manager->id);
+
+        $this->actingAsEmployee($hr)->post("/app/claims/{$claim->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $claim->fresh()->status);
+    }
+
+    public function test_hr_cannot_approve_their_own_pre_verified_claim(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $claim = $this->claim($hr, 'verified');
+
+        $this->actingAsEmployee($hr)->post("/app/claims/{$claim->id}/approve")->assertForbidden();
+        $this->assertSame('verified', $claim->fresh()->status);
+    }
 }
