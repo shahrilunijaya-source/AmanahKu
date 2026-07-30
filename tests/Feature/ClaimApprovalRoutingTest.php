@@ -125,30 +125,30 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->claim($toVerify, 'submitted', null, 'Verify Claim');
         $this->claim($verified, 'verified', $manager->id, 'Approve Claim');
 
-        // The superior sees the submitted one to verify, on the claim-approvals screen.
+        // The superior sees the submitted one in their "verify" queue.
         $this->actingAsEmployee($manager)->get('/app/claim-approvals')->assertOk()
-            ->assertSee('step 1, verify')->assertSee('Verify Me');
+            ->assertSee('Yours to verify')->assertSee('Verify Me');
 
-        // Management sees the verified one to approve.
+        // Management sees the verified one in their "final approval" queue.
         $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()
-            ->assertSee('step 2, approve')->assertSee('Approve Me');
+            ->assertSee('Waiting for final approval')->assertSee('Approve Me');
     }
 
-    public function test_merged_queue_sorts_approve_step_rows_before_verify_step_rows(): void
+    public function test_reviewer_with_both_steps_sees_both_review_queues(): void
     {
+        // The revamped screen splits review into two Leave-style queues (verify / final
+        // approval) toggled by a chip bar, replacing the old single merged queue. A person
+        // who is both a direct superior and management therefore holds items in both, and
+        // both queues — and the toggle between them — must render.
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $mgmt->id); // mgmt is also report's direct superior
         $approveOwner = $this->member('employee', 'Approve Owner');
         $this->claim($report, 'submitted', null, 'Verify Row');
         $this->claim($approveOwner, 'verified', $mgmt->id, 'Approve Row');
 
-        $content = $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()->getContent();
-
-        $approvePos = strpos($content, 'Approve Row');
-        $verifyPos = strpos($content, 'Verify Row');
-        $this->assertNotFalse($approvePos);
-        $this->assertNotFalse($verifyPos);
-        $this->assertLessThan($verifyPos, $approvePos, 'Approve-step rows must render before verify-step rows.');
+        $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk()
+            ->assertSee('Yours to verify')->assertSee('Verify Row')
+            ->assertSee('Final approval')->assertSee('Approve Row');
     }
 
     public function test_submitting_a_claim_notifies_the_superior(): void
@@ -319,25 +319,52 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->assertSame('approved', $claim->fresh()->status);
     }
 
-    // --- Screen split: claims (personal) vs claim-approvals (queues + company) -----
+    // --- Unified claims screen: role-aware tabs (My claims / Approvals / All claims) -----
 
-    public function test_claims_screen_no_longer_exposes_company_data_or_queues_to_anyone(): void
+    public function test_plain_employee_claims_screen_has_no_queues_or_company_data(): void
     {
-        $mgmt = $this->member('management', 'Director');
+        $employee = $this->member('employee', 'Plain Employee');
+        $this->claim($employee); // their own submitted claim shows under My claims, nothing else
+
+        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
+            ->assertViewHas('isApprover', false)
+            ->assertViewHas('privileged', false)
+            ->assertViewMissing('claimTotals')
+            ->assertViewMissing('allClaims')
+            ->assertViewMissing('claimsToVerify')
+            ->assertViewMissing('claimsToApprove')
+            ->assertDontSee('Company claims')
+            ->assertDontSee('All claims');
+    }
+
+    public function test_manager_claims_screen_has_the_approvals_queue_but_no_company_ledger(): void
+    {
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        $this->claim($report); // submitted — would show in a verify queue if this screen still had one
+        $this->claim($report); // submitted — sits in the manager's verify queue
 
-        foreach ([$mgmt, $manager] as $viewer) {
-            $this->actingAsEmployee($viewer)->get('/app/claims')->assertOk()
-                ->assertViewMissing('claimTotals')
-                ->assertViewMissing('allClaims')
-                ->assertViewMissing('claimsToVerify')
-                ->assertViewMissing('claimsToApprove')
-                ->assertDontSee('Company claims')
-                ->assertDontSee('To verify')
-                ->assertDontSee('To approve');
-        }
+        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
+            ->assertViewHas('isApprover', true)
+            ->assertViewHas('privileged', false)
+            ->assertViewHas('claimsToVerify')
+            ->assertViewMissing('claimTotals')
+            ->assertViewMissing('allClaims')
+            ->assertSee('Yours to verify')
+            ->assertDontSee('Company claims')
+            ->assertDontSee('All claims');
+    }
+
+    public function test_management_claims_screen_exposes_the_company_ledger_tab(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $someone = $this->member('employee', 'Someone');
+        $this->claim($someone);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('isApprover', true)
+            ->assertViewHas('privileged', true)
+            ->assertSee('All claims')
+            ->assertSee('Company claims');
     }
 
     public function test_management_sees_the_company_wide_claims_section(): void
@@ -383,10 +410,13 @@ class ClaimApprovalRoutingTest extends TestCase
     {
         $employee = $this->member('employee', 'Plain Employee');
 
+        // The legacy claim-approvals slug still resolves (unified claims screen). A plain
+        // employee is not an approver, so they get neither the Approvals tab nor the ledger.
         $this->actingAsEmployee($employee)->get('/app/claim-approvals')->assertOk()
+            ->assertViewHas('isApprover', false)
             ->assertViewHas('privileged', false)
             ->assertDontSee('All claims')
-            ->assertSee('Nothing waiting on you');
+            ->assertDontSee('Company claims');
     }
 
     public function test_company_totals_sum_amounts_correctly_by_status(): void
