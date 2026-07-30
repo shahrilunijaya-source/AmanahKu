@@ -98,6 +98,7 @@ class WorkItemController extends Controller
             $assigner->name.' assigned you a task',
             $item->title,
             route('app.screen', 'board'),
+            mail: true,
         );
 
         // The assigner is the assignedBy — set it so cardPayload() needs no extra query.
@@ -360,6 +361,7 @@ class WorkItemController extends Controller
                 $actor->name.' added you to a task',
                 $item->title,
                 route('app.screen', 'board'),
+                mail: true,
             );
         }
     }

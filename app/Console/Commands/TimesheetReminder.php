@@ -50,7 +50,7 @@ class TimesheetReminder extends Command
                     continue;
                 }
 
-                AppNotification::sendMany($userIds, self::TITLE, self::BODY, $url);
+                AppNotification::sendMany($userIds, self::TITLE, self::BODY, $url, mail: true);
                 $remindedTenants++;
             } catch (\Throwable $e) {
                 // This is a one-shot weekly reminder — isolate per-tenant failures so one

@@ -7,9 +7,11 @@ namespace Tests\Feature;
 use App\Models\AppNotification;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\AppNotificationMail;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -64,5 +66,26 @@ class NotificationDedupeTest extends TestCase
         AppNotification::send($this->user->id, 'Claim approved');
 
         $this->assertSame(2, AppNotification::where('user_id', $this->user->id)->count());
+    }
+
+    public function test_a_mailed_bell_emails_once_per_fresh_row(): void
+    {
+        Notification::fake();
+
+        AppNotification::send($this->user->id, 'Clock-in reminder', 'Body', '/app', 'attendance-in-2026-07-25', mail: true);
+        AppNotification::send($this->user->id, 'Clock-in reminder', 'Body', '/app', 'attendance-in-2026-07-25', mail: true);
+        AppNotification::send($this->user->id, 'Aina assigned you a task', 'Ship the payroll fix', '/app/board', mail: true);
+
+        Notification::assertSentToTimes($this->user, AppNotificationMail::class, 2);
+    }
+
+    public function test_bells_are_in_app_only_by_default(): void
+    {
+        Notification::fake();
+
+        AppNotification::send($this->user->id, 'Claim approved', 'RM 120 reimbursed', '/app/claims');
+
+        Notification::assertNothingSent();
+        $this->assertSame(1, AppNotification::where('user_id', $this->user->id)->count());
     }
 }

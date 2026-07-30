@@ -708,7 +708,8 @@ class TimesheetController extends Controller
             TimesheetReminder::TITLE,
             TimesheetReminder::BODY,
             route('app.screen', 'timesheets'),
-            $dedupeKey
+            $dedupeKey,
+            mail: true,
         );
 
         return back()->with('ok', "Reminded {$employee->name}.");

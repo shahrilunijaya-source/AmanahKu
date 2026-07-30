@@ -56,6 +56,7 @@ class AttendanceReminder extends Command
                         self::IN_BODY,
                         $url,
                         'attendance-in-'.$day,
+                        mail: true,
                     );
                 }
 
@@ -66,6 +67,7 @@ class AttendanceReminder extends Command
                         self::OUT_BODY,
                         $url,
                         'attendance-out-'.$day,
+                        mail: true,
                     );
                 }
             } catch (\Throwable $e) {

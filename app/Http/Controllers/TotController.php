@@ -608,6 +608,7 @@ class TotController extends Controller
             'Pick your topic and upload your slides on the TOT board.',
             route('app.screen', 'tot').'?year='.$session->year,
             "tot:{$session->id}:assigned:{$session->presenter_employee_id}",
+            mail: true,
         );
     }
 
