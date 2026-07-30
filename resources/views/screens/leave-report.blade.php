@@ -71,13 +71,19 @@
         @endforeach
     </select>
     <span style="font-size:12px;color:var(--muted);">{{ $rangeLabel }}</span>
+    {{-- Leave that straddles the window is counted for the days inside it only, so the
+         same absence is not booked twice across two periods. --}}
+    <span style="font-size:11.5px;color:var(--muted-soft);"
+          x-text="$store.ui.lang==='en'
+            ? 'Leave crossing the period edge counts only its days inside the range.'
+            : 'Cuti yang melangkaui tempoh dikira hanya bagi hari di dalam julat.'"></span>
 </div>
 
 {{-- Company-wide KPI tiles --}}
 <div class="lr-kpis">
     <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ rtrim(rtrim(number_format($kpis['totalDays'], 1), '0'), '.') }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Leave days taken' : 'Hari cuti diambil'">Leave days taken</span></div></div>
     <div class="uj-card lr-kpi"><div class="lr-kpi-v" style="color:{{ $upcol }};">{{ rtrim(rtrim(number_format($kpis['unplannedDays'], 1), '0'), '.') }} <span style="font-size:15px;">({{ $kpis['unplannedPct'] }}%)</span></div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Emergency (unplanned)' : 'Kecemasan (tak dirancang)'">Emergency (unplanned)</span></div></div>
-    <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['pending'] }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Pending requests' : 'Permohonan tertunggak'">Pending requests</span></div></div>
+    <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['pending'] }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Pending in this period' : 'Tertunggak dalam tempoh ini'">Pending in this period</span></div></div>
     <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['avgPerHead'] }}</div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Avg days / head' : 'Purata hari / orang'">Avg days / head</span></div></div>
     <div class="uj-card lr-kpi"><div class="lr-kpi-v">{{ $kpis['staffTaken'] }}<span style="font-size:15px;color:var(--muted);"> / {{ $kpis['headcount'] }}</span></div><div class="lr-kpi-k"><span x-text="$store.ui.lang==='en' ? 'Staff who took leave' : 'Staf yang bercuti'">Staff who took leave</span></div></div>
 </div>
@@ -116,6 +122,10 @@
                 <div class="lr-type-row"><span class="lr-type-name">{{ $t['name'] }}@if ($t['unplanned'])<span style="color:var(--error);"> ⚑</span>@endif</span><span class="lr-type-days" style="margin-left:auto;">{{ rtrim(rtrim(number_format($t['days'], 1), '0'), '.') }}d</span></div>
             @endforeach
             <h4 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 6px;"><span x-text="$store.ui.lang==='en' ? 'History' : 'Sejarah'">History</span></h4>
+            <p style="font-size:11px;color:var(--muted-soft);margin:0 0 6px;line-height:1.5;"
+               x-text="$store.ui.lang==='en'
+                 ? 'Each row is the full request. The totals above count only the days inside the period.'
+                 : 'Setiap baris ialah permohonan penuh. Jumlah di atas mengira hari dalam tempoh sahaja.'"></p>
             @foreach ($drillRequests as $r)
                 <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hairline-soft);font-size:12.5px;">
                     <span style="color:var(--ink);">{{ $r->leaveType?->name }}@if ($r->leaveType?->is_unplanned)<span style="color:var(--error);"> ⚑</span>@endif</span>
@@ -135,7 +145,9 @@
         <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Total' : 'Jumlah'">Total</span></span>
         <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Planned' : 'Dirancang'">Planned</span></span>
         <span style="text-align:right;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Emergency' : 'Kecemasan'">Emergency</span></span>
-        <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Annual left' : 'Baki tahunan'">Annual left</span></span>
+        <span style="text-align:right;">
+            <span x-text="$store.ui.lang==='en' ? @js(($balanceTypeName ?? 'Planned').' left') : @js('Baki '.($balanceTypeName ?? 'dirancang'))">{{ ($balanceTypeName ?? 'Planned') }} left</span>
+        </span>
     </div>
     @forelse ($byStaff as $s)
         <a href="{{ $baseUrl }}&emp={{ $s['id'] }}" class="lr-staff-row">
@@ -147,7 +159,12 @@
             <span class="lr-num">{{ rtrim(rtrim(number_format($s['totalDays'], 1), '0'), '.') }}</span>
             <span class="lr-num" style="color:var(--muted);">{{ rtrim(rtrim(number_format($s['plannedDays'], 1), '0'), '.') }}</span>
             <span class="lr-num" style="color:{{ $s['unplannedDays'] > 0 ? 'var(--error)' : 'var(--muted)' }};">{{ $s['unplannedDays'] > 0 ? rtrim(rtrim(number_format($s['unplannedDays'], 1), '0'), '.').' ('.$s['unplannedCount'].')' : '—' }}</span>
-            <span class="lr-num" style="color:{{ $s['annualRemaining'] !== null && $s['annualRemaining'] <= 3 ? 'var(--amber)' : 'var(--ink)' }};">{{ $s['annualRemaining'] !== null ? rtrim(rtrim(number_format($s['annualRemaining'], 1), '0'), '.') : '—' }}</span>
+            @if ($s['annualRemaining'] === null)
+                <span class="lr-num" style="color:var(--muted-soft);font-weight:400;font-family:var(--font-sans);font-size:11.5px;"
+                      x-text="$store.ui.lang==='en' ? 'not set up' : 'belum ditetapkan'">not set up</span>
+            @else
+                <span class="lr-num" style="color:{{ $s['annualRemaining'] <= 3 ? 'var(--amber)' : 'var(--ink)' }};">{{ rtrim(rtrim(number_format($s['annualRemaining'], 1), '0'), '.') }}</span>
+            @endif
         </a>
     @empty
         <div style="padding:16px;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No approved leave in this period.' : 'Tiada cuti diluluskan dalam tempoh ini.'">No approved leave in this period.</span></div>
