@@ -69,7 +69,7 @@ class SetupController extends Controller
             // the Payroll step appear on the next load. Manual step (no data signal to auto-tick).
             'modules' => ['label' => 'Enable modules', 'label_ms' => 'Aktifkan modul', 'desc' => 'Turn on the features this company uses — overtime, payroll (EPF/SOCSO), claims, timesheets and more.', 'screen' => 'settings', 'query' => [], 'auto' => false, 'domain' => 'basics', 'critical' => false],
             'profile' => ['label' => 'Complete company profile', 'label_ms' => 'Lengkapkan profil syarikat', 'desc' => 'Logo, branding, contact details and welcome message.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
-            'branches' => ['label' => 'Add branches & locations', 'label_ms' => 'Tambah cawangan & lokasi', 'desc' => 'At least one branch or location for the company.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
+            'branches' => ['label' => 'Add branches & locations', 'label_ms' => 'Tambah cawangan & lokasi', 'desc' => 'At least one branch, with its map geofence and working hours.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
             'departments' => ['label' => 'Add departments', 'label_ms' => 'Tambah jabatan', 'desc' => 'The departments staff are organised under.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => true],
             'staff_levels' => ['label' => 'Configure staff levels', 'label_ms' => 'Konfigur tahap staf', 'desc' => 'Grade/level bands (e.g. L1–L6).', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
             'employment_types' => ['label' => 'Configure employment types', 'label_ms' => 'Konfigur jenis pekerjaan', 'desc' => 'Full-time, contract, part-time and so on.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'basics', 'critical' => false],
@@ -84,7 +84,7 @@ class SetupController extends Controller
             'acl' => ['label' => 'Review permissions', 'label_ms' => 'Semak kebenaran', 'desc' => 'Confirm what each role can see and do.', 'screen' => 'roles', 'query' => [], 'auto' => false, 'domain' => 'people', 'critical' => false],
 
             // Attendance policy (previously orphaned)
-            'attendance_policy' => ['label' => 'Set attendance policy', 'label_ms' => 'Tetapkan dasar kehadiran', 'desc' => 'Office geofence, working hours, client sites and work arrangements.', 'screen' => 'attendance-admin', 'query' => [], 'auto' => true, 'domain' => 'attendance', 'critical' => true],
+            'attendance_policy' => ['label' => 'Set attendance policy', 'label_ms' => 'Tetapkan dasar kehadiran', 'desc' => 'Client sites, work-from-home policy and per-staff work arrangements. (Branch geofences live under Branches.)', 'screen' => 'attendance-admin', 'query' => [], 'auto' => true, 'domain' => 'attendance', 'critical' => true],
 
             // Time & work (previously orphaned)
             'timesheet_categories' => ['label' => 'Set up timesheet categories', 'label_ms' => 'Sediakan kategori timesheet', 'desc' => 'Categories, projects and sub-pillars staff allocate time against.', 'screen' => 'timesheet-setup', 'query' => [], 'auto' => true, 'domain' => 'time', 'critical' => false],

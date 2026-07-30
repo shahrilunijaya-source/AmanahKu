@@ -109,6 +109,16 @@
                         <input name="effective_date" type="date" style="{{ $bfs }}" />
                     </div>
                     <input name="address" placeholder="Address" style="{{ $bfs }}width:100%;margin-top:8px;" />
+                    {{-- Geofence + working hours: the attendance clock checks a punch against these. --}}
+                    <div style="display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:8px;">
+                        <input id="lat-newbranch" name="latitude" placeholder="Latitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
+                        <input id="lng-newbranch" name="longitude" placeholder="Longitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
+                        <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-newbranch', lngId: 'lng-newbranch', title: 'New branch' } }))" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
+                        <input name="radius_m" type="number" min="20" max="5000" value="200" placeholder="Radius (m)" style="{{ $bfs }}width:96px;font-family:var(--font-mono);" />
+                        <input name="work_start" type="time" style="{{ $bfs }}width:118px;" />
+                        <input name="work_end" type="time" style="{{ $bfs }}width:118px;" />
+                        <input name="min_hours" type="number" step="0.5" min="0" max="24" placeholder="Min hrs" style="{{ $bfs }}width:88px;font-family:var(--font-mono);" />
+                    </div>
                     <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;margin-top:8px;"><span x-text="$store.ui.lang==='en'?'Add branch':'Tambah cawangan'">Add branch</span></button>
                 </form>
             @endif
@@ -139,6 +149,16 @@
                                 <input name="effective_date" type="date" value="{{ optional($b->effective_date)->toDateString() }}" style="{{ $bfs }}" />
                             </div>
                             <input name="address" value="{{ $b->address }}" placeholder="Address" style="{{ $bfs }}width:100%;margin-top:8px;" />
+                            {{-- Geofence + working hours: the attendance clock checks a punch against these. --}}
+                            <div style="display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:8px;">
+                                <input id="lat-branch-{{ $b->id }}" name="latitude" value="{{ $b->latitude }}" placeholder="Latitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
+                                <input id="lng-branch-{{ $b->id }}" name="longitude" value="{{ $b->longitude }}" placeholder="Longitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
+                                <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-branch-{{ $b->id }}', lngId: 'lng-branch-{{ $b->id }}', title: @js($b->name) } }))" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
+                                <input name="radius_m" type="number" min="20" max="5000" value="{{ $b->radius_m ?? 200 }}" placeholder="Radius (m)" style="{{ $bfs }}width:96px;font-family:var(--font-mono);" />
+                                <input name="work_start" type="time" value="{{ $b->work_start ? substr($b->work_start, 0, 5) : '' }}" style="{{ $bfs }}width:118px;" />
+                                <input name="work_end" type="time" value="{{ $b->work_end ? substr($b->work_end, 0, 5) : '' }}" style="{{ $bfs }}width:118px;" />
+                                <input name="min_hours" type="number" step="0.5" min="0" max="24" value="{{ $b->min_hours }}" placeholder="Min hrs" style="{{ $bfs }}width:88px;font-family:var(--font-mono);" />
+                            </div>
                             <div style="display:flex;gap:8px;margin-top:8px;">
                                 <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
                                 <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
@@ -156,6 +176,10 @@
                 @endforeach
             @endif
         </div>
+        {{-- One map-picker modal for every branch geofence row on this screen. --}}
+        @if ($canManageFeatures)
+            @include('partials.map-picker')
+        @endif
         @endif
 
         @if (! $only || $only === 'departments')

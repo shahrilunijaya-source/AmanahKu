@@ -351,6 +351,14 @@ class AdminController extends Controller
             'email' => ['nullable', 'email', 'max:160'],
             'status' => ['nullable', 'in:active,inactive'],
             'effective_date' => ['nullable', 'date'],
+            // Geofence + working hours: a branch is defined in full here, map pin included.
+            // The attendance clock reads these columns (see ScheduleResolver::officeSite).
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'radius_m' => ['nullable', 'integer', 'between:20,5000'],
+            'work_start' => ['nullable', 'date_format:H:i'],
+            'work_end' => ['nullable', 'date_format:H:i'],
+            'min_hours' => ['nullable', 'numeric', 'between:0,24'],
         ]);
     }
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
-use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Tenancy\CurrentTenant;
@@ -25,24 +24,10 @@ class AttendanceAdminController extends Controller
     public function screenData(Request $request): array
     {
         return [
-            'branches' => Branch::orderBy('name')->get(),
             'sites' => WorkSite::orderBy('name')->get(),
             'staff' => Employee::active()->with(['branch', 'workSite'])->orderBy('name')->get(),
             'wfhPolicy' => app(CurrentTenant::class)->get(),
         ];
-    }
-
-    /** Set a branch's office geofence + working hours. */
-    public function updateBranch(Request $request, Branch $branch): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($branch->tenant_id);
-
-        $data = $this->validateGeofence($request);
-        $branch->update($data);
-        AuditLog::record('Updated branch geofence', $branch->name);
-
-        return back()->with('ok', $branch->name.' geofence saved.');
     }
 
     /** Create a client site (resident-engineer location). */
@@ -170,19 +155,6 @@ class AttendanceAdminController extends Controller
         AuditLog::record('Registered home address', $employee->name);
 
         return back()->with('ok', $employee->name.' home address saved.');
-    }
-
-    /** @return array<string,mixed> */
-    private function validateGeofence(Request $request): array
-    {
-        return $request->validate([
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'radius_m' => ['required', 'integer', 'between:20,5000'],
-            'work_start' => ['nullable', 'date_format:H:i'],
-            'work_end' => ['nullable', 'date_format:H:i'],
-            'min_hours' => ['nullable', 'numeric', 'between:0,24'],
-        ]);
     }
 
     /** @return array<string,mixed> */

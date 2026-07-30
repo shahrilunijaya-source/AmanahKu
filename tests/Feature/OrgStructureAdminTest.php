@@ -77,6 +77,31 @@ class OrgStructureAdminTest extends TestCase
         $this->assertSame('Johor', $branch->fresh()->state);
     }
 
+    public function test_branch_geofence_and_hours_persist_from_the_settings_form(): void
+    {
+        // Branch location moved here from Attendance Setup: one form defines a branch in
+        // full, geofence included. The attendance clock reads these columns.
+        $this->actingAsRole('hr');
+        $branch = Branch::create(['tenant_id' => $this->tenant->id, 'name' => 'HQ', 'state' => 'Selangor']);
+
+        $this->post("/app/admin/branches/{$branch->id}", [
+            'name' => 'HQ',
+            'latitude' => '3.1627800',
+            'longitude' => '101.7172189',
+            'radius_m' => '100',
+            'work_start' => '09:00',
+            'work_end' => '18:00',
+            'min_hours' => '8',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $fresh = $branch->fresh();
+        $this->assertSame(3.16278, (float) $fresh->latitude);
+        $this->assertSame(101.7172189, (float) $fresh->longitude);
+        $this->assertSame(100, $fresh->radius_m);
+        $this->assertSame('09:00', substr((string) $fresh->work_start, 0, 5));
+        $this->assertSame('8.0', (string) $fresh->min_hours);
+    }
+
     public function test_hr_can_delete_an_unused_branch(): void
     {
         $this->actingAsRole('hr');

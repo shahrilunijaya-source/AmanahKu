@@ -74,7 +74,8 @@ class AttendanceAdminTest extends TestCase
 
         $html = $this->actingAsRole('hr')->get('/app/attendance-admin')->assertOk()->getContent();
 
-        $this->assertStringContainsString('Branch geofences', $html);
+        // Branch geofences moved to Company Settings → Branches; this screen no longer owns them.
+        $this->assertStringNotContainsString('Branch geofences', $html);
         $this->assertStringContainsString('Client sites', $html);
         $this->assertStringContainsString('Work from home', $html);
         $this->assertStringContainsString('Registered home addresses', $html);
