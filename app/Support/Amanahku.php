@@ -155,7 +155,9 @@ class Amanahku
             $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
-                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
+                // Management/HR only: the report carries salary-derived RM cost, so it is
+                // gated tighter than its siblings (AppController::screen mirrors this).
+                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
                 ['id' => 'feedback', 'label' => 'Feedback Inbox', 'label_ms' => 'Peti Maklum Balas'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
             ]]),

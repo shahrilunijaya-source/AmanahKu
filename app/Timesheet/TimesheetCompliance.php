@@ -59,10 +59,14 @@ final class TimesheetCompliance
             && $this->weekdaysComplete($sheet->entries, $start);
     }
 
-    /** A sheet counts towards compliance only once the staffer has finalised it. */
+    /**
+     * A sheet counts towards compliance only once the staffer has submitted it. 'submitted'
+     * is the end of the line: nothing approves a timesheet, so there is no later status to
+     * accept here.
+     */
     private function isFinalised(Timesheet $sheet): bool
     {
-        return in_array($sheet->status, ['submitted', 'approved'], true);
+        return $sheet->status === 'submitted';
     }
 
     /**

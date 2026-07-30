@@ -152,7 +152,8 @@ class TimesheetReminderTest extends TestCase
 
     public function test_team_status_board_shows_on_reports_for_an_oversight_role(): void
     {
-        [$boss] = $this->staff('Boss Bee', 'boss@acme.test', 'manager');
+        // HR, not manager: the all-staff timesheet view is management/HR only.
+        [$boss] = $this->staff('Boss Bee', 'boss@acme.test', 'hr');
         $this->staff('Pending Pat', 'pat@acme.test'); // empty week → still owes a sheet
 
         $this->actingAs($boss)->withSession(['current_tenant' => $this->tenant->id])

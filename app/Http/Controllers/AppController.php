@@ -147,6 +147,13 @@ class AppController extends Controller
         if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
+        // The all-staff timesheet view is narrower than the rest of the oversight surface:
+        // it is a salary-derived cost report, so it is management/HR only. canSeeAll would
+        // also admit the manager role and any employee with one direct report, which is too
+        // wide for money. Keep it above the canSeeAll block so the tighter gate wins.
+        if ($screen === 'timesheet-reports') {
+            $this->authorizeTenantRole($request, ['management', 'hr']);
+        }
         // Reports & Audit oversight surface + company-wide "see all" views (reachable
         // from the quick-action dock) open to management, HR, and immediate superiors —
         // anyone who oversees other staff. 'audit' moved here from admin-only so the

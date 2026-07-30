@@ -15,6 +15,7 @@ use App\Models\TimesheetTemplate;
 use App\Services\DataScope;
 use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
@@ -31,10 +32,17 @@ use Illuminate\Validation\ValidationException;
 class TimesheetController extends Controller
 {
     /**
-     * Roles allowed to see salary-derived RM cost (managers, management/directors, HR).
-     * Plain employees never see money — only their own time in person-days.
+     * Roles allowed to see salary-derived RM cost: management (directors included, via
+     * effectiveRole) and HR. Line managers and plain employees never see money — only
+     * time in person-days, their own or their team's.
      */
-    private const MONEY_ROLES = ['manager', 'management', 'hr'];
+    private const MONEY_ROLES = ['management', 'hr'];
+
+    /** True when this role may see salary-derived RM. Collapses director → management. */
+    private function canSeeCost(string $role): bool
+    {
+        return in_array(Permissions::effectiveRole($role), self::MONEY_ROLES, true);
+    }
 
     /**
      * How far back a staffer may still edit. The current week plus this many earlier weeks.
@@ -52,15 +60,18 @@ class TimesheetController extends Controller
      * day must total 100% before it can be submitted. The grid targets one selectable
      * week (?week=YYYY-MM-DD, default this week) and prefills from an existing draft.
      *
+     * A week ends at 'submitted'. Nothing approves a timesheet, by design: the all-staff
+     * view is a report, not an approval queue.
+     *
      * Manday RM cost (hours derived from percentage) is layered on for HR & management
-     * only, so line managers and staff approve/log without seeing salary-derived cost.
+     * only, so line managers and staff log their week without seeing salary-derived cost.
      *
      * @return array<string, mixed>
      */
     public function screenData(Request $request, ?Employee $employee): array
     {
         $role = $request->attributes->get('tenantRole', 'employee');
-        $canSeeCost = in_array($role, self::MONEY_ROLES, true);
+        $canSeeCost = $this->canSeeCost($role);
 
         $weekStart = $request->filled('week')
             ? Carbon::parse($request->query('week'))->startOfWeek()
@@ -375,7 +386,7 @@ class TimesheetController extends Controller
     public function reportData(Request $request, ?Employee $employee): array
     {
         $role = $request->attributes->get('tenantRole', 'employee');
-        $canSeeCost = in_array($role, self::MONEY_ROLES, true);
+        $canSeeCost = $this->canSeeCost($role);
 
         [$from, $to] = $this->periodFromRequest($request);
 
@@ -389,7 +400,7 @@ class TimesheetController extends Controller
 
         $entries = TimesheetEntry::with(['category', 'projectRef', 'timesheet.employee.positionBand'])
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->whereHas('timesheet', fn ($q) => $q->whereIn('status', ['submitted', 'approved'])
+            ->whereHas('timesheet', fn ($q) => $q->where('status', 'submitted')
                 ->whereHas('employee', fn ($e) => $e->active()) // archived owners' entries drop from RM totals
                 ->when($visibleIds !== null, fn ($t) => $t->whereIn('employee_id', $visibleIds)))
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
@@ -499,8 +510,8 @@ class TimesheetController extends Controller
 
     /**
      * One employee's own recorded time (person-days, never RM) over a period, grouped by
-     * category (Study, Leave, …) and by project. Submitted + approved weeks only — this
-     * is what staff see about themselves, without any salary-derived figures.
+     * category (Study, Leave, …) and by project. Submitted weeks only — this is what
+     * staff see about themselves, without any salary-derived figures.
      *
      * @return array<string, mixed>
      */
@@ -508,7 +519,7 @@ class TimesheetController extends Controller
     {
         $entries = TimesheetEntry::with(['category', 'projectRef'])
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id)->whereIn('status', ['submitted', 'approved']))
+            ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id)->where('status', 'submitted'))
             ->get();
 
         $total = round($entries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
