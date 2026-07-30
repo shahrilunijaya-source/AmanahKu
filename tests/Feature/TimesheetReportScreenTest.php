@@ -247,4 +247,65 @@ class TimesheetReportScreenTest extends TestCase
             ->assertSee('No submitted time matches this filter')
             ->assertSee('EmptyCat');
     }
+
+    public function test_the_rail_payload_carries_a_stored_note(): void
+    {
+        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
+        [,$emp] = $this->createEmployee('Alice', $this->position);
+        $ts = $this->createTimesheetWithEntry($emp, $cat, '2026-06-15', 100);
+        $ts->entries()->first()->update(['description' => 'Detailed work description note']);
+
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee('Detailed work description note', false);
+    }
+
+    public function test_the_rail_payload_carries_the_week_label_and_line_label(): void
+    {
+        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
+        [,$emp] = $this->createEmployee('Alice', $this->position);
+        $this->createTimesheetWithEntry($emp, $cat, '2026-06-15', 100);
+
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee('Week 25', false)
+            ->assertSee('Dev', false);
+    }
+
+    public function test_a_person_with_a_draft_week_gets_the_not_here_wording(): void
+    {
+        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
+        [,$emp] = $this->createEmployee('Charlie', $this->position);
+
+        $this->createTimesheetWithEntry($emp, $cat, '2026-06-15', 100, 'submitted');
+        $this->createTimesheetWithEntry($emp, $cat, '2026-06-22', 100, 'draft');
+
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee('is not here: no sheet was ever submitted.');
+    }
+
+    public function test_the_rail_renders_a_panel_element(): void
+    {
+        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
+        [,$emp] = $this->createEmployee('Alice', $this->position);
+        $this->createTimesheetWithEntry($emp, $cat, '2026-06-15', 100);
+
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee('uj-tr-panel')
+            ->assertSee('uj-tr-lens');
+    }
 }
