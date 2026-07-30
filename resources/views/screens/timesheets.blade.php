@@ -74,6 +74,31 @@
     </div>
 @endif
 
+@php $tab = request()->query('tab') === 'review' ? 'review' : 'record'; @endphp
+<div x-data="{
+    tab: @js($tab),
+    setTab(t) {
+        this.tab = t
+        const url = new URL(location)
+        url.searchParams.set('tab', t)
+        history.replaceState(null, '', url)
+    },
+}">
+    {{-- Two tabs: Record writes the week, Review reads it back. An underline bar mirroring
+         the all-staff report screen. Record opens by default — the nav names this screen
+         "Timesheet" and the daily job is filling it in. --}}
+    <div class="uj-tr-tabs" role="tablist">
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='record'"
+            :aria-selected="tab==='record'" @click="setTab('record')">
+            <span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span>
+        </button>
+        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='review'"
+            :aria-selected="tab==='review'" @click="setTab('review')">
+            <span x-text="$store.ui.lang==='en' ? 'Review' : 'Semak'">Review</span>
+        </button>
+    </div>
+
+    <div x-show="tab==='record'" x-transition.opacity.duration.150ms x-cloak role="tabpanel">
 {{-- ===================== CAPTURE (per-day cards) ===================== --}}
     <div class="uj-card" style="width:100%;padding:22px;position:relative;"
          x-data="timesheetCapture({
@@ -507,25 +532,19 @@
             </div>
         </div>
     </div>
+    </div>
 
-    {{-- ===================== REFERENCE PANELS (tabbed): My timesheets · My time spent ===================== --}}
-    <div class="uj-card" x-data="{ tab: 'sheets' }" style="margin-top:16px;">
-        <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
-            <button type="button" @click="tab = 'sheets'"
-                style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
-                :style="tab === 'sheets' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
-                <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span> ({{ $myTimesheets->count() }})
-            </button>
-            @if (! empty($myBreakdown))
-                <button type="button" @click="tab = 'spent'"
-                    style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
-                    :style="tab === 'spent' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }">
-                    <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
-                </button>
-            @endif
+    <div x-show="tab==='review'" x-transition.opacity.duration.150ms x-cloak role="tabpanel">
+    {{-- ===================== REFERENCE PANELS: My timesheets · My time spent ===================== --}}
+    {{-- Un-nested: the two panels stack under the Review tab, each with a section heading,
+         instead of the old inner tab bar. --}}
+    <div class="uj-card">
+        <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
+            <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span>
+            <span style="color:var(--muted);font-weight:400;">({{ $myTimesheets->count() }})</span>
         </div>
 
-        <div x-show="tab === 'sheets'">
+        <div>
         @forelse ($myTimesheets as $t)
             <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 20px;">
@@ -569,10 +588,13 @@
         @endforelse
         </div>
 
-        {{-- Panel: My time spent (personal, person-days only — never RM) --}}
+        {{-- Section: My time spent (personal, person-days only — never RM) --}}
         @if (! empty($myBreakdown))
             @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-            <div x-show="tab === 'spent'" x-cloak style="padding:20px 22px;">
+            <div style="padding:16px 20px 4px;border-top:1px solid var(--hairline);font-size:13px;font-weight:600;color:var(--ink);">
+                <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
+            </div>
+            <div style="padding:16px 22px 20px;">
                 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
                     <div>
                 <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Where your recorded time went — by category and project. Submitted weeks only.' : 'Ke mana masa anda direkod — mengikut kategori dan projek. Minggu dihantar sahaja.'"></span></div>
@@ -630,4 +652,6 @@
     </div>
 @endif
     </div>
+    </div>{{-- /tab=review panel --}}
+</div>{{-- /tab root --}}
 @endsection
