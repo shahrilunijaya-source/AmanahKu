@@ -178,10 +178,48 @@ contributes their weeks to `weeksNotIn`.
 
 ---
 
-## Task 3 — Blade: shelf, filters, lens control, bar list
+## Task 3 — CSS, Blade shelf, filters, lens control, bar list
 
-**Files:** `resources/views/screens/timesheet-reports.blade.php`,
+**Files:** `resources/css/app.css`,
+`resources/views/screens/timesheet-reports.blade.php`,
+`app/Http/Controllers/TimesheetController.php`,
 `tests/Feature/TimesheetReportScreenTest.php` (new).
+
+The CSS ships in this task, not a later one. Markup that lands a commit ahead of the
+stylesheet that dresses it is an unstyled screen on `dev` for as long as the gap lasts —
+the same mistake as replacing the rollups before the view could read them. The whole
+`uj-tr-` block, rail classes included, arrives here; Task 4 adds markup that already has
+styles waiting.
+
+This task also deletes the legacy `byCategory`, `byProject` and `byStaff` rollups from
+`reportData()`, in the same commit that stops reading them. That closes the duplication
+window opened in Task 1.
+
+### The CSS
+
+Port the mock's styles into one `uj-tr-` block in `app.css`, placed after the `uj-ar-`
+block. Rename every `tr-` class to `uj-tr-`. Take the tokens from the file's existing
+`:root` — the mock re-declares them only because it is standalone; do not re-declare them.
+Do not port the mock's `proto-picker`, `proto-vp`, `#stageframe` or `#stage` rules.
+
+Carry over: `uj-tr-wrap` (the 980px measure), `uj-tr-shelf`, `uj-tr-lede`, `uj-tr-fig`,
+`uj-tr-figrow`, `uj-tr-figsub`, `uj-tr-chips`, `uj-tr-chip` with its `data-t` variants,
+`uj-tr-pills`, `uj-tr-pill`, `uj-tr-sel`, `uj-tr-filter`, `uj-tr-range`, `uj-tr-av`,
+`uj-tr-who`, `uj-tr-name`, `uj-tr-sub`, `uj-tr-sect`, `uj-tr-note`, `uj-tr-card`,
+`uj-tr-bar`, `uj-tr-barrow`, `uj-tr-tag`, `uj-tr-btn`, `uj-tr-empty`, `uj-tr-lens`,
+`uj-tr-lensrow`, `uj-tr-panel`, `uj-tr-wk`, `uj-tr-ent`.
+
+Both animations come too: `uj-tr-grow` (bars, `scaleX` from `transform-origin: left`,
+420ms, `var(--ease)`, staggered per row through an inline `animation-delay`) and the rail's
+entrance (`translateX(14px) scale(.985) blur(3px)` → none, 300ms). Both must be disabled
+under `prefers-reduced-motion: reduce`, the rail falling back to a 200ms opacity fade.
+Bars animate `transform`, never `width`.
+
+Use a media query, **not** `@container`: the mock needed a container query only because its
+harness resizes a frame inside a wide window. `max-width: 640px` collapses `uj-tr-lens` to
+one column, un-stickies `uj-tr-panel`, and drops the shelf figure from 54px to 40px.
+
+### The markup
 
 Wrap the whole screen in `<div class="uj-tr-wrap">` (the 980px measure). Keep the
 `@include('partials.guide', …)` call and the `← My timesheets` link exactly as they are.
@@ -331,36 +369,10 @@ string appears); a person with a `draft` week renders the not-here wording.
 
 ---
 
-## Task 5 — CSS and assets
+## Assets — an orchestrator gate, not a task
 
-**Files:** `resources/css/app.css`.
-
-Port the mock's styles into one `uj-tr-` block, placed after the `uj-ar-` block. Rename
-every `tr-` class to `uj-tr-`. Take the tokens from the file's existing `:root` — the
-mock re-declares them only because it is standalone; do not re-declare them.
-
-Carry over exactly:
-
-- `uj-tr-wrap` (980px measure), `uj-tr-shelf`, `uj-tr-lede`, `uj-tr-fig`,
-  `uj-tr-figrow`, `uj-tr-figsub`, `uj-tr-chips`, `uj-tr-chip` with its `data-t`
-  variants, `uj-tr-pills`, `uj-tr-pill`, `uj-tr-sel`, `uj-tr-filter`, `uj-tr-range`,
-  `uj-tr-av`, `uj-tr-who`, `uj-tr-name`, `uj-tr-sub`, `uj-tr-sect`, `uj-tr-note`,
-  `uj-tr-card`, `uj-tr-bar`, `uj-tr-barrow`, `uj-tr-tag`, `uj-tr-btn`, `uj-tr-empty`,
-  `uj-tr-lens`, `uj-tr-lensrow`, `uj-tr-panel`, `uj-tr-wk`, `uj-tr-ent`.
-- Both animations: `uj-tr-grow` (bars, `scaleX` from `transform-origin: left`, 420ms,
-  `var(--ease)`, staggered per row by `animation-delay`) and the rail's entrance
-  (`translateX(14px) scale(.985) blur(3px)` → none, 300ms). Both must be disabled under
-  `prefers-reduced-motion: reduce`, the rail falling back to a 200ms opacity fade.
-- The narrow rules. Use a media query, **not** `@container`: the mock needed a container
-  query only because its harness resizes a frame inside a wide window. `max-width: 640px`
-  collapses `uj-tr-lens` to one column, un-stickies `uj-tr-panel`, and drops the shelf
-  figure from 54px to 40px.
-
-Bars animate `transform`, never `width`. A bar's inline `style` sets its width and its
-`animation-delay`; nothing else is inline.
-
-**Assets are the orchestrator's step, not this task's.** `agy` cannot run `lerd` and
-cannot commit. After Task 5 passes review, the orchestrator runs, in this order:
+`agy` cannot run `lerd` and cannot commit, so the asset rebuild is not a task. After
+Task 3 and again after Task 4, the orchestrator runs, in this order:
 
 ```fish
 lerd artisan view:cache
