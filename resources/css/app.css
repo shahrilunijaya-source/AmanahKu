@@ -1813,6 +1813,8 @@ select.wd-inline {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   margin-top: 5px; font-size: 12.5px; line-height: 1.45; color: var(--body);
 }
+.uj-msg-row[data-unread] { background: #fff; border-color: var(--hairline); }
+.uj-msg-row[data-unread] .uj-msg-name { font-weight: 700; }
 .uj-msg-row[data-unread] .uj-msg-snip { color: var(--ink); }
 .uj-msg-badge { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: var(--red-tint); color: var(--red-active); font-size: var(--t-micro); font-weight: 600; }
 
