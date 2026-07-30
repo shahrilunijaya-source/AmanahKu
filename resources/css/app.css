@@ -566,6 +566,21 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-head-stack { display: flex; flex-direction: column; gap: 16px; padding-top: 78px; }
 .uj-head-stack--embed { padding-top: 0; gap: 12px; }
 
+/* Shared page measure. Every screen — its header (h1 + guide text) AND its body —
+   sits in one centred column, so screens read consistently instead of some
+   stretching edge-to-edge and others pinning left. Focused screens use 920px
+   (the width attendance's .uj-at-wrap already proved out); data-dense screens
+   opt into a wider centred cap with .uj-main--wide. Embed (wizard iframe) opts
+   out: it is sized to its content, not the viewport. */
+.uj-measured > .uj-head-stack,
+.uj-measured > .uj-fade { max-width: 920px; margin-inline: auto; }
+.uj-main--wide > .uj-head-stack,
+.uj-main--wide > .uj-fade { max-width: 1280px; }
+/* Workspace canvases (board, org chart) use the whole width — no cap — so they
+   grow with the sidebar collapse. They keep the 28px gutter from .uj-main. */
+.uj-main--full > .uj-head-stack,
+.uj-main--full > .uj-fade { max-width: none; }
+
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
 .uj-pagehead { padding: 0 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
