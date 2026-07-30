@@ -44,6 +44,14 @@ Decided. Do not re-open them.
   already there. The screen gets no inline `<style>` element.
 - **Employee id is the grouping key everywhere.** A display name is a label, never a
   key. This is the same-name bug above; fixing it is Task 1, not a follow-up.
+- **The new rollups land beside the old ones, not on top of them.** Task 1 adds
+  `lensCategory`, `lensProject` and `lensStaff` and leaves `byCategory`, `byProject` and
+  `byStaff` untouched; Task 3 switches the Blade over and deletes the old three in the
+  same commit. Replacing the shapes in Task 1 was tried and reverted: the Blade reads the
+  old keys, so the screen 500s and `TimesheetCostTest` goes red for the two commits
+  between Task 1 and Task 3. A shared branch that another session is committing to does
+  not get a red window for the sake of a tidier diff. The duplication lives for two
+  commits and dies in Task 3.
 - **Weeks:** Monday-start weeks whose Monday falls inside `[from, to]`. A week is *in*
   when a timesheet exists for that employee and `week_start` with status `submitted`.
   Draft or absent counts as missing. A week whose Monday precedes the employee's
@@ -75,11 +83,11 @@ Decided. Do not re-open them.
 **Files:** `app/Http/Controllers/TimesheetController.php`,
 `tests/Feature/TimesheetReportLensTest.php` (new).
 
-Rewrite the three rollups in `reportData()`. Keys `from`, `to`, `canSeeCost`,
-`reportTotals`, `reportEmpty`, `tsRoster`, `filterCategories`, `filterProjects`,
-`selCategory`, `selProject` keep their current shape.
+Add three rollups to `reportData()`: `lensStaff`, `lensCategory`, `lensProject`. Every
+existing key, `byCategory`, `byProject` and `byStaff` included, keeps its current shape
+and its current code. Task 3 deletes the old three.
 
-`byStaff` becomes a list of:
+`lensStaff` is a list of:
 
 ```
 ['id' => int, 'name' => string, 'initials' => string, 'color' => string,
@@ -90,7 +98,7 @@ Rewrite the three rollups in `reportData()`. Keys `from`, `to`, `canSeeCost`,
  'pct' => int]                 // share of grand total days
 ```
 
-`byCategory` and `byProject` become lists of:
+`lensCategory` and `lensProject` are lists of:
 
 ```
 ['id' => int|string, 'label' => string, 'days' => float, 'cost' => float,
@@ -100,9 +108,9 @@ Rewrite the three rollups in `reportData()`. Keys `from`, `to`, `canSeeCost`,
                 'pct' => int]]]  // pct is share of THIS slice, not of the total
 ```
 
-For `byCategory`, `id` is the category id, or the string `'uncategorised'` for entries
-whose category was deleted. For `byProject`, `id` is the project id; entries with no
-project are excluded from `byProject` exactly as they are today.
+For `lensCategory`, `id` is the category id, or the string `'uncategorised'` for entries
+whose category was deleted. For `lensProject`, `id` is the project id; entries with no
+project are excluded from `lensProject` exactly as they are today.
 
 Sort order is unchanged: cost descending, then days descending. `members` sort by days
 descending. Grouping keys are `timesheet.employee_id`, `category_id`, `project_id` —
@@ -112,7 +120,7 @@ An unbanded employee has `rate => null`, `costed => false`, `cost => 0.0`. Their
 still count in `days` and in every `pct`.
 
 **Tests** (`TimesheetReportLensTest`): two active employees with the identical name
-`Mei Ling`, both with submitted entries, produce **two** `byStaff` rows with distinct
+`Mei Ling`, both with submitted entries, produce **two** `lensStaff` rows with distinct
 ids and unmerged days; each slice's `members` pct sums to 100 (±1 for rounding); an
 employee with no `position_id` has `costed => false` and `cost => 0.0` while their days
 appear in the slice total.
@@ -143,7 +151,7 @@ name and sub-pillar name joined with ` · `, nulls filtered out — the same sha
 `percentage / 100`. Weeks sort oldest first; lines sort by `entry_date`, then by days
 descending.
 
-Each `byStaff` row gains:
+Each `lensStaff` row gains:
 
 ```
 'weeksIn' => int, 'weeksTotal' => int, 'missingWeeks' => ['Week 29', 'Week 31']
@@ -187,7 +195,7 @@ Keep the team-status card. Replace everything from the summary strip down.
   RM 80,325.00 at charge-out rates.` Append `` `RM x md have no band and no cost.` ``
   only when `uncostedDays > 0`.
 - Chips, only those that apply: total person-days; person-days per head
-  (`days / count(byStaff)`, 2 dp); uncosted md, amber, when `> 0`; weeks not in, amber,
+  (`days / count(lensStaff)`, 2 dp); uncosted md, amber, when `> 0`; weeks not in, amber,
   when `weeksNotIn > 0`.
 
 **Filter row** (`uj-tr-filter`): the existing `from`, `to`, `category` and `project`
@@ -282,8 +290,8 @@ x-data="{
 }"
 ```
 
-with `category`, `project`, `staff` and `weeks` seeded from `@js($byCategory)`,
-`@js($byProject)`, `@js($byStaff)`, `@js($staffWeeks)`.
+with `category`, `project`, `staff` and `weeks` seeded from `@js($lensCategory)`,
+`@js($lensProject)`, `@js($lensStaff)`, `@js($staffWeeks)`.
 
 Rail behaviour:
 

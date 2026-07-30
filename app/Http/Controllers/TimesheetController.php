@@ -422,6 +422,7 @@ class TimesheetController extends Controller
         $grandCost = $cost($entries);
         $uncostedDays = round($entries->filter(fn ($e) => $e->cost === null)->sum(fn ($e) => (float) $e->percentage) / 100, 2);
 
+        // Legacy rollups kept temporarily for timesheet-reports.blade.php until a later task switches it to lens keys.
         // ----- By category: category -> days + RM (answers "how much on Study") -----
         $byCategory = $entries->groupBy(fn ($e) => $e->category?->name ?? 'Uncategorised')
             ->map(function (Collection $rows, string $label) use ($days, $cost, $grandDays) {
@@ -486,6 +487,95 @@ class TimesheetController extends Controller
                 ];
             })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
 
+        // ----- Lens category: category -> days + RM + members -----
+        $lensCategory = $entries->groupBy(fn ($e) => $e->category_id ?? 'uncategorised')
+            ->map(function (Collection $rows) use ($days, $cost, $grandDays) {
+                $first = $rows->first();
+                $catId = $first->category ? (int) $first->category->id : 'uncategorised';
+                $label = (string) ($first->category?->name ?? 'Uncategorised');
+                $sliceDays = $days($rows);
+
+                $members = $rows->groupBy(fn ($e) => $e->timesheet->employee_id)
+                    ->map(function (Collection $empRows) use ($sliceDays, $days, $cost) {
+                        $emp = $empRows->first()->timesheet->employee;
+                        $empDays = $days($empRows);
+
+                        return [
+                            'id' => (int) $emp->id,
+                            'name' => (string) $emp->name,
+                            'initials' => (string) $emp->initials,
+                            'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
+                            'days' => $empDays,
+                            'cost' => $cost($empRows),
+                            'pct' => $sliceDays > 0 ? (int) round($empDays / $sliceDays * 100) : 0,
+                        ];
+                    })->values()->sortByDesc('days')->values()->all();
+
+                return [
+                    'id' => $catId,
+                    'label' => $label,
+                    'days' => $sliceDays,
+                    'cost' => $cost($rows),
+                    'pct' => $grandDays > 0 ? (int) round($sliceDays / $grandDays * 100) : 0,
+                    'members' => $members,
+                ];
+            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
+
+        // ----- Lens project: project -> days + RM + members -----
+        $lensProject = $entries->filter(fn ($e) => $e->projectRef)
+            ->groupBy(fn ($e) => $e->project_id)
+            ->map(function (Collection $rows) use ($days, $cost, $grandDays) {
+                $proj = $rows->first()->projectRef;
+                $sliceDays = $days($rows);
+
+                $members = $rows->groupBy(fn ($e) => $e->timesheet->employee_id)
+                    ->map(function (Collection $empRows) use ($sliceDays, $days, $cost) {
+                        $emp = $empRows->first()->timesheet->employee;
+                        $empDays = $days($empRows);
+
+                        return [
+                            'id' => (int) $emp->id,
+                            'name' => (string) $emp->name,
+                            'initials' => (string) $emp->initials,
+                            'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
+                            'days' => $empDays,
+                            'cost' => $cost($empRows),
+                            'pct' => $sliceDays > 0 ? (int) round($empDays / $sliceDays * 100) : 0,
+                        ];
+                    })->values()->sortByDesc('days')->values()->all();
+
+                return [
+                    'id' => (int) $proj->id,
+                    'label' => (string) $proj->name,
+                    'days' => $sliceDays,
+                    'cost' => $cost($rows),
+                    'pct' => $grandDays > 0 ? (int) round($sliceDays / $grandDays * 100) : 0,
+                    'members' => $members,
+                ];
+            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
+
+        // ----- Lens staff: person -> days + RM + rate -----
+        $lensStaff = $entries->groupBy(fn ($e) => $e->timesheet->employee_id)
+            ->map(function (Collection $rows) use ($days, $cost, $grandDays) {
+                $emp = $rows->first()->timesheet->employee;
+                $positionBand = $emp->positionBand;
+                $rate = $positionBand?->mandayRate();
+                $d = $days($rows);
+
+                return [
+                    'id' => (int) $emp->id,
+                    'name' => (string) $emp->name,
+                    'initials' => (string) $emp->initials,
+                    'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
+                    'title' => (string) ($positionBand?->title ?? ''),
+                    'rate' => $rate,
+                    'costed' => $rate !== null,
+                    'days' => $d,
+                    'cost' => $cost($rows),
+                    'pct' => $grandDays > 0 ? (int) round($d / $grandDays * 100) : 0,
+                ];
+            })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
+
         return [
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
@@ -493,6 +583,9 @@ class TimesheetController extends Controller
             'byCategory' => $byCategory,
             'byProject' => $byProject,
             'byStaff' => $byStaff,
+            'lensCategory' => $lensCategory,
+            'lensProject' => $lensProject,
+            'lensStaff' => $lensStaff,
             'reportTotals' => ['days' => $grandDays, 'cost' => $grandCost, 'uncostedDays' => $uncostedDays],
             'reportEmpty' => $entries->isEmpty(),
             // This-week compliance roster (who still owes a sheet). Lives here on the
