@@ -262,4 +262,176 @@ class TimesheetReportLensTest extends TestCase
         $this->assertContains($emp2->id, $memberIds);
         $this->assertNotContains($emp1->id, $memberIds);
     }
+
+    public function test_a_draft_week_is_missing_not_counted(): void
+    {
+        $emp = $this->createEmployee('Eve', $this->position);
+
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Development',
+            'requires_project' => false,
+        ]);
+
+        $this->createTimesheetWithEntry($emp, $category, null, '2026-06-15', 100, 8);
+
+        $draftTs = Timesheet::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'week_start' => '2026-06-22',
+            'status' => 'draft',
+            'total_hours' => 8,
+        ]);
+        $draftTs->entries()->create([
+            'tenant_id' => $this->tenant->id,
+            'entry_date' => '2026-06-22',
+            'category_id' => $category->id,
+            'percentage' => 100,
+            'hours' => 8,
+        ]);
+
+        $data = $this->getReportData();
+
+        $lensStaffRow = collect($data['lensStaff'])->firstWhere('id', $emp->id);
+        $this->assertNotNull($lensStaffRow);
+
+        $this->assertSame(1.0, $lensStaffRow['days']);
+        $this->assertSame(1, $lensStaffRow['weeksIn']);
+        $this->assertContains('Week 26', $lensStaffRow['missingWeeks']);
+    }
+
+    public function test_weeks_before_the_join_date_are_not_missing(): void
+    {
+        $emp = $this->createEmployee('Frank', $this->position);
+        $emp->update(['joined_at' => '2026-06-15']);
+
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Development',
+            'requires_project' => false,
+        ]);
+        $this->createTimesheetWithEntry($emp, $category, null, '2026-06-15', 100, 8);
+
+        $data = $this->getReportData();
+
+        $lensStaffRow = collect($data['lensStaff'])->firstWhere('id', $emp->id);
+        $this->assertNotNull($lensStaffRow);
+
+        $this->assertSame(3, $lensStaffRow['weeksTotal']);
+        $this->assertNotContains('Week 23', $lensStaffRow['missingWeeks']);
+        $this->assertNotContains('Week 24', $lensStaffRow['missingWeeks']);
+    }
+
+    public function test_staff_weeks_carry_the_line_note_and_label(): void
+    {
+        $emp = $this->createEmployee('Grace', $this->position);
+
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Development',
+            'requires_project' => true,
+        ]);
+        $project = Project::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'KPT: RMS',
+        ]);
+        $subPillar = $project->subPillars()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Reporting module',
+        ]);
+
+        $ts = Timesheet::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'week_start' => '2026-06-15',
+            'status' => 'submitted',
+            'total_hours' => 8,
+        ]);
+
+        $ts->entries()->create([
+            'tenant_id' => $this->tenant->id,
+            'entry_date' => '2026-06-15',
+            'category_id' => $category->id,
+            'project_id' => $project->id,
+            'sub_pillar_id' => $subPillar->id,
+            'percentage' => 100,
+            'hours' => 8,
+            'description' => 'Built the reporting engine',
+        ]);
+
+        $data = $this->getReportData();
+
+        $this->assertArrayHasKey('staffWeeks', $data);
+        $this->assertArrayHasKey($emp->id, $data['staffWeeks']);
+
+        $empWeeks = $data['staffWeeks'][$emp->id];
+        $this->assertCount(1, $empWeeks);
+
+        $week = $empWeeks[0];
+        $this->assertSame('Week 25', $week['label']);
+        $this->assertSame('15 – 19 Jun', $week['dates']);
+        $this->assertSame(1.0, $week['days']);
+        $this->assertCount(1, $week['lines']);
+
+        $line = $week['lines'][0];
+        $this->assertSame('Development · KPT: RMS · Reporting module', $line['label']);
+        $this->assertSame('Built the reporting engine', $line['note']);
+        $this->assertSame(1.0, $line['days']);
+    }
+
+    public function test_weeks_not_in_counts_an_employee_with_no_entries(): void
+    {
+        $noEntryEmp = $this->createEmployee('Hannah', $this->position);
+
+        $empWithEntry = $this->createEmployee('Ian', $this->position);
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Support',
+            'requires_project' => false,
+        ]);
+        $this->createTimesheetWithEntry($empWithEntry, $category, null, '2026-06-15', 100, 8);
+
+        $data = $this->getReportData();
+
+        $totals = $data['reportTotals'];
+        $this->assertArrayHasKey('weeksTotal', $totals);
+        $this->assertArrayHasKey('weeksNotIn', $totals);
+
+        $this->assertSame(5, $totals['weeksTotal']);
+        $this->assertSame(14, $totals['weeksNotIn']);
+
+        // weeksNotIn spans every visible employee, not only the ones with a lensStaff row.
+        // Two here have no row at all — the HR viewer created in setUp(), and Hannah — and
+        // each owes every week of the period. Derive that second term instead of hardcoding
+        // it, or the assertion passes for the wrong reason when attribution shifts.
+        $rowMissing = collect($data['lensStaff'])->sum(fn ($r) => count($r['missingWeeks']));
+        $rowlessMissing = 2 * $totals['weeksTotal'];
+        $this->assertSame($totals['weeksNotIn'], $rowMissing + $rowlessMissing);
+    }
+
+    public function test_week_dates_span_two_months_when_the_week_does(): void
+    {
+        $emp = $this->createEmployee('Jack', $this->position);
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Ops',
+            'requires_project' => false,
+        ]);
+
+        $this->createTimesheetWithEntry($emp, $category, null, '2026-06-29', 100, 8);
+
+        app(CurrentTenant::class)->set($this->tenant);
+        $request = Request::create('/app/timesheet-reports', 'GET', [
+            'from' => '2026-06-29',
+            'to' => '2026-07-05',
+        ]);
+        $request->attributes->set('tenantRole', 'hr');
+        $request->attributes->set('tenantScope', 'company');
+
+        $data = app(TimesheetController::class)->reportData($request, $this->hrEmployee);
+
+        $empWeeks = $data['staffWeeks'][$emp->id];
+        $this->assertCount(1, $empWeeks);
+        $this->assertSame('29 Jun – 3 Jul', $empWeeks[0]['dates']);
+    }
 }

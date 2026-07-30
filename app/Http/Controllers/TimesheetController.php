@@ -398,7 +398,7 @@ class TimesheetController extends Controller
         $scope = $request->attributes->get('tenantScope', 'company');
         $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $employee);
 
-        $entries = TimesheetEntry::with(['category', 'projectRef', 'timesheet.employee.positionBand'])
+        $entries = TimesheetEntry::with(['category', 'projectRef', 'subPillar', 'timesheet.employee.positionBand'])
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
             ->whereHas('timesheet', fn ($q) => $q->where('status', 'submitted')
                 ->whereHas('employee', fn ($e) => $e->active()) // archived owners' entries drop from RM totals
@@ -421,6 +421,74 @@ class TimesheetController extends Controller
         $grandDays = $days($entries);
         $grandCost = $cost($entries);
         $uncostedDays = round($entries->filter(fn ($e) => $e->cost === null)->sum(fn ($e) => (float) $e->percentage) / 100, 2);
+
+        $periodWeeks = [];
+        $cur = $from->copy()->startOfDay();
+        if (! $cur->isMonday()) {
+            $cur->next(Carbon::MONDAY);
+        }
+        while ($cur->lte($to)) {
+            $periodWeeks[] = $cur->copy();
+            $cur->addWeek();
+        }
+        $periodWeeksCount = count($periodWeeks);
+        $periodWeekStarts = array_map(fn (Carbon $w) => $w->toDateString(), $periodWeeks);
+
+        $visibleEmployees = Employee::active()
+            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
+            ->get();
+
+        $submittedWeekStartsByEmployee = [];
+        if (! empty($periodWeekStarts) && $visibleEmployees->isNotEmpty()) {
+            $submittedTs = Timesheet::whereIn('employee_id', $visibleEmployees->pluck('id'))
+                ->whereBetween('week_start', [
+                    $from->copy()->startOfWeek()->toDateString(),
+                    $to->copy()->endOfWeek()->toDateString(),
+                ])
+                ->where('status', 'submitted')
+                ->get(['employee_id', 'week_start']);
+
+            foreach ($submittedTs as $t) {
+                $ws = $t->week_start instanceof Carbon ? $t->week_start->toDateString() : Carbon::parse((string) $t->week_start)->toDateString();
+                $submittedWeekStartsByEmployee[$t->employee_id][$ws] = true;
+            }
+        }
+
+        $empWeekStats = function (Employee $emp) use ($periodWeeks, $submittedWeekStartsByEmployee) {
+            $weeksIn = 0;
+            $missingWeeks = [];
+            $joinDateStr = $emp->joined_at ? ($emp->joined_at instanceof Carbon ? $emp->joined_at->toDateString() : Carbon::parse($emp->joined_at)->toDateString()) : null;
+
+            foreach ($periodWeeks as $w) {
+                $wStr = $w->toDateString();
+                if ($joinDateStr !== null && $wStr < $joinDateStr) {
+                    continue;
+                }
+
+                $weekLabel = 'Week '.$w->isoWeek;
+                if (isset($submittedWeekStartsByEmployee[$emp->id][$wStr])) {
+                    $weeksIn++;
+                } else {
+                    $missingWeeks[] = $weekLabel;
+                }
+            }
+
+            $weeksTotal = $weeksIn + count($missingWeeks);
+
+            return [
+                'weeksIn' => $weeksIn,
+                'weeksTotal' => $weeksTotal,
+                'missingWeeks' => $missingWeeks,
+            ];
+        };
+
+        $empStatsMap = [];
+        $weeksNotIn = 0;
+        foreach ($visibleEmployees as $vEmp) {
+            $stats = $empWeekStats($vEmp);
+            $empStatsMap[$vEmp->id] = $stats;
+            $weeksNotIn += count($stats['missingWeeks']);
+        }
 
         // Legacy rollups kept temporarily for timesheet-reports.blade.php until a later task switches it to lens keys.
         // ----- By category: category -> days + RM (answers "how much on Study") -----
@@ -556,11 +624,12 @@ class TimesheetController extends Controller
 
         // ----- Lens staff: person -> days + RM + rate -----
         $lensStaff = $entries->groupBy(fn ($e) => $e->timesheet->employee_id)
-            ->map(function (Collection $rows) use ($days, $cost, $grandDays) {
+            ->map(function (Collection $rows) use ($days, $cost, $grandDays, $empStatsMap, $empWeekStats) {
                 $emp = $rows->first()->timesheet->employee;
                 $positionBand = $emp->positionBand;
                 $rate = $positionBand?->mandayRate();
                 $d = $days($rows);
+                $stats = $empStatsMap[$emp->id] ?? $empWeekStats($emp);
 
                 return [
                     'id' => (int) $emp->id,
@@ -573,8 +642,69 @@ class TimesheetController extends Controller
                     'days' => $d,
                     'cost' => $cost($rows),
                     'pct' => $grandDays > 0 ? (int) round($d / $grandDays * 100) : 0,
+                    'weeksIn' => $stats['weeksIn'],
+                    'weeksTotal' => $stats['weeksTotal'],
+                    'missingWeeks' => $stats['missingWeeks'],
                 ];
             })->values()->sortByDesc('cost')->sortByDesc('days')->values()->all();
+
+        // ----- Staff weeks: person -> list of week blocks -----
+        $staffWeeks = [];
+        $entriesByEmployee = $entries->groupBy(fn ($e) => (int) $e->timesheet->employee_id);
+        foreach ($entriesByEmployee as $empId => $empEntries) {
+            $byWeek = $empEntries->groupBy(fn (TimesheetEntry $e) => Carbon::parse($e->entry_date)->startOfWeek()->toDateString());
+            $sortedWeeks = $byWeek->sortKeys();
+
+            $weekBlocks = [];
+            foreach ($sortedWeeks as $weekStartStr => $weekEntries) {
+                $weekStart = Carbon::parse($weekStartStr);
+                $mon = $weekStart->copy();
+                $fri = $weekStart->copy()->addDays(4);
+
+                $dates = $mon->month === $fri->month
+                    ? $mon->format('j').' – '.$fri->format('j M')
+                    : $mon->format('j M').' – '.$fri->format('j M');
+
+                $sortedLines = $weekEntries->sort(function (TimesheetEntry $a, TimesheetEntry $b) {
+                    $dateCmp = $a->entry_date->toDateString() <=> $b->entry_date->toDateString();
+                    if ($dateCmp !== 0) {
+                        return $dateCmp;
+                    }
+                    $aDays = round((float) $a->percentage / 100, 2);
+                    $bDays = round((float) $b->percentage / 100, 2);
+
+                    return $bDays <=> $aDays;
+                });
+
+                $lines = [];
+                foreach ($sortedLines as $e) {
+                    $labelParts = array_filter([
+                        $e->category?->name ?: $e->project,
+                        $e->projectRef?->name,
+                        $e->subPillar?->name,
+                    ]);
+
+                    $lines[] = [
+                        'label' => implode(' · ', $labelParts),
+                        'note' => $e->description,
+                        'days' => round((float) $e->percentage / 100, 2),
+                    ];
+                }
+
+                $weekDays = round($weekEntries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
+                $weekCost = round($weekEntries->sum(fn ($e) => (float) ($e->cost ?? 0)), 2);
+
+                $weekBlocks[] = [
+                    'label' => 'Week '.$weekStart->isoWeek,
+                    'dates' => $dates,
+                    'days' => $weekDays,
+                    'cost' => $weekCost,
+                    'lines' => $lines,
+                ];
+            }
+
+            $staffWeeks[$empId] = $weekBlocks;
+        }
 
         return [
             'from' => $from->toDateString(),
@@ -586,7 +716,14 @@ class TimesheetController extends Controller
             'lensCategory' => $lensCategory,
             'lensProject' => $lensProject,
             'lensStaff' => $lensStaff,
-            'reportTotals' => ['days' => $grandDays, 'cost' => $grandCost, 'uncostedDays' => $uncostedDays],
+            'staffWeeks' => $staffWeeks,
+            'reportTotals' => [
+                'days' => $grandDays,
+                'cost' => $grandCost,
+                'uncostedDays' => $uncostedDays,
+                'weeksTotal' => $periodWeeksCount,
+                'weeksNotIn' => $weeksNotIn,
+            ],
             'reportEmpty' => $entries->isEmpty(),
             // This-week compliance roster (who still owes a sheet). Lives here on the
             // all-staff oversight surface, not the personal capture screen. Always the
