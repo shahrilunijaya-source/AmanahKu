@@ -63,7 +63,7 @@
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
                 'audit', 'roles', 'calendar', 'leave-report', 'timesheet-reports', 'attendance-report',
-                'attendance-admin', 'claim-approvals', 'tot', 'tot-roster', 'messages', 'documents'];
+                'attendance-admin', 'tot', 'tot-roster', 'messages', 'documents'];
             // Board and the org chart take the whole width, no centred cap.
             $fullScreens = ['board', 'orgchart'];
             $isFull = ! $embed && in_array($screen ?? null, $fullScreens, true);

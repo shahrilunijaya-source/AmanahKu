@@ -87,9 +87,9 @@ class Amanahku
             $s('My Team', 'Pasukan Saya', ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75']),
             $s('My Team', 'Pasukan Saya', ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi', 'icon' => 'M9 3h6v3H9zM3 18h4v3H3zM17 18h4v3h-4zM12 6v4M5 18v-3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3']),
             $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
-            // Verify/approve queues + the company ledger, split out of Claims so that
-            // screen stays personal-only. manager/management/hr only.
-            $s('My Team', 'Pasukan Saya', ['id' => 'claim-approvals', 'label' => 'Claim approvals', 'label_ms' => 'Kelulusan Tuntutan', 'roles' => ['manager', 'management', 'hr'], 'icon' => 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z']),
+            // Verify/approve queues + the company ledger now live as role-aware tabs on the
+            // Claims screen itself (My Work), so there is no separate My Team entry. The
+            // `claim-approvals` slug still resolves to that screen for old deep links.
             $s('My Team', 'Pasukan Saya', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [

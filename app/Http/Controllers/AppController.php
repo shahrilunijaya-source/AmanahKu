@@ -202,7 +202,10 @@ class AppController extends Controller
             ];
         }
 
-        $view = View::exists("screens.$screen") ? "screens.$screen" : 'screens.empty';
+        // claim-approvals was merged into the unified claims screen; the slug still resolves
+        // (deep links, notifications) and lands on the Approvals tab, driven by $screen.
+        $viewScreen = $screen === 'claim-approvals' ? 'claims' : $screen;
+        $view = View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty';
 
         return view($view, array_merge([
             'screen' => $screen,
@@ -335,8 +338,9 @@ class AppController extends Controller
             'reviews' => $this->reviewsData($employee, $request->attributes->get('tenantRole', 'employee')),
             'onboarding' => app(OnboardingController::class)->screenData($request, $employee),
             'onboarding-content' => app(OnboardingContentController::class)->screenData($request),
-            'claims' => $this->claimsData($request, $employee),
-            'claim-approvals' => $this->claimApprovalsData($request, $employee),
+            // Both slugs render the unified claims screen (claim-approvals just defaults to
+            // the Approvals tab — see screens/claims.blade.php and the view resolve below).
+            'claims', 'claim-approvals' => $this->claimsData($request, $employee),
             'assets' => $this->assetsData($request),
             'training' => $this->trainingData($request),
             'orgchart' => app(OrgController::class)->screenData($request, $employee),
