@@ -182,7 +182,7 @@
     </div>
 
     {{-- ── My leave ── --}}
-    <div role="tabpanel" x-show="tab === 'mine'" x-cloak style="display:flex;flex-direction:column;gap:22px;">
+    <div role="tabpanel" x-show="tab === 'mine'" x-cloak class="uj-lv-panel">
         @if ($ledger->isNotEmpty())
             <div>
                 <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Your year' : 'Tahun anda'">Your year</span></h3>
@@ -381,7 +381,7 @@
     @if ($reviewCount > 0)
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
              x-data="{ queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
-             style="display:flex;flex-direction:column;gap:14px;">
+             class="uj-lv-panel">
             <div>
                 <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Requests waiting on you' : 'Permohonan menunggu anda'">Requests waiting on you</span></h3>
                 <p style="font-size:var(--t-sm);color:var(--muted);margin:0;">

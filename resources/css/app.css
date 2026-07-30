@@ -2587,6 +2587,12 @@ select.wd-inline {
 .uj-lv-tab[data-on] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(38, 37, 30, .08); }
 .uj-lv-tab-n { font: 700 var(--t-micro) var(--font-mono); background: var(--red); color: #fff; border-radius: 999px; padding: 2px 7px; font-variant-numeric: tabular-nums; }
 
+/* Section spacing inside a tab panel. This MUST live in a class: `x-show` removes
+   the inline `display` property when it reveals an element, so an inline
+   `display:flex;gap:…` on the panel is silently dropped the first time the tab is
+   switched, and every section collapses back to block-flow margins. */
+.uj-lv-panel { display: flex; flex-direction: column; gap: 26px; }
+
 /* Shelf line under the figure: what is pending, and whether anything waits on you. */
 .uj-lv-where { font-size: 13px; color: var(--body); margin-top: 7px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
