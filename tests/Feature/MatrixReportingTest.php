@@ -128,7 +128,7 @@ class MatrixReportingTest extends TestCase
         $this->submittedLeave($stranger);
 
         $this->actingAsEmployee($extra)->get('/app/leave')->assertOk()
-            ->assertSee('To verify')
+            ->assertSee('Yours to verify')
             ->assertSee('Dotted Reportee')
             ->assertDontSee('Stranger Person');
     }

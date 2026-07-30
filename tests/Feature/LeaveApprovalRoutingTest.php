@@ -154,7 +154,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->request($stranger);
 
         $this->actingAsEmployee($manager)->get('/app/leave')->assertOk()
-            ->assertSee('To verify')
+            ->assertSee('Yours to verify')
             ->assertSee('Mine Reportee')
             ->assertDontSee('Stranger Person');
     }
@@ -167,7 +167,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->request($report, 'verified', $manager->id);
 
         $this->actingAsEmployee($mgmt)->get('/app/leave')->assertOk()
-            ->assertSee('To approve')
+            ->assertSee('Waiting for final approval')
             ->assertSee('Reportee');
     }
 
