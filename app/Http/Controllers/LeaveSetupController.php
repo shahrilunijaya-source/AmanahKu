@@ -84,9 +84,12 @@ class LeaveSetupController extends Controller
                         continue;
                     }
 
+                    // Stamp the month: an opening balance imported from the old system
+                    // already includes that month's grant, so leave:accrue must not
+                    // credit it again on the next run.
                     LeaveBalance::updateOrCreate(
                         ['employee_id' => (int) $employeeId, 'leave_type_id' => (int) $typeId],
-                        ['balance' => (float) $value],
+                        ['balance' => (float) $value, 'last_accrued_on' => now()->startOfDay()],
                     );
                     $updated++;
                 }

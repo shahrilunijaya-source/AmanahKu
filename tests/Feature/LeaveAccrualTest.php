@@ -159,6 +159,81 @@ class LeaveAccrualTest extends TestCase
             ->where('employee_id', $resigned->id)->count());
     }
 
+    public function test_a_mid_year_joiner_accrues_only_from_the_month_they_started(): void
+    {
+        // Arrange — starts 10 June; run the whole year from January.
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->employee->update(['joined_at' => Carbon::create(2026, 6, 10)]);
+        app(CurrentTenant::class)->set(null);
+
+        // Act — monthly run, Jan through Dec.
+        foreach (range(1, 12) as $month) {
+            Carbon::setTestNow(Carbon::create(2026, $month, 1, 2, 0));
+            $this->artisan('leave:accrue')->assertSuccessful();
+        }
+
+        // Assert — June to December is 7 grants of 1.5, not the full 12.
+        $this->assertSame(10.5, (float) $this->balance()->balance);
+    }
+
+    public function test_an_employee_who_joins_later_in_the_run_month_still_earns_that_month(): void
+    {
+        // Arrange — joins 28 March, accrual runs on 1 March.
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->employee->update(['joined_at' => Carbon::create(2026, 3, 28)]);
+        app(CurrentTenant::class)->set(null);
+
+        Carbon::setTestNow(Carbon::create(2026, 3, 1, 2, 0));
+
+        // Act
+        $this->artisan('leave:accrue')->assertSuccessful();
+
+        // Assert — full month, no half-day proration.
+        $this->assertSame(1.5, (float) $this->balance()->balance);
+    }
+
+    public function test_an_employee_who_has_not_started_yet_does_not_accrue(): void
+    {
+        // Arrange — starts next month.
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->employee->update(['joined_at' => Carbon::create(2026, 4, 1)]);
+        app(CurrentTenant::class)->set(null);
+
+        Carbon::setTestNow(Carbon::create(2026, 3, 1, 2, 0));
+
+        // Act
+        $this->artisan('leave:accrue')->assertSuccessful();
+
+        // Assert — no balance row at all.
+        $this->assertSame(0, LeaveBalance::withoutGlobalScopes()
+            ->where('employee_id', $this->employee->id)->count());
+    }
+
+    public function test_an_imported_opening_balance_is_not_accrued_again_the_same_month(): void
+    {
+        // Arrange — an opening balance carried over from the old system, stamped
+        // with the month it was imported (what LeaveSetupController::save writes).
+        app(CurrentTenant::class)->set($this->tenant);
+        LeaveBalance::create([
+            'employee_id' => $this->employee->id,
+            'leave_type_id' => $this->type->id,
+            'balance' => 9,
+            'last_accrued_on' => Carbon::create(2026, 8, 5),
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        // Act — a run later in August must be a no-op; September credits once.
+        Carbon::setTestNow(Carbon::create(2026, 8, 20, 2, 0));
+        $this->artisan('leave:accrue')->assertSuccessful();
+        $this->assertSame(9.0, (float) $this->balance()->balance);
+
+        Carbon::setTestNow(Carbon::create(2026, 9, 1, 2, 0));
+        $this->artisan('leave:accrue')->assertSuccessful();
+
+        // Assert
+        $this->assertSame(10.5, (float) $this->balance()->balance);
+    }
+
     public function test_carry_forward_caps_the_carried_amount_and_expires_the_rest(): void
     {
         // Arrange — 14 days banked, carry cap is 6.
