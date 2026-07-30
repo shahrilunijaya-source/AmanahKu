@@ -36,15 +36,21 @@
 {{-- ── Hero + contributions carousel ─────────────────────────────────────────
      Two full-width slides you swipe between: the culture stats, then (for HR /
      management) the monthly compliance grid. Dots drive it on desktop where
-     there is no touch swipe. Single slide for everyone else — no dots. --}}
+     there is no touch swipe. Single slide for everyone else — no dots.
+     The track height follows the slide you are on (`fit()`), so a long
+     compliance grid never stretches the Overview slide with it. --}}
 @php $hasCompliance = $canSeeCompliance && $compliance; @endphp
-<div x-data="{ i: 0, go(n) { this.$refs.kbTrack.scrollTo({ left: n * this.$refs.kbTrack.clientWidth, behavior: 'smooth' }); } }" style="margin-bottom:20px;">
-    <div x-ref="kbTrack" @scroll.passive.debounce.60ms="i = Math.round($el.scrollLeft / $el.clientWidth)"
-         style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+<div x-data="{ i: 0, h: 0,
+        go(n) { this.$refs.kbTrack.scrollTo({ left: n * this.$refs.kbTrack.clientWidth, behavior: 'smooth' }); },
+        fit() { this.h = this.$refs.kbTrack.children[this.i]?.offsetHeight ?? 0; } }"
+     x-init="$nextTick(() => fit())" @resize.window.debounce.100ms="fit()" style="margin-bottom:20px;">
+    <div x-ref="kbTrack" @scroll.passive.debounce.60ms="i = Math.round($el.scrollLeft / $el.clientWidth); fit()"
+         :style="{ height: h ? h + 'px' : null }"
+         style="display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;transition:height .2s ease;">
 
         {{-- Slide 1 — culture stats --}}
         <div style="flex:0 0 100%;scroll-snap-align:start;">
-            <div style="background:var(--shelf);border:1px solid var(--shelf-line);border-radius:14px;padding:24px 26px 20px;height:100%;">
+            <div style="background:var(--shelf);border:1px solid var(--shelf-line);border-radius:14px;padding:24px 26px 20px;">
                 <div style="font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:var(--muted);font-weight:600;" x-text="$store.ui.lang==='en' ? 'Knowledge bank' : 'Bank pengetahuan'">Knowledge bank</div>
                 <div style="font:600 54px/1 var(--font-mono);color:var(--ink);margin-top:8px;letter-spacing:-.03em;">{{ $total }}</div>
                 <div style="font-size:13px;color:var(--body);margin-top:7px;">
@@ -72,7 +78,7 @@
         @if ($hasCompliance)
         {{-- Slide 2 — monthly compliance grid (HR / management) --}}
         <div style="flex:0 0 100%;scroll-snap-align:start;">
-            <div style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:20px;height:100%;">
+            <div style="background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:20px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                     <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? @js($monthEn.' contributions') : @js($monthMs.' sumbangan')">{{ $monthEn }} contributions</span></h3>
                     <span style="font-size:12.5px;font-weight:600;font-family:var(--font-mono);color:var(--success);">{{ $compliance['progressPct'] }}%</span>
