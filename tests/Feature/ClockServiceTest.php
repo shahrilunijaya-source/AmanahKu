@@ -201,8 +201,10 @@ class ClockServiceTest extends TestCase
         $this->assertTrue((bool) $record->in_radius);
         $this->assertSame([], $record->flags ?? []);
         // Hours stay the employee's own (09:00 start), not Klang's 08:00 — so 08:55 is early,
-        // not late, even though the branch they walked into opens earlier.
-        $this->assertSame('09:00', $record->expected_start);
+        // not late, even though the branch they walked into opens earlier. Compared through
+        // Carbon because a TIME column reads back as 'H:i:s' on MySQL but echoes the written
+        // 'H:i' on sqlite, and the schedule is what this asserts, not the driver's formatting.
+        $this->assertSame('09:00', Carbon::parse($record->expected_start)->format('H:i'));
         $this->assertSame('on_time', $record->status);
     }
 
