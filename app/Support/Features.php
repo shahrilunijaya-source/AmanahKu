@@ -156,8 +156,7 @@ class Features
         'module.assets',
         'module.surveys',
         'module.sharedresources',
-        'module.profiletest',
-        // Built but not signed off for release (see docs/ISSUES.md I-025).
+        // Built but not signed off for release (see docs/ROADMAP.md I-025).
         'module.ai',
     ];
 

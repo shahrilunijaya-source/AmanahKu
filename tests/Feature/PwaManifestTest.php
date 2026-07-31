@@ -53,11 +53,46 @@ class PwaManifestTest extends TestCase
         $this->assertStringContainsString("addEventListener('fetch'", $source);
     }
 
-    public function test_layout_links_the_manifest_and_apple_touch_icon(): void
+    public function test_the_shared_partial_links_the_manifest_and_apple_touch_icon(): void
     {
-        $layout = (string) file_get_contents(resource_path('views/layouts/app.blade.php'));
+        $partial = (string) file_get_contents(resource_path('views/partials/pwa-head.blade.php'));
 
-        $this->assertStringContainsString('rel="manifest"', $layout);
-        $this->assertStringContainsString('apple-touch-icon', $layout);
+        $this->assertStringContainsString('rel="manifest"', $partial);
+        $this->assertStringContainsString('apple-touch-icon', $partial);
+    }
+
+    /**
+     * A user can add the app to the Home Screen from whatever page is open, and the browser
+     * reads the icon only from that page. The login screen is the likeliest one of all, and
+     * it does not use the app layout, so every view with its own <head> must pull the partial.
+     */
+    public function test_every_view_with_its_own_head_pulls_the_pwa_partial(): void
+    {
+        $missing = [];
+
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('views')));
+
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (str_contains($source, '</head>') && ! str_contains($source, 'partials.pwa-head')) {
+                $missing[] = $file->getPathname();
+            }
+        }
+
+        $this->assertSame([], $missing, 'These views render a <head> without the PWA tags: '.implode(', ', $missing));
+    }
+
+    public function test_the_login_page_carries_the_install_icon(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertOk();
+        $response->assertSee('rel="manifest"', false);
+        $response->assertSee('apple-touch-icon', false);
     }
 }

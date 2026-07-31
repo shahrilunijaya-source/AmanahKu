@@ -19,10 +19,11 @@ use Illuminate\Support\Collection;
  * instances. Without this, static analysis takes the raw column type and reports
  * ->format() or ->gt() as a call on a string.
  *
- * `position`, `workload` and `workload_label` are accessors, not columns.
+ * `position`, `workload`, `workload_label` and `display_name` are accessors, not columns.
  *
  * @property Carbon|null $date_of_birth
  * @property Carbon|null $joined_at
+ * @property-read string $display_name
  * @property-read string|null $position
  * @property-read string $workload
  * @property-read string $workload_label

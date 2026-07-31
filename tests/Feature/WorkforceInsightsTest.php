@@ -29,7 +29,7 @@ class WorkforceInsightsTest extends TestCase
         parent::setUp();
 
         $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
-        // `module.ai` now defaults OFF (Features::NOT_READY — see docs/ISSUES.md I-025), and
+        // `module.ai` now defaults OFF (Features::NOT_READY — see docs/ROADMAP.md I-025), and
         // EnsureModuleEnabled gates every /app/workload/* route — including this apply
         // endpoint — on it. This suite tests the underlying apply logic itself, so enable
         // the module for this tenant regardless of the platform default.

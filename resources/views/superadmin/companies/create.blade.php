@@ -20,6 +20,7 @@
         .sect{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin:26px 0 12px;}
         .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
     </style>
+@include('partials.pwa-head')
 </head>
 <body>
 <div style="min-height:100vh;background:var(--canvas);padding:48px 24px;">

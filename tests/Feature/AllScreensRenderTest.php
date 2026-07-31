@@ -69,7 +69,7 @@ class AllScreensRenderTest extends TestCase
     /**
      * 'workload' is deliberately absent from SCREENS above: it is gated by
      * `module.ai`, which defaults OFF (Features::OFF — the AI Workforce Intelligence
-     * dashboard blocks are built but not yet released; see docs/ISSUES.md I-025).
+     * dashboard blocks are built but not yet released; see docs/ROADMAP.md I-025).
      * Confirms the shipped default instead of masking it, so it opts out of the
      * suite-wide "every module on" override in Tests\TestCase.
      */

@@ -310,6 +310,42 @@ class TotTest extends TestCase
         $this->assertSame('Install git on our own server', $session->fresh()->title);
     }
 
+    public function test_the_presenter_moves_the_hour_of_their_own_slot(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'starts_at' => '14:00',
+            'ends_at' => '15:30',
+        ])->assertSessionHasNoErrors();
+
+        // Assert through the accessors, not the raw columns: MySQL stores H:i:s and
+        // sqlite keeps what was written, so the string form differs per driver.
+        $this->assertSame('14:00', $session->fresh()->startTime()->format('H:i'));
+        $this->assertSame('15:30', $session->fresh()->endTime()->format('H:i'));
+    }
+
+    public function test_a_slot_with_no_stored_hour_falls_back_to_the_usual_one(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed']);
+
+        $this->assertSame(TotSession::DEFAULT_START, $session->startTime()->format('H:i'));
+        $this->assertSame(TotSession::DEFAULT_END, $session->endTime()->format('H:i'));
+        $this->assertTrue($session->startTime()->isSameDay($session->session_date));
+    }
+
+    public function test_an_end_before_the_start_is_rejected(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed']);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'starts_at' => '14:00',
+            'ends_at' => '13:00',
+        ])->assertSessionHasErrors('ends_at');
+
+        $this->assertNull($session->fresh()->starts_at);
+    }
+
     /**
      * The links editor renders one blank row for a slot that has none, so the plain
      * "open the editor, change the topic, save" path posts an empty label/url pair.
@@ -328,6 +364,29 @@ class TotTest extends TestCase
         $response->assertSessionHasNoErrors();
         $this->assertSame('Install git on our own server', $session->fresh()->title);
         $this->assertSame([], $session->fresh()->links);
+    }
+
+    /**
+     * The editor opens with the Google Meet and Slide rows already labelled. A presenter
+     * who fills only one of them must still be able to save.
+     */
+    public function test_an_untouched_prefilled_link_row_is_dropped_not_rejected(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'totform' => (string) $session->id,
+            'links' => [
+                ['label' => 'Google Meet', 'url' => 'https://meet.google.com/kby-hmzt-ouc'],
+                ['label' => 'Slide', 'url' => ''],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(
+            [['label' => 'Google Meet', 'url' => 'https://meet.google.com/kby-hmzt-ouc']],
+            $session->fresh()->links,
+        );
     }
 
     /** A blank row is not a link, but a half filled row is still a broken link. */

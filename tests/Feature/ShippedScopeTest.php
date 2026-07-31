@@ -36,6 +36,8 @@ class ShippedScopeTest extends TestCase
         'directory', 'profile', 'orgchart', 'documents', 'staff-load', 'position',
         'roles', 'setup', 'settings', 'security', 'audit', 'reports', 'messages',
         'dash',
+        // Re-scoped in: the welcome wizard links staff straight at the profile test.
+        'profile-test', 'profile-test-admin',
     ];
 
     /** One screen per descoped module — each must read as absent. */
@@ -46,7 +48,7 @@ class ShippedScopeTest extends TestCase
         'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
         'expenses', 'travel', 'helpdesk', 'assets', 'surveys', 'ideas', 'workload',
-        'onboarding-content', 'shared-resources', 'profile-test', 'profile-test-admin',
+        'onboarding-content', 'shared-resources',
     ];
 
     private User $hr;

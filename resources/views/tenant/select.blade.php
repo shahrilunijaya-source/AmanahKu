@@ -108,6 +108,7 @@
           .ts-row:hover .ts-chev{ transform:none; }
         }
     </style>
+@include('partials.pwa-head')
 </head>
 <body>
 {{-- Corner-stacks background — desktop only. --}}

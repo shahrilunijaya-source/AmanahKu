@@ -109,7 +109,9 @@ feature registry, not code deletion.
   and `tot` (user kept Knowledge Bank).
 - **Screens that had no gating module** and so leaked into the nav were given one:
   `onboarding-content` folded into `module.onboarding`; new `module.sharedresources` and
-  `module.profiletest`, both off.
+  `module.profiletest`, both off. `module.profiletest` was re-scoped **in** on 2026-07-31:
+  the welcome wizard links every new starter at `/app/profile-test`, so the gate turned
+  that link into a 404. Its two blades survived the purge, so the revival was one line.
 - **Dashboard widgets do not inherit the screen gate.** `StuckRequests` and
   `BuildsDashboardData::pendingActions` were rendering rows that link to now-404 screens,
   so both now filter their request types by `FeatureManager::screenAllowed`. Other
@@ -165,6 +167,28 @@ have been wasted work, so the views go and everything behind them stays.
   blade is restored from the tag. `Features::OFF`'s own docblock says "brought back by
   deleting one line" — that sentence is now only true for the gate, not for the screen.
 
-**Known remnant.** `resources/views/partials/pt-question-form.blade.php` was used only by
-the deleted `profile-test` screen and is now orphaned. Left in place: it predates this
-change, and deleting it belongs with a wider partials sweep.
+**Not a remnant.** `resources/views/partials/pt-question-form.blade.php` was listed here as
+orphaned. It is not: `screens/profile-test-admin.blade.php` includes it three times, and
+both profile-test blades survived the purge — which is why re-scoping the module back in
+took one line.
+
+---
+
+## 2026-07-31 — Production go-live
+
+**D-020 · Production runs on devops-owned infrastructure, released through GitLab.**
+`https://amanahku.unijaya.com` is live, provisioned by the devops team, seeded with one
+super-admin account. Devops takes GitHub `main`, uploads it to
+`gitlab.com/developer-unijaya/claudecode/amanahku`, and releases from there. Development
+stays on GitHub; the developer side of the boundary ends at a merge into `main`. There is no
+developer shell, database or log access on prod — only an app-level super-admin login.
+
+**The consequence that changes how we write code:** `migrate:fresh` is no longer an escape
+hatch. Earlier entries in this log (D-013 among them) justify schema choices with "no
+production data exists". That sentence is now false. Migrations are forward-only against real
+staff records, so a destructive or non-reversible migration is a data-loss event, and
+`APP_KEY` is load-bearing for every encrypted NRIC.
+
+**Open, not decided:** the two repositories share no commit ancestor, so a prod release
+cannot be traced to a sha. Options are laid out in [ROADMAP.md](ROADMAP.md); the choice needs
+devops, because two of the three touch their repository.

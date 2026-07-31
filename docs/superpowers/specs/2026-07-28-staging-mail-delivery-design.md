@@ -1,6 +1,6 @@
 # Staging mail delivery
 
-Closes **I-022**, **I-023** and **I-024** from [../../ISSUES.md](../../ISSUES.md), and
+Closes **I-022**, **I-023** and **I-024** from [../../ROADMAP.md](../../ROADMAP.md), and
 supersedes the deploy-side half of **I-009**.
 
 Mail on staging has never worked. Nothing reported it because until 2026-07-26 no queue
