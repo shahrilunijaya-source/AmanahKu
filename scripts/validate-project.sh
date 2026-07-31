@@ -17,10 +17,10 @@ check "tests/"
 check "security/README.md"
 check "PROJECT.md"; check "STATE.md"; check "REQUIREMENTS.md"
 
-if grep -q "ursb-ci-templates" .gitlab-ci.yml 2>/dev/null; then
-  echo "  ok   .gitlab-ci.yml includes ursb-ci-templates"
+if grep -q "ci-templates" .gitlab-ci.yml 2>/dev/null; then
+  echo "  ok   .gitlab-ci.yml includes ci-templates"
 else
-  echo "  MISS .gitlab-ci.yml does not include ursb-ci-templates"; fail=1
+  echo "  MISS .gitlab-ci.yml does not include ci-templates"; fail=1
 fi
 
 if [ -e ".env" ]; then echo "  WARN .env present — must not be committed"; fi

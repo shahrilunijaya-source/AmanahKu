@@ -29,7 +29,7 @@ allowed-tools:
 
 # /ursb-project-bootstrap
 
-Bootstrap a new URSB project: apply the rules from **ursb-engineering-standard** to a fresh repo
+Bootstrap a new URSB project: apply the rules from **engineering-standard** to a fresh repo
 created from **ursb-project-template**. Serves the **project setup** step (SOP-02 / SOP-03).
 
 ## Wraps
@@ -49,7 +49,7 @@ created from **ursb-project-template**. Serves the **project setup** step (SOP-0
    save the map under `docs/`.
 5. Fill `PROJECT.md` (system, PM / Product Owner, Project Initialiser, repo, status: `baseline-draft`).
 6. Ensure `glab` is installed and authenticated; confirm `.gitlab-ci.yml` includes the central
-   `ursb-ci-templates` and that `main` will be protected with `CODEOWNERS`.
+   `ci-tempates` and that `main` will be protected with `CODEOWNERS`.
 
 ## Must not
 - Commit client BRS/URS, secrets or client data into the repo (only the machine-readable

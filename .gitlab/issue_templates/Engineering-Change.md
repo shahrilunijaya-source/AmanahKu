@@ -1,5 +1,5 @@
 > Governing standard:
-> `ursb-engineering-standard/governance/change-classification-and-minimum-gates.md`
+> `engineering-standard/governance/change-classification-and-minimum-gates.md`
 
 ## Change summary
 <what is changing, in one or two lines>

@@ -34,7 +34,7 @@ Assemble the **production release** package and stop at the release gate. Serves
 - All prior-gate evidence: technical-plan approval, code review, security review,
   QA sign-off (`/ursb-qa-report`) and UAT acceptance.
 - URSB templates: `templates/release-checklist.md`, and `delivery/rollback-standard.md`.
-- `ursb-ci-templates` `ci-release.yml` — the **manual** production job.
+- `ci-tempates` `ci-release.yml` — the **manual** production job.
 
 ## Steps
 1. Verify Definition of Done is met for everything in scope.

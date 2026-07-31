@@ -1,6 +1,6 @@
 # Project Governance — Claude Code
 
-This project runs under the **URSB Engineering Standard** (`ursb-engineering-standard`).
+This project runs under the **URSB Engineering Standard** (`engineering-standard`).
 
 ## Golden rule
 Claude Code may **prepare** evidence, drafts, plans, code and tests. It may **never**:
@@ -27,7 +27,7 @@ Production release → DevOps / Platform Lead.
 
 ## Data handling
 No Restricted data (credentials, client PII, prod data) is ever sent to AI tooling.
-Confidential BRS/URS stays local. See `ursb-engineering-standard/security/data-classification.md`.
+Confidential BRS/URS stays local. See `engineering-standard/security/data-classification.md`.
 
 ## Build one approved phase at a time
 Vibe Coders build only the currently approved phase. Wait for the baseline and the plan gate.

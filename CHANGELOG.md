@@ -3,7 +3,7 @@
 ## 0.2.0-draft — Pilot Baseline
 - Added `.gitlab/issue_templates/Engineering-Change.md` — working issue template carrying the
   change-classification checklist, risk indicators and required gates; references the central
-  standard `ursb-engineering-standard/governance/change-classification-and-minimum-gates.md`.
+  standard `engineering-standard/governance/change-classification-and-minimum-gates.md`.
 - Added the standard GitLab label set (`.gitlab/labels.yml`) and `scripts/setup-labels.sh`,
   applied during `/ursb-project-bootstrap`.
 - Five URSB governance commands wired into `.claude/commands/` with `allowed-tools` allow-lists.
