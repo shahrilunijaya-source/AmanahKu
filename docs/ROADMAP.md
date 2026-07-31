@@ -24,23 +24,14 @@ None of it can be verified from a developer machine — see
    it shipped with.
 6. Import real staff data, then smoke test the approval round trip with real accounts.
 
-## Now — one history for two repos
+## Done — one history for two repos (2026-07-31)
 
-Development lives on GitHub; devops releases prod from
-`gitlab.com/developer-unijaya/claudecode/amanahku`, and the two repos share no commit
-ancestor. GitLab `main` is a governance template plus one squashed import, so every release
-crosses the gap as a file upload. That costs the release trail: prod cannot be traced to a
-commit, `git log` on GitLab says nothing about what changed, and a prod rollback has no sha
-to revert to.
-
-Unifying them is a decision for devops, not a local `git` command, because the fix either
-overwrites their baseline or grafts an unrelated history onto ours. Options, cheapest first:
-
-| option | effect | cost |
-|--------|--------|------|
-| Push GitHub `main` into GitLab as a new branch, release from it | Full history on GitLab, template baseline untouched | Devops changes which branch they deploy |
-| Merge GitLab `main` into GitHub `main` with `--allow-unrelated-histories`, then push both | One shared ancestor from here on, nothing destroyed | One ugly merge commit; both repos must accept it |
-| Force-push GitHub history over GitLab `main` | Cleanest result | **Destroys their template baseline and merge-request history.** Needs explicit devops sign-off |
+The two repos shared no commit ancestor, so `git push gitlab main` was rejected and every
+release crossed as a file upload, leaving prod untraceable to a sha. Fixed by merging the
+GitLab baseline into `main` with `-s ours --allow-unrelated-histories` (`d8173a8`) and
+restoring devops's 29 template files (`34329de`). GitLab `main` is now a fast-forward from
+ours; their merge requests and history survived. Details in
+[RULES.md](RULES.md#topology).
 
 ## Next — authorization hardening
 

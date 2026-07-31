@@ -108,13 +108,20 @@ so APP_URL-derived links (Mailpit mail) keep emitting the `.test` host.
 `github.com/shahrilunijaya-source/AmanahKu` is public and canonical for development since
 2026-07-17. The old private `amanahku-app` repo is retired — do not push to it.
 
-A second repo now exists: `gitlab.com/developer-unijaya/claudecode/amanahku` (the `gitlab`
-remote), which the devops team releases production from. It is **not a mirror**. Its `main`
-is a separate lineage — a URSB governance template plus one squashed
-`feat: import Amanahku application onto the governed baseline` commit — so it shares no
-ancestor with GitHub `main`, and 260-odd development commits do not appear in it. Every
-release so far reached it as a fresh file upload, not a push. Unifying the two histories is
-open work; see [ROADMAP.md](ROADMAP.md).
+A second repo carries production: `gitlab.com/developer-unijaya/claudecode/amanahku` (the
+`gitlab` remote), which the devops team releases from. Since 2026-07-31 the two repos share
+one history — `git push gitlab main` is an ordinary fast-forward, and a prod release can be
+traced back to a commit.
+
+That took a one-time merge, because GitLab `main` began as a URSB governance template plus
+one squashed `feat: import Amanahku application onto the governed baseline`, with no ancestor
+in common with GitHub. `d8173a8` merged that baseline in with `-s ours` (tree unchanged, its
+history recorded as a second parent) and `34329de` restored the 29 files that only devops
+has: `STATE.md`, `PROJECT.md`, `REQUIREMENTS.md`, `CHANGELOG.md`, `CODEOWNERS`, `LICENSE`,
+`env.example`, `.gitlab-ci.yml`, `.gitlab/`, `.planning/`, `DECISIONS/`, `security/`,
+`docs/intake/`, `docs/README.md`, `docs/architecture-decision.md`, `tests/README.md`,
+`scripts/` and the five `.claude/commands/ursb-*.md`. **Those are devops's — do not tidy them
+away.** The merge is done and does not need repeating.
 
 ## The five rules that lose data
 
@@ -137,14 +144,16 @@ open work; see [ROADMAP.md](ROADMAP.md).
 ## Release flow
 
 ```
-dev ── merge → main ── push (from your own authenticated machine)
-                          │
-        ┌─────────────────┴─────────────────────────┐
-        │ staging (yours)                            │ production (devops)
-   ssh amanahku → …/public_html                 GitHub main → GitLab main
-        │                                            │
-   git pull && bash deploy.sh                   released by devops
+1. commit on dev                       (GitHub)
+2. PR dev → main                       (GitHub)
+3. ssh amanahku → git pull && bash deploy.sh     → staging
+4. test on staging
+5. git push gitlab main                          → devops release prod
 ```
+
+**Step 4 is the gate.** GitLab only ever receives code that already passed staging, which is
+why `main` is not pushed to both remotes at once. Do not configure a dual push-URL; it would
+send untested commits to the repo production is built from.
 
 Staging deploy is a manual pull over SSH. No webhook, no deploy key. `deploy.sh` auto-detects the
 tier from `APP_ENV` and refuses to run against `APP_ENV=local`. It runs: maintenance mode →

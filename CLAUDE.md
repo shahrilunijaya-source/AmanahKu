@@ -45,7 +45,9 @@ http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
 
 Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking `main`. Still the test target — deploy here first.
 
-**Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host. They take GitHub `main`, push it into GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote here), and release from there. You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
+**Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host and releases from GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote). You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
+
+Release order: commit on `dev` → PR into `main` → deploy staging → **test** → `git push gitlab main`. Staging is the gate, so GitLab only receives code that already passed it. The two repos have shared one history since 2026-07-31, so that push is a plain fast-forward; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away.
 
 Assets built locally, `public/build` committed; host builds nothing.
 
