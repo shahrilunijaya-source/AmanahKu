@@ -97,7 +97,14 @@ Payroll is shipped **off** for the current scope. These rules apply if it is swi
 |-----|--------|------|-----|
 | **local** | `dev` | [Lerd](https://github.com/lerd-env/lerd) (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | **http://localhost:9100** |
 | **staging** | `main` | Hostinger Business, `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net |
-| **production** | GitLab `main` | **Devops-owned. No developer shell.** | https://amanahku.unijaya.com |
+| **production** | GitLab `main` | DigitalOcean, devops-owned. **No developer shell.** | https://amanahku.unijaya.com |
+
+Staging and production are **not the same kind of host**. Staging is Hostinger shared, and
+most of the awkward rules below exist because of it: cron trapped in hPanel, `exec()`
+disabled, no usable Node, no long-running workers. Production is a DigitalOcean box, so none
+of those limits necessarily apply there — it can run a real crontab, a supervised queue
+worker and a server-side build. Do not assume a staging workaround is also what prod does,
+and do not assume a staging constraint protects prod.
 
 Local access is `http://localhost:9100`, **not** `amanahku.test`. `.test` resolution is
 unreliable on the dev machine: systemd-resolved picks the router as wlan0's DNS server,
@@ -179,18 +186,23 @@ that dies mid-deploy strands the app in maintenance mode. The host stays build-f
 
 ## Production handoff
 
-Production went live on `amanahku.unijaya.com` on 2026-07-31, provisioned by the devops
-team. A developer's access to it is an app-level super-admin login and nothing more: no SSH,
-no database, no log files, no cron console. Every operational rule below still applies to
-prod, but **devops is the one who applies it** — you can only ask, and you cannot verify the
-answer yourself.
+Production went live on `amanahku.unijaya.com` on 2026-07-31, on DigitalOcean, provisioned by
+the devops team. A developer's access to it is an app-level super-admin login and nothing
+more: no SSH, no database, no log files, no cron console. Every operational rule below still
+applies to prod, but **devops is the one who applies it** — you can only ask, and you cannot
+verify the answer yourself.
 
 What follows from that:
 
 - Nothing in this document has been confirmed *on the prod host*. The five data-losing rules,
   the cron jobs, the mail configuration and the security gate are all written from the
-  staging host. Treat them as the handover request to devops, not as a description of what
-  is running.
+  staging host, which is a different machine on a different provider. Treat them as the
+  handover request to devops, not as a description of what is running.
+- Unknown on prod and worth asking about, because DigitalOcean allows what Hostinger forbade:
+  whether the scheduler is a crontab entry or something else, whether the queue runs as a
+  supervised worker instead of the `--stop-when-empty` drain, whether the database is a
+  managed cluster or on the droplet, and whether assets are built on the server or taken
+  from the committed `public/build`.
 - Prod carries one seeded super-admin account. Its password lives with devops, never in this
   repo, and never in a tracked file.
 - A prod bug you cannot reproduce on staging is a devops ticket, not a debugging session.
@@ -199,10 +211,12 @@ What follows from that:
 ## Cron — mandatory
 
 Hostinger shared allows no long-running workers and no SSH crontab. Both jobs live in
-**hPanel → Advanced → Cron Jobs**, so their state cannot be verified from the shell. This is
-the staging arrangement; the prod host is a different machine and its cron setup is
-unverified from here — confirm with devops that both jobs exist, because the same silent
-failures apply.
+**hPanel → Advanced → Cron Jobs**, so their state cannot be verified from the shell.
+
+That is the **staging** arrangement, and it is a workaround, not the right design. On
+DigitalOcean prod, devops can run `schedule:run` from a normal crontab and keep a supervised
+`queue:work` alive instead of draining it every five minutes. What they actually did is
+unknown from here. What is not negotiable is the outcome: **both must exist in some form.**
 
 ```
 * * * * *   cd ~/domains/… && php artisan schedule:run >> /dev/null 2>&1

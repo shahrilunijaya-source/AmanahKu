@@ -5,8 +5,8 @@ Open work, ranked. Shipped history is in `git log`; the reasoning behind past ch
 
 ## Now — close the gaps prod went live with
 
-Production went live on **https://amanahku.unijaya.com** on 2026-07-31, provisioned by the
-devops team, with one seeded super-admin account. The cutover happened without the checklist
+Production went live on **https://amanahku.unijaya.com** on 2026-07-31, on DigitalOcean,
+provisioned by the devops team, with one seeded super-admin account. The cutover happened without the checklist
 that used to sit here, so the checklist is now a list of unknowns to confirm with devops.
 None of it can be verified from a developer machine — see
 [RULES.md § Production handoff](RULES.md#production-handoff).
