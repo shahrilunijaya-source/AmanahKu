@@ -84,10 +84,36 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasMany(Employee::class);
     }
 
+    /**
+     * May this user open a company workspace? Members always may. A super-admin may open
+     * ANY company — a developer/support seat that reads the tenant as management without
+     * ever holding a membership row, so they stay invisible: no pivot means no entry in the
+     * Roles screen or member lists, and no Employee record means no staff row, org-chart
+     * node, attendance line or approval queue anywhere in that company.
+     */
+    public function canAccessTenant(Tenant $tenant): bool
+    {
+        return $this->isSuperAdmin() || $this->tenants->contains('id', $tenant->id);
+    }
+
+    /**
+     * Is this user inside the tenant as the invisible observer seat rather than as one of
+     * its people? True only for a super-admin with no membership there. The two middleware
+     * that enforce the seat read this: ReadOnlyObserver refuses every write, and
+     * AuditLog::record() drops the entry so the company never sees the visit. A super-admin
+     * who IS a member of a company is an ordinary member there — normal role, normal writes,
+     * normal audit trail.
+     */
+    public function isObserverIn(Tenant $tenant): bool
+    {
+        return $this->isSuperAdmin() && ! $this->tenants->contains('id', $tenant->id);
+    }
+
     /** Role string (employee|manager|management|hr) for a given tenant. */
     public function roleIn(Tenant $tenant): string
     {
-        return $this->tenants->firstWhere('id', $tenant->id)?->pivot->role ?? 'employee';
+        return $this->tenants->firstWhere('id', $tenant->id)?->pivot->role
+            ?? ($this->isSuperAdmin() ? 'management' : 'employee');
     }
 
     /** Data access scope (own|team|department|branch|company) for a given tenant. */

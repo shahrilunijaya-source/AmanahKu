@@ -72,13 +72,19 @@ class AppController extends Controller
         $intended = $request->session()->pull('intended_tenant');
         if ($intended) {
             $tenant = Tenant::where('slug', $intended)->first();
-            if ($tenant && $request->user()->tenants->contains('id', $tenant->id)) {
+            if ($tenant && $request->user()->canAccessTenant($tenant)) {
                 return redirect()->route('tenant.enter', $tenant);
             }
         }
 
+        // A super-admin picks from every company (invisible observer access); everyone
+        // else only ever sees the companies they hold a membership in.
+        $tenants = $request->user()->isSuperAdmin()
+            ? Tenant::query()
+            : $request->user()->tenants();
+
         return view('tenant.select', [
-            'tenants' => $request->user()->tenants()
+            'tenants' => $tenants
                 ->withCount([
                     'branches',
                     'employees as active_employees_count' => fn ($q) => $q->whereNull('archived_at'),
@@ -90,7 +96,7 @@ class AppController extends Controller
     /** Activate a tenant for the session and jump into the shell. */
     public function enterTenant(Tenant $tenant): RedirectResponse
     {
-        abort_unless(request()->user()->tenants->contains('id', $tenant->id), 403);
+        abort_unless(request()->user()->canAccessTenant($tenant), 403);
 
         session([
             'current_tenant' => $tenant->id,

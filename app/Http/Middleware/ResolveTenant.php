@@ -22,7 +22,7 @@ class ResolveTenant
         $tenant = $tenantId ? Tenant::find($tenantId) : null;
 
         // No active tenant, or the user is not a member of it → back to selection.
-        if (! $tenant || ! $user || ! $user->tenants->contains('id', $tenant->id)) {
+        if (! $tenant || ! $user || ! $user->canAccessTenant($tenant)) {
             return redirect()->route('tenant.select');
         }
 
