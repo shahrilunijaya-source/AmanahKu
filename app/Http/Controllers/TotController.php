@@ -37,7 +37,7 @@ class TotController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         $year = (int) ($request->query('year') ?: now()->year);
 
-        $saved = TotSession::with(['presenter', 'entry'])
+        $saved = TotSession::with('presenter')
             ->where('year', $year)
             ->get()
             ->keyBy('month');
@@ -195,7 +195,10 @@ class TotController extends Controller
             $rules['links'] = ['nullable', 'array', 'max:12'];
             $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
             $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
-            $rules['entry_id'] = ['nullable', 'integer', Rule::exists('knowledge_entries', 'id')->where('tenant_id', $tenantId)];
+            // Blank means "the usual hour" (TotSession::DEFAULT_START/END), not midnight,
+            // so an empty input nulls the column rather than storing 00:00.
+            $rules['starts_at'] = ['nullable', 'date_format:H:i', 'required_with:ends_at'];
+            $rules['ends_at'] = ['nullable', 'date_format:H:i', 'required_with:starts_at', 'after:starts_at'];
         }
 
         if ($this->canAssignPresenter($request)) {
@@ -208,14 +211,14 @@ class TotController extends Controller
             $rules['held_on'] = ['nullable', 'date'];
         }
 
-        // The editor always renders one link row, so a slot with no links posts a single
-        // empty label/url pair and the rules below would reject the whole save. A row the
-        // user left completely blank is not a link, so drop it before validating. A row
-        // with only one half filled in still fails, which is the error they should see.
+        // The editor opens with rows a slot may never fill (a blank one, and the two
+        // pre-labelled Google Meet / Slide rows), so the rules below would reject the whole
+        // save over a row nobody touched. Drop the untouched ones before validating. A row
+        // with a label somebody typed and no URL still fails, which is the error they want.
         if (is_array($request->input('links'))) {
             $request->merge(['links' => array_values(array_filter(
                 $request->input('links'),
-                fn ($link) => is_array($link) && (filled($link['label'] ?? null) || filled($link['url'] ?? null)),
+                fn ($link) => is_array($link) && ! $this->isUntouchedLinkRow($link),
             ))]);
         }
 
@@ -573,6 +576,22 @@ class TotController extends Controller
         AuditLog::record('Deleted TOT slot', $label);
 
         return back()->with('ok', 'TOT slot removed.');
+    }
+
+    /**
+     * A link row nobody filled in: no URL, and either no label or one of the labels the
+     * editor puts there itself. Dropped on save rather than rejected.
+     *
+     * @param  array<string, mixed>  $link
+     */
+    private function isUntouchedLinkRow(array $link): bool
+    {
+        if (filled($link['url'] ?? null)) {
+            return false;
+        }
+
+        return blank($link['label'] ?? null)
+            || in_array($link['label'], TotSession::DEFAULT_LINK_LABELS, true);
     }
 
     /**

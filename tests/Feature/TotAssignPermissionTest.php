@@ -374,7 +374,7 @@ class TotAssignPermissionTest extends TestCase
         $this->actingAsManager()->get('/app/tot')
             ->assertOk()
             ->assertSee('name="presenter_employee_id"', false)
-            ->assertDontSee('name="entry_id"', false);
+            ->assertDontSee('name="starts_at"', false);
     }
 
     public function test_the_presenter_of_a_slot_still_sees_the_material_fields(): void
@@ -386,7 +386,7 @@ class TotAssignPermissionTest extends TestCase
 
         $this->actingAsManager()->get('/app/tot')
             ->assertOk()
-            ->assertSee('name="entry_id"', false);
+            ->assertSee('name="starts_at"', false);
     }
 
     public function test_a_holder_can_reach_the_roster_screen(): void

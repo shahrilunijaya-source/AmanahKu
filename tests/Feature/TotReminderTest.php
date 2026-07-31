@@ -7,8 +7,10 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotSession;
 use App\Models\User;
+use App\Notifications\TotTomorrowMail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -106,6 +108,67 @@ class TotReminderTest extends TestCase
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $this->presenter->id, 'dedupe_key' => 'tot:'.$slot->id.':tomorrow',
         ]);
+    }
+
+    public function test_the_day_before_reminder_is_also_emailed_to_everyone_once(): void
+    {
+        Notification::fake();
+
+        $slot = $this->makeSlot([
+            'links' => [['label' => 'Google Meet', 'url' => 'https://meet.google.com/kby-hmzt-ouc']],
+        ]);
+
+        $this->travelTo('2026-03-06 08:00:00');
+        $this->artisan('tot:remind');
+        $this->artisan('tot:remind');
+
+        Notification::assertSentToTimes($this->presenter, TotTomorrowMail::class, 1);
+    }
+
+    public function test_the_tomorrow_email_carries_the_presenter_topic_and_meet_link(): void
+    {
+        $this->presenterEmployee->update(['phone' => '+60 12-737 6973']);
+
+        $slot = $this->makeSlot([
+            'title' => 'PostgREST - Building REST APIs Directly from PostgreSQL',
+            'links' => [
+                ['label' => 'Slides', 'url' => 'https://example.com/slides'],
+                ['label' => 'Meet', 'url' => 'https://meet.google.com/kby-hmzt-ouc'],
+            ],
+        ]);
+
+        $mail = (new TotTomorrowMail($slot, 'https://amanahku.test/app/tot'))
+            ->toMail($this->presenter);
+
+        $body = implode("\n", array_merge($mail->introLines, $mail->outroLines));
+
+        $this->assertStringContainsString('Nabil', $body);
+        $this->assertStringContainsString('+60 12-737 6973', $body);
+        $this->assertStringContainsString('PostgREST', $body);
+        $this->assertStringContainsString('Sabtu, 07 Mac 2026', $body);
+        $this->assertStringContainsString('10:30 pagi – 11:00 pagi', $body);
+        $this->assertSame('https://meet.google.com/kby-hmzt-ouc', $mail->actionUrl);
+    }
+
+    public function test_the_tomorrow_email_uses_the_hour_stored_on_the_slot(): void
+    {
+        $slot = $this->makeSlot(['starts_at' => '14:00', 'ends_at' => '15:30']);
+
+        $mail = (new TotTomorrowMail($slot->fresh(), 'https://amanahku.test/app/tot'))
+            ->toMail($this->presenter);
+
+        $body = implode("\n", $mail->introLines);
+
+        $this->assertStringContainsString('bermula tepat pada 2:00 petang', $body);
+        $this->assertStringContainsString('2:00 petang – 3:30 petang', $body);
+    }
+
+    public function test_the_tomorrow_email_falls_back_to_the_board_when_there_is_no_meet_link(): void
+    {
+        $mail = (new TotTomorrowMail($this->makeSlot(), 'https://amanahku.test/app/tot'))
+            ->toMail($this->presenter);
+
+        $this->assertSame('https://amanahku.test/app/tot', $mail->actionUrl);
     }
 
     public function test_running_twice_on_the_same_day_notifies_once(): void

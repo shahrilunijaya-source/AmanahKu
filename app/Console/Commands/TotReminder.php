@@ -8,6 +8,8 @@ use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TotSession;
+use App\Models\User;
+use App\Notifications\TotTomorrowMail;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -96,17 +98,29 @@ class TotReminder extends Command
 
             if ($date->copy()->subDay()->isSameDay($today)) {
                 $title = $slot->title ?: 'topic to be announced';
-                $before = AppNotification::count();
 
-                AppNotification::sendMany(
+                // One user at a time rather than sendMany(): the bell's dedupe key decides
+                // who is new, and only a new bell mails. A cron retry the same day stays a
+                // no-op in the inbox as well as on the board.
+                $users = User::whereIn(
+                    'id',
                     Employee::active()->whereNotNull('user_id')->pluck('user_id'),
-                    'TOT tomorrow',
-                    $title.'. Material is on the TOT board.',
-                    $url,
-                    "tot:{$slot->id}:tomorrow",
-                );
+                )->get();
 
-                $sent += AppNotification::count() - $before;
+                foreach ($users as $user) {
+                    $created = AppNotification::send(
+                        $user->id,
+                        'TOT tomorrow',
+                        $title.'. Material is on the TOT board.',
+                        $url,
+                        "tot:{$slot->id}:tomorrow",
+                    );
+
+                    if ($created) {
+                        $user->notify(new TotTomorrowMail($slot, $url));
+                        $sent++;
+                    }
+                }
             }
         }
 

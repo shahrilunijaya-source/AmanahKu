@@ -49,7 +49,18 @@
             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title" value="{{ $session->title }}"></div>
             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:64px;padding-top:9px;resize:vertical;">{{ $session->description }}</textarea></div>
 
-            <div style="margin-top:16px;max-width:620px;" x-data="{ links: {{ \Illuminate\Support\Js::from(! empty($session->links) ? $session->links : [['label' => '', 'url' => '']]) }} }">
+            {{-- Blank both fields to keep the usual hour: the mail and the board fall back
+                 to TotSession::DEFAULT_START/DEFAULT_END when the columns are null. --}}
+            <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
+                <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Starts' : 'Bermula'">Starts</label><input class="tot-field" type="time" name="starts_at" value="{{ $session->starts_at ? substr((string) $session->starts_at, 0, 5) : '' }}" placeholder="{{ \App\Models\TotSession::DEFAULT_START }}"></div>
+                <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Ends' : 'Tamat'">Ends</label><input class="tot-field" type="time" name="ends_at" value="{{ $session->ends_at ? substr((string) $session->ends_at, 0, 5) : '' }}" placeholder="{{ \App\Models\TotSession::DEFAULT_END }}"></div>
+            </div>
+            <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? @js('Leave both blank for the usual '.\App\Models\TotSession::DEFAULT_START.'–'.\App\Models\TotSession::DEFAULT_END.'. Set them only for a month that moved.') : @js('Biarkan kedua-duanya kosong untuk waktu biasa '.\App\Models\TotSession::DEFAULT_START.'–'.\App\Models\TotSession::DEFAULT_END.'. Tetapkan hanya untuk bulan yang berubah.')">Leave both blank for the usual {{ \App\Models\TotSession::DEFAULT_START }}&ndash;{{ \App\Models\TotSession::DEFAULT_END }}.</div>
+
+            {{-- A slot with no links opens on the two rows a TOT always has, labelled
+                 already so the presenter only pastes URLs. A row left with its label and
+                 no URL is dropped on save (TotController::isUntouchedLinkRow). --}}
+            <div style="margin-top:16px;max-width:620px;" x-data="{ links: {{ \Illuminate\Support\Js::from(! empty($session->links) ? $session->links : array_map(fn ($label) => ['label' => $label, 'url' => ''], \App\Models\TotSession::DEFAULT_LINK_LABELS)) }} }">
                 <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</label>
                 <template x-for="(link, idx) in links" :key="idx">
                     <div style="display:grid;grid-template-columns:150px 1fr 38px;gap:8px;margin-bottom:8px;">
@@ -61,11 +72,10 @@
                 <button type="button" class="tot-pillbtn" @click="links.push({ label: '', url: '' })"><span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'">+ Add a link</span></button>
             </div>
 
-            <div style="margin-top:16px;max-width:620px;">
-                <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Related Knowledge Bank entry ID' : 'ID entri Bank Pengetahuan berkaitan'">Related Knowledge Bank entry ID</label>
-                <input class="tot-field" type="number" name="entry_id" value="{{ $session->entry_id }}">
-                <div class="tot-note" style="margin-top:6px;"><span x-text="$store.ui.lang==='en' ? @js('Optional. Links this session to a lesson the presenter already wrote. It never creates one.'.($session->entry ? ' Currently: '.$session->entry->title.'.' : '')) : @js('Pilihan. Kaitkan sesi ini dengan pengajaran yang telah ditulis pembentang. Ia tidak pernah mencipta satu.'.($session->entry ? ' Sekarang: '.$session->entry->title.'.' : ''))">Optional. Links this session to a lesson the presenter already wrote. It never creates one.@if ($session->entry) Currently: {{ $session->entry->title }}.@endif</span></div>
-            </div>
+            {{-- Presenting is the contribution. There is no lesson to point at and none to
+                 write: TotController::creditContribution marks the month when the slot is
+                 marked done. --}}
+            <div class="tot-note" style="margin-top:16px;max-width:620px;" x-text="$store.ui.lang==='en' ? @js('Presenting this session is your Knowledge Bank contribution for '.$session->session_date->format('F').'. It is credited once the slot is marked Done, so you do not also write a lesson.') : @js('Membentangkan sesi ini adalah sumbangan Bank Pengetahuan anda untuk '.$session->session_date->format('F').'. Ia dikreditkan setelah slot ditanda Selesai, jadi anda tidak perlu menulis pengajaran lain.')">Presenting this session is your Knowledge Bank contribution for {{ $session->session_date->format('F') }}. It is credited once the slot is marked Done, so you do not also write a lesson.</div>
             @endif
 
             <div class="tot-rule" style="max-width:620px;display:flex;gap:8px;align-items:center;">

@@ -28,6 +28,21 @@ class TotSession extends Model
     /** The only reactions the UI offers. Anything else is rejected with a 422. */
     public const EMOJI = ['👍', '👏', '🔥', '💡', '🤔', '❤️'];
 
+    /**
+     * The usual hour. starts_at/ends_at are nullable so a slot nobody moved keeps these
+     * without anybody retyping them; a value on the row is a month somebody moved.
+     */
+    public const DEFAULT_START = '10:30';
+
+    public const DEFAULT_END = '11:00';
+
+    /**
+     * The two rows the links editor opens with, so a presenter only pastes URLs. They are
+     * labels, not links: a row still carrying one of these with no URL is an untouched row
+     * and is dropped on save, while a label somebody typed themselves still demands a URL.
+     */
+    public const DEFAULT_LINK_LABELS = ['Google Meet', 'Slide'];
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -53,16 +68,32 @@ class TotSession extends Model
         return Attribute::get(fn () => self::firstSaturday($this->year, $this->month));
     }
 
+    /** Wall-clock start of this slot: the session date at starts_at, or at the usual hour. */
+    public function startTime(): Carbon
+    {
+        return $this->timeOnSessionDate($this->starts_at ?: self::DEFAULT_START);
+    }
+
+    public function endTime(): Carbon
+    {
+        return $this->timeOnSessionDate($this->ends_at ?: self::DEFAULT_END);
+    }
+
+    /**
+     * Put a stored time onto the computed session date. The column comes back as H:i:s from
+     * MySQL and as whatever was written on sqlite, so only the first two parts are read.
+     */
+    private function timeOnSessionDate(string $time): Carbon
+    {
+        [$hour, $minute] = array_pad(explode(':', $time), 2, '0');
+
+        return $this->session_date->copy()->setTime((int) $hour, (int) $minute);
+    }
+
     /** @return BelongsTo<Employee, $this> */
     public function presenter(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'presenter_employee_id');
-    }
-
-    /** Optional pointer at a Knowledge Bank lesson on the same topic. Never creates one. */
-    public function entry(): BelongsTo
-    {
-        return $this->belongsTo(KnowledgeEntry::class, 'entry_id');
     }
 
     public function comments(): HasMany
