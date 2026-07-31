@@ -15,6 +15,20 @@ env_get() {
     grep -E "^$1=" .env 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" | xargs || true
 }
 
+# Database credentials come from Laravel, not from grepping .env: a password holding a
+# backslash, a quote or a '#' does not survive the env_get pipeline above (xargs eats
+# backslashes), and the credentials may not live in .env at all. This asks the app for the
+# connection it actually uses.
+db_config() {
+    php -r '
+        require "vendor/autoload.php";
+        $app = require "bootstrap/app.php";
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        $connection = config("database.default");
+        echo config("database.connections.{$connection}.{$argv[1]}") ?? "";
+    ' -- "$1"
+}
+
 # Read APP_ENV from .env (default: production if missing)
 APP_ENV="$(env_get APP_ENV)"
 APP_ENV="${APP_ENV:-production}"
@@ -24,8 +38,11 @@ if [ "${APP_ENV}" = "local" ]; then
     exit 1
 fi
 
-# Maintenance mode (ignore if not bootable yet)
+# Maintenance mode (ignore if not bootable yet). Whatever happens next, the site comes
+# back: set -e used to leave the app down when a step failed, which turns a failed deploy
+# into an outage.
 php artisan down --render="errors::503" --retry=15 || true
+trap 'php artisan up || true' EXIT
 
 if [ "${APP_ENV}" = "production" ]; then
     composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
@@ -47,15 +64,29 @@ if php artisan migrate:status --pending 2>/dev/null | grep -qE '[0-9]{4}_[0-9]{2
     if ! command -v mysqldump >/dev/null 2>&1; then
         echo "!!! Pending migrations but no mysqldump on this host. Dump the database by hand" >&2
         echo "!!! (hPanel > Databases > Export), then re-run this script." >&2
-        php artisan up || true
         exit 1
     fi
 
+    DB_HOST_VALUE="$(db_config host)"
+
     echo "==> Pending migrations found. Dumping to ${BACKUP_FILE}"
-    MYSQL_PWD="$(env_get DB_PASSWORD)" mysqldump \
-        --host="$(env_get DB_HOST)" --port="$(env_get DB_PORT)" \
-        --user="$(env_get DB_USERNAME)" --single-transaction --quick \
-        "$(env_get DB_DATABASE)" > "${BACKUP_FILE}"
+
+    # A "localhost" host means the unix socket to PDO, but mysqldump resolves the name and
+    # arrives over TCP as ::1, which is a different grant and gets refused. Say socket.
+    MYSQLDUMP_TRANSPORT=(--host="${DB_HOST_VALUE}" --port="$(db_config port)")
+    if [ "${DB_HOST_VALUE}" = "localhost" ] || [ -z "${DB_HOST_VALUE}" ]; then
+        MYSQLDUMP_TRANSPORT=(--protocol=socket)
+    fi
+
+    if ! MYSQL_PWD="$(db_config password)" mysqldump \
+        "${MYSQLDUMP_TRANSPORT[@]}" \
+        --user="$(db_config username)" --single-transaction --quick \
+        "$(db_config database)" > "${BACKUP_FILE}"; then
+        rm -f "${BACKUP_FILE}"
+        echo "!!! Could not dump the database, so the migration is NOT running." >&2
+        echo "!!! Export it from hPanel > Databases, then re-run this script." >&2
+        exit 1
+    fi
 
     # Keep the last five. Older ones are a restore nobody will ever choose.
     ls -1t "${BACKUP_DIR}"/pre-migrate-*.sql 2>/dev/null | tail -n +6 | xargs -r rm --
