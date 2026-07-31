@@ -98,8 +98,6 @@ it lost; their model and controller coverage still runs.
 
 ## Known remnants
 
-- `resources/views/partials/pt-question-form.blade.php` is orphaned — it served only the
-  deleted `profile-test` screen. Belongs with a wider partials sweep.
 - `ecosystem.config.cjs` is a PM2 config from the previous maintainer's Windows/Laragon
   setup, with a hardcoded `C:/laragon/` path. Dead, kept for reference.
 - `docs/SYSTEM_GUIDE.html` is a developer reference last verified 2026-07-17 and has not

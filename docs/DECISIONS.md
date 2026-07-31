@@ -109,7 +109,9 @@ feature registry, not code deletion.
   and `tot` (user kept Knowledge Bank).
 - **Screens that had no gating module** and so leaked into the nav were given one:
   `onboarding-content` folded into `module.onboarding`; new `module.sharedresources` and
-  `module.profiletest`, both off.
+  `module.profiletest`, both off. `module.profiletest` was re-scoped **in** on 2026-07-31:
+  the welcome wizard links every new starter at `/app/profile-test`, so the gate turned
+  that link into a 404. Its two blades survived the purge, so the revival was one line.
 - **Dashboard widgets do not inherit the screen gate.** `StuckRequests` and
   `BuildsDashboardData::pendingActions` were rendering rows that link to now-404 screens,
   so both now filter their request types by `FeatureManager::screenAllowed`. Other
@@ -165,6 +167,7 @@ have been wasted work, so the views go and everything behind them stays.
   blade is restored from the tag. `Features::OFF`'s own docblock says "brought back by
   deleting one line" — that sentence is now only true for the gate, not for the screen.
 
-**Known remnant.** `resources/views/partials/pt-question-form.blade.php` was used only by
-the deleted `profile-test` screen and is now orphaned. Left in place: it predates this
-change, and deleting it belongs with a wider partials sweep.
+**Not a remnant.** `resources/views/partials/pt-question-form.blade.php` was listed here as
+orphaned. It is not: `screens/profile-test-admin.blade.php` includes it three times, and
+both profile-test blades survived the purge — which is why re-scoping the module back in
+took one line.
