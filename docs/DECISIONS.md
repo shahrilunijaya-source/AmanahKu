@@ -171,3 +171,24 @@ have been wasted work, so the views go and everything behind them stays.
 orphaned. It is not: `screens/profile-test-admin.blade.php` includes it three times, and
 both profile-test blades survived the purge — which is why re-scoping the module back in
 took one line.
+
+---
+
+## 2026-07-31 — Production go-live
+
+**D-020 · Production runs on devops-owned infrastructure, released through GitLab.**
+`https://amanahku.unijaya.com` is live, provisioned by the devops team, seeded with one
+super-admin account. Devops takes GitHub `main`, uploads it to
+`gitlab.com/developer-unijaya/claudecode/amanahku`, and releases from there. Development
+stays on GitHub; the developer side of the boundary ends at a merge into `main`. There is no
+developer shell, database or log access on prod — only an app-level super-admin login.
+
+**The consequence that changes how we write code:** `migrate:fresh` is no longer an escape
+hatch. Earlier entries in this log (D-013 among them) justify schema choices with "no
+production data exists". That sentence is now false. Migrations are forward-only against real
+staff records, so a destructive or non-reversible migration is a data-loss event, and
+`APP_KEY` is load-bearing for every encrypted NRIC.
+
+**Open, not decided:** the two repositories share no commit ancestor, so a prod release
+cannot be traced to a sha. Options are laid out in [ROADMAP.md](ROADMAP.md); the choice needs
+devops, because two of the three touch their repository.

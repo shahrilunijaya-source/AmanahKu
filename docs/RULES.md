@@ -97,7 +97,7 @@ Payroll is shipped **off** for the current scope. These rules apply if it is swi
 |-----|--------|------|-----|
 | **local** | `dev` | [Lerd](https://github.com/lerd-env/lerd) (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | **http://localhost:9100** |
 | **staging** | `main` | Hostinger Business, `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net |
-| **production** | — | **Does not exist yet.** | — |
+| **production** | GitLab `main` | **Devops-owned. No developer shell.** | https://amanahku.unijaya.com |
 
 Local access is `http://localhost:9100`, **not** `amanahku.test`. `.test` resolution is
 unreliable on the dev machine: systemd-resolved picks the router as wlan0's DNS server,
@@ -105,8 +105,16 @@ which NXDOMAINs `.test` and never fails over to lerd-dns. `lerd dns:repair` cann
 race and nsswitch blocks an `/etc/hosts` workaround. `APP_URL` is still `http://amanahku.test`,
 so APP_URL-derived links (Mailpit mail) keep emitting the `.test` host.
 
-One repo: `github.com/shahrilunijaya-source/AmanahKu`, public, canonical since 2026-07-17.
-The old private `amanahku-app` repo is retired — do not push to it.
+`github.com/shahrilunijaya-source/AmanahKu` is public and canonical for development since
+2026-07-17. The old private `amanahku-app` repo is retired — do not push to it.
+
+A second repo now exists: `gitlab.com/developer-unijaya/claudecode/amanahku` (the `gitlab`
+remote), which the devops team releases production from. It is **not a mirror**. Its `main`
+is a separate lineage — a URSB governance template plus one squashed
+`feat: import Amanahku application onto the governed baseline` commit — so it shares no
+ancestor with GitHub `main`, and 260-odd development commits do not appear in it. Every
+release so far reached it as a fresh file upload, not a push. Unifying the two histories is
+open work; see [ROADMAP.md](ROADMAP.md).
 
 ## The five rules that lose data
 
@@ -131,12 +139,14 @@ The old private `amanahku-app` repo is retired — do not push to it.
 ```
 dev ── merge → main ── push (from your own authenticated machine)
                           │
-   ssh amanahku → cd ~/domains/amanahku-staging.myappsonline.net/public_html
-                          │
-               git pull && bash deploy.sh
+        ┌─────────────────┴─────────────────────────┐
+        │ staging (yours)                            │ production (devops)
+   ssh amanahku → …/public_html                 GitHub main → GitLab main
+        │                                            │
+   git pull && bash deploy.sh                   released by devops
 ```
 
-Deploy is a manual pull over SSH. No webhook, no deploy key. `deploy.sh` auto-detects the
+Staging deploy is a manual pull over SSH. No webhook, no deploy key. `deploy.sh` auto-detects the
 tier from `APP_ENV` and refuses to run against `APP_ENV=local`. It runs: maintenance mode →
 `composer install` → `migrate --force` → storage symlink (via `ln`, because `exec()` is
 disabled on the host) → skip asset build → config/route/view caches → queue restart →
@@ -158,10 +168,32 @@ per core (the box reports 64) and the account's thread cap refuses them —
 `ThreadPoolBuildError … WouldBlock`. `RAYON_NUM_THREADS=4` does make it build, but a build
 that dies mid-deploy strands the app in maintenance mode. The host stays build-free on purpose.
 
+## Production handoff
+
+Production went live on `amanahku.unijaya.com` on 2026-07-31, provisioned by the devops
+team. A developer's access to it is an app-level super-admin login and nothing more: no SSH,
+no database, no log files, no cron console. Every operational rule below still applies to
+prod, but **devops is the one who applies it** — you can only ask, and you cannot verify the
+answer yourself.
+
+What follows from that:
+
+- Nothing in this document has been confirmed *on the prod host*. The five data-losing rules,
+  the cron jobs, the mail configuration and the security gate are all written from the
+  staging host. Treat them as the handover request to devops, not as a description of what
+  is running.
+- Prod carries one seeded super-admin account. Its password lives with devops, never in this
+  repo, and never in a tracked file.
+- A prod bug you cannot reproduce on staging is a devops ticket, not a debugging session.
+  You have no log to read.
+
 ## Cron — mandatory
 
 Hostinger shared allows no long-running workers and no SSH crontab. Both jobs live in
-**hPanel → Advanced → Cron Jobs**, so their state cannot be verified from the shell.
+**hPanel → Advanced → Cron Jobs**, so their state cannot be verified from the shell. This is
+the staging arrangement; the prod host is a different machine and its cron setup is
+unverified from here — confirm with devops that both jobs exist, because the same silent
+failures apply.
 
 ```
 * * * * *   cd ~/domains/… && php artisan schedule:run >> /dev/null 2>&1
@@ -199,6 +231,11 @@ provisioning console — it cannot be mail (mail is what breaks) and cannot be t
 
 ## Security gate — do not deploy public without these
 
+Prod is already public, so this list is now a **verification** list, not a pre-flight one.
+None of it has been checked on `amanahku.unijaya.com`. The two you can test from a browser
+without any host access are the security headers and the HTTPS redirect; the rest needs
+devops.
+
 - [ ] TLS terminating in front of the app; HTTP redirects to HTTPS.
 - [ ] `APP_ENV=production`, **`APP_DEBUG=false`**, `APP_URL` set to the real HTTPS URL.
 - [ ] `SESSION_SECURE_COOKIE=true`, `SESSION_ENCRYPT=true`, `SESSION_DOMAIN` set.
@@ -233,6 +270,9 @@ git pull && bash deploy.sh
 php artisan migrate:rollback --step=1 --force   # only if the bad deploy migrated
 ```
 
+That is the staging path. A prod rollback is a devops action; your part is the revert commit
+on `main` and a clear note of whether the bad deploy migrated.
+
 No release-dir or symlink setup on this host — rollback is a revert plus redeploy. The
 server keeps a local `staging` branch pinned at `f2cf804` as a rollback pointer, and
 full-history bundles exist at `~/amanahku-server-backup-2026-07-17.bundle`.
@@ -243,4 +283,4 @@ full-history bundles exist at `~/amanahku-server-backup-2026-07-17.bundle`.
 |----------|-----------|-----------------|
 | `.env.example` | local (then rewired for lerd; pre-lerd backup at `.env.before_lerd`) | `APP_ENV=local`, `APP_DEBUG=true` |
 | `.env.staging.example` | staging | `APP_ENV=staging`, real SMTP, secure cookies |
-| `.env.production.example` | future production | `APP_ENV=production`, `LOG_LEVEL=error` |
+| `.env.production.example` | production (devops holds the real file) | `APP_ENV=production`, `LOG_LEVEL=error` |

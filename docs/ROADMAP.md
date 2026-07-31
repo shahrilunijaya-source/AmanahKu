@@ -3,16 +3,44 @@
 Open work, ranked. Shipped history is in `git log`; the reasoning behind past choices is in
 [DECISIONS.md](DECISIONS.md).
 
-## Now — production cutover
+## Now — close the gaps prod went live with
 
-Production **does not exist yet**. Staging is the only deployed instance. Before a cutover:
+Production went live on **https://amanahku.unijaya.com** on 2026-07-31, provisioned by the
+devops team, with one seeded super-admin account. The cutover happened without the checklist
+that used to sit here, so the checklist is now a list of unknowns to confirm with devops.
+None of it can be verified from a developer machine — see
+[RULES.md § Production handoff](RULES.md#production-handoff).
 
-1. Provision the production host, or promote staging.
-2. Both cron jobs in hPanel — scheduler and queue drain. Verify by sending real mail.
-3. Nightly `mysqldump` + `APP_KEY` in a separate secret store.
-4. Work the security gate in [RULES.md](RULES.md#security-gate--do-not-deploy-public-without-these).
-5. Import real staff data.
-6. Smoke test the approval round trip with real accounts.
+1. **Both cron jobs.** Scheduler and queue drain. Without them, leave accrual, digests and
+   reminders stop, and invited users never receive an activation link. Highest risk of the
+   set, because it fails silently.
+2. **Mail actually delivers.** Send one real mail and read the log. `php artisan about`
+   cannot detect this.
+3. **Backups.** Nightly `mysqldump`, and `APP_KEY` stored somewhere other than the database
+   host. Losing the key makes every encrypted NRIC unrecoverable.
+4. **The security gate** in [RULES.md](RULES.md#security-gate--do-not-deploy-public-without-these).
+   Confirm `APP_DEBUG=false` first; it is the one that leaks.
+5. **Demo seeder not run on prod**, and the seeded super-admin password changed from whatever
+   it shipped with.
+6. Import real staff data, then smoke test the approval round trip with real accounts.
+
+## Now — one history for two repos
+
+Development lives on GitHub; devops releases prod from
+`gitlab.com/developer-unijaya/claudecode/amanahku`, and the two repos share no commit
+ancestor. GitLab `main` is a governance template plus one squashed import, so every release
+crosses the gap as a file upload. That costs the release trail: prod cannot be traced to a
+commit, `git log` on GitLab says nothing about what changed, and a prod rollback has no sha
+to revert to.
+
+Unifying them is a decision for devops, not a local `git` command, because the fix either
+overwrites their baseline or grafts an unrelated history onto ours. Options, cheapest first:
+
+| option | effect | cost |
+|--------|--------|------|
+| Push GitHub `main` into GitLab as a new branch, release from it | Full history on GitLab, template baseline untouched | Devops changes which branch they deploy |
+| Merge GitLab `main` into GitHub `main` with `--allow-unrelated-histories`, then push both | One shared ancestor from here on, nothing destroyed | One ugly merge commit; both repos must accept it |
+| Force-push GitHub history over GitLab `main` | Cleanest result | **Destroys their template baseline and merge-request history.** Needs explicit devops sign-off |
 
 ## Next — authorization hardening
 

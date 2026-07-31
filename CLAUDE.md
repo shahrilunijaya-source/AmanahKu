@@ -43,7 +43,9 @@ http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
 
 ## Deploy to staging
 
-Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking `main`. **No prod host yet.**
+Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking `main`. Still the test target — deploy here first.
+
+**Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host. They take GitHub `main`, push it into GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote here), and release from there. You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
 
 Assets built locally, `public/build` committed; host builds nothing.
 
@@ -58,7 +60,7 @@ ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git 
 
 The four that lose data: never run `key:generate` on a host that already has data; never run `git clean` on the server; take a `mysqldump` before a deploy that migrates; run `view:cache` before `bun run build`. The reasoning behind each, the security gate, the mandatory hPanel cron jobs, the mail configuration and the rollback path are all in **[docs/RULES.md](docs/RULES.md#part-2--operational-rules)**. Read it before any release; do not restate it here, a second copy is how the last one rotted.
 
-Staging login credentials are **not** in this repo (it is public). They live in gitignored `docs/vault/`. Never paste secrets into tracked files.
+Staging and production login credentials are **not** in this repo (it is public), and never go into a tracked file. The prod super-admin password is held by devops.
 
 ## Legacy: PM2 (unused)
 
