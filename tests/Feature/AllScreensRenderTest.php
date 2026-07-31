@@ -1,0 +1,220 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Employee;
+use App\Models\Tenant;
+use App\Models\User;
+use App\Services\FeatureManager;
+use App\Support\WorkforceInsights;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Proves every navigable screen renders live against seeded data — no screen is a
+ * hardcoded mock that 500s when wired to the database. Drives the full seeder and
+ * loads each screen as the HR persona (which can reach every module).
+ */
+class AllScreensRenderTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $hr;
+
+    private Tenant $tenant;
+
+    /** Every screen id reachable from the sidebar, plus the security settings page. */
+    private const SCREENS = [
+        'dash', 'board', 'team-board', 'timesheets',
+        'directory', 'profile', 'orgchart',
+        'attendance', 'roster', 'shiftswap', 'leave', 'calendar', 'overtime',
+        'events', 'rooms', 'vehicles',
+        'payroll', 'loans', 'pettycash', 'benefits', 'wellness',
+        'kpi', 'achievements', 'reviews', 'goals', 'skills',
+        'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
+        'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook', 'tot',
+        'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
+        'reports', 'surveys', 'ideas', 'messages',
+        'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',
+    ];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(DatabaseSeeder::class);
+        $this->hr = User::where('email', 'aisyah.rahman@unijaya.example')->firstOrFail();
+        $this->tenant = Tenant::where('slug', 'unijaya')->firstOrFail();
+    }
+
+    public function test_every_screen_renders_for_the_hr_persona(): void
+    {
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+            'persona' => 'hr',
+        ]);
+
+        foreach (self::SCREENS as $screen) {
+            $response = $this->get("/app/{$screen}");
+
+            $this->assertContains(
+                $response->status(),
+                [200],
+                "Screen '{$screen}' did not render (status {$response->status()})."
+            );
+        }
+    }
+
+    /**
+     * 'workload' is deliberately absent from SCREENS above: it is gated by
+     * `module.ai`, which defaults OFF (Features::OFF — the AI Workforce Intelligence
+     * dashboard blocks are built but not yet released; see docs/ISSUES.md I-025).
+     * Confirms the shipped default instead of masking it, so it opts out of the
+     * suite-wide "every module on" override in Tests\TestCase.
+     */
+    public function test_workload_screen_404s_when_module_ai_is_off_by_default(): void
+    {
+        $this->useShippedModuleDefaults();
+
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+            'persona' => 'hr',
+        ])->get('/app/workload')->assertNotFound();
+    }
+
+    /**
+     * The dashboard scope switcher must only render for privileged roles — the switch
+     * is server-gated (Amanahku::SCOPE_ACCESS), so showing it to a plain employee is a
+     * dead control that 404s nothing but confuses. Aisyah is HR on Unijaya but a plain
+     * employee on Petron, so one user exercises both sides of the gate.
+     *
+     * Replaces the four-persona version of this test: the `persona=` switcher was
+     * removed with the four-persona dashboard, and the two scopes (`me` / `company`)
+     * took over the same job.
+     */
+    public function test_scope_switcher_renders_only_for_privileged_roles(): void
+    {
+        $petron = Tenant::where('slug', 'petron-tl')->firstOrFail();
+
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+        ])->get('/app/dash')->assertSee('scope=company');
+
+        // A plain employee has exactly one scope, so the strip must not render at all.
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $petron->id,
+        ])->get('/app/dash')->assertDontSee('scope=company');
+    }
+
+    /**
+     * The manager Team-status table was a `manager`-persona-only dashboard block; the
+     * two-scope dashboard rewrite (BuildsDashboardData) dropped it along with the rest
+     * of the four-persona dashboard — a manager's reporting line now surfaces via the
+     * `company` scope's real verify/approve queue instead. See
+     * Tests\Feature\DashboardScopeTest for the replacement coverage (queue routing,
+     * live headline copy).
+     */
+
+    /**
+     * Workload colour/label is derived LIVE from each person's open work-item count via the
+     * Employee accessor — the frozen `workload` seed column is no longer read. The seeder gives
+     * Faizal eight open items (red), Nurul none (green), and Siti is on leave (grey). The recs
+     * engine reads the same signal, so the AI Workforce Intelligence screen and dashboard agree.
+     */
+    public function test_workload_is_derived_live_from_open_work_items(): void
+    {
+        $faizal = Employee::where('name', 'Faizal Othman')->firstOrFail();
+        $nurul = Employee::where('email', 'nurul.iman@unijaya.example')->firstOrFail();
+        $siti = Employee::where('name', 'Siti Khadijah')->firstOrFail();
+
+        $this->assertSame('red', $faizal->workload);
+        $this->assertSame('Overloaded', $faizal->workload_label);
+        $this->assertSame('green', $nurul->workload);          // zero open items
+        $this->assertSame('grey', $siti->workload);            // on leave overrides load
+
+        $overloaded = app(WorkforceInsights::class)->overloaded()->pluck('name');
+        $this->assertTrue($overloaded->contains('Faizal Othman'));
+        $this->assertTrue($overloaded->contains('Hafiz Zulkifli'));
+        $this->assertFalse($overloaded->contains('Nurul Iman binti Hassan'));
+
+        // The most-available peer is a real green (lightest-loaded) employee, not an overloaded one.
+        $available = app(WorkforceInsights::class)->available();
+        $this->assertNotNull($available);
+        $this->assertSame('green', $available->workload);
+    }
+
+    /**
+     * Embed mode ( ?embed=1 ) backs the Setup wizard's inline step-frames. It must:
+     * (1) strip the app chrome (no sidebar) so only the screen content frames in;
+     * (2) relax X-Frame-Options to SAMEORIGIN so the same-origin iframe is allowed —
+     *     while a normal request stays fully frame-denied; and
+     * (3) honour ?section= so a settings-backed step shows only its own card.
+     */
+    public function test_embed_mode_strips_chrome_and_permits_same_origin_framing(): void
+    {
+        $this->actingAs($this->hr)->withSession([
+            'current_tenant' => $this->tenant->id,
+            'persona' => 'hr',
+        ]);
+
+        // Normal request: full chrome (the sidebar <aside>) + hard frame-deny.
+        $plain = $this->get('/app/settings')->assertOk();
+        $plain->assertSee('<aside', false);
+        $plain->assertHeader('X-Frame-Options', 'DENY');
+
+        // Embedded, section-filtered: no chrome (no <aside> anywhere), same-origin framing
+        // allowed, only the Branches card (Departments card absent).
+        $embed = $this->get('/app/settings?embed=1&section=branches')->assertOk();
+        $embed->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $embed->assertDontSee('<aside', false);
+        $embed->assertSee('Branches');
+        $embed->assertDontSee('Departments');
+    }
+
+    /**
+     * Permissions-Policy must allow camera and geolocation for THIS origin. `camera=()` is an
+     * empty allowlist, which denies the app itself: it silently broke the attendance geofence
+     * (every record stored NULL coordinates) and the in-page clock-in selfie. Microphone stays
+     * fully denied — nothing in the product records audio.
+     */
+    public function test_permissions_policy_allows_self_for_camera_and_geolocation(): void
+    {
+        $header = $this->get('/login')->assertOk()->headers->get('Permissions-Policy');
+
+        $this->assertStringContainsString('camera=(self)', $header);
+        $this->assertStringContainsString('geolocation=(self)', $header);
+        $this->assertStringContainsString('microphone=()', $header);
+        $this->assertStringNotContainsString('camera=()', $header);
+        $this->assertStringNotContainsString('geolocation=()', $header);
+    }
+
+    /**
+     * Disabling the Performance module must also hide the KPI widgets embedded on the
+     * profile screen (the "KPI · H1" stat card + the "KPI History" tab), not just the
+     * Performance nav group. Before/after around the toggle proves the gate, not the seed.
+     *
+     * The tab is matched by its rendered element (`KPI History</button>`), not the bare phrase
+     * "KPI History": a What's New changelog entry ("switching off Performance also removes …
+     * the KPI History tab") renders on every screen and would otherwise false-match the plain
+     * string in the assertDontSee below — the widget hides correctly, the prose just names it.
+     */
+    public function test_disabling_performance_hides_embedded_kpi_widgets_on_profile(): void
+    {
+        $this->actingAs($this->hr);
+        $session = ['current_tenant' => $this->tenant->id, 'persona' => 'hr'];
+
+        // Baseline: Performance ON → KPI widgets are present on the profile.
+        $on = $this->withSession($session)->get('/app/profile')->assertOk();
+        $on->assertSee('KPI · H1');
+        $on->assertSee('KPI History</button>', false);
+
+        // Turn Performance OFF → both KPI widgets disappear; sibling cards untouched.
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.performance', false);
+
+        $off = $this->withSession($session)->get('/app/profile')->assertOk();
+        $off->assertDontSee('KPI · H1');
+        $off->assertDontSee('KPI History</button>', false);
+        $off->assertSee('Annual leave'); // sibling stat card (renamed from "Leave balance" — now Annual-only)
+    }
+}

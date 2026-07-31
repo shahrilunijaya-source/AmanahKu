@@ -1,0 +1,128 @@
+# Issues & Blockers
+
+Open items, blockers, and deferred enhancements. Blockers do not stop other work.
+
+---
+
+## Open / Deferred (non-blocking)
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-001 | low | Live AI assistant is canned | AI panel + workforce recommendations are seeded text. Needs an LLM adapter (feature-flagged) before it is "live". Not in approved scope this milestone. |
+| I-002 | low | Attendance geolocation/photo is UI-only | Clock-in captures a seeded location string; no real device geolocation/photo capture. UI present, capture deferred. |
+| I-003 | medium | Reviewer rating-entry workflow not built | Managers/HR cannot yet create/score/finalise a review from the UI (reviews are seeded). Employee-side acknowledge + self-assessment ARE built. Future phase: reviewer rating UI + submit→complete state machine. |
+| I-004 | low | Header global search is non-functional | Search box in the header is decorative. Wire to directory query later. |
+| I-005 | info | Production hardening checklist outstanding | Code-level hardening now DONE (baseline headers + HSTS-over-HTTPS, forced password rotation, 2FA password-confirm). Remaining is deploy-env only: `APP_DEBUG=false`, non-root DB user, fresh `APP_KEY`, full CSP, HTTPS. Documented in README. Not a code blocker. |
+| I-006 | medium | Passkeys frontend not wired | Fortify 1.37 passkey backend is available and the feature can be enabled, but the WebAuthn browser ceremony (navigator.credentials) + `APP_URL` origin matching the serving host (localhost vs 127.0.0.1, secure-context/RP-ID) are not implemented. The Security page shows a "Coming soon" panel. Wire before advertising passkey sign-in. |
+| I-009 | low | Real email delivery not configured | `MAIL_MAILER=log` — password-reset links are written to `storage/logs/laravel.log` in dev. `.env.example` now carries a commented SMTP template; operator must set `MAIL_MAILER=smtp`/`ses` + credentials before deploy so reset/invite emails actually send. |
+| I-010 | info | AI data egress when `claude` driver enabled | With `AMANAHKU_AI_DRIVER=claude`, tenant workforce facts (employee names, counts, approval totals) are sent to Anthropic's API per question. This is tenant-scoped (no cross-tenant data) but is an external data-egress decision — confirm with the customer / DPA before enabling in production. Default `canned` sends nothing externally. |
+
+## External Blockers
+
+None. No feature is blocked on credentials, external access, or third-party approval.
+All remaining work is implementable locally.
+
+## Resolved
+
+- **I-001 (partial) — Live AI**: provider abstraction + live `ClaudeAiProvider` behind `AMANAHKU_AI_DRIVER=claude` + `ANTHROPIC_API_KEY`; canned fallback. (Egress note → I-010.)
+- **I-002 — Attendance geolocation**: real lat/lng capture added (migration `2026_06_24_000001` + AttendanceController/record/screen).
+- **I-003 — Reviewer rating-entry**: `ReviewController@rate` (draft + finalise) + `reviewer_*` columns, wired into the team-review form.
+- **I-004 — Global header search**: `SearchController` + live Alpine dropdown.
+- **I-007 — 2FA password confirmation**: `confirmPassword=true` in `config/fortify.php`; `Fortify::confirmPasswordView` registered with a bespoke `auth/confirm-password.blade.php`. All Fortify 2FA management routes now require a recent password confirmation; the custom password-validated disable route is unchanged. (`HardeningTest`, `AuthFlowsTest`.)
+- **I-008 — Forced password rotation**: `password_change_required` flag (migration `2026_06_24_000015`) set on invite; `ForcePasswordChange` middleware funnels flagged users to `auth/force-password-change` until they rotate; flag cleared on password change and on reset. (`HardeningTest`.)
+- **Security headers / HSTS (part of I-005)**: `SecurityHeaders` middleware adds `Strict-Transport-Security` over HTTPS alongside the existing baseline headers. (`HardeningTest`.)
+
+## New / deferred (this pass)
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-011 | low | Attendance clock-in `location` string hardcoded | AttendanceController stores a fixed office label for all tenants; derive from tenant/geocode before relying on it in reports. |
+| I-012 | info | Assistant cost/abuse | Throttled (20/min); for production add per-tenant Anthropic spend caps + monitoring when the live driver is enabled. |
+
+## Phase E — Payroll (deferred, non-blocking)
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-013 | medium | Statutory SOCSO/EIS use capped-percentage approximation | PERKESO publishes exact stepped bracket tables; this app computes SOCSO/EIS as a flat percentage on the capped wage. Close enough for estimates but **verify against official KWSP/PERKESO tables before a real payroll run** (in-app banner already warns). To make exact, replace the percentage config with the full bracket table per type. |
+| I-014 | low | Payroll models use `$guarded = []` (app-wide convention) | Consistent with all ~24 models in the app. All payroll writes use whitelisted computed attributes (`toPayslipAttributes()`) or explicitly validated fields — never `request()->all()` — so no live mass-assignment vector. Before a public deploy, consider tightening the four financial models (`SalaryStructure`, `StatutoryRate`, `PayrollRun`, `Payslip`) to explicit `$fillable` allowlists that exclude `tenant_id`, `status`, and computed amounts. |
+| I-015 | low | Payroll finalize allows draft -> finalized without approval | Intentional single-operator shortcut (the UI offers both Approve and Finalize on a draft). If a four-eyes control is required for payroll, change `finalizeRun` to accept only `approved` status. |
+| I-016 | info | PCB / income tax is manual entry, not auto-calculated | By design this milestone (avoids encoding the LHDN progressive MTD table + reliefs). HR enters the monthly PCB per payslip. A future enhancement could add an auto-MTD calculator behind the editable rate config. |
+
+## Phase E+ — Payroll exports (deferred, non-blocking)
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-017 | low | Bank file is a generic CSV | Outputs a generic No./Name/Account/Amount CSV (common denominator). Bank-specific bulk-payment formats (Maybank2u, CIMB BizChannel, RHB, DuitNow batch) are a future per-bank exporter. |
+| I-018 | resolved | NRIC is encrypted at rest | Verified: 'nric' => 'encrypted' cast on both Employee and SalaryStructure — stored as ciphertext, decrypted only on read. HR-only statutory export already enforced. Closed 2026-07 (audit AK-DOC-01). |
+
+## Authorization / access-control (audit 2026-07-23, non-blocking)
+
+Findings from an authorization-boundary review. Roles are well *defined* (employee · manager · management · hr · director-as-management-superset, plus the `is_super_admin` platform tier and an orthogonal `data_scope` axis), but their *enforcement* is decentralized and has already drifted. Key files: `app/Support/Permissions.php`, `app/Http/Controllers/Controller.php`, `app/Services/DataScope.php`. The one clean boundary is `super.admin`, which is middleware-gated.
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-019 | high | Tenant isolation relies on hand-written per-controller guards | Route-model binding is NOT tenant-scoped (no `scopeBindings`/`resolveRouteBinding`; `SubstituteBindings` runs before `ResolveTenant`), so a bound `{model}` resolves across ALL tenants. Each controller re-defends by hand with `abort_unless($m->tenant_id === CurrentTenant::id(), 403)` (66 occurrences). This fails OPEN: one forgotten guard on a new endpoint means cross-tenant read/write. Fix: add `->scopeBindings()` on the tenant route group, or a `resolveRouteBinding` override on the `BelongsToTenant` trait, so isolation is structural instead of per-call. |
+| I-020 | medium | `director` role access is inconsistent across modules | `director` is documented as a strict super-set of `management` (`Permissions::effectiveRole`). But 4 controllers reimplement `isPrivileged()` inline with `in_array($role, ['management','hr'])` and skip `effectiveRole()`, so a director is silently treated as a plain employee there: `ComplianceController`, `ProbationController`, `VehicleController`, `Api/V1/ApiController`. Director IS honored in Documents/Rooms/Cases/Wellness (which delegate to `hasTenantRole`). Fails closed (director gets less, not more), so it is a correctness/consistency bug, not a hole. Fix: route every `isPrivileged()` through `hasTenantRole()`. |
+| I-021 | medium | Role enforcement is decentralized with no single source of truth | No Laravel Gates/Policies exist; the `Permissions` matrix is advisory only (its own docblock says so). The real boundary is scattered across ~50 controllers: `authorizeTenantRole()`/`hasTenantRole()` (51 uses), 8 private `isPrivileged()` copies, and inline role literals (`['management','hr']` ×44, `['manager','management','hr']` ×27, `['director','hr']` ×5). I-020 is a symptom of this. Fix: promote `Permissions::ROLE_PERMISSIONS` to authoritative `Gate::define`/policies, then replace the literals and `isPrivileged()` copies with `$this->authorize()` / `roleHas()` calls. |
+
+## Mail delivery broken on staging (found 2026-07-26, RESOLVED 2026-07-28)
+
+**All three are fixed and verified in production use on staging.** A real test mail from
+the staging host reached a Gmail **inbox** with SPF, DKIM and DMARC all passing. Kept in
+full below because the cause is easy to reintroduce and the fix is mostly invisible in
+the codebase. Design record:
+[specs/2026-07-28-staging-mail-delivery-design.md](superpowers/specs/2026-07-28-staging-mail-delivery-design.md).
+
+Surfaced when the staging scheduler and queue-worker crons were created for the first
+time. Mail on staging has never worked; nothing reported it because no worker was
+running to attempt a send. Supersedes the deploy-side half of **I-009**, which recorded
+the risk generically but predates staging having any `MAIL_*` values at all.
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-022 | high | `MAIL_SCHEME=tls` is not a valid scheme | Staging `.env` sets `MAIL_SCHEME=tls`. `config/mail.php:42` passes it straight through as `'scheme' => env('MAIL_SCHEME')`, and Symfony Mailer rejects it: `The "tls" scheme is not supported; supported schemes for mailer "smtp" are: "smtp", "smtps".` This throws before any connection is attempted, so it fails regardless of credentials. `tls` is the value of the *old* `MAIL_ENCRYPTION` key, which Laravel 11+ replaced with `MAIL_SCHEME`; the value did not carry over. Fix: for port 587 (STARTTLS) use `MAIL_SCHEME=smtp`; for port 465 (implicit TLS) use `MAIL_SCHEME=smtps` and change `MAIL_PORT` to match. Omitting the key entirely also works — Symfony then infers from the port. |
+| I-023 | high | Staging SMTP credentials are still placeholders | `MAIL_HOST=__smtp_host__`, `MAIL_USERNAME=__smtp_user__`, and `MAIL_FROM_ADDRESS="noreply@amanahku.example"` are literal placeholder strings, never filled in. Even with I-022 fixed, no mail would send and the From domain is a reserved example domain that receiving servers reject. Fix: set real host/username/password plus a From address on a domain the deployment controls. Independent of I-022 — both must be fixed for mail to work. |
+| I-024 | medium | Failed mail jobs accumulate silently | Two `App\Notifications\MemberInvited` jobs are sitting in `failed_jobs` on staging, and `storage/logs/laravel.log` has passed 3.2 MB, almost entirely repeats of the I-022 exception. There is no log rotation and no alerting on `failed_jobs` depth, so a mail outage is invisible until someone reads the log by hand. Fix (after I-022/I-023): `php artisan queue:retry all`, truncate the log, and add either log rotation or a `queue:monitor` check. |
+
+### How each was resolved (2026-07-28)
+
+- **I-022** — staging `.env` now sets `MAIL_SCHEME=smtp` against `MAIL_PORT=587` (STARTTLS).
+  `.env.staging.example` carries the same pairing plus a comment block spelling out the
+  port-to-scheme rule, so copying the template can no longer reproduce this.
+- **I-023** — provider is **Hostinger Business Email**, on a dedicated subdomain
+  `amanahku.myappsonline.net` with the mailbox `noreply@amanahku.myappsonline.net`. The
+  subdomain keeps Amanahku's sending reputation separate from the other apps sharing
+  `myappsonline.net`. Resend was evaluated and rejected; reasoning and accepted trade-offs
+  are in the spec.
+  **DNS needed manual work.** Hostinger writes MX and SPF automatically but **not** DKIM.
+  Three CNAMEs were added by hand in the `myappsonline.net` zone:
+  `hostingermail-{a,b,c}._domainkey.amanahku` → `hostingermail-{a,b,c}.dkim.mail.hostinger.com`.
+  A DMARC TXT record at `_dmarc.amanahku` (`v=DMARC1; p=none`) was added too.
+  Add all three DKIM selectors, not just `-a`: `-b` and `-c` are empty placeholders that
+  Hostinger uses for key rotation, and omitting them breaks signing on the next rotation.
+- **I-024** — three parts. `LOG_CHANNEL=daily` (14-day retention via `LOG_DAILY_DAYS`)
+  replaces `stack`, and the 3.3 MB `laravel.log` was truncated. The 30 stranded jobs (26
+  `MemberInvited` from a bulk import, 4 `WeeklyHrDigest`) were **flushed, not retried** —
+  the app is not yet being shown to staff, and the signed activation links would have
+  expired 2026-08-02 anyway. Re-invite through the app when ready, which mints fresh links.
+  Alerting is now a banner on the super-admin provisioning console
+  (`SuperAdmin\CompanyController@index` + `superadmin.companies.index`) that appears when
+  `failed_jobs` is non-empty. It cannot be an email (mail is what breaks) and cannot be the
+  in-app bell (`AppNotification` is tenant-scoped, a super-admin is not).
+
+**Blast radius while unfixed.** Everything the app sends by mail silently fails:
+`App\Notifications\MemberInvited` (workspace invites), `App\Notifications\WeeklyHrDigest`
+(the Monday digest, queued), and all Fortify mail — password reset and email
+verification. A user who forgets their password currently has no self-service recovery
+path on staging.
+
+**Not caused by, and does not block, the attendance-reminder feature.** Clock reminders
+write straight to `app_notifications` (a database row read by the in-app bell and the
+browser poller) and never touch the mailer.
+
+## Dashboard polish pass (2026-07-27)
+
+| id | severity | title | notes |
+|----|----------|-------|-------|
+| I-025 | info | AI Workforce Intelligence hidden | `module.ai` (`app/Support/Features.php`) now defaults OFF via the new `Features::NOT_READY` list — the feature is built, not fake, but not signed off for release. This hides the `workload` screen (404s), its nav entry, and the manager/management dashboard blocks that surfaced it (manager's "AI recommendations" panel, management's "Department capacity", "Operational risks" and "What management should do next" cards). `POST /app/workload/apply` (`route('workforce.apply')`) turns out to already be covered too — no gap to note: `EnsureModuleEnabled` (`bootstrap/app.php`, alias `module.enabled`) gates every `/app/<segment>/...` write route by its owning module, so a disabled `module.ai` 404s the apply route the same as the screen, on top of `WorkforceController::apply`'s own role check. `WorkforceInsightsTest` explicitly enables `module.ai` for its test tenant to keep exercising that logic. `FeatureManager::applyCategoryPackage()` also had to be taught about `NOT_READY`: `module.ai` is a stage-3 module, so provisioning any Enterprise-stage company would otherwise write an explicit `true` tenant override and un-hide it behind the registry default. The management dashboard heading follows the same gate (`Amanahku::dashHeading`), because "Workforce Intelligence · live capacity & risk view" is the module's own branding and would otherwise title a page saying the module is not built. Re-enabling for real use is a single flag flip — set `module.ai` true for a tenant (or remove it from `NOT_READY` to flip the global default). |
+| I-026 | medium | `departmentCapacity()` fabricates its capacity percentage | `BuildsDashboardData::departmentCapacity()` computes `min(50 + head * 11, 99)` — a percentage derived purely from headcount — while the "Department capacity" card labels it "Assigned load vs. available capacity, this week." Departments and headcounts are real; the load percentage is invented. Currently hidden behind I-025. Before re-enabling the module, compute this from the live `Employee::workload` accessor (open work-item count) that `WorkforceInsights::overloaded()` already uses, instead of a headcount formula. |

@@ -1,0 +1,55 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.agents
+AGENTS.md
+/.zed
+/auth.json
+/node_modules
+# public/build is committed on purpose: Hostinger shared can't run `npm run build`
+# (exec() disabled), so compiled Vite assets must ship via git alongside the manifest.
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+# Where a mysqldump naturally lands before a migration. A dump carries encrypted
+# NRICs, so it must never be committed — keep backups outside the repo
+# (~/amanahku-backups/) and treat this as the safety net.
+/storage/backups
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+.gstack/
+.playwright-mcp/
+# Local Claude Code state stays out, but the URSB governance commands are tracked.
+.claude/*
+!.claude/commands/
+ecosystem.config.cjs
+.env.before_lerd
+docs/vault/
+
+# Local-only dev quick-login helper (never commit — known-password auth bypass)
+/dev-login.html
+/routes/dev-login.php
+/database/seeders/DevLoginSeeder.php
+bun.lock
+skills-lock.json
+
+# Exported Google Sheet TotHistorySeeder was transcribed from (real company data, never commit)
+/2025 2026 TOT Sabtu/
+
+# Design scratch mocks (served locally, never shipped)
+public/_*.html

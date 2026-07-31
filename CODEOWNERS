@@ -1,5 +1,9 @@
-# Project CODEOWNERS stub — replace with real handles.
-*                  @your-team/maintainers
-/security/         @your-team/security
-/.gitlab-ci.yml    @your-team/devops
-/DECISIONS/        @your-team/tech-leads
+# Amanahku CODEOWNERS — PROVISIONAL, derived from group access levels on
+# developer-unijaya/claudecode. Confirm with the named owners before enabling
+# "Require approval from Code Owners" on the protected `main` branch.
+*                     @haryatimoktar @hafiz.unijaya
+/security/            @hafiz.unijaya
+/.gitlab-ci.yml       @hafiz.unijaya
+/DECISIONS/           @haryatimoktar @hafiz.unijaya
+/database/migrations/ @hafiz.unijaya
+/deploy.sh            @hafiz.unijaya
