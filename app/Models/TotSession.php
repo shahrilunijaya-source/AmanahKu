@@ -10,7 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
+ * `session_date` is computed from year/month, and `links` has an array cast whose shape
+ * the editor enforces, so both read back richer than the raw columns suggest.
+ *
+ * `presenter` really is nullable: presenter_employee_id is a nullable column, and a slot
+ * exists before anybody is assigned to it.
+ *
  * @property Carbon $session_date
+ * @property array<int, array{label: string, url: string}>|null $links
+ * @property-read Employee|null $presenter
  */
 class TotSession extends Model
 {

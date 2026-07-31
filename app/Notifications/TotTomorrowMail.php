@@ -35,9 +35,10 @@ class TotTomorrowMail extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $presenter = $this->session->presenter?->display_name
-            ?? $this->session->presenter_name
-            ?? 'PIC yang akan diumumkan';
+        // A slot can reach the day before with nobody linked: an imported nickname in
+        // presenter_name, or nobody at all.
+        $presenter = $this->session->presenter?->display_name;
+        $presenter ??= $this->session->presenter_name ?? 'PIC yang akan diumumkan';
 
         $phone = $this->session->presenter?->phone;
         $topic = $this->session->title ?: 'tajuk yang akan diumumkan';
@@ -92,10 +93,11 @@ class TotTomorrowMail extends Notification implements ShouldQueue
      */
     private function meetLink(): ?string
     {
-        $links = collect($this->session->links ?? [])->filter(fn ($link) => filled($link['url'] ?? null));
+        $urls = collect($this->session->links ?? [])
+            ->pluck('url')
+            ->filter(fn (?string $url) => filled($url));
 
-        return $links->firstWhere(fn ($link) => str_contains($link['url'], 'meet.google.com'))['url']
-            ?? $links->first()['url']
-            ?? null;
+        return $urls->first(fn (string $url) => str_contains($url, 'meet.google.com'))
+            ?? $urls->first();
     }
 }
