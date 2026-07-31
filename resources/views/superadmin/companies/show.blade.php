@@ -16,6 +16,7 @@
         .fld input:focus,.fld select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(214,35,43,.12);}
         .err{color:var(--red);font-size:12.5px;margin-top:5px;}
     </style>
+@include('partials.pwa-head')
 </head>
 <body>
 <div style="min-height:100vh;background:var(--canvas);padding:48px 24px;">

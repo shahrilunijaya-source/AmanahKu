@@ -186,6 +186,7 @@
           .lg-invalid .lg-field{ animation:none; }
         }
     </style>
+@include('partials.pwa-head')
 </head>
 <body>
 {{-- Corner-stacks background — default login only (branded tenants get a plain canvas). --}}

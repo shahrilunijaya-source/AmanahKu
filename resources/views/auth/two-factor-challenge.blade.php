@@ -10,6 +10,7 @@
          vite.config.js and public/build/fonts-manifest.json. --}}
     {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+@include('partials.pwa-head')
 </head>
 <body>
 @php $fs = 'width:100%;height:46px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:16px;letter-spacing:3px;text-align:center;font-family:var(--font-mono);color:var(--ink);background:#fff;margin-bottom:20px;outline:none;'; @endphp

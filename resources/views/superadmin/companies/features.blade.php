@@ -23,6 +23,7 @@
         .ft-btn{padding:8px 14px;border:none;border-radius:9px;font-size:13px;font-weight:600;background:var(--red);color:#fff;cursor:pointer;}
         .ft-badge{font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:2px 8px;border-radius:9999px;}
     </style>
+@include('partials.pwa-head')
 </head>
 <body>
 <div style="min-height:100vh;background:var(--canvas);padding:48px 24px;">

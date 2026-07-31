@@ -10,6 +10,7 @@
          vite.config.js and public/build/fonts-manifest.json. --}}
     {{ Vite::fonts() }}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+@include('partials.pwa-head')
 </head>
 <body>
 <div style="min-height:100vh;background:var(--canvas);display:flex;align-items:center;justify-content:center;padding:48px 24px;">
