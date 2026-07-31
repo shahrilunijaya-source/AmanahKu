@@ -1,0 +1,13 @@
+# Example project .gitlab-ci.yml — include central modules, do not hand-roll.
+include:
+  - project: 'developer-unijaya/claudecode/ci-templates'
+    ref: v0.4.0   # pin to a tag; bump deliberately per SOP-00
+    file:
+      - '/templates/ci-basic.yml'
+      - '/templates/ci-test.yml'
+      - '/templates/ci-security.yml'
+      - '/templates/ci-build.yml'
+      - '/templates/ci-deploy.yml'
+      - '/templates/ci-release.yml'
+
+stages: [lint, test, security, build, deploy, release]

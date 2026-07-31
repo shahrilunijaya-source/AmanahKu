@@ -1,0 +1,9 @@
+# Amanahku CODEOWNERS — PROVISIONAL, derived from group access levels on
+# developer-unijaya/claudecode. Confirm with the named owners before enabling
+# "Require approval from Code Owners" on the protected `main` branch.
+*                     @haryatimoktar @hafiz.unijaya
+/security/            @hafiz.unijaya
+/.gitlab-ci.yml       @hafiz.unijaya
+/DECISIONS/           @haryatimoktar @hafiz.unijaya
+/database/migrations/ @hafiz.unijaya
+/deploy.sh            @hafiz.unijaya
