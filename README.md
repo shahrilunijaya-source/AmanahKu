@@ -1,90 +1,105 @@
 # Amanahku
 
-Multi-tenant HR + weekly work-tracking + AI workforce-intelligence platform for Unijaya (with Shell S2 and Petron TL as additional tenants). Built from the design reference in `fromClaudeDesign/`.
+Multi-tenant HR platform for Unijaya. The shipped scope is attendance, leave, timesheets,
+the T.A.A. work board, TOT, claims and basic HR administration. A further 24 modules
+(payroll, performance, onboarding, recruitment, and more) are built and switched off.
 
-**Stack:** Laravel 13 · Blade · Tailwind v4 · Alpine.js · Vite · MySQL · Laravel Fortify (auth).
+**Stack:** Laravel 13 · Blade · Tailwind v4 · Alpine.js · Vite (Rolldown) · MySQL 8 · Laravel Fortify (auth).
 
 ## Features
 
-- **Auth** — Fortify session auth behind a custom login UI.
-- **Multi-tenancy** — single database, `tenant_id` row scoping via a global scope. Users belong to many tenants with a per-tenant role. Data is isolated per active tenant.
-- **4 personas** — Employee, Manager, Management, HR. The dashboard adapts to the signed-in user's role.
-- **15 screens** — login, tenant select, dashboard (4 variants), employee directory, 360 profile, task/assignment board, weekly update, AI workforce intel, attendance, leave, KPI, onboarding (+ empty-state stubs for not-yet-built modules).
-- **Working flows** — clock in/out, leave application + manager/HR approval (with balance decrement), weekly-update submit.
+- **Auth** — Fortify session auth behind a custom login UI. 2FA, forced first-login password
+  rotation, per-tenant branded login at `/login/{slug}`.
+- **Multi-tenancy** — single database, `tenant_id` row scoping via a global scope. Users belong
+  to many tenants with a per-tenant role. A super-admin tier provisions companies.
+- **Personas** — Employee, Manager, Management, HR, plus the platform super-admin. The dashboard
+  and navigation adapt to the signed-in user's role.
+- **Per-company modules** — 30 toggleable modules, of which 6 ship on (leave, claims,
+  knowledge bank/TOT, documents, reports, messaging) alongside the non-toggleable core
+  (dashboard, my-work, people, attendance, admin, security). The other 24 are built but off
+  by default; a super-admin switches any of them on per company. The registry is
+  [app/Support/Features.php](app/Support/Features.php) — single source of truth. See
+  [docs/PRD.md](docs/PRD.md) for the full scope.
+- **Two-step approvals** — request flows (leave, claims, overtime) go submit → manager verify →
+  management approve.
 
 ## Requirements
 
-- PHP 8.3+, Composer
-- Node 20+ / npm
-- MySQL 8 (Laragon provides all of the above)
+- PHP 8.3+ (local dev runs 8.5), Composer
+- Node 22 — use **bun**, not npm
+- MySQL 8, Redis, an SMTP sink
+
+Local development runs under [Lerd](https://github.com/lerd-env/lerd), which provides PHP-FPM,
+MySQL, Redis and Mailpit as Podman containers. See [CLAUDE.md](CLAUDE.md) for the lerd commands
+and [docs/RULES.md](docs/RULES.md#topology) for the full topology.
 
 ## Setup
 
 ```bash
 composer install
-npm install
+bun install
 
 cp .env.example .env
-php artisan key:generate
+php artisan key:generate      # fresh install only — see the warning below
 
-# create the database (Laragon MySQL, root / no password by default)
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS amanahku CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-php artisan migrate:fresh --seed
-npm run build
-php artisan serve
+php artisan migrate --seed
+bun run build
 ```
 
-Open the served URL → log in with the demo account:
+Under lerd the app is served at **http://localhost:9100** (not `amanahku.test` — `.test` DNS is
+unreliable on the dev machine; the reason is documented in `CLAUDE.md`). Without lerd, use
+`php artisan serve` against your own MySQL.
 
-```
-aisyah.rahman@unijaya.example  /  password
-```
-
-The demo user can access all three tenants (HR in Unijaya, Manager in Shell, Employee in Petron) — handy for seeing every role and confirming tenant isolation.
+> **Never run `php artisan key:generate` on an environment that already has data.** `APP_KEY`
+> encrypts NRICs and sessions. Rotating it makes the encrypted payroll columns permanently
+> unrecoverable and logs every user out.
 
 ## Development
 
 ```bash
-npm run dev          # Vite dev server (hot reload)
-php artisan serve    # app server
-php artisan test     # full test suite
+bun run dev              # Vite dev server (hot reload)
+php artisan test         # full test suite
+vendor/bin/pint          # code style
+vendor/bin/phpstan       # static analysis
 ```
+
+Before building assets, run `php artisan view:cache` first. Tailwind scans the compiled Blade
+cache (`@source` in `resources/css/app.css`), so building against a partial cache silently drops
+utilities from the stylesheet. CI enforces this in the `Committed assets match sources` job.
 
 ## Architecture notes
 
 - `app/Tenancy/CurrentTenant.php` — request-scoped active tenant (singleton).
-- `app/Models/Concerns/BelongsToTenant.php` — global scope + `tenant_id` auto-fill; applied to every tenant-owned model.
-- `app/Http/Middleware/ResolveTenant.php` (alias `tenant`) — resolves the active tenant from session, verifies membership, exposes the current role + employee.
-- `app/Http/Controllers/AppController.php` — single entry for all `/app/{screen}` views; loads per-screen data.
-- `app/Support/Amanahku.php` — UI constants (nav, personas, page meta, AI seed messages).
-- Domain data lives in Eloquent models + `database/seeders/DatabaseSeeder.php`.
+- `app/Models/Concerns/BelongsToTenant.php` — global scope + `tenant_id` auto-fill; applied to
+  every tenant-owned model.
+- `app/Http/Middleware/ResolveTenant.php` (alias `tenant`) — resolves the active tenant from
+  session, verifies membership, exposes the current role + employee.
+  **Route-model binding runs before this**, so a bound model is not automatically tenant-safe —
+  controllers must check ownership explicitly.
+- `app/Http/Controllers/AppController.php` — single entry for all `/app/{screen}` views.
+- `app/Support/Features.php` — module registry + company-category staging.
+- `app/Support/Permissions.php` — role tiers, including the management tier that grants final
+  approval.
 
-## Production checklist (before public deploy)
+## Deployment
 
-This repo is configured for **local/demo** use. Before exposing it publicly:
+Assets are **built locally and committed** (`public/build`); the host builds nothing. Deploy is
+`git pull && bash deploy.sh`.
 
-**Code-level hardening — DONE (shipped in app, covered by `HardeningTest`):**
+The full checklist, security gate, and the cron jobs that email and accrual depend on are in
+**[docs/RULES.md](docs/RULES.md#part-2--operational-rules)** — that is the single source of
+truth. Do not keep a second copy here.
 
-- [x] Security-headers middleware on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`; **HSTS** auto-added over HTTPS
-- [x] Forced password rotation — invited members must change the one-time password on first sign-in before reaching any route (`ForcePasswordChange` middleware + `password_change_required` flag; cleared on change/reset)
-- [x] 2FA management requires a recent password confirmation (`confirmPassword=true`)
+## Documentation
 
-**Deploy-env — operator must set on the production box (not code):**
+| Doc | Purpose |
+|-----|---------|
+| [docs/PRD.md](docs/PRD.md) | What the product is, who uses it, what is in scope. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Access model, tenancy, request flow, key files. |
+| [docs/RULES.md](docs/RULES.md) | Invariants: HR domain rules, plus the deploy and security gate. |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Open work, ranked. Production cutover, auth hardening, deferred items. |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Append-only architectural decision log. |
+| [docs/DESIGN.md](docs/DESIGN.md) | Design system: tokens, type ramp, components, motion, and the reasoning behind them. |
+| [docs/SYSTEM_GUIDE.html](docs/SYSTEM_GUIDE.html) | Developer walkthrough. Last verified 2026-07-17. |
 
-- [ ] `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://your-host`
-- [ ] Dedicated MySQL user (not `root`) with a strong password and limited grants
-- [ ] Fresh `APP_KEY` (`php artisan key:generate`)
-- [ ] `SESSION_ENCRYPT=true` (already set); set `SESSION_DOMAIN` to your host
-- [ ] `MAIL_MAILER=smtp` (or `ses`) with real credentials so reset/invite emails send (dev writes to log)
-- [ ] `php artisan config:cache route:cache view:cache` and `npm run build`
-- [ ] Serve over HTTPS (HSTS only activates on a TLS request)
-- [ ] Replace the demo seeder with real data; remove the demo-credentials hint on the login page
-- [ ] Still deferred: full CSP (needs nonce refactor, I-007 note), passkeys frontend (I-006), NRIC-at-rest encryption (I-018)
-
-## Not yet built (next phases)
-
-- Live AI assistant (responses are canned this phase)
-- Attendance geolocation / photo capture (UI only)
-- Claims, assets, training, org-chart, reports, admin modules (empty-state stubs)
-- Polish pass on the derived manager/management dashboards
+Progress history lives in `git log`, not in a doc.

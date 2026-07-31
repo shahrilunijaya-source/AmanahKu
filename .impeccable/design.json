@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-31T00:00:00Z",
+  "title": "Design System: Amanahku",
+  "extensions": {
+    "colorMeta": {
+      "red": { "role": "primary", "displayName": "Signal Red", "canonical": "#d6232b", "tonalRamp": ["#3a0a0c", "#5c1013", "#7e171b", "#a01e23", "#d6232b", "#e6595f", "#f19ba0", "#fcebec"] },
+      "red-active": { "role": "primary", "displayName": "Pressed Red", "canonical": "#b01b22", "tonalRamp": ["#2f080a", "#4c0d10", "#690f14", "#8c1419", "#b01b22", "#d24a52", "#e79197", "#f9e3e5"] },
+      "red-tint": { "role": "primary", "displayName": "Red Tint", "canonical": "#fcebec", "tonalRamp": ["#4a2223", "#6b3234", "#8f4749", "#b96f72", "#d79b9e", "#eec3c5", "#fcebec", "#fef7f7"] },
+      "canvas": { "role": "neutral", "displayName": "Paper", "canonical": "#f6f6f3", "tonalRamp": ["#26251e", "#3d3b33", "#57544a", "#7a776c", "#a3a094", "#c9c6bc", "#e6e5e0", "#f6f6f3"] },
+      "card": { "role": "neutral", "displayName": "Card White", "canonical": "#ffffff", "tonalRamp": ["#26251e", "#403e36", "#5a5852", "#8b887e", "#b5b2a8", "#dedcd5", "#efeee8", "#ffffff"] },
+      "shelf": { "role": "neutral", "displayName": "Shelf Paper", "canonical": "#ece9e1", "tonalRamp": ["#2b2822", "#443f36", "#5f594d", "#847d6e", "#ada596", "#cfc9bd", "#ddd9cf", "#ece9e1"] },
+      "shelf-line": { "role": "neutral", "displayName": "Shelf Line", "canonical": "#ddd9cf", "tonalRamp": ["#292620", "#413d34", "#5b564a", "#807a6b", "#a9a294", "#c6c0b3", "#ddd9cf", "#f0ede7"] },
+      "sidebar": { "role": "neutral", "displayName": "Sidebar Near-Black", "canonical": "#1f1e1a", "tonalRamp": ["#0e0d0b", "#1f1e1a", "#2b2a25", "#322f29", "#4a463d", "#6b6659", "#96907f", "#c6c1b2"] },
+      "sidebar-shell": { "role": "neutral", "displayName": "Sidebar Shell", "canonical": "#211f1b", "tonalRamp": ["#0e0d0b", "#211f1b", "#2b2a25", "#322f29", "#4a463d", "#6b6659", "#96907f", "#c6c1b2"] },
+      "sidebar-soft": { "role": "neutral", "displayName": "Sidebar Panel", "canonical": "#2b2a25", "tonalRamp": ["#131210", "#1f1e1a", "#2b2a25", "#3a3830", "#514e43", "#736f60", "#9d9887", "#cac5b6"] },
+      "sidebar-line": { "role": "neutral", "displayName": "Sidebar Rule", "canonical": "#322f29", "tonalRamp": ["#151412", "#221f1c", "#322f29", "#413e35", "#5a5649", "#7d7867", "#a7a190", "#d1ccbe"] },
+      "sidebar-text": { "role": "neutral", "displayName": "Sidebar Text", "canonical": "#b8b6ad", "tonalRamp": ["#2a2925", "#403f39", "#57564e", "#706e65", "#8b897f", "#a3a198", "#b8b6ad", "#dedcd5"] },
+      "sidebar-dim": { "role": "neutral", "displayName": "Sidebar Dim", "canonical": "#a5a297", "tonalRamp": ["#26251f", "#3a3831", "#4f4d44", "#67645a", "#807d72", "#93907f", "#a5a297", "#d3d0c7" ] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#26251e", "tonalRamp": ["#0f0f0c", "#191813", "#26251e", "#3d3b31", "#5a5852", "#8b887e", "#c2bfb5", "#efeee8"] },
+      "body": { "role": "neutral", "displayName": "Body Grey", "canonical": "#5a5852", "tonalRamp": ["#1c1b18", "#2c2b26", "#413f39", "#5a5852", "#78756c", "#9b988e", "#c4c1b8", "#eae8e2"] },
+      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#6f6c61", "tonalRamp": ["#22211d", "#34322c", "#4a483f", "#6f6c61", "#8b887e", "#aca99e", "#cecbc2", "#eeece7"] },
+      "muted-soft": { "role": "neutral", "displayName": "Muted Soft", "canonical": "#8b887e", "tonalRamp": ["#2a2925", "#3d3b35", "#545149", "#6f6c61", "#8b887e", "#a8a59b", "#c9c6bd", "#eceae5"] },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e6e5e0", "tonalRamp": ["#26251e", "#3d3c35", "#57554c", "#7a786e", "#a3a198", "#c7c5bd", "#e6e5e0", "#f6f6f3"] },
+      "hairline-soft": { "role": "neutral", "displayName": "Soft Hairline", "canonical": "#efeee8", "tonalRamp": ["#2a2923", "#403f38", "#5a584f", "#7d7b71", "#a6a49a", "#cbc9c1", "#efeee8", "#faf9f6"] },
+      "success": { "role": "tertiary", "displayName": "Ledger Green", "canonical": "#1f8a65", "tonalRamp": ["#062018", "#0a3527", "#0f4b37", "#146149", "#1f8a65", "#39b189", "#79cfb2", "#c6ece0"] },
+      "success-ink": { "role": "tertiary", "displayName": "Ledger Green Ink", "canonical": "#14614a", "tonalRamp": ["#04180f", "#08281d", "#0c3d2d", "#14614a", "#1f8a65", "#3aa982", "#7ecab0", "#c9ebdf"] },
+      "amber": { "role": "secondary", "displayName": "Owed Amber", "canonical": "#c08532", "tonalRamp": ["#2c1c06", "#452c0b", "#5f3e12", "#7a5210", "#c08532", "#d7a662", "#e8c99c", "#faf1e2"] },
+      "amber-ink": { "role": "secondary", "displayName": "Owed Amber Ink", "canonical": "#7a5210", "tonalRamp": ["#201404", "#33210a", "#4a3210", "#7a5210", "#a8762a", "#c9a05e", "#e2c79a", "#faf1e2"] },
+      "error": { "role": "secondary", "displayName": "Rejection Rose", "canonical": "#cf2d56", "tonalRamp": ["#2e0711", "#4b0c1c", "#6b1128", "#a01840", "#cf2d56", "#e0637f", "#efa3b4", "#fbe6eb"] },
+      "info": { "role": "secondary", "displayName": "Notice Blue", "canonical": "#3a6ea5", "tonalRamp": ["#0c1927", "#14293f", "#1d3c5b", "#28547c", "#3a6ea5", "#6a94bf", "#a2bcd8", "#dde7f1"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Figure XL", "purpose": "The single lead number on a reporting shelf. Mono, tabular, 54px." },
+      "figure": { "displayName": "Figure", "purpose": "Stat card values. Mono, tabular, 26px." },
+      "headline": { "displayName": "Headline", "purpose": "The page h1 and the sidebar clock. One per screen." },
+      "title": { "displayName": "Title", "purpose": "Card titles and section headings." },
+      "body": { "displayName": "Body", "purpose": "Nav rows, buttons, inputs, running copy. Measure caps at 52-64ch." },
+      "subline": { "displayName": "Subline", "purpose": "Captions, secondary rows, links." },
+      "label": { "displayName": "Label", "purpose": "Uppercase eyebrows, nav section headers, stamps, counts, timestamps." }
+    },
+    "shadows": [
+      { "name": "menu", "value": "0 5px 14px rgba(31, 30, 26, .13)", "purpose": "Dropdowns and popovers, which already carry a hairline edge. Token --shadow-menu." },
+      { "name": "hover-lift", "value": "0 4px 16px rgba(31, 30, 26, .07)", "purpose": "A clickable card under the cursor, paired with translateY(-1px)." },
+      { "name": "toast", "value": "0 12px 34px rgba(38, 37, 30, .15), 0 2px 6px rgba(38, 37, 30, .06)", "purpose": "Transient messages floating above everything." },
+      { "name": "drawer", "value": "-14px 0 44px rgba(31, 30, 26, .12)", "purpose": "The card detail drawer sliding in from the right." },
+      { "name": "sidebar-mobile", "value": "8px 0 44px rgba(31, 30, 26, .28)", "purpose": "The off-canvas sidebar over the page below 900px." },
+      { "name": "rail-flyout", "value": "0 6px 16px rgba(0, 0, 0, .42)", "purpose": "Dark flyout panel over light content; no border needed." },
+      { "name": "seg-active", "value": "0 1px 2px rgba(38, 37, 30, .08)", "purpose": "The white active pill inside a segmented control." },
+      { "name": "focus-glow", "value": "0 0 0 3px var(--red-tint)", "purpose": "Field focus, paired with a Signal Red border." }
+    ],
+    "motion": [
+      { "name": "ease-settle", "value": "cubic-bezier(0.32, 0.72, 0, 1)", "purpose": "Modal and drawer enter/leave. Settles, never pops." },
+      { "name": "ease-standard", "value": "cubic-bezier(.23, 1, .32, 1)", "purpose": "Disclosures, chevrons, flyouts, hover states across screens." },
+      { "name": "duration-enter", "value": "250ms", "purpose": "Overlay entrance; opening earns a beat of anticipation." },
+      { "name": "duration-leave", "value": "180ms", "purpose": "Overlay exit; closing gets out of the way." },
+      { "name": "duration-state", "value": "140ms", "purpose": "Default control transition (background, border, colour, shadow)." },
+      { "name": "duration-disclosure", "value": "240ms", "purpose": "grid-template-rows 0fr to 1fr accordion expansion." },
+      { "name": "press-scale", "value": "scale(0.97)", "purpose": "Tap feedback on buttons, pills and segmented controls." },
+      { "name": "stagger-step", "value": "42ms", "purpose": "Per-item delay for a list rising into place (calc(var(--i) * 42ms))." },
+      { "name": "toast-in", "value": "240ms cubic-bezier(.21, 1.02, .73, 1)", "purpose": "Toast entrance, translateY(10px) + scale(.98) to rest." },
+      { "name": "slide", "value": "220ms ease", "purpose": ".uj-slide — a panel entering from the right (translateX(24px) + fade)." },
+      { "name": "fade", "value": "150ms ease", "purpose": ".uj-fade — everything else, and the reduced-motion fallback for .uj-slide." },
+      { "name": "nav-busy", "value": "opacity .12s ease .09s to .55", "purpose": "Partial navigation dims only the screen body while the next screen is fetched; the 90ms delay stops a fast swap flickering." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "480px" },
+      { "name": "phone-wide", "value": "640px" },
+      { "name": "tablet", "value": "820px" },
+      { "name": "shell", "value": "900px" },
+      { "name": "dash-split", "value": "1024px" },
+      { "name": "measure-wide", "value": "1280px" },
+      { "name": "hdr-labels", "value": "@container hdr 960px" },
+      { "name": "hdr-fold", "value": "@container hdr 720px" },
+      { "name": "hdr-search", "value": "@container hdr 520px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one red action on a screen. Height and padding are set at the call site.",
+      "html": "<button class=\"ds-btn-primary\">Submit request</button>",
+      "css": ".ds-btn-primary { height: 40px; padding: 0 18px; background: #d6232b; color: #fff; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; border: 0; border-radius: 8px; cursor: pointer; transition: background .15s, transform 160ms ease-out; } .ds-btn-primary:hover { background: #b01b22; } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid #d6232b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The secondary action. White paper, hairline edge, ink text.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { height: 40px; padding: 0 16px; background: #fff; border: 1px solid #e6e5e0; color: #26251e; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; cursor: pointer; transition: border-color .15s, transform 160ms ease-out; } .ds-btn-ghost:hover { border-color: #8b887e; } .ds-btn-ghost:active { transform: scale(0.97); } .ds-btn-ghost:focus-visible { outline: 2px solid #d6232b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The default content surface: white, hairline, 12px radius, flat at rest.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><h3 class=\"ds-card-title\">Leave balance</h3><a class=\"ds-link\" href=\"#\">See all</a></div><div class=\"ds-card-body\"><div class=\"ds-stat-label\">Annual leave left</div><div class=\"ds-stat-value\">12.5</div></div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #e6e5e0; border-radius: 12px; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; overflow: hidden; } .ds-card-head { padding: 16px 20px; border-bottom: 1px solid #e6e5e0; display: flex; align-items: center; justify-content: space-between; } .ds-card-title { font-size: 15px; font-weight: 600; color: #26251e; margin: 0; } .ds-link { font-size: 12.5px; color: #d6232b; text-decoration: none; } .ds-card-body { padding: 18px; } .ds-stat-label { font-size: 12px; color: #6f6c61; margin-bottom: 4px; } .ds-stat-value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; color: #26251e; }"
+    },
+    {
+      "name": "Shelf",
+      "kind": "custom",
+      "refersTo": "shelf",
+      "description": "The heavier paper reserved for the one live task or lead figure on a screen. One per screen.",
+      "html": "<div class=\"ds-shelf\"><div class=\"ds-shelf-kicker\">This week</div><div class=\"ds-shelf-figrow\"><span class=\"ds-shelf-fig\">92%</span><span class=\"ds-shelf-sub\">of scheduled hours logged across the team.</span></div></div>",
+      "css": ".ds-shelf { background: #ece9e1; border: 1px solid #ddd9cf; border-radius: 14px; padding: 24px 26px 22px; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; } .ds-shelf-kicker { font-size: 11px; letter-spacing: .19em; text-transform: uppercase; color: #5a5852; font-weight: 600; } .ds-shelf-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; flex-wrap: wrap; } .ds-shelf-fig { font: 600 54px/1 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #26251e; letter-spacing: -.03em; } .ds-shelf-sub { font-size: 14px; color: #5a5852; max-width: 36ch; line-height: 1.5; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label above, 44px field, red border plus tint glow on focus.",
+      "html": "<label class=\"ds-label\" for=\"ds-in\">Summary</label><input class=\"ds-input\" id=\"ds-in\" type=\"text\" placeholder=\"A short, clear title\">",
+      "css": ".ds-label { display: block; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 12.5px; font-weight: 600; color: #26251e; margin-bottom: 6px; } .ds-input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid #e6e5e0; border-radius: 9px; background: #fff; color: #26251e; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; } .ds-input::placeholder { color: #8b887e; } .ds-input:focus { border-color: #d6232b; box-shadow: 0 0 0 3px #fcebec; }"
+    },
+    {
+      "name": "Status Stamp",
+      "kind": "chip",
+      "refersTo": "stamp",
+      "description": "A stamped word, not a colour alone. data-tone switches the pair of tint and text-safe ink.",
+      "html": "<span class=\"ds-stamp\" data-tone=\"amber\">ACTION NEEDED</span> <span class=\"ds-stamp\" data-tone=\"success\">APPROVED</span> <span class=\"ds-stamp\">ARCHIVED</span>",
+      "css": ".ds-stamp { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; white-space: nowrap; background: #efeee8; color: #6f6c61; } .ds-stamp[data-tone=\"red\"] { background: #fcebec; color: #b01b22; } .ds-stamp[data-tone=\"amber\"] { background: color-mix(in srgb, #c08532 13%, #fff); color: #7a5210; } .ds-stamp[data-tone=\"success\"] { background: color-mix(in srgb, #1f8a65 13%, #fff); color: #14614a; } .ds-stamp[data-tone=\"error\"] { background: #fcebec; color: #cf2d56; }"
+    },
+    {
+      "name": "Sidebar Nav Row",
+      "kind": "nav",
+      "refersTo": "nav-row",
+      "description": "Dark column row. Active is a soft white wash with a red icon, never a filled red pill.",
+      "html": "<nav class=\"ds-nav\"><div class=\"ds-nav-sec\">Daily</div><a class=\"ds-nav-row\" data-on href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/></svg><span class=\"ds-nav-lbl\">Attendance</span><span class=\"ds-nav-pill\">3</span></a><a class=\"ds-nav-row\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 6v6l4 2\"/><circle cx=\"12\" cy=\"12\" r=\"9\"/></svg><span class=\"ds-nav-lbl\">Timesheet</span></a></nav>",
+      "css": ".ds-nav { background: #211f1b; padding: 10px; border-radius: 12px; width: 248px; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; } .ds-nav-sec { font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: #a5a297; padding: 0 10px 8px; } .ds-nav-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #b8b6ad; text-decoration: none; margin-bottom: 1px; transition: background .14s ease, color .14s ease; } .ds-nav-row > svg { flex-shrink: 0; color: #8b887e; transition: color .14s ease; } .ds-nav-row:hover { background: rgba(255,255,255,.06); color: #fff; } .ds-nav-row:hover > svg { color: #c9c6bc; } .ds-nav-row[data-on] { background: rgba(255,255,255,.09); color: #fff; } .ds-nav-row[data-on] > svg { color: #d6232b; } .ds-nav-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-nav-pill { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; font-weight: 600; color: #a5a297; background: rgba(255,255,255,.08); border-radius: 9999px; padding: 1px 7px; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "Neutral track, white active pill. Red is the colour of the primary action, not of which tab you are on.",
+      "html": "<div class=\"ds-seg\"><button data-on>EN</button><button>BM</button></div>",
+      "css": ".ds-seg { display: inline-flex; background: #efeee8; border: 1px solid #e6e5e0; border-radius: 9px; padding: 3px; gap: 2px; } .ds-seg > button { height: 26px; padding: 0 11px; display: inline-flex; align-items: center; border: 0; border-radius: 7px; background: none; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; color: #6f6c61; cursor: pointer; transition: background .14s ease, color .14s ease, transform .14s ease; } .ds-seg > button:hover { color: #26251e; } .ds-seg > button:active { transform: scale(.97); } .ds-seg > button[data-on] { background: #fff; color: #26251e; box-shadow: 0 1px 2px rgba(38,37,30,.08); } .ds-seg > button:focus-visible { outline: 2px solid #d6232b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Bottom-right transient message with a tone disc and a draining progress bar that pauses on hover.",
+      "html": "<div class=\"ds-toast\" data-type=\"success\"><span class=\"ds-toast-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"><path d=\"M20 6L9 17l-5-5\"/></svg></span><span class=\"ds-toast-msg\">Leave request submitted for verification.</span><span class=\"ds-toast-bar\"></span></div>",
+      "css": ".ds-toast { position: relative; display: flex; align-items: flex-start; gap: 11px; min-width: 258px; max-width: 400px; padding: 12px; background: #fff; border: 1px solid #e6e5e0; border-radius: 12px; box-shadow: 0 12px 34px rgba(38,37,30,.15), 0 2px 6px rgba(38,37,30,.06); overflow: hidden; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; } .ds-toast-icon { flex-shrink: 0; width: 22px; height: 22px; margin-top: 1px; border-radius: 999px; display: grid; place-items: center; background: color-mix(in srgb, #1f8a65 14%, #fff); color: #1f8a65; } .ds-toast-icon svg { width: 13px; height: 13px; } .ds-toast-msg { flex: 1; min-width: 0; padding-top: 1px; font-size: 13.5px; font-weight: 500; line-height: 1.4; color: #26251e; } .ds-toast-bar { position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; transform-origin: left; opacity: .45; background: #1f8a65; animation: ds-toast-bar 5s linear forwards; } .ds-toast:hover .ds-toast-bar { animation-play-state: paused; } @keyframes ds-toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }"
+    },
+    {
+      "name": "Disclosure Row",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The app's recurring interaction: a row that expands a panel via grid-template-rows, so nothing has to be measured.",
+      "html": "<div class=\"ds-dq\"><button class=\"ds-dq-hd\" aria-expanded=\"false\"><span class=\"ds-dq-date\">14<br><i>JUL</i></span><span class=\"ds-dq-txt\"><span class=\"ds-dq-t\">Claim RM 148.00 - Grab to client site</span><span class=\"ds-dq-s\">Waiting on your verification</span></span><span class=\"ds-stamp\" data-tone=\"amber\">PENDING</span><svg class=\"ds-dq-chev\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M9 6l6 6-6 6\"/></svg></button></div>",
+      "css": ".ds-dq { border-bottom: 1px solid #efeee8; font-family: Poppins, ui-sans-serif, system-ui, sans-serif; } .ds-dq-hd { width: 100%; display: flex; align-items: center; gap: 13px; padding: 13px 18px; text-align: left; background: none; border: 0; border-radius: 10px; cursor: pointer; transition: background .14s ease-out; } .ds-dq-hd:hover { background: #f6f6f3; } .ds-dq-hd:focus-visible { outline: 2px solid #d6232b; outline-offset: -2px; } .ds-dq-date { width: 42px; flex-shrink: 0; text-align: center; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 16px; font-weight: 600; color: #26251e; line-height: 1.1; } .ds-dq-date i { font-style: normal; font-size: 11px; color: #8b887e; letter-spacing: .06em; } .ds-dq-txt { flex: 1; min-width: 0; } .ds-dq-t { display: block; font-size: 14px; font-weight: 500; color: #26251e; line-height: 1.35; } .ds-dq-s { display: block; font-size: 12.5px; color: #6f6c61; margin-top: 2px; line-height: 1.4; } .ds-dq-chev { flex-shrink: 0; color: #8b887e; transition: transform .2s ease-out; } .ds-dq-hd[aria-expanded=\"true\"] .ds-dq-chev { transform: rotate(90deg); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Ledger",
+    "overview": "Amanahku is a record of work, kept on paper. The page is a warm off-white sheet (#f6f6f3), never pure white and never grey-blue. Text is ink, not black. Edges are drawn with a 1px hairline the way a ruled ledger draws them, not with a shadow. Every number, timestamp, percentage and duration is set in mono with tabular figures, so a column of them stacks like a hand-kept account book instead of dancing as the digits change.\n\nOne red (#d6232b) carries the whole voice of the system. It marks the primary action, the focus ring, the active nav icon, and nothing else. Tabs, selected segments and current filters use a white pill on a neutral track, not red, because red answers the question \"what do I do here\" and never \"where am I\". This restraint is what makes a screen with twenty rows of leave requests still tell you in one glance where the one button is.\n\nThe interface is dense but not cramped. Type runs small (14px body, 11px labels) because these screens hold a working day's worth of rows; the compensation is generous line-height, a hard 920px reading measure, and whitespace between sections rather than inside them. The dark sidebar (#211f1b) is the one heavy element on the page: it holds navigation and the clock, so the paper stays undisturbed for content. Nothing decorates. Every visual weight in the system is either a status, a hierarchy, or an action.",
+    "keyCharacteristics": [
+      "Warm paper canvas, ink text, never a cold grey",
+      "One red, used rarely and only for action and focus",
+      "Hairlines draw edges; shadows only mean distance",
+      "Mono, tabular figures for every number",
+      "Five type sizes, one role each, no sizes in between",
+      "Two materials: --card white for content, --shelf for the one live task",
+      "Status is a stamped word, never a colour alone"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Red means \"act\" or \"you are focused here\". It never marks the current tab, the selected segment, or a decorative accent. If two red things are visible on one screen, one of them is wrong.", "section": "colors" },
+      { "name": "The Text-Safe Tone Rule", "body": "A semantic colour used as a fill and the same colour used as text are two different tokens. Use --success-ink (and the paired dark tones inside stamps) whenever the colour carries words.", "section": "colors" },
+      { "name": "The Tint-By-Mix Rule", "body": "Tone backgrounds are mixed at 7-14% of the tone into white with color-mix(), never hand-picked. A new tone gets its surface for free and stays in family.", "section": "colors" },
+      { "name": "The Five Steps Rule", "body": "Do not add a size between the ramp steps. If something needs to sit between 14px and 16px, it needs a different weight or colour, not a sixth size.", "section": "typography" },
+      { "name": "The Tabular Number Rule", "body": "Any digit that can change on screen (clock, percentage, count, duration) is mono with font-variant-numeric: tabular-nums. Numbers must not shift their neighbours when they update.", "section": "typography" },
+      { "name": "The Inherit Rule", "body": "button, input, select, textarea { font: inherit } is load-bearing. A bare control otherwise drops to 13.33px Arial and falls off the ramp entirely.", "section": "typography" },
+      { "name": "The One Column Rule", "body": "A screen never stretches edge to edge and never pins left. Header and body share the same measure, so screens read consistently as you move between them.", "section": "layout" },
+      { "name": "The Fold, Don't Drop Rule", "body": "When the header narrows, controls relocate into the More menu. Only the desktop-oriented people-search is genuinely removed, and only on phones.", "section": "layout" },
+      { "name": "The Border-Then-Shadow Rule", "body": "If an element has a hairline, its shadow may only lift it. A wide soft blur under a bordered element reads as a generic halo, not elevation.", "section": "elevation" },
+      { "name": "The Distance Rule", "body": "Shadow size tracks real distance: 5px blur for a menu, 34-44px for a drawer or toast. Never the reverse.", "section": "elevation" },
+      { "name": "The Radius-With-Size Rule", "body": "Small controls take 7-9px, cards take 12px, shelves take 14px. Do not put a 14px radius on a 32px control or a 6px radius on a full-width panel.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do use Signal Red only for the primary action, the focus ring, and the active nav icon.",
+      "Do set every changeable number in JetBrains Mono with tabular figures.",
+      "Do stay on the five type steps (11 / 12.5 / 14 / 16 / 22) and change weight or colour instead of inventing a size.",
+      "Do draw edges with a 1px hairline token and let tone (canvas to shelf to card) carry depth.",
+      "Do stamp a word next to a status colour, so the state survives colour blindness and greyscale printing.",
+      "Do use --success-ink and the paired dark tone foregrounds whenever a semantic colour carries text.",
+      "Do mix tone surfaces with color-mix() at 7-14% into white.",
+      "Do keep every screen inside the shared measure (920px, or 1280px for data-dense screens).",
+      "Do pair every animation with a prefers-reduced-motion branch.",
+      "Do put row layout in a class, not an inline style, on any element x-show controls: Alpine wipes the inline display on reveal.",
+      "Do swap only the affected region for an in-screen action (resources/js/partial-nav.js), let pushState keep the URL honest, and fetch the Blade partial the server already renders.",
+      "Do keep the global :focus-visible ring, use .uj-sr-only for screen-reader-only text, and give every icon-only control an aria-label."
+    ],
+    "donts": [
+      "Don't use red for tabs, selected segments, or decorative accents.",
+      "Don't put a shadow on a resting surface, or a wide soft blur under an element that already has a border.",
+      "Don't introduce pure white (#fff) as a page background or pure black as text; the canvas is warm paper and the text is ink.",
+      "Don't use a cold grey. Every neutral in this system carries a warm bias.",
+      "Don't animate width, height, top or left; use transforms and grid-template-rows.",
+      "Don't add a sixth type size or a radius outside the 5 / 7 / 9-10 / 12 / 14 / 999 scale.",
+      "Don't make the header a container query context's victim: keep fixed-position modals out of any element that sets container-type.",
+      "Don't rely on colour alone for a status; if there is no room for a stamp, use a tone chip with a border.",
+      "Don't reload the whole page for an in-screen action, and don't duplicate server-rendered markup inside Alpine to avoid it."
+    ]
+  }
+}
