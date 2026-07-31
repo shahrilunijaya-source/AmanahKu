@@ -33,6 +33,9 @@
        for success *text* at any size; keep --success for fills, rules and icons. */
     --success-ink: #14614a;
     --amber: #c08532;
+    /* Text-safe amber, same reasoning as --success-ink: --amber carries fills and
+       rules, this one carries warn *words* (chips, counts, tags). */
+    --amber-ink: #7a5210;
     --error: #cf2d56;
     --info: #3a6ea5;
     --shelf: #ece9e1;
@@ -61,6 +64,10 @@
     --t-base: 14px;
     --t-lg: 16px;
     --t-xl: 22px;
+
+    /* The one easing curve the app moves on. Every screen already writes it out
+       inline; this is the same curve, named, so blocks can reference it. */
+    --ease: cubic-bezier(.23, 1, .32, 1);
 }
 
 * { box-sizing: border-box; }
@@ -271,7 +278,7 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     background: var(--hairline-soft); color: var(--muted);
 }
 .uj-stamp[data-tone="red"]     { background: var(--red-tint); color: var(--red-active); }
-.uj-stamp[data-tone="amber"]   { background: color-mix(in srgb, var(--amber) 13%, #fff); color: #7a5210; }
+.uj-stamp[data-tone="amber"]   { background: color-mix(in srgb, var(--amber) 13%, #fff); color: var(--amber-ink); }
 .uj-stamp[data-tone="success"] { background: color-mix(in srgb, var(--success) 13%, #fff); color: #14614a; }
 .uj-stamp[data-tone="error"]   { background: var(--red-tint); color: var(--error); }
 
