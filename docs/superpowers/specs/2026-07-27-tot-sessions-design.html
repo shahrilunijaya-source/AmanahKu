@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TOT sessions design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#d6232b; --red-active:#b01b22; --red-tint:#fdf0f0;
+  --canvas:#faf9f5; --card:#fff;
+  --ink:#26251e; --body:#5a5852; --muted:#6f6c61; --muted-soft:#8b887e;
+  --hairline:#e6e5e0; --hairline-soft:#efeee8;
+  --success:#1f8a65; --amber:#b3762a; --info:#3a6ea5;
+  --sans:'Poppins',ui-sans-serif,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --eo:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:#f1f0eb;color:var(--body);-webkit-font-smoothing:antialiased;line-height:1.6}
+.page{max-width:1120px;margin:0 auto;padding:48px 24px 96px}
+
+.doc-head{margin-bottom:44px}
+.doc-kicker{font-size:12px;letter-spacing:.19em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.doc-title{font-size:38px;font-weight:600;color:var(--ink);line-height:1.15;margin:10px 0 0;letter-spacing:-.02em}
+.doc-sub{font-size:15px;color:var(--body);margin:12px 0 0;max-width:62ch}
+.doc-meta{font:600 12px var(--mono);color:var(--muted);margin-top:16px}
+
+.sec{margin-top:56px}
+.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.sec-t{font-size:20px;font-weight:600;color:var(--ink);margin:0;letter-spacing:-.01em}
+.sec-d{font-size:14px;color:var(--body);margin:0 0 20px;max-width:70ch}
+
+.screen{background:var(--canvas);border:1px solid var(--hairline);border-radius:14px;overflow:hidden}
+.mast{background:var(--red);padding:24px 26px 20px}
+.mast-k{font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:rgba(255,255,255,.92);font-weight:600}
+.mast-y{font:600 54px/1 var(--mono);color:#fff;margin-top:8px;letter-spacing:-.03em}
+.mast-s{font-size:13px;color:rgba(255,255,255,.94);margin-top:7px}
+.yr{background:none;border:0;cursor:pointer;font:600 15px var(--mono);color:rgba(255,255,255,.72);padding:2px 0;transition:color 160ms var(--eo);font-family:var(--mono)}
+.yr:hover{color:rgba(255,255,255,.9)}
+.yr[aria-selected="true"]{color:#fff}
+.chip{background:rgba(0,0,0,.15);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px}
+.chip b{font:600 18px var(--mono);color:#fff;line-height:1}
+.chip span{font-size:11px;letter-spacing:.04em;color:#fff;font-weight:500}
+
+.row{position:relative;display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:16px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--hairline);padding:14px 6px;cursor:pointer;font-family:inherit;transition:background 170ms var(--eo)}
+.row:hover,.row[aria-expanded="true"]{background:var(--red-tint)}
+.tile{border-radius:9px;padding:5px 0;text-align:center;transition:background 170ms var(--eo),transform 170ms var(--eo)}
+.tile .m{font:600 11px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.tile .d{font:600 26px/1 var(--mono);color:var(--ink);margin-top:2px;letter-spacing:-.03em}
+.row:hover .tile,.row[aria-expanded="true"] .tile{background:var(--red);transform:translateY(-1px)}
+.row:hover .tile .m,.row:hover .tile .d,.row[aria-expanded="true"] .tile .m,.row[aria-expanded="true"] .tile .d{color:#fff}
+.row:active .tile{transform:scale(.96)}
+.nm{font-size:19px;font-weight:600;color:var(--ink);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 160ms var(--eo)}
+.row:hover .nm{color:var(--red-active)}
+.sb{font-size:13px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rx{font-size:13px;white-space:nowrap}
+.rx b{font:600 11px var(--mono);color:var(--muted);margin-left:2px}
+.wt{font:600 11px var(--mono);color:var(--muted)}
+.up{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.chev{transition:transform 220ms var(--eo);color:var(--muted);flex-shrink:0}
+
+.wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows 280ms var(--eo)}
+.wrap[data-open="1"]{grid-template-rows:1fr}
+.wrap>div{overflow:hidden}
+.panel{padding:2px 6px 22px 72px}
+
+.emo{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;border:1px solid var(--hairline);background:var(--card);font-size:14px;line-height:1;cursor:pointer;font-family:inherit;transition:transform 140ms var(--eo),border-color 140ms var(--eo),background 140ms var(--eo)}
+.emo:hover{border-color:var(--muted)}
+.emo:active{transform:scale(.94)}
+.emo[data-on="1"]{background:var(--red-tint);border-color:var(--red)}
+.emo b{font:600 11px var(--mono);color:var(--muted)}
+.emo[data-on="1"] b{color:var(--red-active)}
+.lk{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;color:var(--ink);text-decoration:none;background:var(--card);transition:border-color 160ms var(--eo)}
+.lk:hover{border-color:var(--red)}
+.pillbtn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--hairline);border-radius:999px;background:var(--card);font-size:12.5px;color:var(--ink);font-family:inherit;cursor:pointer;transition:border-color 160ms var(--eo),transform 140ms var(--eo)}
+.pillbtn:hover{border-color:var(--muted)}
+.pillbtn:active{transform:scale(.97)}
+.score{width:36px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--hairline);border-radius:8px;background:var(--card);font:600 13px var(--mono);color:var(--ink);cursor:pointer;transition:border-color 140ms var(--eo),transform 140ms var(--eo)}
+.score:hover{border-color:var(--red)}
+.score:active{transform:scale(.94)}
+.note{font-size:12px;color:var(--muted);line-height:1.6}
+.rule{border-top:1px solid var(--hairline-soft);margin-top:16px;padding-top:14px}
+
+.av{width:28px;height:28px;border-radius:50%;background:var(--hairline-soft);color:var(--muted);display:flex;align-items:center;justify-content:center;font:600 11px var(--mono);flex-shrink:0}
+.field{height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);font-family:inherit;outline:none;width:100%}
+.field:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:5px;display:block}
+.btn-p{height:38px;padding:0 16px;border:0;border-radius:8px;background:var(--red);color:#fff;font:500 13px var(--sans);cursor:pointer;transition:background 150ms var(--eo),transform 140ms var(--eo)}
+.btn-p:hover{background:var(--red-active)}
+.btn-p:active{transform:scale(.97)}
+.btn-g{height:38px;padding:0 16px;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--ink);font:500 13px var(--sans);cursor:pointer;transition:border-color 150ms var(--eo),transform 140ms var(--eo)}
+.btn-g:hover{border-color:var(--muted)}
+.btn-g:active{transform:scale(.97)}
+
+.phone{width:330px;flex:0 0 auto;border:1px solid var(--hairline);border-radius:24px;overflow:hidden;background:var(--canvas)}
+.cap{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px}
+.mrow{display:grid;grid-template-columns:46px minmax(0,1fr) 14px;gap:12px;align-items:center;border-top:1px solid var(--hairline);padding:12px 4px}
+.mtile{border-radius:8px;padding:4px 0;text-align:center}
+.mtile .m{font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.mtile .d{font:600 21px/1 var(--mono);color:var(--ink);margin-top:1px;letter-spacing:-.03em}
+.ypill{border:0;border-radius:999px;padding:4px 11px;font:600 12px var(--mono);background:rgba(255,255,255,.18);color:rgba(255,255,255,.8)}
+.ypill[data-a="1"]{background:#fff;color:var(--red-active)}
+
+.tokens{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tok{background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 13px}
+.tok i{display:block;height:26px;border-radius:6px;margin-bottom:9px;border:1px solid rgba(0,0,0,.06)}
+.tok code{font:600 11px var(--mono);color:var(--ink);display:block}
+.tok span{font-size:12px;color:var(--muted)}
+
+table.spec{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border:1px solid var(--hairline);border-radius:10px;overflow:hidden}
+table.spec th{text-align:left;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 14px;border-bottom:1px solid var(--hairline);background:var(--hairline-soft)}
+table.spec td{padding:11px 14px;border-bottom:1px solid var(--hairline-soft);vertical-align:top;color:var(--body)}
+table.spec tr:last-child td{border-bottom:0}
+table.spec td:first-child{color:var(--ink);font-weight:500;white-space:nowrap}
+table.spec code{font:600 12px var(--mono);color:var(--red-active)}
+
+@media (max-width:640px){
+  .doc-title{font-size:28px}
+  .mast-y{font-size:40px}
+  .row{grid-template-columns:46px minmax(0,1fr) 14px;gap:12px}
+  .tile .d{font-size:21px}
+  .nm{font-size:16px}
+  .panel{padding:2px 4px 18px 4px}
+  .row .meta{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .row,.tile,.wrap,.emo,.nm,.yr,.lk,.chev,.pillbtn,.score,.btn-p,.btn-g{transition:none}
+  .row:hover .tile,.row:active .tile,.emo:active,.pillbtn:active,.score:active,.btn-p:active,.btn-g:active{transform:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="doc-head">
+  <div class="doc-kicker">Amanahku · knowledge module</div>
+  <h1 class="doc-title">TOT sessions</h1>
+  <p class="doc-sub">Design sample for the monthly Transfer of Technology board. It replaces the Google Sheet roster with a screen where the whole company can find past sessions, react, discuss, and rate the presenter privately.</p>
+  <div class="doc-meta">2026-07-27 · spec: docs/superpowers/specs/2026-07-27-tot-sessions-design.md</div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Desktop: the year lineup</h2></div>
+  <p class="sec-d">Twelve fixed slots, always all twelve. An absent month is information, not a gap. Switch year at the top right, click any month to open it in place.</p>
+
+  <div class="screen">
+    <div class="mast">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div class="mast-k">Transfer of technology</div>
+          <div class="mast-y" id="yrbig">2026</div>
+          <div class="mast-s">First Saturday of every month. One person, one topic.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-top:4px">
+          <button class="yr" onclick="setYear(2026)">2026</button>
+          <button class="yr" onclick="setYear(2025)">2025</button>
+          <button class="yr" onclick="setYear(2024)">2024</button>
+        </div>
+      </div>
+      <div id="stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"></div>
+    </div>
+    <div id="list" style="padding:0 14px 10px"></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Mobile</h2></div>
+  <p class="sec-d">Same lineup, one column. Reactions drop below the topic because they never fit beside a truncated title at 375px. The open row keeps its red tile so you can find your place after scrolling.</p>
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
+    <div>
+      <div class="phone">
+        <div class="mast" style="padding:16px 16px 14px">
+          <div class="mast-k">Transfer of technology</div>
+          <div class="mast-y" style="font-size:40px;margin-top:6px">2026</div>
+          <div class="mast-s" style="font-size:12px;margin-top:5px">First Saturday of every month.</div>
+          <div style="display:flex;gap:6px;margin-top:12px">
+            <span class="ypill" data-a="1">2026</span><span class="ypill">2025</span><span class="ypill">2024</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px">
+            <div class="chip" style="padding:7px 10px"><b style="font-size:16px">4</b><span style="font-size:11px">Held</span></div>
+            <div class="chip" style="padding:7px 10px"><b style="font-size:16px">2</b><span style="font-size:11px">Needs a topic</span></div>
+            <div class="chip" style="padding:7px 10px"><b style="font-size:16px">5</b><span style="font-size:11px">Upcoming</span></div>
+            <div class="chip" style="padding:7px 10px"><b style="font-size:16px">1</b><span style="font-size:11px">Not TOT</span></div>
+          </div>
+        </div>
+        <div style="padding:0 12px 10px" id="mlist"></div>
+      </div>
+      <div class="cap">Year list</div>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="mast" style="padding:16px 16px 12px">
+          <div class="mast-k">Transfer of technology</div>
+          <div class="mast-y" style="font-size:40px;margin-top:6px">2026</div>
+          <div style="display:flex;gap:6px;margin-top:11px">
+            <span class="ypill" data-a="1">2026</span><span class="ypill">2025</span><span class="ypill">2024</span>
+          </div>
+        </div>
+        <div style="padding:0 12px 12px">
+          <div class="mrow">
+            <div class="mtile"><div class="m">Jan</div><div class="d">03</div></div>
+            <div style="min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink);line-height:1.25">Solihin</div>
+              <div style="font-size:12px;color:var(--body);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Google AI Antigravity</div></div>
+            <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+
+          <div class="mrow" style="background:var(--red-tint);border-radius:10px 10px 0 0;padding-left:6px;padding-right:6px">
+            <div class="mtile" style="background:var(--red)"><div class="m" style="color:#fff">Mar</div><div class="d" style="color:#fff">07</div></div>
+            <div style="min-width:0"><div style="font-size:16px;font-weight:600;color:var(--red-active);line-height:1.25">Nabil</div>
+              <div style="font-size:12px;color:var(--body);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Install git on our own server</div></div>
+            <svg class="chev" style="transform:rotate(180deg);color:var(--red-active)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+
+          <div style="background:var(--red-tint);border-radius:0 0 10px 10px;padding:2px 12px 14px">
+            <div style="font:600 11px var(--mono);color:var(--muted);letter-spacing:.04em">SATURDAY 7 MARCH 2026 · 17 WATCHED</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+              <span class="lk" style="font-size:12px;padding:6px 10px">Slides</span>
+              <span class="lk" style="font-size:12px;padding:6px 10px">Recording</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:12px">
+              <span class="emo" data-on="1" style="padding:5px 9px">👍<b>9</b></span>
+              <span class="emo" style="padding:5px 9px">👏</span>
+              <span class="emo" style="padding:5px 9px">🔥<b>5</b></span>
+              <span class="emo" style="padding:5px 9px">💡<b>3</b></span>
+              <span class="emo" style="padding:5px 9px">🤔</span>
+              <span class="emo" style="padding:5px 9px">❤️</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;padding:10px;border:1px solid var(--hairline);border-radius:10px;background:#fff;font-size:13px;color:var(--ink);font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              I watched this
+            </div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(0,0,0,.07)">
+              <div class="note" style="font-size:12px">Rate this session. Only Nabil and management see scores, never with your name.</div>
+              <div style="display:flex;gap:6px;margin-top:9px">
+                <span class="score" style="flex:1;width:auto;height:38px">1</span>
+                <span class="score" style="flex:1;width:auto;height:38px">2</span>
+                <span class="score" style="flex:1;width:auto;height:38px">3</span>
+                <span class="score" style="flex:1;width:auto;height:38px">4</span>
+                <span class="score" style="flex:1;width:auto;height:38px;border-color:var(--red);color:var(--red-active)">5</span>
+              </div>
+              <div style="margin-top:7px;padding:9px 11px;border:1px solid var(--hairline);border-radius:9px;background:#fff;font-size:12.5px;color:var(--muted)">Add a note</div>
+            </div>
+          </div>
+
+          <div class="mrow">
+            <div class="mtile"><div class="m">Apr</div><div class="d">04</div></div>
+            <div style="min-width:0;opacity:.72"><div style="font-size:16px;font-weight:600;color:var(--muted);line-height:1.25">Company event</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:1px">Jamuan raya</div></div>
+            <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="cap">Session open</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">HR: assign and edit</h2></div>
+  <p class="sec-d">HR and management edit a slot in the row itself, never in a modal. The unassigned row states what is missing instead of showing an empty cell.</p>
+
+  <div class="screen" style="padding:0 14px 14px">
+    <div class="row" style="cursor:default;border-top:0">
+      <div class="tile"><div class="m">Sep</div><div class="d">05</div></div>
+      <div style="min-width:0">
+        <div class="nm" style="color:var(--muted)">Nobody assigned</div>
+        <div class="sb" style="color:var(--muted)">Pick a presenter before the reminder goes out on 22 August</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="pillbtn" style="border-color:var(--red);color:var(--red-active)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Assign PIC
+        </button>
+      </div>
+    </div>
+
+    <div class="row" aria-expanded="true" style="cursor:default">
+      <div class="tile"><div class="m">Oct</div><div class="d">03</div></div>
+      <div style="min-width:0">
+        <div class="nm">Salam</div>
+        <div class="sb" style="color:var(--muted)">Editing this slot</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px"><span class="up">Upcoming</span></div>
+    </div>
+
+    <div style="background:var(--red-tint);border-radius:0 0 10px 10px;padding:4px 6px 20px 72px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px">
+        <div><label class="lbl">Presenter</label><input class="field" value="Salam" readonly></div>
+        <div><label class="lbl">Status</label><input class="field" value="Confirmed" readonly></div>
+      </div>
+      <div style="margin-top:12px;max-width:620px"><label class="lbl">Topic</label><input class="field" value="Queue workers in production" readonly></div>
+      <div style="margin-top:12px;max-width:620px"><label class="lbl">Description</label><input class="field" style="height:64px;padding-top:9px" value="How we run and monitor Horizon on the staging box." readonly></div>
+
+      <div style="margin-top:16px;max-width:620px">
+        <label class="lbl">Links</label>
+        <div style="display:grid;grid-template-columns:150px 1fr 38px;gap:8px;margin-bottom:8px">
+          <input class="field" value="Slides" readonly>
+          <input class="field" value="https://docs.google.com/presentation/d/..." readonly>
+          <button class="btn-g" style="padding:0;width:38px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr 38px;gap:8px">
+          <input class="field" value="Recording" readonly>
+          <input class="field" value="https://app.read.ai/analytics/meetings/..." readonly>
+          <button class="btn-g" style="padding:0;width:38px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+        <button class="pillbtn" style="margin-top:9px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add a link
+        </button>
+      </div>
+
+      <div style="margin-top:16px;max-width:620px">
+        <label class="lbl">Related Knowledge Bank entry</label>
+        <input class="field" value="Not linked" readonly style="color:var(--muted)">
+        <div class="note" style="margin-top:6px">Optional. Links this session to a lesson the presenter already wrote. It never creates one.</div>
+      </div>
+
+      <div class="rule" style="max-width:620px;display:flex;gap:8px;align-items:center">
+        <button class="btn-p">Save slot</button>
+        <button class="btn-g">Cancel</button>
+        <div class="note" style="margin-left:auto">Marking this <b style="color:var(--ink);font-weight:600">Held</b> credits Salam's Knowledge Bank month.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Discussion</h2></div>
+  <p class="sec-d">Comments sit at the bottom of an open session, so questions posted before the Saturday and follow-ups posted after it live in one thread.</p>
+
+  <div class="screen" style="padding:0 14px 14px">
+    <div class="row" aria-expanded="true" style="cursor:default">
+      <div class="tile"><div class="m">Mar</div><div class="d">07</div></div>
+      <div style="min-width:0">
+        <div class="nm" style="color:var(--red-active)">Nabil</div>
+        <div class="sb" style="color:var(--body)">Install git on our own server</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="rx">👍<b>9</b></span><span class="rx">🔥<b>5</b></span><span class="wt">17 watched</span>
+      </div>
+    </div>
+
+    <div style="background:var(--red-tint);border-radius:0 0 10px 10px;padding:6px 6px 20px 72px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:14px">
+        <span style="font-size:14px;font-weight:600;color:var(--ink)">4 comments</span>
+        <span class="note">Oldest first</span>
+      </div>
+
+      <div style="display:flex;gap:11px;margin-bottom:16px">
+        <div class="av">AY</div>
+        <div style="min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13.5px;font-weight:600;color:var(--ink)">Ah Yew</span>
+            <span class="note" style="font-size:12px">2 March, before the session</span>
+          </div>
+          <div style="font-size:13.5px;color:var(--body);margin-top:2px">Will this cover access control, or only the install? We have three teams that need separate repos.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:11px;margin-bottom:16px">
+        <div class="av" style="background:var(--red-tint);color:var(--red-active);border:1px solid var(--red)">NB</div>
+        <div style="min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13.5px;font-weight:600;color:var(--ink)">Nabil</span>
+            <span style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--red-active);background:#fff;border:1px solid var(--red);border-radius:5px;padding:1px 6px">Presenter</span>
+            <span class="note" style="font-size:12px">3 March</span>
+          </div>
+          <div style="font-size:13.5px;color:var(--body);margin-top:2px">Both. I added a section on per-team access. Slides are up now if you want to read ahead.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:11px;margin-bottom:16px">
+        <div class="av">EM</div>
+        <div style="min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13.5px;font-weight:600;color:var(--ink)">Emy</span>
+            <span class="note" style="font-size:12px">7 March</span>
+          </div>
+          <div style="font-size:13.5px;color:var(--body);margin-top:2px">Followed the steps on the staging box this morning and it worked. One difference: our host needs the SSH port set explicitly.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:11px;margin-bottom:18px">
+        <div class="av">RB</div>
+        <div style="min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:13.5px;font-weight:600;color:var(--ink)">Rubmin</span>
+            <span class="note" style="font-size:12px">9 March</span>
+          </div>
+          <div style="font-size:13.5px;color:var(--body);margin-top:2px">Saving this one. It answers the question I asked in the October ETL session.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:11px;align-items:flex-start;max-width:620px">
+        <div class="av">SZ</div>
+        <div style="flex:1">
+          <input class="field" placeholder="Ask a question or add what you learned" style="height:42px">
+          <div style="display:flex;align-items:center;gap:9px;margin-top:8px">
+            <button class="btn-p" style="height:34px;font-size:12.5px">Post comment</button>
+            <span class="note" style="font-size:12px">Everyone in the workspace can read this.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Empty year</h2></div>
+  <p class="sec-d">A company with no history, or a year nobody has filled yet. The twelve slots still exist because the dates are computed, so the empty state is an invitation to assign, not a blank page.</p>
+
+  <div class="screen">
+    <div class="mast">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div class="mast-k">Transfer of technology</div>
+          <div class="mast-y">2027</div>
+          <div class="mast-s">First Saturday of every month. One person, one topic.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-top:4px">
+          <button class="yr" aria-selected="true">2027</button>
+          <button class="yr">2026</button>
+          <button class="yr">2025</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+        <div class="chip"><b>0</b><span>Held</span></div>
+        <div class="chip"><b>0</b><span>Needs a topic</span></div>
+        <div class="chip"><b>12</b><span>Waiting for a PIC</span></div>
+      </div>
+    </div>
+
+    <div style="padding:26px 20px 30px;text-align:center">
+      <div style="font-size:17px;font-weight:600;color:var(--ink)">Twelve Saturdays, nobody assigned yet</div>
+      <p style="font-size:13.5px;color:var(--body);max-width:52ch;margin:8px auto 0">The dates are already set: 2 January, 6 February, 6 March, and so on. Assign a presenter to each and the reminders take care of the rest.</p>
+      <div style="display:flex;gap:9px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+        <button class="btn-p">Build the 2027 roster</button>
+        <button class="btn-g">Copy last year's presenters</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;margin-top:26px;max-width:760px;margin-left:auto;margin-right:auto">
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Jan</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">02</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Feb</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">06</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Mar</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">06</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Apr</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">03</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">May</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">01</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Jun</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">05</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Jul</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">03</div></div>
+        <div style="border:1px dashed var(--hairline);border-radius:9px;padding:11px 6px"><div style="font:600 11px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Aug</div><div style="font:600 19px var(--mono);color:var(--muted);letter-spacing:-.03em">07</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Motion</h2></div>
+  <p class="sec-d">Everything under 300ms. No <code style="font:600 12px var(--mono);color:var(--red-active)">ease-in</code>, nothing entering from <code style="font:600 12px var(--mono);color:var(--red-active)">scale(0)</code>. All transforms are disabled under <code style="font:600 12px var(--mono);color:var(--red-active)">prefers-reduced-motion</code>.</p>
+
+  <table class="spec">
+    <tr><th>Element</th><th>Treatment</th><th>Why</th></tr>
+    <tr><td>Row hover</td><td>Date tile fills red, lifts 1px; row washes to tint; name goes red. <code>170ms</code></td><td>The date is already under the eye. Lighting it costs nothing to notice.</td></tr>
+    <tr><td>Row press</td><td><code>scale(.96)</code> on the tile</td><td>Makes the tile read as a key you push.</td></tr>
+    <tr><td>Row expand</td><td><code>grid-template-rows: 0fr → 1fr</code>, <code>280ms</code></td><td>Layout, not transform. No transform equivalent exists for unknown height. Click-triggered, so it never runs in a busy frame.</td></tr>
+    <tr><td>Chevron</td><td><code>rotate(180deg)</code>, <code>220ms</code></td><td>Direction of travel.</td></tr>
+    <tr><td>Emoji press</td><td><code>scale(.94)</code>, <code>140ms</code> ease-out</td><td>Direct manipulation needs press feedback.</td></tr>
+    <tr><td>Year switch</td><td>Colour only, <code>160ms</code></td><td>Three targets. A sliding indicator would be decoration.</td></tr>
+    <tr><td>Easing</td><td><code>cubic-bezier(.23,1,.32,1)</code></td><td>Strong ease-out. The CSS built-ins are too weak to read as intentional.</td></tr>
+  </table>
+</div>
+
+<div class="sec">
+  <div class="sec-h"><h2 class="sec-t">Colour</h2></div>
+  <p class="sec-d">No new colours. Every value below already exists in <code style="font:600 12px var(--mono);color:var(--red-active)">resources/css/app.css</code>. The one deliberate decision is using the brand red as a full field, which is also the app's error colour. TOT is the single screen where red means occasion rather than fault.</p>
+
+  <div class="tokens">
+    <div class="tok"><i style="background:#d6232b"></i><code>--red</code><span>Masthead, active tile</span></div>
+    <div class="tok"><i style="background:#b01b22"></i><code>--red-active</code><span>Name on hover</span></div>
+    <div class="tok"><i style="background:#fdf0f0"></i><code>--red-tint</code><span>Open row, hover wash</span></div>
+    <div class="tok"><i style="background:#faf9f5"></i><code>--canvas</code><span>Paper</span></div>
+    <div class="tok"><i style="background:#26251e"></i><code>--ink</code><span>Presenter name</span></div>
+    <div class="tok"><i style="background:#807d72"></i><code>--muted</code><span>Month label</span></div>
+    <div class="tok"><i style="background:#b3762a"></i><code>--amber</code><span>Topic still blank</span></div>
+    <div class="tok"><i style="background:#e6e5e0"></i><code>--hairline</code><span>Row rules</span></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const DATA={
+2026:[
+{m:"Jan",d:"03",w:"Solihin",t:"Google AI Antigravity",s:"done",L:["Slides"],r:{"👍":6,"💡":4},v:14},
+{m:"Feb",d:"07",w:"Roy",t:null,s:"stale",L:[],r:{},v:0},
+{m:"Mar",d:"07",w:"Nabil",t:"Install git on our own server",s:"done",L:["Slides","Recording"],r:{"👍":9,"🔥":5,"💡":3},v:17},
+{m:"Apr",d:"04",w:null,t:"Jamuan raya",s:"nottot",L:[],r:{},v:0},
+{m:"May",d:"02",w:"Syafiq",t:"Laravel AI chatbox v1",s:"done",L:["Slides"],r:{"👍":7,"🤔":2},v:12},
+{m:"Jun",d:"06",w:"Huraidi",t:null,s:"stale",L:[],r:{},v:0},
+{m:"Jul",d:"04",w:"Ah Yew",t:"Content template manager",s:"done",L:["Slides"],r:{"👍":5,"❤️":3},v:11},
+{m:"Aug",d:"01",w:"Rubmin",t:null,s:"plan",L:[],r:{},v:0},
+{m:"Sep",d:"05",w:"Emy",t:null,s:"plan",L:[],r:{},v:0},
+{m:"Oct",d:"03",w:"Salam",t:null,s:"plan",L:[],r:{},v:0},
+{m:"Nov",d:"07",w:"Hafiz",t:null,s:"plan",L:[],r:{},v:0},
+{m:"Dec",d:"05",w:"Faris",t:null,s:"plan",L:[],r:{},v:0}],
+2025:[
+{m:"Jan",d:"04",w:"Team",t:"Bad news social experiment",s:"done",L:[],r:{"👏":8},v:15},
+{m:"Feb",d:"01",w:"Team",t:"Catch the hacker",s:"done",L:["Brief","Findings A","Findings B"],r:{"🔥":11,"👏":6},v:19},
+{m:"Mar",d:"01",w:null,t:null,s:"skip",L:[],r:{},v:0},
+{m:"Apr",d:"05",w:"Emy",t:"Testing tools",s:"done",L:[],r:{"👍":4},v:9},
+{m:"May",d:"03",w:"Rubmin",t:"Cordova",s:"done",L:[],r:{"👍":3},v:8},
+{m:"Jun",d:"07",w:"Syakir",t:"Web admin",s:"done",L:[],r:{},v:7},
+{m:"Jul",d:"05",w:"Kussairi",t:"Proses kerja baru",s:"done",L:[],r:{"💡":5},v:13},
+{m:"Aug",d:"02",w:null,t:null,s:"skip",L:[],r:{},v:0},
+{m:"Sep",d:"06",w:"Kussairi",t:"Cara kawal stress",s:"done",L:[],r:{"❤️":9,"👏":4},v:16},
+{m:"Oct",d:"04",w:"Faris",t:"Flutter",s:"done",L:[],r:{"👍":6},v:10},
+{m:"Nov",d:"01",w:"Shuk",t:"Middleware",s:"done",L:[],r:{"💡":3},v:9},
+{m:"Dec",d:"06",w:"Hafiz",t:"Vue.js",s:"done",L:[],r:{"👍":5,"🔥":2},v:11}],
+2024:[
+{m:"Jan",d:"06",w:"Hakime",t:"e-Filing (LHDN)",s:"done",L:[],r:{"👍":4},v:8},
+{m:"Feb",d:"03",w:null,t:null,s:"skip",L:[],r:{},v:0},
+{m:"Mar",d:"02",w:"Aizat",t:"Power BI",s:"done",L:[],r:{"👍":3},v:7},
+{m:"Apr",d:"06",w:null,t:null,s:"skip",L:[],r:{},v:0},
+{m:"May",d:"04",w:null,t:null,s:"skip",L:[],r:{},v:0},
+{m:"Jun",d:"01",w:"Kak Lin",t:"Attendance and leave in the new HR system",s:"done",L:[],r:{"💡":6},v:14},
+{m:"Jul",d:"06",w:"Roy",t:"Power BI",s:"done",L:[],r:{"👍":2},v:6},
+{m:"Aug",d:"03",w:"Qisti",t:"Livewire Laravel",s:"done",L:["Slides"],r:{"👍":7,"🔥":3},v:12},
+{m:"Sep",d:"07",w:"Hiel",t:"Selenium",s:"done",L:["Slides","Video"],r:{"👍":5},v:11},
+{m:"Oct",d:"05",w:"Rubmin",t:"ETL tools",s:"done",L:["Recording","Slides"],r:{"💡":4},v:10},
+{m:"Nov",d:"02",w:"PE",t:"PE presentation review",s:"done",L:["Recording"],r:{},v:9},
+{m:"Dec",d:"07",w:null,t:null,s:"skip",L:[],r:{},v:0}]};
+
+const EMOJI=["👍","👏","🔥","💡","🤔","❤️"];
+let year=2026, open=2, mine={};
+
+const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const chevSvg=(up)=>`<svg class="chev" style="transform:rotate(${up?180:0}deg)" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>`;
+const linkSvg=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14L21 3"/></svg>`;
+const eyeSvg=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+function setYear(y){year=y;open=-1;render()}
+function toggle(i){open=open===i?-1:i;render()}
+function react(i,e){const s=DATA[year][i],k=year+"-"+i+"-"+e;mine[k]=!mine[k];s.r[e]=(s.r[e]||0)+(mine[k]?1:-1);if(s.r[e]<=0)delete s.r[e];render()}
+
+function render(){
+  const rows=DATA[year];
+  document.getElementById("yrbig").textContent=year;
+  document.querySelectorAll(".yr").forEach(b=>b.setAttribute("aria-selected",b.textContent===String(year)));
+
+  const counts=[["Held",rows.filter(r=>r.s==="done").length],["Needs a topic",rows.filter(r=>r.s==="stale").length],["Upcoming",rows.filter(r=>r.s==="plan").length],["No session",rows.filter(r=>r.s==="skip").length]];
+  document.getElementById("stats").innerHTML=counts.map(([l,n])=>`<div class="chip"><b>${n}</b><span>${l}</span></div>`).join("");
+
+  document.getElementById("list").innerHTML=rows.map((r,i)=>{
+    const isOpen=i===open, gone=r.s==="skip", non=r.s==="nottot", fut=r.s==="plan", stale=r.s==="stale";
+    const name=r.w?esc(r.w):(non?"Company event":"Nobody assigned");
+    const nameColor=gone?"var(--muted-soft)":non?"var(--muted)":"var(--ink)";
+    const sub=gone?"No session held":non?esc(r.t):r.t?esc(r.t):(stale?"Topic still blank":"Topic to be confirmed");
+    const subColor=stale?"var(--amber)":(r.t&&!non)?"var(--body)":"var(--muted-soft)";
+    const rx=Object.entries(r.r).slice(0,3).map(([e,n])=>`<span class="rx">${e}<b>${n}</b></span>`).join("");
+    const meta=r.v?`<span class="wt">${r.v} watched</span>`:(fut?`<span class="up">Upcoming</span>`:"");
+    const links=r.L.length?r.L.map(l=>`<span class="lk">${linkSvg}${esc(l)}</span>`).join(""):`<span style="font-size:12.5px;color:var(--muted)">No material uploaded yet.</span>`;
+    const bar=EMOJI.map(e=>`<button class="emo" data-on="${mine[year+"-"+i+"-"+e]?1:0}" onclick="event.stopPropagation();react(${i},'${e}')" aria-label="React ${e}">${e}${r.r[e]?"<b>"+r.r[e]+"</b>":""}</button>`).join("");
+
+    return `<button class="row" aria-expanded="${isOpen}" onclick="toggle(${i})" style="opacity:${gone?.45:non?.72:1}">
+      <div class="tile"><div class="m">${r.m}</div><div class="d" style="${gone?"color:var(--muted)":""}">${r.d}</div></div>
+      <div style="min-width:0">
+        <div class="nm" style="color:${nameColor}">${name}</div>
+        <div class="sb" style="color:${subColor}">${sub}</div>
+      </div>
+      <div class="meta" style="display:flex;align-items:center;gap:12px;flex-shrink:0">${rx}${meta}${chevSvg(isOpen)}</div>
+    </button>
+    <div class="wrap" data-open="${isOpen?1:0}"><div><div class="panel">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${links}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;align-items:center">${bar}
+        <button class="pillbtn" style="margin-left:auto" onclick="event.stopPropagation()">${eyeSvg}I watched this</button>
+      </div>
+      <div class="rule">
+        <div class="note" style="margin-bottom:9px">Rate this session. Only ${r.w?esc(r.w):"the presenter"} and management see scores, and never with your name.</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${[1,2,3,4,5].map(n=>`<button class="score" onclick="event.stopPropagation()">${n}</button>`).join("")}
+          <span style="font-size:12.5px;color:var(--muted);margin-left:4px">Add a note</span>
+        </div>
+      </div>
+    </div></div></div>`}).join("");
+
+  document.getElementById("mlist").innerHTML=DATA[2026].slice(0,6).map(r=>{
+    const gone=r.s==="skip",non=r.s==="nottot",fut=r.s==="plan",stale=r.s==="stale";
+    const active=r.m==="Mar";
+    const name=r.w?esc(r.w):(non?"Company event":"Nobody assigned");
+    const sub=gone?"No session held":non?esc(r.t):r.t?esc(r.t):(stale?"Topic still blank":"Topic to be confirmed");
+    const subColor=stale?"var(--amber)":(r.t&&!non)?"var(--body)":"var(--muted-soft)";
+    const rx=Object.entries(r.r).slice(0,2).map(([e,n])=>`<span style="font-size:12px">${e}<b style="font:600 11px var(--mono);color:var(--muted);margin-left:2px">${n}</b></span>`).join("");
+    const third=r.v?`<div style="display:flex;gap:9px;align-items:center;margin-top:5px">${rx}<span style="font:600 11px var(--mono);color:var(--muted)">${r.v} watched</span></div>`:(fut?`<div class="up" style="margin-top:5px">Upcoming</div>`:"");
+    return `<div class="mrow" style="${active?"background:var(--red-tint);border-radius:10px;padding-left:6px;padding-right:6px;":""}opacity:${non?.72:1}">
+      <div class="mtile" ${active?'style="background:var(--red)"':''}><div class="m" ${active?'style="color:#fff"':''}>${r.m}</div><div class="d" ${active?'style="color:#fff"':''}>${r.d}</div></div>
+      <div style="min-width:0">
+        <div style="font-size:16px;font-weight:600;color:${active?"var(--red-active)":non?"var(--muted)":"var(--ink)"};line-height:1.25">${name}</div>
+        <div style="font-size:12px;color:${subColor};margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+        ${third}
+      </div>
+      ${chevSvg(active)}
+    </div>`}).join("");
+}
+render();
+</script>
+</body>
+</html>
