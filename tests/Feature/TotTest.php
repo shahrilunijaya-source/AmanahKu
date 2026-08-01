@@ -1097,6 +1097,27 @@ class TotTest extends TestCase
         $response->assertSee('>Hakime</option>', false);
     }
 
+    /**
+     * The board is a wall of twelve months read at a glance, so it names presenters the way
+     * colleagues say them. A lower-case nickname still starts with a capital letter there.
+     */
+    public function test_the_board_names_the_presenter_by_capitalised_nickname(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $this->makeSession(['presenter_employee_id' => $hakime->id]);
+
+        $hr = $this->hrActor();
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertSee('Hakime');
+        $response->assertDontSee('Mohd Hakime Bin Md Nasri');
+    }
+
     public function test_assigning_a_presenter_through_the_dropdown_saves(): void
     {
         $hakime = Employee::create([

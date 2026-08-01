@@ -19,7 +19,7 @@
             <div class="wd-body">
                 @if ($session->exists)
                     @php
-                        $presenterName = $session->presenter?->name ?? $session->presenter_name;
+                        $presenterName = $session->presenter?->display_name ?? $session->presenter_name;
                         $isEvent = in_array($session->status, ['not_tot', 'skipped'], true);
                     @endphp
 

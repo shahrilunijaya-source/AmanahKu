@@ -46,7 +46,7 @@
 
         $nameText = $session->status === 'skipped'
             ? 'No session held'
-            : ($session->presenter?->name ?? $session->presenter_name
+            : ($session->presenter?->display_name ?? $session->presenter_name
                 ?? ($session->status === 'not_tot' ? 'Company event' : 'Nobody assigned'));
 
         $kind = match ($session->status) {
