@@ -14,11 +14,14 @@ use App\Http\Middleware\ReadOnlyObserver;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Models\ErrorEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -64,6 +67,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.
         $schedule->command('tot:remind')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('tot:remind'));
+        // Captured faults are a debugging aid, not a record to keep. Without this the
+        // table only grows, and one exception inside a loop can fill it in a day.
+        $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())
+            ->dailyAt('03:00')->name('error-events:prune')->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         // Behind a TLS-terminating proxy (Nginx/ALB) the app only sees HTTP unless it
@@ -97,4 +104,32 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Every reportable exception is written to the app's own database, because
+        // production offers no shell, no database client and no log file to read one
+        // from. Returning nothing (not false) keeps Laravel's normal logging as well.
+        // 404s, CSRF expiries and validation failures never reach here: Laravel skips
+        // reportable callbacks for anything it does not report.
+        $exceptions->report(function (Throwable $e): void {
+            ErrorEvent::capture($e);
+        });
+
+        // The reference is only useful if the person who hit the fault can read it out
+        // loud. Browsers get it from errors/500.blade.php; the header and the JSON key
+        // carry it to fetch callers and to the API.
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request): Response {
+            $reference = ErrorEvent::currentReference();
+
+            if ($reference === null) {
+                return $response;
+            }
+
+            $response->headers->set('X-Error-Reference', $reference);
+
+            if ($response instanceof JsonResponse && $response->getStatusCode() >= 500) {
+                $response->setData($response->getData(true) + ['reference' => $reference]);
+            }
+
+            return $response;
+        });
     })->create();

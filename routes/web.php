@@ -58,6 +58,7 @@ use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
+use App\Http\Controllers\SuperAdmin\ErrorEventController;
 use App\Http\Controllers\SuperAdmin\FeatureController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TimesheetAdminController;
@@ -122,6 +123,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
+
+        // Captured production faults. A user reports the reference printed on the error
+        // page and this is where it is read back. Super-admin only: a stack trace names
+        // internal files and the person who hit it.
+        Route::get('/errors', [ErrorEventController::class, 'index'])->name('errors.index');
+        Route::get('/errors/{errorEvent}', [ErrorEventController::class, 'show'])->name('errors.show');
     });
 
     // Everything inside the shell is tenant-scoped. company.active blocks suspended/

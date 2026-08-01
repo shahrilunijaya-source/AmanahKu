@@ -19,7 +19,8 @@
             <div style="width:30px;height:30px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">A</div>
             <span style="font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
             <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);background:var(--hairline-soft);padding:4px 9px;border-radius:9999px;margin-left:4px;">Super Admin</span>
-            <form action="/logout" method="post" style="margin-left:auto;">
+            <a href="{{ route('superadmin.errors.index') }}" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--hairline);padding:8px 14px;border-radius:8px;">Errors</a>
+            <form action="/logout" method="post">
                 @csrf
                 <button type="submit" style="font-size:13px;font-weight:600;color:var(--red);background:none;border:1px solid var(--hairline);cursor:pointer;padding:8px 14px;border-radius:8px;">Sign out</button>
             </form>
