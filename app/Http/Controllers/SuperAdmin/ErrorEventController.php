@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ErrorEvent;
 use Illuminate\Http\Request;
 use Illuminate\View\View as ViewContract;
+use RuntimeException;
 
 /**
  * Read the captured faults. Reachable only behind the super.admin guard.
@@ -35,6 +36,20 @@ class ErrorEventController extends Controller
             'events' => $events,
             'search' => $search,
         ]);
+    }
+
+    /**
+     * Throw on purpose, to prove the capture chain works on this environment.
+     *
+     * On production a developer holds a super-admin login and nothing else, so there is
+     * no other way to answer "is error capture actually working here" — not before a
+     * real fault arrives, which is the worst moment to find out it is not. Hitting this
+     * should end at the standard error page carrying a reference that then resolves in
+     * the list. It reads nothing and writes nothing but the fault it causes.
+     */
+    public function selfTest(): never
+    {
+        throw new RuntimeException('Error capture self-test. Nothing is broken; a super-admin asked for this fault.');
     }
 
     /** One fault in full, including the stack. */

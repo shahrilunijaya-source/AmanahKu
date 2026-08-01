@@ -144,7 +144,33 @@ class ErrorEventCaptureTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->get(route('superadmin.errors.index', ['q' => strtolower($reference)]))
             ->assertOk()
-            ->assertSee($reference);
+            ->assertSee($reference)
+            ->assertSee('Run self-test');
+    }
+
+    public function test_the_self_test_route_proves_the_whole_chain(): void
+    {
+        // The only way to answer "is capture working on this environment" from a
+        // super-admin login alone, which on production is all a developer holds.
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.errors.self-test'))
+            ->assertStatus(500);
+
+        $event = ErrorEvent::sole();
+
+        $this->assertStringContainsString('self-test', $event->message);
+        $response->assertSee($event->reference)->assertHeader('X-Error-Reference', $event->reference);
+    }
+
+    public function test_an_ordinary_user_cannot_run_the_self_test(): void
+    {
+        $staff = User::create(['name' => 'Staff', 'email' => 'nobody@example.com', 'password' => Hash::make('password')]);
+
+        $this->actingAs($staff)
+            ->get(route('superadmin.errors.self-test'))
+            ->assertForbidden();
+
+        $this->assertSame(0, ErrorEvent::count());
     }
 
     public function test_an_ordinary_user_cannot_read_captured_faults(): void
