@@ -8,7 +8,7 @@
         'date' => $s->session_date->format('j M'),
         'month' => $s->session_date->format('M'),
         'presenter' => $s->presenter_employee_id
-            ? ['id' => $s->presenter_employee_id, 'name' => $s->presenter?->name ?? $s->presenter_name]
+            ? ['id' => $s->presenter_employee_id, 'name' => $s->presenter?->display_name ?? $s->presenter_name]
             : null,
     ])->values();
     $rosterSeed = $assignableEmployees->map(fn ($p) => ['id' => $p->id, 'name' => $p->display_name])->values();

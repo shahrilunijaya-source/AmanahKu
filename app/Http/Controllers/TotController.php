@@ -303,7 +303,7 @@ class TotController extends Controller
             ->get()
             ->map(fn (TotComment $c) => [
                 'id' => $c->id,
-                'name' => $c->employee->name,
+                'name' => $c->employee->display_name,
                 'initials' => $c->employee->initials ?? '',
                 'color' => $c->employee->avatar_color ?? '#3a6ea5',
                 'presenter' => $session->presenter_employee_id !== null

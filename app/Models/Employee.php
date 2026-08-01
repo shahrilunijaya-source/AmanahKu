@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * `date_of_birth` and `joined_at` have a `date` cast, so they read back as Carbon
@@ -50,12 +51,13 @@ class Employee extends Model
     /**
      * The one name format the whole app shows: the nickname people actually say ("Hakime"),
      * falling back to the full legal name when nobody has recorded one. The legal name stays
-     * in `name` for documents and payroll.
+     * in `name` for documents and payroll. A nickname typed in lower case ("hakime") is
+     * capitalised here so lists never show it mid-sentence style.
      */
     protected function displayName(): Attribute
     {
         return Attribute::make(
-            get: fn () => blank($this->nickname) ? $this->name : $this->nickname,
+            get: fn () => blank($this->nickname) ? $this->name : Str::ucfirst($this->nickname),
         );
     }
 
