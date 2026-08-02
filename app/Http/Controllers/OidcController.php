@@ -17,12 +17,18 @@ use Throwable;
  *
  * SECURITY MODEL — deliberately minimal trust in the IdP:
  *  - We accept ONLY an email-verified claim from userinfo (see verifiedEmail()).
+ *  - The email must pass the configured domain allowlist, if one is set.
  *  - A matching existing user is logged in as-is.
- *  - A brand-new email creates a user with NO tenant and NO roles — they land on
- *    the "no workspace yet" screen until an HR admin invites them by email.
+ *  - A brand-new email is REFUSED by default (requiresExistingUser). Only a
+ *    deployment that opts out provisions a user with NO tenant and NO roles,
+ *    who lands on the "no workspace yet" screen until HR invites them.
  *  - We NEVER set is_super_admin, NEVER auto-attach to a tenant, and NEVER grant
- *    a privileged role. SSO can create an account; it cannot grant access.
+ *    a privileged role. SSO can at most create an account; it cannot grant access.
  *  - state is verified against the session to defeat CSRF / replay.
+ *
+ * The two gates matter most against a PUBLIC provider. With staff on personal
+ * Gmail addresses the domain allowlist is worthless — everybody shares gmail.com —
+ * so requiresExistingUser is the only thing keeping strangers out.
  */
 class OidcController extends Controller
 {
@@ -72,7 +78,21 @@ class OidcController extends Controller
             return redirect('/login')->withErrors(['email' => 'Your identity provider did not return a verified email address.']);
         }
 
+        // Checked before resolveUser so a rejected address never reaches the database.
+        if (! $this->oidc->allowsEmail($email)) {
+            return redirect('/login')->withErrors([
+                'email' => 'That account is not permitted to sign in here. Use your '
+                    .implode(' or ', $this->oidc->allowedDomains()).' account.',
+            ]);
+        }
+
         $user = $this->resolveUser($email, $claims);
+
+        if ($user === null) {
+            return redirect('/login')->withErrors([
+                'email' => 'No Amanahku account uses that email address. Ask your HR admin to add you first.',
+            ]);
+        }
         Auth::login($user, remember: true);
         $request->session()->regenerate();
 
@@ -85,12 +105,19 @@ class OidcController extends Controller
      * Match a verified email to an existing user, or provision a tenant-less one.
      * New accounts get a verified email (the IdP vouched for it) and a random
      * unusable-by-design password; they sign in only via SSO until they reset.
+     *
+     * Returns null when provisioning is off and no account matches — the caller
+     * turns that into a "ask HR to add you" refusal.
      */
-    private function resolveUser(string $email, array $claims): User
+    private function resolveUser(string $email, array $claims): ?User
     {
         $existing = User::where('email', $email)->first();
         if ($existing) {
             return $existing;
+        }
+
+        if ($this->oidc->requiresExistingUser()) {
+            return null;
         }
 
         $name = $claims['name'] ?? $claims['preferred_username'] ?? Str::before($email, '@');

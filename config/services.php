@@ -51,6 +51,17 @@ return [
     | authorize/token/userinfo endpoints are all present. When unset, the SSO
     | button is hidden and the routes return 404 — auth falls back to password.
     | Hand-rolled (no Socialite dependency): see App\Services\OidcClient.
+    |
+    | Point authorize/token/userinfo at Google to get "Sign in with Google" —
+    | no provider-specific code is involved.
+    |
+    | Two independent gates matter with a PUBLIC provider such as Google, which
+    | vouches for every account on earth, not just your staff:
+    |  - require_existing_user (default true): SSO signs in accounts that already
+    |    exist and never provisions new ones. The right gate when staff use
+    |    personal Gmail addresses, where the domain proves nothing.
+    |  - allowed_domains: only for a real company domain. Useless against
+    |    gmail.com, which everybody shares.
     */
     'oidc' => [
         'client_id' => env('OIDC_CLIENT_ID'),
@@ -61,6 +72,9 @@ return [
         'userinfo_url' => env('OIDC_USERINFO_URL'),
         'redirect' => env('OIDC_REDIRECT_URL'),
         'scopes' => env('OIDC_SCOPES', 'openid email profile'),
+        'allowed_domains' => env('OIDC_ALLOWED_DOMAINS'),
+        'require_existing_user' => env('OIDC_REQUIRE_EXISTING_USER', true),
+        'label' => env('OIDC_LABEL', 'SSO'),
     ],
 
 ];

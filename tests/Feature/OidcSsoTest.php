@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\OidcClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -26,6 +27,9 @@ class OidcSsoTest extends TestCase
             'userinfo_url' => 'https://idp.example.com/userinfo',
             'redirect' => 'https://app.test/auth/oidc/callback',
             'scopes' => 'openid email profile',
+            // Most cases here model a private IdP that is trusted to provision. The
+            // public-provider default is the opposite, and has its own cases below.
+            'require_existing_user' => false,
         ]);
     }
 
@@ -152,5 +156,128 @@ class OidcSsoTest extends TestCase
             ->assertSessionHasErrors('email');
 
         $this->assertGuest();
+    }
+
+    /** Narrow the allowlist to the given comma-separated domains. */
+    private function allowDomains(string $domains): void
+    {
+        config()->set('services.oidc.allowed_domains', $domains);
+    }
+
+    public function test_callback_admits_an_email_on_an_allowed_domain(): void
+    {
+        $this->allowDomains('corp.com');
+        $this->fakeIdp('staff@corp.com', true, 'On Staff');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect(route('tenant.select'));
+
+        $this->assertAuthenticatedAs(User::where('email', 'staff@corp.com')->first());
+    }
+
+    public function test_callback_rejects_an_email_outside_the_allowlist_without_creating_a_user(): void
+    {
+        $this->allowDomains('corp.com');
+        $this->fakeIdp('outsider@gmail.com', true, 'Out Sider');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        // The point of the allowlist: a rejected address leaves nothing behind.
+        $this->assertDatabaseMissing('users', ['email' => 'outsider@gmail.com']);
+    }
+
+    public function test_allowlist_accepts_several_domains_and_ignores_case_and_spacing(): void
+    {
+        $this->allowDomains(' Corp.com , subsidiary.com ');
+        $this->fakeIdp('Staff@SUBSIDIARY.com', true, 'Sub Staff');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect(route('tenant.select'));
+
+        $this->assertAuthenticatedAs(User::where('email', 'staff@subsidiary.com')->first());
+    }
+
+    public function test_an_empty_allowlist_admits_any_verified_email(): void
+    {
+        // The pre-existing generic-IdP behaviour must survive the allowlist landing.
+        $this->fakeIdp('anyone@wherever.example', true, 'Any One');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect(route('tenant.select'));
+
+        $this->assertDatabaseHas('users', ['email' => 'anyone@wherever.example']);
+    }
+
+    public function test_redirect_sends_the_google_hd_hint_for_a_single_allowed_domain(): void
+    {
+        $this->allowDomains('corp.com');
+
+        $location = (string) $this->get('/auth/oidc/redirect')->headers->get('Location');
+
+        $this->assertStringContainsString('hd=corp.com', $location);
+    }
+
+    public function test_redirect_omits_hd_when_the_allowlist_is_empty_or_has_several_domains(): void
+    {
+        $this->assertStringNotContainsString('hd=', (string) $this->get('/auth/oidc/redirect')->headers->get('Location'));
+
+        $this->allowDomains('corp.com,subsidiary.com');
+
+        // Google takes a single domain, so a list must not be squeezed into the hint.
+        $this->assertStringNotContainsString('hd=', (string) $this->get('/auth/oidc/redirect')->headers->get('Location'));
+    }
+
+    public function test_login_button_carries_the_configured_provider_label(): void
+    {
+        config()->set('services.oidc.label', 'Google');
+
+        $this->get('/login')->assertOk()->assertSee('Sign in with Google');
+    }
+
+    public function test_provisioning_is_off_unless_a_deployment_opts_in(): void
+    {
+        // Fail-safe default. A deployment must say so explicitly to let SSO create accounts.
+        config()->offsetUnset('services.oidc.require_existing_user');
+
+        $this->assertTrue(OidcClient::fromConfig()->requiresExistingUser());
+    }
+
+    public function test_callback_refuses_an_unknown_email_when_provisioning_is_off(): void
+    {
+        config()->set('services.oidc.require_existing_user', true);
+        $this->fakeIdp('stranger.unijaya@gmail.com', true, 'A Stranger');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        // The whole point: staff on shared gmail.com means the domain proves nothing,
+        // so an unknown address must leave no trace behind.
+        $this->assertDatabaseMissing('users', ['email' => 'stranger.unijaya@gmail.com']);
+    }
+
+    public function test_callback_still_signs_in_a_known_user_when_provisioning_is_off(): void
+    {
+        config()->set('services.oidc.require_existing_user', true);
+        $user = User::create([
+            'name' => 'Aina', 'email' => 'aina.unijaya@gmail.com', 'password' => Hash::make('password'),
+        ]);
+
+        $this->fakeIdp('aina.unijaya@gmail.com');
+
+        $this->withSession(['oidc.state' => 'good-state'])
+            ->get('/auth/oidc/callback?code=abc&state=good-state')
+            ->assertRedirect(route('tenant.select'));
+
+        $this->assertAuthenticatedAs($user);
     }
 }

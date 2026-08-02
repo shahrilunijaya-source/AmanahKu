@@ -21,7 +21,7 @@ use RuntimeException;
 class OidcClient
 {
     /**
-     * @param  array{client_id?:?string,client_secret?:?string,issuer?:?string,authorize_url?:?string,token_url?:?string,userinfo_url?:?string,redirect?:?string,scopes?:?string}  $config
+     * @param  array{client_id?:?string,client_secret?:?string,issuer?:?string,authorize_url?:?string,token_url?:?string,userinfo_url?:?string,redirect?:?string,scopes?:?string,allowed_domains?:?string,require_existing_user?:bool|string|null,label?:?string}  $config
      */
     public function __construct(private array $config) {}
 
@@ -51,18 +51,84 @@ class OidcClient
         return Str::random(40);
     }
 
+    /** Provider name for the login button, e.g. "SSO" or "Google". */
+    public function label(): string
+    {
+        $label = trim((string) ($this->config['label'] ?? ''));
+
+        return $label !== '' ? $label : 'SSO';
+    }
+
+    /**
+     * Email domains permitted to sign in. Empty means no restriction.
+     *
+     * @return list<string>
+     */
+    public function allowedDomains(): array
+    {
+        $raw = (string) ($this->config['allowed_domains'] ?? '');
+
+        return collect(explode(',', $raw))
+            ->map(fn (string $domain): string => Str::lower(trim($domain)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Whether a verified email is allowed to sign in at all.
+     *
+     * This is the security gate for SSO. With a private IdP the allowlist can stay
+     * empty, because the IdP itself decides who exists. With a public provider such
+     * as Google it must not: every account on the provider would otherwise be able
+     * to provision itself a user row here.
+     */
+    public function allowsEmail(string $email): bool
+    {
+        $allowed = $this->allowedDomains();
+
+        if ($allowed === []) {
+            return true;
+        }
+
+        return in_array(Str::lower(Str::afterLast(trim($email), '@')), $allowed, strict: true);
+    }
+
+    /**
+     * Whether SSO may only sign in accounts that already exist.
+     *
+     * Defaults to true, the fail-safe reading. Turn it off only for a private IdP that
+     * is itself the roster of who may hold an account. Against a public provider it must
+     * stay on: a shared domain such as gmail.com makes allowsEmail() no barrier at all,
+     * and this is then the only thing standing between a stranger and a new user row.
+     */
+    public function requiresExistingUser(): bool
+    {
+        return filter_var($this->config['require_existing_user'] ?? true, FILTER_VALIDATE_BOOL);
+    }
+
     /** Build the IdP authorize URL for the given state. */
     public function redirectUrl(string $state): string
     {
-        $query = http_build_query([
+        $params = [
             'response_type' => 'code',
             'client_id' => $this->config['client_id'],
             'redirect_uri' => $this->redirectUri(),
             'scope' => $this->config['scopes'] ?: 'openid email profile',
             'state' => $state,
-        ]);
+        ];
 
-        return rtrim((string) $this->config['authorize_url'], '?').'?'.$query;
+        // Google reads `hd` to pre-filter its account chooser, so staff are not offered
+        // their personal Gmail. It is a UX hint on a request parameter the caller can
+        // strip, NOT a security control — allowsEmail() is the gate. Only meaningful
+        // for a single domain; Google takes no list.
+        $allowed = $this->allowedDomains();
+        if (count($allowed) === 1) {
+            $params['hd'] = $allowed[0];
+        }
+
+        return rtrim((string) $this->config['authorize_url'], '?').'?'.http_build_query($params);
     }
 
     /**
