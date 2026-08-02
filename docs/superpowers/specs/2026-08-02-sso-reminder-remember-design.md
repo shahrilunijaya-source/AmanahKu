@@ -192,13 +192,31 @@ neither repeats:
 |---|---|---|
 | Clock-in, five minutes before start | `attendance-in-soon-{day}` | yes |
 | Clock-in, thirty minutes late | `attendance-in-{day}` | yes |
-| Clock-out, five minutes before end | `attendance-out-soon-{day}` | yes |
+| Clock-out, five minutes before end | `attendance-out-soon-{day}` | **no, bell only** |
 | Clock-out, thirty minutes late | `attendance-out-{day}` | yes |
 
-All four are emailed as well as belled, at the user's request. The cost is up to four emails a
-day for someone who ignores every nudge, and two for the ordinary case of a person who clocks
-in and out normally. `AppNotification::send` only mails on a freshly created row, so a
-deduped repeat tick stays silent in the inbox too.
+Three of the four mail. The end-of-shift heads-up does not, and the reason is a budget the
+app has to live inside.
+
+The mail host allows 300 messages a day across everything the app sends — reminders, password
+resets, HR invitations, task assignments. Both "soon" nudges fire for nearly every staffer on
+every working day, because people clock in at their start time rather than before it and are
+still clocked in shortly before their end time. At 30 staff that is roughly 30 emails a day
+each, against exception-driven late nudges that cost perhaps ten between them.
+
+Going over the cap fails quietly. `AppNotificationMail` is `ShouldQueue`, so a rejected send
+lands in `failed_jobs` rather than raising anything a person would see. Whatever happens to be
+queued at that moment is what disappears, and it could be the activation link for a new
+employee, who then has no way into the app and no recovery path.
+
+The start-of-shift email is kept because it can still change what someone does: they may be
+travelling and can decide to clock in on arrival. The end-of-shift one cannot. The person is
+at their desk with the app in front of them, so the bell already reaches them and the email
+buys nothing. Dropping it takes attendance from about 70 messages a day to about 40 and
+restores the headroom that protects the mail that matters.
+
+`AppNotification::send` only mails on a freshly created row, so a deduped repeat tick stays
+silent in the inbox too.
 
 Copy for the new notifications:
 

@@ -190,7 +190,7 @@ class AttendanceReminderCommandTest extends TestCase
         $this->assertSame(1, AppNotification::where('user_id', $employee->user_id)->count());
     }
 
-    public function test_the_pre_nudge_is_emailed(): void
+    public function test_the_clock_in_pre_nudge_is_emailed(): void
     {
         Notification::fake();
         $this->staff('Aina', 'aina@acme.test');
@@ -199,6 +199,30 @@ class AttendanceReminderCommandTest extends TestCase
         Artisan::call('attendance:remind');
 
         Notification::assertSentTimes(AppNotificationMail::class, 1);
+    }
+
+    /**
+     * The end-of-shift heads-up rings the bell but must not mail. It would fire for
+     * nearly every staffer every working day, and the mail host caps the whole app at
+     * 300 messages a day — spending that budget here risks silently dropping an
+     * activation link or a password reset later in the day.
+     */
+    public function test_the_clock_out_pre_nudge_is_not_emailed(): void
+    {
+        Notification::fake();
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '09:00:00',
+            'expected_end' => '18:00:00',
+        ]);
+        Carbon::setTestNow('2026-07-23 17:55:00');
+
+        Artisan::call('attendance:remind');
+
+        $this->assertSame(1, AppNotification::where('user_id', $employee->user_id)->count());
+        Notification::assertNothingSent();
     }
 
     public function test_command_is_scheduled(): void

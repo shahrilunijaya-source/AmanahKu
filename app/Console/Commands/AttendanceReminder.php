@@ -22,6 +22,12 @@ use Illuminate\Console\Command;
  * Safe to run every 5 minutes: each bell carries its own per-day dedupe key, so repeat ticks
  * are no-ops rather than a stack of duplicates, and the early and late nudges for the same
  * person never collapse into one another.
+ *
+ * Three of the four nudges mail; the end-of-shift heads-up is bell-only. The mail host allows
+ * 300 messages a day across the whole app, and that one would spend roughly a fifth of the
+ * budget telling every staffer daily something they are already at their desk to know. Going
+ * over the cap does not raise an error — the queued mail is simply dropped, and the message
+ * lost could be an activation link with no recovery path. See the design spec, section 2.
  */
 class AttendanceReminder extends Command
 {
@@ -87,7 +93,6 @@ class AttendanceReminder extends Command
                         self::SOON_OUT_BODY,
                         $url,
                         'attendance-out-soon-'.$day,
-                        mail: true,
                     );
                 }
 
