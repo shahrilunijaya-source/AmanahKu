@@ -27,6 +27,43 @@ return [
     'releases' => [
 
         [
+            'version' => '1.0',
+            'date' => 'August 2, 2026',
+            'commit' => '605ce30',
+            'title' => 'Amanahku 1.0 — we go live',
+            'notes' => [
+                'new' => [
+                    'Amanahku is now the official HR system for everyday work: attendance, timesheets, leave, claims, overtime, messages and the team board all run here from today.',
+                    'Sign in with your Google account, and tick "Remember me" so you stay signed in on your own device.',
+                    'Training of Trainers (TOT): a year lineup screen, HR-owned roster, presenter assignment, reactions, private ratings, a discussion under each session, and reminders before the day. Three years of past sessions are already loaded.',
+                    'Knowledge Bank revamp, with the TOT month counted for each presenter.',
+                    'Timesheets: day-first capture with Record and Review tabs, a live week-percent shelf, and a report you can drill from a number down to the sheet behind it.',
+                    'Team board: real due dates, colour labels, an optional project, people on a card, and an autosaving detail window.',
+                    'Attendance: clock in and out with GPS matched to your branch site, add a remark, and get a reminder bell before your shift starts.',
+                    'Leave: separate Apply, My leave and Approvals tabs, half-day leave, and prorated balance for staff who join mid-year.',
+                    'Claims: a stepped form, your own claim ledger, and split approval queues.',
+                    'Messages: send images and files, or snap a photo from your phone camera.',
+                    'Alerts on your phone and desktop for new bells, plus an email for the ones you must not miss while away.',
+                    'Install Amanahku to your Home Screen and open it like an app.',
+                    'If something goes wrong, the screen now shows a reference code you can quote to HR or support.',
+                ],
+                'improved' => [
+                    'A new look across sign-in, the workspace picker, the dashboard and every screen, with a collapsible sidebar and one shared page width.',
+                    'Your nickname shows beside your full name across the app.',
+                    'HR no longer waits for the verify step and joins the final approval on leave, claims and overtime.',
+                    'The org chart moves one seat at a time and shows faces instead of names.',
+                    'Text and greys across the app now meet the WCAG AA contrast standard.',
+                ],
+                'fixed' => [
+                    'Camera and GPS work again on the clock-in screen.',
+                    'Every headline figure on the leave report now obeys the filters you set.',
+                    'Uploaded files keep a safe, readable name when you download them.',
+                    'The end-of-shift email is gone — the reminder bell alone tells you to clock out.',
+                ],
+            ],
+        ],
+
+        [
             'version' => '2026.07.08',
             'date' => 'July 8, 2026',
             'title' => 'Finer module controls, resignation clearance & tidier disabled modules',
