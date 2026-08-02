@@ -241,6 +241,20 @@ class OidcSsoTest extends TestCase
         $this->get('/login')->assertOk()->assertSee('Sign in with Google');
     }
 
+    /**
+     * Google's branding rules ask for their own mark on a "Sign in with Google" button.
+     * Any other provider keeps the neutral padlock, since the four-colour G would be a
+     * false claim about who is authenticating.
+     */
+    public function test_the_google_mark_replaces_the_padlock_only_for_google(): void
+    {
+        config()->set('services.oidc.label', 'Google');
+        $this->get('/login')->assertOk()->assertSee('#4285F4', escape: false);
+
+        config()->set('services.oidc.label', 'Acme ID');
+        $this->get('/login')->assertOk()->assertDontSee('#4285F4', escape: false);
+    }
+
     public function test_provisioning_is_off_unless_a_deployment_opts_in(): void
     {
         // Fail-safe default. A deployment must say so explicitly to let SSO create accounts.
