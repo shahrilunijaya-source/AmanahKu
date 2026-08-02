@@ -10,17 +10,19 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\AppNotificationMail;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
  * Coverage for attendance:remind. Reference day is Thursday 2026-07-23, office hours
- * 09:00-18:00. The command must be safe to run every 15 minutes, so repeat runs on the
+ * 09:00-18:00. The command must be safe to run every 5 minutes, so repeat runs on the
  * same day must not stack bells.
  */
 class AttendanceReminderCommandTest extends TestCase
@@ -126,6 +128,77 @@ class AttendanceReminderCommandTest extends TestCase
         Artisan::call('attendance:remind');
 
         $this->assertSame(0, AppNotification::count());
+    }
+
+    public function test_bells_a_staffer_five_minutes_before_their_shift_starts(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        Carbon::setTestNow('2026-07-23 08:55:00');
+
+        Artisan::call('attendance:remind');
+
+        $bell = AppNotification::where('user_id', $employee->user_id)->sole();
+        $this->assertSame('Your shift starts soon', $bell->title);
+        $this->assertSame('attendance-in-soon-2026-07-23', $bell->dedupe_key);
+    }
+
+    public function test_bells_a_staffer_five_minutes_before_their_shift_ends(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '09:00:00',
+            'expected_end' => '18:00:00',
+        ]);
+        Carbon::setTestNow('2026-07-23 17:55:00');
+
+        Artisan::call('attendance:remind');
+
+        $bell = AppNotification::where('user_id', $employee->user_id)->sole();
+        $this->assertSame('Your shift ends soon', $bell->title);
+        $this->assertSame('attendance-out-soon-2026-07-23', $bell->dedupe_key);
+    }
+
+    public function test_the_early_and_late_clock_in_nudges_both_reach_the_same_person(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+
+        Carbon::setTestNow('2026-07-23 08:55:00');
+        Artisan::call('attendance:remind');
+        Carbon::setTestNow('2026-07-23 09:31:00');
+        Artisan::call('attendance:remind');
+
+        // Separate dedupe keys, so the heads-up does not swallow the chase.
+        $this->assertSame(
+            ['attendance-in-2026-07-23', 'attendance-in-soon-2026-07-23'],
+            AppNotification::where('user_id', $employee->user_id)->pluck('dedupe_key')->sort()->values()->all(),
+        );
+    }
+
+    public function test_the_window_overlap_between_consecutive_ticks_does_not_stack_bells(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+
+        // The 6-minute window against a 5-minute tick deliberately re-offers the same
+        // person on the following tick. Dedupe has to absorb that.
+        Carbon::setTestNow('2026-07-23 08:55:00');
+        Artisan::call('attendance:remind');
+        Carbon::setTestNow('2026-07-23 08:59:00');
+        Artisan::call('attendance:remind');
+
+        $this->assertSame(1, AppNotification::where('user_id', $employee->user_id)->count());
+    }
+
+    public function test_the_pre_nudge_is_emailed(): void
+    {
+        Notification::fake();
+        $this->staff('Aina', 'aina@acme.test');
+        Carbon::setTestNow('2026-07-23 08:55:00');
+
+        Artisan::call('attendance:remind');
+
+        Notification::assertSentTimes(AppNotificationMail::class, 1);
     }
 
     public function test_command_is_scheduled(): void

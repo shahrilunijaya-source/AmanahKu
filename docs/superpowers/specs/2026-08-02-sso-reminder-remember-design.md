@@ -33,16 +33,34 @@ returns. Against a private company identity provider that set is bounded. Agains
 is every Gmail account in the world. The created account is tenant-less and role-less, so it
 cannot reach any data, but unbounded row creation by an anonymous party is still a defect.
 
-A domain allowlist closes it.
+**A domain allowlist does not close it here.** Amanahku staff sign in with personal Gmail
+addresses of the form `name.unijaya@gmail.com`, so every employee's domain is `gmail.com`,
+which the whole world shares. Allowing that domain allows everybody. Matching on the
+`.unijaya` part of the local address is not a fix either: anyone can register
+`hacker.unijaya@gmail.com` on Gmail in a minute. It reads like a rule and enforces nothing.
+
+What closes it is refusing to provision at all: **SSO signs in accounts that already exist
+and never creates one.** HR adds the employee, and only then can that person use Google. It
+needs no list to maintain and it matches how the company already onboards people.
+
+The domain allowlist is still built, because it is the right control for a real company
+domain, but it ships blank and inert for this deployment.
 
 ### Configuration
 
-`config/services.php`, `oidc` block, gains two keys. `env.example` gains matching entries.
+`config/services.php`, `oidc` block, gains three keys. The env example files gain matching
+entries.
 
 | Key | Env var | Default | Meaning |
 |---|---|---|---|
-| `allowed_domains` | `OIDC_ALLOWED_DOMAINS` | empty | Comma-separated email domains permitted to sign in. Empty means any domain, which preserves today's behaviour for a generic provider. |
+| `require_existing_user` | `OIDC_REQUIRE_EXISTING_USER` | `true` | SSO signs in existing accounts only and never provisions. The gate that matters against a public provider. Set false only for a private IdP that is itself the roster of who may hold an account. |
+| `allowed_domains` | `OIDC_ALLOWED_DOMAINS` | empty | Comma-separated email domains permitted to sign in. Empty means any domain. Worthless against a shared domain such as `gmail.com`, and not a substitute for the setting above. |
 | `label` | `OIDC_LABEL` | `SSO` | Provider name shown on the login button. |
+
+The `true` default is deliberate. A security control that has to be remembered is a security
+control that gets forgotten, so the safe reading is the one you get by doing nothing. Note
+this **changes the previous behaviour** of the OIDC feature, which provisioned freely. Any
+deployment that relied on that must now set `OIDC_REQUIRE_EXISTING_USER=false`.
 
 Google's endpoint values, for the deployment notes:
 
@@ -73,9 +91,17 @@ staff member is not offered their personal Gmail.
 > remove or change it. It is **not** a security control. `allowsEmail`, checked server-side
 > after the token exchange, is the gate.
 
+**`OidcClient::requiresExistingUser(): bool`** — reads the config through
+`FILTER_VALIDATE_BOOL`, defaulting to true, so a string `"false"` from the environment is
+honoured rather than being read as truthy.
+
 **`OidcController::callback()`** — call `allowsEmail` immediately after `verifiedEmail` and
 before `resolveUser`, so a rejected address never reaches the database. On rejection, redirect
 to `/login` with an error naming the permitted domain.
+
+**`OidcController::resolveUser()`** — returns null instead of provisioning when
+`requiresExistingUser` is on and no account matches. The caller turns null into a redirect
+carrying "No Amanahku account uses that email address. Ask your HR admin to add you first."
 
 **`resources/views/auth/login.blade.php`** — the button text reads `Sign in with {label}`. The
 existing padlock icon stays. Google's official coloured G mark is not included; it is a small
@@ -90,6 +116,14 @@ Extend `tests/Feature/OidcSsoTest.php`:
    assertion is the point of the test, not the redirect.
 3. An empty allowlist admits any verified email, proving the generic-provider path is intact.
 4. `redirectUrl` carries `hd` for a single allowed domain and omits it for none or several.
+5. Provisioning is off unless a deployment opts in, asserted against the config default rather
+   than against the test fixture, so the fail-safe cannot rot.
+6. With provisioning off, an unknown Gmail address is refused and **leaves no row**, while a
+   known one still signs in normally.
+7. The login button carries the configured provider label.
+
+The existing suite's setUp opts into provisioning, so the pre-existing private-IdP cases keep
+testing what they always tested.
 
 ### Out of scope
 
@@ -156,14 +190,15 @@ neither repeats:
 
 | Nudge | Dedupe key | Email |
 |---|---|---|
-| Clock-in, five minutes before start | `attendance-in-soon-{day}` | no |
+| Clock-in, five minutes before start | `attendance-in-soon-{day}` | yes |
 | Clock-in, thirty minutes late | `attendance-in-{day}` | yes |
-| Clock-out, five minutes before end | `attendance-out-soon-{day}` | no |
+| Clock-out, five minutes before end | `attendance-out-soon-{day}` | yes |
 | Clock-out, thirty minutes late | `attendance-out-{day}` | yes |
 
-The pre-nudges are bell-only. An email saying a shift starts in five minutes arrives too late
-to act on, and sending one would double every employee's daily mail from this feature for no
-practical gain. The late nudges keep their email, because those are the ones worth an inbox.
+All four are emailed as well as belled, at the user's request. The cost is up to four emails a
+day for someone who ignores every nudge, and two for the ordinary case of a person who clocks
+in and out normally. `AppNotification::send` only mails on a freshly created row, so a
+deduped repeat tick stays silent in the inbox too.
 
 Copy for the new notifications:
 
@@ -229,17 +264,22 @@ A new `tests/Feature/RememberMeTest.php` with three cases:
 Case 2 must clear the session rather than merely starting a new request, otherwise the test
 passes on the session alone and proves nothing.
 
-### If it fails
+A fourth case earns its place: after `POST /logout`, the captured cookie is refused. Logging
+out cycles the remember token, and that is what invalidates the cookie still sitting in
+another browser.
 
-A red test means a real defect, not a test to soften. Debug it to root cause and fix it before
-the work is called done. Candidate causes worth checking first: middleware that rejects a
-request recovered from a cookie, and any code path that clears `remember_token` on logout or
-on a password change.
+### Result
 
-### Deliverable
+**Remember me works.** All four cases pass, including the session-loss case.
 
-The test file, committed, plus the run output pasted into the report. "It works" without the
-output is not an answer.
+One thing to record, because it will bite the next person writing a cookie test here. The
+session-loss case failed on the first run with a redirect to `/login`. That was the test, not
+the app: `withUnencryptedCookie` merges the value into the request raw, the `EncryptCookies`
+middleware then fails to decrypt it and drops the cookie, so the request arrives with nothing.
+`withCookie` is the right helper, because it encrypts the value with the `CookieValuePrefix`
+the middleware expects. See `MakesHttpRequests::prepareCookiesForRequest`.
+
+Nothing in the application needed changing for this piece.
 
 ---
 
@@ -248,7 +288,8 @@ output is not an answer.
 | File | Piece |
 |---|---|
 | `config/services.php` | 1 |
-| `env.example` | 1 |
+| `.env.example` | 1 |
+| `.env.production.example` | 1 |
 | `app/Services/OidcClient.php` | 1 |
 | `app/Http/Controllers/OidcController.php` | 1 |
 | `resources/views/auth/login.blade.php` | 1 |
@@ -264,11 +305,24 @@ No migration. No new dependency.
 
 ## Success criteria
 
-1. A Google account on the allowed domain signs in. An account outside it is refused and
-   leaves no user row behind. Both are covered by a test.
-2. A staff member receives a bell five minutes before their shift starts and five minutes
+1. A known account signs in through Google. An unknown one is refused and leaves no user row
+   behind. Both are covered by a test.
+2. A staff member receives a nudge five minutes before their shift starts and five minutes
    before it ends, and still receives the existing late nudges. Covered by tests, and the old
    late-nudge assertions pass unmodified.
 3. `RememberMeTest` runs green, with the output shown. If it runs red, the defect it found is
    fixed and the run is repeated.
-4. `vendor/bin/pint --dirty` is clean and the affected test files pass.
+4. `vendor/bin/pint --dirty` is clean, PHPStan is clean, and the full suite passes.
+
+## Outcome
+
+All four met. PHPStan reported 0 errors, Pint is clean, and the full suite ran 1450 tests,
+1444 passed with 6 pre-existing skips and no failures.
+
+## Deployment, still to do by hand
+
+Nothing here provisions the Google side. Before SSO works in an environment, somebody must
+create an OAuth client in the Google Cloud console, register the callback as an authorised
+redirect URI, and put the client id, secret and the four endpoint values into that
+environment's `.env`. Until then `configured()` is false, the button stays hidden and the
+routes return 404, exactly as before this change.

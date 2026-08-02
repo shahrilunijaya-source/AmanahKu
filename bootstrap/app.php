@@ -58,10 +58,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // the resignation. Idempotent, so a missed/duplicate run is safe.
         $schedule->command('staff:archive-departed')->dailyAt('00:30')
             ->withoutOverlapping()->onFailure($onFailure('staff:archive-departed'));
-        // Clock nudges: every 15 minutes across the working day. Each bell carries a
-        // per-day dedupe key, so the short cadence costs at most one notification per
-        // staffer per type per day regardless of how many ticks fire.
-        $schedule->command('attendance:remind')->everyFifteenMinutes()->between('6:00', '22:00')
+        // Clock nudges: every 5 minutes across the working day. The cadence has to be
+        // this short because one of the four nudges fires 5 minutes BEFORE the shift
+        // boundary — a 15-minute tick would miss that window. Each bell carries its own
+        // per-day dedupe key, so the short cadence still costs at most one notification
+        // per staffer per type per day regardless of how many ticks fire.
+        $schedule->command('attendance:remind')->everyFiveMinutes()->between('6:00', '22:00')
             ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
         // TOT reminders: 14 days out when the topic is blank, 7 days out for the presenter,
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.

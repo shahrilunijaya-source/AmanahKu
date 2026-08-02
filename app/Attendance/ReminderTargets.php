@@ -53,6 +53,84 @@ class ReminderTargets
     }
 
     /**
+     * Active staff whose shift starts within the next `$windowMinutes` and who have not
+     * clocked in yet — the heads-up before the boundary, as opposed to the chase after it.
+     *
+     * Shares every exclusion with missingClockIn(): weekends, public holidays, approved
+     * leave, staff with no login account, and sites with no configured start time.
+     *
+     * @return Collection<int, Employee>
+     */
+    public function dueToClockIn(Carbon $now, int $windowMinutes): Collection
+    {
+        if ($this->isNonWorkingDay($now)) {
+            return collect();
+        }
+
+        $clockedIn = AttendanceRecord::query()
+            ->onDate($now)
+            ->whereNotNull('clock_in')
+            ->pluck('employee_id');
+
+        return Employee::active()
+            ->whereNotNull('user_id')
+            ->whereNotIn('id', $this->employeeIdsOnLeave($now))
+            ->whereNotIn('id', $clockedIn)
+            ->with(['branch', 'workSite', 'tenant'])
+            ->get()
+            ->filter(function (Employee $employee) use ($now, $windowMinutes): bool {
+                $site = $this->resolver->resolve($employee, $now);
+
+                if ($site->workStart === null) {
+                    return false;
+                }
+
+                return $this->startsWithin($now, $site->workStart, $windowMinutes);
+            })
+            ->values();
+    }
+
+    /**
+     * Today's open records whose expected end falls within the next `$windowMinutes`.
+     *
+     * Like missingClockOut(), this reads the `expected_end` stamped onto the record at
+     * clock-in rather than re-resolving the schedule.
+     *
+     * @return Collection<int, AttendanceRecord>
+     */
+    public function dueToClockOut(Carbon $now, int $windowMinutes): Collection
+    {
+        return AttendanceRecord::query()
+            ->onDate($now)
+            ->whereNotNull('clock_in')
+            ->whereNull('clock_out')
+            ->whereNotNull('expected_end')
+            ->with('employee')
+            ->get()
+            ->filter(function (AttendanceRecord $record) use ($now, $windowMinutes): bool {
+                if ($record->employee?->user_id === null) {
+                    return false;
+                }
+
+                return $this->startsWithin($now, $record->expected_end, $windowMinutes);
+            })
+            ->values();
+    }
+
+    /**
+     * True when today's `$time` is still ahead of `$now` but no more than `$windowMinutes` away.
+     *
+     * Half-open on purpose: the exact boundary minute belongs to the late path, so a nudge
+     * cannot fire twice for the same moment from both directions.
+     */
+    private function startsWithin(Carbon $now, string $time, int $windowMinutes): bool
+    {
+        $moment = $now->copy()->setTimeFromTimeString($time);
+
+        return $moment->greaterThan($now) && $moment->lessThanOrEqualTo($now->copy()->addMinutes($windowMinutes));
+    }
+
+    /**
      * Today's open records — clocked in, never clocked out, already past their expected end.
      *
      * Uses the `expected_end` stamped onto the record at clock-in rather than re-resolving

@@ -203,4 +203,128 @@ class AttendanceReminderTargetsTest extends TestCase
 
         $this->assertTrue($this->targets()->missingClockOut($now, self::GRACE)->isEmpty());
     }
+
+    // ---- Look-ahead nudges: the heads-up before the boundary ------------------------
+
+    /** Matches AttendanceReminder::WINDOW_MINUTES — 5 minutes of lead plus 1 of overlap. */
+    private const WINDOW = 6;
+
+    public function test_flags_staff_whose_shift_starts_inside_the_window(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        $now = Carbon::parse('2026-07-23 08:55:00');
+
+        $due = $this->targets()->dueToClockIn($now, self::WINDOW);
+
+        $this->assertSame([$employee->id], $due->pluck('id')->all());
+    }
+
+    public function test_stays_quiet_before_the_window_opens(): void
+    {
+        $this->staff('Aina', 'aina@acme.test');
+        $now = Carbon::parse('2026-07-23 08:50:00'); // 10 minutes out, window is 6
+
+        $this->assertTrue($this->targets()->dueToClockIn($now, self::WINDOW)->isEmpty());
+    }
+
+    public function test_stays_quiet_once_the_start_time_has_arrived(): void
+    {
+        $this->staff('Aina', 'aina@acme.test');
+
+        // The boundary minute itself belongs to the late path, not the heads-up.
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 09:00:00'), self::WINDOW)->isEmpty());
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 09:05:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_pre_nudge_skips_staff_who_already_clocked_in(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '08:45:00',
+        ]);
+
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 08:55:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_pre_nudge_skips_staff_on_approved_leave(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        LeaveRequest::create([
+            'employee_id' => $employee->id,
+            'date_from' => '2026-07-22',
+            'date_to' => '2026-07-24',
+            'days' => 3,
+            'status' => 'approved',
+        ]);
+
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 08:55:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_pre_nudge_skips_public_holidays_and_weekends(): void
+    {
+        $this->staff('Aina', 'aina@acme.test');
+        PublicHoliday::create(['name' => 'Awal Muharram', 'date' => '2026-07-23']);
+
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 08:55:00'), self::WINDOW)->isEmpty());
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-25 08:55:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_pre_nudge_skips_staff_with_no_login_account(): void
+    {
+        Employee::create([
+            'user_id' => null,
+            'name' => 'Unprovisioned',
+            'email' => 'nobody@acme.test',
+            'branch_id' => $this->branch->id,
+            'work_arrangement' => 'office',
+        ]);
+
+        $this->assertTrue($this->targets()->dueToClockIn(Carbon::parse('2026-07-23 08:55:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_flags_an_open_record_whose_expected_end_is_inside_the_window(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        $record = AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '09:00:00',
+            'expected_end' => '18:00:00',
+        ]);
+        $now = Carbon::parse('2026-07-23 17:55:00');
+
+        $due = $this->targets()->dueToClockOut($now, self::WINDOW);
+
+        $this->assertSame([$record->id], $due->pluck('id')->all());
+    }
+
+    public function test_clock_out_pre_nudge_ignores_a_record_already_clocked_out(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '09:00:00',
+            'clock_out' => '17:50:00',
+            'expected_end' => '18:00:00',
+        ]);
+
+        $this->assertTrue($this->targets()->dueToClockOut(Carbon::parse('2026-07-23 17:55:00'), self::WINDOW)->isEmpty());
+    }
+
+    public function test_clock_out_pre_nudge_stays_quiet_outside_the_window(): void
+    {
+        $employee = $this->staff('Aina', 'aina@acme.test');
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-07-23',
+            'clock_in' => '09:00:00',
+            'expected_end' => '18:00:00',
+        ]);
+
+        $this->assertTrue($this->targets()->dueToClockOut(Carbon::parse('2026-07-23 17:40:00'), self::WINDOW)->isEmpty());
+        $this->assertTrue($this->targets()->dueToClockOut(Carbon::parse('2026-07-23 18:00:00'), self::WINDOW)->isEmpty());
+    }
 }
