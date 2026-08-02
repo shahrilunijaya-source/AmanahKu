@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Announcement;
 use App\Models\AuditLog;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -97,6 +98,40 @@ class SuperAdminWorkspaceAccessTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(0, Announcement::withoutGlobalScope('tenant')->count());
+    }
+
+    public function test_observer_may_write_org_setup_and_the_entry_names_them(): void
+    {
+        $this->actingAs($this->superAdmin)->get(route('tenant.enter', $this->tenant));
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.departments.store'), ['name' => 'Operation'])
+            ->assertRedirect();
+
+        $this->assertSame(1, Department::withoutGlobalScope('tenant')->where('name', 'Operation')->count());
+
+        // Invisible among the company's people, but never invisible in its ledger.
+        $entry = AuditLog::withoutGlobalScope('tenant')->sole();
+        $this->assertSame('Root (platform support)', $entry->actor_name);
+        $this->assertSame('Added department', $entry->action);
+    }
+
+    public function test_observer_writes_outside_org_setup_are_still_refused(): void
+    {
+        $this->actingAs($this->superAdmin)->get(route('tenant.enter', $this->tenant));
+
+        // Sits one line away from the allowed employees.import in the route file — a name
+        // prefix would have opened it.
+        $employee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Staff', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('employees.update', $employee), ['name' => 'Renamed'])
+            ->assertForbidden();
+
+        $this->assertSame('Staff', $employee->fresh()->name);
+        $this->assertSame(0, AuditLog::withoutGlobalScope('tenant')->count());
     }
 
     public function test_observer_records_no_audit_entry(): void
