@@ -27,10 +27,15 @@
                 <h1 style="font-weight:400;font-size:28px;letter-spacing:-0.5px;color:var(--ink);margin:0 0 6px;">Errors</h1>
                 <p style="font-size:14px;color:var(--muted);margin:0;">Unhandled faults from the last 30 days. Older entries are pruned nightly.</p>
             </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+            {{-- Proves the capture chain on whichever environment this is. Safe to click:
+                 it throws on purpose and touches no data. --}}
+            <a href="{{ route('superadmin.errors.self-test') }}" style="text-decoration:none;padding:10px 16px;border:1px solid var(--hairline,#e6e6ec);border-radius:10px;font-size:14px;font-weight:600;color:var(--ink);background:#fff;white-space:nowrap;">Run self-test</a>
             <form method="get" style="display:flex;gap:8px;">
                 <input type="search" name="q" value="{{ $search }}" placeholder="Error reference" style="padding:10px 14px;border:1px solid var(--hairline,#e6e6ec);border-radius:10px;font-size:14px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;width:190px;">
                 <button type="submit" class="uj-btn" style="padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;background:var(--red);color:#fff;border:none;cursor:pointer;">Find</button>
             </form>
+            </div>
         </div>
 
         @if ($search !== '' && $events->isEmpty())

@@ -128,6 +128,8 @@ Route::middleware('auth')->group(function () {
         // page and this is where it is read back. Super-admin only: a stack trace names
         // internal files and the person who hit it.
         Route::get('/errors', [ErrorEventController::class, 'index'])->name('errors.index');
+        // Declared before the bound route, so the word is never read as a record id.
+        Route::get('/errors/self-test', [ErrorEventController::class, 'selfTest'])->name('errors.self-test');
         Route::get('/errors/{errorEvent}', [ErrorEventController::class, 'show'])->name('errors.show');
     });
 
