@@ -4,7 +4,7 @@
     $worked = $r->worked_minutes ? intdiv($r->worked_minutes, 60).'h'.($r->worked_minutes % 60 ? sprintf('%02dm', $r->worked_minutes % 60) : '') : null;
 
     $flags = $r->flags ?? [];
-    $hasRedFlag = (is_array($flags) && array_intersect($flags, ['out_of_radius_in', 'out_of_radius_out', 'early_out']));
+    $hasRedFlag = (is_array($flags) && array_intersect($flags, ['out_of_radius_in', 'out_of_radius_out', 'early_out', 'no_location']));
     if ($hasRedFlag) {
         $rowTone = 'red';
     } elseif ($r->status === 'late') {

@@ -11,6 +11,7 @@
         'out_of_radius_out' => ['Off-site clock-out', 'Clock out luar lokasi'],
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
+        'no_location' => ['No location', 'Tiada lokasi'],
     ];
     $siteTypeLabel = [
         'office' => ['Office', 'Pejabat'],
@@ -53,7 +54,7 @@
         'who'   => 'Everyone clocks their own time',
         'steps' => [
             'The banner shows where you are expected today and your hours.',
-            'Tap "Clock in" and allow location. Location is required — the clock will not record without it.',
+            'Tap "Clock in" and allow location. If your device genuinely cannot find your location, the screen offers to clock without it — that punch needs a reason and a selfie, and is flagged for your manager.',
             'Add a remark if there is something your manager should know about the day. It is optional.',
             'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting) — and a selfie is required as well.',
             'Clock out when you finish. Leaving before your end time or off-site needs a reason too.',
@@ -65,7 +66,7 @@
         'who'   => 'Semua orang rekod masa sendiri',
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
-            'Tekan "Clock in" dan benarkan lokasi. Lokasi adalah wajib — clock tidak akan direkod tanpanya.',
+            'Tekan "Clock in" dan benarkan lokasi. Jika peranti anda benar-benar tidak dapat mencari lokasi, skrin menawarkan clock tanpa lokasi — rekod itu perlu sebab dan selfie, dan ditanda untuk pengurus anda.',
             'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
             'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien) — dan selfie juga wajib.',
             'Clock out bila habis. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
@@ -249,8 +250,9 @@
                   return (now.getHours()*60 + now.getMinutes()) < (Number(p[0])*60 + Number(p[1]));
               },
               proceed(lat, lng) {
-                  const offSite = this.siteLat !== null && !this.matchSite(lat, lng);
-                  let need = offSite;
+                  const noFix = lat === null || lng === null;
+                  const offSite = ! noFix && this.siteLat !== null && !this.matchSite(lat, lng);
+                  let need = offSite || noFix;
                   if (this.action === 'out' && this.earlyNow()) need = true;
                   if (need && !this.reason.trim()) {
                       this.serverJustify = true;
@@ -259,17 +261,29 @@
                       this.$nextTick(() => this.$refs.reason?.focus());
                       return;
                   }
-                  // Off-site punches must carry a selfie — mirrors the ClockService gate.
-                  if (offSite && !this.photoUrl) {
+                  // Off-site and unlocatable punches must carry a selfie — mirrors ClockService.
+                  if ((offSite || noFix) && !this.photoUrl) {
                       this.submitting = false;
                       this.photoReq = true;
                       this.triggerSelfie();
                       return;
                   }
-                  this.$refs.lat.value = lat; this.$refs.lng.value = lng;
+                  // Empty inputs, not '0' — ConvertEmptyStringsToNull hands the controller a
+                  // real null, which is what marks the punch as having no location at all.
+                  this.$refs.lat.value = noFix ? '' : lat;
+                  this.$refs.lng.value = noFix ? '' : lng;
                   this.$el.submit();
               },
-              // Location is mandatory — the punch is never submitted without coordinates.
+              /**
+               * Clock with no coordinates. Offered ONLY after the browser has actually failed
+               * to produce a fix, never up front, so it cannot be used as a one-tap way around
+               * the geofence. Costs a reason, a selfie and a permanent no_location flag.
+               */
+              submitWithoutLocation() {
+                  if (this.submitting) return;
+                  this.submitting = true;
+                  this.proceed(null, null);
+              },
               submit() {
                   if (this.submitting) return;
                   this.submitting = true;
@@ -524,6 +538,15 @@
         <div x-show="geoError" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
             <div x-text="geoError"></div>
             <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+            @if (! $co)
+                {{-- Last resort, and deliberately not a shortcut: it appears only once the
+                     browser has failed, and the punch still costs a reason and a selfie. --}}
+                <button type="button" class="uj-at-ghost" style="margin-top:9px;"
+                        @click="submitWithoutLocation()" :disabled="submitting"
+                        x-text="$store.ui.lang==='en'
+                            ? @js($ci ? 'Clock out without location — needs a reason and a selfie' : 'Clock in without location — needs a reason and a selfie')
+                            : @js($ci ? 'Clock out tanpa lokasi — perlu sebab dan selfie' : 'Clock in tanpa lokasi — perlu sebab dan selfie')"></button>
+            @endif
         </div>
         @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 

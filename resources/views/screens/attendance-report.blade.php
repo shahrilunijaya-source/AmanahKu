@@ -11,6 +11,7 @@
         'out_of_radius_out' => ['Off-site out', 'Clock out luar'],
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
+        'no_location' => ['No location', 'Tiada lokasi'],
     ];
     $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted)'];
     $stLabel = ['on_time' => ['On time', 'Tepat masa'], 'late' => ['Late', 'Lewat'], 'pending' => ['Pending', 'Menunggu']];

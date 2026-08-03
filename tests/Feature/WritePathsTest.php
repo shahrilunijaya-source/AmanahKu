@@ -94,13 +94,45 @@ class WritePathsTest extends TestCase
     }
 
     /**
-     * GPS is mandatory. Without it the punch cannot be judged against the geofence, so
-     * denying location would be the cheapest way to avoid an off-site flag.
+     * A punch with no coordinates is allowed so a device that cannot locate itself never
+     * strands its owner, but it is charged a reason and a selfie and carries a no_location
+     * flag for the manager. Blocking it outright only moved the day to a hand-keyed record
+     * carrying no evidence at all.
      */
-    public function test_clock_in_without_coordinates_is_rejected(): void
+    public function test_clock_in_without_coordinates_needs_a_reason_and_a_selfie_then_is_flagged(): void
     {
+        Storage::fake('local');
+
         $this->actingInTenant()->post('/app/attendance/clock', ['action' => 'in'])
-            ->assertSessionHasErrors(['latitude', 'longitude']);
+            ->assertSessionHasErrors('justification');
+        $this->assertDatabaseCount('attendance_records', 0);
+
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'justification' => 'Desktop cannot find its location.',
+        ])->assertSessionHasErrors('photo');
+        $this->assertDatabaseCount('attendance_records', 0);
+
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'justification' => 'Desktop cannot find its location.',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
+        $this->assertNull($record->latitude);
+        $this->assertContains('no_location', $record->flags);
+        $this->assertNotNull($record->photo_path);
+    }
+
+    /** Coordinates that are present but unparseable are still rejected outright. */
+    public function test_clock_in_with_out_of_range_coordinates_is_rejected(): void
+    {
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'latitude' => '999',
+            'longitude' => '101.6021000',
+        ])->assertSessionHasErrors('latitude');
 
         $this->assertDatabaseCount('attendance_records', 0);
     }
