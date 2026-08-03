@@ -55,7 +55,7 @@
             'The banner shows where you are expected today and your hours.',
             'Tap "Clock in" and allow location. Location is required — the clock will not record without it.',
             'Add a remark if there is something your manager should know about the day. It is optional.',
-            'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting).',
+            'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting) — and a selfie is required as well.',
             'Clock out when you finish. Leaving before your end time or off-site needs a reason too.',
         ],
     ],
@@ -67,7 +67,7 @@
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
             'Tekan "Clock in" dan benarkan lokasi. Lokasi adalah wajib — clock tidak akan direkod tanpanya.',
             'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
-            'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
+            'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien) — dan selfie juga wajib.',
             'Clock out bila habis. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
         ],
     ],
@@ -82,6 +82,8 @@
           x-data="{
               submitting: false,
               photoUrl: null,
+              // Off-site punch was blocked for a missing selfie (client gate + server backstop).
+              photoReq: {{ $errors->has('photo') ? 'true' : 'false' }},
               camOpen: false,
               stream: null,
               camError: '',
@@ -111,7 +113,10 @@
               init() {
                   this.tick();
                   setInterval(() => this.tick(), 1000);
-                  if (navigator.geolocation) {
+                  if (!window.isSecureContext) {
+                      // Warn on load: on an insecure origin no punch can ever succeed.
+                      this.geoFail('insecure');
+                  } else if (navigator.geolocation) {
                       navigator.geolocation.getCurrentPosition(
                           (pos) => {
                               const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
@@ -243,14 +248,21 @@
                   return (now.getHours()*60 + now.getMinutes()) < (Number(p[0])*60 + Number(p[1]));
               },
               proceed(lat, lng) {
-                  let need = false;
-                  if (this.siteLat !== null && !this.matchSite(lat, lng)) need = true;
+                  const offSite = this.siteLat !== null && !this.matchSite(lat, lng);
+                  let need = offSite;
                   if (this.action === 'out' && this.earlyNow()) need = true;
                   if (need && !this.reason.trim()) {
                       this.serverJustify = true;
                       this.noteOpen = true;
                       this.submitting = false;
                       this.$nextTick(() => this.$refs.reason?.focus());
+                      return;
+                  }
+                  // Off-site punches must carry a selfie — mirrors the ClockService gate.
+                  if (offSite && !this.photoUrl) {
+                      this.submitting = false;
+                      this.photoReq = true;
+                      this.triggerSelfie();
                       return;
                   }
                   this.$refs.lat.value = lat; this.$refs.lng.value = lng;
@@ -262,24 +274,45 @@
                   this.submitting = true;
                   this.geoError = '';
                   if (!navigator.geolocation) { this.geoFail('unsupported'); return; }
+                  // Browsers refuse geolocation outside a secure context and report it as
+                  // PERMISSION_DENIED — identical to a real denial, but no address-bar
+                  // toggle can fix it. Name the actual problem instead of the wrong cure.
+                  if (!window.isSecureContext) { this.geoFail('insecure'); return; }
                   navigator.geolocation.getCurrentPosition(
                       (pos) => this.proceed(pos.coords.latitude, pos.coords.longitude),
                       (err) => this.geoFail(err.code === 1 ? 'denied' : 'unavailable'),
                       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
                   );
               },
+              /**
+               * Chat apps (WhatsApp, Telegram, Facebook, Instagram) open links in an embedded
+               * webview that usually cannot read location and denies with the same code 1 as a
+               * real refusal. Detected by user agent: Android marks its webview `; wv)`, and an
+               * iOS in-app view claims Mobile/AppleWebKit while omitting the Safari token.
+               */
+              inAppBrowser() {
+                  const ua = navigator.userAgent;
+                  if (/; wv\)|FBAN|FBAV|Instagram|Line\/|Twitter|MicroMessenger/i.test(ua)) { return true; }
+
+                  return /iPhone|iPad/i.test(ua) && /AppleWebKit/i.test(ua) && !/Safari|CriOS|FxiOS|EdgiOS/i.test(ua);
+              },
               geoFail(kind) {
                   this.submitting = false;
                   this.fenceStatus = 'none';
+                  if (kind === 'denied' && this.inAppBrowser()) { kind = 'denied_webview'; }
                   const en = {
-                      denied: 'Location is blocked for this site, so you cannot clock in or out. Tap the lock icon in the address bar, allow location, then try again.',
+                      denied: 'Location is blocked for this site, so you cannot clock in or out. On a computer, tap the lock icon in the address bar and allow location. On a phone, also check that location is on for Chrome or Safari in your phone settings.',
+                      denied_webview: 'You opened Amanahku inside another app (WhatsApp, Telegram, Facebook), and that window is not allowed to read your location — so clocking cannot work here. Tap the ⋮ or ↗ menu and choose “Open in browser”, then clock from Chrome or Safari.',
                       unavailable: 'Could not read your location. Move somewhere with a clearer signal, turn location services on, then try again.',
                       unsupported: 'This browser cannot share location, so clocking is not possible here. Use the app on your phone browser instead.',
+                      insecure: 'This address (' + location.origin + ') is not secure, so the browser will not share your location and clocking is blocked. Open the app on its https:// address instead.',
                   };
                   const ms = {
-                      denied: 'Lokasi disekat untuk laman ini, jadi anda tidak boleh clock in atau clock out. Tekan ikon kunci di bar alamat, benarkan lokasi, kemudian cuba lagi.',
+                      denied: 'Lokasi disekat untuk laman ini, jadi anda tidak boleh clock in atau clock out. Pada komputer, tekan ikon kunci di bar alamat dan benarkan lokasi. Pada telefon, semak juga lokasi dihidupkan untuk Chrome atau Safari dalam tetapan telefon.',
+                      denied_webview: 'Anda membuka Amanahku di dalam aplikasi lain (WhatsApp, Telegram, Facebook), dan tetingkap itu tidak dibenarkan membaca lokasi anda — jadi clock tidak boleh dibuat di sini. Tekan menu ⋮ atau ↗ dan pilih “Buka dalam pelayar”, kemudian clock dari Chrome atau Safari.',
                       unavailable: 'Tidak dapat membaca lokasi anda. Pindah ke tempat dengan isyarat lebih baik, hidupkan servis lokasi, kemudian cuba lagi.',
                       unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
+                      insecure: 'Alamat ini (' + location.origin + ') tidak selamat, jadi pelayar tidak akan berkongsi lokasi anda dan clock disekat. Buka aplikasi pada alamat https:// sebaliknya.',
                   };
                   this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
               },
@@ -335,6 +368,7 @@
                       this.$refs.photo.files = dt.files;
                       if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
                       this.photoUrl = URL.createObjectURL(file);
+                      this.photoReq = false;
                       this.closeCam();
                   }, 'image/jpeg', 0.9);
               },
@@ -350,7 +384,7 @@
         <input type="hidden" name="longitude" x-ref="lng" />
         <input type="file" id="attendance-photo" name="photo" accept="image/*" capture="user" x-ref="photo"
                style="display:none;"
-               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''" />
+               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) photoReq = false;" />
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -467,6 +501,12 @@
 
         <div x-show="geoError" x-cloak x-text="geoError" style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
         @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+
+        <div x-show="photoReq" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
+             x-text="$store.ui.lang==='en'
+                 ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.'
+                 : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.'"></div>
+        @error('photo')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 

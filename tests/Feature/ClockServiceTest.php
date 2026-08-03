@@ -92,17 +92,51 @@ class ClockServiceTest extends TestCase
         $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
     }
 
-    public function test_out_of_radius_clock_in_with_justification_is_flagged_not_blocked(): void
+    public function test_out_of_radius_clock_in_requires_a_selfie_even_with_a_justification(): void
     {
         $now = Carbon::parse('2026-07-02 08:55:00');
 
         $res = $this->service($this->office())->clockIn($this->employee, 3.20, 101.60, 'Client meeting first', null, $now);
+
+        $this->assertSame('needs_photo', $res['status']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
+    }
+
+    public function test_in_radius_clock_in_needs_no_selfie(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.1001, 101.6001, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+    }
+
+    public function test_out_of_radius_clock_in_with_justification_and_selfie_is_flagged_not_blocked(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.20, 101.60, 'Client meeting first', 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertFalse($record->in_radius);
         $this->assertContains('out_of_radius_in', $record->flags);
         $this->assertSame('Client meeting first', $record->clock_in_justification);
+        $this->assertSame('attendance-photos/a.jpg', $record->photo_path);
+    }
+
+    public function test_off_site_clock_out_requires_a_selfie_but_an_early_in_radius_one_does_not(): void
+    {
+        $svc = $this->service($this->office());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 09:00:00'));
+        $early = Carbon::parse('2026-07-02 15:00:00');
+
+        $offSite = $svc->clockOut($this->employee, 3.20, 101.60, 'Left from the client site', null, $early);
+        $this->assertSame('needs_photo', $offSite['status']);
+
+        // Same early exit from inside the fence needs the reason only.
+        $inFence = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', null, $early);
+        $this->assertSame('ok', $inFence['status']);
     }
 
     public function test_clock_in_after_work_start_is_marked_late(): void

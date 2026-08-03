@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\HandbookSection;
@@ -11,7 +12,9 @@ use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class WritePathsTest extends TestCase
@@ -118,6 +121,43 @@ class WritePathsTest extends TestCase
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
         $this->assertSame(3.1039, (float) $record->latitude);
         $this->assertSame(101.6021, (float) $record->longitude);
+    }
+
+    /**
+     * Off-site punches must carry a selfie. A reason alone is unverifiable, so the server
+     * rejects the punch and the screen asks for a fresh capture (a file input cannot be
+     * refilled from old input).
+     */
+    public function test_off_site_clock_in_is_rejected_without_a_selfie_and_accepted_with_one(): void
+    {
+        Storage::fake('local');
+        $branch = Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'HQ',
+            'latitude' => 3.1039, 'longitude' => 101.6021, 'radius_m' => 200,
+        ]);
+        $this->employee->update(['branch_id' => $branch->id]);
+
+        // ~11km off the pin, reason given, no photo.
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'latitude' => '3.2039000',
+            'longitude' => '101.6021000',
+            'justification' => 'Client meeting first.',
+        ])->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('attendance_records', 0);
+
+        $this->actingInTenant()->post('/app/attendance/clock', [
+            'action' => 'in',
+            'latitude' => '3.2039000',
+            'longitude' => '101.6021000',
+            'justification' => 'Client meeting first.',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
+        $this->assertNotNull($record->photo_path);
+        $this->assertFalse((bool) $record->in_radius);
     }
 
     /** A remark rides along with an ordinary punch — no flag, nothing demanded by the server. */
