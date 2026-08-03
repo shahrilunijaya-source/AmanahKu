@@ -23,7 +23,12 @@ class WorkItemController extends Controller
 
     private const STATUS_LABELS = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
 
-    /** Roles permitted to assign a tac onto another employee's board. */
+    /**
+     * Roles permitted to assign a tac onto another employee's board. Compared
+     * against Permissions::effectiveRole(), which collapses `director` into
+     * `management` — a director outranks a manager, so listing the raw roles here
+     * would silently lock out the one role above them all.
+     */
     private const ASSIGNER_ROLES = ['manager', 'management', 'hr'];
 
     /** The current employee adds a work item to their own board. */
@@ -65,7 +70,7 @@ class WorkItemController extends Controller
     public function assign(Request $request, Employee $employee): RedirectResponse|JsonResponse
     {
         $assigner = $this->employee($request);
-        $role = $request->attributes->get('tenantRole', 'employee');
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
         abort_unless(in_array($role, self::ASSIGNER_ROLES, true), 403, 'Your role cannot assign tasks.');
         abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
         // No new work onto an archived person — they hold no live responsibility (H8).
@@ -95,7 +100,7 @@ class WorkItemController extends Controller
 
         AppNotification::send(
             $employee->user_id,
-            $assigner->name.' assigned you a task',
+            $assigner->display_name.' assigned you a task',
             $item->title,
             route('app.screen', 'board'),
             mail: true,
@@ -108,7 +113,7 @@ class WorkItemController extends Controller
             return response()->json(['card' => $this->cardPayload($item)], 201);
         }
 
-        return back()->with('ok', 'Task assigned to '.$employee->name.'.');
+        return back()->with('ok', 'Task assigned to '.$employee->display_name.'.');
     }
 
     /** Full card detail + comment thread for the detail drawer. */
@@ -133,7 +138,7 @@ class WorkItemController extends Controller
                 // write responses don't repeat these, so the merge in the client just
                 // leaves them as-is.
                 'opened_at' => ($workItem->assigned_by_id ? $workItem->assigned_at : $workItem->created_at)?->format('d M Y'),
-                'owner_name' => $workItem->assigned_by_id ? $workItem->assignedBy?->name : $workItem->employee?->name,
+                'owner_name' => $workItem->assigned_by_id ? $workItem->assignedBy?->display_name : $workItem->employee?->display_name,
                 // Feeds the drawer's @-mention picker. Participants + assigner only —
                 // see mentionableEmployees() for why the roster stops there.
                 'mentionable' => $this->mentionablePayload($workItem),
@@ -178,9 +183,8 @@ class WorkItemController extends Controller
         ]);
 
         // Participants are a relation, not a column — pull them out before the fill.
-        // Present only when the client sends the people picker (privileged roles).
         if (array_key_exists('participant_ids', $data)) {
-            $this->syncParticipants($request, $workItem, $data['participant_ids']);
+            $this->syncParticipants($workItem, $data['participant_ids'], $employee);
             unset($data['participant_ids']);
         }
 
@@ -221,7 +225,7 @@ class WorkItemController extends Controller
             $assigner = Employee::find($workItem->assigned_by_id);
             AppNotification::send(
                 $assigner?->user_id,
-                $employee->name.' completed: '.$workItem->title,
+                $employee->display_name.' completed: '.$workItem->title,
                 null,
                 route('app.screen', 'board'),
             );
@@ -335,16 +339,15 @@ class WorkItemController extends Controller
     }
 
     /**
-     * Set the people included on a shared card. Privileged roles only — adding
-     * someone pushes the card onto their board, so it mirrors the assign() gate.
-     * The owner is never their own participant. Newly added people are notified
-     * once; re-saving with an unchanged set does not re-ping the survivors.
+     * Set the people included on a shared card. Open to every role: including
+     * someone is collaboration on a card you already manage, not an assignment,
+     * so it is bounded by canManage() (checked in update() before this runs)
+     * rather than by role. The owner is never their own participant. Newly added
+     * people are notified once; re-saving with an unchanged set does not re-ping
+     * the survivors.
      */
-    private function syncParticipants(Request $request, WorkItem $item, array $ids): void
+    private function syncParticipants(WorkItem $item, array $ids, Employee $actor): void
     {
-        $role = $request->attributes->get('tenantRole', 'employee');
-        abort_unless(in_array($role, self::ASSIGNER_ROLES, true), 403, 'Your role cannot include people on a card.');
-
         // Keep only real, active employees in this tenant; never the owner themselves.
         $target = Employee::active()
             ->whereIn('id', array_filter($ids))
@@ -354,11 +357,10 @@ class WorkItemController extends Controller
         $before = $item->participants()->pluck('employees.id');
         $item->participants()->sync($target);
 
-        $actor = $this->employee($request);
         foreach ($target->diff($before) as $addedId) {
             AppNotification::send(
                 Employee::find($addedId)?->user_id,
-                $actor->name.' added you to a task',
+                $actor->display_name.' added you to a task',
                 $item->title,
                 route('app.screen', 'board'),
                 mail: true,
@@ -446,8 +448,8 @@ class WorkItemController extends Controller
      * owner, never the wider tenant roster. This mirrors authorizeAccess()
      * exactly (owner / assigner / participants may view a card), minus the
      * owner, so a mention can never notify someone who would 403 opening the
-     * card. It also can't be grown by an ordinary employee: adding a
-     * participant is manager/management/hr-only (see syncParticipants()).
+     * card. It can only be grown by someone who manages the card, since that is
+     * what adding a participant requires (see syncParticipants()).
      *
      * @return Collection<int, Employee>
      */
@@ -471,7 +473,7 @@ class WorkItemController extends Controller
     private function mentionablePayload(WorkItem $item): array
     {
         return $this->mentionableEmployees($item)
-            ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+            ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
             ->values()
             ->all();
     }
@@ -483,7 +485,10 @@ class WorkItemController extends Controller
      * themselves even if their own name appears (e.g. a participant mentioning
      * themselves out of habit).
      *
-     * Two people sharing a full name on one card is an accepted ambiguity (see
+     * Names here are display names (nickname, else legal name), the same string
+     * the mention picker inserts, so the match cannot drift from what the author
+     * clicked. Two people sharing one display name on a card is an accepted
+     * ambiguity (see
      * the design doc): disambiguating would mean storing resolved employee ids
      * on the comment, which is a migration this stage deliberately skips. The
      * first employee encountered with a given name wins; the rest of that name
@@ -495,12 +500,12 @@ class WorkItemController extends Controller
         $recipientUserIds = collect();
 
         foreach ($this->mentionableEmployees($item) as $employee) {
-            if (isset($seenNames[$employee->name])) {
+            if (isset($seenNames[$employee->display_name])) {
                 continue;
             }
-            $seenNames[$employee->name] = true;
+            $seenNames[$employee->display_name] = true;
 
-            if ($employee->id === $author->id || ! str_contains($body, '@'.$employee->name)) {
+            if ($employee->id === $author->id || ! str_contains($body, '@'.$employee->display_name)) {
                 continue;
             }
 
@@ -515,7 +520,7 @@ class WorkItemController extends Controller
 
         AppNotification::sendMany(
             $recipientUserIds->unique(),
-            $author->name.' mentioned you on a task',
+            $author->display_name.' mentioned you on a task',
             $item->title,
             route('app.screen', ['screen' => 'board', 'card' => $item->id]),
         );
@@ -548,7 +553,7 @@ class WorkItemController extends Controller
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
-                'name' => $item->assignedBy?->name,
+                'name' => $item->assignedBy?->display_name,
                 'initials' => $item->assignedBy?->initials,
                 'color' => $item->assignedBy?->avatar_color,
             ] : null,
@@ -557,7 +562,7 @@ class WorkItemController extends Controller
             'participants' => $item->relationLoaded('participants')
                 ? $item->participants->map(fn (Employee $e) => [
                     'id' => $e->id,
-                    'name' => $e->name,
+                    'name' => $e->display_name,
                     'initials' => $e->initials,
                     'color' => $e->avatar_color,
                 ])->values()->all()
@@ -570,7 +575,7 @@ class WorkItemController extends Controller
         return [
             'id' => $c->id,
             'body' => $c->body,
-            'author' => $c->employee?->name ?? 'Someone',
+            'author' => $c->employee?->display_name ?? 'Someone',
             'initials' => $c->employee?->initials ?? '··',
             'color' => $c->employee?->avatar_color ?? 'var(--muted)',
             'when' => $c->created_at?->diffForHumans(),

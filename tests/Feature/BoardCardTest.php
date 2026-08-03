@@ -325,6 +325,20 @@ class BoardCardTest extends TestCase
         ]);
     }
 
+    /** `director` is management-tier: effectiveRole() collapses it, so the raw slug must not lock it out. */
+    public function test_director_assigns_tac_to_staff_board(): void
+    {
+        $director = $this->manager('director');
+
+        $this->actingAsManager($director)->postJson("/app/board/assign/{$this->employee->id}", [
+            'title' => 'Board paper', 'type' => 'adhoc', 'priority' => 'high',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('work_items', [
+            'employee_id' => $this->employee->id, 'assigned_by_id' => $director->id, 'title' => 'Board paper',
+        ]);
+    }
+
     public function test_plain_employee_cannot_assign(): void
     {
         $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'status' => 'active', 'workload' => 'green']);
@@ -539,13 +553,70 @@ class BoardCardTest extends TestCase
             ->assertOk()->assertJsonPath('card.can_manage', false);
     }
 
-    public function test_plain_employee_cannot_set_participants(): void
+    // Including people is open to every role — it is collaboration on a card you
+    // already manage, not an assignment. The bound is canManage(), not the role.
+
+    public function test_plain_employee_sets_participants_on_their_own_card(): void
     {
         $card = $this->card(); // owned by the plain employee
         $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'status' => 'active', 'workload' => 'green']);
 
         $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
             'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'participant_ids' => [$colleague->id],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('work_item_participant', [
+            'work_item_id' => $card->id, 'employee_id' => $colleague->id,
+        ]);
+    }
+
+    /**
+     * Every name the board shows is the display name (nickname, else legal name),
+     * so the picker, the participant chips and the mention roster all read the way
+     * people are actually addressed. `name` stays legal for payroll and documents.
+     */
+    public function test_the_board_shows_nicknames_not_legal_names(): void
+    {
+        $colleague = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Muhammad Hakim bin Ali',
+            'nickname' => 'hakime', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $card = $this->card();
+
+        // The picker roster on the board screen.
+        $this->actingInTenant()->get('/app/board')->assertOk()
+            ->assertViewHas('people', fn ($people) => $people->contains('name', 'Hakime'));
+
+        // The participant chips on a saved card.
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'participant_ids' => [$colleague->id],
+        ])->assertOk()->assertJsonPath('card.participants.0.name', 'Hakime');
+
+        // The mention roster in the detail drawer.
+        $this->actingInTenant()->getJson("/app/board/{$card->id}")
+            ->assertOk()->assertJsonPath('card.mentionable.0.name', 'Hakime');
+    }
+
+    public function test_a_director_sets_participants_on_their_own_card(): void
+    {
+        $director = $this->manager('director');
+        $card = $this->ownedByManager($director);
+
+        $this->actingAsManager($director)->patchJson("/app/board/{$card->id}", [
+            'title' => 'Team task', 'type' => 'task', 'priority' => 'medium',
+            'participant_ids' => [$this->employee->id],
+        ])->assertOk()->assertJsonPath('card.participants.0.id', $this->employee->id);
+    }
+
+    public function test_setting_participants_on_someone_elses_card_is_still_forbidden(): void
+    {
+        $mgr = $this->manager('manager');
+        $card = $this->ownedByManager($mgr);
+        $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'status' => 'active', 'workload' => 'green']);
+
+        $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
+            'title' => 'Team task', 'type' => 'task', 'priority' => 'medium',
             'participant_ids' => [$colleague->id],
         ])->assertForbidden();
 

@@ -35,7 +35,7 @@
     ],
 ])
 
-<div x-data="workBoard(@js($boardType), @js($canAssignPeople ?? false), @js($people ?? []), @js($labelDef), @js($deepLinkCardId ?? null))"
+<div x-data="workBoard(@js($boardType), @js($people ?? []), @js($labelDef), @js($deepLinkCardId ?? null))"
      @if ($deepLinkCardId ?? null) data-deep-link-card="{{ $deepLinkCardId }}" @endif>
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
@@ -259,7 +259,7 @@
                             <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'">People</span>
                             <span class="wd-pval">
                                 <span class="wd-chiprow">
-                                    <template x-if="canAssign && !drawer.locked">
+                                    <template x-if="!drawer.locked">
                                         <template x-for="p in drawer.card.participants" :key="p.id">
                                             <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 4px;border:1px solid var(--hairline);border-radius:9999px;font-size:12px;font-weight:500;color:var(--ink);background:#fff;">
                                                 <span class="wa" :style="'margin-left:0;width:22px;height:22px;font-size:9px;background:' + (p.color || 'var(--muted)')" x-text="p.initials"></span>
@@ -269,7 +269,7 @@
                                             </span>
                                         </template>
                                     </template>
-                                    <template x-if="!(canAssign && !drawer.locked) && drawer.card.participants.length">
+                                    <template x-if="drawer.locked && drawer.card.participants.length">
                                         <span class="wa-stack">
                                             <template x-for="p in drawer.card.participants" :key="'ro'+p.id">
                                                 <span class="wa" :style="'background:' + (p.color || 'var(--muted)')" :title="p.name" x-text="p.initials"></span>
@@ -279,7 +279,7 @@
                                     <template x-if="!drawer.card.participants.length">
                                         <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'Just you' : 'Anda sahaja'"></span>
                                     </template>
-                                    <span style="position:relative;display:inline-block;" x-show="canAssign && !drawer.locked && availablePeople.length">
+                                    <span style="position:relative;display:inline-block;" x-show="!drawer.locked && availablePeople.length">
                                         <select class="wd-inline" style="margin-left:0;" @change="addPerson($event.target.value); $event.target.value=''">
                                             <option value="" x-text="$store.ui.lang==='en' ? '+ Add someone' : '+ Tambah orang'"></option>
                                             <template x-for="p in availablePeople" :key="p.id">
