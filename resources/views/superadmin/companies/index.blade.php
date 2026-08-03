@@ -45,6 +45,16 @@
             </div>
         @endif
 
+        {{-- A job nobody picks up never fails, so the banner above stays silent while a
+             stopped worker quietly swallows every invite. This is the only warning. --}}
+        @if ($stuckJobs > 0)
+            <div style="background:#fdf3e3;border:1px solid #f0d9a8;color:#7a4f10;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;line-height:1.6;">
+                <div style="font-weight:600;margin-bottom:2px;">Queued jobs are not being processed</div>
+                <div>{{ $stuckJobs }} queued {{ Str::plural('job', $stuckJobs) }} {{ $stuckJobs === 1 ? 'has' : 'have' }} been waiting more than 10 minutes. Nothing has failed — the queue worker is most likely not running.</div>
+                <div style="margin-top:6px;">Invites, password resets and the weekly digest all send through the queue, so none of them are going out. Ask the operations team to restart <code>queue:work</code>; the backlog then sends by itself.</div>
+            </div>
+        @endif
+
         @if (session('ok'))
             <div style="background:#eaf6f1;border:1px solid #bfe3d3;color:#0f5132;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;line-height:1.6;">{{ session('ok') }}</div>
         @endif

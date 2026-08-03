@@ -79,6 +79,14 @@
                     </form>
                 @elseif ($p->user_id)
                     <p x-show="edit" x-cloak style="font-size:11px;color:var(--muted);margin-top:8px;text-align:left;"><span x-text="$store.ui.lang==='en' ? 'This person already has a login.' : 'Orang ini sudah ada login.'">This person already has a login.</span></p>
+                    {{-- Never activated: the invite is queued mail and can be lost without a trace, so HR needs a way to send it again (see MemberController::resendInvite). --}}
+                    @if ($p->user?->password_change_required)
+                        <form method="post" action="{{ route('members.resend-invite', $p) }}" x-show="edit" x-cloak style="margin-top:8px;text-align:left;">
+                            @csrf
+                            <button type="submit" class="uj-btn-ghost" style="height:38px;font-size:12.5px;width:100%;"><span x-text="$store.ui.lang==='en' ? 'Resend invite' : 'Hantar semula jemputan'">Resend invite</span></button>
+                            <p style="font-size:11px;color:var(--muted);margin:6px 0 0;"><span x-text="$store.ui.lang==='en' ? 'This person has not activated their account yet. Sends a fresh invite email; any earlier invite stops working.' : 'Orang ini belum mengaktifkan akaun mereka. Menghantar emel jemputan baharu; jemputan terdahulu berhenti berfungsi.'"></span></p>
+                        </form>
+                    @endif
                     {{-- Reset password: mints a fresh one-time password shown to HR once (see MemberController::resetPassword). The employee must change it on next sign-in. --}}
                     <form method="post" action="{{ route('members.reset-password', $p) }}" x-show="edit" x-cloak
                           @submit="if (! confirm($store.ui.lang==='en' ? @js('Reset the password for '.$p->name.'? A new one-time password will be shown to you and they must change it on next sign-in.') : @js('Set semula kata laluan '.$p->name.'? Kata laluan sekali guna baharu akan dipaparkan kepada anda dan mereka mesti menukarnya semasa log masuk seterusnya.'))) $event.preventDefault();"
