@@ -98,6 +98,7 @@
               workStart: '{{ $site?->workStart ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
               geoError: '',
+              geoDetail: '',
               // [type, label, lat, lng, radius] for every geofenced branch and client site.
               sites: @js($geofencedSites ?? []),
               assignedLabel: @js($site?->label ?? ''),
@@ -134,7 +135,7 @@
                           },
                           (err) => {
                               // Warn on load rather than letting the staff discover it on tap.
-                              if (err.code === 1) { this.geoFail('denied'); }
+                              if (err.code === 1) { this.geoFail('denied', err); }
                               this.fenceStatus = 'none';
                           },
                           { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
@@ -278,10 +279,23 @@
                   // PERMISSION_DENIED — identical to a real denial, but no address-bar
                   // toggle can fix it. Name the actual problem instead of the wrong cure.
                   if (!window.isSecureContext) { this.geoFail('insecure'); return; }
+                  this.locate(true);
+              },
+              /**
+               * One position request. A desktop has no GPS chip, so enableHighAccuracy makes
+               * the browser wait on a network lookup that often fails outright (Firefox on a
+               * wired machine has no WiFi scan to geolocate from). Any failure other than a
+               * refusal is therefore retried once at low accuracy before giving up.
+               */
+              locate(highAccuracy) {
                   navigator.geolocation.getCurrentPosition(
                       (pos) => this.proceed(pos.coords.latitude, pos.coords.longitude),
-                      (err) => this.geoFail(err.code === 1 ? 'denied' : 'unavailable'),
-                      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                      (err) => {
+                          if (err.code === 1) { this.geoFail('denied', err); return; }
+                          if (highAccuracy) { this.locate(false); return; }
+                          this.geoFail(err.code === 3 ? 'timeout' : 'unavailable', err);
+                      },
+                      { enableHighAccuracy: highAccuracy, timeout: highAccuracy ? 8000 : 20000, maximumAge: 60000 }
                   );
               },
               /**
@@ -296,25 +310,33 @@
 
                   return /iPhone|iPad/i.test(ua) && /AppleWebKit/i.test(ua) && !/Safari|CriOS|FxiOS|EdgiOS/i.test(ua);
               },
-              geoFail(kind) {
+              geoFail(kind, err = null) {
                   this.submitting = false;
                   this.fenceStatus = 'none';
                   if (kind === 'denied' && this.inAppBrowser()) { kind = 'denied_webview'; }
                   const en = {
                       denied: 'Location is blocked for this site, so you cannot clock in or out. On a computer, tap the lock icon in the address bar and allow location. On a phone, also check that location is on for Chrome or Safari in your phone settings.',
                       denied_webview: 'You opened Amanahku inside another app (WhatsApp, Telegram, Facebook), and that window is not allowed to read your location — so clocking cannot work here. Tap the ⋮ or ↗ menu and choose “Open in browser”, then clock from Chrome or Safari.',
-                      unavailable: 'Could not read your location. Move somewhere with a clearer signal, turn location services on, then try again.',
+                      unavailable: 'Your browser allowed location but could not work out where you are. On a desktop there is no GPS, so the browser looks your position up over the network and that lookup failed. Check that location services are on for the whole computer (Windows Settings, Privacy, Location), then try again. Clocking from your phone always works.',
+                      timeout: 'Your location took too long to arrive, so the punch was not sent. Try again — if it keeps timing out, clock from your phone instead.',
                       unsupported: 'This browser cannot share location, so clocking is not possible here. Use the app on your phone browser instead.',
                       insecure: 'This address (' + location.origin + ') is not secure, so the browser will not share your location and clocking is blocked. Open the app on its https:// address instead.',
                   };
                   const ms = {
                       denied: 'Lokasi disekat untuk laman ini, jadi anda tidak boleh clock in atau clock out. Pada komputer, tekan ikon kunci di bar alamat dan benarkan lokasi. Pada telefon, semak juga lokasi dihidupkan untuk Chrome atau Safari dalam tetapan telefon.',
                       denied_webview: 'Anda membuka Amanahku di dalam aplikasi lain (WhatsApp, Telegram, Facebook), dan tetingkap itu tidak dibenarkan membaca lokasi anda — jadi clock tidak boleh dibuat di sini. Tekan menu ⋮ atau ↗ dan pilih “Buka dalam pelayar”, kemudian clock dari Chrome atau Safari.',
-                      unavailable: 'Tidak dapat membaca lokasi anda. Pindah ke tempat dengan isyarat lebih baik, hidupkan servis lokasi, kemudian cuba lagi.',
+                      unavailable: 'Pelayar anda membenarkan lokasi tetapi tidak dapat mengetahui di mana anda berada. Pada komputer tiada GPS, jadi pelayar mencari kedudukan melalui rangkaian dan carian itu gagal. Pastikan servis lokasi dihidupkan untuk seluruh komputer (Windows Settings, Privacy, Location), kemudian cuba lagi. Clock dari telefon sentiasa berfungsi.',
+                      timeout: 'Lokasi anda terlalu lama sampai, jadi rekod tidak dihantar. Cuba lagi — jika masih gagal, clock dari telefon anda.',
                       unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
                       insecure: 'Alamat ini (' + location.origin + ') tidak selamat, jadi pelayar tidak akan berkongsi lokasi anda dan clock disekat. Buka aplikasi pada alamat https:// sebaliknya.',
                   };
                   this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
+                  // Support cannot reproduce a staff member's browser, so carry the browser's
+                  // own verdict in the message. Without it every failure looks the same and
+                  // the guesswork starts.
+                  this.geoDetail = err
+                      ? 'Browser reported: ' + kind + ' (code ' + err.code + (err.message ? ' — ' + err.message : '') + ')'
+                      : 'Browser reported: ' + kind;
               },
               triggerSelfie() {
                   if (!window.matchMedia('(pointer:coarse)').matches) {
@@ -499,7 +521,10 @@
             </div>
         </div>
 
-        <div x-show="geoError" x-cloak x-text="geoError" style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
+        <div x-show="geoError" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
+            <div x-text="geoError"></div>
+            <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+        </div>
         @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="photoReq" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
