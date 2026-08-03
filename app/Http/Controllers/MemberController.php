@@ -190,6 +190,67 @@ class MemberController extends Controller
     }
 
     /**
+     * Re-send the activation invite to a member who never activated their account.
+     *
+     * The invite is queued mail, so a mail outage or a stopped queue worker loses it
+     * with no trace and no recovery path — the member simply never hears anything and
+     * HR has no way to try again (prod, 2026-08-03: seven members stranded). The
+     * original one-time password is stored only as a hash and cannot be re-sent, so
+     * this mints a fresh one; the lost invite stops working, which is harmless since
+     * it never arrived.
+     *
+     * Deliberately refused once the member has signed in and set their own password
+     * (password_change_required is cleared): re-inviting then would rotate a working
+     * credential out from under them. That case is "Reset password", not this.
+     */
+    public function resendInvite(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        $tenant = app(CurrentTenant::class)->get();
+
+        $user = $this->memberUserFor($employee, $tenant);
+        if (! $user) {
+            return back()->with('error', $employee->name.' has no login yet — create one first.');
+        }
+
+        if (! $user->password_change_required) {
+            return back()->with('error', $employee->name.' has already activated their account. Use "Reset password" instead.');
+        }
+
+        $tempPassword = Str::password(12);
+        $user->forceFill(['password' => Hash::make($tempPassword)])->save();
+
+        $role = $user->tenants->firstWhere('id', $tenant->id)?->pivot->role ?? 'employee';
+        $user->notify(new MemberInvited($tenant, $tempPassword, $role));
+
+        AuditLog::record('Resent invite', $employee->name);
+
+        return back()->with('ok', 'A fresh activation invite has been emailed to '.$user->email.'. Any earlier invite for this account no longer works.');
+    }
+
+    /**
+     * The login behind a directory record, or null if it has none.
+     *
+     * Refuses (403) an account that is not attached to this tenant, and any platform
+     * super-admin — that login operates above every company and must never be
+     * re-credentialled by a tenant's HR.
+     */
+    private function memberUserFor(Employee $employee, Tenant $tenant): ?User
+    {
+        abort_unless($employee->tenant_id === $tenant->id, 403);
+
+        if (! $employee->user_id) {
+            return null;
+        }
+
+        $user = User::find($employee->user_id);
+        abort_unless($user && $user->tenants->contains('id', $tenant->id), 403);
+        abort_if($user->isSuperAdmin(), 403);
+
+        return $user;
+    }
+
+    /**
      * Reset a member's password (HR / management self-service, per-row from the
      * profile). Generates a fresh one-time password, forces a rotation on next
      * sign-in (password_change_required), and hands the credential back to the acting
@@ -207,21 +268,13 @@ class MemberController extends Controller
     {
         $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
         $tenant = app(CurrentTenant::class)->get();
-        abort_unless($employee->tenant_id === $tenant->id, 403);
 
         // Directory records without a login have nothing to reset — send HR to
         // "Create login" instead of silently doing nothing.
-        if (! $employee->user_id) {
+        $user = $this->memberUserFor($employee, $tenant);
+        if (! $user) {
             return back()->with('error', $employee->name.' has no login yet — create one first.');
         }
-
-        $user = User::find($employee->user_id);
-        // The account row is gone (or somehow detached from this tenant) — refuse
-        // rather than mint a credential for someone outside the workspace.
-        abort_unless($user && $user->tenants->contains('id', $tenant->id), 403);
-        // A tenant HR admin must not be able to reset a platform super-admin's global
-        // login — that account operates above any single company.
-        abort_if($user->isSuperAdmin(), 403);
 
         $tempPassword = Str::password(12);
         $user->forceFill([

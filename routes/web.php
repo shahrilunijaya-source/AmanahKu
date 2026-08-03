@@ -251,6 +251,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/members/provision', [MemberController::class, 'provisionLogins'])->name('members.provision');
         Route::post('/app/members/{employee}/login', [MemberController::class, 'createLogin'])->name('members.create-login');
         Route::post('/app/members/{employee}/reset-password', [MemberController::class, 'resetPassword'])->name('members.reset-password');
+        Route::post('/app/members/{employee}/resend-invite', [MemberController::class, 'resendInvite'])->name('members.resend-invite');
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
         Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
