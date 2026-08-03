@@ -189,14 +189,21 @@ class ProfileTestController extends Controller
             'section' => ['required', Rule::in(['working_style', 'colour'])],
             'prompt' => ['required', 'string', 'max:500'],
             'options' => ['nullable', 'array'],
+            'options.*.id' => ['nullable', 'integer'],
             'options.*.label' => ['nullable', 'string', 'max:255'],
             'options.*.animal' => ['nullable', Rule::in(self::ANIMALS)],
         ]);
     }
 
     /**
-     * Replace a question's options. Colour questions are open free-text and
-     * never carry options; empty-label rows are ignored.
+     * Write a question's options. Colour questions are open free-text and never
+     * carry options; empty-label rows are ignored.
+     *
+     * Rows the editor sends back with an id are UPDATED in place rather than
+     * dropped and recreated. Employees' saved answers store the option id, so
+     * recreating the rows would silently orphan every answer already given —
+     * editing a typo in a prompt would blank the whole team's result. Only rows
+     * the editor actually removed get deleted.
      *
      * @param  array<string, mixed>  $data
      */
@@ -212,21 +219,37 @@ class ProfileTestController extends Controller
             return;
         }
 
-        $question->options()->delete();
-
+        /** @var array<int, int> */
+        $existing = $question->options()->pluck('id')->all();
+        $kept = [];
         $position = 0;
+
         foreach ($data['options'] as $opt) {
             $label = trim((string) ($opt['label'] ?? ''));
             if ($label === '') {
                 continue;
             }
             $position++;
-            $question->options()->create([
+            $attrs = [
                 'label_en' => $label,
                 'animal' => $opt['animal'] ?? null,
                 'position' => $position,
-            ]);
+            ];
+
+            // The id must be one of THIS question's own options — never trust the
+            // form to hand us a row belonging to some other question.
+            $id = (int) ($opt['id'] ?? 0);
+            if ($id !== 0 && in_array($id, $existing, true)) {
+                $question->options()->whereKey($id)->update($attrs);
+                $kept[] = $id;
+
+                continue;
+            }
+
+            $kept[] = $question->options()->create($attrs)->id;
         }
+
+        $question->options()->whereNotIn('id', $kept)->delete();
     }
 
     /**
