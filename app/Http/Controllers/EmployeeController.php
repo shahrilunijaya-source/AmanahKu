@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\Position;
+use App\Models\User;
 use App\Services\StaffArchiver;
 use App\Support\CsvImport;
 use App\Tenancy\CurrentTenant;
@@ -86,7 +87,12 @@ class EmployeeController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'nickname' => ['nullable', 'string', 'max:60'],
             // Active-only, tenant-scoped uniqueness (AK-DB-03), ignoring this row itself.
-            'email' => ['nullable', 'email', 'max:160', $this->activeUnique('email', $tenantId, $employee->id)],
+            // Once the row has a login the address is also the username, so it must clear
+            // the GLOBAL users.email unique index too — tenant-scoped uniqueness alone
+            // would let a legal edit here collide with a login in another company and
+            // surface as a raw constraint error mid-save.
+            'email' => ['nullable', 'email', 'max:160', $this->activeUnique('email', $tenantId, $employee->id),
+                ...($employee->user_id ? [Rule::unique('users', 'email')->ignore($employee->user_id)] : [])],
             'staff_id' => ['nullable', 'string', 'max:50', $this->activeUnique('staff_id', $tenantId, $employee->id)],
             'joined_at' => ['nullable', 'date', 'before_or_equal:today'],
             'date_of_birth' => ['nullable', 'date', 'before:today'],
@@ -120,27 +126,70 @@ class EmployeeController extends Controller
         // — the absent field must NOT be read as "clear it", and a forged POST is ignored.
         $canSetSalary = $this->hasTenantRole($request, ['director', 'hr']);
 
-        $employee->update([
-            'name' => $data['name'],
-            'nickname' => $data['nickname'] ?? null,
-            'email' => $data['email'] ?? null,
-            'staff_id' => $data['staff_id'] ?? null,
-            // Hire date never silently clears: keep the existing value when left blank,
-            // falling back to today — matching store() / import().
-            'joined_at' => $data['joined_at'] ?? $employee->joined_at ?? now()->toDateString(),
-            'date_of_birth' => $data['date_of_birth'] ?? null,
-            'salary' => $canSetSalary ? ($data['salary'] ?? null) : $employee->salary,
-            'branch_id' => $data['branch_id'] ?? null,
-            'employment_type_id' => $data['employment_type_id'] ?? null,
-            'reports_to_id' => $data['reports_to_id'] ?? null,
-            'status' => $data['status'],
-            'initials' => $this->initials($data['name']),
-        ] + $this->bandFields(isset($data['position_id']) ? (int) $data['position_id'] : null)
-          + $this->arrangementFields($employee, $data['work_arrangement'] ?? $employee->work_arrangement ?? 'office'));
+        DB::transaction(function () use ($employee, $data, $canSetSalary) {
+            $employee->update([
+                'name' => $data['name'],
+                'nickname' => $data['nickname'] ?? null,
+                'email' => $data['email'] ?? null,
+                'staff_id' => $data['staff_id'] ?? null,
+                // Hire date never silently clears: keep the existing value when left blank,
+                // falling back to today — matching store() / import().
+                'joined_at' => $data['joined_at'] ?? $employee->joined_at ?? now()->toDateString(),
+                'date_of_birth' => $data['date_of_birth'] ?? null,
+                'salary' => $canSetSalary ? ($data['salary'] ?? null) : $employee->salary,
+                'branch_id' => $data['branch_id'] ?? null,
+                'employment_type_id' => $data['employment_type_id'] ?? null,
+                'reports_to_id' => $data['reports_to_id'] ?? null,
+                'status' => $data['status'],
+                'initials' => $this->initials($data['name']),
+            ] + $this->bandFields(isset($data['position_id']) ? (int) $data['position_id'] : null)
+              + $this->arrangementFields($employee, $data['work_arrangement'] ?? $employee->work_arrangement ?? 'office'));
+
+            $this->syncLoginEmail($employee, $data['email'] ?? null);
+        });
 
         AuditLog::record('Updated employee', $employee->name);
 
         return back()->with('ok', $employee->name.' updated.');
+    }
+
+    /**
+     * Carry a corrected email through to the linked login, which uses it as the username.
+     *
+     * The two columns are separate, and until this existed only employees.email moved: HR
+     * fixed a mistyped address, saw "updated", and the account kept mailing invites and
+     * resets to the wrong inbox with nothing said. That is how seven staff were stranded
+     * on prod (2026-08-02) — the addresses had been corrected days before anyone realised
+     * the logins still held the typos.
+     *
+     * Runs inside the caller's transaction, so a rejected user write takes the directory
+     * edit down with it rather than leaving the two columns disagreeing again.
+     */
+    private function syncLoginEmail(Employee $employee, ?string $email): void
+    {
+        // Clearing the directory email must not blank a username and lock the person out;
+        // an unlinked row has nothing to carry the change to.
+        if (! $email || ! $employee->user_id) {
+            return;
+        }
+
+        $user = User::find($employee->user_id);
+        if (! $user || $user->email === $email) {
+            return;
+        }
+
+        $user->forceFill(['email' => $email])->save();
+
+        AuditLog::record('Changed login email', $employee->name);
+
+        // An account that has never been activated is still holding its one-time password:
+        // the invite it has yet to receive IS the proof of address, so asking for a separate
+        // verification would send a second mail nobody can act on. Only a live account —
+        // one whose owner has signed in and set their own password — needs to re-verify.
+        if (! $user->password_change_required) {
+            $user->forceFill(['email_verified_at' => null])->save();
+            $user->sendEmailVerificationNotification();
+        }
     }
 
     /**
