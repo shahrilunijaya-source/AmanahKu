@@ -48,7 +48,7 @@ class AttendanceController extends Controller
         $justification = $validated['justification'] ?? null;
         $now = Carbon::now();
 
-        // Optional selfie — captured on either clock-in (arrival proof) or clock-out
+        // Selfie — captured on either clock-in (arrival proof) or clock-out
         // (departure proof). Stored on the PRIVATE disk (with GPS + timestamp, this is
         // sensitive biometric/location data) and served only through the auth-gated
         // photo() action below — never a public, permanent URL.
@@ -69,6 +69,14 @@ class AttendanceController extends Controller
                 ->withInput()
                 ->with('attendance_justify', $validated['action'])
                 ->withErrors(['justification' => $result['message']]);
+        }
+
+        // Same backstop for the mandatory off-site selfie. A file input cannot be refilled
+        // from old input, so the screen asks for a fresh capture.
+        if ($result['status'] === 'needs_photo') {
+            return back()
+                ->withInput()
+                ->withErrors(['photo' => $result['message']]);
         }
 
         return back()->with('ok', $result['message']);

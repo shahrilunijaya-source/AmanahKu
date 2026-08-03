@@ -12,7 +12,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
 /**
  * Clock-in / clock-out business rules: geofence checks against the expected site,
  * punctuality (late / early / short hours), home auto-registration, and justification
- * enforcement for out-of-radius or early exits. Persists the attendance record.
+ * enforcement for out-of-radius or early exits (out-of-radius also demands a selfie).
+ * Persists the attendance record.
  */
 class ClockService
 {
@@ -50,6 +51,13 @@ class ClockService
         // Outside the geofence must be justified — never hard-blocked (bad GPS shouldn't strand staff).
         if ($inRadius === false && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'You appear to be outside '.$site->label.'. Add a reason to clock in.'];
+        }
+
+        // An off-site punch also needs a selfie: a typed reason proves nothing about who
+        // was standing there. In-radius punches, and punches with no geofence or no GPS
+        // to judge, stay selfie-optional.
+        if ($inRadius === false && $photoPath === null) {
+            return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock in from here.'];
         }
 
         $late = $this->isLate($site, $now);
@@ -114,6 +122,12 @@ class ClockService
         // Leaving the site early, off-site, or short of hours must be justified.
         if (($outRadius === false || $early || $short) && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'This clock-out looks early or off-site. Add a reason to clock out.'];
+        }
+
+        // Selfie is mandatory only for the off-site case — an early or short clock-out made
+        // inside the geofence is already located by the fence itself.
+        if ($outRadius === false && $photoPath === null) {
+            return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock out from here.'];
         }
 
         $flags = $record->flags ?? [];
