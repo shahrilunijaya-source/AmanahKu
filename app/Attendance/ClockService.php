@@ -48,6 +48,19 @@ class ClockService
 
         $inRadius = $this->within($site, $lat, $lng);
 
+        // A punch with no coordinates at all is allowed, but never cheap: it costs a reason,
+        // a selfie and a permanent flag. Blocking it instead only pushed the day off-system
+        // into a hand-keyed record with no GPS, no selfie and no flag — a worse audit trail
+        // than a punch that says plainly that location was unavailable.
+        if ($lat === null || $lng === null) {
+            if (! $this->filled($justification)) {
+                return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock in without it.'];
+            }
+            if ($photoPath === null) {
+                return ['status' => 'needs_photo', 'message' => 'Clocking in without location needs a selfie.'];
+            }
+        }
+
         // Outside the geofence must be justified — never hard-blocked (bad GPS shouldn't strand staff).
         if ($inRadius === false && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'You appear to be outside '.$site->label.'. Add a reason to clock in.'];
@@ -67,6 +80,9 @@ class ClockService
         }
         if ($inRadius === false) {
             $flags[] = 'out_of_radius_in';
+        }
+        if ($lat === null || $lng === null) {
+            $flags[] = 'no_location';
         }
 
         $attributes = [
@@ -119,6 +135,16 @@ class ClockService
         $early = $this->isEarly($record->expected_end, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
+        // Same price as an unlocatable clock-in: a reason, a selfie and a flag.
+        if ($lat === null || $lng === null) {
+            if (! $this->filled($justification)) {
+                return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock out without it.'];
+            }
+            if ($photoPath === null) {
+                return ['status' => 'needs_photo', 'message' => 'Clocking out without location needs a selfie.'];
+            }
+        }
+
         // Leaving the site early, off-site, or short of hours must be justified.
         if (($outRadius === false || $early || $short) && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'This clock-out looks early or off-site. Add a reason to clock out.'];
@@ -139,6 +165,9 @@ class ClockService
         }
         if ($short) {
             $flags[] = 'short_hours';
+        }
+        if ($lat === null || $lng === null) {
+            $flags[] = 'no_location';
         }
 
         $updates = [

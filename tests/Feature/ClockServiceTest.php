@@ -151,15 +151,42 @@ class ClockServiceTest extends TestCase
         $this->assertContains('late', $record->flags);
     }
 
-    public function test_missing_gps_is_neither_blocked_nor_flagged(): void
+    /**
+     * No coordinates at all (a desk machine that cannot locate itself). Never a lockout, but
+     * never free either: the punch costs a reason, a selfie and a permanent flag.
+     */
+    public function test_a_punch_with_no_coordinates_costs_a_reason_a_selfie_and_a_flag(): void
     {
         $now = Carbon::parse('2026-07-02 08:55:00');
+        $svc = $this->service($this->office());
 
-        // No coordinates at all (denied browser permission) — never strand staff.
-        $res = $this->service($this->office())->clockIn($this->employee, null, null, null, null, $now);
+        $this->assertSame('needs_justification', $svc->clockIn($this->employee, null, null, null, null, $now)['status']);
+        $this->assertSame('needs_photo', $svc->clockIn($this->employee, null, null, 'Office PC cannot find GPS', null, $now)['status']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
+
+        $res = $svc->clockIn($this->employee, null, null, 'Office PC cannot find GPS', 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
-        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first()->in_radius);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertNull($record->in_radius);
+        $this->assertContains('no_location', $record->flags);
+        $this->assertSame('Office PC cannot find GPS', $record->clock_in_justification);
+    }
+
+    public function test_clock_out_with_no_coordinates_is_flagged_too(): void
+    {
+        $svc = $this->service($this->office());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 09:00:00'));
+        $end = Carbon::parse('2026-07-02 18:00:00');
+
+        $this->assertSame('needs_justification', $svc->clockOut($this->employee, null, null, null, null, $end)['status']);
+
+        $res = $svc->clockOut($this->employee, null, null, 'GPS died on the way out', 'attendance-photos/b.jpg', $end);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($end)->first();
+        $this->assertContains('no_location', $record->flags);
+        $this->assertNotContains('out_of_radius_out', $record->flags);
     }
 
     public function test_second_clock_in_same_day_is_a_noop(): void
