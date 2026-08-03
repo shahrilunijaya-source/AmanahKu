@@ -55,7 +55,7 @@ class Features
         'module.knowledge' => ['Knowledge Bank', ['knowledge-bank', 'tot', 'tot-roster'], 2],
         'module.messages' => ['Messaging', ['messages'], 2],
         'module.sharedresources' => ['Shared Resources', ['shared-resources'], 2],
-        'module.profiletest' => ['Employee Profile Test', ['profile-test', 'profile-test-admin'], 2],
+        'module.profiletest' => ['Employee Profile Test', ['profile-test', 'profile-test-admin', 'profile-test-results'], 2],
         'module.ai' => ['AI Workforce Intelligence', ['workload'], 3],
     ];
 

@@ -10,6 +10,7 @@ use App\Models\ProfileTestOption;
 use App\Models\ProfileTestQuestion;
 use App\Support\ArchetypeCatalog;
 use App\Support\ArchetypeScorer;
+use App\Support\Permissions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,40 @@ class ProfileTestController extends Controller
         return [
             'working' => $this->questions('working_style'),
             'colour' => $this->questions('colour'),
+        ];
+    }
+
+    /**
+     * Everyone's answers, for the people the viewer oversees. HR and the management
+     * tier read the whole company; a manager reads only the staff who report to them
+     * — their direct reports plus anyone naming them as an additional manager, the
+     * same reach their leave/claim queues already use.
+     *
+     * The screen gate (AppController::screen, Permissions::canSeeAll) decides WHO may
+     * open this; the scoping here decides WHOSE rows they get. Both are needed — the
+     * gate alone would hand a manager the whole company.
+     *
+     * @return array<string, mixed>
+     */
+    public function resultsData(Request $request, ?Employee $viewer): array
+    {
+        $role = $request->attributes->get('tenantRole', 'employee');
+        $seesEveryone = in_array(Permissions::effectiveRole($role), ['management', 'hr'], true);
+        $viewerId = $viewer?->id ?? 0;
+
+        $people = Employee::active()
+            ->unless($seesEveryone, fn ($q) => $q->where(fn ($w) => $w
+                ->where('reports_to_id', $viewerId)
+                ->orWhereHas('additionalManagers', fn ($m) => $m->whereKey($viewerId))))
+            ->with(['profileTestResult', 'department'])
+            ->orderBy('name')
+            ->get();
+
+        return [
+            'people' => $people,
+            'working' => $this->questions('working_style'),
+            'colour' => $this->questions('colour'),
+            'seesEveryone' => $seesEveryone,
         ];
     }
 

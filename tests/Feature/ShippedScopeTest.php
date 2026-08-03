@@ -37,7 +37,7 @@ class ShippedScopeTest extends TestCase
         'roles', 'setup', 'settings', 'security', 'audit', 'reports', 'messages',
         'dash',
         // Re-scoped in: the welcome wizard links staff straight at the profile test.
-        'profile-test', 'profile-test-admin',
+        'profile-test', 'profile-test-admin', 'profile-test-results',
     ];
 
     /** One screen per descoped module — each must read as absent. */

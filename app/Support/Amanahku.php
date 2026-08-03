@@ -160,6 +160,9 @@ class Amanahku
                 ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
                 ['id' => 'feedback', 'label' => 'Feedback Inbox', 'label_ms' => 'Peti Maklum Balas'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
+                // Read-only view of everyone's profile-test answers. Rows are scoped in
+                // ProfileTestController::resultsData — a manager sees only their own staff.
+                ['id' => 'profile-test-results', 'label' => 'Profile Test Results', 'label_ms' => 'Keputusan Ujian Profil'],
             ]]),
 
             // ── Administration ────────────────────────────────────────────────
@@ -364,6 +367,7 @@ class Amanahku
             'training' => ['title' => 'Training & Certifications', 'title_ms' => 'Latihan & Pensijilan', 'sub' => 'Assigned courses, mandatory training and completion status.', 'sub_ms' => 'Kursus ditugaskan, latihan wajib dan status penyiapan.', 'crumb' => ['Training']],
             'orgchart' => ['title' => 'Organisation Chart', 'title_ms' => 'Carta Organisasi', 'sub' => 'Reporting lines across the company.', 'sub_ms' => 'Garis pelaporan merentas syarikat.', 'crumb' => ['People', 'Organisation Chart']],
             'profile-test' => ['title' => 'My Profile Test', 'title_ms' => 'Ujian Profil Saya', 'sub' => 'A short working-style check — no right or wrong answers. Your result shows on your profile.', 'sub_ms' => 'Semakan gaya kerja ringkas — tiada jawapan betul atau salah. Keputusan anda dipaparkan pada profil anda.', 'crumb' => ['People', 'My Profile Test']],
+            'profile-test-results' => ['title' => 'Profile Test Results', 'title_ms' => 'Keputusan Ujian Profil', 'sub' => 'Everyone\'s answers, read-only. Managers see their own staff.', 'sub_ms' => 'Jawapan semua orang, baca sahaja. Pengurus melihat staf sendiri.', 'crumb' => ['Insights', 'Profile Test Results']],
             'profile-test-admin' => ['title' => 'Profile Test Editor', 'title_ms' => 'Editor Ujian Profil', 'sub' => 'Manage the working-style and colour questions everyone answers.', 'sub_ms' => 'Urus soalan gaya kerja dan colour yang dijawab oleh semua orang.', 'crumb' => ['Administration', 'Profile Test Editor']],
             'timesheet-setup' => ['title' => 'Timesheet Setup', 'title_ms' => 'Tetapan Lembaran Masa', 'sub' => 'Categories, projects and sub-pillars staff pick when allocating their week.', 'sub_ms' => 'Kategori, projek dan sub-tiang yang dipilih staf semasa memperuntukkan minggu mereka.', 'crumb' => ['Administration', 'Timesheet Setup']],
             'timesheet-reports' => ['title' => 'Timesheet Reports', 'title_ms' => 'Laporan Lembaran Masa', 'sub' => 'Staff time allocation by project and by person over a period.', 'sub_ms' => 'Peruntukan masa staf mengikut projek dan mengikut individu untuk satu tempoh.', 'crumb' => ['Reports & Audit', 'Timesheet Reports']],
