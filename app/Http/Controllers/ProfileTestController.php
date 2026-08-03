@@ -75,7 +75,7 @@ class ProfileTestController extends Controller
     {
         $role = $request->attributes->get('tenantRole', 'employee');
         $seesEveryone = in_array(Permissions::effectiveRole($role), ['management', 'hr'], true);
-        $viewerId = $viewer?->id ?? 0;
+        $viewerId = $viewer->id ?? 0;
 
         $people = Employee::active()
             ->unless($seesEveryone, fn ($q) => $q->where(fn ($w) => $w

@@ -931,12 +931,6 @@ parameters:
 			path: app/Support/ProfileCompletion.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$has_personality\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/ProfileCompletion.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
