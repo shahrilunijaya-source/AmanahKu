@@ -45,7 +45,27 @@ class CompanyController extends Controller
         return view('superadmin.companies.index', [
             'companies' => $companies,
             'failedJobs' => $this->failedJobSummary(),
+            'stuckJobs' => $this->stuckJobCount(),
         ]);
+    }
+
+    /**
+     * Queued jobs that have sat waiting far longer than a healthy worker would leave
+     * them — the signature of a queue worker that is not running at all.
+     *
+     * The failed-jobs banner cannot see this: a job nobody picks up never fails, so a
+     * stopped worker shows an empty failed_jobs table while every invite and reset
+     * silently piles up (prod, 2026-08-03 — seven members never got their activation
+     * mail while the console looked healthy).
+     */
+    private function stuckJobCount(): int
+    {
+        // available_at is a unix timestamp, and is set into the future for delayed
+        // jobs — so this counts only work that was due ten minutes ago and is still
+        // sitting there, not work that is legitimately waiting for its turn.
+        return DB::table('jobs')
+            ->where('available_at', '<', now()->subMinutes(10)->getTimestamp())
+            ->count();
     }
 
     /**
