@@ -41,7 +41,7 @@
                         </template>
                         <template x-if="! p.photo">
                             <span style="width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;"
-                                  :style="`background:${p.color}`" x-text="p.initials"></span>
+                                  :style="{ background: p.color }" x-text="p.initials"></span>
                         </template>
                         <span style="flex:1;min-width:0;">
                             <span style="display:block;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" x-text="p.name"></span>
@@ -88,7 +88,7 @@
                     <button type="button" @click="addVerifier(p.id)" :disabled="busy"
                             style="display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1px solid var(--hairline);border-radius:9999px;background:var(--card);font-size:12.5px;color:var(--ink);cursor:pointer;">
                         <span style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;"
-                              :style="`background:${p.color}`" x-text="p.initials"></span>
+                              :style="{ background: p.color }" x-text="p.initials"></span>
                         <span x-text="p.name"></span>
                     </button>
                 </template>
@@ -119,7 +119,7 @@
                     </template>
                     <template x-if="! subject.photo">
                         <span style="width:44px;height:44px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;"
-                              :style="`background:${subject.color}`" x-text="subject.initials"></span>
+                              :style="{ background: subject.color }" x-text="subject.initials"></span>
                     </template>
 
                     <div style="min-width:0;flex:1;">

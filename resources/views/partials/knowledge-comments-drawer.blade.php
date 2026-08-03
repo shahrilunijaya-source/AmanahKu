@@ -106,7 +106,7 @@
                 <div class="wd-cmts">
                     <template x-for="c in (thread || [])" :key="c.id">
                         <div class="wd-cmt">
-                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10.5px;font-weight:600;" :style="`background:${c.color};`" x-text="c.initials"></span>
+                            <span style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10.5px;font-weight:600;" :style="{ background: c.color }" x-text="c.initials"></span>
                             <div style="min-width:0;flex:1;">
                                 <div class="wd-cmt-who">
                                     <span class="wd-cmt-name" x-text="c.name"></span>
