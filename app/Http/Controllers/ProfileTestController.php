@@ -10,6 +10,7 @@ use App\Models\ProfileTestOption;
 use App\Models\ProfileTestQuestion;
 use App\Support\ArchetypeCatalog;
 use App\Support\ArchetypeScorer;
+use App\Support\Permissions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,40 @@ class ProfileTestController extends Controller
         return [
             'working' => $this->questions('working_style'),
             'colour' => $this->questions('colour'),
+        ];
+    }
+
+    /**
+     * Everyone's answers, for the people the viewer oversees. HR and the management
+     * tier read the whole company; a manager reads only the staff who report to them
+     * — their direct reports plus anyone naming them as an additional manager, the
+     * same reach their leave/claim queues already use.
+     *
+     * The screen gate (AppController::screen, Permissions::canSeeAll) decides WHO may
+     * open this; the scoping here decides WHOSE rows they get. Both are needed — the
+     * gate alone would hand a manager the whole company.
+     *
+     * @return array<string, mixed>
+     */
+    public function resultsData(Request $request, ?Employee $viewer): array
+    {
+        $role = $request->attributes->get('tenantRole', 'employee');
+        $seesEveryone = in_array(Permissions::effectiveRole($role), ['management', 'hr'], true);
+        $viewerId = $viewer->id ?? 0;
+
+        $people = Employee::active()
+            ->unless($seesEveryone, fn ($q) => $q->where(fn ($w) => $w
+                ->where('reports_to_id', $viewerId)
+                ->orWhereHas('additionalManagers', fn ($m) => $m->whereKey($viewerId))))
+            ->with(['profileTestResult', 'department'])
+            ->orderBy('name')
+            ->get();
+
+        return [
+            'people' => $people,
+            'working' => $this->questions('working_style'),
+            'colour' => $this->questions('colour'),
+            'seesEveryone' => $seesEveryone,
         ];
     }
 
@@ -189,14 +224,21 @@ class ProfileTestController extends Controller
             'section' => ['required', Rule::in(['working_style', 'colour'])],
             'prompt' => ['required', 'string', 'max:500'],
             'options' => ['nullable', 'array'],
+            'options.*.id' => ['nullable', 'integer'],
             'options.*.label' => ['nullable', 'string', 'max:255'],
             'options.*.animal' => ['nullable', Rule::in(self::ANIMALS)],
         ]);
     }
 
     /**
-     * Replace a question's options. Colour questions are open free-text and
-     * never carry options; empty-label rows are ignored.
+     * Write a question's options. Colour questions are open free-text and never
+     * carry options; empty-label rows are ignored.
+     *
+     * Rows the editor sends back with an id are UPDATED in place rather than
+     * dropped and recreated. Employees' saved answers store the option id, so
+     * recreating the rows would silently orphan every answer already given —
+     * editing a typo in a prompt would blank the whole team's result. Only rows
+     * the editor actually removed get deleted.
      *
      * @param  array<string, mixed>  $data
      */
@@ -212,21 +254,37 @@ class ProfileTestController extends Controller
             return;
         }
 
-        $question->options()->delete();
-
+        /** @var array<int, int> */
+        $existing = $question->options()->pluck('id')->all();
+        $kept = [];
         $position = 0;
+
         foreach ($data['options'] as $opt) {
             $label = trim((string) ($opt['label'] ?? ''));
             if ($label === '') {
                 continue;
             }
             $position++;
-            $question->options()->create([
+            $attrs = [
                 'label_en' => $label,
                 'animal' => $opt['animal'] ?? null,
                 'position' => $position,
-            ]);
+            ];
+
+            // The id must be one of THIS question's own options — never trust the
+            // form to hand us a row belonging to some other question.
+            $id = (int) ($opt['id'] ?? 0);
+            if ($id !== 0 && in_array($id, $existing, true)) {
+                $question->options()->whereKey($id)->update($attrs);
+                $kept[] = $id;
+
+                continue;
+            }
+
+            $kept[] = $question->options()->create($attrs)->id;
         }
+
+        $question->options()->whereNotIn('id', $kept)->delete();
     }
 
     /**

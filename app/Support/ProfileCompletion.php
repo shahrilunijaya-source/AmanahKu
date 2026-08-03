@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Employee;
+use App\Models\ProfileTestQuestion;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
 
@@ -22,6 +23,9 @@ use App\Tenancy\CurrentTenant;
  */
 class ProfileCompletion
 {
+    /** @var array<int, int>|null */
+    private ?array $workingStyleQuestions = null;
+
     /** Employee columns that make up the hard-gated essential set. */
     private const ESSENTIAL_FIELDS = [
         'nric', 'date_of_birth', 'phone', 'address',
@@ -167,18 +171,53 @@ class ProfileCompletion
         return (bool) $employee->has_certificate;
     }
 
-    private function personalityDone(Employee $employee): bool
+    /**
+     * True once the employee has submitted the profile test AND answered every
+     * working-style question currently in the bank. Answer count, not a stored
+     * flag: when HR adds a question, everyone who took the older, shorter test
+     * falls back below 100% and the dashboard nudge sends them to retake it.
+     * An empty question bank is vacuously answered, so a tenant running only the
+     * "About yourself" tab still reaches 100%.
+     */
+    public function personalityDone(Employee $employee): bool
     {
-        $this->loadExistenceFlags($employee);
+        $employee->loadMissing('profileTestResult');
+        $result = $employee->profileTestResult;
 
-        return (bool) $employee->has_personality;
+        if ($result === null || $result->submitted_at === null) {
+            return false;
+        }
+
+        $live = $this->workingStyleQuestionIds();
+
+        // Match answers against the LIVE question ids. A raw count would let an answer
+        // to a since-deleted question stand in for one HR added afterwards.
+        $answered = array_filter(
+            (array) $result->working_style_answers,
+            fn ($option, $questionId) => filled($option) && in_array((int) $questionId, $live, true),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        return count($answered) >= count($live);
     }
 
     /**
-     * Load the certificate + personality existence flags in a single query (AK-PERF-01).
-     * summary() runs on every screen render; the two ->exists() checks were two separate
-     * round-trips. loadExists batches them into one and caches the booleans on the model,
-     * so certsDone()/personalityDone() are free after the first call.
+     * Ids of the global working-style question bank, resolved once per instance.
+     *
+     * @return array<int, int>
+     */
+    private function workingStyleQuestionIds(): array
+    {
+        return $this->workingStyleQuestions ??= ProfileTestQuestion::where('section', 'working_style')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Load the certificate existence flag (AK-PERF-01). summary() runs on every
+     * screen render, so the boolean is cached on the model and certsDone() is free
+     * after the first call.
      */
     private function loadExistenceFlags(Employee $employee): void
     {
@@ -188,7 +227,6 @@ class ProfileCompletion
 
         $employee->loadExists([
             'documents as has_certificate' => fn ($q) => $q->where('category', 'Certificate'),
-            'profileTestResult as has_personality' => fn ($q) => $q->whereNotNull('submitted_at'),
         ]);
     }
 

@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\Position;
+use App\Models\ProfileTestQuestion;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
@@ -103,6 +104,26 @@ class OnboardingWizardTest extends TestCase
         $emp->refresh();
         $this->assertSame(67, $svc->percent($emp));          // identity + contact of 3 groups
         $this->assertSame(['certs'], $svc->missing($emp));
+    }
+
+    public function test_a_new_working_style_question_reopens_the_personality_group(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        [, $emp] = $this->staff($tenant);
+
+        // Took the test while the bank held only the "About yourself" tab.
+        $emp->profileTestResult()->create(['self_goal' => 'Ship it', 'submitted_at' => now()]);
+        $this->assertTrue(app(ProfileCompletion::class)->personalityDone($emp->fresh()));
+
+        // HR adds a working-style question — the older, shorter test no longer counts.
+        $question = ProfileTestQuestion::create(['section' => 'working_style', 'prompt_en' => 'How do you start a task?', 'position' => 1]);
+        $option = $question->options()->create(['label_en' => 'Straight in', 'animal' => 'rabbit', 'position' => 1]);
+        $this->assertFalse(app(ProfileCompletion::class)->personalityDone($emp->fresh()));
+
+        // Answering it closes the group again.
+        $emp->profileTestResult->update(['working_style_answers' => [$question->id => $option->id]]);
+        $this->assertTrue(app(ProfileCompletion::class)->personalityDone($emp->fresh()));
     }
 
     // ── Profile-complete gate ──────────────────────────────────────────────────

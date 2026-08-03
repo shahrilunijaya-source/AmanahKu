@@ -35,7 +35,7 @@ class WelcomeWizardController extends Controller
             'payrollEnabled' => $this->payrollEnabled(),
             'salary' => $employee->salaryStructure,
             'certificates' => $employee->documents()->where('category', 'Certificate')->latest()->get(),
-            'personalityDone' => $employee->profileTestResult()->whereNotNull('submitted_at')->exists(),
+            'personalityDone' => $completion->personalityDone($employee),
         ]);
     }
 

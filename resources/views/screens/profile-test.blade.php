@@ -17,7 +17,7 @@
     'key' => 'profile-test',
     'en'  => [
         'title' => 'Profile test',
-        'body'  => 'A short personality check that shows how you naturally work. Answer honestly — there are no right or wrong answers and it is never used as a pass/fail gate. When you save, your working-style "spirit animal" and trait bars appear on your Employee Profile.',
+        'body'  => 'A short personality check that shows how you naturally work. Answer honestly — there are no right or wrong answers and it is never used as a pass/fail gate. When you save, your working-style "spirit animal" and trait bars appear on your Employee Profile. HR, the directors and your own manager can read what you write here.',
         'who'   => 'Everyone',
         'steps' => [
             'Fill in the "About yourself" tab — your goal, strengths and (optional) MBTI.',
@@ -27,7 +27,7 @@
     ],
     'ms'  => [
         'title' => 'Ujian profil',
-        'body'  => 'Semakan personaliti ringkas yang menunjukkan cara semula jadi anda bekerja. Jawab dengan jujur — tiada jawapan betul atau salah dan ia tidak sekali-kali digunakan sebagai lulus/gagal. Apabila disimpan, "haiwan semangat" gaya kerja dan bar trait anda akan dipaparkan pada Profil Pekerja anda.',
+        'body'  => 'Semakan personaliti ringkas yang menunjukkan cara semula jadi anda bekerja. Jawab dengan jujur — tiada jawapan betul atau salah dan ia tidak sekali-kali digunakan sebagai lulus/gagal. Apabila disimpan, "haiwan semangat" gaya kerja dan bar trait anda akan dipaparkan pada Profil Pekerja anda. HR, pengarah dan pengurus anda boleh membaca apa yang anda tulis di sini.',
         'who'   => 'Semua orang',
         'steps' => [
             'Isi tab "Tentang anda" — matlamat, kekuatan dan (pilihan) MBTI anda.',

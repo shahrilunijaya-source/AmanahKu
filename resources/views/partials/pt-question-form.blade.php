@@ -10,11 +10,13 @@
     $isEdit     = $q && $q->exists;
     $sectionVal = old('section', $q->section ?? 'working_style');
     $promptVal  = old('prompt', $q->prompt_en ?? '');
+    // The id rides along so the controller updates the existing option row instead of
+    // recreating it — employees' saved answers point at that id.
     $optRows    = old('options', $isEdit
-        ? $q->options->map(fn ($o) => ['label' => $o->label_en, 'animal' => $o->animal])->toArray()
+        ? $q->options->map(fn ($o) => ['id' => $o->id, 'label' => $o->label_en, 'animal' => $o->animal])->toArray()
         : []);
     while (count($optRows) < 4) {
-        $optRows[] = ['label' => '', 'animal' => ''];
+        $optRows[] = ['id' => '', 'label' => '', 'animal' => ''];
     }
     $animals     = ['rabbit', 'tortoise', 'fox', 'sloth'];
     $animalEmoji = ['rabbit' => '🐇', 'tortoise' => '🐢', 'fox' => '🦊', 'sloth' => '🦥'];
@@ -45,6 +47,7 @@
                     @php $animalVal = $opt['animal'] ?? ''; @endphp
                     <div x-data="{ animal: '{{ $animalVal }}' }" style="display:flex;gap:8px;align-items:center;">
                         <span style="width:34px;height:34px;border-radius:8px;background:var(--canvas);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;" x-text="emoji[animal] || '•'">{{ $animalEmoji[$animalVal] ?? '•' }}</span>
+                        <input type="hidden" name="options[{{ $i }}][id]" value="{{ $opt['id'] ?? '' }}">
                         <input type="text" name="options[{{ $i }}][label]" value="{{ $opt['label'] ?? '' }}" placeholder="Option {{ $i + 1 }}" style="{{ $pf }}flex:1;">
                         <select name="options[{{ $i }}][animal]" x-model="animal" style="{{ $pf }}width:140px;flex-shrink:0;">
                             <option value="">— none —</option>
