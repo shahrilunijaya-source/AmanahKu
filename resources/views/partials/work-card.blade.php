@@ -27,14 +27,14 @@
         $wcAvatars->push([
             'initials' => $c->assignedBy->initials,
             'color' => $c->assignedBy->avatar_color ?? 'var(--muted)',
-            'title' => 'Assigned by '.$c->assignedBy->name,
+            'title' => 'Assigned by '.$c->assignedBy->display_name,
         ]);
     }
     foreach ($c->participants as $wcPerson) {
         $wcAvatars->push([
             'initials' => $wcPerson->initials,
             'color' => $wcPerson->avatar_color ?? 'var(--muted)',
-            'title' => $wcPerson->name,
+            'title' => $wcPerson->display_name,
         ]);
     }
     $wcAvatarsShown = $wcAvatars->take(3);

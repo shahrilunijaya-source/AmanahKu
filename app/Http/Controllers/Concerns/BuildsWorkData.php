@@ -100,22 +100,18 @@ trait BuildsWorkData
     }
 
     /**
-     * Board screen payload: the four columns, plus (for privileged roles) the
-     * people picker roster. Only manager / management / hr may include people on a
-     * card, mirroring assign() and WorkItemController::syncParticipants(), so only
-     * they receive `people` and `canAssignPeople` = true. Uses the raw tenant role
-     * (not effectiveRole) so the picker's visibility matches what the write-path
-     * will actually accept — no picker shown that then 403s on save.
+     * Board screen payload: the four columns, plus the people picker roster.
+     * Every role may include people on a card they already manage, so the roster
+     * ships to everyone; whether the picker is usable on a given card is decided
+     * per-card by WorkItemController::canManage() (the drawer's `locked` flag),
+     * which is the same check the write-path enforces — no picker shown that
+     * then 403s on save.
      */
     private function boardScreenData(Request $request, ?Employee $employee): array
     {
-        $role = $request->attributes->get('tenantRole', 'employee');
-        $canAssignPeople = in_array($role, ['manager', 'management', 'hr'], true);
-
         return [
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
-            'canAssignPeople' => $canAssignPeople,
             // A mention notification lands here as /app/board?card={id}. No access
             // check happens server-side — the value is only relayed to the client,
             // which opens it through the same authorized GET /app/board/{workItem}
@@ -128,10 +124,12 @@ trait BuildsWorkData
             // Active projects for the card editor's optional project picker. Tenant
             // scope is applied automatically by BelongsToTenant in a request context.
             'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
-            'people' => $canAssignPeople && $employee
+            'people' => $employee
                 ? Employee::active()->where('id', '!=', $employee->id)
-                    ->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color'])
-                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+                    // `nickname` is selected because display_name falls back to the
+                    // legal name whenever the column is absent from the row.
+                    ->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
+                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
                     ->values()
                 : collect(),
         ];
@@ -204,7 +202,7 @@ trait BuildsWorkData
             return $e->workItems->map(fn ($item) => [
                 'item' => $item,
                 'owner_id' => $e->id,
-                'owner_name' => $e->name,
+                'owner_name' => $e->display_name,
                 'owner_initials' => $e->initials,
                 'owner_avatar_color' => $e->avatar_color,
             ])->all();
@@ -216,7 +214,7 @@ trait BuildsWorkData
 
             return [
                 'id' => $e->id,
-                'name' => $e->name,
+                'name' => $e->display_name,
                 'initials' => $e->initials,
                 'avatar_color' => $e->avatar_color,
                 'position' => $e->positionBand?->title,

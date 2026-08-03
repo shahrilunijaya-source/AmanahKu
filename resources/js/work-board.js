@@ -30,7 +30,7 @@ const FIELD_DERIVED = {
 };
 
 export function registerWorkBoard(Alpine) {
-    Alpine.data('workBoard', (boardType = 'core', canAssign = false, people = [], labels = {}, deepLinkCardId = null) => ({
+    Alpine.data('workBoard', (boardType = 'core', people = [], labels = {}, deepLinkCardId = null) => ({
         boardType,
         // 'all' shows everything; each of 'task' / 'assignment' / 'adhoc' shows that
         // one type only. Landing via a typed sidebar link pre-focuses it; else show all.
@@ -46,8 +46,8 @@ export function registerWorkBoard(Alpine) {
         open: { todo: false, prog: false, review: false, done: false },
         draft: { todo: '', prog: '', review: '', done: '' },
         busy: false,
-        // Whether this viewer's role may include people, and the roster to pick from.
-        canAssign,
+        // The roster to pick from when including people on a card. Every role gets
+        // it; `drawer.locked` decides per-card whether the picker is usable.
         people,
         // The label palette, from the server (WorkItem::LABELS): slug => [name, color].
         // Passed in as a prop the same way `people` is — never a JS-side twin that
