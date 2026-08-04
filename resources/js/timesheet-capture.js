@@ -138,8 +138,13 @@ export function registerTimesheetCapture(Alpine) {
             if (this.isFuture(iso)) return 'future';
             const total = this.dayTotal(iso);
             if (total === 0) return 'empty';
-            if (Math.abs(total - 100) < 0.01) return 'done';
-            return total > 100 ? 'over' : 'partial';
+            if (total > 100) return 'over';
+            // A day sitting on exactly 100% is still unfinished while it holds a line the
+            // staffer added but never costed — the week strip, the tally and the submit gate
+            // must all agree, or the dot reads "done" on a day that cannot be submitted.
+            if (Math.abs(total - 100) < 0.01) return this.hasBlankRows(iso) ? 'partial' : 'done';
+
+            return 'partial';
         },
         firstDayNeedingWork() {
             const days = this.dayDates().filter((d) => this.isEditable(d));
@@ -183,6 +188,49 @@ export function registerTimesheetCapture(Alpine) {
         remainder(iso) {
             return Math.max(0, Math.round((100 - this.dayTotal(iso)) * 100) / 100);
         },
+        // Typed percentages are clamped here rather than left to the input's min/max: this
+        // field never goes through native form validation (the screen POSTs over fetch), so
+        // without this a typo of 999 sat in the box and pushed the day to 1099%.
+        clampPct(row) {
+            const raw = String(row.percentage ?? '').replace(/[^\d.]/g, '');
+            if (raw === '') {
+                row.percentage = '';
+
+                return;
+            }
+            const n = parseFloat(raw);
+            row.percentage = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+        },
+        // A line the staffer added but has not costed yet. It is kept and flagged rather than
+        // dropped: the day cannot be submitted while one exists, but it survives a reload.
+        isBlank(row) {
+            return !(parseFloat(row.percentage) > 0);
+        },
+        hasBlankRows(iso) {
+            return (this.rows[iso] || []).some((r) => this.isBlank(r));
+        },
+        // Give this line whatever is unallocated. Shown only while something is left, so it
+        // can never subtract — the old day-level "give the rest to the last line" set the
+        // last line to 0 when the day was already over 100%.
+        giveRemainder(row) {
+            const rest = this.remainder(this.selected);
+            if (rest <= 0) return;
+            row.percentage = Math.round(((parseFloat(row.percentage) || 0) + rest) * 100) / 100;
+            this.save();
+        },
+        // True when this day already carries the exact Category · Project · Sub-pillar the
+        // picker item would add, so the picker can grey it out instead of making a twin line.
+        isOnDay(item) {
+            return (this.rows[this.selected] || []).some((r) => String(r.category_id) === String(item.category_id)
+                && String(r.project_id || '') === String(item.project_id || '')
+                && String(r.sub_pillar_id || '') === String(item.sub_pillar_id || ''));
+        },
+        // Four repeating line colours, shared by a row's dot and its slice of the day bar so
+        // the bar can be read back to the lines without a legend. Days rarely hold more than
+        // four lines; beyond that the palette repeats rather than inventing new hues.
+        rowColour(i) {
+            return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][i % 4];
+        },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
@@ -190,17 +238,42 @@ export function registerTimesheetCapture(Alpine) {
             return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
 
-        // ---- picker (Task 8): one flat, searchable list — saved templates first, then
-        // recent Category · Project · Sub-pillar combinations. Replaces the three-step
-        // pill drill-down as the primary path; the drill-down itself moves behind
-        // "Something else" in the Blade so every combination stays reachable. ----------
+        // ---- picker: ONE searchable list of every addable combination ------------------
+        // Replaces the three-step pill drill-down behind "Something else". Testers read the
+        // pills as tags rather than as a menu, and the drill-down hid the catalogue behind a
+        // label ("Something else") that did not describe it. The whole catalogue is small —
+        // 5 pickable categories over 4 projects is ~31 lines — so it fits in one scroll,
+        // grouped under its category, with saved templates and recent work pinned on top.
         picker: { open: false, search: '' },
 
         openPicker() {
             this.picker = { open: true, search: '' };
         },
-        // Saved templates first (named, with a flag), then recent combinations.
-        pickerItems() {
+        // Every Category · Project · Sub-pillar the staffer may add, flattened once.
+        // A category that needs a project contributes the project alone (the whole project)
+        // plus one line per sub-pillar; a standalone category contributes itself.
+        catalogue() {
+            const out = [];
+            for (const c of this.categories) {
+                const name = this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
+                if (!c.requires_project) {
+                    out.push({ key: `c${c.id}--`, group: name, label: name, category_id: c.id, project_id: '', sub_pillar_id: '' });
+                    continue;
+                }
+                for (const p of this.projects) {
+                    out.push({ key: `c${c.id}-${p.id}-`, group: name, label: p.name, category_id: c.id, project_id: p.id, sub_pillar_id: '' });
+                    for (const s of (p.sub_pillars || [])) {
+                        out.push({ key: `c${c.id}-${p.id}-${s.id}`, group: name, label: `${p.name} › ${s.name}`, category_id: c.id, project_id: p.id, sub_pillar_id: s.id });
+                    }
+                }
+            }
+
+            return out;
+        },
+        // Saved templates (named, deletable) then recent combinations, shown above the
+        // catalogue while the search box is empty. Hidden once a search narrows the list,
+        // where an item would otherwise appear twice.
+        pinnedItems() {
             const templates = (this.templates || []).map((t) => ({
                 key: 'tpl-' + t.id,
                 template_id: t.id,
@@ -211,21 +284,34 @@ export function registerTimesheetCapture(Alpine) {
                 label: t.name,
                 isTemplate: true,
             }));
+
             return [...templates, ...(this.items || [])];
         },
-        filteredItems() {
+        // The catalogue filtered by the search box, matching on the category name as well as
+        // the line's own label so "development" finds every Development line.
+        filteredCatalogue() {
             const q = this.picker.search.trim().toLowerCase();
-            const all = this.pickerItems();
+            const all = this.catalogue();
             if (!q) return all;
-            return all.filter((i) => i.label.toLowerCase().includes(q));
+
+            return all.filter((i) => `${i.group} ${i.label}`.toLowerCase().includes(q));
+        },
+        // The catalogue is rendered as one list with a heading each time the category
+        // changes; this reports whether item `i` starts a new group.
+        startsGroup(list, i) {
+            return i === 0 || list[i - 1].group !== list[i].group;
         },
         chooseItem(item) {
-            // A template carries its own default percentage; a recent item takes the remainder.
+            if (this.isOnDay(item)) return;
+            // A template carries its own default percentage. Everything else takes whatever
+            // is unallocated — including 0, which shows as a blank line asking to be filled
+            // rather than silently claiming a whole day that is already full.
             const pct = item.isTemplate && item.percentage != null
                 ? item.percentage
-                : (this.remainder(this.selected) || 100);
+                : this.remainder(this.selected);
             this.addRow(item, pct);
             this.picker.open = false;
+            this.save();
         },
 
         // ---- templates: save-as-template and delete, through the existing routes -------
@@ -263,28 +349,54 @@ export function registerTimesheetCapture(Alpine) {
             if (!src) return;
             this.rows[this.selected] = this.rows[src].map((r) => ({ ...r }));
         },
-        fillRemainder() {
-            const iso = this.selected;
-            const list = this.rows[iso] || [];
-            if (!list.length) return;
-            const last = list[list.length - 1];
-            const others = this.dayTotal(iso) - (parseFloat(last.percentage) || 0);
-            last.percentage = Math.max(0, Math.round((100 - others) * 100) / 100);
-        },
-
         // ---- submit gate ---------------------------------------------------
+        // A day blocks the week when it is not at 100% OR still carries a line with no
+        // percentage. The two are reported separately below, because "not at 100% yet" is
+        // the wrong sentence for a day that has gone over it.
         blockingDays() {
             const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
             return this.dayDates()
-                .filter((d) => this.isEditable(d) && this.dayState(d) !== 'done')
+                .filter((d) => this.isEditable(d) && (this.dayState(d) !== 'done' || this.hasBlankRows(d)))
                 .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
         },
-        // Joins blockingDays() into a natural sentence fragment: "Monday", "Monday and
-        // Tuesday", or "Monday, Tuesday, Wednesday and Friday" (no Oxford comma; "dan" in BM).
-        blockingDaysText() {
+        // Days that have gone past 100%, named for the footer. Kept apart from blockingDays()
+        // so the message can say "over by" instead of "not at 100% yet".
+        overDays() {
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
+            return this.dayDates()
+                .filter((d) => this.isEditable(d) && this.dayState(d) === 'over')
+                .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
+        },
+        // Days holding a line the staffer added but never costed.
+        blankDays() {
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
+            return this.dayDates()
+                .filter((d) => this.isEditable(d) && this.hasBlankRows(d))
+                .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
+        },
+        // The one sentence under the week strip: over-allocation first (it is an error the
+        // staffer must undo), then uncosted lines, then the ordinary "still to fill".
+        blockingMessage() {
+            const en = this.$store.ui.lang === 'en';
+            const over = this.overDays();
+            if (over.length) {
+                return this.joinDays(over) + (en ? ' went over 100% — take the extra off a line.' : ' melebihi 100% — kurangkan satu baris.');
+            }
+            const blank = this.blankDays();
+            if (blank.length) {
+                return this.joinDays(blank) + (en ? ' has a line with no percentage yet.' : ' ada baris tanpa peratus lagi.');
+            }
             const days = this.blockingDays();
+            if (!days.length) return '';
+
+            return this.joinDays(days) + (en ? ' not at 100% yet' : ' belum 100%');
+        },
+        // Joins day names into a natural sentence fragment: "Monday", "Monday and Tuesday",
+        // or "Monday, Tuesday, Wednesday and Friday" (no Oxford comma; "dan" in BM).
+        joinDays(days) {
             if (days.length <= 1) return days.join('');
             const connector = this.$store.ui.lang === 'en' ? ' and ' : ' dan ';
+
             return days.slice(0, -1).join(', ') + connector + days[days.length - 1];
         },
         weekComplete() {
@@ -301,8 +413,11 @@ export function registerTimesheetCapture(Alpine) {
                 // draft would otherwise poison every save with "… has not happened yet."
                 if (!this.isEditable(iso)) continue;
                 for (const r of this.rows[iso]) {
+                    // A 0% line IS sent. It used to be dropped here, which meant a line the
+                    // staffer had added but not yet costed vanished on the next reload with
+                    // nothing said. The server accepts 0 in a draft and refuses it at submit,
+                    // so the line survives and the week stays blocked until it is filled.
                     const pct = parseFloat(r.percentage) || 0;
-                    if (pct <= 0) continue;
                     out.push({
                         entry_date: iso,
                         category_id: r.category_id,

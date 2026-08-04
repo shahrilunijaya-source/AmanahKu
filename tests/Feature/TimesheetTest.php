@@ -34,6 +34,8 @@ class TimesheetTest extends TestCase
 
     private TimesheetCategory $category;
 
+    private TimesheetCategory $otherCategory;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -48,6 +50,10 @@ class TimesheetTest extends TestCase
         // A standalone category (no project required) keeps allocation payloads simple.
         $this->category = TimesheetCategory::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false,
+        ]);
+        // A second standalone category, so a test can put two DIFFERENT lines on one day.
+        $this->otherCategory = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Study & Research', 'requires_project' => false,
         ]);
 
         // The suite's fixtures all sit in the week of Mon 2026-06-15. Pin "now" to that
@@ -307,6 +313,97 @@ class TimesheetTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame(1, TimesheetEntry::count());
+    }
+
+    /**
+     * A line the staffer has added but not yet costed must survive a reload. It used to be
+     * dropped client-side before the POST, so refreshing the page silently removed it.
+     */
+    public function test_a_draft_keeps_a_line_that_has_no_percentage_yet(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 60],
+                ['entry_date' => '2026-06-15', 'category_id' => $this->otherCategory->id, 'percentage' => 0, 'description' => 'Read the spec'],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, TimesheetEntry::count());
+        $this->assertSame('0.00', (string) TimesheetEntry::where('description', 'Read the spec')->first()->percentage);
+    }
+
+    public function test_submitting_a_week_with_an_uncosted_line_is_refused(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => true,
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-15', 'category_id' => $this->otherCategory->id, 'percentage' => 0],
+            ],
+        ])->assertSessionHasErrors('submit');
+
+        $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->first());
+    }
+
+    public function test_submitting_a_saved_draft_that_holds_an_uncosted_line_is_refused(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-15', 'category_id' => $this->otherCategory->id, 'percentage' => 0],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $timesheet = Timesheet::where('employee_id', $this->employee->id)->firstOrFail();
+
+        $this->actingInTenant()->post("/app/timesheets/{$timesheet->id}/submit")
+            ->assertSessionHasErrors('submit');
+
+        $this->assertSame('draft', $timesheet->fresh()->status);
+    }
+
+    /**
+     * Two identical lines on one day are impossible to tell apart once saved, and the day
+     * total silently doubles. The picker greys out what a day already carries, but a stale
+     * tab can still post the pair.
+     */
+    public function test_the_same_work_twice_on_one_day_is_refused(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 50],
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 50],
+            ],
+        ])->assertSessionHasErrors('entries');
+
+        $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->first());
+    }
+
+    public function test_the_same_work_on_two_different_days_is_fine(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-16', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, TimesheetEntry::count());
+    }
+
+    public function test_a_percentage_above_100_is_refused(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 999],
+            ],
+        ])->assertSessionHasErrors('entries.0.percentage');
     }
 
     public function test_the_json_response_carries_the_locked_days(): void

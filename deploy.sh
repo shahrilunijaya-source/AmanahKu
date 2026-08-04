@@ -99,15 +99,27 @@ php artisan migrate --force
 # relies on. Create the symlink directly with ln instead.
 [ -e public/storage ] || ln -sfn ../storage/app/public public/storage || true
 
-# Build front-end assets ONLY if Node is on this host.
-# Hostinger shared SSH has no Node — assets are built locally and the compiled
-# public/build directory is committed, so the server skips this step.
-if [ -f package.json ] && command -v npm >/dev/null 2>&1; then
+# Committed assets win — no host ever builds over them.
+#
+# public/build is TRACKED, because Hostinger shared SSH has no Node and could never
+# build there. The old rule here was "build if npm exists on this host", which is a
+# property of the machine rather than of the release: a host that happens to have npm
+# (the DigitalOcean box does) rebuilt on every deploy, overwrote the committed files
+# with differently-hashed ones, and left the working tree dirty so the NEXT git pull
+# aborted with "local changes would be overwritten by merge".
+#
+# Building on the host is now only a fallback for the one case it is actually needed:
+# no assets came with the release at all. The fix for stale assets is to run
+# `bun run build` locally and commit public/build, never to build on the server.
+if [ -f public/build/manifest.json ]; then
+    echo "==> Using committed public/build (host does not build)"
+elif [ -f package.json ] && command -v npm >/dev/null 2>&1; then
+    echo "!!! No committed assets in this release — building on the host as a fallback."
+    echo "!!! Commit public/build from a local build instead; this host build will dirty the tree."
     npm ci --no-audit --no-fund || npm install --no-audit --no-fund
     npm run build
 else
-    echo "==> Skipping asset build (no npm on host; using committed public/build)"
-    test -f public/build/manifest.json || echo "!!! WARNING: no public/build/manifest.json committed — CSS/JS will 404."
+    echo "!!! WARNING: no public/build/manifest.json committed and no npm on host — CSS/JS will 404."
 fi
 
 # Cache framework config for speed

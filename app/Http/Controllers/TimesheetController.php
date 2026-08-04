@@ -210,7 +210,11 @@ class TimesheetController extends Controller
             'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'entries.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
             'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('project_sub_pillars', 'id')->where('tenant_id', $tid)],
-            'entries.*.percentage' => ['required', 'numeric', 'min:0.01', 'max:100'],
+            // 0 is legal in a DRAFT: a line the staffer has added but not yet costed must
+            // survive a reload, or it disappears the moment the page is refreshed and they
+            // are never told. assertNoBlankLines() blocks 0 at submit, so a submitted week
+            // still never carries a 0% entry into the cost report.
+            'entries.*.percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
         ]);
 
@@ -236,7 +240,13 @@ class TimesheetController extends Controller
         // work-half of a half-day, and lay down the generated locked rows. The pre-filter
         // above is only for the date-window check (fully-locked days bypass it); mergeEntries
         // applies the same rule authoritatively.
-        $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $this->normaliseEntries($userEntries));
+        // Normalise first, then check for duplicates: normalisation is what nulls the project
+        // on a standalone category, so two lines that differ only by a stray project_id the
+        // category never uses are the same line by the time they are compared.
+        $normalised = $this->normaliseEntries($userEntries);
+        $this->assertNoDuplicateLines($normalised);
+
+        $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $normalised);
 
         $submitNow = $request->boolean('submit_now');
         // A fully-locked week may submit with no user rows, but a genuinely empty week
@@ -244,6 +254,7 @@ class TimesheetController extends Controller
         // a submitted timesheet with zero entries (which would land in the cost report).
         abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
         if ($submitNow) {
+            $this->assertNoBlankLines($entries);
             $this->assertDayTotals($entries);
         }
 
@@ -299,11 +310,14 @@ class TimesheetController extends Controller
         abort_unless($timesheet->status === 'draft', 422);
         abort_if($timesheet->entries()->count() === 0, 422, 'Cannot submit an empty timesheet.');
 
-        // A draft may be partial, but a submission must have every populated day at 100%.
-        $this->assertDayTotals($timesheet->entries()->get()->map(fn (TimesheetEntry $e) => [
+        // A draft may be partial, but a submission must have every populated day at 100%
+        // and no line still waiting for its percentage.
+        $rows = $timesheet->entries()->get()->map(fn (TimesheetEntry $e) => [
             'entry_date' => $e->entry_date->toDateString(),
             'percentage' => (float) $e->percentage,
-        ])->all());
+        ])->all();
+        $this->assertNoBlankLines($rows);
+        $this->assertDayTotals($rows);
 
         $timesheet->recomputeTotal();
         $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
@@ -886,6 +900,52 @@ class TimesheetController extends Controller
         }
 
         return $out;
+    }
+
+    /**
+     * A line added but never costed may sit in a draft (see store()'s min:0), but must not
+     * reach a submitted week: a 0% entry carries a category and project into the manday cost
+     * report while contributing nothing, which reads as real work that took no time.
+     *
+     * @param  array<int, array{entry_date:string, percentage:float|string}>  $entries
+     */
+    private function assertNoBlankLines(array $entries): void
+    {
+        foreach ($entries as $e) {
+            if ((float) $e['percentage'] <= 0) {
+                throw ValidationException::withMessages([
+                    'submit' => Carbon::parse($e['entry_date'])->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * The same Category · Project · Sub-pillar must not appear twice on one day. The picker
+     * greys out what a day already carries, but a stale tab or a hand-made POST can still
+     * send the pair, and two identical lines are impossible to tell apart once saved.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertNoDuplicateLines(array $entries): void
+    {
+        $seen = [];
+        foreach ($entries as $e) {
+            $key = implode('|', [
+                Carbon::parse($e['entry_date'])->toDateString(),
+                $e['category_id'],
+                $e['project_id'] ?? '',
+                $e['sub_pillar_id'] ?? '',
+            ]);
+
+            if (isset($seen[$key])) {
+                throw ValidationException::withMessages([
+                    'entries' => Carbon::parse($e['entry_date'])->format('D, j M').' has the same work listed twice — put it on one line instead.',
+                ]);
+            }
+
+            $seen[$key] = true;
+        }
     }
 
     /**
