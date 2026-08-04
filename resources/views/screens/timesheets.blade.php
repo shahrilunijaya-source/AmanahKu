@@ -47,7 +47,7 @@
         'who'   => 'Staff fill & submit · Managers & HR approve',
         'steps' => [
             'Pick the week using the arrows at the top — the strip shows each weekday with a fill bar for how much of that day is planned.',
-            'Tap a day in the strip to open it. Press "+ Add what you worked on" and search the list — every project and category is in there — then set the line\'s percentage. Repeat until the day reads 100%.',
+            'Tap a day in the strip to open it. Press "+ Add what you worked on", then answer one question at a time — category, then project, then which part of it — and set the line\'s percentage. Repeat until the day reads 100%.',
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
             'Touch a line to show its own amount buttons: 100%, 50%, 25%, or "Give it the rest". A line left without a percentage stays on screen and blocks the week until you fill it in or remove it.',
             'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit week" once every day reads 100%.',
@@ -60,7 +60,7 @@
         'who'   => 'Staf isi & hantar · Pengurus & HR luluskan',
         'steps' => [
             'Pilih minggu menggunakan anak panah di atas — jalur memaparkan setiap hari minggu dengan bar pengisian menunjukkan berapa banyak hari itu telah dirancang.',
-            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan" dan cari dalam senarai — semua projek dan kategori ada di situ — kemudian tetapkan peratus baris itu. Ulang sehingga hari itu membaca 100%.',
+            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan", kemudian jawab satu soalan pada satu masa — kategori, projek, dan bahagiannya — kemudian tetapkan peratus baris itu. Ulang sehingga hari itu membaca 100%.',
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
             'Sentuh satu baris untuk memaparkan butang amaunnya sendiri: 100%, 50%, 25%, atau "Beri baki". Baris tanpa peratus kekal di skrin dan menghalang minggu itu sehingga anda mengisinya atau membuangnya.',
             'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
@@ -375,16 +375,14 @@
             </template>
         </div>
 
-        {{-- ---- Add affordance: ONE searchable list of every combination.
+        {{-- ---- Add affordance: one question at a time.
 
-             It replaces a three-step pill drill-down that sat behind a button called
-             "Something else". Testers read the pills as tags rather than as a menu, and the
-             catalogue itself was hidden behind a label that did not describe it. The whole
-             catalogue is small — five pickable categories over four projects is about thirty
-             lines — so it fits in one scroll, grouped under its category, with saved
-             templates and recent work pinned above it. Work the day already carries is
-             greyed rather than hidden, so the staffer can see it is there instead of adding
-             an indistinguishable twin. ---- --}}
+             Category, then project, then sub-pillar. A flat list of all ~31 combinations was
+             tried in between and rejected: it is too much to read when the staffer already
+             knows the category they want. A step the data does not need is skipped, so a
+             standalone category is one tap and a project with no sub-pillar is two. Work the
+             day already carries is greyed rather than hidden, so the staffer can see it is
+             there instead of adding an indistinguishable twin. ---- --}}
         <div x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
             <button type="button" x-show="!picker.open" @click="openPicker()"
                 style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
@@ -392,31 +390,38 @@
             </button>
 
             <div x-show="picker.open" x-cloak style="padding:12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
+                {{-- Header: back arrow, the question this step asks, and the trail of what is
+                     already chosen so the staffer knows where they are. --}}
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-                        <span x-text="$store.ui.lang==='en' ? 'Add what you worked on' : 'Tambah apa yang anda kerjakan'"></span>
-                    </strong>
-                    <button type="button" @click="picker.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">
-                        <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span>
-                    </button>
+                    <button type="button" @click="pickerBack()" class="uj-btn-ghost"
+                        :aria-label="picker.step === 'category'
+                            ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal')
+                            : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
+                        style="height:28px;width:28px;padding:0;flex-shrink:0;font-size:14px;line-height:1;"
+                        x-text="picker.step === 'category' ? '×' : '←'"></button>
+                    <div style="flex:1;min-width:0;">
+                        <strong style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
+                            x-text="picker.step === 'category'
+                                ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
+                                : (picker.step === 'project'
+                                    ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
+                                    : ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?'))"></strong>
+                        <span x-show="pickerTrail()" x-cloak
+                            style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                            x-text="pickerTrail()"></span>
+                    </div>
                 </div>
-
-                <input type="search" x-model="picker.search"
-                    :aria-label="$store.ui.lang==='en' ? 'Search work, project or category' : 'Cari kerja, projek atau kategori'"
-                    :placeholder="$store.ui.lang==='en' ? 'Search a project, a category, anything…' : 'Cari projek, kategori, apa sahaja…'"
-                    style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;color:var(--ink);background:#fff;outline:none;" />
 
                 <div style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto;">
 
-                    {{-- Saved templates and recent work, shown only while the search box is
-                         empty: once a search narrows the catalogue, a pinned item would
-                         appear a second time in its own category group. --}}
-                    <template x-if="picker.search.trim() === '' && pinnedItems().length">
+                    {{-- Saved templates and recent work, pinned above the first step only:
+                         a one-tap shortcut straight past the drill-down. --}}
+                    <template x-if="picker.step === 'category' && pinnedItems().length">
                         <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:2px;">
                             <span x-text="$store.ui.lang==='en' ? 'Saved and recent' : 'Disimpan dan terkini'"></span>
                         </div>
                     </template>
-                    <template x-if="picker.search.trim() === ''">
+                    <template x-if="picker.step === 'category'">
                         <div style="display:flex;flex-direction:column;gap:5px;">
                             <template x-for="item in pinnedItems()" :key="item.key">
                                 <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0" @keydown.enter="chooseItem(item)"
@@ -456,27 +461,26 @@
                         </div>
                     </template>
 
-                    {{-- The catalogue: every addable line, under a heading for its category. --}}
-                    <template x-for="(item, i) in filteredCatalogue()" :key="item.key">
-                        <div>
-                            <div x-show="startsGroup(filteredCatalogue(), i)"
-                                style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 2px 5px;"
-                                x-text="item.group"></div>
-                            <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0" @keydown.enter="chooseItem(item)"
-                                style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
-                                :style="isOnDay(item)
-                                    ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
-                                    : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
-                                <span style="flex:1;font-size:12.5px;min-width:0;" x-text="item.label"></span>
-                                <span x-show="isOnDay(item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
-                                    x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
-                            </div>
+                    {{-- The current step's options. An option that completes a line is taken
+                         straight away; one that still needs a project or a sub-pillar shows a
+                         chevron and opens the next step. --}}
+                    <template x-if="picker.step === 'category' && pinnedItems().length">
+                        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 2px 0;">
+                            <span x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'"></span>
                         </div>
                     </template>
-
-                    <div x-show="filteredCatalogue().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
-                        <span x-text="$store.ui.lang==='en' ? 'Nothing matches that. Try a project name, or clear the search.' : 'Tiada padanan. Cuba nama projek, atau kosongkan carian.'"></span>
-                    </div>
+                    <template x-for="opt in pickerOptions()" :key="opt.label">
+                        <div @click="chooseStep(opt)" role="button" :tabindex="opt.item && isOnDay(opt.item) ? -1 : 0" @keydown.enter="chooseStep(opt)"
+                            style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
+                            :style="opt.item && isOnDay(opt.item)
+                                ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
+                                : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
+                            <span style="flex:1;font-size:12.5px;min-width:0;" x-text="opt.label"></span>
+                            <span x-show="opt.item && isOnDay(opt.item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
+                                x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
+                            <span x-show="!opt.item" x-cloak style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

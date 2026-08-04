@@ -238,41 +238,99 @@ export function registerTimesheetCapture(Alpine) {
             return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
 
-        // ---- picker: ONE searchable list of every addable combination ------------------
-        // Replaces the three-step pill drill-down behind "Something else". Testers read the
-        // pills as tags rather than as a menu, and the drill-down hid the catalogue behind a
-        // label ("Something else") that did not describe it. The whole catalogue is small —
-        // 5 pickable categories over 4 projects is ~31 lines — so it fits in one scroll,
-        // grouped under its category, with saved templates and recent work pinned on top.
-        picker: { open: false, search: '' },
+        // ---- picker: one question at a time --------------------------------------------
+        // Category, then project, then sub-pillar — each step a short list of full-width
+        // rows, with a back arrow and a breadcrumb of what is already chosen. A flat list of
+        // every combination was tried and rejected: ~31 lines is too much to read when the
+        // staffer already knows which category they want. Steps the data does not need are
+        // skipped, so a standalone category is still one tap and a project with no
+        // sub-pillars is still two.
+        picker: { open: false, step: 'category', category: null, project: null },
 
         openPicker() {
-            this.picker = { open: true, search: '' };
+            this.picker = { open: true, step: 'category', category: null, project: null };
         },
-        // Every Category · Project · Sub-pillar the staffer may add, flattened once.
-        // A category that needs a project contributes the project alone (the whole project)
-        // plus one line per sub-pillar; a standalone category contributes itself.
-        catalogue() {
-            const out = [];
-            for (const c of this.categories) {
-                const name = this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
-                if (!c.requires_project) {
-                    out.push({ key: `c${c.id}--`, group: name, label: name, category_id: c.id, project_id: '', sub_pillar_id: '' });
-                    continue;
-                }
-                for (const p of this.projects) {
-                    out.push({ key: `c${c.id}-${p.id}-`, group: name, label: p.name, category_id: c.id, project_id: p.id, sub_pillar_id: '' });
-                    for (const s of (p.sub_pillars || [])) {
-                        out.push({ key: `c${c.id}-${p.id}-${s.id}`, group: name, label: `${p.name} › ${s.name}`, category_id: c.id, project_id: p.id, sub_pillar_id: s.id });
-                    }
-                }
+        // One step back, or shut the picker when there is nowhere further back to go.
+        pickerBack() {
+            if (this.picker.step === 'sub') {
+                this.picker.step = 'project';
+                this.picker.project = null;
+            } else if (this.picker.step === 'project') {
+                this.picker.step = 'category';
+                this.picker.category = null;
+            } else {
+                this.picker.open = false;
             }
-
-            return out;
         },
-        // Saved templates (named, deletable) then recent combinations, shown above the
-        // catalogue while the search box is empty. Hidden once a search narrows the list,
-        // where an item would otherwise appear twice.
+        // What the staffer has chosen so far, for the panel's breadcrumb.
+        pickerTrail() {
+            return [this.picker.category && this.categoryName(this.picker.category), this.picker.project && this.picker.project.name]
+                .filter(Boolean).join(' · ');
+        },
+        categoryName(c) {
+            return this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
+        },
+        // The line a set of choices adds up to — the same shape isOnDay() and chooseItem()
+        // already take, so a step's options can be greyed the moment they are terminal.
+        pickerItem(category, project, sub) {
+            return {
+                key: `c${category.id}-${project ? project.id : ''}-${sub ? sub.id : ''}`,
+                label: [this.categoryName(category), project && project.name, sub && sub.name].filter(Boolean).join(' · '),
+                category_id: category.id,
+                project_id: project ? project.id : '',
+                sub_pillar_id: sub ? sub.id : '',
+            };
+        },
+        // Step 1. A category that needs no project is terminal here, so it can already be
+        // greyed as "already on this day"; one that needs a project only opens step 2.
+        pickerCategories() {
+            return this.categories.map((c) => ({
+                c,
+                label: this.categoryName(c),
+                item: c.requires_project ? null : this.pickerItem(c, null, null),
+            }));
+        },
+        // Step 2. Every project, terminal only when the project carries no sub-pillar.
+        pickerProjects() {
+            const c = this.picker.category;
+
+            return this.projects.map((p) => ({
+                p,
+                label: p.name,
+                item: (p.sub_pillars || []).length ? null : this.pickerItem(c, p, null),
+            }));
+        },
+        // Step 3. The whole project first, then each sub-pillar. All terminal.
+        pickerSubs() {
+            const c = this.picker.category;
+            const p = this.picker.project;
+            const whole = this.$store.ui.lang === 'en' ? 'The whole project' : 'Keseluruhan projek';
+
+            return [
+                { label: whole, item: this.pickerItem(c, p, null) },
+                ...(p.sub_pillars || []).map((s) => ({ label: s.name, item: this.pickerItem(c, p, s) })),
+            ];
+        },
+        // The rows the current step offers.
+        pickerOptions() {
+            if (this.picker.step === 'category') return this.pickerCategories();
+
+            return this.picker.step === 'project' ? this.pickerProjects() : this.pickerSubs();
+        },
+        // A row in any step: take the line if the choice is terminal, else go one step in.
+        chooseStep(option) {
+            if (option.item) {
+                this.chooseItem(option.item);
+            } else if (this.picker.step === 'category') {
+                this.picker.category = option.c;
+                this.picker.step = 'project';
+            } else {
+                this.picker.project = option.p;
+                this.picker.step = 'sub';
+            }
+        },
+        // Saved templates (named, deletable) then recent combinations, pinned above the
+        // first step as a one-tap shortcut past the whole drill-down.
         pinnedItems() {
             const templates = (this.templates || []).map((t) => ({
                 key: 'tpl-' + t.id,
@@ -286,20 +344,6 @@ export function registerTimesheetCapture(Alpine) {
             }));
 
             return [...templates, ...(this.items || [])];
-        },
-        // The catalogue filtered by the search box, matching on the category name as well as
-        // the line's own label so "development" finds every Development line.
-        filteredCatalogue() {
-            const q = this.picker.search.trim().toLowerCase();
-            const all = this.catalogue();
-            if (!q) return all;
-
-            return all.filter((i) => `${i.group} ${i.label}`.toLowerCase().includes(q));
-        },
-        // The catalogue is rendered as one list with a heading each time the category
-        // changes; this reports whether item `i` starts a new group.
-        startsGroup(list, i) {
-            return i === 0 || list[i - 1].group !== list[i].group;
         },
         chooseItem(item) {
             if (this.isOnDay(item)) return;
