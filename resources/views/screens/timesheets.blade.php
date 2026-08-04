@@ -47,10 +47,11 @@
         'who'   => 'Staff fill & submit · Managers & HR approve',
         'steps' => [
             'Pick the week using the arrows at the top — the strip shows each weekday with a fill bar for how much of that day is planned.',
-            'Tap a day in the strip to open it. Press "+ Add what you worked on", choose what you did, and set its percentage — repeat until the day reads 100%.',
+            'Tap a day in the strip to open it. Press "+ Add what you worked on" and search the list — every project and category is in there — then set the line\'s percentage. Repeat until the day reads 100%.',
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
-            'Use "Same as <day>" to copy the previous day, or "Give the rest to the last line" to top a day up to 100%. Save a draft any time; press "Submit week" once every day reads 100%.',
-            'Doing the same work every week? On the line you just added, tap "Save as template" and name it — it becomes a one-tap shortcut at the top of the list in every future week.',
+            'Touch a line to show its own amount buttons: 100%, 50%, 25%, or "Give it the rest". A line left without a percentage stays on screen and blocks the week until you fill it in or remove it.',
+            'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit week" once every day reads 100%.',
+            'Doing the same work every week? On a line, tap "Save this line as a template" and name it — it becomes a one-tap shortcut at the top of the list in every future week.',
         ],
     ],
     'ms'  => [
@@ -59,10 +60,11 @@
         'who'   => 'Staf isi & hantar · Pengurus & HR luluskan',
         'steps' => [
             'Pilih minggu menggunakan anak panah di atas — jalur memaparkan setiap hari minggu dengan bar pengisian menunjukkan berapa banyak hari itu telah dirancang.',
-            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan", pilih apa yang dilakukan, dan tetapkan peratusnya — ulang sehingga hari itu membaca 100%.',
+            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan" dan cari dalam senarai — semua projek dan kategori ada di situ — kemudian tetapkan peratus baris itu. Ulang sehingga hari itu membaca 100%.',
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
-            'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya, atau "Beri bakinya kepada baris akhir" untuk melengkapkan hari itu ke 100%. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
-            'Buat kerja sama setiap minggu? Pada baris yang baru anda tambah, tekan "Simpan sebagai templat" dan namakannya — ia menjadi pintasan satu ketik di bahagian atas senarai pada setiap minggu akan datang.',
+            'Sentuh satu baris untuk memaparkan butang amaunnya sendiri: 100%, 50%, 25%, atau "Beri baki". Baris tanpa peratus kekal di skrin dan menghalang minggu itu sehingga anda mengisinya atau membuangnya.',
+            'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
+            'Buat kerja sama setiap minggu? Pada satu baris, tekan "Simpan baris ini sebagai templat" dan namakannya — ia menjadi pintasan satu ketik di bahagian atas senarai pada setiap minggu akan datang.',
         ],
     ],
 ])
@@ -159,20 +161,45 @@
                 </div>
                 <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
             </div>
-            <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;"
-                :style="{ color: { empty:'var(--muted)', partial:'var(--amber)', done:'var(--success)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }">
-                <span x-text="dayTotal(selected)"></span><span style="color:var(--muted);"> / 100</span>
-            </span>
+            {{-- One number for the day, with its unit, and one word for what that number
+                 means. It used to read "100 / 100" with no unit, forty pixels from the
+                 week's "20% of the week allocated" — two bare numbers measuring different
+                 things. ---- --}}
+            <div style="text-align:right;flex:none;">
+                <div style="font-size:22px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums;"
+                    :style="{ color: { empty:'var(--muted)', partial:'var(--ink)', done:'var(--success-ink)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }"
+                    x-text="dayTotal(selected) + '%'"></div>
+                <div style="font-size:11px;margin-top:5px;white-space:nowrap;"
+                    :style="{ color: dayState(selected) === 'over' ? 'var(--error)'
+                        : hasBlankRows(selected) ? 'var(--amber-ink)'
+                        : dayState(selected) === 'done' ? 'var(--success-ink)' : 'var(--muted)' }"
+                    x-text="dayState(selected) === 'over'
+                        ? ($store.ui.lang==='en' ? 'over by ' : 'lebih ') + Math.round((dayTotal(selected) - 100) * 100) / 100 + '%'
+                        : hasBlankRows(selected)
+                            ? ($store.ui.lang==='en' ? 'a line has no percentage' : 'satu baris tiada peratus')
+                            : dayState(selected) === 'done'
+                                ? ($store.ui.lang==='en' ? 'this day is done' : 'hari ini selesai')
+                                : ($store.ui.lang==='en' ? 'of this day' : 'daripada hari ini')"></div>
+            </div>
         </div>
 
-        <div style="height:7px;background:var(--hairline-soft);border-radius:999px;overflow:hidden;margin:14px 0 4px;">
-            <div style="height:100%;transition:width .15s;"
-                :style="{
-                    width: Math.min(100, dayTotal(selected)) + '%',
-                    background: dayState(selected) === 'done' ? 'var(--success)'
-                              : dayState(selected) === 'over' ? 'var(--error)'
-                              : dayState(selected) === 'locked' ? 'var(--muted)' : 'var(--amber)',
-                }"></div>
+        {{-- The bar is segmented, one piece per line in the day, so it shows the split and
+             not only the total. Segment colours match the dot on each row below. ---- --}}
+        <div style="display:flex;gap:2px;height:7px;background:var(--hairline-soft);border-radius:999px;overflow:hidden;margin:14px 0 4px;">
+            <template x-if="isFullyLocked(selected)">
+                <div style="height:100%;width:100%;background:var(--muted);"></div>
+            </template>
+            <template x-if="!isFullyLocked(selected) && lockedPct(selected) > 0">
+                <div style="height:100%;background:var(--muted);"
+                    :style="{ width: (lockedPct(selected) / Math.max(100, dayTotal(selected)) * 100) + '%' }"></div>
+            </template>
+            <template x-for="(r, i) in (isFullyLocked(selected) ? [] : (rows[selected] || []))" :key="i">
+                <div style="height:100%;transition:width .3s var(--ease);"
+                    :style="{
+                        width: ((parseFloat(r.percentage) || 0) / Math.max(100, dayTotal(selected)) * 100) + '%',
+                        background: dayState(selected) === 'over' ? 'var(--error)' : rowColour(i),
+                    }"></div>
+            </template>
         </div>
 
         @if ($weekLocked)
@@ -242,15 +269,28 @@
             <template x-if="!isFullyLocked(selected) && !isFuture(selected) && !isOffDay(selected)">
                 <div>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
-                        <div style="padding:8px 0;border-top:1px solid var(--hairline-soft);">
-                            <div style="display:flex;align-items:center;gap:10px;">
-                                <span style="flex:1;font-size:12.5px;" x-text="rowLabel(r)"></span>
-                                <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
-                                    x-model="r.percentage" @blur="save()" :disabled="!isEditable(selected)"
-                                    style="width:72px;height:34px;padding:0 8px;text-align:center;border:1px solid var(--hairline);border-radius:7px;font-family:var(--font-mono);font-size:12.5px;outline:none;" />
-                                <button type="button" @click="removeRow(i)" :disabled="!isEditable(selected)"
-                                    class="uj-btn-ghost" style="height:34px;padding:0 9px;color:var(--error);"
-                                    :aria-label="$store.ui.lang==='en' ? 'Remove' : 'Buang'">&times;</button>
+                        <div class="uj-ts-row" :data-blank="isBlank(r) ? '1' : '0'"
+                            style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <span style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;">
+                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;"
+                                        :style="{ background: rowColour(i) }"></span>
+                                    <span style="font-size:12.5px;color:var(--ink);line-height:1.35;" x-text="rowLabel(r)"></span>
+                                </span>
+                                {{-- The unit lives IN the box. A bare number field next to a bare
+                                     "100 / 100" left testers unsure whether it wanted percent or
+                                     hours, and the aria-label names the line it belongs to. --}}
+                                <span style="position:relative;flex:none;">
+                                    <input type="text" inputmode="decimal"
+                                        x-model="r.percentage" @input="clampPct(r)" @blur="save()" :disabled="!isEditable(selected)"
+                                        :aria-label="($store.ui.lang==='en' ? 'Percent of the day for ' : 'Peratus hari untuk ') + rowLabel(r)"
+                                        style="width:86px;height:36px;padding:0 26px 0 10px;text-align:right;border:1px solid var(--hairline);border-radius:8px;font-family:var(--font-mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink);background:#fff;outline:none;"
+                                        :style="isBlank(r) && isEditable(selected) ? { borderColor:'var(--amber)', background:'#fffaf0' } : {}" />
+                                    <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--font-mono);font-size:12.5px;color:var(--muted);pointer-events:none;">%</span>
+                                </span>
+                                <button type="button" @click="removeRow(i); save()" :disabled="!isEditable(selected)"
+                                    class="uj-btn-ghost" style="height:36px;padding:0 10px;color:var(--error);"
+                                    :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + rowLabel(r)">&times;</button>
                             </div>
                             {{-- Optional free-text note: "what you actually did" for this line.
                                  The column, validator and save/seed plumbing already round-trip
@@ -258,26 +298,38 @@
                             <input type="text" x-model="r.description" @blur="save()" maxlength="500"
                                 :disabled="!isEditable(selected)"
                                 :placeholder="$store.ui.lang==='en' ? 'Add a note (optional)' : 'Tambah nota (pilihan)'"
-                                style="width:100%;height:32px;margin-top:6px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;background:#fff;" />
-                            {{-- Task 8: quick amount chips + save-as-template, shown only on the
-                                 last (most recently added) row so the affordances appear once per
-                                 day instead of repeating on every line. Save any combo by adding
-                                 it last. --}}
-                            <template x-if="isEditable(selected) && i === (rows[selected] || []).length - 1">
-                                <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
-                                    <div style="display:flex;gap:5px;">
-                                        <template x-for="pct in [100, 50, 25]" :key="pct">
-                                            <button type="button" @click="r.percentage = pct; save()"
-                                                style="padding:2px 9px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--muted);font-size:10.5px;cursor:pointer;"
-                                                x-text="pct + '%'"></button>
-                                        </template>
-                                    </div>
-                                    <button type="button" @click="startSaveTemplate(r)"
-                                        style="border:0;background:none;color:var(--muted);font-size:10.5px;text-decoration:underline;cursor:pointer;padding:2px 0;margin-left:auto;">
-                                        <span x-text="$store.ui.lang==='en' ? 'Save as template' : 'Simpan sebagai templat'"></span>
-                                    </button>
-                                </div>
-                            </template>
+                                style="width:100%;height:32px;margin-top:8px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;background:#fff;" />
+
+                            {{-- A line with no percentage says so, and blocks the week, instead of
+                                 being dropped on the next save with nothing said. --}}
+                            <div x-show="isBlank(r) && isEditable(selected)" x-cloak
+                                style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
+                                x-text="$store.ui.lang==='en' ? 'Needs a percentage — how much of this day went here?' : 'Perlukan peratus — berapa banyak hari ini pergi ke sini?'"></div>
+
+                            {{-- The amount controls sit INSIDE the line they change, revealed by
+                                 hovering or focusing that line. They used to be one strip pinned
+                                 under the last row: it looked like it belonged to whichever row it
+                                 sat under, and always acted on the last one. --}}
+                            <div class="uj-ts-tools" x-show="isEditable(selected)" x-cloak
+                                style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                                <span style="font-size:11px;color:var(--muted);margin-right:2px;"
+                                    x-text="$store.ui.lang==='en' ? 'Set to' : 'Tetapkan'"></span>
+                                <template x-for="pct in [100, 50, 25]" :key="pct">
+                                    <button type="button" @click="r.percentage = pct; save()"
+                                        style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
+                                        x-text="pct + '%'"></button>
+                                </template>
+                                {{-- Names the amount and the line it lands on, and is absent when
+                                     there is nothing left — the old day-level version set the last
+                                     line to 0 whenever the day had already gone over 100%. --}}
+                                <button type="button" x-show="remainder(selected) > 0" @click="giveRemainder(r)"
+                                    style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--success);background:color-mix(in srgb, var(--success) 8%, #fff);color:var(--success-ink);font-size:11px;cursor:pointer;"
+                                    x-text="($store.ui.lang==='en' ? 'Give it the ' : 'Beri baki ') + remainder(selected) + ($store.ui.lang==='en' ? '% left' : '%')"></button>
+                                <button type="button" @click="startSaveTemplate(r)"
+                                    style="min-height:30px;padding:0 12px;margin-left:auto;border:1px dashed var(--hairline);border-radius:999px;background:none;color:var(--muted);font-size:11px;cursor:pointer;">
+                                    <span x-text="$store.ui.lang==='en' ? 'Save this line as a template' : 'Simpan baris ini sebagai templat'"></span>
+                                </button>
+                            </div>
                         </div>
                     </template>
 
@@ -318,22 +370,23 @@
                             :disabled="!isEditable(selected)" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;">
                             <span x-text="($store.ui.lang==='en' ? 'Same as ' : 'Sama seperti ') + dayName(previousWorkday(selected) || selected)"></span>
                         </button>
-                        <button type="button" @click="fillRemainder()" x-show="(rows[selected] || []).length"
-                            :disabled="!isEditable(selected)" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Give the rest to the last line' : 'Beri bakinya kepada baris akhir'"></span>
-                        </button>
                     </div>
                 </div>
             </template>
         </div>
 
-        {{-- ---- Add affordance: flat, search-first picker (Task 8). Saved templates appear
-             first (named, with a "saved" badge and a delete control), then recent
-             Category · Project · Sub-pillar combinations, most recent first. "Something
-             else" reveals the original three-step pill drill-down from Task 7 (moved here
-             unchanged), so no combination is unreachable. ---- --}}
-        <div x-data="{ add: { open: false, step: 1, cat: null, proj: null, filter: '' } }" x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
-            <button type="button" x-show="!picker.open" @click="openPicker(); add = { open: false, step: 1, cat: null, proj: null, filter: '' }"
+        {{-- ---- Add affordance: ONE searchable list of every combination.
+
+             It replaces a three-step pill drill-down that sat behind a button called
+             "Something else". Testers read the pills as tags rather than as a menu, and the
+             catalogue itself was hidden behind a label that did not describe it. The whole
+             catalogue is small — five pickable categories over four projects is about thirty
+             lines — so it fits in one scroll, grouped under its category, with saved
+             templates and recent work pinned above it. Work the day already carries is
+             greyed rather than hidden, so the staffer can see it is there instead of adding
+             an indistinguishable twin. ---- --}}
+        <div x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
+            <button type="button" x-show="!picker.open" @click="openPicker()"
                 style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
                 <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
             </button>
@@ -343,25 +396,38 @@
                     <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
                         <span x-text="$store.ui.lang==='en' ? 'Add what you worked on' : 'Tambah apa yang anda kerjakan'"></span>
                     </strong>
-                    <button type="button" @click="picker.open = false; add = { open: false, step: 1, cat: null, proj: null, filter: '' }"
-                        class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">
+                    <button type="button" @click="picker.open = false" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">
                         <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span>
                     </button>
                 </div>
 
-                {{-- Flat list: saved templates first, then recents. Hidden while "Something else" is open. --}}
-                <template x-if="!add.open">
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        <input x-show="pickerItems().length > 8" x-model="picker.search"
-                            :placeholder="$store.ui.lang==='en' ? 'Search…' : 'Cari…'"
-                            style="width:100%;height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+                <input type="search" x-model="picker.search"
+                    :aria-label="$store.ui.lang==='en' ? 'Search work, project or category' : 'Cari kerja, projek atau kategori'"
+                    :placeholder="$store.ui.lang==='en' ? 'Search a project, a category, anything…' : 'Cari projek, kategori, apa sahaja…'"
+                    style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;color:var(--ink);background:#fff;outline:none;" />
 
-                        <div style="display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto;">
-                            <template x-for="item in filteredItems()" :key="item.key">
-                                <div @click="chooseItem(item)" role="button" tabindex="0" @keydown.enter="chooseItem(item)"
-                                    style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:#fff;border:1px solid var(--hairline-soft);cursor:pointer;">
-                                    <span style="flex:1;font-size:12.5px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="item.label"></span>
-                                    <span x-show="item.isTemplate" x-cloak style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--success);background:var(--canvas);padding:2px 8px;border-radius:999px;flex-shrink:0;">
+                <div style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto;">
+
+                    {{-- Saved templates and recent work, shown only while the search box is
+                         empty: once a search narrows the catalogue, a pinned item would
+                         appear a second time in its own category group. --}}
+                    <template x-if="picker.search.trim() === '' && pinnedItems().length">
+                        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:2px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Saved and recent' : 'Disimpan dan terkini'"></span>
+                        </div>
+                    </template>
+                    <template x-if="picker.search.trim() === ''">
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <template x-for="item in pinnedItems()" :key="item.key">
+                                <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0" @keydown.enter="chooseItem(item)"
+                                    style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
+                                    :style="isOnDay(item)
+                                        ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
+                                        : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
+                                    <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="item.label"></span>
+                                    <span x-show="isOnDay(item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
+                                        x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
+                                    <span x-show="item.isTemplate && !isOnDay(item)" x-cloak style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--success);background:var(--canvas);padding:2px 8px;border-radius:999px;flex-shrink:0;">
                                         <span x-text="$store.ui.lang==='en' ? 'saved' : 'disimpan'"></span>
                                     </span>
                                     {{-- Delete a template: DELETE /app/timesheets/templates/{template}
@@ -387,75 +453,31 @@
                                     </template>
                                 </div>
                             </template>
+                        </div>
+                    </template>
 
-                            <div x-show="pickerItems().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
-                                <span x-text="$store.ui.lang==='en' ? 'Nothing saved yet.' : 'Belum ada simpanan.'"></span>
-                                <a href="#" @click.prevent="add = { open: true, step: 1, cat: null, proj: null, filter: '' }" style="color:var(--info);text-decoration:underline;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Use Something else instead.' : 'Guna Lain-lain sebagai gantinya.'"></span>
-                                </a>
-                            </div>
-
-                            {{-- A search with zero matches is otherwise just a blank gap below the
-                                 input; distinguish it from "nothing saved at all" above. --}}
-                            <div x-show="picker.search.trim() !== '' && filteredItems().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
-                                <span x-text="$store.ui.lang==='en' ? 'No matches. Try \'Something else\' below.' : 'Tiada padanan. Cuba \'Lain-lain\' di bawah.'"></span>
+                    {{-- The catalogue: every addable line, under a heading for its category. --}}
+                    <template x-for="(item, i) in filteredCatalogue()" :key="item.key">
+                        <div>
+                            <div x-show="startsGroup(filteredCatalogue(), i)"
+                                style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 2px 5px;"
+                                x-text="item.group"></div>
+                            <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0" @keydown.enter="chooseItem(item)"
+                                style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
+                                :style="isOnDay(item)
+                                    ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
+                                    : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
+                                <span style="flex:1;font-size:12.5px;min-width:0;" x-text="item.label"></span>
+                                <span x-show="isOnDay(item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
+                                    x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
                             </div>
                         </div>
+                    </template>
 
-                        <button type="button" @click="add = { open: true, step: 1, cat: null, proj: null, filter: '' }" class="uj-btn-ghost" style="width:100%;height:32px;font-size:12px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Something else' : 'Lain-lain'"></span>
-                        </button>
+                    <div x-show="filteredCatalogue().length === 0" style="padding:16px 10px;text-align:center;font-size:12px;color:var(--muted);">
+                        <span x-text="$store.ui.lang==='en' ? 'Nothing matches that. Try a project name, or clear the search.' : 'Tiada padanan. Cuba nama projek, atau kosongkan carian.'"></span>
                     </div>
-                </template>
-
-                {{-- Something else: the original three-step pill drill-down (category -> project
-                     -> sub-pillar) from Task 7, moved here unchanged so every combination —
-                     including ones with no saved template or recent use — stays reachable. --}}
-                <template x-if="add.open">
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <button type="button" x-show="add.step > 1" @click="add.step = add.step - 1" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;">&larr;</button>
-                            <strong style="flex:1;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-                                <span x-show="add.step===1" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'"></span>
-                                <span x-show="add.step===2" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></span>
-                                <span x-show="add.step===3" x-text="$store.ui.lang==='en' ? 'Sub-pillar (optional)' : 'Sub-tiang (pilihan)'"></span>
-                            </strong>
-                            <button type="button" @click="add = { open: false, step: 1, cat: null, proj: null, filter: '' }" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Back to list' : 'Kembali ke senarai'"></span></button>
-                        </div>
-
-                        <div x-show="add.step===1" style="display:flex;flex-wrap:wrap;gap:6px;">
-                            <template x-for="c in categories" :key="c.id">
-                                <button type="button"
-                                    @click="add.cat = c; if (! c.requires_project) { addRow({ category_id: c.id, project_id: '', sub_pillar_id: '' }); picker.open = false; add.open = false; } else { add.step = 2; }"
-                                    style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                                    x-text="$store.ui.lang==='en' ? c.name : (c.name_ms || c.name)"></button>
-                            </template>
-                        </div>
-
-                        <div x-show="add.step===2">
-                            <input x-show="projects.length > 12" x-model="add.filter" :placeholder="$store.ui.lang==='en' ? 'Search project…' : 'Cari projek…'" style="width:100%;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
-                            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                <template x-for="p in projects.filter((p) => !add.filter || p.name.toLowerCase().includes(add.filter.toLowerCase()))" :key="p.id">
-                                    <button type="button"
-                                        @click="add.proj = p; if ((p.sub_pillars || []).length) { add.step = 3; } else { addRow({ category_id: add.cat.id, project_id: p.id, sub_pillar_id: '' }); picker.open = false; add.open = false; }"
-                                        style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                                        x-text="p.name"></button>
-                                </template>
-                            </div>
-                        </div>
-
-                        <div x-show="add.step===3" style="display:flex;flex-wrap:wrap;gap:6px;">
-                            <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: '' }); picker.open = false; add.open = false;"
-                                style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                                x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></button>
-                            <template x-for="s in (add.proj ? (add.proj.sub_pillars || []) : [])" :key="s.id">
-                                <button type="button" @click="addRow({ category_id: add.cat.id, project_id: add.proj.id, sub_pillar_id: s.id }); picker.open = false; add.open = false;"
-                                    style="padding:6px 13px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;white-space:nowrap;"
-                                    x-text="s.name"></button>
-                            </template>
-                        </div>
-                    </div>
-                </template>
+                </div>
             </div>
         </div>
 
@@ -496,7 +518,13 @@
         {{-- ---- Footer: save / submit ---- --}}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
             <div style="font-size:12px;flex:1;min-width:200px;">
-                <span x-show="!weekComplete()" style="color:var(--amber);" x-text="blockingDaysText() + ($store.ui.lang==='en' ? ' not at 100% yet' : ' belum 100%')"></span>
+                {{-- blockingMessage() picks its own sentence: a day over 100% is told it went
+                     over, a day holding an uncosted line is told that, and only a genuinely
+                     unfinished day reads "not at 100% yet". The one message used to say
+                     "not at 100% yet" for all three, including a day sitting at 140%. --}}
+                <span x-show="!weekComplete()"
+                    :style="{ color: overDays().length ? 'var(--error)' : 'var(--amber-ink)' }"
+                    x-text="blockingMessage()"></span>
                 <span x-show="weekComplete() && savedAt" style="color:var(--muted);" x-text="($store.ui.lang==='en' ? 'Saved ' : 'Disimpan ') + savedAt"></span>
             </div>
             <div style="display:flex;gap:8px;">

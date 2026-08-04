@@ -2789,3 +2789,27 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
     .uj-lv-fold { transition-duration: .01ms; }
     .uj-lv-bar i, .uj-lv-chev, .uj-lv-tick { transition-duration: .01ms; }
 }
+
+/* ── Timesheet capture: per-line amount controls ──
+   The chips, the "give it the rest" button and save-as-template belong to ONE line, so
+   they live inside that line and are revealed by it. They were previously a single strip
+   pinned under the last row: it read as the controls of whichever row it happened to sit
+   beneath, while always acting on the last one. A line still waiting for its percentage
+   (data-blank) keeps them open, because that is the line the staffer has to act on. */
+.uj-ts-tools {
+    opacity: 0;
+    transform: translateY(-3px);
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity .2s var(--ease), transform .2s var(--ease), max-height .2s var(--ease);
+}
+.uj-ts-row:hover .uj-ts-tools,
+.uj-ts-row:focus-within .uj-ts-tools,
+.uj-ts-row[data-blank="1"] .uj-ts-tools {
+    opacity: 1;
+    transform: none;
+    max-height: 220px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .uj-ts-tools { transition-duration: .01ms; }
+}
