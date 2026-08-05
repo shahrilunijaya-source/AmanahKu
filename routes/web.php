@@ -192,8 +192,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/reviews/{review}/rate', [ReviewController::class, 'rate'])->name('reviews.rate');
         Route::post('/app/board', [WorkItemController::class, 'store'])->name('work.store');
         Route::post('/app/board/assign/{employee}', [WorkItemController::class, 'assign'])->name('work.assign');
+        // Ahead of the {workItem} show route below — otherwise "archived" would bind as an id.
+        Route::get('/app/board/archived', [WorkItemController::class, 'archived'])->name('work.archived');
         Route::get('/app/board/{workItem}', [WorkItemController::class, 'show'])->name('work.show');
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
+        Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
+        Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
         Route::patch('/app/board/{workItem}', [WorkItemController::class, 'update'])->name('work.update');
         Route::delete('/app/board/{workItem}', [WorkItemController::class, 'destroy'])->name('work.destroy');
         // AI Workforce Intelligence — "Apply" a recommendation as an in-app nudge (privileged only).
@@ -329,6 +333,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/knowledge-bank', [KnowledgeController::class, 'store'])->name('knowledge.store');
         Route::post('/app/knowledge-bank/segments', [KnowledgeController::class, 'storeSegment'])->name('knowledge.segments');
         Route::post('/app/knowledge-bank/read-all', [KnowledgeController::class, 'markAllRead'])->name('knowledge.read');
+        Route::put('/app/knowledge-bank/{entry}', [KnowledgeController::class, 'update'])->name('knowledge.update');
         Route::post('/app/knowledge-bank/{entry}/star', [KnowledgeController::class, 'toggleStar'])->name('knowledge.star');
         Route::post('/app/knowledge-bank/{entry}/react', [KnowledgeController::class, 'react'])->name('knowledge.react');
         Route::get('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'commentsList'])->name('knowledge.comments.list');

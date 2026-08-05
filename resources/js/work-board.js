@@ -30,7 +30,7 @@ const FIELD_DERIVED = {
 };
 
 export function registerWorkBoard(Alpine) {
-    Alpine.data('workBoard', (boardType = 'core', people = [], labels = {}, deepLinkCardId = null) => ({
+    Alpine.data('workBoard', (boardType = 'core', people = [], labels = {}, deepLinkCardId = null, archivedCount = 0) => ({
         boardType,
         // 'all' shows everything; each of 'task' / 'assignment' / 'adhoc' shows that
         // one type only. Landing via a typed sidebar link pre-focuses it; else show all.
@@ -53,6 +53,12 @@ export function registerWorkBoard(Alpine) {
         // Passed in as a prop the same way `people` is — never a JS-side twin that
         // could drift from the server-side definition.
         labels,
+        // Archived-cards panel (Done column's "Archived (N)" link). archivedCount
+        // seeds from the server render; archiveCard()/reopenCard() keep it in sync
+        // without a full page reload.
+        archivedCount,
+        archivedOpen: false,
+        archivedItems: [],
         drawer: {
             show: false, // mounted / unmounted (Alpine x-show), toggled first
             open: false, // transform/opacity state, toggled a frame later so the
@@ -557,14 +563,100 @@ export function registerWorkBoard(Alpine) {
         async deleteCard() {
             if (this.drawer.locked) return;
             if (!window.confirm(this.t('Delete this card? This cannot be undone.', 'Padam kad ini? Ini tidak boleh dibatalkan.'))) return;
+            const node = this.drawer.node;
             try {
                 await this.api(`/app/board/${this.drawer.id}`, { method: 'DELETE' });
-                this.drawer.node?.remove();
                 this.closeDrawer();
+                if (node) {
+                    node.classList.add('wc--deleting');
+                    node.addEventListener('animationend', () => {
+                        node.remove();
+                        this.recount();
+                        this.refreshCounts();
+                    }, { once: true });
+                } else {
+                    this.recount();
+                    this.refreshCounts();
+                }
+            } catch (err) {
+                this.drawer.error = this.t('Delete failed.', 'Gagal padam.');
+            }
+        },
+
+        // Plays the new-card entrance on a just-inserted node, then drops the class —
+        // it's a one-shot animation class, not a persistent state, so a later
+        // outerHTML repaint of this same card never accidentally replays it.
+        playEnter(node) {
+            if (!node) return;
+            node.classList.add('wc--entering');
+            node.addEventListener('animationend', () => node.classList.remove('wc--entering'), { once: true });
+        },
+
+        // Archive a Done card off the board. The API call confirms first — no
+        // playing the exit animation on a card that never actually left the
+        // database — then a shake (rejects-the-eye's-expectation feedback that
+        // something just happened to this card) settles into a fade-and-shrink
+        // exit, and only then does the node leave the DOM.
+        async archiveCard() {
+            if (this.drawer.locked || this.drawer.card.status !== 'done') return;
+            const node = this.drawer.node;
+            const id = this.drawer.id;
+            try {
+                await this.api(`/app/board/${id}/archive`, { method: 'POST' });
+            } catch (err) {
+                this.drawer.error = this.t('Could not archive this card.', 'Tidak dapat arkibkan kad ini.');
+                return;
+            }
+            this.closeDrawer();
+            this.archivedCount += 1;
+            if (!node) {
+                this.recount();
+                this.refreshCounts();
+                return;
+            }
+            node.classList.add('wc--archiving');
+            node.addEventListener('animationend', () => {
+                node.classList.remove('wc--archiving');
+                node.classList.add('wc--archiving-out');
+                node.addEventListener('animationend', () => {
+                    node.remove();
+                    this.recount();
+                    this.refreshCounts();
+                }, { once: true });
+            }, { once: true });
+        },
+
+        openArchived() {
+            this.archivedOpen = true;
+            this.loadArchived();
+        },
+
+        async loadArchived() {
+            try {
+                const { items } = await this.api('/app/board/archived');
+                this.archivedItems = items;
+            } catch (err) {
+                this.$store.toast.error(this.t('Could not load archived cards.', 'Tidak dapat memuatkan kad diarkibkan.'));
+            }
+        },
+
+        // Reopen puts the card back at To Do (the one way back onto the board).
+        async reopenCard(id) {
+            try {
+                const { html } = await this.api(`/app/board/${id}/restore`, { method: 'POST' });
+                this.archivedItems = this.archivedItems.filter((a) => a.id !== id);
+                this.archivedCount = Math.max(0, this.archivedCount - 1);
+                const list = this.$root.querySelector('[data-list="todo"]');
+                if (list && html) {
+                    const empty = list.querySelector('[data-empty]');
+                    if (empty) empty.remove();
+                    list.insertAdjacentHTML('afterbegin', html);
+                    this.playEnter(list.firstElementChild);
+                }
                 this.recount();
                 this.refreshCounts();
             } catch (err) {
-                this.drawer.error = this.t('Delete failed.', 'Gagal padam.');
+                this.$store.toast.error(this.t('Could not reopen this card.', 'Tidak dapat buka semula kad ini.'));
             }
         },
 
@@ -720,6 +812,7 @@ export function registerWorkBoard(Alpine) {
                 const empty = list.querySelector('[data-empty]');
                 if (empty) empty.remove();
                 list.insertAdjacentHTML('beforeend', html);
+                this.playEnter(list.lastElementChild);
                 this.draft[status] = '';
                 // A brand-new card changes the totals every chip reports, so this is
                 // one of the few autosave-adjacent paths that legitimately needs the

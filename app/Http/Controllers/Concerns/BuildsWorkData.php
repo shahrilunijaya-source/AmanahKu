@@ -112,6 +112,11 @@ trait BuildsWorkData
         return [
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
+            'archivedCount' => $employee ? WorkItem::query()
+                ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                    ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
+                ->whereNotNull('archived_at')
+                ->count() : 0,
             // A mention notification lands here as /app/board?card={id}. No access
             // check happens server-side — the value is only relayed to the client,
             // which opens it through the same authorized GET /app/board/{workItem}
@@ -140,15 +145,17 @@ trait BuildsWorkData
         // One board holds every work type (assignments, tasks, adhoc). The `?type`
         // param only sets the client-side filter's starting focus — it no longer
         // splits the data across pages. Filtering happens live in the browser.
-        // Done cards older than 30 days are history, not work — leave them out so
-        // the daily-driver board doesn't grow heavier forever.
+        // A card leaves the Done column only when explicitly archived (archived_at
+        // set) — see WorkItemController::archive(). Reopening puts it back at
+        // todo, so an archived card is never stuck; the board itself just won't
+        // grow Done forever with cards nobody archived.
         // A card belongs to one owner, but may also include participants — the same
         // shared card then shows on each included person's board. Load both: cards I
         // own, plus cards I'm a participant on.
         $items = $employee ? WorkItem::query()
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
-            ->where(fn ($q) => $q->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
+            ->whereNull('archived_at')
             ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')
             ->orderBy('sort_order')->orderBy('id')->get() : collect();
         $cols = [
@@ -181,10 +188,10 @@ trait BuildsWorkData
         $employees = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self)
             ->with([
                 'positionBand', 'department',
-                // Same 30-day done-card window as the personal board — the team view
+                // Same archived-card exclusion as the personal board — the team view
                 // loads EVERY employee's items in one request, so the bound matters more.
                 'workItems' => fn ($q) => $q
-                    ->where(fn ($w) => $w->where('status', '!=', 'done')->orWhere('updated_at', '>=', now()->subDays(30)))
+                    ->whereNull('archived_at')
                     // participants + projectRef are also loaded here (not just assignedBy) so
                     // partials.work-card, shared with the personal board, never lazy-loads a
                     // relation while painting every employee's lane in one request.

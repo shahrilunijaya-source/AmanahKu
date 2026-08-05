@@ -95,6 +95,11 @@ button, input, select, textarea { font: inherit; }
 .uj-slide { animation: uj-slide .22s ease; }
 .uj-fade { animation: uj-fade .15s ease; }
 
+/* Knowledge Bank slide-over views (partials/knowledge-panel.blade.php): x-show
+   clears an inline `display` on show, so the flex column can't live in the
+   same style attribute it toggles — it has to come from a class instead. */
+.kb-view-col { display: flex; flex-direction: column; height: 100%; }
+
 /* Partial navigation (resources/js/partial-nav.js): the screen body dims while the
    next screen is being fetched. The sidebar and header are untouched, so only this
    region reacts. Kept slow to start so a fast swap never flickers. */
@@ -732,6 +737,43 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc--sm .wc-foot { font-size: 10.5px; }
 .wc--sm .wc-right { gap: 7px; }
 
+/* Archive exit: a shake (something just happened to this card) settling into a
+   fade-and-shrink (it's leaving) — see WorkBoard.archiveCard() in work-board.js,
+   which chains the two classes off successive animationend events. */
+@keyframes wc-archive-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
+@keyframes wc-archive-fade {
+    to { opacity: 0; transform: scale(.94); }
+}
+.wc--archiving { animation: wc-archive-shake .28s var(--ease); }
+.wc--archiving-out { animation: wc-archive-fade .22s var(--ease) forwards; pointer-events: none; }
+
+/* Delete exit: no shake (deleting isn't a rejection to signal, just a removal) —
+   the same fade-and-shrink as the archive exit's second half, so a card never
+   just vanishes off the board. Faster than archive: deleting is final, nothing
+   left to reconsider once it starts. */
+.wc--deleting { animation: wc-archive-fade .16s var(--ease) forwards; pointer-events: none; }
+
+/* New-card entrance: submitAdd()/reopenCard() insert straight into the DOM with
+   no transition of their own — teleporting content per find-animation-
+   opportunities. Never starts from scale(0); .95 keeps the card's shape visible
+   throughout, like it grew into place rather than materialised. */
+@keyframes wc-enter {
+    from { opacity: 0; transform: scale(.95) translateY(4px); }
+}
+.wc--entering { animation: wc-enter .22s var(--ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+    .wc--archiving { animation: none; }
+    .wc--archiving-out { animation: wc-archive-fade .12s linear forwards; }
+    .wc--deleting { animation: wc-archive-fade .1s linear forwards; }
+    .wc--entering { animation: none; }
+}
+
 /* Avatar stack, shared by the card face and (later) the drawer. */
 .wa-stack { display: inline-flex; align-items: center; }
 .wa {
@@ -936,13 +978,30 @@ select.wd-inline {
     position: absolute; top: 46px; right: 12px; z-index: 62; min-width: 168px;
     background: var(--card); border: 1px solid var(--hairline); border-radius: 10px;
     box-shadow: var(--shadow-menu); padding: 4px;
+    /* Scales in from its trigger (the ⋯ button, top-right) rather than popping in
+       flat — @starting-style fires on the x-show display:none → block flip, no JS
+       needed. Never scale from 0: a barely-visible .95 keeps the entrance
+       grounded instead of looking like it came from nowhere. */
+    transform-origin: top right;
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+    @starting-style {
+        opacity: 0;
+        transform: scale(.95);
+    }
 }
 .wd-menu button {
     width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
     padding: 8px 10px; border-radius: 7px; font-size: var(--t-sm); color: var(--ink);
+    transition: background-color 120ms var(--ease);
 }
 .wd-menu button:hover { background: var(--canvas); }
 .wd-menu button.is-danger { color: var(--red); }
+@media (prefers-reduced-motion: reduce) {
+    .wd-menu { transition: opacity 100ms ease; }
+    .wd-menu { @starting-style { transform: none; } }
+}
 
 @media (prefers-reduced-motion: reduce) {
     .wd, .wd-scrim { transition: opacity 180ms ease; transform: none; }
