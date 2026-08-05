@@ -65,7 +65,7 @@
         <span class="uj-at-rowmid">
             <span class="uj-at-rowt" style="display:block;">{{ $r->date->format('l') }}</span>
             <span class="uj-at-rows" style="display:block;">{{ $rin }}–{{ $rout }}@if ($worked) · {{ $worked }}@endif · {{ $r->location ?? ($site?->label ?? '—') }}</span>
-            <span class="uj-at-status" data-tone="{{ $rowStatusTone }}" style="display:inline-block;margin-top:6px;"
+            <span class="uj-at-status" data-tone="{{ $rowStatusTone }}"
                   x-text="$store.ui.lang==='en' ? @js($stLabel[$r->status] ?? $r->status) : @js($stLabelMs[$r->status] ?? $r->status)">{{ $stLabel[$r->status] ?? $r->status }}</span>
         </span>
         <span class="uj-at-rowend">
