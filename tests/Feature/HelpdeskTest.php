@@ -155,4 +155,26 @@ class HelpdeskTest extends TestCase
         $this->assertNull($fresh->assignee_employee_id);
         $this->assertNull($fresh->resolution);
     }
+
+    public function test_ticket_has_many_attachments_oldest_first(): void
+    {
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Broken export',
+            'description' => 'CSV export 500s.', 'status' => 'open',
+        ]);
+
+        $first = $ticket->attachments()->create([
+            'tenant_id' => $this->tenant->id, 'path' => 'ticket-attachments/a.png',
+            'name' => 'a.png', 'mime' => 'image/png', 'size' => 100,
+        ]);
+        $second = $ticket->attachments()->create([
+            'tenant_id' => $this->tenant->id, 'path' => 'ticket-attachments/b.png',
+            'name' => 'b.png', 'mime' => 'image/png', 'size' => 200,
+        ]);
+
+        $ordered = $ticket->attachments()->pluck('id')->all();
+        $this->assertSame([$first->id, $second->id], $ordered);
+        $this->assertTrue($first->isImage());
+    }
 }

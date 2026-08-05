@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Ticket extends Model
 {
@@ -24,5 +25,11 @@ class Ticket extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'assignee_employee_id');
+    }
+
+    /** Screenshots + documents the reporter attached, in upload order. */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TicketAttachment::class)->oldest('id');
     }
 }
