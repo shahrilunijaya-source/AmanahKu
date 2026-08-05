@@ -232,6 +232,9 @@
     <div class="lg-quick-label">Quick login · demo</div>
     <div class="lg-quick-grid">
         <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"><b>HR</b><span>Unijaya HR</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('manager@amanahku.test')"><b>Manager</b><span>Verifies requests</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('management@amanahku.test')"><b>Management</b><span>Final approver</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('employee@amanahku.test')"><b>Employee</b><span>Dev employee</span></button>
         <button type="button" class="lg-quick" onclick="quickLogin('superadmin@amanahku.com')"><b>Super Admin</b><span>Platform console</span></button>
     </div>
     <p class="lg-quick-hint">One click signs you in. HR demo picks a workspace next.</p>
