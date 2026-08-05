@@ -272,6 +272,30 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-btn-ghost:hover { border-color: var(--muted-soft); }
 .uj-btn-ghost:active { transform: scale(0.97); }
 
+/* Fixed-position dialog backdrop: display:flex lives here, not on the element's own
+   style attribute, because Alpine's x-show wipes an inline `display` on reveal (see
+   DESIGN.md's Do's list) — a class survives that toggle, an inline declaration doesn't. */
+.uj-dialog-overlay { display: flex; align-items: center; justify-content: center; }
+
+/* Rendered markdown inside a ticket description field (Str::markdown output). Resets block
+   margins to a tight vertical rhythm and matches the surrounding 13px/var(--body) text style
+   instead of falling back to browser default h1-h6/ul/code styling. */
+.uj-markdown { font-size: 13px; color: var(--body); line-height: 1.55; }
+.uj-markdown > *:first-child { margin-top: 0; }
+.uj-markdown > *:last-child { margin-bottom: 0; }
+.uj-markdown p { margin: 0 0 8px; }
+.uj-markdown ul, .uj-markdown ol { margin: 0 0 8px; padding-left: 20px; }
+.uj-markdown ul { list-style-type: disc; }
+.uj-markdown ol { list-style-type: decimal; }
+.uj-markdown li { margin: 2px 0; }
+.uj-markdown strong { font-weight: 600; color: var(--ink); }
+.uj-markdown code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas); padding: 1px 5px; border-radius: 4px; }
+.uj-markdown pre { margin: 0 0 8px; padding: 10px 12px; background: var(--canvas); border-radius: 8px; overflow-x: auto; }
+.uj-markdown pre code { padding: 0; background: none; }
+.uj-markdown a { color: var(--red); text-decoration: none; }
+.uj-markdown a:hover { text-decoration: underline; }
+.uj-markdown blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--hairline); color: var(--muted); }
+
 /* ── Modal/drawer open motion (claims "New claim" overlay et al) ──
    Alpine x-transition class hooks: enter/leave share the same from/to states so a
    toggle mid-animation reverses cleanly. Enter is slower (250ms) than leave (180ms) —

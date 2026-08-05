@@ -117,21 +117,48 @@ class HelpdeskController extends Controller
 
         $isFeedback = in_array($request->input('category'), self::FEEDBACK_CATEGORIES, true);
 
-        $data = $request->validate([
+        // Bug/Idea trade the single free-text description for a fixed set of named fields
+        // (GitHub-issue-style), JSON-encoded into that same description column below. Every
+        // other category keeps the plain textarea.
+        $structuredFields = match ($request->input('category')) {
+            'Bug' => Ticket::BUG_DESCRIPTION_FIELDS,
+            'Idea' => Ticket::IDEA_DESCRIPTION_FIELDS,
+            default => null,
+        };
+
+        $rules = [
             'category' => ['required', Rule::in(self::CATEGORIES)],
             'priority' => [$isFeedback ? 'nullable' : 'required', Rule::in(self::PRIORITIES)],
             'subject' => ['required', 'string', 'max:150'],
-            'description' => [$isFeedback ? 'nullable' : 'required', 'string', 'max:2000'],
             'page_url' => ['nullable', 'string', 'max:500'],
             // Pasted screenshots + uploaded documents on Bug/Idea tickets. Each capped at
             // 8 MB; whole set capped at MAX_ATTACHMENTS. Mirrors the old Feedback module.
             'attachments' => ['nullable', 'array', 'max:'.self::MAX_ATTACHMENTS],
             'attachments.*' => ['file', 'mimes:'.self::ATTACHMENT_MIMES, 'max:8192'],
-        ], [
+        ];
+
+        if ($structuredFields) {
+            foreach (array_keys($structuredFields) as $key) {
+                $rules[$key] = [$key === 'additional_context' ? 'nullable' : 'required', 'string', 'max:2000'];
+            }
+        } else {
+            $rules['description'] = ['required', 'string', 'max:2000'];
+        }
+
+        $data = $request->validate($rules, [
             'attachments.max' => 'You can attach up to '.self::MAX_ATTACHMENTS.' files.',
             'attachments.*.mimes' => 'Attachments must be an image, PDF, or Office document.',
             'attachments.*.max' => 'Each attachment must be 8 MB or smaller.',
         ]);
+
+        if ($structuredFields) {
+            $description = json_encode(array_combine(
+                array_keys($structuredFields),
+                array_map(fn (string $key) => (string) ($data[$key] ?? ''), array_keys($structuredFields)),
+            ));
+        } else {
+            $description = $data['description'];
+        }
 
         // No tickets() relation is defined on Employee (and that model is off-limits),
         // so bind the raiser explicitly. tenant_id is auto-filled by BelongsToTenant.
@@ -140,7 +167,7 @@ class HelpdeskController extends Controller
             'category' => $data['category'],
             'priority' => $isFeedback ? 'medium' : $data['priority'],
             'subject' => $data['subject'],
-            'description' => $data['description'] ?? '',
+            'description' => $description,
             'page_url' => $isFeedback ? ($data['page_url'] ?? null) : null,
             'status' => 'open',
         ]);
@@ -196,13 +223,17 @@ class HelpdeskController extends Controller
         return Storage::disk(self::ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
-    /** Privileged only: assign, move status, and record a resolution. Bug/Idea tickets are superadmin-only to act on. */
+    /**
+     * Assign, move status, and record a resolution. Same view/act split as attachment():
+     * Bug/Idea tickets need FEEDBACK_VIEW_ROLES (management/hr) — matching who can even see
+     * them on the board — everything else needs the general PRIVILEGED_ROLES.
+     */
     public function update(Request $request, Ticket $ticket): RedirectResponse
     {
         abort_unless($ticket->tenant_id === app(CurrentTenant::class)->id(), 403);
 
         if (in_array($ticket->category, self::FEEDBACK_CATEGORIES, true)) {
-            abort_unless($request->user()->isSuperAdmin(), 403);
+            $this->authorizeTenantRole($request, self::FEEDBACK_VIEW_ROLES);
         } else {
             $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
         }

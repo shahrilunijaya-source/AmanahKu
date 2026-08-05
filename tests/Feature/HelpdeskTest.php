@@ -193,7 +193,9 @@ class HelpdeskTest extends TestCase
             'category' => 'Bug',
             'priority' => 'urgent',
             'subject' => 'Clock-in button does nothing',
-            'description' => 'Tapping clock-in on the dashboard has no effect.',
+            'steps_to_reproduce' => 'Tap clock-in on the dashboard.',
+            'expected_behavior' => 'Attendance is recorded.',
+            'actual_behavior' => 'Nothing happens.',
             'page_url' => 'http://localhost/app/dash',
         ])->assertRedirect();
 
@@ -207,11 +209,62 @@ class HelpdeskTest extends TestCase
         ]);
     }
 
-    public function test_idea_ticket_allows_missing_description(): void
+    public function test_bug_ticket_stores_a_structured_description_as_json(): void
+    {
+        $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Bug',
+            'subject' => 'Clock-in button does nothing',
+            'steps_to_reproduce' => 'Tap clock-in on the dashboard.',
+            'expected_behavior' => 'Attendance is recorded.',
+            'actual_behavior' => 'Nothing happens.',
+            'additional_context' => 'Only on Safari.',
+        ])->assertRedirect();
+
+        $ticket = Ticket::withoutGlobalScopes()->latest('id')->first();
+        $this->assertNotNull($ticket);
+        $decoded = json_decode($ticket->description, true);
+        $this->assertSame([
+            'steps_to_reproduce' => 'Tap clock-in on the dashboard.',
+            'expected_behavior' => 'Attendance is recorded.',
+            'actual_behavior' => 'Nothing happens.',
+            'additional_context' => 'Only on Safari.',
+        ], $decoded);
+
+        $structured = $ticket->structuredDescription();
+        $this->assertSame('Tap clock-in on the dashboard.', $structured['steps_to_reproduce']['value']);
+    }
+
+    public function test_bug_ticket_requires_steps_expected_and_actual_but_not_context(): void
+    {
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Bug',
+            'subject' => 'Missing fields',
+        ]);
+
+        $response->assertSessionHasErrors(['steps_to_reproduce', 'expected_behavior', 'actual_behavior']);
+        $response->assertSessionDoesntHaveErrors('additional_context');
+        $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
+    }
+
+    public function test_idea_ticket_requires_problem_and_proposed_solution_but_not_context(): void
     {
         $response = $this->actingInTenant()->post('/app/helpdesk', [
             'category' => 'Idea',
             'subject' => 'Dark mode please',
+        ]);
+
+        $response->assertSessionHasErrors(['problem', 'proposed_solution']);
+        $response->assertSessionDoesntHaveErrors('additional_context');
+        $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
+    }
+
+    public function test_idea_ticket_stores_a_structured_description_as_json(): void
+    {
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Idea',
+            'subject' => 'Dark mode please',
+            'problem' => 'Bright UI at night hurts the eyes.',
+            'proposed_solution' => 'Add a dark theme toggle.',
         ]);
 
         $response->assertRedirect();
@@ -219,6 +272,10 @@ class HelpdeskTest extends TestCase
         $this->assertNotNull($ticket);
         $this->assertSame('Idea', $ticket->category);
         $this->assertSame('medium', $ticket->priority);
+        $decoded = json_decode($ticket->description, true);
+        $this->assertSame('Bright UI at night hurts the eyes.', $decoded['problem']);
+        $this->assertSame('Add a dark theme toggle.', $decoded['proposed_solution']);
+        $this->assertSame('', $decoded['additional_context']);
     }
 
     public function test_it_ticket_still_requires_description_and_priority(): void
@@ -238,7 +295,9 @@ class HelpdeskTest extends TestCase
         $response = $this->actingInTenant()->post('/app/helpdesk', [
             'category' => 'Bug',
             'subject' => 'Layout broken with proof',
-            'description' => 'See attached.',
+            'steps_to_reproduce' => 'Open the dashboard.',
+            'expected_behavior' => 'Cards align in a grid.',
+            'actual_behavior' => 'Cards overlap.',
             'attachments' => [
                 UploadedFile::fake()->image('screenshot-1.png'),
                 UploadedFile::fake()->create('trace.pdf', 40, 'application/pdf'),
@@ -514,18 +573,46 @@ class HelpdeskTest extends TestCase
         $this->assertSame(['Bug I raised myself'], $data['myTickets']->pluck('subject')->all());
     }
 
-    // ── Superadmin-only triage for Bug/Idea ───────────────────────────
+    // ── Bug/Idea triage: FEEDBACK_VIEW_ROLES only (same tier that can see them) ──
 
-    public function test_hr_cannot_triage_a_bug_ticket(): void
+    public function test_hr_can_triage_a_bug_ticket(): void
     {
         $hr = $this->hrActor();
         $ticket = Ticket::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Needs superadmin',
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Clock-in broken',
             'description' => 'x', 'status' => 'open',
         ]);
 
         $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/helpdesk/{$ticket->id}", [
+                'status' => 'resolved', 'resolution' => 'Fixed in 1.2.3.',
+            ]);
+
+        $response->assertRedirect();
+        $fresh = $ticket->fresh();
+        $this->assertSame('resolved', $fresh->status);
+        $this->assertSame('Fixed in 1.2.3.', $fresh->resolution);
+    }
+
+    public function test_manager_cannot_triage_a_bug_ticket(): void
+    {
+        // manager is PRIVILEGED_ROLES but NOT FEEDBACK_VIEW_ROLES — same narrower gate
+        // as the Bug/Idea attachment download (test_manager_cannot_download_bug_ticket_attachment).
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Needs FEEDBACK_VIEW_ROLES',
+            'description' => 'x', 'status' => 'open',
+        ]);
+
+        $manager = User::create(['name' => 'Mgr', 'email' => 'mgr-triage@example.com', 'password' => Hash::make('password')]);
+        $manager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $manager->id,
+            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $response = $this->actingAs($manager)->withSession(['current_tenant' => $this->tenant->id])
             ->post("/app/helpdesk/{$ticket->id}", [
                 'status' => 'resolved', 'resolution' => 'Nice try.',
             ]);
@@ -592,12 +679,121 @@ class HelpdeskTest extends TestCase
         $response->assertSee('Rendered bug');
         $response->assertSee('Fixed in 1.2.3.');
 
-        // HR sees it on the board and gets no Manage control on a Bug ticket.
+        // HR sees it on the board and gets a Manage control on a Bug ticket too — HR is
+        // in FEEDBACK_VIEW_ROLES, the same tier that can see it there in the first place.
         $hr = $this->hrActor();
         $hrResponse = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])->get('/app/helpdesk');
         $hrResponse->assertOk();
         $hrResponse->assertSee('Rendered bug');
-        $hrResponse->assertDontSee(route('helpdesk.update', 1));
+        $hrResponse->assertSee(route('helpdesk.update', 1), false);
+    }
+
+    public function test_bug_ticket_renders_structured_description_as_labeled_sections(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Structured bug',
+            'description' => json_encode([
+                'steps_to_reproduce' => 'Tap clock-in.',
+                'expected_behavior' => 'Attendance recorded.',
+                'actual_behavior' => 'Nothing happens.',
+                'additional_context' => '',
+            ]), 'status' => 'open',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/helpdesk');
+        $response->assertOk();
+        $response->assertSee('Steps to reproduce');
+        $response->assertSee('Tap clock-in.');
+        $response->assertSee('Expected behavior');
+        $response->assertSee('Attendance recorded.');
+    }
+
+    public function test_ticket_description_renders_markdown(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Markdown bug',
+            'description' => json_encode([
+                'steps_to_reproduce' => "1. Open the app\n2. Click **Submit**",
+                'expected_behavior' => 'x', 'actual_behavior' => 'x', 'additional_context' => '',
+            ]), 'status' => 'open',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/helpdesk');
+        $response->assertOk();
+        $response->assertSee('<strong>Submit</strong>', false);
+        $response->assertSee('<ol>', false);
+    }
+
+    public function test_ticket_description_renders_bulleted_list_with_visible_markers(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Bulleted bug',
+            'description' => json_encode([
+                'steps_to_reproduce' => "- First bullet\n- Second bullet",
+                'expected_behavior' => 'x', 'actual_behavior' => 'x', 'additional_context' => '',
+            ]), 'status' => 'open',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/helpdesk');
+        $response->assertOk();
+        $response->assertSee('<ul>', false);
+
+        // A global reset strips list-style on every ul/ol app-wide, so the <ul>/<ol> markup
+        // above renders with invisible bullets/numbers unless .uj-markdown restores markers
+        // explicitly. A feature test can't see computed CSS — guard the source rule directly.
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('.uj-markdown ul { list-style-type: disc; }', $css);
+        $this->assertStringContainsString('.uj-markdown ol { list-style-type: decimal; }', $css);
+    }
+
+    public function test_ticket_description_escapes_raw_html_instead_of_rendering_it(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'XSS attempt',
+            'description' => json_encode([
+                'steps_to_reproduce' => '<script>alert(1)</script>',
+                'expected_behavior' => 'x', 'actual_behavior' => 'x', 'additional_context' => '',
+            ]), 'status' => 'open',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/helpdesk');
+        $response->assertOk();
+        $response->assertDontSee('<script>alert(1)</script>', false);
+        $response->assertSee('&lt;script&gt;', false);
+    }
+
+    public function test_structured_description_omits_empty_additional_context(): void
+    {
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => json_encode([
+                'steps_to_reproduce' => 'Tap clock-in.',
+                'expected_behavior' => 'Attendance recorded.',
+                'actual_behavior' => 'Nothing happens.',
+                'additional_context' => '',
+            ]), 'status' => 'open',
+        ]);
+
+        $structured = $ticket->structuredDescription();
+        $this->assertNotNull($structured);
+        $this->assertArrayHasKey('steps_to_reproduce', $structured);
+        $this->assertArrayNotHasKey('additional_context', $structured);
+    }
+
+    public function test_structured_description_returns_null_for_legacy_plain_text_bug_ticket(): void
+    {
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => 'Old free-text bug report.', 'status' => 'open',
+        ]);
+
+        $this->assertNull($ticket->structuredDescription());
     }
 
     // ── Ticket-raise modal scoping (final-review finding 1) ─────────
@@ -635,25 +831,25 @@ class HelpdeskTest extends TestCase
 
     // ── Module gating (final-review finding 2) ───────────────────────
 
-    public function test_send_feedback_button_and_modal_hidden_when_helpdesk_module_disabled(): void
+    public function test_raise_ticket_button_and_modal_hidden_when_helpdesk_module_disabled(): void
     {
         app(FeatureManager::class)->setTenant($this->tenant, 'module.helpdesk', false);
 
         $response = $this->actingInTenant()->get('/app/dash');
 
         $response->assertOk();
-        $response->assertDontSee('Send feedback');
+        $response->assertDontSee('Raise a ticket');
         // Unique to the ticket-raise modal markup — proves it did not render at all,
         // not merely that it is visually hidden.
         $response->assertDontSee('tr-page-url', false);
     }
 
-    public function test_send_feedback_button_and_modal_present_when_helpdesk_module_enabled(): void
+    public function test_raise_ticket_button_and_modal_present_when_helpdesk_module_enabled(): void
     {
         $response = $this->actingInTenant()->get('/app/dash');
 
         $response->assertOk();
-        $response->assertSee('Send feedback');
+        $response->assertSee('Raise a ticket');
         $response->assertSee('tr-page-url', false);
     }
 }

@@ -378,7 +378,6 @@ class Amanahku
             'roles' => ['title' => 'Roles & Permissions', 'title_ms' => 'Peranan & Kebenaran', 'sub' => 'Assign access roles to workspace members.', 'sub_ms' => 'Tetapkan peranan akses kepada ahli ruang kerja.', 'crumb' => ['Administration', 'Roles & Permissions']],
             'audit' => ['title' => 'Audit Logs', 'title_ms' => 'Log Audit', 'sub' => 'Recent administrative and approval activity.', 'sub_ms' => 'Aktiviti pentadbiran dan kelulusan terkini.', 'crumb' => ['Reports & Audit', 'Audit Logs']],
             'security' => ['title' => 'Account Security', 'title_ms' => 'Keselamatan Akaun', 'sub' => 'Two-factor authentication and sign-in protection.', 'sub_ms' => 'Pengesahan dua faktor dan perlindungan log masuk.', 'crumb' => ['Account', 'Security']],
-            'updates' => ['title' => "What's New", 'title_ms' => 'Apa Baharu', 'sub' => 'Release notes and product updates.', 'sub_ms' => 'Nota keluaran dan kemas kini produk.', 'crumb' => ["What's New"]],
             'soon' => ['title' => 'Module', 'title_ms' => 'Modul', 'sub' => 'This module is part of the AmanahKu platform.', 'sub_ms' => 'Modul ini sebahagian daripada platform AmanahKu.', 'crumb' => ['Module']],
         ];
 
@@ -461,7 +460,6 @@ class Amanahku
             'Audit Logs' => 'Log Audit',
             'Account' => 'Akaun',
             'Security' => 'Keselamatan',
-            "What's New" => 'Apa Baharu',
             'Module' => 'Modul',
         ];
     }

@@ -13,7 +13,7 @@
                 </div>
                 {!! $pill($t->status) !!}
             </div>
-            <div style="font-size:13px;color:var(--body);margin-top:8px;white-space:pre-line;">{{ $t->description }}</div>
+            @include('partials.ticket-description')
             @php $safeUrl = $t->page_url && preg_match('~^https?://~i', $t->page_url) ? $t->page_url : null; @endphp
             @if ($safeUrl)
                 <div style="font-size:12px;color:var(--muted);margin-top:8px;">

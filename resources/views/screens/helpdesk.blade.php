@@ -94,11 +94,9 @@
                                 @if ($t->assignee) · <span style="color:var(--body);">→ {{ $t->assignee->name }}</span>@endif
                             </div>
                         </div>
-                        @if (! in_array($t->category, \App\Http\Controllers\HelpdeskController::FEEDBACK_CATEGORIES, true) || $isSuperAdmin)
-                            <button @click="open = (open === {{ $t->id }} ? null : {{ $t->id }})" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Manage' : 'Urus'">Manage</button>
-                        @endif
+                        <button @click="open = (open === {{ $t->id }} ? null : {{ $t->id }})" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Manage' : 'Urus'">Manage</button>
                     </div>
-                    <div style="font-size:13px;color:var(--body);margin-top:8px;white-space:pre-line;">{{ $t->description }}</div>
+                    @include('partials.ticket-description')
                     @php $safeUrl = $t->page_url && preg_match('~^https?://~i', $t->page_url) ? $t->page_url : null; @endphp
                     @if ($safeUrl)
                         <div style="font-size:12px;color:var(--muted);margin-top:8px;">
@@ -134,7 +132,6 @@
                         </div>
                     @endif
 
-                    @if (! in_array($t->category, \App\Http\Controllers\HelpdeskController::FEEDBACK_CATEGORIES, true) || $isSuperAdmin)
                         <div x-show="open === {{ $t->id }}" x-cloak style="margin-top:12px;border-top:1px solid var(--hairline-soft);padding-top:12px;">
                             <form method="post" action="{{ route('helpdesk.update', $t) }}">
                                 @csrf
@@ -168,7 +165,6 @@
                                 <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;margin-top:14px;" x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</button>
                             </form>
                         </div>
-                    @endif
                 </div>
             @empty
                 <div style="padding:28px 20px;text-align:center;">

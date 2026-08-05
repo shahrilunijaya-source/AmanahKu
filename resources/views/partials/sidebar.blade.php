@@ -139,17 +139,16 @@
     </nav>
 
     <div class="uj-sb-foot">
-        {{-- Send feedback — opens the shared ticket-raise modal pre-filled to category Bug.
+        {{-- Raise a ticket — opens the shared ticket-raise modal pre-filled to category Bug.
              Hidden when module.helpdesk is off: the modal it opens doesn't render and its
              submit route 404s, so the button would otherwise dangle. Same $helpdeskEnabled
              the ticket-raise partial itself checks — both come from the shared composer. --}}
         @if ($helpdeskEnabled ?? true)
         <button type="button" @click="$dispatch('ticket-raise-open', { category: 'Bug' })" class="uj-feedback-btn"
-                :title="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'"
+                :title="$store.ui.lang==='en' ? 'Raise a ticket' : 'Buka ticket'"
                 style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:var(--t-sm);font-weight:500;text-align:left;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--red);"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'">Send feedback</span>
-            <span x-show="$store.changelog.unseen" x-cloak class="uj-sb-hide" style="font-size:var(--t-micro);font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--red);border-radius:9999px;padding:1px 7px;">New</span>
+            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? 'Raise a ticket' : 'Buka ticket'">Raise a ticket</span>
         </button>
         @endif
 

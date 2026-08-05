@@ -215,19 +215,6 @@
             },
         });
 
-        // What's New: the badge shows whenever the user hasn't seen the latest changelog
-        // version. `latest` comes straight from config/changelog.php, so bumping the config
-        // re-triggers the badge for everyone automatically. markSeen() clears it on view.
-        Alpine.store('changelog', {
-            latest: @js(config('changelog.releases.0.version')),
-            seen: localStorage.getItem('amanahku-changelog-seen'),
-            get unseen() { return this.latest && this.seen !== this.latest; },
-            markSeen() {
-                this.seen = this.latest;
-                localStorage.setItem('amanahku-changelog-seen', this.latest);
-            },
-        });
-
         @if ($kbEnabled ?? false)
         // Knowledge Bank unread badge. Seeded server-side; cleared (with a fire-and-forget
         // read-receipt POST) the moment the user opens the panel.
