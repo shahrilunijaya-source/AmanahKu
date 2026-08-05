@@ -45,15 +45,20 @@ class HelpdeskController extends Controller
     /**
      * Build the helpdesk screen data. Tenant scope is automatic via BelongsToTenant.
      *
-     * Privileged roles get every ticket grouped by status, an assignee picker, and
-     * per-status counts. A plain employee only ever sees the tickets they raised —
-     * other people's support tickets are never sent to their template.
+     * Privileged roles get every non-Bug/Idea ticket grouped by status, an assignee picker,
+     * and per-status counts. Bug/Idea tickets are folded into that same board, but only for
+     * viewers whose tenant role is management/hr (FEEDBACK_VIEW_ROLES) — manager and everyone
+     * else never see them there, mirroring the old Feedback inbox's narrower triage tier. A
+     * plain employee only ever sees the tickets they raised (myTickets is never filtered by
+     * category — the raiser always sees their own Bug/Idea ticket and its resolution).
      *
      * @return array<string, mixed>
      */
     public function screenData(Request $request, ?Employee $employee): array
     {
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $canSeeFeedbackCategories = $this->hasTenantRole($request, self::FEEDBACK_VIEW_ROLES);
+        $isSuperAdmin = (bool) $request->user()?->isSuperAdmin();
 
         if (! $privileged) {
             $myTickets = $employee
@@ -63,6 +68,7 @@ class HelpdeskController extends Controller
 
             return [
                 'privileged' => false,
+                'isSuperAdmin' => $isSuperAdmin,
                 'myTickets' => $myTickets,
                 'grouped' => new Collection,
                 'employees' => new Collection,
@@ -73,8 +79,11 @@ class HelpdeskController extends Controller
             ];
         }
 
-        $tickets = Ticket::with(['employee', 'assignee'])
-            ->orderByDesc('created_at')->get();
+        $boardQuery = Ticket::with(['employee', 'assignee']);
+        if (! $canSeeFeedbackCategories) {
+            $boardQuery->whereNotIn('category', self::FEEDBACK_CATEGORIES);
+        }
+        $tickets = $boardQuery->orderByDesc('created_at')->get();
 
         // grouped[status] = collection of tickets in that status (every status present).
         $grouped = (new Collection(self::STATUSES))
@@ -82,8 +91,12 @@ class HelpdeskController extends Controller
 
         return [
             'privileged' => true,
+            'isSuperAdmin' => $isSuperAdmin,
+            // myTickets is built from the SAME set that raised it — not the category-filtered
+            // board — so a manager who personally raised a Bug ticket still sees it here.
             'myTickets' => $employee
-                ? $tickets->where('employee_id', $employee->id)->values()
+                ? Ticket::with('assignee')->where('employee_id', $employee->id)
+                    ->orderByDesc('created_at')->get()
                 : new Collection,
             'grouped' => $grouped,
             'employees' => Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color']),

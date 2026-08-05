@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\HelpdeskController;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -363,5 +366,123 @@ class HelpdeskTest extends TestCase
             ->get('/app/helpdesk/attachments/'.$att->id);
 
         $response->assertForbidden();
+    }
+
+    /**
+     * Build the request/tenant context ResolveTenant would have left behind, then call
+     * screenData() the way AppController does.
+     *
+     * @return array<string, mixed>
+     */
+    private function screenDataAs(User $user, string $role, ?Employee $employee): array
+    {
+        $request = Request::create('/app/helpdesk', 'GET');
+        $request->setUserResolver(fn () => $user);
+        $request->attributes->set('tenantRole', $role);
+        app(CurrentTenant::class)->set($this->tenant);
+
+        return app(HelpdeskController::class)->screenData($request, $employee);
+    }
+
+    /** Flatten the status-keyed board into a subject list, so assertions read plainly. */
+    private function boardSubjects(array $data): array
+    {
+        return $data['grouped']->flatten()->pluck('subject')->all();
+    }
+
+    public function test_manager_does_not_see_bug_tickets_in_the_board(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Manager-hidden bug',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'IT', 'priority' => 'medium', 'subject' => 'Manager-visible IT',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $manager = User::create(['name' => 'Mgr', 'email' => 'mgr@example.com', 'password' => Hash::make('password')]);
+        $manager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        $managerEmployee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $manager->id,
+            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $subjects = $this->boardSubjects($this->screenDataAs($manager, 'manager', $managerEmployee));
+
+        // The IT ticket proves the board is populated at all — without it, a screenData()
+        // that returned an empty board for every role would still pass the Bug assertion.
+        $this->assertContains('Manager-visible IT', $subjects);
+        $this->assertNotContains('Manager-hidden bug', $subjects);
+    }
+
+    public function test_hr_and_director_see_bug_tickets_in_the_board(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'HR-visible bug',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $hr = $this->hrActor();
+        $hrEmployee = Employee::where('user_id', $hr->id)->firstOrFail();
+
+        $this->assertContains('HR-visible bug', $this->boardSubjects($this->screenDataAs($hr, 'hr', $hrEmployee)));
+        // director collapses to management through Permissions::effectiveRole (spec line 160).
+        $this->assertContains('HR-visible bug', $this->boardSubjects($this->screenDataAs($hr, 'director', $hrEmployee)));
+    }
+
+    public function test_superadmin_observer_sees_bug_tickets_in_the_board(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Observer-visible bug',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $superadmin = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $superadmin->forceFill(['is_super_admin' => true])->save();
+
+        // No membership row, so ResolveTenant hands screenData the roleIn() collapse: 'management'.
+        $data = $this->screenDataAs($superadmin, $superadmin->roleIn($this->tenant), null);
+
+        $this->assertContains('Observer-visible bug', $this->boardSubjects($data));
+        $this->assertTrue($data['isSuperAdmin']);
+    }
+
+    public function test_raiser_sees_own_bug_ticket_in_my_tickets_as_a_plain_employee(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'My own bug',
+            'description' => 'x', 'status' => 'resolved', 'resolution' => 'Fixed in 1.2.3.',
+        ]);
+
+        $data = $this->screenDataAs($this->user, 'employee', $this->employee);
+
+        $this->assertFalse($data['privileged']);
+        $this->assertSame(['My own bug'], $data['myTickets']->pluck('subject')->all());
+        $this->assertSame('Fixed in 1.2.3.', $data['myTickets']->first()->resolution);
+    }
+
+    public function test_manager_still_sees_a_bug_ticket_they_raised_in_my_tickets(): void
+    {
+        $manager = User::create(['name' => 'Mgr', 'email' => 'mgr@example.com', 'password' => Hash::make('password')]);
+        $manager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        $managerEmployee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $manager->id,
+            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green',
+        ]);
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $managerEmployee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Bug I raised myself',
+            'description' => 'x', 'status' => 'resolved', 'resolution' => 'Done.',
+        ]);
+
+        $data = $this->screenDataAs($manager, 'manager', $managerEmployee);
+
+        // Filtered OUT of the board (manager is not in FEEDBACK_VIEW_ROLES) but still present
+        // in myTickets — the raiser always tracks their own report. This is the whole feature.
+        $this->assertNotContains('Bug I raised myself', $this->boardSubjects($data));
+        $this->assertSame(['Bug I raised myself'], $data['myTickets']->pluck('subject')->all());
     }
 }
