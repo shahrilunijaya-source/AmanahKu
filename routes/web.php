@@ -275,7 +275,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/surveys/{survey}/respond', [SurveyController::class, 'respond'])->name('surveys.respond');
         Route::post('/app/surveys/{survey}/close', [SurveyController::class, 'close'])->name('surveys.close');
         // Helpdesk / IT tickets
-        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->name('helpdesk.store');
+        // 20/min per user — carried over from the retiring feedback.store route. This modal is
+        // on every screen and takes uploads, so it stays rate-limited.
+        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->middleware('throttle:20,1')->name('helpdesk.store');
         Route::post('/app/helpdesk/{ticket}', [HelpdeskController::class, 'update'])->name('helpdesk.update');
         // Shared company resources (Gmail, Canva, WhatsApp, inhouse system, etc.) —
         // all staff view via the screen; privileged roles (manager/management/hr) maintain.

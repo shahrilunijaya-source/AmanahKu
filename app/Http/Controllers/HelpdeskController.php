@@ -17,11 +17,27 @@ class HelpdeskController extends Controller
 {
     private const PRIVILEGED_ROLES = ['manager', 'management', 'hr'];
 
-    private const CATEGORIES = ['IT', 'Facilities', 'HR', 'Other'];
+    /** Roles that may view (not necessarily act on) Bug/Idea tickets — narrower than the general privileged tier. */
+    private const FEEDBACK_VIEW_ROLES = ['management', 'hr'];
 
-    private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+    /** Public so the globally-included ticket-raise modal can build its selects without a screen-local $categories. */
+    public const CATEGORIES = ['IT', 'Facilities', 'HR', 'Other', 'Bug', 'Idea'];
+
+    /** Categories that carry Feedback's old submission shape: optional description, forced medium priority, page_url + attachments. */
+    private const FEEDBACK_CATEGORIES = ['Bug', 'Idea'];
+
+    /** Public for the same reason as CATEGORIES — read directly by partials/ticket-raise.blade.php. */
+    public const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
     private const STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+
+    /** Private disk ticket screenshots/documents live on — reached only via attachment(). */
+    private const ATTACHMENT_DISK = 'local';
+
+    /** Ceiling on files per ticket, and the accepted extensions (images + PDF + Office docs). */
+    private const MAX_ATTACHMENTS = 6;
+
+    private const ATTACHMENT_MIMES = 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv';
 
     /**
      * Build the helpdesk screen data. Tenant scope is automatic via BelongsToTenant.
@@ -77,29 +93,58 @@ class HelpdeskController extends Controller
         ];
     }
 
-    /** Any employee in the workspace may raise a support ticket. */
+    /** Any employee in the workspace may raise a support ticket, bug report, or idea. */
     public function store(Request $request): RedirectResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
+        $isFeedback = in_array($request->input('category'), self::FEEDBACK_CATEGORIES, true);
+
         $data = $request->validate([
             'category' => ['required', Rule::in(self::CATEGORIES)],
-            'priority' => ['required', Rule::in(self::PRIORITIES)],
+            'priority' => [$isFeedback ? 'nullable' : 'required', Rule::in(self::PRIORITIES)],
             'subject' => ['required', 'string', 'max:150'],
-            'description' => ['required', 'string', 'max:2000'],
+            'description' => [$isFeedback ? 'nullable' : 'required', 'string', 'max:2000'],
+            'page_url' => ['nullable', 'string', 'max:500'],
+            // Pasted screenshots + uploaded documents on Bug/Idea tickets. Each capped at
+            // 8 MB; whole set capped at MAX_ATTACHMENTS. Mirrors the old Feedback module.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_ATTACHMENTS],
+            'attachments.*' => ['file', 'mimes:'.self::ATTACHMENT_MIMES, 'max:8192'],
+        ], [
+            'attachments.max' => 'You can attach up to '.self::MAX_ATTACHMENTS.' files.',
+            'attachments.*.mimes' => 'Attachments must be an image, PDF, or Office document.',
+            'attachments.*.max' => 'Each attachment must be 8 MB or smaller.',
         ]);
 
         // No tickets() relation is defined on Employee (and that model is off-limits),
         // so bind the raiser explicitly. tenant_id is auto-filled by BelongsToTenant.
-        Ticket::create([
+        $ticket = Ticket::create([
             'employee_id' => $employee->id,
             'category' => $data['category'],
-            'priority' => $data['priority'],
+            'priority' => $isFeedback ? 'medium' : $data['priority'],
             'subject' => $data['subject'],
-            'description' => $data['description'],
+            'description' => $data['description'] ?? '',
+            'page_url' => $isFeedback ? ($data['page_url'] ?? null) : null,
             'status' => 'open',
         ]);
+
+        // Persist each file to the private disk and hang a row off the ticket. Storing
+        // after the ticket exists keeps orphan files impossible if validation rejects the batch.
+        foreach ((array) $request->file('attachments', []) as $file) {
+            if (! $file || ! $file->isValid()) {
+                continue;
+            }
+            $path = $file->store('ticket-attachments', self::ATTACHMENT_DISK);
+            abort_unless($path !== false, 500, 'Attachment could not be stored.');
+            $ticket->attachments()->create([
+                'tenant_id' => $ticket->tenant_id,
+                'path' => $path,
+                'name' => $file->getClientOriginalName() ?: 'attachment',
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize() ?? 0,
+            ]);
+        }
 
         AuditLog::record('Raised ticket', $data['subject'].' · '.$data['category']);
 

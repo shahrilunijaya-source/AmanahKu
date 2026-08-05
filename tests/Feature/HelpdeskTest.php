@@ -7,7 +7,9 @@ use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -176,5 +178,102 @@ class HelpdeskTest extends TestCase
         $ordered = $ticket->attachments()->pluck('id')->all();
         $this->assertSame([$first->id, $second->id], $ordered);
         $this->assertTrue($first->isImage());
+    }
+
+    public function test_bug_ticket_ignores_posted_priority_and_defaults_to_medium(): void
+    {
+        $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Bug',
+            'priority' => 'urgent',
+            'subject' => 'Clock-in button does nothing',
+            'description' => 'Tapping clock-in on the dashboard has no effect.',
+            'page_url' => 'http://localhost/app/dash',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('tickets', [
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'category' => 'Bug',
+            'priority' => 'medium',
+            'page_url' => 'http://localhost/app/dash',
+            'status' => 'open',
+        ]);
+    }
+
+    public function test_idea_ticket_allows_missing_description(): void
+    {
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Idea',
+            'subject' => 'Dark mode please',
+        ]);
+
+        $response->assertRedirect();
+        $ticket = Ticket::withoutGlobalScopes()->latest('id')->first();
+        $this->assertNotNull($ticket);
+        $this->assertSame('Idea', $ticket->category);
+        $this->assertSame('medium', $ticket->priority);
+    }
+
+    public function test_it_ticket_still_requires_description_and_priority(): void
+    {
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'IT',
+            'subject' => 'No description supplied',
+        ]);
+
+        $response->assertSessionHasErrors(['priority', 'description']);
+    }
+
+    public function test_submit_stores_pasted_screenshot_and_uploaded_document_on_a_bug_ticket(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Bug',
+            'subject' => 'Layout broken with proof',
+            'description' => 'See attached.',
+            'attachments' => [
+                UploadedFile::fake()->image('screenshot-1.png'),
+                UploadedFile::fake()->create('trace.pdf', 40, 'application/pdf'),
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $ticket = Ticket::withoutGlobalScopes()->latest('id')->first();
+        $this->assertSame(2, $ticket->attachments()->count());
+        foreach ($ticket->attachments as $att) {
+            $this->assertSame($this->tenant->id, $att->tenant_id);
+            Storage::disk('local')->assertExists($att->path);
+        }
+    }
+
+    public function test_submit_rejects_a_disallowed_file_type(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Bug',
+            'subject' => 'Sneaky upload',
+            'description' => 'x',
+            'attachments' => [UploadedFile::fake()->create('malware.exe', 10)],
+        ]);
+
+        $response->assertSessionHasErrors('attachments.0');
+        $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
+    }
+
+    public function test_submit_rejects_more_than_the_attachment_cap(): void
+    {
+        Storage::fake('local');
+
+        $files = array_map(fn ($i) => UploadedFile::fake()->image("s{$i}.png"), range(1, 7));
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'Idea',
+            'subject' => 'Too many pics',
+            'attachments' => $files,
+        ]);
+
+        $response->assertSessionHasErrors('attachments');
+        $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
     }
 }
