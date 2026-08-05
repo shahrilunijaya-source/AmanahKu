@@ -1278,6 +1278,26 @@ select.wd-inline {
 .uj-at-note[data-req] textarea { border-color: var(--red); }
 .uj-at-selfie { margin-top: 10px; }
 
+/* ── Punch sheet ──
+   The off-grid clock-in, whole, in one surface: preview, reason, send. */
+.uj-at-sheet-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .72); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.uj-at-sheet { background: var(--card); border-radius: 16px; padding: 20px; max-width: 420px; width: 100%; margin: auto; max-height: calc(100dvh - 40px); overflow-y: auto; }
+.uj-at-sheet h2 { font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
+.uj-at-sheet-why { font-size: var(--t-sm); color: var(--body); line-height: 1.55; margin: 6px 0 0; }
+.uj-at-sheet-cam { margin-top: 14px; border-radius: 12px; overflow: hidden; background: #1f1e1a; aspect-ratio: 4 / 3; }
+/* Mirrored, because an unmirrored preview of your own face reads as somebody else's. */
+.uj-at-sheet-cam video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+.uj-at-sheet-cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.uj-at-sheet-err { margin-top: 10px; font-size: var(--t-sm); color: var(--red-active); line-height: 1.5; }
+.uj-at-sheet-reason { margin-top: 14px; }
+.uj-at-sheet-reason label { display: block; font-size: var(--t-sm); font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+.uj-at-sheet-reason textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--muted); border-radius: 10px; font-size: 13.5px; font-family: inherit; color: var(--ink); background: #fff; outline: none; resize: vertical; min-height: 66px; line-height: 1.55; }
+.uj-at-sheet-reason textarea::placeholder { color: var(--muted); }
+.uj-at-sheet-reason textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.uj-at-sheet-acts { display: flex; gap: 10px; margin-top: 16px; }
+.uj-at-sheet-acts button { flex: 1; height: 48px; font-weight: 600; }
+.uj-at-sheet-acts button:disabled { opacity: .5; cursor: default; }
+
 /* Geolocation failure: a summary line that names the problem, the three-sentence
    cure folded behind it. */
 .uj-at-geo summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
