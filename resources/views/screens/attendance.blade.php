@@ -335,6 +335,26 @@
                   return this.lastFix !== null && Date.now() - this.lastFix.at < 60000;
               },
               /**
+               * Location has actually failed on a real attempt, so the only punch still open
+               * is the one that carries no coordinates. The single punch button changes to it
+               * rather than a second button appearing beside it: two buttons both reading
+               * 'Clock in', one of them dead, is what made staff tap twice and believe they
+               * had clocked in twice.
+               */
+              get noLoc() {
+                  return this.attempted && this.geoError !== '';
+              },
+              /** Word on the punch button. Follows noLoc so the label always names what a tap does. */
+              goLabel(lang) {
+                  const out = this.action === 'out';
+                  if (this.noLoc) {
+                      return lang === 'en'
+                          ? (out ? 'Clock out without location' : 'Clock in without location')
+                          : (out ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi');
+                  }
+                  return out ? 'Clock out' : 'Clock in';
+              },
+              /**
                * A selfie attached to a punch that was already sent back for one finishes that
                * punch. Without this the staff member supplies exactly what was asked for and
                * still has to find the button again — the third tap of a three-tap off-site
@@ -508,7 +528,7 @@
                   this.camOpen = false;
               }
           }"
-          @submit.prevent="submit()">
+          @submit.prevent="noLoc ? submitWithoutLocation() : submit()">
         @csrf
         <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />{{-- mirrored by `action` in x-data --}}
         <input type="hidden" name="latitude" x-ref="lat" />
@@ -583,7 +603,7 @@
                         <span x-text="$store.ui.lang==='en' ? 'Shift complete' : 'Shift selesai'">Shift complete</span>
                     @else
                         <template x-if="!submitting">
-                            <span x-text="$store.ui.lang==='en' ? @js($ci ? 'Clock out' : 'Clock in') : @js($ci ? 'Clock out' : 'Clock in')">{{ $ci ? 'Clock out' : 'Clock in' }}</span>
+                            <span x-text="goLabel($store.ui.lang)">{{ $ci ? 'Clock out' : 'Clock in' }}</span>
                         </template>
                         <template x-if="submitting">
                             <span style="display:inline-flex;align-items:center;gap:8px;">
@@ -634,16 +654,20 @@
             <div x-text="geoError"></div>
             <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
             @if (! $co)
-                {{-- Last resort, and deliberately not a shortcut: it appears only once a real
-                     punch attempt has failed — `attempted`, not merely a location the browser
-                     refused on page load — and it still costs a reason and a selfie. Without
-                     that gate, denying location once put a from-anywhere punch on screen
-                     before the staff member had tried to clock at all. --}}
-                <button type="button" class="uj-at-ghost" style="margin-top:9px;" x-show="attempted" x-cloak
-                        @click="submitWithoutLocation()" :disabled="submitting"
-                        x-text="$store.ui.lang==='en'
-                            ? @js($ci ? 'Clock out without location — needs a reason and a selfie' : 'Clock in without location — needs a reason and a selfie')
-                            : @js($ci ? 'Clock out tanpa lokasi — perlu sebab dan selfie' : 'Clock in tanpa lokasi — perlu sebab dan selfie')"></button>
+                {{-- The punch without location is NOT a second button here. Once a real attempt
+                     has failed the main punch button becomes it (see goLabel + noLoc), because
+                     two buttons both reading 'Clock in' — one of them dead — is what had staff
+                     tapping twice and believing they had punched twice. What is left here is
+                     the way back: allow location, then retry the ordinary punch. --}}
+                <div x-show="noLoc" x-cloak style="margin-top:9px;">
+                    <div x-text="$store.ui.lang==='en'
+                            ? 'The button above now clocks you in without location. It needs a reason and a selfie, and your manager sees the punch flagged.'
+                            : 'Butang di atas kini clock tanpa lokasi. Ia perlu sebab dan selfie, dan pengurus anda nampak rekod itu ditanda.'"
+                         style="opacity:.8;margin-bottom:7px;"></div>
+                    <button type="button" class="uj-at-ghost" :disabled="submitting"
+                            @click="geoError = ''; geoDetail = ''; submit()"
+                            x-text="$store.ui.lang==='en' ? 'I allowed location — try again' : 'Saya benarkan lokasi — cuba lagi'"></button>
+                </div>
             @endif
         </div>
         @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
@@ -683,7 +707,7 @@
                     <span x-text="$store.ui.lang==='en' ? 'Shift complete ✓' : 'Shift selesai ✓'">Shift complete ✓</span>
                 @else
                     <template x-if="!submitting">
-                        <span x-text="$store.ui.lang==='en' ? @js($ci ? 'Clock out' : 'Clock in') : @js($ci ? 'Clock out' : 'Clock in')">{{ $ci ? 'Clock out' : 'Clock in' }}</span>
+                        <span x-text="goLabel($store.ui.lang)">{{ $ci ? 'Clock out' : 'Clock in' }}</span>
                     </template>
                     <template x-if="submitting">
                         <span style="display:inline-flex;align-items:center;gap:8px;">

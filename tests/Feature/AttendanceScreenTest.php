@@ -193,11 +193,12 @@ class AttendanceScreenTest extends TestCase
     }
 
     /**
-     * The clock-without-location fallback is a from-anywhere punch. It must stay hidden
-     * until a real attempt has failed, otherwise a browser that refuses location on page
-     * load puts it on screen before the staff member has tried to clock at all.
+     * The clock-without-location punch is a from-anywhere punch, so it stays out of reach
+     * until a real attempt has failed: `attempted` starts false, and the punch button only
+     * becomes the no-location one through `noLoc`, which needs both a real attempt and a
+     * location error. It is never a second button sitting beside the ordinary one.
      */
-    public function test_no_location_fallback_is_gated_behind_an_actual_attempt(): void
+    public function test_no_location_punch_is_gated_behind_an_actual_attempt(): void
     {
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
@@ -205,7 +206,20 @@ class AttendanceScreenTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('attempted: false', false);
-        $response->assertSee('x-show="attempted"', false);
+        $response->assertSee('get noLoc()', false);
+        $response->assertSee('noLoc ? submitWithoutLocation() : submit()', false);
+    }
+
+    /** One punch button, whose label always names what a tap actually does. */
+    public function test_the_screen_has_a_single_punch_button_per_layout(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        // One in the shelf (desktop) and one in the dock (mobile); CSS shows exactly one.
+        $this->assertSame(2, substr_count($response->getContent(), 'x-text="goLabel($store.ui.lang)"'));
     }
 
     public function test_status_tone_is_correct_on_every_row(): void
