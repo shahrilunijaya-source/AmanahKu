@@ -35,14 +35,6 @@
     $wwH = intdiv($weekWorkedMinutes, 60);
     $wwM = sprintf('%02d', $weekWorkedMinutes % 60);
     $weekWorkedStr = "{$wwH}h {$wwM}m";
-
-    $deltaSign = $weekBaselineDeltaMinutes >= 0 ? '+' : '−';
-    $absDelta = abs($weekBaselineDeltaMinutes);
-    $deltaH = intdiv($absDelta, 60);
-    $deltaM = $absDelta % 60;
-    $deltaStr = $deltaH > 0
-        ? "{$deltaSign}{$deltaH}h " . sprintf('%02dm', $deltaM)
-        : "{$deltaSign}{$deltaM}m";
 @endphp
 
 @section('screen')
@@ -105,9 +97,9 @@
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
               radius: {{ $site?->radiusM ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
-              workStart: '{{ $site?->workStart ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
               geoError: '',
+              geoShort: '',
               geoDetail: '',
               // [type, label, lat, lng, radius] for every geofenced branch and client site.
               sites: @js($geofencedSites ?? []),
@@ -118,9 +110,6 @@
               noteOpen: {{ (session('attendance_justify') || $errors->has('justification') || old('justification', '')) ? 'true' : 'false' }},
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
-              leadStr: '',
-              leadWordEn: '',
-              leadWordMs: '',
               init() {
                   this.tick();
                   setInterval(() => this.tick(), 1000);
@@ -172,23 +161,6 @@
                       const h = Math.floor(worked / 60);
                       const m = worked % 60;
                       this.elapsedWorked = h + 'h ' + String(m).padStart(2, '0') + 'm';
-                  }
-
-                  if (this.workStart) {
-                      const p = this.workStart.split(':');
-                      const startMins = Number(p[0]) * 60 + Number(p[1]);
-                      const diff = startMins - nowMins;
-                      const absDiff = Math.abs(diff);
-                      const h = Math.floor(absDiff / 60);
-                      const m = absDiff % 60;
-                      this.leadStr = h > 0 ? (h + 'h ' + String(m).padStart(2, '0') + 'm') : (m + 'm');
-                      if (diff >= 0) {
-                          this.leadWordEn = 'early';
-                          this.leadWordMs = 'awal';
-                      } else {
-                          this.leadWordEn = 'late';
-                          this.leadWordMs = 'lewat';
-                      }
                   }
               },
               /**
@@ -458,7 +430,25 @@
                       unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
                       insecure: 'Alamat ini (' + location.origin + ') tidak selamat, jadi pelayar tidak akan berkongsi lokasi anda dan clock disekat. Buka aplikasi pada alamat https:// sebaliknya.',
                   };
+                  // One line names the problem; the cure above stays folded until asked for.
+                  const shortEn = {
+                      denied: 'Location is blocked — tap for how to allow it',
+                      denied_webview: 'This app window cannot read location — tap for how to fix',
+                      unavailable: 'Your location could not be worked out — tap for how to fix',
+                      timeout: 'Location took too long — tap for what to do',
+                      unsupported: 'This browser cannot share location — tap for what to do',
+                      insecure: 'This address is not secure, so location is blocked — tap for why',
+                  };
+                  const shortMs = {
+                      denied: 'Lokasi disekat — tekan untuk cara benarkan',
+                      denied_webview: 'Tetingkap aplikasi ini tidak boleh baca lokasi — tekan untuk cara betulkan',
+                      unavailable: 'Lokasi anda tidak dapat dikesan — tekan untuk cara betulkan',
+                      timeout: 'Lokasi terlalu lama — tekan untuk apa perlu buat',
+                      unsupported: 'Pelayar ini tidak boleh kongsi lokasi — tekan untuk apa perlu buat',
+                      insecure: 'Alamat ini tidak selamat, jadi lokasi disekat — tekan untuk sebab',
+                  };
                   this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
+                  this.geoShort = this.$store.ui.lang === 'en' ? shortEn[kind] : shortMs[kind];
                   // Support cannot reproduce a staff member's browser, so carry the browser's
                   // own verdict in the message. Without it every failure looks the same and
                   // the guesswork starts.
@@ -539,8 +529,6 @@
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
-                <div class="uj-at-kicker">Attendance · {{ now()->format('l j F') }}</div>
-
                 <div class="uj-at-figrow">
                     @if ($co)
                         <div class="uj-at-fig">{{ $todayWorkedStr }}</div>
@@ -558,8 +546,8 @@
                         <div class="uj-at-fig" x-text="wallTime">{{ now()->format('H:i') }}</div>
                         <div class="uj-at-figsub">
                             @if ($site?->workStart)
-                                <span x-show="$store.ui.lang==='en'">shift starts <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b> · you are <b x-text="leadStr"></b> <span x-text="leadWordEn"></span></span>
-                                <span x-show="$store.ui.lang!=='en'" x-cloak>shift bermula <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b> · anda <span x-text="leadWordMs"></span> <b x-text="leadStr"></b></span>
+                                <span x-show="$store.ui.lang==='en'">shift starts <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b></span>
+                                <span x-show="$store.ui.lang!=='en'" x-cloak>shift bermula <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b></span>
                             @else
                                 <span x-show="$store.ui.lang==='en'">Not clocked in yet</span>
                                 <span x-show="$store.ui.lang!=='en'" x-cloak>Belum clock in</span>
@@ -575,7 +563,6 @@
                             <span x-text="$store.ui.lang==='en' ? @js($sType[0]) : @js($sType[1])">{{ $sType[0] }}</span>
                             · {{ $site->label }}
                             @if ($site->workStart && $site->workEnd) · {{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}–{{ \Illuminate\Support\Str::of($site->workEnd)->limit(5, '') }}@endif
-                            @if ($site->hasGeofence()) · <span x-text="$store.ui.lang==='en' ? 'within {{ $site->radiusM }}m' : 'dalam {{ $site->radiusM }}m'">within {{ $site->radiusM }}m</span>@endif
                             @if ($site->needsHomeCapture) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'home registers on this clock-in' : 'rumah didaftar pada clock in ini'">home registers on this clock-in</span>@endif
                         </span>
 
@@ -590,10 +577,6 @@
             </div>
 
             <div class="uj-at-acts">
-                <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Selfie' : 'Selfie')">Selfie</span>
-                </button>
                 <button type="button" class="uj-at-ghost" data-notebtn :data-on="(noteOpen || isReq) ? true : false" @click="toggleNote()">
                     <span x-text="$store.ui.lang==='en' ? 'Add a remark' : 'Tambah catatan'">Add a remark</span>
                 </button>
@@ -628,31 +611,29 @@
                               ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
                               : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"></textarea>
                 @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+
+                {{-- The selfie lives here rather than beside the punch button. It is only ever
+                     required off-site or with no location, and proceed() opens the camera itself
+                     in both cases, so a permanent button on the resting screen bought nothing and
+                     cost a third of the action row. Inside the drawer it stays available to anyone
+                     who wants to attach one on purpose. --}}
+                <div class="uj-at-selfie">
+                    <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="uj-at-chips">
-            <div class="uj-at-chip">
-                <b>{{ $weekWorkedStr }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Worked this week' : 'Jam minggu ini'">Worked this week</span>
-            </div>
-            <div class="uj-at-chip" data-tone="{{ $weekBaselineDeltaMinutes >= 0 ? 'ok' : 'amber' }}">
-                <b>{{ $deltaStr }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Over baseline' : 'Lebih baseline'">Over baseline</span>
-            </div>
-            <div class="uj-at-chip"@if ($lateThisMonth > 0) data-tone="amber"@endif>
-                <b>{{ $lateThisMonth }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Late this month' : 'Lewat bulan ini'">Late this month</span>
-            </div>
-            <div class="uj-at-chip">
-                <b>{{ $offSiteThisMonth }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Off-site this month' : 'Luar lokasi bulan ini'">Off-site this month</span>
-            </div>
-        </div>
-
-        <div x-show="geoError" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
-            <div x-text="geoError"></div>
-            <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+        <div x-show="geoError" x-cloak role="alert" style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
+            {{-- Summary first, cure on demand. The full instructions run to three sentences and
+                 stood permanently open in red under the punch, which is what buried the button. --}}
+            <details class="uj-at-geo">
+                <summary x-text="geoShort"></summary>
+                <div x-text="geoError" style="margin-top:6px;"></div>
+                <div x-text="geoDetail" style="color:var(--body);margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+            </details>
             @if (! $co)
                 {{-- The punch without location is NOT a second button here. Once a real attempt
                      has failed the main punch button becomes it (see goLabel + noLoc), because
@@ -670,13 +651,13 @@
                 </div>
             @endif
         </div>
-        @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @error('latitude')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
-        <div x-show="photoReq" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
+        <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
              x-text="$store.ui.lang==='en'
                  ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.'
                  : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.'"></div>
-        @error('photo')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 
@@ -699,9 +680,6 @@
 
         {{-- Mobile action dock --}}
         <div class="uj-at-dock">
-            <button type="button" class="uj-at-dock-sq" :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
             <button type="submit" class="uj-at-dock-go" @if ($co) disabled @else :disabled="submitting" @endif>
                 @if ($co)
                     <span x-text="$store.ui.lang==='en' ? 'Shift complete ✓' : 'Shift selesai ✓'">Shift complete ✓</span>

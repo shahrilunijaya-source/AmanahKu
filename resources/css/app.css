@@ -1245,7 +1245,7 @@ select.wd-inline {
 
 /* ── Actions: selfie, remark, and punch button ── */
 .uj-at-acts { display: flex; gap: 10px; align-items: center; flex-shrink: 0; padding-top: 6px; flex-wrap: wrap; }
-.uj-at-ghost { height: 44px; padding: 0 16px; background: #fff; border: 1px solid var(--shelf-line); border-radius: 10px; color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-ghost { height: 44px; padding: 0 16px; background: #fff; border: 1px solid var(--muted); border-radius: 10px; color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), transform .14s cubic-bezier(.23, 1, .32, 1); }
 .uj-at-ghost:hover { border-color: var(--muted-soft); }
 .uj-at-ghost:active { transform: scale(.97); }
 .uj-at-ghost[data-on] { border-color: var(--ink); background: #fff; }
@@ -1269,10 +1269,20 @@ select.wd-inline {
 .uj-at-note > div { overflow: hidden; }
 .uj-at-note label { display: block; padding-top: 16px; font-size: var(--t-sm); font-weight: 500; color: var(--ink); margin-bottom: 6px; }
 .uj-at-note[data-req] label { color: var(--red-active); }
-.uj-at-note textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--shelf-line); border-radius: 10px; font-size: 13.5px; color: var(--ink); background: #fff; outline: none; resize: vertical; min-height: 66px; line-height: 1.55; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
+/* --muted-soft, not --shelf-line: a control's own boundary must clear 3:1 (WCAG 1.4.11)
+   and --shelf-line is 1.2:1 against the shelf these controls sit on. --shelf-line still draws the dividers, which are
+   exempt because they identify nothing. Same reason on .uj-at-ghost below. */
+.uj-at-note textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--muted); border-radius: 10px; font-size: 13.5px; color: var(--ink); background: #fff; outline: none; resize: vertical; min-height: 66px; line-height: 1.55; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
 .uj-at-note textarea::placeholder { color: var(--muted-soft); }
 .uj-at-note textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .uj-at-note[data-req] textarea { border-color: var(--red); }
+.uj-at-selfie { margin-top: 10px; }
+
+/* Geolocation failure: a summary line that names the problem, the three-sentence
+   cure folded behind it. */
+.uj-at-geo summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.uj-at-geo summary::marker { color: var(--muted); }
+.uj-at-geo[open] summary { margin-bottom: 2px; }
 
 /* ── Chips ──
    The four numbers a person asks this screen for: worked this week, over baseline,
@@ -1329,6 +1339,17 @@ select.wd-inline {
 .uj-at-panel-in { padding: 0 6px 30px 76px; }
 .uj-at-panel p { font-size: 14.5px; line-height: 1.7; color: #3f3e38; max-width: 64ch; margin: 0; text-wrap: pretty; opacity: 0; filter: blur(2px); transition: opacity .2s cubic-bezier(.23, 1, .32, 1) .05s, filter .2s cubic-bezier(.23, 1, .32, 1) .05s; }
 .uj-at-panel[data-open] p { opacity: 1; filter: blur(0); }
+/* What the row's single pill stands for, one line each. Same type and reveal as the
+   paragraph it replaces on a flagged day. */
+.uj-at-flags { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; max-width: 64ch; opacity: 0; filter: blur(2px); transition: opacity .2s cubic-bezier(.23, 1, .32, 1) .05s, filter .2s cubic-bezier(.23, 1, .32, 1) .05s; }
+.uj-at-panel[data-open] .uj-at-flags { opacity: 1; filter: blur(0); }
+/* The label carries its own tone, so it needs no bullet to mark it as an item. Text
+   colours, not the pill fills: a stack of filled pills reads as a second row of chips,
+   which is the noise this panel exists to absorb. */
+.uj-at-flags li { font-size: 14.5px; line-height: 1.7; font-weight: 600; }
+.uj-at-flags li[data-tone="red"] { color: var(--red-active); }
+.uj-at-flags li[data-tone="amber"] { color: var(--amber-ink); }
+
 .uj-at-quote { margin-top: 16px; border-left: 2px solid var(--shelf-line); padding: 2px 0 2px 14px; }
 .uj-at-quote .lbl { font: 600 11px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .uj-at-quote .txt { font-size: 14px; color: #3f3e38; margin-top: 5px; line-height: 1.6; }
@@ -1349,7 +1370,7 @@ select.wd-inline {
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .uj-at-panel, .uj-at-note { transition: none; }
-  .uj-at-panel p { transition: opacity .12s linear; filter: none; }
+  .uj-at-panel p, .uj-at-flags { transition: opacity .12s linear; filter: none; }
   .uj-at-chev { transition: color .14s linear; }
   .uj-at-fence[data-f="wait"] i { animation: none; }
   .uj-at-go:active, .uj-at-ghost:active,
@@ -1364,13 +1385,6 @@ select.wd-inline {
     padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
     background: var(--card); border-top: 1px solid var(--hairline);
   }
-  .uj-at-dock-sq {
-    width: 52px; height: 52px; flex-shrink: 0;
-    border: 1px solid var(--hairline); border-radius: 13px; background: #fff;
-    display: grid; place-items: center; cursor: pointer; color: var(--muted);
-  }
-  .uj-at-dock-sq[data-on] { border-color: var(--success); color: var(--success); }
-  .uj-at-dock-sq[data-on] svg { color: var(--success); }
   .uj-at-dock-go {
     flex: 1; height: 52px; background: var(--red); color: #fff; border: 0;
     border-radius: 13px; font-size: 15.5px; font-weight: 600; cursor: pointer;
@@ -1382,12 +1396,7 @@ select.wd-inline {
   .uj-at-wrap { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .uj-at-shelf { padding: 18px; }
   .uj-at-fig { font-size: 46px; margin-top: 8px; }
-  .uj-at-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .uj-at-chip { padding: 7px 11px; }
-  .uj-at-chip b { font-size: 15px; }
-  .uj-at-chip span { font-size: 11px; }
-  .uj-at-acts .uj-at-go,
-  .uj-at-acts [data-selfie] { display: none; }
+  .uj-at-acts .uj-at-go { display: none; }
   .uj-at-acts [data-notebtn] { width: 100%; height: 44px; min-height: 44px; margin-top: 6px; justify-content: center; font-size: var(--t-sm); }
   .uj-at-row { padding: 14px 6px; min-height: 44px; }
   .uj-at-rowmid .uj-at-status { display: inline-block; margin-top: 6px; }
