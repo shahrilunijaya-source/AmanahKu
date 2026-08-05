@@ -84,6 +84,31 @@ class HelpdeskTest extends TestCase
         ])->assertSessionHasErrors('subject');
     }
 
+    public function test_ticket_category_accepts_bug_and_idea_and_stores_page_url(): void
+    {
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Clock-in broken',
+            'description' => 'Nothing happens on tap.', 'status' => 'open',
+            'page_url' => 'http://localhost/app/dash',
+        ]);
+
+        $this->assertSame('Bug', $ticket->fresh()->category);
+        $this->assertSame('http://localhost/app/dash', $ticket->fresh()->page_url);
+    }
+
+    /** Task 12 copies feedback rows whose employee_id may be null; the column has to accept them. */
+    public function test_ticket_accepts_a_null_employee_id(): void
+    {
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => null,
+            'category' => 'Idea', 'priority' => 'medium', 'subject' => 'Orphaned report',
+            'description' => 'Author has no employee record.', 'status' => 'open',
+        ]);
+
+        $this->assertNull($ticket->fresh()->employee_id);
+    }
+
     // ── Privileged updates ────────────────────────────────────────
 
     public function test_privileged_user_updates_status_assignee_and_resolution(): void
