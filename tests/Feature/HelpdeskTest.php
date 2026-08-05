@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -293,5 +294,74 @@ class HelpdeskTest extends TestCase
         $ticket = Ticket::withoutGlobalScopes()->latest('id')->first();
         $this->assertNotNull($ticket);
         $this->assertSame(0, $ticket->attachments()->count());
+    }
+
+    private function seedAttachment(Ticket $ticket): TicketAttachment
+    {
+        $path = UploadedFile::fake()->image('shot.png')->store('ticket-attachments', 'local');
+
+        return TicketAttachment::create([
+            'tenant_id' => $ticket->tenant_id,
+            'ticket_id' => $ticket->id,
+            'path' => $path,
+            'name' => 'shot.png',
+            'mime' => 'image/png',
+            'size' => 1024,
+        ]);
+    }
+
+    public function test_raiser_can_download_own_attachment(): void
+    {
+        Storage::fake('local');
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $att = $this->seedAttachment($ticket);
+
+        $response = $this->actingInTenant()->get('/app/helpdesk/attachments/'.$att->id);
+
+        $response->assertOk();
+    }
+
+    public function test_hr_can_download_bug_ticket_attachment(): void
+    {
+        Storage::fake('local');
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $att = $this->seedAttachment($ticket);
+        $hr = $this->hrActor();
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/helpdesk/attachments/'.$att->id);
+
+        $response->assertOk();
+    }
+
+    public function test_unrelated_employee_cannot_download_ticket_attachment(): void
+    {
+        Storage::fake('local');
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $att = $this->seedAttachment($ticket);
+
+        $stranger = User::create(['name' => 'Nosy', 'email' => 'nosy@example.com', 'password' => Hash::make('password')]);
+        $stranger->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $stranger->id,
+            'name' => 'Nosy', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $response = $this->actingAs($stranger)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/helpdesk/attachments/'.$att->id);
+
+        $response->assertForbidden();
     }
 }

@@ -279,6 +279,8 @@ Route::middleware('auth')->group(function () {
         // on every screen and takes uploads, so it stays rate-limited.
         Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->middleware('throttle:20,1')->name('helpdesk.store');
         Route::post('/app/helpdesk/{ticket}', [HelpdeskController::class, 'update'])->name('helpdesk.update');
+        // Stream a ticket's screenshot/document — auth-gated (raiser or an appropriate viewer), never public.
+        Route::get('/app/helpdesk/attachments/{attachment}', [HelpdeskController::class, 'attachment'])->name('helpdesk.attachment');
         // Shared company resources (Gmail, Canva, WhatsApp, inhouse system, etc.) —
         // all staff view via the screen; privileged roles (manager/management/hr) maintain.
         Route::post('/app/shared-resources', [SharedResourceController::class, 'store'])->name('shared-resources.store');

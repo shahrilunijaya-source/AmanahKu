@@ -7,11 +7,14 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HelpdeskController extends Controller
 {
@@ -152,6 +155,32 @@ class HelpdeskController extends Controller
         AuditLog::record('Raised ticket', $data['subject'].' · '.$data['category']);
 
         return back()->with('ok', 'Ticket raised — '.$data['subject'].'.');
+    }
+
+    /**
+     * Stream a ticket attachment through an auth-gated action (never a public URL) — inline,
+     * so image thumbnails and PDFs render straight in the helpdesk views. The raiser always
+     * gets their own attachments; everyone else needs an appropriate view tier: Bug/Idea
+     * tickets are gated to FEEDBACK_VIEW_ROLES (management/hr), everything else to the
+     * general PRIVILEGED_ROLES. Tenant-scoped model binding already blocks cross-tenant ids;
+     * the explicit check is defence in depth.
+     */
+    public function attachment(Request $request, TicketAttachment $attachment): StreamedResponse
+    {
+        abort_unless($attachment->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $ticket = $attachment->ticket;
+        $employee = $request->attributes->get('employee');
+        $isOwner = $ticket && $employee && $ticket->employee_id === $employee->id;
+        $isFeedbackCategory = $ticket && in_array($ticket->category, self::FEEDBACK_CATEGORIES, true);
+        $canView = $isFeedbackCategory
+            ? $this->hasTenantRole($request, self::FEEDBACK_VIEW_ROLES)
+            : $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+
+        abort_unless($isOwner || $canView, 403);
+        abort_unless(Storage::disk(self::ATTACHMENT_DISK)->exists($attachment->path), 404);
+
+        return Storage::disk(self::ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
     /** Privileged only: assign, move status, and record a resolution. */
