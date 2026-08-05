@@ -157,7 +157,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/leave-setup/holidays', [LeaveSetupController::class, 'storeHoliday'])->name('holiday.store');
         Route::post('/app/leave-setup/holidays/standard', [LeaveSetupController::class, 'loadStandardHolidays'])->name('holiday.standard');
         Route::post('/app/leave-setup/holidays/{holiday}/delete', [LeaveSetupController::class, 'deleteHoliday'])->name('holiday.delete');
-        Route::post('/app/attendance/clock', [AttendanceController::class, 'clock'])->name('attendance.clock');
+        // Throttled: every post accepts a 4MB selfie, and a real day needs two punches, not
+        // twenty. The cap stops a stuck client (or a bored one) from filling the disk.
+        Route::post('/app/attendance/clock', [AttendanceController::class, 'clock'])
+            ->middleware('throttle:20,1')
+            ->name('attendance.clock');
         // Auth-gated clock selfie stream from the private disk — {slot} is 'in' or 'out' (AK-SEC-05).
         Route::get('/app/attendance/photos/{record}/{slot}', [AttendanceController::class, 'photo'])->name('attendance.photo');
         // Attendance setup (client sites + work arrangements) — privileged; screen GET is role-gated in AppController.

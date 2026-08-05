@@ -344,6 +344,12 @@
         @if (session('ok'))
         Alpine.store('toast').success(@js(session('ok')));
         @endif
+        {{-- Neither a success nor a failure: the request was understood and declined,
+             e.g. a second clock-in on a day already punched. A green tick there reads as
+             "punched again", which is exactly what it did not do. --}}
+        @if (session('info'))
+        Alpine.store('toast').info(@js(session('info')));
+        @endif
     });
 </script>
 @include('partials.toast-host')

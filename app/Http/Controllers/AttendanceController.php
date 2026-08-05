@@ -62,6 +62,20 @@ class AttendanceController extends Controller
             $result = $this->clock->clockOut($employee, $lat, $lng, $justification, $photoPath, $now);
         }
 
+        // A refused punch never reaches a record, so the selfie it carried would sit on the
+        // private disk with nothing pointing at it — forever, and at up to 4MB a go. Drop
+        // the file with the punch that was rejected.
+        if ($result['status'] !== 'ok' && $photoPath !== null) {
+            Storage::disk(self::PHOTO_DISK)->delete($photoPath);
+        }
+
+        // Understood and declined — a second clock-in on a day already punched. Not a
+        // success: a green tick here reads as "punched again", which is the one thing it
+        // did not do, and staff then believe they clocked twice.
+        if ($result['status'] === 'noop') {
+            return back()->with('info', $result['message']);
+        }
+
         // Backstop: server insists on a reason for an out-of-radius / early clock event.
         // The screen re-opens the justification field from this flash + error bag.
         if ($result['status'] === 'needs_justification') {
