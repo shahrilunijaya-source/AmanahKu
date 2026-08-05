@@ -80,6 +80,7 @@
 
 <div class="uj-at-wrap">
     <form method="post" action="{{ route('attendance.clock') }}" enctype="multipart/form-data" class="uj-at-shelf"
+          x-ref="form"
           x-data="{
               submitting: false,
               photoUrl: null,
@@ -89,7 +90,15 @@
               stream: null,
               camError: '',
               camNotice: '',
-              action: '{{ $ci ? 'out' : 'in' }}',
+              {{-- Same expression as the hidden action field below: one rule, one value. --}}
+              action: '{{ $ci && !$co ? 'out' : 'in' }}',
+              // Set once the staff member has actually tried to punch. The clock-without-
+              // location fallback keys off this, so a permission the browser refused at page
+              // load cannot hand anyone a from-anywhere punch they never even attempted.
+              attempted: false,
+              // Last good fix, kept briefly so a punch interrupted for a reason or a selfie
+              // resumes on the coordinates it already had instead of waking the GPS again.
+              lastFix: null,
               serverJustify: {{ (session('attendance_justify') || $errors->has('justification')) ? 'true' : 'false' }},
               reason: @js(old('justification', '')),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
@@ -119,7 +128,7 @@
                       // Warn on load: on an insecure origin no punch can ever succeed.
                       this.geoFail('insecure');
                   } else if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
+                      this.bestFix(
                           (pos) => {
                               const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
                               if (m) {
@@ -134,12 +143,13 @@
                                   this.fenceStatus = 'none';
                               }
                           },
-                          (err) => {
+                          (kind, err) => {
                               // Warn on load rather than letting the staff discover it on tap.
-                              if (err.code === 1) { this.geoFail('denied', err); }
+                              if (kind === 'denied') { this.geoFail('denied', err); }
                               this.fenceStatus = 'none';
                           },
-                          { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                          true,
+                          12000
                       );
                   } else {
                       this.fenceStatus = 'none';
@@ -181,9 +191,15 @@
                       }
                   }
               },
+              /**
+               * Standing off-site is known before the tap, so the reason box says so up front.
+               * Leaving early is NOT raised here: earlyNow() is true for the whole shift, so
+               * it painted a red 'reason required' across the screen from the clock-in until
+               * the end of the day. proceed() raises it on the clock-out attempt instead,
+               * which is the only moment it means anything.
+               */
               get isReq() {
                   return (this.siteLat !== null && this.fenceStatus === 'out')
-                      || (this.action === 'out' && this.earlyNow())
                       || this.serverJustify;
               },
               toggleNote() {
@@ -252,6 +268,12 @@
               proceed(lat, lng) {
                   const noFix = lat === null || lng === null;
                   const offSite = ! noFix && this.siteLat !== null && !this.matchSite(lat, lng);
+                  // Remember the punch before either gate below sends it back for a reason or
+                  // a selfie: the staff member has not moved in the seconds it takes to type,
+                  // so the next attempt should not pay for the fix a second time. lat/lng stay
+                  // null for a deliberate no-location punch, which is why resuming reuses them
+                  // but submit() will not (see both guards).
+                  this.lastFix = { lat: noFix ? null : lat, lng: noFix ? null : lng, at: Date.now() };
                   let need = offSite || noFix;
                   if (this.action === 'out' && this.earlyNow()) need = true;
                   if (need && !this.reason.trim()) {
@@ -272,7 +294,10 @@
                   // real null, which is what marks the punch as having no location at all.
                   this.$refs.lat.value = noFix ? '' : lat;
                   this.$refs.lng.value = noFix ? '' : lng;
-                  this.$el.submit();
+                  // Named ref, not $el: proceed() also runs from the selfie input's change
+                  // handler and from the camera modal, where $el is that element rather than
+                  // the form, and $el.submit() is then not a function at all.
+                  this.$refs.form.submit();
               },
               /**
                * Clock with no coordinates. Offered ONLY after the browser has actually failed
@@ -287,29 +312,98 @@
               submit() {
                   if (this.submitting) return;
                   this.submitting = true;
+                  this.attempted = true;
                   this.geoError = '';
                   if (!navigator.geolocation) { this.geoFail('unsupported'); return; }
                   // Browsers refuse geolocation outside a secure context and report it as
                   // PERMISSION_DENIED — identical to a real denial, but no address-bar
                   // toggle can fix it. Name the actual problem instead of the wrong cure.
                   if (!window.isSecureContext) { this.geoFail('insecure'); return; }
+                  // An off-site punch is sent back twice — once for the reason, once for the
+                  // selfie — and used to re-run the whole GPS acquisition on each retry, so
+                  // one punch cost three fixes and up to half a minute of waiting. Reuse the
+                  // fix while it is still fresh; a stale one falls through to a real locate().
+                  // Only a real fix is reusable. A no-location punch is never resumed from
+                  // here, or the ordinary Clock in button would quietly become the fallback.
+                  if (this.freshFix() && this.lastFix.lat !== null) {
+                      this.proceed(this.lastFix.lat, this.lastFix.lng);
+                      return;
+                  }
                   this.locate(true);
               },
+              freshFix() {
+                  return this.lastFix !== null && Date.now() - this.lastFix.at < 60000;
+              },
               /**
-               * One position request. A desktop has no GPS chip, so enableHighAccuracy makes
-               * the browser wait on a network lookup that often fails outright (Firefox on a
-               * wired machine has no WiFi scan to geolocate from). Any failure other than a
-               * refusal is therefore retried once at low accuracy before giving up.
+               * A selfie attached to a punch that was already sent back for one finishes that
+               * punch. Without this the staff member supplies exactly what was asked for and
+               * still has to find the button again — the third tap of a three-tap off-site
+               * clock-in. Only ever fires after a real attempt left a fresh fix behind.
+               */
+              resumeAfterSelfie() {
+                  if (!this.attempted || !this.freshFix()) { return; }
+                  if (this.submitting) { return; }
+                  this.submitting = true;
+                  // Resume the punch that asked for the selfie, on its own coordinates —
+                  // including the no-location punch, whose selfie this may well be.
+                  this.proceed(this.lastFix.lat, this.lastFix.lng);
+              },
+              /**
+               * The best fix the browser can produce inside the deadline, not the first one.
+               * A cold GPS answers with a coarse network fix — accuracy often over a kilometre —
+               * and only refines to real satellite precision seconds later. Taking that first
+               * fix reads a staff member standing inside a 200m fence as off-site, which then
+               * costs them a reason, a selfie and an out_of_radius flag on the record. Watching
+               * until the fix is precise enough to judge the fence removes the guesswork; a
+               * cached fix is refused outright (maximumAge 0) because a stale coarse one is
+               * exactly the wrong answer.
+               */
+              bestFix(onFix, onFail, highAccuracy, deadlineMs) {
+                  let best = null, lastErr = null, settled = false, watchId = null, timer = null;
+                  const finish = (failKind, err) => {
+                      if (settled) { return; }
+                      settled = true;
+                      clearTimeout(timer);
+                      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); }
+                      if (!failKind && best) { onFix(best); return; }
+                      onFail(failKind || (lastErr && lastErr.code !== 3 ? 'unavailable' : 'timeout'), err || lastErr);
+                  };
+                  // Good enough to call the fence either way. Floored at 50m because a 20m fence
+                  // would otherwise wait out the whole deadline for precision no phone delivers.
+                  const goodEnough = Math.max(this.radius || 100, 50);
+                  timer = setTimeout(() => finish(null, null), deadlineMs);
+                  watchId = navigator.geolocation.watchPosition(
+                      (pos) => {
+                          if (!best || pos.coords.accuracy < best.coords.accuracy) { best = pos; }
+                          if (best.coords.accuracy <= goodEnough) { finish(null, null); }
+                      },
+                      (err) => {
+                          lastErr = err;
+                          // A refusal can never improve. Anything else may still be followed
+                          // by a fix, so let the deadline decide.
+                          if (err.code === 1) { finish('denied', err); }
+                      },
+                      { enableHighAccuracy: highAccuracy, timeout: deadlineMs, maximumAge: 0 }
+                  );
+                  // A synchronous error callback settles before watchId is assigned above.
+                  if (settled) { navigator.geolocation.clearWatch(watchId); }
+              },
+              /**
+               * A desktop has no GPS chip, so enableHighAccuracy makes the browser wait on a
+               * network lookup that often fails outright (Firefox on a wired machine has no
+               * WiFi scan to geolocate from). Any failure other than a refusal is therefore
+               * retried once at low accuracy before giving up.
                */
               locate(highAccuracy) {
-                  navigator.geolocation.getCurrentPosition(
+                  this.bestFix(
                       (pos) => this.proceed(pos.coords.latitude, pos.coords.longitude),
-                      (err) => {
-                          if (err.code === 1) { this.geoFail('denied', err); return; }
+                      (kind, err) => {
+                          if (kind === 'denied') { this.geoFail('denied', err); return; }
                           if (highAccuracy) { this.locate(false); return; }
-                          this.geoFail(err.code === 3 ? 'timeout' : 'unavailable', err);
+                          this.geoFail(kind, err);
                       },
-                      { enableHighAccuracy: highAccuracy, timeout: highAccuracy ? 8000 : 20000, maximumAge: 60000 }
+                      highAccuracy,
+                      highAccuracy ? 12000 : 20000
                   );
               },
               /**
@@ -406,6 +500,7 @@
                       this.photoUrl = URL.createObjectURL(file);
                       this.photoReq = false;
                       this.closeCam();
+                      this.resumeAfterSelfie();
                   }, 'image/jpeg', 0.9);
               },
               closeCam() {
@@ -415,12 +510,12 @@
           }"
           @submit.prevent="submit()">
         @csrf
-        <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />
+        <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />{{-- mirrored by `action` in x-data --}}
         <input type="hidden" name="latitude" x-ref="lat" />
         <input type="hidden" name="longitude" x-ref="lng" />
         <input type="file" id="attendance-photo" name="photo" accept="image/*" capture="user" x-ref="photo"
                style="display:none;"
-               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) photoReq = false;" />
+               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) { photoReq = false; resumeAfterSelfie(); }" />
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -539,9 +634,12 @@
             <div x-text="geoError"></div>
             <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
             @if (! $co)
-                {{-- Last resort, and deliberately not a shortcut: it appears only once the
-                     browser has failed, and the punch still costs a reason and a selfie. --}}
-                <button type="button" class="uj-at-ghost" style="margin-top:9px;"
+                {{-- Last resort, and deliberately not a shortcut: it appears only once a real
+                     punch attempt has failed — `attempted`, not merely a location the browser
+                     refused on page load — and it still costs a reason and a selfie. Without
+                     that gate, denying location once put a from-anywhere punch on screen
+                     before the staff member had tried to clock at all. --}}
+                <button type="button" class="uj-at-ghost" style="margin-top:9px;" x-show="attempted" x-cloak
                         @click="submitWithoutLocation()" :disabled="submitting"
                         x-text="$store.ui.lang==='en'
                             ? @js($ci ? 'Clock out without location — needs a reason and a selfie' : 'Clock in without location — needs a reason and a selfie')

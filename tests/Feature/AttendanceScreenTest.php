@@ -174,6 +174,40 @@ class AttendanceScreenTest extends TestCase
         $response->assertSee('name="justification"', false);
     }
 
+    /**
+     * Smoke check only: it proves the accuracy-aware locator is wired into the screen, not
+     * that it picks the better fix — that logic is browser-side and PHPUnit cannot exercise
+     * it. A cold GPS reports a coarse network fix first and refines seconds later, so the
+     * screen must not punch on the first fix or on a cached one; verify that behaviour by
+     * hand against the geofence, per the sequence in the release notes.
+     */
+    public function test_screen_ships_the_accuracy_aware_locator(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('bestFix(', false);
+        $response->assertSee('maximumAge: 0', false);
+    }
+
+    /**
+     * The clock-without-location fallback is a from-anywhere punch. It must stay hidden
+     * until a real attempt has failed, otherwise a browser that refuses location on page
+     * load puts it on screen before the staff member has tried to clock at all.
+     */
+    public function test_no_location_fallback_is_gated_behind_an_actual_attempt(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('attempted: false', false);
+        $response->assertSee('x-show="attempted"', false);
+    }
+
     public function test_status_tone_is_correct_on_every_row(): void
     {
         AttendanceRecord::create([
