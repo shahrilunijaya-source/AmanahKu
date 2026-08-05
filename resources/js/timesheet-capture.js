@@ -259,8 +259,15 @@ export function registerTimesheetCapture(Alpine) {
                 this.picker.step = 'category';
                 this.picker.category = null;
             } else {
-                this.picker.open = false;
+                this.closePicker();
             }
+        },
+        // Shared by every way the popup can shut (pick, back-out, Escape, backdrop click) so
+        // keyboard/screen-reader focus always lands back on the button that opened it, instead
+        // of falling to <body> the way it does for the rest of the app's fixed-overlay dialogs.
+        closePicker() {
+            this.picker.open = false;
+            this.$nextTick(() => this.$refs.addEntryBtn?.focus());
         },
         // What the staffer has chosen so far, for the panel's breadcrumb.
         pickerTrail() {
@@ -354,7 +361,7 @@ export function registerTimesheetCapture(Alpine) {
                 ? item.percentage
                 : this.remainder(this.selected);
             this.addRow(item, pct);
-            this.picker.open = false;
+            this.closePicker();
             this.save();
         },
 

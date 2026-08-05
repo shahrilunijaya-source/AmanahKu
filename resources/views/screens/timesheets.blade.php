@@ -375,32 +375,51 @@
             </template>
         </div>
 
-        {{-- ---- Add affordance: one question at a time.
+        {{-- ---- Add affordance: opens the picker as a popup, one question at a time.
 
              Category, then project, then sub-pillar. A flat list of all ~31 combinations was
              tried in between and rejected: it is too much to read when the staffer already
              knows the category they want. A step the data does not need is skipped, so a
              standalone category is one tap and a project with no sub-pillar is two. Work the
              day already carries is greyed rather than hidden, so the staffer can see it is
-             there instead of adding an indistinguishable twin. ---- --}}
+             there instead of adding an indistinguishable twin.
+
+             The picker itself lives in a popup (below), not inline here, so opening it never
+             reflows the day's rows underneath — the #1 complaint on the old inline-expanding
+             panel, worst on a phone where the expansion pushed "Submit week" off screen. ---- --}}
         <div x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
-            <button type="button" x-show="!picker.open" @click="openPicker()"
+            <button type="button" x-ref="addEntryBtn" @click="openPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
                 style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
                 <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
             </button>
+        </div>
 
-            <div x-show="picker.open" x-cloak style="padding:12px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--canvas);display:flex;flex-direction:column;gap:10px;">
+        {{-- ---- Add-entry popup: same header/back arrow/trail per Alpine picker step, but the
+             list of options now sits over the page instead of inside it. Same shell (fixed
+             backdrop, centred card, .uj-slide entrance) as partials/ticket-raise.blade.php, so
+             every popup in the app opens the same way. Padding around the backdrop plus an
+             internally-scrolling body keeps it usable on a phone without a separate bottom-sheet
+             variant — a step's option list is what grows, not the dialog's position. ---- --}}
+        <div x-show="picker.open" x-cloak class="uj-dialog-overlay"
+             @click.self="closePicker()"
+             @keydown.escape.window="if (picker.open) closePicker()"
+             style="position:fixed;inset:0;z-index:200;padding:16px;background:rgba(31,30,26,.55);backdrop-filter:blur(2px);">
+            <div role="dialog" aria-modal="true" aria-labelledby="ts-picker-title"
+                 x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+                 x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
+                 style="width:100%;max-width:420px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);display:flex;flex-direction:column;max-height:min(560px,88vh);">
+
                 {{-- Header: back arrow, the question this step asks, and the trail of what is
                      already chosen so the staffer knows where they are. --}}
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <button type="button" @click="pickerBack()" class="uj-btn-ghost"
+                <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
+                    <button type="button" x-ref="pickerCloseBtn" @click="pickerBack()" class="uj-btn-ghost"
                         :aria-label="picker.step === 'category'
                             ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal')
                             : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
-                        style="height:28px;width:28px;padding:0;flex-shrink:0;font-size:14px;line-height:1;"
+                        style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
                         x-text="picker.step === 'category' ? '×' : '←'"></button>
                     <div style="flex:1;min-width:0;">
-                        <strong style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
+                        <strong id="ts-picker-title" style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
                             x-text="picker.step === 'category'
                                 ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
                                 : (picker.step === 'project'
@@ -412,7 +431,7 @@
                     </div>
                 </div>
 
-                <div style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto;">
+                <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:5px;">
 
                     {{-- Saved templates and recent work, pinned above the first step only:
                          a one-tap shortcut straight past the drill-down. --}}
