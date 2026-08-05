@@ -25,7 +25,28 @@
                     @endif
                 </div>
 
-                <h2 style="font-size:20px;font-weight:600;line-height:1.3;color:var(--ink);margin:0 0 14px;">{{ $e->title }}</h2>
+                <template x-if="!editing">
+                    <div style="display:flex;align-items:flex-start;gap:8px;margin:0 0 14px;">
+                        <h2 style="font-size:20px;font-weight:600;line-height:1.3;color:var(--ink);margin:0;flex:1;" x-text="title"></h2>
+                        <button type="button" x-show="canEdit" class="wd-ico" style="flex-shrink:0;" @click="startEdit()"
+                                :aria-label="$store.ui.lang==='en' ? 'Edit lesson' : 'Sunting pengajaran'">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+                        </button>
+                    </div>
+                </template>
+
+                <template x-if="editing">
+                    <div style="margin:0 0 14px;">
+                        <input x-model="editTitle" maxlength="200" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:15px;font-weight:600;margin-bottom:8px;outline:none;" />
+                        <textarea x-model="editBody" maxlength="5000" rows="5" style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;resize:vertical;outline:none;font-family:inherit;line-height:1.6;margin-bottom:8px;"></textarea>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" :disabled="busy" @click="saveEdit()"
+                                    x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                            <button type="button" style="height:36px;padding:0 16px;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--body);font-size:12.5px;font-weight:500;cursor:pointer;" @click="editing = false"
+                                    x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                        </div>
+                    </div>
+                </template>
 
                 <div style="display:flex;align-items:center;gap:9px;margin-bottom:18px;">
                     <span style="width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;background:{{ $e->employee?->avatar_color ?? '#3a6ea5' }};">{{ $e->employee?->initials ?? '–' }}</span>
@@ -35,7 +56,7 @@
                     </div>
                 </div>
 
-                <div style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
+                <div x-show="!editing" x-html="bodyHtml" style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;white-space:pre-wrap;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
 
                 @if (! empty($e->tags))
                     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:16px;">

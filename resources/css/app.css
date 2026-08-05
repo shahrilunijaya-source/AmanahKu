@@ -100,6 +100,32 @@ button, input, select, textarea { font: inherit; }
    same style attribute it toggles — it has to come from a class instead. */
 .kb-view-col { display: flex; flex-direction: column; height: 100%; }
 
+/* Knowledge Bank panel enter/leave (x-transition, since x-if unmounts the panel —
+   a CSS `animation` like .uj-slide only ever plays on enter). Same drawer curve
+   and timing as .uj-slide; leave is faster, matching the house asymmetric pattern
+   used elsewhere (uj-overlay-enter/leave, uj-guide-fade-enter/leave). */
+.kb-panel-enter { transition: transform 220ms cubic-bezier(.32,.72,0,1), opacity 220ms cubic-bezier(.32,.72,0,1); }
+.kb-panel-leave { transition: transform 180ms cubic-bezier(.32,.72,0,1), opacity 180ms cubic-bezier(.32,.72,0,1); }
+.kb-panel-start { opacity: 0; transform: translateX(24px); }
+.kb-panel-end { opacity: 1; transform: translateX(0); }
+.kb-scrim-enter { transition: opacity 200ms ease; }
+.kb-scrim-leave { transition: opacity 150ms ease; }
+.kb-scrim-start { opacity: 0; }
+.kb-scrim-end { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .kb-panel-enter, .kb-panel-leave { transition: opacity 150ms ease; }
+    .kb-panel-start, .kb-panel-end { transform: none; }
+}
+
+/* Knowledge Bank chip buttons (segment / sub-segment pickers) — every other
+   pill control in the app presses down on :active (.uj-seg, .tot-pillbtn,
+   .uj-dq-tray-chip); these were the one left silent under a tap. */
+.kb-chip { transition: transform 140ms ease-out; }
+.kb-chip:active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) {
+    .kb-chip:active { transform: none; }
+}
+
 /* Partial navigation (resources/js/partial-nav.js): the screen body dims while the
    next screen is being fetched. The sidebar and header are untouched, so only this
    region reacts. Kept slow to start so a fast swap never flickers. */
@@ -802,7 +828,7 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-scrim[data-open] { opacity: 1; }
 .wd {
     position: fixed; top: 0; right: 0; z-index: 61;
-    width: 560px; max-width: 94vw; height: 100vh;
+    width: 560px; max-width: 94vw; height: 100vh; height: 100dvh;
     background: var(--card); border-left: 1px solid var(--hairline);
     box-shadow: -14px 0 44px rgba(31,30,26,.12);
     display: flex; flex-direction: column;
@@ -926,7 +952,7 @@ select.wd-inline {
 /* Composer docks to the panel floor so the thread never hides it. */
 .wd-foot {
     position: relative; /* anchors .wd-ment, which floats above it */
-    flex-shrink: 0; border-top: 1px solid var(--hairline); padding: 12px 20px;
+    flex-shrink: 0; border-top: 1px solid var(--hairline); padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     display: flex; gap: 8px; align-items: flex-end; background: var(--card);
 }
 .wd-foot textarea {

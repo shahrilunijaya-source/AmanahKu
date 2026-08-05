@@ -10,6 +10,9 @@ export function registerKnowledgeCard(Alpine) {
         flyout: null,
         thread: null,
         busy: false,
+        editing: false,
+        editTitle: '',
+        editBody: '',
 
         get reactionTotal() {
             return Object.values(this.reactions).reduce((a, b) => a + b, 0);
@@ -64,6 +67,42 @@ export function registerKnowledgeCard(Alpine) {
 
         helpful() {
             return this.act(`/app/knowledge-bank/${this.id}/star`);
+        },
+
+        startEdit() {
+            this.editTitle = this.title;
+            this.editBody = this.body;
+            this.editing = true;
+        },
+
+        async saveEdit() {
+            if (this.busy || !this.editTitle.trim() || !this.editBody.trim()) return;
+            this.busy = true;
+            try {
+                const res = await fetch(`/app/knowledge-bank/${this.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'X-CSRF-TOKEN': this.token(),
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title: this.editTitle, body: this.editBody }),
+                });
+                if (!res.ok) throw new Error(res.status);
+                const payload = await res.json();
+                this.title = payload.title;
+                this.body = payload.body;
+                this.bodyHtml = document.createElement('div').appendChild(document.createTextNode(payload.body)).parentElement.innerHTML;
+                this.editing = false;
+            } catch (e) {
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en'
+                        ? 'That did not save. Try again.'
+                        : 'Tidak berjaya disimpan. Cuba lagi.'
+                );
+            } finally {
+                this.busy = false;
+            }
         },
 
         openDrawer() {

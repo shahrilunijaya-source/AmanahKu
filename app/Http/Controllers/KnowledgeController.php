@@ -43,9 +43,6 @@ class KnowledgeController extends Controller
     /** Unread / "New" window: entries newer than this count toward the badge. */
     private const NEW_DAYS = 30;
 
-    /** Recent entries surfaced in the slide-over panel feed. */
-    private const PANEL_LIMIT = 20;
-
     /** Entries per page on the full Knowledge Bank screen. */
     private const PAGE_SIZE = 20;
 
@@ -134,26 +131,23 @@ class KnowledgeController extends Controller
             return ['kbEnabled' => false];
         }
 
-        // Unread = recent entries this employee hasn't opened yet (drives the badge
-        // and the per-segment "New" counts on the panel chips).
+        // Unread count drives the header badge only — the panel no longer lists entries.
         $cutoff = now()->subDays(self::NEW_DAYS);
-        $unread = collect();
+        $unreadCount = 0;
         if ($employee) {
             // Subquery instead of pluck()->all(): the per-employee read-receipt list
             // grows monotonically and would otherwise be loaded into PHP on every render.
-            $unread = KnowledgeEntry::where('created_at', '>=', $cutoff)
+            $unreadCount = KnowledgeEntry::where('created_at', '>=', $cutoff)
                 ->whereNotIn('id', KnowledgeRead::where('employee_id', $employee->id)->select('entry_id'))
-                ->get(['id', 'seg_id']);
+                ->count();
         }
-        $unreadBySeg = $unread->groupBy('seg_id')->map->count();
 
-        // Load the one-level tree once; derive both the chip list (with per-segment
-        // unread counts) and the Add-lesson form tree (top level + sub-segments).
-        // Cached per tenant — segments change only via storeSegment(), which busts it.
-        // Cache plain arrays, never live models: the file store serialize()s the
-        // payload, and unserializing model objects breaks (__PHP_Incomplete_Class)
-        // when the entry outlives a code/autoload change.
-        $tree = Cache::remember(
+        // Add-lesson form tree (top level + sub-segments). Cached per tenant —
+        // segments change only via storeSegment(), which busts it. Cache plain
+        // arrays, never live models: the file store serialize()s the payload, and
+        // unserializing model objects breaks (__PHP_Incomplete_Class) when the
+        // entry outlives a code/autoload change.
+        $segmentsForm = Cache::remember(
             'kb:tree:'.$tenant->id,
             now()->addMinutes(10),
             fn () => KnowledgeSegment::whereNull('parent_id')
@@ -169,61 +163,16 @@ class KnowledgeController extends Controller
                 ])->values()->all(),
         );
 
-        $segments = array_map(fn (array $s) => [
-            'id' => $s['id'],
-            'label' => $s['label'],
-            'unread' => (int) ($unreadBySeg[$s['id']] ?? 0),
-        ], $tree);
-
-        // Already the ['id','label','children'] shape the form needs.
-        $segmentsForm = $tree;
-
-        $unreadIds = $unread->pluck('id')->all();
-
-        // The recent-entry list is tenant-wide (identical for every viewer), so cache it per
-        // tenant like kb:tree — it was an uncached 20-row query with 2 eager relations + 2
-        // withCounts on EVERY screen render (AK-PERF-01). isNew is per-employee, so it is
-        // layered on after the cache read. Busted by store()/storeSegment via forgetStatsCache.
-        $recentRaw = Cache::remember(
-            'kb:recent:'.$tenant->id,
-            now()->addMinutes(10),
-            fn () => KnowledgeEntry::with(['employee:id,name,initials,avatar_color,position', 'segment:id,label'])
-                ->withCount(['stars', 'comments'])
-                ->orderByDesc('id')
-                ->limit(self::PANEL_LIMIT)
-                ->get()
-                ->map(fn (KnowledgeEntry $e) => [
-                    'id' => $e->id,
-                    'seg_id' => $e->seg_id,
-                    'seg' => $e->segment?->label,
-                    'title' => $e->title,
-                    'body' => $e->body,
-                    'author' => $e->employee?->name ?? 'Unknown',
-                    'initials' => $e->employee?->initials ?? '–',
-                    'color' => $e->employee?->avatar_color ?? config('amanahku.avatar_color'),
-                    'dept' => $e->employee?->position,
-                    'date' => $e->created_at?->format('d M'),
-                    'stars' => (int) $e->stars_count,
-                    'comments' => (int) $e->comments_count,
-                ])->values()->all(),
-        );
-
-        $recent = array_map(
-            fn (array $e) => $e + ['isNew' => in_array($e['id'], $unreadIds, true)],
-            $recentRaw,
-        );
-
         $owes = $employee ? $this->owesLesson($employee) : false;
 
         return array_merge([
             'kbEnabled' => true,
             'kbCanSubmit' => (bool) $employee,
             'kbOwes' => $owes,
-            'kbUnread' => $unread->count(),
+            'kbUnread' => $unreadCount,
             'kbDaysLeft' => max(0, now()->daysInMonth - now()->day),
-            'kbSegmentsNav' => $segments,
             'kbSegmentsForm' => $segmentsForm,
-            'kbEntries' => $recent,
+            'kbPopular' => $this->popularEntries(),
         ], $this->stats('kb'), $this->monthLabels('kb'));
     }
 
@@ -269,6 +218,39 @@ class KnowledgeController extends Controller
         AuditLog::record('Shared a lesson', $entry->title);
 
         return back()->with('ok', 'Lesson shared with the company — "'.$entry->title.'".');
+    }
+
+    /** The author may edit their own entry's title/body/tags at any time. */
+    public function update(Request $request, KnowledgeEntry $entry): RedirectResponse|JsonResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+        abort_unless($entry->tenant_id === app(CurrentTenant::class)->id(), 403);
+        abort_unless($entry->employee_id === $employee->id, 403, 'You can only edit your own lesson.');
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:200'],
+            'body' => ['required', 'string', 'max:5000'],
+            'tags' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $tags = collect(explode(',', (string) ($data['tags'] ?? '')))
+            ->map(fn ($t) => trim($t))->filter()->values()->all();
+
+        $entry->update([
+            'title' => $data['title'],
+            'body' => $data['body'],
+            'tags' => $tags ?: null,
+        ]);
+
+        $this->forgetStatsCache();
+        AuditLog::record('Edited a lesson', $entry->title);
+
+        if ($request->expectsJson()) {
+            return response()->json(['title' => $entry->title, 'body' => $entry->body, 'tags' => $entry->tags]);
+        }
+
+        return back()->with('ok', 'Lesson updated.');
     }
 
     /** Create a segment (top-level by default; sub-segment when a parent is given). */
@@ -584,13 +566,41 @@ class KnowledgeController extends Controller
         return collect($raw)->mapWithKeys(fn ($v, $k) => [$key($k) => $v])->all();
     }
 
+    /**
+     * The 3 lessons the tenant found most useful — ranked by helpful stars +
+     * reactions, not recency. Uncached: it's a 3-row, index-backed query, and
+     * caching it would show stale ranks right after a star/react toggle.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function popularEntries(): array
+    {
+        return KnowledgeEntry::with(['employee:id,name,initials,avatar_color', 'segment:id,label'])
+            ->withCount(['stars', 'comments', 'reactions'])
+            ->orderByRaw('stars_count + reactions_count desc')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get()
+            ->map(fn (KnowledgeEntry $e) => [
+                'id' => $e->id,
+                'seg' => $e->segment?->label,
+                'title' => $e->title,
+                'body' => $e->body,
+                'author' => $e->employee?->name ?? 'Unknown',
+                'initials' => $e->employee?->initials ?? '–',
+                'color' => $e->employee?->avatar_color ?? config('amanahku.avatar_color'),
+                'stars' => (int) $e->stars_count,
+                'reactions' => (int) $e->reactions_count,
+                'comments' => (int) $e->comments_count,
+            ])->values()->all();
+    }
+
     /** Bust the cached chrome aggregates after a write that changes them. */
     private function forgetStatsCache(): void
     {
         $tenantId = app(CurrentTenant::class)->id();
         Cache::forget('kb:stats:'.$tenantId);
         Cache::forget('kb:tree:'.$tenantId);
-        Cache::forget('kb:recent:'.$tenantId);
     }
 
     /**
@@ -634,9 +644,9 @@ class KnowledgeController extends Controller
             ->where('submitted', true)
             ->pluck('employee_id')->all();
 
-        $members = Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color'])
+        $members = Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
             ->map(fn ($e) => [
-                'name' => $e->name,
+                'name' => $e->display_name,
                 'initials' => $e->initials,
                 'color' => $e->avatar_color,
                 'submitted' => in_array($e->id, $submittedIds, true),
