@@ -276,4 +276,22 @@ class HelpdeskTest extends TestCase
         $response->assertSessionHasErrors('attachments');
         $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
     }
+
+    public function test_non_feedback_category_ignores_posted_attachments(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->actingInTenant()->post('/app/helpdesk', [
+            'category' => 'IT',
+            'priority' => 'high',
+            'subject' => 'VPN keeps dropping',
+            'description' => 'My VPN disconnects every few minutes.',
+            'attachments' => [UploadedFile::fake()->image('screenshot.png')],
+        ]);
+
+        $response->assertRedirect();
+        $ticket = Ticket::withoutGlobalScopes()->latest('id')->first();
+        $this->assertNotNull($ticket);
+        $this->assertSame(0, $ticket->attachments()->count());
+    }
 }

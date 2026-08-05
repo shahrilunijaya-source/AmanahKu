@@ -131,19 +131,22 @@ class HelpdeskController extends Controller
 
         // Persist each file to the private disk and hang a row off the ticket. Storing
         // after the ticket exists keeps orphan files impossible if validation rejects the batch.
-        foreach ((array) $request->file('attachments', []) as $file) {
-            if (! $file || ! $file->isValid()) {
-                continue;
+        // Non-Bug/Idea categories never get attachments, mirroring page_url above.
+        if ($isFeedback) {
+            foreach ((array) $request->file('attachments', []) as $file) {
+                if (! $file || ! $file->isValid()) {
+                    continue;
+                }
+                $path = $file->store('ticket-attachments', self::ATTACHMENT_DISK);
+                abort_unless($path !== false, 500, 'Attachment could not be stored.');
+                $ticket->attachments()->create([
+                    'tenant_id' => $ticket->tenant_id,
+                    'path' => $path,
+                    'name' => $file->getClientOriginalName() ?: 'attachment',
+                    'mime' => $file->getClientMimeType(),
+                    'size' => $file->getSize() ?? 0,
+                ]);
             }
-            $path = $file->store('ticket-attachments', self::ATTACHMENT_DISK);
-            abort_unless($path !== false, 500, 'Attachment could not be stored.');
-            $ticket->attachments()->create([
-                'tenant_id' => $ticket->tenant_id,
-                'path' => $path,
-                'name' => $file->getClientOriginalName() ?: 'attachment',
-                'mime' => $file->getClientMimeType(),
-                'size' => $file->getSize() ?? 0,
-            ]);
         }
 
         AuditLog::record('Raised ticket', $data['subject'].' · '.$data['category']);
