@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\User;
+use App\Support\Features;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -543,5 +544,10 @@ class HelpdeskTest extends TestCase
 
         $response->assertRedirect();
         $this->assertSame('resolved', $ticket->fresh()->status);
+    }
+
+    public function test_helpdesk_module_defaults_on(): void
+    {
+        $this->assertTrue(Features::default('module.helpdesk'));
     }
 }

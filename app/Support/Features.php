@@ -152,7 +152,6 @@ class Features
         'module.cases',
         'module.learning',
         'module.expenses',
-        'module.helpdesk',
         'module.assets',
         'module.surveys',
         'module.sharedresources',
