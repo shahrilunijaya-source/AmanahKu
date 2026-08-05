@@ -102,7 +102,7 @@
 
     <div x-show="tab==='record'" x-cloak role="tabpanel">
 {{-- ===================== CAPTURE (per-day cards) ===================== --}}
-    <div class="uj-card" style="width:100%;padding:22px;position:relative;"
+    <div class="uj-card uj-ts-card" style="width:100%;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
             days: 5,
@@ -120,20 +120,20 @@
 
         {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
              scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
-        <div style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:20px 22px;margin:-4px -4px 18px;">
+        <div class="uj-ts-shelf" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;margin:-4px -4px 18px;">
             <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
-                <span style="font:600 46px/1 var(--font-mono);color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;"
+                <span class="uj-ts-shelf-figure" style="color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;"
                     x-text="Math.round(dayDates().filter(d=>!isOffDay(d)).reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, dayDates().filter(d=>!isOffDay(d)).length*100) * 100) + '%'">0%</span>
                 <span style="font-size:13.5px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'">of the week allocated</span>
             </div>
-            <div style="font-size:12.5px;color:var(--muted);margin-top:7px;" x-text="$store.ui.lang==='en' ? 'Every working day must reach 100% before the week can be submitted.' : 'Setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.'">Every working day must reach 100% before the week can be submitted.</div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+            <div class="uj-ts-shelf-hint" style="font-size:12.5px;color:var(--muted);margin-top:7px;" x-text="$store.ui.lang==='en' ? 'Every working day must reach 100% before the week can be submitted.' : 'Setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.'">Every working day must reach 100% before the week can be submitted.</div>
+            <div class="uj-ts-shelf-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+                <div class="uj-ts-shelf-stat" style="border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;display:flex;align-items:baseline;gap:7px;">
                     <b style="font:600 17px/1 var(--font-mono);color:var(--success-ink,#1f8a65);"
                        x-text="dayDates().filter(d=>!isOffDay(d) && ['done','locked'].includes(dayState(d))).length"></b>
                     <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'days at 100%' : 'hari pada 100%'">days at 100%</span>
                 </div>
-                <div style="background:var(--card,#fff);border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;padding:7px 12px;display:flex;align-items:baseline;gap:7px;">
+                <div class="uj-ts-shelf-stat" style="border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;display:flex;align-items:baseline;gap:7px;">
                     <b style="font:600 17px/1 var(--font-mono);color:var(--amber-ink,#c08532);"
                        x-text="dayDates().filter(d=>!isOffDay(d) && !['done','locked'].includes(dayState(d))).length"></b>
                     <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'left to fill' : 'lagi untuk diisi'">left to fill</span>
@@ -142,21 +142,21 @@
         </div>
 
         {{-- ---- Today header: the date opens the jump sheet; total + progress on the right ---- --}}
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-            <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0;">
+        <div class="uj-ts-day-head" style="display:flex;align-items:flex-start;gap:12px;">
+            <div class="uj-ts-day-nav-col" style="display:flex;flex-direction:column;min-width:0;">
                 <span x-show="selected === today" x-cloak style="font-size:11px;font-weight:600;color:var(--red);background:var(--red-tint);padding:3px 10px;border-radius:999px;margin-bottom:9px;"><span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span></span>
                 <div style="display:flex;align-items:center;gap:8px;">
                     <button type="button" @click="stepDay(-1)" :disabled="dayDates().indexOf(selected) <= 0"
                         :style="dayDates().indexOf(selected) <= 0 ? { opacity:.3, cursor:'not-allowed' } : {}"
-                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;"
+                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
                         :aria-label="$store.ui.lang==='en' ? 'Previous day' : 'Hari sebelumnya'">&larr;</button>
-                    <button type="button" @click="sheetOpen = true" style="display:inline-flex;align-items:center;gap:7px;border:0;background:none;padding:0;cursor:pointer;color:var(--ink);text-align:left;">
-                        <strong style="font-size:20px;font-weight:600;" x-text="dayLong(selected)"></strong>
-                        <span style="font-size:15px;color:var(--muted);">&#9662;</span>
+                    <button type="button" @click="sheetOpen = true" style="display:inline-flex;align-items:center;gap:7px;border:0;background:none;padding:0;cursor:pointer;color:var(--ink);text-align:left;min-width:0;">
+                        <strong class="uj-ts-day-name" style="font-weight:600;white-space:nowrap;" x-text="dayLong(selected)"></strong>
+                        <span style="font-size:15px;color:var(--muted);flex-shrink:0;">&#9662;</span>
                     </button>
                     <button type="button" @click="stepDay(1)" :disabled="dayDates().indexOf(selected) >= lastSelectableIndex()"
                         :style="dayDates().indexOf(selected) >= lastSelectableIndex() ? { opacity:.3, cursor:'not-allowed' } : {}"
-                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;"
+                        class="uj-btn-ghost" style="height:30px;width:30px;padding:0;font-size:13px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
                         :aria-label="$store.ui.lang==='en' ? 'Next day' : 'Hari seterusnya'">&rarr;</button>
                 </div>
                 <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
@@ -165,7 +165,7 @@
                  means. It used to read "100 / 100" with no unit, forty pixels from the
                  week's "20% of the week allocated" — two bare numbers measuring different
                  things. ---- --}}
-            <div style="text-align:right;flex:none;">
+            <div class="uj-ts-day-total">
                 <div style="font-size:22px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums;"
                     :style="{ color: { empty:'var(--muted)', partial:'var(--ink)', done:'var(--success-ink)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }"
                     x-text="dayTotal(selected) + '%'"></div>
@@ -271,8 +271,8 @@
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
                         <div class="uj-ts-row" :data-blank="isBlank(r) ? '1' : '0'"
                             style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">
-                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                                <span style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;">
+                            <div class="uj-ts-row-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <span class="uj-ts-row-label" style="min-width:0;display:flex;align-items:center;gap:10px;">
                                     <span style="width:8px;height:8px;border-radius:999px;flex:none;"
                                         :style="{ background: rowColour(i) }"></span>
                                     <span style="font-size:12.5px;color:var(--ink);line-height:1.35;" x-text="rowLabel(r)"></span>
@@ -288,17 +288,19 @@
                                         :style="isBlank(r) && isEditable(selected) ? { borderColor:'var(--amber)', background:'#fffaf0' } : {}" />
                                     <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--font-mono);font-size:12.5px;color:var(--muted);pointer-events:none;">%</span>
                                 </span>
+                                <button type="button" @click="openEditRow(i)" :disabled="!isEditable(selected)"
+                                    class="uj-btn-ghost" style="height:36px;padding:0 10px;"
+                                    :aria-label="($store.ui.lang==='en' ? 'Edit ' : 'Sunting ') + rowLabel(r)">&#9998;</button>
                                 <button type="button" @click="removeRow(i); save()" :disabled="!isEditable(selected)"
                                     class="uj-btn-ghost" style="height:36px;padding:0 10px;color:var(--error);"
                                     :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + rowLabel(r)">&times;</button>
                             </div>
-                            {{-- Optional free-text note: "what you actually did" for this line.
-                                 The column, validator and save/seed plumbing already round-trip
-                                 `description`; this is the only place it is exposed. --}}
-                            <input type="text" x-model="r.description" @blur="save()" maxlength="500"
-                                :disabled="!isEditable(selected)"
-                                :placeholder="$store.ui.lang==='en' ? 'Add a note (optional)' : 'Tambah nota (pilihan)'"
-                                style="width:100%;height:32px;margin-top:8px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;background:#fff;" />
+                            {{-- The note this line carries is rich HTML written through the
+                                 popup's Quill editor (see openEditRow()/confirmEntry()) — shown
+                                 read-only here so its own list/bold markup renders instead of
+                                 raw tags leaking into a plain input. Tap "Edit" to change it. --}}
+                            <div class="uj-markdown" x-show="r.description" x-cloak x-html="r.description"
+                                style="margin-top:8px;font-size:12px;padding:8px 10px;background:var(--canvas);border-radius:7px;"></div>
 
                             {{-- A line with no percentage says so, and blocks the week, instead of
                                  being dropped on the next save with nothing said. --}}
@@ -315,17 +317,17 @@
                                 <span style="font-size:11px;color:var(--muted);margin-right:2px;"
                                     x-text="$store.ui.lang==='en' ? 'Set to' : 'Tetapkan'"></span>
                                 <template x-for="pct in [100, 50, 25]" :key="pct">
-                                    <button type="button" @click="r.percentage = pct; save()"
+                                    <button type="button" @click="r.percentage = pct; save()" class="uj-ts-pill"
                                         style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
                                         x-text="pct + '%'"></button>
                                 </template>
                                 {{-- Names the amount and the line it lands on, and is absent when
                                      there is nothing left — the old day-level version set the last
                                      line to 0 whenever the day had already gone over 100%. --}}
-                                <button type="button" x-show="remainder(selected) > 0" @click="giveRemainder(r)"
+                                <button type="button" x-show="remainder(selected) > 0" @click="giveRemainder(r)" class="uj-ts-pill"
                                     style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--success);background:color-mix(in srgb, var(--success) 8%, #fff);color:var(--success-ink);font-size:11px;cursor:pointer;"
                                     x-text="($store.ui.lang==='en' ? 'Give it the ' : 'Beri baki ') + remainder(selected) + ($store.ui.lang==='en' ? '% left' : '%')"></button>
-                                <button type="button" @click="startSaveTemplate(r)"
+                                <button type="button" @click="startSaveTemplate(r)" class="uj-ts-pill"
                                     style="min-height:30px;padding:0 12px;margin-left:auto;border:1px dashed var(--hairline);border-radius:999px;background:none;color:var(--muted);font-size:11px;cursor:pointer;">
                                     <span x-text="$store.ui.lang==='en' ? 'Save this line as a template' : 'Simpan baris ini sebagai templat'"></span>
                                 </button>
@@ -419,15 +421,25 @@
                         style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
                         x-text="picker.step === 'category' ? '×' : '←'"></button>
                     <div style="flex:1;min-width:0;">
-                        <strong id="ts-picker-title" style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
+                        {{-- tabindex=-1 + outline:none: a script-focus target only, so a screen
+                             reader/keyboard user's position moves with each step instead of
+                             silently dropping to <body> when x-if swaps out the focused option
+                             row — see chooseStep()/chooseItem()/pickerBack() in
+                             timesheet-capture.js, which all focus this after changing step. --}}
+                        <strong id="ts-picker-title" tabindex="-1" style="display:block;outline:none;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
                             x-text="picker.step === 'category'
                                 ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
                                 : (picker.step === 'project'
                                     ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
-                                    : ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?'))"></strong>
-                        <span x-show="pickerTrail()" x-cloak
+                                    : (picker.step === 'sub'
+                                        ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
+                                        : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?')))"></strong>
+                        <span x-show="picker.step !== 'details' && pickerTrail()" x-cloak
                             style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                             x-text="pickerTrail()"></span>
+                        <span x-show="picker.step === 'details'" x-cloak class="uj-pill"
+                            style="display:inline-block;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--hairline-soft);color:var(--muted);"
+                            x-text="picker.pendingItem?.label"></span>
                     </div>
                 </div>
 
@@ -443,11 +455,13 @@
                     <template x-if="picker.step === 'category'">
                         <div style="display:flex;flex-direction:column;gap:5px;">
                             <template x-for="item in pinnedItems()" :key="item.key">
-                                <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0" @keydown.enter="chooseItem(item)"
+                                <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0"
+                                    @keydown.enter="chooseItem(item)" @keydown.space.prevent="chooseItem(item)"
+                                    class="uj-ts-opt" :data-disabled="isOnDay(item) ? '1' : '0'"
+                                    x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
                                     style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
-                                    :style="isOnDay(item)
-                                        ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
-                                        : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
+                                    :style="isOnDay(item) ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' } : {}">
+                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: categoryColour(item.category_id) }"></span>
                                     <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="item.label"></span>
                                     <span x-show="isOnDay(item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
                                         x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
@@ -489,15 +503,65 @@
                         </div>
                     </template>
                     <template x-for="opt in pickerOptions()" :key="opt.label">
-                        <div @click="chooseStep(opt)" role="button" :tabindex="opt.item && isOnDay(opt.item) ? -1 : 0" @keydown.enter="chooseStep(opt)"
+                        <div @click="chooseStep(opt)" role="button" :tabindex="opt.item && isOnDay(opt.item) ? -1 : 0"
+                            @keydown.enter="chooseStep(opt)" @keydown.space.prevent="chooseStep(opt)"
+                            class="uj-ts-opt" :data-disabled="opt.item && isOnDay(opt.item) ? '1' : '0'"
+                            x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
                             style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
-                            :style="opt.item && isOnDay(opt.item)
-                                ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' }
-                                : { background:'#fff', color:'var(--ink)', cursor:'pointer' }">
+                            :style="opt.item && isOnDay(opt.item) ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' } : {}">
+                            <span x-show="picker.step === 'category'" x-cloak style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: categoryColour(opt.c?.id) }"></span>
                             <span style="flex:1;font-size:12.5px;min-width:0;" x-text="opt.label"></span>
                             <span x-show="opt.item && isOnDay(opt.item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
                                 x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
                             <span x-show="!opt.item" x-cloak style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                        </div>
+                    </template>
+
+                    {{-- Final step: percentage + a rich-text note, then Submit adds (or
+                         saves, when editing an existing row) the line. Everything the add
+                         flow needs now happens inside this one popup. ---- --}}
+                    <template x-if="picker.step === 'details'">
+                        <div x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
+                            style="display:flex;flex-direction:column;gap:14px;">
+                            {{-- The percentage is this step's one figure — the same 26px tabular
+                                 mono weight the rest of the app reserves for "the one number a
+                                 screen exists to report" (docs/DESIGN.md), not the small 13px
+                                 row-editing size, so it reads as the decision this step asks for
+                                 rather than a form field lost among buttons. --}}
+                            <div style="background:var(--canvas);border-radius:10px;padding:14px 16px;">
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:9px;"
+                                    x-text="$store.ui.lang==='en' ? 'Percentage of the day' : 'Peratus hari'"></label>
+                                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                    <span style="position:relative;display:inline-block;flex-shrink:0;">
+                                        <input type="text" inputmode="decimal" x-model="picker.pendingPct" @input="clampPickerPct()"
+                                            :aria-label="$store.ui.lang==='en' ? 'Percentage of the day' : 'Peratus hari'"
+                                            style="width:118px;height:52px;padding:0 32px 0 14px;text-align:right;border:1px solid var(--hairline);border-radius:10px;font:600 26px/1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink);background:#fff;outline:none;" />
+                                        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font:600 18px/1 var(--font-mono);color:var(--muted);pointer-events:none;">%</span>
+                                    </span>
+                                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                        <template x-for="pct in [100, 50, 25]" :key="pct">
+                                            <button type="button" @click="picker.pendingPct = pct" class="uj-ts-pill"
+                                                style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
+                                                x-text="pct + '%'"></button>
+                                        </template>
+                                        <button type="button" x-show="remainder(selected) > 0" @click="picker.pendingPct = remainder(selected)" class="uj-ts-pill"
+                                            style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--success);background:color-mix(in srgb, var(--success) 8%, #fff);color:var(--success-ink);font-size:11px;cursor:pointer;"
+                                            x-text="($store.ui.lang==='en' ? 'Give it the ' : 'Beri baki ') + remainder(selected) + ($store.ui.lang==='en' ? '% left' : '%')"></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
+                                    x-text="$store.ui.lang==='en' ? 'Notes (optional)' : 'Nota (pilihan)'"></label>
+                                <div class="uj-ql" x-init="mountQuillEditor($el)"></div>
+                            </div>
+
+                            <button type="button" @click="confirmEntry()" class="uj-btn-primary" style="height:42px;font-size:13px;">
+                                <span x-text="picker.editingIndex != null
+                                    ? ($store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan')
+                                    : ($store.ui.lang==='en' ? 'Add entry' : 'Tambah entri')"></span>
+                            </button>
                         </div>
                     </template>
                 </div>
@@ -648,7 +712,7 @@
                                 <span style="font-family:var(--font-mono);color:var(--ink);">{{ rtrim(rtrim(number_format($entry->percentage, 2), '0'), '.') }}%</span>
                             </div>
                             @if ($entry->description)
-                                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">{!! $entry->description !!}</div>
+                                <div class="uj-markdown" style="font-size:11.5px;margin-top:2px;">{!! $entry->description !!}</div>
                             @endif
                         </div>
                     @endforeach

@@ -277,9 +277,11 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
    DESIGN.md's Do's list) — a class survives that toggle, an inline declaration doesn't. */
 .uj-dialog-overlay { display: flex; align-items: center; justify-content: center; }
 
-/* Rendered markdown inside a ticket description field (Str::markdown output). Resets block
-   margins to a tight vertical rhythm and matches the surrounding 13px/var(--body) text style
-   instead of falling back to browser default h1-h6/ul/code styling. */
+/* Rendered rich text: a ticket description (Str::markdown output) or a timesheet entry note
+   (sanitized HTML written through the Quill editor in timesheet-capture.js — same tag set,
+   HtmlSanitizer's allow-list mirrors Quill's output). Resets block margins to a tight
+   vertical rhythm and matches the surrounding 13px/var(--body) text style instead of falling
+   back to browser default h1-h6/ul/code styling. */
 .uj-markdown { font-size: 13px; color: var(--body); line-height: 1.55; }
 .uj-markdown > *:first-child { margin-top: 0; }
 .uj-markdown > *:last-child { margin-bottom: 0; }
@@ -295,6 +297,29 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-markdown a { color: var(--red); text-decoration: none; }
 .uj-markdown a:hover { text-decoration: underline; }
 .uj-markdown blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--hairline); color: var(--muted); }
+
+/* Quill (timesheet entry note editor, timesheet-capture.js mountQuillEditor()) retheme:
+   the snow theme's default blue-grey chrome doesn't belong on the warm-paper canvas, so
+   its border/icon colours are pulled onto the existing hairline/muted/red tokens instead
+   of introducing a Quill-specific palette. */
+.uj-ql .ql-toolbar.ql-snow { border: 1px solid var(--hairline); border-radius: 9px 9px 0 0; border-bottom: none; background: var(--canvas); }
+.uj-ql .ql-container.ql-snow { border: 1px solid var(--hairline); border-radius: 0 0 9px 9px; font-family: inherit; font-size: 12.5px; }
+.uj-ql .ql-editor { min-height: 90px; color: var(--ink); }
+.uj-ql .ql-editor.ql-blank::before { color: var(--muted-soft); font-style: normal; }
+.uj-ql .ql-snow .ql-stroke { stroke: var(--muted); }
+.uj-ql .ql-snow .ql-fill { fill: var(--muted); }
+.uj-ql .ql-snow .ql-picker { color: var(--muted); }
+.uj-ql .ql-snow .ql-toolbar button:hover, .uj-ql .ql-snow .ql-toolbar button.ql-active { color: var(--red); }
+.uj-ql .ql-snow .ql-toolbar button:hover .ql-stroke, .uj-ql .ql-snow .ql-toolbar button.ql-active .ql-stroke { stroke: var(--red); }
+.uj-ql .ql-snow .ql-toolbar button:hover .ql-fill, .uj-ql .ql-snow .ql-toolbar button.ql-active .ql-fill { fill: var(--red); }
+.uj-ql .ql-snow .ql-toolbar button { border-radius: 6px; transition: background .12s ease, color .12s ease; }
+.uj-ql .ql-snow .ql-toolbar button:hover { background: var(--canvas); }
+.uj-ql .ql-snow .ql-toolbar button.ql-active { background: var(--red-tint); }
+.uj-ql .ql-snow .ql-formats { position: relative; margin-right: 12px !important; padding-right: 12px; }
+.uj-ql .ql-snow .ql-formats:not(:last-child)::after { content: ''; position: absolute; right: 0; top: 2px; bottom: 2px; width: 1px; background: var(--hairline); }
+@media (prefers-reduced-motion: reduce) {
+    .uj-ql .ql-snow .ql-toolbar button { transition: none; }
+}
 
 /* ── Modal/drawer open motion (claims "New claim" overlay et al) ──
    Alpine x-transition class hooks: enter/leave share the same from/to states so a
@@ -2987,4 +3012,79 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 }
 @media (prefers-reduced-motion: reduce) {
     .uj-ts-tools { transition-duration: .01ms; }
+}
+
+/* ── Timesheet capture: add-entry popup polish ──
+   The picker's option rows and quick-set pills were plain bordered divs with zero press/hover
+   feedback — the drill-down felt inert rather than responsive. These add the same press-scale
+   the rest of the app's buttons already carry (.uj-btn-primary/.uj-btn-ghost), plus a hover
+   wash, without introducing a new visual language. */
+/* background/color/cursor for the enabled state live here, not in the row's Alpine :style
+   binding — an inline style (even a reactive :style-bound one) always outranks a stylesheet
+   :hover rule, so setting background:#fff inline made this hover rule a no-op until that
+   binding was narrowed to the disabled case only (see timesheets.blade.php). */
+.uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
+.uj-ts-opt:not([data-disabled="1"]):hover { background: var(--canvas); border-color: var(--muted-soft); }
+.uj-ts-opt:not([data-disabled="1"]):active { transform: scale(0.98); }
+
+.uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
+.uj-ts-pill:hover { border-color: var(--muted-soft); }
+.uj-ts-pill:active { transform: scale(0.97); }
+
+/* Step-to-step transition inside the already-open popup (category → project → sub → details,
+   and Back): each step used to swap in with zero bridge, the #1 "plain" complaint. Fade +
+   4px settle on the house curve — under the 150ms control-state budget, so it reads as
+   responsive rather than decorated. */
+.uj-ts-step-enter { transition: opacity .15s var(--ease), transform .15s var(--ease); }
+.uj-ts-step-enter-start { opacity: 0; transform: translateY(4px); }
+.uj-ts-step-enter-end { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .uj-ts-opt, .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
+    .uj-ts-opt:active, .uj-ts-pill:active { transform: none; }
+    .uj-ts-step-enter { transition: opacity .15s ease; }
+    .uj-ts-step-enter-start, .uj-ts-step-enter-end { transform: none; }
+}
+
+/* ── Timesheet capture: mobile declutter ──
+   Base rules match the desktop values that used to be inline; the inline attributes were
+   removed from these specific properties so the 480px overrides below can actually win —
+   an inline style always outranks a media-query rule at any specificity. */
+.uj-ts-card { padding: 22px; }
+.uj-ts-shelf { padding: 20px 22px; }
+.uj-ts-shelf-figure { font: 600 46px/1 var(--font-mono); }
+.uj-ts-shelf-stat { background: var(--card, #fff); padding: 7px 12px; }
+.uj-ts-day-name { font-size: 20px; }
+.uj-ts-day-head { justify-content: space-between; }
+.uj-ts-day-nav-col { align-items: flex-start; }
+.uj-ts-day-total { flex: none; text-align: right; }
+@media (max-width: 480px) {
+    /* Card padding and the shelf's giant figure are the two biggest vertical-space eaters
+       on a phone; both shrink without losing legibility. The "every working day must reach
+       100%" sentence is dropped here specifically — the day strip + row states already say
+       the same thing, and reclaiming that line matters more on a 375px screen than restating it. */
+    .uj-ts-card { padding: 16px; }
+    .uj-ts-shelf { padding: 14px 16px; }
+    .uj-ts-shelf-figure { font: 600 32px/1 var(--font-mono); }
+    .uj-ts-shelf-hint { display: none; }
+    .uj-ts-shelf-stats { gap: 16px; margin-top: 10px !important; }
+    .uj-ts-shelf-stat { background: none; border: none !important; padding: 0; }
+    /* The day header used to force "Wednesday 5 Aug" and the day total onto the same row,
+       wrapping the heading mid-word once nav arrows + total both fought it for width. Letting
+       the total drop to its own full-width row (still right-aligned) fixes the wrap outright
+       instead of shrinking text until it happens to fit. */
+    .uj-ts-day-head { flex-wrap: wrap; }
+    .uj-ts-day-name { font-size: 17px; }
+    .uj-ts-day-total { flex: 1 1 100%; text-align: right; margin-top: 2px; }
+}
+.uj-ts-row-label { flex: 1; }
+@media (max-width: 400px) {
+    /* Below ~390px, category · project · sub-pillar labels (often 3+ segments) no longer fit
+       beside the percentage input + edit/remove buttons on one line — flex-shrink alone let the
+       label collapse into 2-3 lines of wrapped text sitting UNDER those controls instead of
+       properly displacing them, so the wrapped label visually collided with the input box.
+       flex:1 1 100% forces the label onto its own full-width row; the controls then wrap
+       cleanly to the row below via the existing flex-wrap on the parent. (This has to live in
+       the stylesheet, not the row's inline style="flex:1" — an inline flex shorthand sets
+       flex-basis:0% and no media query can out-rank an inline style, at any width.) */
+    .uj-ts-row-label { flex: 1 1 100%; }
 }

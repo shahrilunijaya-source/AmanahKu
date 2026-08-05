@@ -170,7 +170,7 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- rows ----------------------------------------------------------
-        addRow(item, percentage) {
+        addRow(item, percentage, description) {
             const iso = this.selected;
             if (!this.isEditable(iso)) return;
             if (!this.rows[iso]) this.rows[iso] = [];
@@ -178,7 +178,7 @@ export function registerTimesheetCapture(Alpine) {
                 category_id: item.category_id,
                 project_id: item.project_id || '',
                 sub_pillar_id: item.sub_pillar_id || '',
-                description: '',
+                description: description || '',
                 percentage: percentage != null ? percentage : this.remainder(iso),
             });
         },
@@ -231,6 +231,17 @@ export function registerTimesheetCapture(Alpine) {
         rowColour(i) {
             return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][i % 4];
         },
+        // A category's colour in the picker — stable per category (same category always shows
+        // the same dot), keyed by its position in the category list rather than its id, so the
+        // colour doesn't jump every time an id happens to change. Deliberately a SEPARATE
+        // palette lookup from rowColour(): that one distinguishes lines within a single day and
+        // must stay index-based (four fixed slots for up to four lines) — reusing it here by
+        // category id would let two different categories on the same day collide onto the same
+        // colour, which is exactly what rowColour() exists to prevent.
+        categoryColour(categoryId) {
+            const i = this.categories.findIndex((c) => String(c.id) === String(categoryId));
+            return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][Math.max(0, i) % 4];
+        },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
@@ -245,14 +256,47 @@ export function registerTimesheetCapture(Alpine) {
         // staffer already knows which category they want. Steps the data does not need are
         // skipped, so a standalone category is still one tap and a project with no
         // sub-pillars is still two.
-        picker: { open: false, step: 'category', category: null, project: null },
+        picker: {
+            open: false, step: 'category', category: null, project: null,
+            pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
+        },
 
         openPicker() {
-            this.picker = { open: true, step: 'category', category: null, project: null };
+            this.picker = {
+                open: true, step: 'category', category: null, project: null,
+                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
+            };
+        },
+        // Reopens the picker straight on the details step, pre-filled from an existing row,
+        // so editing a rich-text note goes through the same Quill instance that wrote it
+        // rather than a plain input that would show its raw HTML tags. Re-picking the
+        // category/project/sub-pillar is out of scope here — Back just cancels (see
+        // pickerBack()) rather than dropping the staffer into a re-pick of an item identity.
+        openEditRow(i) {
+            const r = this.rows[this.selected][i];
+            const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
+            const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
+            const sub = proj && (proj.sub_pillars || []).find((s) => String(s.id) === String(r.sub_pillar_id));
+            this.picker = {
+                open: true, step: 'details', category: null, project: null,
+                pendingItem: this.pickerItem(cat, proj, sub),
+                pendingPct: r.percentage, pendingDesc: r.description || '',
+                detailsFrom: null, editingIndex: i,
+            };
+            this.focusPickerTitle();
         },
         // One step back, or shut the picker when there is nowhere further back to go.
         pickerBack() {
-            if (this.picker.step === 'sub') {
+            if (this.picker.step === 'details') {
+                // Editing an existing row has no drill-down to return to — Back cancels.
+                if (this.picker.editingIndex != null) {
+                    this.closePicker();
+
+                    return;
+                }
+                this.picker.step = this.picker.detailsFrom || 'category';
+                this.picker.pendingItem = null;
+            } else if (this.picker.step === 'sub') {
                 this.picker.step = 'project';
                 this.picker.project = null;
             } else if (this.picker.step === 'project') {
@@ -260,7 +304,10 @@ export function registerTimesheetCapture(Alpine) {
                 this.picker.category = null;
             } else {
                 this.closePicker();
+
+                return;
             }
+            this.focusPickerTitle();
         },
         // Shared by every way the popup can shut (pick, back-out, Escape, backdrop click) so
         // keyboard/screen-reader focus always lands back on the button that opened it, instead
@@ -318,13 +365,20 @@ export function registerTimesheetCapture(Alpine) {
                 ...(p.sub_pillars || []).map((s) => ({ label: s.name, item: this.pickerItem(c, p, s) })),
             ];
         },
-        // The rows the current step offers.
+        // The rows the current step offers. Explicitly empty outside the three drill-down
+        // steps — the details step reads picker.project itself and would throw on a
+        // terminal category (no project chosen at all) if this fell through to pickerSubs().
         pickerOptions() {
             if (this.picker.step === 'category') return this.pickerCategories();
+            if (this.picker.step === 'project') return this.pickerProjects();
+            if (this.picker.step === 'sub') return this.pickerSubs();
 
-            return this.picker.step === 'project' ? this.pickerProjects() : this.pickerSubs();
+            return [];
         },
         // A row in any step: take the line if the choice is terminal, else go one step in.
+        // Alpine's x-if destroys the option row that had focus every time the step advances;
+        // without moving focus onward, a keyboard/screen-reader user's position silently
+        // drops to <body>. focusPickerTitle() re-anchors it on the new step's own heading.
         chooseStep(option) {
             if (option.item) {
                 this.chooseItem(option.item);
@@ -335,6 +389,13 @@ export function registerTimesheetCapture(Alpine) {
                 this.picker.project = option.p;
                 this.picker.step = 'sub';
             }
+            this.focusPickerTitle();
+        },
+        // Moves focus to the picker dialog's own step heading (tabindex="-1", script-focus
+        // only) — called after any step change so focus tracks the step instead of dropping
+        // to <body> when the previously-focused element is removed from the DOM.
+        focusPickerTitle() {
+            this.$nextTick(() => document.getElementById('ts-picker-title')?.focus());
         },
         // Saved templates (named, deletable) then recent combinations, pinned above the
         // first step as a one-tap shortcut past the whole drill-down.
@@ -352,6 +413,9 @@ export function registerTimesheetCapture(Alpine) {
 
             return [...templates, ...(this.items || [])];
         },
+        // Picking an item no longer adds the row straight away — it moves the picker to the
+        // details step (percentage + note), so the whole add flow lives in the one popup
+        // instead of leaving the staffer to fill percentage/description inline afterwards.
         chooseItem(item) {
             if (this.isOnDay(item)) return;
             // A template carries its own default percentage. Everything else takes whatever
@@ -360,9 +424,83 @@ export function registerTimesheetCapture(Alpine) {
             const pct = item.isTemplate && item.percentage != null
                 ? item.percentage
                 : this.remainder(this.selected);
-            this.addRow(item, pct);
+            this.picker.detailsFrom = this.picker.step;
+            this.picker.pendingItem = item;
+            this.picker.pendingPct = pct;
+            this.picker.pendingDesc = '';
+            this.picker.step = 'details';
+            this.focusPickerTitle();
+        },
+        // Percentage field on the details step is the same free-typed value as a row's own
+        // (clampPct works on a row object; this is the same clamp against picker.pendingPct).
+        clampPickerPct() {
+            const raw = String(this.picker.pendingPct ?? '').replace(/[^\d.]/g, '');
+            if (raw === '') {
+                this.picker.pendingPct = '';
+
+                return;
+            }
+            const n = parseFloat(raw);
+            this.picker.pendingPct = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+        },
+        // Details step Submit: either commits a new row (add flow) or writes back into the
+        // row being edited in place (openEditRow()), so one popup and one Quill instance
+        // serve both add and edit.
+        confirmEntry() {
+            if (!this.picker.pendingItem) return;
+            if (this.picker.editingIndex != null) {
+                const r = this.rows[this.selected][this.picker.editingIndex];
+                r.percentage = this.picker.pendingPct;
+                r.description = this.picker.pendingDesc;
+            } else {
+                this.addRow(this.picker.pendingItem, this.picker.pendingPct, this.picker.pendingDesc);
+            }
             this.closePicker();
             this.save();
+        },
+        // Quill mounts fresh each time the details step's x-if inserts its container (add or
+        // edit), and dynamic-imports itself + its stylesheet on first use rather than taxing
+        // every page's bundle for a component only this one step needs. The toolbar is
+        // deliberately narrower than Quill's defaults: it offers exactly the tags
+        // HtmlSanitizer keeps server-side (app/Support/HtmlSanitizer.php) — anything else
+        // (headings beyond h3, colour, alignment, tables) would be silently stripped on save,
+        // which reads as a bug, not a missing feature.
+        async mountQuillEditor(el) {
+            const [{ default: Quill }] = await Promise.all([
+                import('quill'),
+                import('quill/dist/quill.snow.css'),
+            ]);
+            const quill = new Quill(el, {
+                theme: 'snow',
+                placeholder: this.$store.ui.lang === 'en' ? 'What did you do?' : 'Apa yang anda buat?',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['blockquote', 'link'],
+                        ['clean'],
+                    ],
+                },
+            });
+            // The visible "Notes (optional)" <label> above isn't programmatically linked to
+            // Quill's contenteditable root (no for/id pairing exists for a rich-text editor),
+            // so its accessible name has to be set directly here.
+            quill.root.setAttribute('aria-label', this.$store.ui.lang === 'en' ? 'Notes (optional)' : 'Nota (pilihan)');
+            // dangerouslyPasteHTML (not root.innerHTML=) so Quill parses the markup into its
+            // own Delta model on load — a direct innerHTML assignment leaves Quill's internal
+            // state out of sync with the DOM, and Quill's own next reconciliation silently
+            // drops formatting it never registered, corrupting list markup on next save.
+            quill.clipboard.dangerouslyPasteHTML(this.picker.pendingDesc || '');
+            quill.on('text-change', () => {
+                this.picker.pendingDesc = quill.getText().trim() ? quill.root.innerHTML : '';
+            });
+            // Setting Quill's initial selection/range (above) focuses its contenteditable as
+            // a side effect of the browser's Selection API — that finishes well after
+            // focusPickerTitle() already ran (this whole method is behind a dynamic import),
+            // so it silently steals focus from the step heading a moment later. Re-asserting
+            // it here, last, is what actually wins: a keyboard/screen-reader user's focus
+            // should land on the new step, not get yanked into an editor they didn't ask for.
+            this.focusPickerTitle();
         },
 
         // ---- templates: save-as-template and delete, through the existing routes -------
