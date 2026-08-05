@@ -196,11 +196,16 @@ class HelpdeskController extends Controller
         return Storage::disk(self::ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
-    /** Privileged only: assign, move status, and record a resolution. */
+    /** Privileged only: assign, move status, and record a resolution. Bug/Idea tickets are superadmin-only to act on. */
     public function update(Request $request, Ticket $ticket): RedirectResponse
     {
-        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
         abort_unless($ticket->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        if (in_array($ticket->category, self::FEEDBACK_CATEGORIES, true)) {
+            abort_unless($request->user()->isSuperAdmin(), 403);
+        } else {
+            $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        }
 
         $tenantId = app(CurrentTenant::class)->id();
 

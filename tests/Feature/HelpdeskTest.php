@@ -485,4 +485,63 @@ class HelpdeskTest extends TestCase
         $this->assertNotContains('Bug I raised myself', $this->boardSubjects($data));
         $this->assertSame(['Bug I raised myself'], $data['myTickets']->pluck('subject')->all());
     }
+
+    // ── Superadmin-only triage for Bug/Idea ───────────────────────────
+
+    public function test_hr_cannot_triage_a_bug_ticket(): void
+    {
+        $hr = $this->hrActor();
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Needs superadmin',
+            'description' => 'x', 'status' => 'open',
+        ]);
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/helpdesk/{$ticket->id}", [
+                'status' => 'resolved', 'resolution' => 'Nice try.',
+            ]);
+
+        $response->assertForbidden();
+        $this->assertSame('open', $ticket->fresh()->status);
+    }
+
+    public function test_superadmin_can_triage_a_bug_ticket(): void
+    {
+        $superadmin = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $superadmin->forceFill(['is_super_admin' => true])->save();
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Idea', 'priority' => 'medium', 'subject' => 'Dark mode',
+            'description' => 'x', 'status' => 'open',
+        ]);
+
+        $response = $this->actingAs($superadmin)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/helpdesk/{$ticket->id}", [
+                'status' => 'resolved', 'resolution' => 'Shipped in 2.0.',
+            ]);
+
+        $response->assertRedirect();
+        $fresh = $ticket->fresh();
+        $this->assertSame('resolved', $fresh->status);
+        $this->assertSame('Shipped in 2.0.', $fresh->resolution);
+    }
+
+    public function test_hr_still_triages_non_feedback_tickets(): void
+    {
+        $hr = $this->hrActor();
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'IT', 'priority' => 'high', 'subject' => 'Broken laptop',
+            'description' => 'x', 'status' => 'open',
+        ]);
+
+        $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/helpdesk/{$ticket->id}", [
+                'status' => 'resolved', 'resolution' => 'Replaced.',
+            ]);
+
+        $response->assertRedirect();
+        $this->assertSame('resolved', $ticket->fresh()->status);
+    }
 }
