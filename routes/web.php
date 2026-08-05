@@ -17,7 +17,6 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\HandbookController;
@@ -317,12 +316,6 @@ Route::middleware('auth')->group(function () {
         // Disciplinary & grievance cases (confidential, privileged-only)
         Route::post('/app/cases', [CaseController::class, 'store'])->name('cases.store');
         Route::post('/app/cases/{case}', [CaseController::class, 'update'])->name('cases.update');
-        // Feedback hub (report a bug / suggest an idea) — pinned in the sidebar, opens a modal.
-        Route::post('/app/feedback', [FeedbackController::class, 'store'])->middleware('throttle:20,1')->name('feedback.store');
-        // Feedback inbox triage — management/HR move an item along its lifecycle.
-        Route::post('/app/feedback/{feedback}/status', [FeedbackController::class, 'setStatus'])->name('feedback.status');
-        // Stream a report's screenshot/document — auth-gated (reporter or inbox viewer), never public.
-        Route::get('/app/feedback/attachments/{attachment}', [FeedbackController::class, 'attachment'])->name('feedback.attachment');
         // Profile test (self-service personality instrument) + HR question editor
         Route::post('/app/profile-test', [ProfileTestController::class, 'submit'])->name('profile-test.submit');
         Route::post('/app/profile-test/questions', [ProfileTestController::class, 'storeQuestion'])->name('profile-test.questions.store');

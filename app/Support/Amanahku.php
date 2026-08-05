@@ -158,7 +158,6 @@ class Amanahku
                 // Management/HR only: the report carries salary-derived RM cost, so it is
                 // gated tighter than its siblings (AppController::screen mirrors this).
                 ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
-                ['id' => 'feedback', 'label' => 'Feedback Inbox', 'label_ms' => 'Peti Maklum Balas'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
                 // Read-only view of everyone's profile-test answers. Rows are scoped in
                 // ProfileTestController::resultsData — a manager sees only their own staff.
@@ -377,7 +376,6 @@ class Amanahku
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],
             'roles' => ['title' => 'Roles & Permissions', 'title_ms' => 'Peranan & Kebenaran', 'sub' => 'Assign access roles to workspace members.', 'sub_ms' => 'Tetapkan peranan akses kepada ahli ruang kerja.', 'crumb' => ['Administration', 'Roles & Permissions']],
-            'feedback' => ['title' => 'Feedback Inbox', 'title_ms' => 'Peti Maklum Balas', 'sub' => 'Bug reports and ideas staff sent through the sidebar — triage each through to done.', 'sub_ms' => 'Laporan pepijat dan idea yang dihantar staf melalui bar sisi — saring setiap satu hingga selesai.', 'crumb' => ['Reports & Audit', 'Feedback Inbox']],
             'audit' => ['title' => 'Audit Logs', 'title_ms' => 'Log Audit', 'sub' => 'Recent administrative and approval activity.', 'sub_ms' => 'Aktiviti pentadbiran dan kelulusan terkini.', 'crumb' => ['Reports & Audit', 'Audit Logs']],
             'security' => ['title' => 'Account Security', 'title_ms' => 'Keselamatan Akaun', 'sub' => 'Two-factor authentication and sign-in protection.', 'sub_ms' => 'Pengesahan dua faktor dan perlindungan log masuk.', 'crumb' => ['Account', 'Security']],
             'updates' => ['title' => "What's New", 'title_ms' => 'Apa Baharu', 'sub' => 'Release notes and product updates.', 'sub_ms' => 'Nota keluaran dan kemas kini produk.', 'crumb' => ["What's New"]],
@@ -460,7 +458,6 @@ class Amanahku
             'Company Settings' => 'Tetapan Syarikat',
             'Roles & Permissions' => 'Peranan & Kebenaran',
             'Reports & Audit' => 'Laporan & Audit',
-            'Feedback Inbox' => 'Peti Maklum Balas',
             'Audit Logs' => 'Log Audit',
             'Account' => 'Akaun',
             'Security' => 'Keselamatan',

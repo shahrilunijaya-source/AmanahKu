@@ -164,7 +164,7 @@ class AppController extends Controller
         // from the quick-action dock) open to management, HR, and immediate superiors —
         // anyone who oversees other staff. 'audit' moved here from admin-only so the
         // manager role can reach the Audit Logs alongside the two reports.
-        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'feedback', 'profile-test-results'], true)) {
+        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results'], true)) {
             abort_unless(Permissions::canSeeAll($employee, $role), 403);
         }
         // Probation tracking also covers managers (their own new hires).
@@ -367,7 +367,6 @@ class AppController extends Controller
                     ->map(fn ($g) => $g->pluck('granted', 'permission')),
             ],
             'setup' => app(SetupController::class)->screenData($request),
-            'feedback' => app(FeedbackController::class)->screenData($request),
             'audit' => ['logs' => AuditLog::latest()->take(50)->get()],
             'roster' => app(RosterController::class)->screenData($request, $employee),
             'documents' => app(DocumentController::class)->screenData($request, $employee),
