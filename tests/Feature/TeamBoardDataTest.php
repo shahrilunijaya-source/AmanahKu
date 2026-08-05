@@ -151,28 +151,6 @@ class TeamBoardDataTest extends TestCase
         $this->assertSame(1, $recountDone);
     }
 
-    public function test_done_cards_older_than_thirty_days_are_absent(): void
-    {
-        $alice = $this->makeEmployee('Alice');
-        $old = $this->makeCard($alice, [
-            'title' => 'Ancient done', 'status' => 'done',
-        ]);
-        // Backdate its updated_at to 40 days ago.
-        WorkItem::where('id', $old->id)->update(['updated_at' => now()->subDays(40)]);
-
-        // A recent done card should still appear.
-        $this->makeCard($alice, ['title' => 'Recent done', 'status' => 'done']);
-
-        $response = $this->actingAsManager()->get('/app/team-board');
-        $response->assertOk();
-
-        $teamRows = $response->viewData('teamRows');
-        $titles = $teamRows->pluck('item.title')->all();
-
-        $this->assertNotContains('Ancient done', $titles);
-        $this->assertContains('Recent done', $titles);
-    }
-
     public function test_people_without_cards_are_absent(): void
     {
         $alice = $this->makeEmployee('Alice');

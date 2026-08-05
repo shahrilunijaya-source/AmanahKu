@@ -35,7 +35,7 @@
     ],
 ])
 
-<div x-data="workBoard(@js($boardType), @js($people ?? []), @js($labelDef), @js($deepLinkCardId ?? null))"
+<div x-data="workBoard(@js($boardType), @js($people ?? []), @js($labelDef), @js($deepLinkCardId ?? null), @js($archivedCount ?? 0))"
      @if ($deepLinkCardId ?? null) data-deep-link-card="{{ $deepLinkCardId }}" @endif>
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
@@ -44,7 +44,7 @@
                     :style="filter === '{{ $fk }}'
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
-                    style="padding:7px 14px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;">
+                    style="padding:7px 14px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">
                 <span x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                 <span x-text="counts['{{ $fk }}']" style="font-size:11px;opacity:.7;font-family:var(--font-mono);"></span>
             </button>
@@ -54,7 +54,7 @@
                     :style="filtersOpen || activeFilterCount > 0
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
-                    style="padding:7px 13px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;">
+                    style="padding:7px 13px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">
                 <span x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</span>
                 <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount"
                       style="min-width:16px;height:16px;line-height:16px;text-align:center;font-size:10.5px;font-family:var(--font-mono);background:rgba(255,255,255,.28);border-radius:9999px;padding:0 4px;"></span>
@@ -75,7 +75,7 @@
                         :style="labelFilter === '{{ $lk }}'
                             ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' }
                             : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
-                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;">{{ $lname }}</button>
+                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">{{ $lname }}</button>
             @endforeach
         </div>
 
@@ -96,6 +96,12 @@
                 <div style="display:flex;align-items:center;gap:8px;padding:0 4px 12px;">
                     <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $col['title'] }}</span>
                     <span data-count="{{ $key }}" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 8px;border-radius:9999px;">{{ $col['cards']->count() }}</span>
+                    @if ($key === 'done' && $employee)
+                        <button type="button" @click="openArchived()" x-show="archivedCount > 0" x-cloak
+                                style="margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:transparent;cursor:pointer;text-decoration:underline;padding:0;">
+                            <span x-text="($store.ui.lang==='en' ? 'Archived' : 'Diarkibkan') + ' (' + archivedCount + ')'"></span>
+                        </button>
+                    @endif
                 </div>
 
                 <div data-list="{{ $key }}" style="display:flex;flex-direction:column;gap:10px;min-height:24px;">
@@ -166,6 +172,9 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div class="wd-menu" x-show="drawer.menuOpen" x-cloak @click.outside="drawer.menuOpen = false" role="menu">
+                        <button type="button" role="menuitem" x-show="!drawer.locked && drawer.card.status === 'done'" @click="drawer.menuOpen = false; archiveCard()">
+                            <span x-text="$store.ui.lang==='en' ? 'Archive card' : 'Arkibkan kad'">Archive card</span>
+                        </button>
                         <button type="button" role="menuitem" class="is-danger" x-show="!drawer.locked" @click="drawer.menuOpen = false; deleteCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Delete card' : 'Padam kad'">Delete card</span>
                         </button>
@@ -358,6 +367,40 @@
                 <button type="button" class="uj-btn-primary wd-post" @click="addComment()">
                     <span x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</span>
                 </button>
+            </div>
+        </aside>
+    </div>
+    </template>
+
+    {{-- Archived-cards panel: reached only from the Done column's "Archived (N)"
+         link. A card lands here via archiveCard() (shake + fade, see work-board.js)
+         and leaves only through reopenCard(), which puts it back at To Do — the
+         one way back onto the board for something archived. --}}
+    <template x-teleport="body">
+    <div>
+        <div class="wd-scrim" x-show="archivedOpen" x-cloak :data-open="archivedOpen ? '' : null" @click="archivedOpen = false"></div>
+        <aside class="wd" x-show="archivedOpen" x-cloak :data-open="archivedOpen ? '' : null" style="max-width:420px;">
+            <div class="wd-head">
+                <span style="font-size:14px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Archived cards' : 'Kad diarkibkan'"></span>
+                <button type="button" class="wd-ico" style="margin-left:auto;" @click="archivedOpen = false" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="wd-body">
+                <template x-if="!archivedItems.length">
+                    <p style="font-size:13px;color:var(--muted-soft);" x-text="$store.ui.lang==='en' ? 'Nothing archived.' : 'Tiada yang diarkibkan.'"></p>
+                </template>
+                <template x-for="a in archivedItems" :key="a.id">
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
+                        <div style="flex:1;min-width:0;">
+                            <p style="font-size:13px;font-weight:600;color:var(--ink);margin:0 0 2px;text-wrap:pretty;" x-text="a.title"></p>
+                            <p style="font-size:11px;color:var(--muted);margin:0;" x-text="($store.ui.lang==='en' ? 'Archived ' : 'Diarkibkan ') + a.archived_at"></p>
+                        </div>
+                        <button type="button" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;" @click="reopenCard(a.id)">
+                            <span x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'"></span>
+                        </button>
+                    </div>
+                </template>
             </div>
         </aside>
     </div>

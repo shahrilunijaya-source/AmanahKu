@@ -96,7 +96,7 @@ Payroll is shipped **off** for the current scope. These rules apply if it is swi
 | Env | Branch | Host | URL |
 |-----|--------|------|-----|
 | **local** | `dev` | [Lerd](https://github.com/lerd-env/lerd) (Podman: PHP 8.5 FPM, MySQL, Redis, Mailpit) | **http://localhost:9100** |
-| **staging** | `main` | Hostinger Business, `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net |
+| **staging** | `staging` | Hostinger Business, `ssh amanahku`, `~/domains/amanahku-staging.myappsonline.net/public_html` | https://amanahku-staging.myappsonline.net |
 | **production** | GitLab `main` | DigitalOcean, devops-owned. **No developer shell.** | https://amanahku.unijaya.com |
 
 Staging and production are **not the same kind of host**. Staging is Hostinger shared, and
@@ -152,13 +152,15 @@ away.** The merge is done and does not need repeating.
 
 ```
 1. commit on dev                       (GitHub)
-2. PR dev → main                       (GitHub)
-3. ssh amanahku → git pull && bash deploy.sh     → staging
+2. git push origin dev:staging         (GitHub, no PR)
+3. ssh amanahku → git pull origin staging && bash deploy.sh   → staging
 4. test on staging
-5. git push gitlab main                          → devops release prod
+5. PR dev → main                       (GitHub, only after step 4 passes)
+6. git push gitlab main                          → devops release prod
 ```
 
-**Step 4 is the gate.** GitLab only ever receives code that already passed staging, which is
+**Step 4 is the gate.** It sits *before* the PR on purpose: reaching staging must not cost a
+merge into `main`, and `main` must never hold code that has not run in a real environment. GitLab only ever receives code that already passed staging, which is
 why `main` is not pushed to both remotes at once. Do not configure a dual push-URL; it would
 send untested commits to the repo production is built from.
 

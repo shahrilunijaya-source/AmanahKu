@@ -256,6 +256,58 @@ class WorkItemController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Archive a Done card off the board. Only Done cards may be archived — a card
+     * still in play has no "put it away" state. Reversible via restore(), unlike
+     * destroy(), so this is the safe alternative to deleting finished work.
+     */
+    public function archive(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->authorizeManage($request, $workItem, $employee);
+        abort_unless($workItem->status === 'done', 422, 'Only a Done card can be archived.');
+
+        $workItem->update(['archived_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** Bring an archived card back to the board, at To Do. */
+    public function restore(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->authorizeManage($request, $workItem, $employee);
+
+        $workItem->update([
+            'archived_at' => null,
+            'status' => 'todo',
+            'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
+        ]);
+
+        return response()->json(['ok' => true, 'html' => $this->cardHtml($workItem)]);
+    }
+
+    /** Archived cards on the current employee's board (own + participant), for the reopen list. */
+    public function archived(Request $request): JsonResponse
+    {
+        $employee = $this->employee($request);
+
+        $items = WorkItem::query()
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
+            ->whereNotNull('archived_at')
+            ->orderByDesc('archived_at')
+            ->get(['id', 'title', 'archived_at']);
+
+        return response()->json([
+            'items' => $items->map(fn (WorkItem $i) => [
+                'id' => $i->id,
+                'title' => $i->title,
+                'archived_at' => $i->archived_at?->format('d M Y'),
+            ])->values(),
+        ]);
+    }
+
     /** Add a comment to a card. */
     public function comment(Request $request, WorkItem $workItem): JsonResponse
     {

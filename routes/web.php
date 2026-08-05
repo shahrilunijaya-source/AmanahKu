@@ -17,7 +17,6 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\HandbookController;
@@ -136,7 +135,7 @@ Route::middleware('auth')->group(function () {
     // Everything inside the shell is tenant-scoped. company.active blocks suspended/
     // expired companies; module.enabled 404s any /app/* path (screen OR write route)
     // whose owning module is disabled for the tenant.
-    Route::middleware(['tenant', 'company.active', 'not.archived', 'observer.readonly', 'module.enabled'])->group(function () {
+    Route::middleware(['tenant', 'company.active', 'not.archived', 'module.enabled'])->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
@@ -192,8 +191,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/reviews/{review}/rate', [ReviewController::class, 'rate'])->name('reviews.rate');
         Route::post('/app/board', [WorkItemController::class, 'store'])->name('work.store');
         Route::post('/app/board/assign/{employee}', [WorkItemController::class, 'assign'])->name('work.assign');
+        // Ahead of the {workItem} show route below — otherwise "archived" would bind as an id.
+        Route::get('/app/board/archived', [WorkItemController::class, 'archived'])->name('work.archived');
         Route::get('/app/board/{workItem}', [WorkItemController::class, 'show'])->name('work.show');
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
+        Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
+        Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
         Route::patch('/app/board/{workItem}', [WorkItemController::class, 'update'])->name('work.update');
         Route::delete('/app/board/{workItem}', [WorkItemController::class, 'destroy'])->name('work.destroy');
         // AI Workforce Intelligence — "Apply" a recommendation as an in-app nudge (privileged only).
@@ -271,8 +274,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/surveys/{survey}/respond', [SurveyController::class, 'respond'])->name('surveys.respond');
         Route::post('/app/surveys/{survey}/close', [SurveyController::class, 'close'])->name('surveys.close');
         // Helpdesk / IT tickets
-        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->name('helpdesk.store');
+        // 20/min per user — carried over from the retiring feedback.store route. This modal is
+        // on every screen and takes uploads, so it stays rate-limited.
+        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->middleware('throttle:20,1')->name('helpdesk.store');
         Route::post('/app/helpdesk/{ticket}', [HelpdeskController::class, 'update'])->name('helpdesk.update');
+        // Stream a ticket's screenshot/document — auth-gated (raiser or an appropriate viewer), never public.
+        Route::get('/app/helpdesk/attachments/{attachment}', [HelpdeskController::class, 'attachment'])->name('helpdesk.attachment');
         // Shared company resources (Gmail, Canva, WhatsApp, inhouse system, etc.) —
         // all staff view via the screen; privileged roles (manager/management/hr) maintain.
         Route::post('/app/shared-resources', [SharedResourceController::class, 'store'])->name('shared-resources.store');
@@ -309,12 +316,6 @@ Route::middleware('auth')->group(function () {
         // Disciplinary & grievance cases (confidential, privileged-only)
         Route::post('/app/cases', [CaseController::class, 'store'])->name('cases.store');
         Route::post('/app/cases/{case}', [CaseController::class, 'update'])->name('cases.update');
-        // Feedback hub (report a bug / suggest an idea) — pinned in the sidebar, opens a modal.
-        Route::post('/app/feedback', [FeedbackController::class, 'store'])->middleware('throttle:20,1')->name('feedback.store');
-        // Feedback inbox triage — management/HR move an item along its lifecycle.
-        Route::post('/app/feedback/{feedback}/status', [FeedbackController::class, 'setStatus'])->name('feedback.status');
-        // Stream a report's screenshot/document — auth-gated (reporter or inbox viewer), never public.
-        Route::get('/app/feedback/attachments/{attachment}', [FeedbackController::class, 'attachment'])->name('feedback.attachment');
         // Profile test (self-service personality instrument) + HR question editor
         Route::post('/app/profile-test', [ProfileTestController::class, 'submit'])->name('profile-test.submit');
         Route::post('/app/profile-test/questions', [ProfileTestController::class, 'storeQuestion'])->name('profile-test.questions.store');
@@ -329,6 +330,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/knowledge-bank', [KnowledgeController::class, 'store'])->name('knowledge.store');
         Route::post('/app/knowledge-bank/segments', [KnowledgeController::class, 'storeSegment'])->name('knowledge.segments');
         Route::post('/app/knowledge-bank/read-all', [KnowledgeController::class, 'markAllRead'])->name('knowledge.read');
+        Route::put('/app/knowledge-bank/{entry}', [KnowledgeController::class, 'update'])->name('knowledge.update');
         Route::post('/app/knowledge-bank/{entry}/star', [KnowledgeController::class, 'toggleStar'])->name('knowledge.star');
         Route::post('/app/knowledge-bank/{entry}/react', [KnowledgeController::class, 'react'])->name('knowledge.react');
         Route::get('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'commentsList'])->name('knowledge.comments.list');

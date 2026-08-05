@@ -44,8 +44,6 @@
              prefix alone and drops the standard property, which the browsers we
              target do not implement. Inline styles skip that pass. --}}
         <div class="uj-hd-fade" style="backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);"></div>
-        @include('partials.ios-install')
-        @include('partials.enable-alerts')
         @endunless
 
         {{-- Scrollable body. The page title block lives INSIDE it now: it used to be
@@ -65,6 +63,16 @@
         @endphp
         <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $isFull ? 'uj-main--full' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
+                {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
+                     siblings of <main>. The header is position:absolute, so it takes no flow
+                     space: a banner placed above <main> started at y=0 and the opaque header
+                     painted over its top 56px, swallowing the title line and eating the taps.
+                     The stack's own padding-top is the header clearance, and its gap gives the
+                     spacing, so the banners now sit fully visible with the profile banner. --}}
+                @unless ($embed)
+                    @include('partials.ios-install')
+                    @include('partials.enable-alerts')
+                @endunless
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
                 {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
@@ -166,7 +174,7 @@
             @include('partials.messages-panel')
         @endif
         @include('partials.welcome')
-        @include('partials.feedback')
+        @include('partials.ticket-raise')
     @endunless
 </div>
 
@@ -204,19 +212,6 @@
                 this.lang = l;
                 localStorage.setItem('amanahku-lang', l);
                 document.cookie = 'amanahku-lang=' + l + ';path=/;max-age=31536000;samesite=lax';
-            },
-        });
-
-        // What's New: the badge shows whenever the user hasn't seen the latest changelog
-        // version. `latest` comes straight from config/changelog.php, so bumping the config
-        // re-triggers the badge for everyone automatically. markSeen() clears it on view.
-        Alpine.store('changelog', {
-            latest: @js(config('changelog.releases.0.version')),
-            seen: localStorage.getItem('amanahku-changelog-seen'),
-            get unseen() { return this.latest && this.seen !== this.latest; },
-            markSeen() {
-                this.seen = this.latest;
-                localStorage.setItem('amanahku-changelog-seen', this.latest);
             },
         });
 

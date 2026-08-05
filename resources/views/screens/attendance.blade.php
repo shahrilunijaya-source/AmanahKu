@@ -35,14 +35,6 @@
     $wwH = intdiv($weekWorkedMinutes, 60);
     $wwM = sprintf('%02d', $weekWorkedMinutes % 60);
     $weekWorkedStr = "{$wwH}h {$wwM}m";
-
-    $deltaSign = $weekBaselineDeltaMinutes >= 0 ? '+' : '−';
-    $absDelta = abs($weekBaselineDeltaMinutes);
-    $deltaH = intdiv($absDelta, 60);
-    $deltaM = $absDelta % 60;
-    $deltaStr = $deltaH > 0
-        ? "{$deltaSign}{$deltaH}h " . sprintf('%02dm', $deltaM)
-        : "{$deltaSign}{$deltaM}m";
 @endphp
 
 @section('screen')
@@ -87,6 +79,11 @@
               // Off-site punch was blocked for a missing selfie (client gate + server backstop).
               photoReq: {{ $errors->has('photo') ? 'true' : 'false' }},
               camOpen: false,
+              // The sheet is gating a punch (reason + selfie together) rather than just
+              // attaching a photo someone asked for.
+              sheetNeed: false,
+              // Coordinates the sheet's punch is for. Both null = a no-location punch.
+              sheetFix: null,
               stream: null,
               camError: '',
               camNotice: '',
@@ -105,9 +102,9 @@
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
               radius: {{ $site?->radiusM ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
-              workStart: '{{ $site?->workStart ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
               geoError: '',
+              geoShort: '',
               geoDetail: '',
               // [type, label, lat, lng, radius] for every geofenced branch and client site.
               sites: @js($geofencedSites ?? []),
@@ -118,9 +115,6 @@
               noteOpen: {{ (session('attendance_justify') || $errors->has('justification') || old('justification', '')) ? 'true' : 'false' }},
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
-              leadStr: '',
-              leadWordEn: '',
-              leadWordMs: '',
               init() {
                   this.tick();
                   setInterval(() => this.tick(), 1000);
@@ -172,23 +166,6 @@
                       const h = Math.floor(worked / 60);
                       const m = worked % 60;
                       this.elapsedWorked = h + 'h ' + String(m).padStart(2, '0') + 'm';
-                  }
-
-                  if (this.workStart) {
-                      const p = this.workStart.split(':');
-                      const startMins = Number(p[0]) * 60 + Number(p[1]);
-                      const diff = startMins - nowMins;
-                      const absDiff = Math.abs(diff);
-                      const h = Math.floor(absDiff / 60);
-                      const m = absDiff % 60;
-                      this.leadStr = h > 0 ? (h + 'h ' + String(m).padStart(2, '0') + 'm') : (m + 'm');
-                      if (diff >= 0) {
-                          this.leadWordEn = 'early';
-                          this.leadWordMs = 'awal';
-                      } else {
-                          this.leadWordEn = 'late';
-                          this.leadWordMs = 'lewat';
-                      }
                   }
               },
               /**
@@ -274,20 +251,24 @@
                   // null for a deliberate no-location punch, which is why resuming reuses them
                   // but submit() will not (see both guards).
                   this.lastFix = { lat: noFix ? null : lat, lng: noFix ? null : lng, at: Date.now() };
-                  let need = offSite || noFix;
+                  // Off-site and unlocatable punches must carry a selfie — mirrors ClockService.
+                  const needPhoto = offSite || noFix;
+                  let need = needPhoto;
                   if (this.action === 'out' && this.earlyNow()) need = true;
+                  // Both gates open the same sheet, once. They used to fire one at a time —
+                  // back for a reason, tap, back for a selfie, tap — so a punch that needed
+                  // both cost three taps and read as if it had failed twice.
+                  if (needPhoto && (!this.reason.trim() || !this.photoUrl)) {
+                      this.submitting = false;
+                      this.openPunchSheet(noFix ? null : lat, noFix ? null : lng);
+                      return;
+                  }
+                  // A reason without a selfie: leaving early. No camera, so the drawer is enough.
                   if (need && !this.reason.trim()) {
                       this.serverJustify = true;
                       this.noteOpen = true;
                       this.submitting = false;
                       this.$nextTick(() => this.$refs.reason?.focus());
-                      return;
-                  }
-                  // Off-site and unlocatable punches must carry a selfie — mirrors ClockService.
-                  if ((offSite || noFix) && !this.photoUrl) {
-                      this.submitting = false;
-                      this.photoReq = true;
-                      this.triggerSelfie();
                       return;
                   }
                   // Empty inputs, not '0' — ConvertEmptyStringsToNull hands the controller a
@@ -306,8 +287,7 @@
                */
               submitWithoutLocation() {
                   if (this.submitting) return;
-                  this.submitting = true;
-                  this.proceed(null, null);
+                  this.openPunchSheet(null, null);
               },
               submit() {
                   if (this.submitting) return;
@@ -458,7 +438,25 @@
                       unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
                       insecure: 'Alamat ini (' + location.origin + ') tidak selamat, jadi pelayar tidak akan berkongsi lokasi anda dan clock disekat. Buka aplikasi pada alamat https:// sebaliknya.',
                   };
+                  // One line names the problem; the cure above stays folded until asked for.
+                  const shortEn = {
+                      denied: 'Location is blocked — tap for how to allow it',
+                      denied_webview: 'This app window cannot read location — tap for how to fix',
+                      unavailable: 'Your location could not be worked out — tap for how to fix',
+                      timeout: 'Location took too long — tap for what to do',
+                      unsupported: 'This browser cannot share location — tap for what to do',
+                      insecure: 'This address is not secure, so location is blocked — tap for why',
+                  };
+                  const shortMs = {
+                      denied: 'Lokasi disekat — tekan untuk cara benarkan',
+                      denied_webview: 'Tetingkap aplikasi ini tidak boleh baca lokasi — tekan untuk cara betulkan',
+                      unavailable: 'Lokasi anda tidak dapat dikesan — tekan untuk cara betulkan',
+                      timeout: 'Lokasi terlalu lama — tekan untuk apa perlu buat',
+                      unsupported: 'Pelayar ini tidak boleh kongsi lokasi — tekan untuk apa perlu buat',
+                      insecure: 'Alamat ini tidak selamat, jadi lokasi disekat — tekan untuk sebab',
+                  };
                   this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
+                  this.geoShort = this.$store.ui.lang === 'en' ? shortEn[kind] : shortMs[kind];
                   // Support cannot reproduce a staff member's browser, so carry the browser's
                   // own verdict in the message. Without it every failure looks the same and
                   // the guesswork starts.
@@ -466,48 +464,100 @@
                       ? 'Browser reported: ' + kind + ' (code ' + err.code + (err.message ? ' — ' + err.message : '') + ')'
                       : 'Browser reported: ' + kind;
               },
+              /** Voluntary selfie: the plain capture sheet, no reason box, no punch waiting on it. */
               triggerSelfie() {
-                  if (!window.matchMedia('(pointer:coarse)').matches) {
-                      this.openCam();
-                  } else {
-                      this.$refs.photo.click();
-                  }
+                  this.sheetNeed = false;
+                  this.sheetFix = null;
+                  this.openCam();
               },
-              async openCam() {
+              /**
+               * The whole off-grid punch in one surface: live preview, the reason, and the
+               * button that sends it. Nothing here hands off to the phone camera app — the
+               * file input's capture attribute launches the full-screen system camera, which
+               * leaves the page, loses the reason box, and costs another two taps to come
+               * back from. The stream renders in this sheet instead.
+               */
+              openPunchSheet(lat, lng) {
+                  this.sheetFix = { lat, lng };
+                  this.sheetNeed = true;
+                  this.photoReq = false;
+                  this.submitting = false;
+                  this.openCam();
+              },
+              openCam() {
                   this.camError = '';
                   this.camNotice = '';
+                  this.camOpen = true;
+                  this.$nextTick(() => {
+                      this.startCam();
+                      if (this.sheetNeed && !this.reason.trim()) { this.$refs.sheetReason?.focus(); }
+                  });
+              },
+              /**
+               * Attach the live stream. Every failure leaves the sheet open with the reason box
+               * still usable and offers the file picker as a button — it is never clicked for
+               * the staff member, because a picker that opens itself is the interruption this
+               * sheet exists to remove.
+               */
+              async startCam() {
                   if (!window.isSecureContext) {
-                      this.camNotice = 'In-page camera needs HTTPS or localhost — you are on ' + location.origin + '. Opened the file / phone-camera picker instead.';
-                      this.$refs.photo.click();
+                      this.camError = 'In-page camera needs HTTPS or localhost — you are on ' + location.origin + '.';
                       return;
                   }
                   if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-                      this.camNotice = 'This browser will not expose the camera here. Opened the file picker instead.';
-                      this.$refs.photo.click();
+                      this.camError = 'This browser will not expose the camera here.';
                       return;
                   }
                   try {
                       this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-                      this.camOpen = true;
-                      this.$nextTick(() => { this.$refs.cam.srcObject = this.stream; });
+                      const v = this.$refs.cam;
+                      v.srcObject = this.stream;
+                      // autoplay alone is not reliable on a element that was display:none a tick
+                      // ago; without this the preview sits at readyState 0 and capture() draws a
+                      // zero-sized frame that fails validation on the server with no explanation.
+                      await v.play().catch(() => {});
                   } catch (e) {
                       const n = e.name || 'error';
-                      let msg;
                       if (n === 'NotFoundError' || n === 'OverconstrainedError' || n === 'DevicesNotFoundError') {
-                          msg = 'No camera found on this device. If you have a webcam, plug it in or close any app using it (Zoom, Teams), then click again. Opened the file picker so you can still attach a photo.';
+                          this.camError = 'No camera found on this device. If you have a webcam, plug it in or close any app using it (Zoom, Teams), then try again.';
                       } else if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError') {
-                          msg = 'Camera permission blocked. Click the camera / lock icon in the address bar, allow camera for this site, then click again. Opened the file picker as a fallback.';
+                          this.camError = 'Camera permission blocked. Tap the camera or lock icon in the address bar, allow camera for this site, then try again.';
                       } else if (n === 'NotReadableError' || n === 'TrackStartError') {
-                          msg = 'Camera is busy — another app (Zoom, Teams, OBS) is using it. Close it, then click again. Opened the file picker as a fallback.';
+                          this.camError = 'Camera is busy — another app (Zoom, Teams, OBS) is using it. Close it, then try again.';
                       } else {
-                          msg = 'Could not open camera (' + n + '). Opened the file picker so you can still attach a photo.';
+                          this.camError = 'Could not open camera (' + n + ').';
                       }
-                      this.camNotice = msg;
-                      this.$refs.photo.click();
                   }
               },
-              capture() {
+              /** True once the sheet has everything the server will demand of this punch. */
+              get sheetReady() {
+                  return this.reason.trim().length > 0 && (this.photoUrl !== null || this.stream !== null);
+              },
+              /** The sheet's one button: capture if needed, then send. */
+              confirmPunch() {
+                  if (this.submitting) { return; }
+                  if (!this.reason.trim()) { this.$refs.sheetReason?.focus(); return; }
+                  if (this.photoUrl) { this.sendSheet(); return; }
+                  if (!this.stream) { this.camError = 'A selfie is required for this punch. Allow the camera, or attach a photo below.'; return; }
+                  this.capture(() => this.sendSheet());
+              },
+              sendSheet() {
+                  this.submitting = true;
+                  const fix = this.sheetFix ?? { lat: null, lng: null };
+                  this.closeCam();
+                  this.proceed(fix.lat, fix.lng);
+              },
+              capture(after = null) {
                   const v = this.$refs.cam, c = this.$refs.canvas;
+                  // A stream that has not delivered a frame yet reports 0×0, and drawing it
+                  // produces an empty file the server rejects for reasons no one can see here.
+                  if (!v.videoWidth || !v.videoHeight) {
+                      this.camError = this.$store.ui.lang === 'en'
+                          ? 'The camera has not started yet. Give it a second, then try again.'
+                          : 'Kamera belum bermula. Tunggu sekejap, kemudian cuba lagi.';
+                      this.submitting = false;
+                      return;
+                  }
                   c.width = v.videoWidth; c.height = v.videoHeight;
                   c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
                   c.toBlob((blob) => {
@@ -519,6 +569,7 @@
                       if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
                       this.photoUrl = URL.createObjectURL(file);
                       this.photoReq = false;
+                      if (after) { after(); return; }
                       this.closeCam();
                       this.resumeAfterSelfie();
                   }, 'image/jpeg', 0.9);
@@ -526,6 +577,7 @@
               closeCam() {
                   if (this.stream) { this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; }
                   this.camOpen = false;
+                  this.sheetNeed = false;
               }
           }"
           @submit.prevent="noLoc ? submitWithoutLocation() : submit()">
@@ -533,14 +585,16 @@
         <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />{{-- mirrored by `action` in x-data --}}
         <input type="hidden" name="latitude" x-ref="lat" />
         <input type="hidden" name="longitude" x-ref="lng" />
-        <input type="file" id="attendance-photo" name="photo" accept="image/*" capture="user" x-ref="photo"
+        {{-- No `capture="user"`: that attribute makes the phone open its full-screen camera app,
+             which leaves the page and drops whatever is half-typed in the sheet. This input is
+             only the fallback for a browser that will not give us a stream, and it should offer
+             the gallery as readily as the camera. --}}
+        <input type="file" id="attendance-photo" name="photo" accept="image/*" x-ref="photo"
                style="display:none;"
-               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) { photoReq = false; resumeAfterSelfie(); }" />
+               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) { photoReq = false; if (! sheetNeed) { resumeAfterSelfie(); } }" />
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
-                <div class="uj-at-kicker">Attendance · {{ now()->format('l j F') }}</div>
-
                 <div class="uj-at-figrow">
                     @if ($co)
                         <div class="uj-at-fig">{{ $todayWorkedStr }}</div>
@@ -558,8 +612,8 @@
                         <div class="uj-at-fig" x-text="wallTime">{{ now()->format('H:i') }}</div>
                         <div class="uj-at-figsub">
                             @if ($site?->workStart)
-                                <span x-show="$store.ui.lang==='en'">shift starts <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b> · you are <b x-text="leadStr"></b> <span x-text="leadWordEn"></span></span>
-                                <span x-show="$store.ui.lang!=='en'" x-cloak>shift bermula <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b> · anda <span x-text="leadWordMs"></span> <b x-text="leadStr"></b></span>
+                                <span x-show="$store.ui.lang==='en'">shift starts <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b></span>
+                                <span x-show="$store.ui.lang!=='en'" x-cloak>shift bermula <b>{{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}</b></span>
                             @else
                                 <span x-show="$store.ui.lang==='en'">Not clocked in yet</span>
                                 <span x-show="$store.ui.lang!=='en'" x-cloak>Belum clock in</span>
@@ -575,7 +629,6 @@
                             <span x-text="$store.ui.lang==='en' ? @js($sType[0]) : @js($sType[1])">{{ $sType[0] }}</span>
                             · {{ $site->label }}
                             @if ($site->workStart && $site->workEnd) · {{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}–{{ \Illuminate\Support\Str::of($site->workEnd)->limit(5, '') }}@endif
-                            @if ($site->hasGeofence()) · <span x-text="$store.ui.lang==='en' ? 'within {{ $site->radiusM }}m' : 'dalam {{ $site->radiusM }}m'">within {{ $site->radiusM }}m</span>@endif
                             @if ($site->needsHomeCapture) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'home registers on this clock-in' : 'rumah didaftar pada clock in ini'">home registers on this clock-in</span>@endif
                         </span>
 
@@ -590,10 +643,6 @@
             </div>
 
             <div class="uj-at-acts">
-                <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Selfie' : 'Selfie')">Selfie</span>
-                </button>
                 <button type="button" class="uj-at-ghost" data-notebtn :data-on="(noteOpen || isReq) ? true : false" @click="toggleNote()">
                     <span x-text="$store.ui.lang==='en' ? 'Add a remark' : 'Tambah catatan'">Add a remark</span>
                 </button>
@@ -628,31 +677,29 @@
                               ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
                               : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"></textarea>
                 @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+
+                {{-- The selfie lives here rather than beside the punch button. It is only ever
+                     required off-site or with no location, and proceed() opens the camera itself
+                     in both cases, so a permanent button on the resting screen bought nothing and
+                     cost a third of the action row. Inside the drawer it stays available to anyone
+                     who wants to attach one on purpose. --}}
+                <div class="uj-at-selfie">
+                    <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="uj-at-chips">
-            <div class="uj-at-chip">
-                <b>{{ $weekWorkedStr }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Worked this week' : 'Jam minggu ini'">Worked this week</span>
-            </div>
-            <div class="uj-at-chip" data-tone="{{ $weekBaselineDeltaMinutes >= 0 ? 'ok' : 'amber' }}">
-                <b>{{ $deltaStr }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Over baseline' : 'Lebih baseline'">Over baseline</span>
-            </div>
-            <div class="uj-at-chip"@if ($lateThisMonth > 0) data-tone="amber"@endif>
-                <b>{{ $lateThisMonth }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Late this month' : 'Lewat bulan ini'">Late this month</span>
-            </div>
-            <div class="uj-at-chip">
-                <b>{{ $offSiteThisMonth }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'Off-site this month' : 'Luar lokasi bulan ini'">Off-site this month</span>
-            </div>
-        </div>
-
-        <div x-show="geoError" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
-            <div x-text="geoError"></div>
-            <div x-text="geoDetail" style="opacity:.65;margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+        <div x-show="geoError" x-cloak role="alert" style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">
+            {{-- Summary first, cure on demand. The full instructions run to three sentences and
+                 stood permanently open in red under the punch, which is what buried the button. --}}
+            <details class="uj-at-geo">
+                <summary x-text="geoShort"></summary>
+                <div x-text="geoError" style="margin-top:6px;"></div>
+                <div x-text="geoDetail" style="color:var(--body);margin-top:3px;font-family:ui-monospace,monospace;font-size:10.5px;"></div>
+            </details>
             @if (! $co)
                 {{-- The punch without location is NOT a second button here. Once a real attempt
                      has failed the main punch button becomes it (see goLabel + noLoc), because
@@ -670,27 +717,67 @@
                 </div>
             @endif
         </div>
-        @error('latitude')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @error('latitude')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
-        <div x-show="photoReq" x-cloak style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
+        <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
              x-text="$store.ui.lang==='en'
                  ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.'
                  : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.'"></div>
-        @error('photo')<div style="color:var(--red);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 
-        {{-- In-page webcam modal --}}
+        {{-- The punch sheet: in-page camera, and — when a punch is waiting on it — the reason
+             in the same surface, so an off-grid clock-in is one tap and one confirm. --}}
         <template x-teleport="body">
-            <div x-show="camOpen" x-cloak @keydown.escape.window="closeCam()" @click.self="closeCam()"
-                 style="position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;">
-                <div style="background:var(--surface,#fff);border-radius:16px;padding:18px;max-width:420px;width:100%;margin:auto;text-align:center;">
-                    <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px;" x-text="$store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie'">Take a selfie</div>
-                    <video x-ref="cam" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:scaleX(-1);"></video>
-                    <div x-show="camError" x-cloak style="color:var(--red);font-size:12px;margin-top:8px;" x-text="camError"></div>
-                    <div style="display:flex;gap:10px;margin-top:14px;">
-                        <button type="button" class="uj-btn-ghost" style="flex:1;height:46px;font-weight:600;" @click="closeCam()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
-                        <button type="button" class="uj-btn-primary" style="flex:1;height:46px;font-weight:600;" @click="capture()" x-text="$store.ui.lang==='en' ? 'Capture' : 'Tangkap'">Capture</button>
+            {{-- Layout lives in the class, not an inline style: x-show writes `display:none`
+                 onto the element and restores it with `display:''`, which falls back to the
+                 stylesheet. An inline `display:flex` is gone for good after the first hide,
+                 and the sheet reopens as a block stuck to the top-left. --}}
+            <div x-show="camOpen" x-cloak class="uj-at-sheet-wrap"
+                 @keydown.escape.window="closeCam()" @click.self="closeCam()"
+                 role="dialog" aria-modal="true" aria-labelledby="uj-at-sheet-title">
+                <div class="uj-at-sheet">
+                    <h2 id="uj-at-sheet-title"
+                        x-text="sheetNeed
+                            ? ($store.ui.lang==='en' ? @js($ci && !$co ? 'Clock out without location' : 'Clock in without location') : @js($ci && !$co ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi'))
+                            : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</h2>
+
+                    <p x-show="sheetNeed" x-cloak class="uj-at-sheet-why"
+                       x-text="$store.ui.lang==='en'
+                           ? 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.'
+                           : 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.'"></p>
+
+                    <div class="uj-at-sheet-cam">
+                        <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"></video>
+                        <img x-show="photoUrl" x-cloak :src="photoUrl" alt="" />
+                    </div>
+
+                    <div x-show="camError" x-cloak class="uj-at-sheet-err">
+                        <span x-text="camError"></span>
+                        <button type="button" class="uj-at-ghost" style="margin-top:8px;height:40px;"
+                                @click="$refs.photo.click()"
+                                x-text="$store.ui.lang==='en' ? 'Attach a photo instead' : 'Lampirkan gambar sebaliknya'"></button>
+                    </div>
+
+                    <div x-show="sheetNeed" x-cloak class="uj-at-sheet-reason">
+                        <label for="attendance-sheet-reason"
+                               x-text="$store.ui.lang==='en' ? 'Why are you clocking without location?' : 'Kenapa anda clock tanpa lokasi?'">Why are you clocking without location?</label>
+                        <textarea id="attendance-sheet-reason" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
+                                  aria-required="true"
+                                  :placeholder="$store.ui.lang==='en' ? 'e.g. Office wifi has no location on this desktop' : 'cth. Wifi pejabat tiada lokasi pada komputer ini'"></textarea>
+                    </div>
+
+                    <div class="uj-at-sheet-acts">
+                        <button type="button" class="uj-btn-ghost" @click="closeCam()"
+                                x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                        <button type="button" class="uj-btn-primary" x-show="!sheetNeed" @click="capture()"
+                                x-text="$store.ui.lang==='en' ? 'Capture' : 'Tangkap'">Capture</button>
+                        <button type="button" class="uj-btn-primary" x-show="sheetNeed" x-cloak
+                                :disabled="submitting || !sheetReady" @click="confirmPunch()"
+                                x-text="submitting
+                                    ? ($store.ui.lang==='en' ? 'Sending…' : 'Menghantar…')
+                                    : ($store.ui.lang==='en' ? @js($ci && !$co ? 'Clock out' : 'Clock in') : @js($ci && !$co ? 'Clock out' : 'Clock in'))"></button>
                     </div>
                 </div>
             </div>
@@ -699,9 +786,6 @@
 
         {{-- Mobile action dock --}}
         <div class="uj-at-dock">
-            <button type="button" class="uj-at-dock-sq" :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
             <button type="submit" class="uj-at-dock-go" @if ($co) disabled @else :disabled="submitting" @endif>
                 @if ($co)
                     <span x-text="$store.ui.lang==='en' ? 'Shift complete ✓' : 'Shift selesai ✓'">Shift complete ✓</span>

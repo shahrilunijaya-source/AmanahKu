@@ -329,4 +329,127 @@ class AttendanceScreenTest extends TestCase
         $response->assertOk();
         $response->assertDontSee(route('app.screen', 'attendance-report'));
     }
+
+    /**
+     * A day row carries exactly one status pill, rendered twice so the stylesheet can show
+     * the mobile copy or the desktop copy. The row used to print one pill per flag plus the
+     * status on top, which is what buried the punch button under five things to read.
+     */
+    public function test_day_row_carries_one_pill_however_many_flags_the_day_has(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'late',
+            'clock_in' => '11:05:00',
+            'clock_out' => '11:45:00',
+            'flags' => ['late', 'no_location', 'early_out', 'short_hours'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $this->assertSame(
+            2,
+            substr_count($response->getContent(), 'uj-at-status'),
+            'One day row must render one pill, twice — once for each breakpoint.'
+        );
+    }
+
+    public function test_a_multi_flag_day_counts_every_flag_and_lists_them_on_expand(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'late',
+            'clock_in' => '11:05:00',
+            'clock_out' => '11:45:00',
+            'flags' => ['late', 'no_location', 'early_out', 'short_hours'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        // The count must cover 'late' too: this pill replaces the status pill rather than
+        // sitting beside it, so a number that skipped 'late' would not match the list below.
+        $response->assertSee('4 flags');
+        $response->assertSee('uj-at-flags');
+        foreach (['Late', 'No location', 'Left early', 'Short hours'] as $label) {
+            $response->assertSee($label);
+        }
+    }
+
+    public function test_a_single_flag_day_names_the_flag_instead_of_counting_it(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'flags' => ['out_of_radius_in'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Off-site clock-in');
+        $response->assertDontSee('1 flags');
+    }
+
+    public function test_an_unflagged_day_falls_back_to_its_status_pill(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'flags' => [],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('On time');
+        // No count pill and no flag list — the day has nothing to enumerate.
+        $response->assertDontSee('uj-at-flags');
+    }
+
+    /**
+     * A day flagged only for lateness is amber, not red: red is reserved for the punches
+     * that need a manager to look at them (off-site, early out, no location).
+     */
+    public function test_a_late_only_day_stays_amber(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'late',
+            'clock_in' => '11:00:00',
+            'clock_out' => '19:00:00',
+            'flags' => ['late'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('uj-at-status" data-tone="amber"', false);
+        $response->assertDontSee('uj-at-status" data-tone="red"', false);
+    }
 }

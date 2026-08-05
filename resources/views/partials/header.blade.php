@@ -158,14 +158,14 @@
     </div>
 
     <div x-data="{ notif: false }" style="position:relative;">
-        <button @click="notif = ! notif" class="uj-hd-ib"
+        <button @click="notif = ! notif" class="uj-hd-ib" :aria-expanded="notif"
                 :aria-label="$store.ui.lang==='en' ? @js($unreadCount ? "Notifications ({$unreadCount} unread)" : 'Notifications') : @js($unreadCount ? "Pemberitahuan ({$unreadCount} belum dibaca)" : 'Pemberitahuan')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
             @if ($unreadCount > 0)
                 <span style="position:absolute;top:3px;right:3px;min-width:15px;height:15px;padding:0 3px;background:var(--red);color:#fff;border-radius:9999px;border:1.5px solid #fff;font-size:var(--t-micro);font-weight:700;display:flex;align-items:center;justify-content:center;">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
             @endif
         </button>
-        <div x-show="notif" x-cloak class="uj-hd-panel" @click.outside="notif = false" style="position:absolute;right:0;top:46px;width:340px;max-width:88vw;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
+        <div x-show="notif" x-cloak class="uj-hd-panel" @click.outside="notif = false" @keydown.escape.window="notif = false" style="position:absolute;right:0;top:46px;width:340px;max-width:88vw;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--hairline);">
                 <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Notifications' : 'Pemberitahuan'">Notifications</span>
                 @if ($unreadCount > 0)

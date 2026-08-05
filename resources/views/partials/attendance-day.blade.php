@@ -4,7 +4,9 @@
     $worked = $r->worked_minutes ? intdiv($r->worked_minutes, 60).'h'.($r->worked_minutes % 60 ? sprintf('%02dm', $r->worked_minutes % 60) : '') : null;
 
     $flags = $r->flags ?? [];
-    $hasRedFlag = (is_array($flags) && array_intersect($flags, ['out_of_radius_in', 'out_of_radius_out', 'early_out', 'no_location']));
+    /** Flags a manager has to look at. The rest ('late', 'short_hours') read amber. */
+    $redFlags = ['out_of_radius_in', 'out_of_radius_out', 'early_out', 'no_location'];
+    $hasRedFlag = (is_array($flags) && array_intersect($flags, $redFlags));
     if ($hasRedFlag) {
         $rowTone = 'red';
     } elseif ($r->status === 'late') {
@@ -17,12 +19,31 @@
 
     $rowStatusTone = $stTone[$r->status] ?? 'muted';
 
+    /**
+     * One pill on the row, never a shelf of them. A day with four things wrong used to
+     * print four red pills plus the status, which is five things to read before you learn
+     * anything you can act on. Name the single problem when there is one, count them when
+     * there are more, and let the row expand for the list. The count covers every flag,
+     * 'late' included: this pill replaces the status pill rather than sitting beside it,
+     * so a number that skipped 'late' would not match the list the row opens onto.
+     *
+     * @var array{0: string, 1: string, 2: string} $rowPill [English, Malay, tone]
+     */
+    $flagList = array_values($flags);
+    $flagCount = count($flagList);
+    $flagTone = $hasRedFlag ? 'red' : 'amber';
+    if ($flagCount === 1) {
+        $onlyFlag = $flagLabel[$flagList[0]] ?? [$flagList[0], $flagList[0]];
+        $rowPill = [$onlyFlag[0], $onlyFlag[1], $flagTone];
+    } elseif ($flagCount > 1) {
+        $rowPill = ["{$flagCount} flags", "{$flagCount} tanda", $flagTone];
+    } else {
+        $rowPill = [$stLabel[$r->status] ?? $r->status, $stLabelMs[$r->status] ?? $r->status, $rowStatusTone];
+    }
+
     if ($r->date->isToday() && !$r->clock_in) {
         $dayDescEn = 'Nothing recorded yet today. Clock in above and this day fills itself in with the punch time, where it landed against the geofence, and any remark attached.';
         $dayDescMs = 'Belum ada rekod hari ini. Clock in di atas dan hari ini akan dikemaskini dengan masa clock, lokasi geofence, dan sebarang catatan.';
-    } elseif ($hasRedFlag) {
-        $dayDescEn = 'Punches fell outside the expected location or clock-out was early, raising flags for manager review.';
-        $dayDescMs = 'Clock in/out berada di luar lokasi atau balik awal, memerlukan semakan pengurus.';
     } elseif ($r->status === 'late') {
         $dayDescEn = 'Clocked in late for the shift. Any remark provided is attached to your attendance record for your manager.';
         $dayDescMs = 'Clock in lewat. Sebarang catatan dilampirkan pada rekod kehadiran untuk pengurus anda.';
@@ -53,7 +74,19 @@
         $whereMs = 'Lokasi tidak direkodkan.';
     }
 
-    $notes = array_filter([$r->clock_in_justification, $r->clock_out_justification]);
+    /**
+     * Both notes used to read "Your note on the punch", so a day with two of them gave the
+     * same heading twice and never said which punch each one belonged to.
+     *
+     * @var list<array{0: string, 1: string, 2: string}> $notes [English label, Malay label, text]
+     */
+    $notes = [];
+    if ($r->clock_in_justification) {
+        $notes[] = ['Your note on the clock in', 'Catatan anda pada clock in', $r->clock_in_justification];
+    }
+    if ($r->clock_out_justification) {
+        $notes[] = ['Your note on the clock out', 'Catatan anda pada clock out', $r->clock_out_justification];
+    }
 @endphp
 
 <div class="uj-at-day" data-tone="{{ $rowTone }}" x-data="{ open: false }">
@@ -65,17 +98,12 @@
         <span class="uj-at-rowmid">
             <span class="uj-at-rowt" style="display:block;">{{ $r->date->format('l') }}</span>
             <span class="uj-at-rows" style="display:block;">{{ $rin }}–{{ $rout }}@if ($worked) · {{ $worked }}@endif · {{ $r->location ?? ($site?->label ?? '—') }}</span>
-            <span class="uj-at-status" data-tone="{{ $rowStatusTone }}" style="display:inline-block;margin-top:6px;"
-                  x-text="$store.ui.lang==='en' ? @js($stLabel[$r->status] ?? $r->status) : @js($stLabelMs[$r->status] ?? $r->status)">{{ $stLabel[$r->status] ?? $r->status }}</span>
+            <span class="uj-at-status" data-tone="{{ $rowPill[2] }}"
+                  x-text="$store.ui.lang==='en' ? @js($rowPill[0]) : @js($rowPill[1])">{{ $rowPill[0] }}</span>
         </span>
         <span class="uj-at-rowend">
-            @foreach (array_diff($r->flags ?? [], ['late']) as $f)
-                @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
-                <span class="uj-at-status" data-tone="red"
-                      x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
-            @endforeach
-            <span class="uj-at-status" data-tone="{{ $rowStatusTone }}"
-                  x-text="$store.ui.lang==='en' ? @js($stLabel[$r->status] ?? $r->status) : @js($stLabelMs[$r->status] ?? $r->status)">{{ $stLabel[$r->status] ?? $r->status }}</span>
+            <span class="uj-at-status" data-tone="{{ $rowPill[2] }}"
+                  x-text="$store.ui.lang==='en' ? @js($rowPill[0]) : @js($rowPill[1])">{{ $rowPill[0] }}</span>
             <svg class="uj-at-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
         </span>
     </button>
@@ -83,13 +111,27 @@
     <div class="uj-at-panel" :data-open="open ? '' : null">
         <div>
             <div class="uj-at-panel-in">
-                <p x-text="$store.ui.lang==='en' ? @js($dayDescEn) : @js($dayDescMs)">{{ $dayDescEn }}</p>
+                {{-- Naming each flag replaces the generic sentence that used to sit here: it
+                     said "punches fell outside the expected location OR clock-out was early"
+                     without ever saying which, so the pills on the row were the only place the
+                     answer lived. Now the row carries the count and this carries the list. --}}
+                @if ($flags)
+                    <ul class="uj-at-flags">
+                        @foreach ($flags as $f)
+                            @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
+                            <li data-tone="{{ in_array($f, $redFlags, true) ? 'red' : 'amber' }}"
+                                x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p x-text="$store.ui.lang==='en' ? @js($dayDescEn) : @js($dayDescMs)">{{ $dayDescEn }}</p>
+                @endif
 
                 @if ($notes)
                     @foreach ($notes as $note)
                         <div class="uj-at-quote">
-                            <div class="lbl" x-text="$store.ui.lang==='en' ? 'Your note on the punch' : 'Catatan anda pada rekod'">Your note on the punch</div>
-                            <div class="txt">{{ $note }}</div>
+                            <div class="lbl" x-text="$store.ui.lang==='en' ? @js($note[0]) : @js($note[1])">{{ $note[0] }}</div>
+                            <div class="txt">{{ $note[2] }}</div>
                         </div>
                     @endforeach
                 @endif

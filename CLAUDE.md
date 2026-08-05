@@ -43,11 +43,11 @@ http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
 
 ## Deploy to staging
 
-Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking `main`. Still the test target — deploy here first.
+Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking **`staging`**. Still the test target — deploy here first.
 
 **Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host (DigitalOcean, not Hostinger — the shared-hosting limits below are staging's, not prod's) and releases from GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote). You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
 
-Release order: commit on `dev` → PR into `main` → deploy staging → **test** → `git push gitlab main`. Staging is the gate, so GitLab only receives code that already passed it. The two repos have shared one history since 2026-07-31, so that push is a plain fast-forward; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away.
+Release order: commit on `dev` → `git push origin dev:staging` → deploy staging → **test** → PR `dev` into `main` → `git push gitlab main`. No PR is needed to reach staging; the PR comes after staging passes, so `main` only ever holds code that already survived a real environment. Staging is the gate, so GitLab only receives code that already passed it. The two repos have shared one history since 2026-07-31, so that push is a plain fast-forward; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away.
 
 Assets built locally, `public/build` committed; host builds nothing.
 
@@ -55,9 +55,11 @@ Assets built locally, `public/build` committed; host builds nothing.
 lerd artisan view:cache                          # REQUIRED: makes the Tailwind scan complete
 bun run build                                    # rebuild assets if JS/CSS/Blade changed
 git add public/build && git commit ...           # commit assets alongside the change
-# merge into main via PR, then:
+git push origin dev:staging                      # no PR — staging tracks the staging branch
 ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git status -sb'   # LOOK FIRST (read-only)
-ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git pull origin main && bash deploy.sh'
+ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git pull origin staging && bash deploy.sh'
+# staging passed? then PR dev → main, and only after it merges:
+git push gitlab main
 ```
 
 The four that lose data: never run `key:generate` on a host that already has data; never run `git clean` on the server; take a `mysqldump` before a deploy that migrates; run `view:cache` before `bun run build`. The reasoning behind each, the security gate, the mandatory hPanel cron jobs, the mail configuration and the rollback path are all in **[docs/RULES.md](docs/RULES.md#part-2--operational-rules)**. Read it before any release; do not restate it here, a second copy is how the last one rotted.

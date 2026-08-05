@@ -162,7 +162,7 @@ trait BuildsDashboardData
             default => 'Good evening',
         };
 
-        $name = trim((string) ($employee->name ?? ''));
+        $name = trim((string) ($employee->display_name ?? ''));
         $firstName = $name === '' ? '' : (string) Str::of($name)->squish()->explode(' ')->first();
         $h1 = $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
 

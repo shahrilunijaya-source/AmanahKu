@@ -35,7 +35,7 @@ class ShippedScopeTest extends TestCase
         // Basic HR administration.
         'directory', 'profile', 'orgchart', 'documents', 'staff-load', 'position',
         'roles', 'setup', 'settings', 'security', 'audit', 'reports', 'messages',
-        'dash',
+        'helpdesk', 'dash',
         // Re-scoped in: the welcome wizard links staff straight at the profile test.
         'profile-test', 'profile-test-admin', 'profile-test-results',
     ];
@@ -47,7 +47,7 @@ class ShippedScopeTest extends TestCase
         'kpi', 'achievements', 'reviews', 'goals', 'skills',
         'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
-        'expenses', 'travel', 'helpdesk', 'assets', 'surveys', 'ideas', 'workload',
+        'expenses', 'travel', 'assets', 'surveys', 'ideas', 'workload',
         'onboarding-content', 'shared-resources',
     ];
 
@@ -85,7 +85,7 @@ class ShippedScopeTest extends TestCase
     {
         $html = $this->actingAsHr()->get('/app/dash')->assertOk()->getContent();
 
-        foreach (['Payroll', 'Shift Swaps', 'Room Booking', 'Skills Matrix', 'Helpdesk', 'Suggestion Box'] as $label) {
+        foreach (['Payroll', 'Shift Swaps', 'Room Booking', 'Skills Matrix', 'Suggestion Box'] as $label) {
             $this->assertStringNotContainsString(">{$label}<", $html, "Descoped '{$label}' must not appear in the nav.");
         }
     }

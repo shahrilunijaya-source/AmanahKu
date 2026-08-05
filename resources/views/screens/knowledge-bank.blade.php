@@ -144,19 +144,20 @@
 </form>
 
 {{-- ── Segment chips + Add ───────────────────────────────────────────────── --}}
-@php $chipBase = 'height:32px;padding:0 15px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:7px;'; @endphp
-<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <a href="{{ route('app.screen', 'knowledge-bank') }}"
-       style="{{ $chipBase }}border:1px solid {{ ! $activeSeg ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ ! $activeSeg ? 'var(--ink)' : 'transparent' }};color:{{ ! $activeSeg ? '#fff' : 'var(--muted)' }};"
-       x-text="$store.ui.lang==='en' ? 'All lessons' : 'Semua'">All lessons</a>
-    @foreach ($segments as $seg)
-        @php $segActive = (int) $activeSeg === $seg->id; @endphp
-        <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id]) }}"
-           style="{{ $chipBase }}border:1px solid {{ $segActive ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ $segActive ? 'var(--ink)' : 'transparent' }};color:{{ $segActive ? '#fff' : 'var(--muted)' }};">
-            <span>{{ $seg->label }}</span>
-        </a>
-    @endforeach
-    <div style="flex:1;"></div>
+@php $chipBase = 'height:32px;padding:0 15px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:7px;flex-shrink:0;'; @endphp
+<div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex:1;min-width:0;">
+        <a href="{{ route('app.screen', 'knowledge-bank') }}"
+           style="{{ $chipBase }}border:1px solid {{ ! $activeSeg ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ ! $activeSeg ? 'var(--ink)' : 'transparent' }};color:{{ ! $activeSeg ? '#fff' : 'var(--muted)' }};"
+           x-text="$store.ui.lang==='en' ? 'All lessons' : 'Semua'">All lessons</a>
+        @foreach ($segments as $seg)
+            @php $segActive = (int) $activeSeg === $seg->id; @endphp
+            <a href="{{ route('app.screen', ['screen' => 'knowledge-bank', 'seg' => $seg->id]) }}"
+               style="{{ $chipBase }}border:1px solid {{ $segActive ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ $segActive ? 'var(--ink)' : 'transparent' }};color:{{ $segActive ? '#fff' : 'var(--muted)' }};">
+                <span>{{ $seg->label }}</span>
+            </a>
+        @endforeach
+    </div>
     @if ($canSubmit)
         <button @click="kb = true; kbView = 'add'" type="button" style="height:32px;padding:0 15px;background:var(--red);color:#fff;border:0;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">
             <span style="font-size:15px;line-height:1;">＋</span><span x-text="$store.ui.lang==='en' ? 'Add a lesson' : 'Tambah pengajaran'">Add a lesson</span>
@@ -185,6 +186,10 @@
         <div style="border-top:1px solid var(--hairline);"
              x-data="kbCard({
                  id: {{ $e->id }},
+                 title: @js($e->title),
+                 body: @js($e->body),
+                 bodyHtml: @js(\App\Support\Amanahku::linkify($e->body)),
+                 canEdit: {{ $employee && $employee->id === $e->employee_id ? 'true' : 'false' }},
                  reactions: @js((object) ($reactionCounts[$e->id] ?? [])),
                  mine: @js($myReactions[$e->id] ?? []),
                  stars: {{ $e->stars_count }},

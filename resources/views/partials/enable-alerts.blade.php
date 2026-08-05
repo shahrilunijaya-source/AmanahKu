@@ -13,7 +13,7 @@
      x-show="$store.alerts.canAsk && ! dismissed" x-cloak
      role="status" aria-live="polite"
      class="uj-banner-row"
-     style="align-items:flex-start;gap:12px;padding:12px 16px;background:var(--red-tint);border-bottom:1px solid var(--hairline);flex-shrink:0;">
+     style="align-items:flex-start;gap:12px;padding:12px 16px;background:var(--red-tint);border:1px solid var(--hairline);border-radius:10px;">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
     <div class="uj-banner-text" style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;color:var(--ink);"
@@ -26,9 +26,8 @@
     <button type="button" @click="$store.alerts.enable()"
             class="uj-btn-ghost" style="height:34px;font-size:12px;padding:0 12px;flex-shrink:0;"
             x-text="$store.ui.lang==='en' ? 'Turn on' : 'Hidupkan'">Turn on</button>
-    <button type="button" @click="dismiss()"
-            :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'"
-            style="background:none;padding:2px;flex-shrink:0;line-height:0;">
+    <button type="button" @click="dismiss()" class="uj-banner-dismiss"
+            :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
     </button>
 </div>

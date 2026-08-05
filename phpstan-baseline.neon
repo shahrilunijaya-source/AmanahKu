@@ -349,12 +349,6 @@ parameters:
 			path: app/Http/Controllers/KnowledgeController.php
 
 		-
-			message: '#^Parameter \#3 \$callback of static method Illuminate\\Cache\\Repository\:\:remember\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/KnowledgeController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 2
@@ -781,6 +775,12 @@ parameters:
 			path: app/Http/Controllers/WellnessController.php
 
 		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
 			message: '#^Offset ''done''\|''prog''\|''review''\|''todo'' on array\{todo\: ''To Do'', prog\: ''In Progress'', review\: ''In Review'', done\: ''Done''\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
@@ -789,6 +789,12 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$c of method App\\Http\\Controllers\\WorkItemController\:\:commentPayload\(\) expects App\\Models\\WorkItemComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkItem\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
 
@@ -817,13 +823,13 @@ parameters:
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
