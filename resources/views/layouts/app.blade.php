@@ -174,7 +174,7 @@
             @include('partials.messages-panel')
         @endif
         @include('partials.welcome')
-        @include('partials.feedback')
+        @include('partials.ticket-raise')
     @endunless
 </div>
 
