@@ -294,6 +294,28 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-banner-row > .uj-banner-text { flex-basis: 100%; }
 }
 
+.uj-banner-dismiss {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: 8px; background: none; border: 0;
+    cursor: pointer;
+}
+.uj-banner-dismiss:hover { background: color-mix(in srgb, var(--muted) 12%, transparent); }
+
+/* Touch targets (WCAG 2.5.5). The compact 22–34px controls are fine under a mouse, so
+   they only grow on a coarse pointer — a phone or tablet — where the finger, not the
+   cursor, is doing the aiming. Scoped by pointer type rather than viewport width: a
+   narrow desktop window is still a mouse, and a wide tablet is still a finger.
+   .uj-btn-ghost carries its height as an inline style at these call sites, hence the
+   !important; the icon buttons and the closes set theirs here. */
+@media (pointer: coarse) {
+    .uj-banner-dismiss, .uj-alert-close { width: 44px; height: 44px; }
+    .uj-banner-row .uj-btn-ghost { height: 44px !important; }
+    .uj-hd-ib, .uj-hd-pill { min-width: 44px; height: 44px; }
+    .uj-hd-acct > button { height: 44px !important; }
+}
+
 /* Inline page alert: session ok/error and the overdue-timesheet nudge in layouts/app.blade.php.
    Same x-show rule as .uj-banner-row above — the row layout must live here, not inline.
    Tone drives background, border and text colour; the icon tile and dismiss button match
@@ -603,6 +625,21 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 }
 @container hdr (max-width: 520px) {
     .uj-hd-search { display: none !important; }
+}
+/* Header dropdowns on a phone. Each panel anchors right:0 to ITS OWN trigger, so the
+   notification panel (340px wide) hung 55px off the left edge of a 375px screen — the
+   part of the list that was cut off could not be scrolled to, because the shell is
+   overflow:hidden. Below 480px the panels stop tracking the trigger and span the
+   screen instead. `position:fixed` resolves against the header (container-type implies
+   layout containment, which makes it the containing block), which is the full-width bar
+   at top:0, so left/right/top read as viewport offsets. !important because the
+   trigger-anchored geometry is an inline style on each panel. */
+@media (max-width: 480px) {
+    .uj-hd-panel {
+        position: fixed !important;
+        left: 10px !important; right: 10px !important; top: 60px !important;
+        width: auto !important; max-width: none !important;
+    }
 }
 
 /* ── Interaction polish ── */
