@@ -90,10 +90,16 @@ class AppServiceProvider extends ServiceProvider
 
         // Share the changelog (What's New) with the surfaces that render it. Newest first;
         // `latestVersion` drives the per-user "New" badge. Single source: config/changelog.php.
+        // Also share whether Helpdesk is enabled for the current tenant: both views gate
+        // helpdesk-only markup on it (the sidebar's "Send feedback" button, the ticket-raise
+        // modal itself) so a tenant that turns the module off doesn't keep dangling a button
+        // that opens a modal whose submit route now 404s.
         View::composer(['partials.ticket-raise', 'partials.sidebar'], function ($view) {
             $releases = config('changelog.releases', []);
+            $tenant = app(CurrentTenant::class)->get();
             $view->with('releases', $releases)
-                ->with('latestVersion', $releases[0]['version'] ?? null);
+                ->with('latestVersion', $releases[0]['version'] ?? null)
+                ->with('helpdeskEnabled', app(FeatureManager::class)->enabled($tenant, 'module.helpdesk'));
         });
     }
 }

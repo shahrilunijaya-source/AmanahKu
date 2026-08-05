@@ -94,7 +94,7 @@
                                 @if ($t->assignee) · <span style="color:var(--body);">→ {{ $t->assignee->name }}</span>@endif
                             </div>
                         </div>
-                        @if (! in_array($t->category, ['Bug', 'Idea'], true) || $isSuperAdmin)
+                        @if (! in_array($t->category, \App\Http\Controllers\HelpdeskController::FEEDBACK_CATEGORIES, true) || $isSuperAdmin)
                             <button @click="open = (open === {{ $t->id }} ? null : {{ $t->id }})" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Manage' : 'Urus'">Manage</button>
                         @endif
                     </div>
@@ -134,7 +134,7 @@
                         </div>
                     @endif
 
-                    @if (! in_array($t->category, ['Bug', 'Idea'], true) || $isSuperAdmin)
+                    @if (! in_array($t->category, \App\Http\Controllers\HelpdeskController::FEEDBACK_CATEGORIES, true) || $isSuperAdmin)
                         <div x-show="open === {{ $t->id }}" x-cloak style="margin-top:12px;border-top:1px solid var(--hairline-soft);padding-top:12px;">
                             <form method="post" action="{{ route('helpdesk.update', $t) }}">
                                 @csrf

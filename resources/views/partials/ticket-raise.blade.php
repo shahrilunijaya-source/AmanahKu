@@ -7,11 +7,17 @@
     so it defaults to IT). What's New is unchanged from the retiring feedback partial:
     fed by config/changelog.php through the view composer, and opening that tab marks the
     latest version seen, which clears the "New" badge everywhere.
-    Reopens itself after a failed submit so validation errors stay visible.
+    Reopens itself after a failed submit — but only for ITS OWN failed submit, guarded
+    by the hidden _ticket_raise marker, not by any overlapping field name in $errors.
+    Renders nothing (and so cannot be opened) when module.helpdesk is off for the
+    tenant — $helpdeskEnabled is shared by the same view composer as partials.sidebar.
 --}}
 @php
-    $ticketHasError = $errors->hasAny(['category', 'priority', 'subject', 'description', 'page_url', 'attachments'])
-        || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'attachments'));
+    // Only reopen for OUR OWN failed submit — never because some other screen's form
+    // happens to validate a field with an overlapping name (category, subject, ...).
+    // The hidden _ticket_raise marker below round-trips through old() only when this
+    // very form was the one that failed and redirected back.
+    $ticketHasError = old('_ticket_raise') && $errors->any();
     $releases = $releases ?? [];
     $categories = \App\Http\Controllers\HelpdeskController::CATEGORIES;
     $priorities = \App\Http\Controllers\HelpdeskController::PRIORITIES;
@@ -21,6 +27,7 @@
         'fixed' => ['en' => 'Fixed', 'ms' => 'Dibaiki', 'dot' => 'var(--amber)'],
     ];
 @endphp
+@if ($helpdeskEnabled ?? true)
 <div x-data="{ show: {{ $ticketHasError ? 'true' : 'false' }}, tab: 'report', category: '{{ old('category', 'IT') }}' }"
      x-show="show" x-cloak
      @ticket-raise-open.window="show = true; tab = 'report'; category = $event.detail?.category || 'IT'; $nextTick(() => { document.getElementById('tr-page-url').value = window.location.href; $refs.subject?.focus(); })"
@@ -53,6 +60,7 @@
         {{-- ── Report tab ── --}}
         <form x-show="tab === 'report'" action="{{ route('helpdesk.store') }}" method="post" enctype="multipart/form-data" x-data="ticketAttach()" style="display:flex;flex-direction:column;min-height:0;">
             @csrf
+            <input type="hidden" name="_ticket_raise" value="1">
             <input type="hidden" id="tr-page-url" name="page_url" value="{{ old('page_url') }}">
 
             <div style="padding:20px 26px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;max-height:calc(88vh - 180px);">
@@ -181,3 +189,4 @@
         </div>
     </div>
 </div>
+@endif

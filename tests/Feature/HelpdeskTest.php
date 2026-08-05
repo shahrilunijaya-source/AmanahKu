@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\HelpdeskController;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\User;
+use App\Services\FeatureManager;
 use App\Support\Features;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -346,6 +348,31 @@ class HelpdeskTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_manager_cannot_download_bug_ticket_attachment(): void
+    {
+        // manager is PRIVILEGED_ROLES but NOT FEEDBACK_VIEW_ROLES — the Bug/Idea
+        // attachment gate must be narrower than the general privileged tier.
+        Storage::fake('local');
+        $ticket = Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'x',
+            'description' => 'x', 'status' => 'open',
+        ]);
+        $att = $this->seedAttachment($ticket);
+
+        $manager = User::create(['name' => 'Mgr', 'email' => 'mgr-att@example.com', 'password' => Hash::make('password')]);
+        $manager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $manager->id,
+            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $response = $this->actingAs($manager)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/helpdesk/attachments/'.$att->id);
+
+        $response->assertForbidden();
+    }
+
     public function test_unrelated_employee_cannot_download_ticket_attachment(): void
     {
         Storage::fake('local');
@@ -571,5 +598,62 @@ class HelpdeskTest extends TestCase
         $hrResponse->assertOk();
         $hrResponse->assertSee('Rendered bug');
         $hrResponse->assertDontSee(route('helpdesk.update', 1));
+    }
+
+    // ── Ticket-raise modal scoping (final-review finding 1) ─────────
+
+    public function test_unrelated_forms_validation_error_does_not_open_ticket_raise_modal(): void
+    {
+        // DocumentController::store validates a 'category' field too — the exact overlap
+        // that used to false-open this global modal. A failed /app/documents submit must
+        // redirect back to a page where the modal is closed, not one where it pops open
+        // on top of the (unrelated) Document Vault error. followingRedirects() (not two
+        // separate calls) matches how the rest of this suite proves post-redirect content —
+        // flashed old()/errors only round-trip correctly within one chained call.
+        $response = $this->actingInTenant()->from('/app/dash')->followingRedirects()->post('/app/documents', []);
+
+        $response->assertOk();
+        // Confirms the empty payload really did fail Document Vault's own validation —
+        // this is a genuine unrelated-form failure, not a vacuous request.
+        $this->assertSame(0, EmployeeDocument::count());
+        $response->assertSee('show: false', false);
+        $response->assertDontSee('show: true', false);
+    }
+
+    public function test_own_failed_submit_still_reopens_the_ticket_raise_modal(): void
+    {
+        // Sanity check the other side of the fix: a genuinely failed Report-tab submit
+        // (its _ticket_raise marker present in old()) must still reopen the modal.
+        $response = $this->actingInTenant()->from('/app/dash')->followingRedirects()
+            ->post('/app/helpdesk', ['_ticket_raise' => '1', 'category' => 'IT']);
+
+        $response->assertOk();
+        // Confirms validation genuinely failed (subject/priority/description missing).
+        $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
+        $response->assertSee('show: true', false);
+    }
+
+    // ── Module gating (final-review finding 2) ───────────────────────
+
+    public function test_send_feedback_button_and_modal_hidden_when_helpdesk_module_disabled(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.helpdesk', false);
+
+        $response = $this->actingInTenant()->get('/app/dash');
+
+        $response->assertOk();
+        $response->assertDontSee('Send feedback');
+        // Unique to the ticket-raise modal markup — proves it did not render at all,
+        // not merely that it is visually hidden.
+        $response->assertDontSee('tr-page-url', false);
+    }
+
+    public function test_send_feedback_button_and_modal_present_when_helpdesk_module_enabled(): void
+    {
+        $response = $this->actingInTenant()->get('/app/dash');
+
+        $response->assertOk();
+        $response->assertSee('Send feedback');
+        $response->assertSee('tr-page-url', false);
     }
 }

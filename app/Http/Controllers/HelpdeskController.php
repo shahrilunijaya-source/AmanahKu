@@ -27,7 +27,7 @@ class HelpdeskController extends Controller
     public const CATEGORIES = ['IT', 'Facilities', 'HR', 'Other', 'Bug', 'Idea'];
 
     /** Categories that carry Feedback's old submission shape: optional description, forced medium priority, page_url + attachments. */
-    private const FEEDBACK_CATEGORIES = ['Bug', 'Idea'];
+    public const FEEDBACK_CATEGORIES = ['Bug', 'Idea'];
 
     /** Public for the same reason as CATEGORIES — read directly by partials/ticket-raise.blade.php. */
     public const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
