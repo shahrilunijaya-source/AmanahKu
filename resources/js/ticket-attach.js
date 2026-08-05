@@ -1,16 +1,16 @@
-// Feedback modal attachments. Lets a reporter paste a screenshot straight into the
-// Details area, or attach up to six images/PDFs/documents, with live thumbnail previews
-// and per-file removal. The real <input type="file" name="attachments[]"> stays hidden;
-// we keep its FileList in sync from our own array via a DataTransfer so the plain form
-// POST carries exactly what the previews show. Client checks mirror the server rules
-// (mimes + 8 MB each + max 6) — the server remains the source of truth.
+// Ticket-raise modal attachments (Bug/Idea categories). Lets a reporter paste a screenshot
+// straight into the Description area, or attach up to six images/PDFs/documents, with live
+// thumbnail previews and per-file removal. The real <input type="file" name="attachments[]">
+// stays hidden; we keep its FileList in sync from our own array via a DataTransfer so the
+// plain form POST carries exactly what the previews show. Client checks mirror the server
+// rules (mimes + 8 MB each + max 6) — the server remains the source of truth.
 
 const ACCEPT_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'];
 const MAX_FILES = 6;
 const MAX_BYTES = 8 * 1024 * 1024;
 
-export function registerFeedbackAttach(Alpine) {
-    Alpine.data('feedbackAttach', () => ({
+export function registerTicketAttach(Alpine) {
+    Alpine.data('ticketAttach', () => ({
         files: [],      // { file, isImage, url }
         error: '',      // '' | 'type' | 'size' | 'max' — blade renders the bilingual message
 
@@ -22,7 +22,7 @@ export function registerFeedbackAttach(Alpine) {
             this.sync();
         },
 
-        // Clipboard paste inside the Details textarea: pull image blobs out and attach them.
+        // Clipboard paste inside the Description textarea: pull image blobs out and attach them.
         // Non-image pastes (plain text) fall through untouched so typing still works.
         onPaste(e) {
             const items = (e.clipboardData && e.clipboardData.items) || [];

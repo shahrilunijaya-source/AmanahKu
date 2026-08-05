@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 import Sortable from 'sortablejs';
 import './passkeys';
-import { registerFeedbackAttach } from './feedback-attach';
+import { registerTicketAttach } from './ticket-attach';
 import { registerMapPicker } from './map-picker';
 import { registerNotifier } from './notifier';
 import { registerOrgChart } from './org-chart';
@@ -24,7 +24,7 @@ window.Sortable = Sortable;
 // Quill and Leaflet are NOT imported here: each is used on exactly one screen
 // (timesheet note modal / attendance-admin map picker) and dynamic-imports
 // itself on first use instead of taxing every page's bundle.
-registerFeedbackAttach(Alpine);
+registerTicketAttach(Alpine);
 registerMapPicker(Alpine);
 registerNotifier(Alpine);
 registerOrgChart(Alpine);
