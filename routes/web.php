@@ -136,7 +136,7 @@ Route::middleware('auth')->group(function () {
     // Everything inside the shell is tenant-scoped. company.active blocks suspended/
     // expired companies; module.enabled 404s any /app/* path (screen OR write route)
     // whose owning module is disabled for the tenant.
-    Route::middleware(['tenant', 'company.active', 'not.archived', 'observer.readonly', 'module.enabled'])->group(function () {
+    Route::middleware(['tenant', 'company.active', 'not.archived', 'module.enabled'])->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');

@@ -97,12 +97,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
-     * Is this user inside the tenant as the invisible observer seat rather than as one of
-     * its people? True only for a super-admin with no membership there. The two middleware
-     * that enforce the seat read this: ReadOnlyObserver refuses every write, and
-     * AuditLog::record() drops the entry so the company never sees the visit. A super-admin
-     * who IS a member of a company is an ordinary member there — normal role, normal writes,
-     * normal audit trail.
+     * Is this user inside the tenant as the observer seat rather than as one of its people?
+     * True only for a super-admin with no membership there. The seat may read AND write
+     * everything (it acts as management) and stays invisible while doing it: no membership
+     * row, no staff record, and AuditLog::record() drops every entry it would leave. A
+     * super-admin who IS a member of a company is an ordinary member there — normal role,
+     * normal writes, normal audit trail.
      */
     public function isObserverIn(Tenant $tenant): bool
     {

@@ -17,32 +17,26 @@ class AuditLog extends Model
      * Record an audit entry for the current actor + active tenant.
      * tenant_id is auto-filled by the BelongsToTenant trait.
      *
-     * A super-admin observer (inside a company they hold no membership in) is invisible
-     * among the company's PEOPLE, so their READS record nothing — a support visit is not
-     * the company's business, and that covers the GET payroll/report exports the read-only
-     * gate lets through. Their WRITES are the opposite: the observer seat may only write
-     * the org-setup routes listed in ReadOnlyObserver, and an invisible edit there would be
-     * unattributable, which is the one thing an HR audit trail cannot survive. So a write
-     * is always logged, marked "(platform support)" so HR reads it as an outside hand
-     * rather than mistaking it for one of their own staff.
+     * A super-admin observer (inside a company they hold no membership in) records NOTHING
+     * — not their reads, not their writes. It is a developer/support seat: the company must
+     * not see that it exists, so it leaves no line in their ledger the way it leaves no row
+     * in their staff list. The cost is deliberate: an edit made from that seat is
+     * unattributable in-app, so platform-side logs are the only trace.
      *
-     * This is the single choke-point for both halves — every call site routes through here.
+     * This is the single choke-point — every call site routes through here.
      */
     public static function record(string $action, ?string $target = null): void
     {
         $tenant = app(CurrentTenant::class)->get();
         $user = Auth::user();
-        $isObserver = $tenant && $user?->isObserverIn($tenant);
 
-        // request() is a GET stub outside HTTP (console, queue), so non-request observer
-        // activity keeps the old silent behaviour.
-        if ($isObserver && request()->isMethodSafe()) {
+        if ($tenant && $user?->isObserverIn($tenant)) {
             return;
         }
 
         static::create([
             'user_id' => Auth::id(),
-            'actor_name' => $isObserver ? $user->name.' (platform support)' : ($user?->name ?? 'System'),
+            'actor_name' => $user?->name ?? 'System',
             'action' => $action,
             'target' => $target,
         ]);

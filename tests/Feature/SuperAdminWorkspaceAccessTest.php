@@ -89,18 +89,20 @@ class SuperAdminWorkspaceAccessTest extends TestCase
             ->assertSee('Bravo');
     }
 
-    public function test_observer_writes_are_refused(): void
+    public function test_observer_may_write_anywhere_in_the_company(): void
     {
         $this->actingAs($this->superAdmin)->get(route('tenant.enter', $this->tenant));
 
         $this->actingAs($this->superAdmin)
             ->post(route('announcements.store'), ['title' => 'Hi', 'body' => 'Hi'])
-            ->assertForbidden();
+            ->assertRedirect();
 
-        $this->assertSame(0, Announcement::withoutGlobalScope('tenant')->count());
+        $this->assertSame(1, Announcement::withoutGlobalScope('tenant')->count());
+        // Invisible seat: the write happens, the company's ledger never mentions it.
+        $this->assertSame(0, AuditLog::withoutGlobalScope('tenant')->count());
     }
 
-    public function test_observer_may_write_org_setup_and_the_entry_names_them(): void
+    public function test_observer_may_write_org_setup_and_leaves_no_entry(): void
     {
         $this->actingAs($this->superAdmin)->get(route('tenant.enter', $this->tenant));
 
@@ -109,28 +111,22 @@ class SuperAdminWorkspaceAccessTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(1, Department::withoutGlobalScope('tenant')->where('name', 'Operation')->count());
-
-        // Invisible among the company's people, but never invisible in its ledger.
-        $entry = AuditLog::withoutGlobalScope('tenant')->sole();
-        $this->assertSame('Root (platform support)', $entry->actor_name);
-        $this->assertSame('Added department', $entry->action);
+        $this->assertSame(0, AuditLog::withoutGlobalScope('tenant')->count());
     }
 
-    public function test_observer_writes_outside_org_setup_are_still_refused(): void
+    public function test_observer_may_edit_staff_and_leaves_no_entry(): void
     {
         $this->actingAs($this->superAdmin)->get(route('tenant.enter', $this->tenant));
 
-        // Sits one line away from the allowed employees.import in the route file — a name
-        // prefix would have opened it.
         $employee = Employee::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Staff', 'status' => 'active', 'workload' => 'green',
         ]);
 
         $this->actingAs($this->superAdmin)
-            ->post(route('employees.update', $employee), ['name' => 'Renamed'])
-            ->assertForbidden();
+            ->post(route('employees.update', $employee), ['name' => 'Renamed', 'status' => 'active'])
+            ->assertRedirect();
 
-        $this->assertSame('Staff', $employee->fresh()->name);
+        $this->assertSame('Renamed', $employee->fresh()->name);
         $this->assertSame(0, AuditLog::withoutGlobalScope('tenant')->count());
     }
 

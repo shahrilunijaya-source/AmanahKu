@@ -10,7 +10,6 @@ use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureSystemLaunched;
 use App\Http\Middleware\ForcePasswordChange;
-use App\Http\Middleware\ReadOnlyObserver;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
@@ -85,7 +84,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => ResolveTenant::class,
             'company.active' => EnsureCompanyIsActive::class,
             'not.archived' => EnsureNotArchived::class,
-            'observer.readonly' => ReadOnlyObserver::class,
             'super.admin' => EnsureSuperAdmin::class,
             'api.tenant' => ApiTenant::class,
             'module.enabled' => EnsureModuleEnabled::class,
