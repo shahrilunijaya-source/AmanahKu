@@ -62,7 +62,7 @@ class HelpdeskController extends Controller
 
         if (! $privileged) {
             $myTickets = $employee
-                ? Ticket::with('assignee')->where('employee_id', $employee->id)
+                ? Ticket::with(['assignee', 'attachments'])->where('employee_id', $employee->id)
                     ->orderByDesc('created_at')->get()
                 : new Collection;
 
@@ -79,7 +79,7 @@ class HelpdeskController extends Controller
             ];
         }
 
-        $boardQuery = Ticket::with(['employee', 'assignee']);
+        $boardQuery = Ticket::with(['employee', 'assignee', 'attachments']);
         if (! $canSeeFeedbackCategories) {
             $boardQuery->whereNotIn('category', self::FEEDBACK_CATEGORIES);
         }
@@ -95,7 +95,7 @@ class HelpdeskController extends Controller
             // myTickets is built from the SAME set that raised it — not the category-filtered
             // board — so a manager who personally raised a Bug ticket still sees it here.
             'myTickets' => $employee
-                ? Ticket::with('assignee')->where('employee_id', $employee->id)
+                ? Ticket::with(['assignee', 'attachments'])->where('employee_id', $employee->id)
                     ->orderByDesc('created_at')->get()
                 : new Collection,
             'grouped' => $grouped,

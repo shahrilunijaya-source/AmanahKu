@@ -90,7 +90,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Share the changelog (What's New) with the surfaces that render it. Newest first;
         // `latestVersion` drives the per-user "New" badge. Single source: config/changelog.php.
-        View::composer(['partials.feedback', 'partials.sidebar'], function ($view) {
+        View::composer(['partials.ticket-raise', 'partials.sidebar'], function ($view) {
             $releases = config('changelog.releases', []);
             $view->with('releases', $releases)
                 ->with('latestVersion', $releases[0]['version'] ?? null);

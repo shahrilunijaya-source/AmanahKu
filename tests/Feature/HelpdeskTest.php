@@ -550,4 +550,26 @@ class HelpdeskTest extends TestCase
     {
         $this->assertTrue(Features::default('module.helpdesk'));
     }
+
+    public function test_helpdesk_screen_renders_the_board_and_my_tickets(): void
+    {
+        Ticket::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'category' => 'Bug', 'priority' => 'medium', 'subject' => 'Rendered bug',
+            'description' => 'x', 'status' => 'resolved', 'resolution' => 'Fixed in 1.2.3.',
+        ]);
+
+        // The raiser (plain employee) sees their own ticket and its resolution note.
+        $response = $this->actingInTenant()->get('/app/helpdesk');
+        $response->assertOk();
+        $response->assertSee('Rendered bug');
+        $response->assertSee('Fixed in 1.2.3.');
+
+        // HR sees it on the board and gets no Manage control on a Bug ticket.
+        $hr = $this->hrActor();
+        $hrResponse = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])->get('/app/helpdesk');
+        $hrResponse->assertOk();
+        $hrResponse->assertSee('Rendered bug');
+        $hrResponse->assertDontSee(route('helpdesk.update', 1));
+    }
 }

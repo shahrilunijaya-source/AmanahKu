@@ -139,8 +139,8 @@
     </nav>
 
     <div class="uj-sb-foot">
-        {{-- Feedback — opens the global feedback modal. --}}
-        <button type="button" @click="$dispatch('feedback-open')" class="uj-feedback-btn"
+        {{-- Send feedback — opens the shared ticket-raise modal pre-filled to category Bug. --}}
+        <button type="button" @click="$dispatch('ticket-raise-open', { category: 'Bug' })" class="uj-feedback-btn"
                 :title="$store.ui.lang==='en' ? 'Send feedback' : 'Maklum balas'"
                 style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:var(--t-sm);font-weight:500;text-align:left;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--red);"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
