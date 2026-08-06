@@ -1,0 +1,10 @@
+# Newest release first. tag is one of: added, improved, fixed.
+# text_ms is optional — falls back to `text` when omitted.
+- version: "2026.08.06"
+  date: "2026-08-06"
+  entries:
+    - tag: added
+      text: "New Changelog screen — see what shipped and when, right from the sidebar."
+      text_ms: "Skrin Log Perubahan baharu — lihat apa yang dilancarkan dan bila, terus dari bar sisi."
+    - tag: improved
+      text: "Timesheet add-entry now opens in one popup with rich-text notes."
