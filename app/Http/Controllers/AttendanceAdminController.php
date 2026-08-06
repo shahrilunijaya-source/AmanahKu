@@ -206,16 +206,16 @@ class AttendanceAdminController extends Controller
                 'flags' => $flags,
             ]);
 
-            AuditLog::record('Reversed clock-out', $employee?->name ?? 'Unknown employee');
+            AuditLog::record('Reversed clock-out', $employee->name ?? 'Unknown employee');
 
-            return back()->with('ok', 'Clock-out reversed. '.($employee?->name ?? 'The employee').' can clock out again.');
+            return back()->with('ok', 'Clock-out reversed. '.($employee->name ?? 'The employee').' can clock out again.');
         }
 
         if ($record->photo_path) {
             Storage::disk(self::PHOTO_DISK)->delete($record->photo_path);
         }
 
-        $name = $employee?->name ?? 'Unknown employee';
+        $name = $employee->name ?? 'Unknown employee';
         $record->delete();
 
         AuditLog::record('Reversed clock-in', $name);
