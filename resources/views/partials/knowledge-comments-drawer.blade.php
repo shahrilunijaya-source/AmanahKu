@@ -196,18 +196,21 @@
         <div x-show="lightboxOpen" x-cloak
              x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
              x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
-             @keydown.escape.window="closeLightbox()" @touchstart="swipeStart($event)" @touchmove="swipeMove($event)" @touchend="swipeEnd($event)" class="kb-lightbox">
+             @keydown.escape.window="closeLightbox()"
+             @keydown.arrow-left.window="lightboxOpen && lightboxIndex > 0 && slideAndSwap($refs.lightboxImg, 'prev')"
+             @keydown.arrow-right.window="lightboxOpen && lightboxIndex < attachments.length - 1 && slideAndSwap($refs.lightboxImg, 'next')"
+             @touchstart="swipeStart($event)" @touchmove="swipeMove($event)" @touchend="swipeEnd($event)" class="kb-lightbox">
             <button type="button" @click="closeLightbox()" style="position:absolute;top:20px;right:20px;color:#fff;font-size:28px;background:none;">&times;</button>
-            <button type="button" x-show="lightboxIndex > 0" @click="prevImage()" style="position:absolute;left:20px;color:#fff;font-size:32px;background:none;">&larr;</button>
+            <button type="button" x-show="lightboxIndex > 0" @click="slideAndSwap($refs.lightboxImg, 'prev')" style="position:absolute;left:20px;color:#fff;font-size:32px;background:none;">&larr;</button>
             <template x-if="lightboxOpen">
                 <div style="max-width:90vw;max-height:85vh;text-align:center;">
-                    <img data-kb-lightbox-img :src="attachments[lightboxIndex]?.url" :alt="attachments[lightboxIndex]?.caption || title"
+                    <img data-kb-lightbox-img x-ref="lightboxImg" :src="attachments[lightboxIndex]?.url" :alt="attachments[lightboxIndex]?.caption || title"
                          :class="{ 'kb-lightbox-img--settle': !dragging }"
                          :style="'max-width:90vw;max-height:78vh;object-fit:contain;border-radius:12px;transform:translateX(' + dragX + 'px);'" />
                     <div x-show="attachments[lightboxIndex]?.caption" style="color:#fff;font-size:13px;margin-top:10px;" x-text="attachments[lightboxIndex]?.caption"></div>
                 </div>
             </template>
-            <button type="button" x-show="lightboxIndex < attachments.length - 1" @click="nextImage()" style="position:absolute;right:20px;color:#fff;font-size:32px;background:none;">&rarr;</button>
+            <button type="button" x-show="lightboxIndex < attachments.length - 1" @click="slideAndSwap($refs.lightboxImg, 'next')" style="position:absolute;right:20px;color:#fff;font-size:32px;background:none;">&rarr;</button>
         </div>
     </div>
 </template>
