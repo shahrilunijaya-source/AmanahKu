@@ -33,7 +33,7 @@ stages: [lint, test, security, build, deploy, release]
   before_script:
     - |
       set -eu
-      apk add --no-cache openssh-client bash
+      apk add --no-cache openssh-client openssh-keygen bash
       DEPLOY_SSH_KEY="${AMANAHKU_DEPLOY_SSH_KEY:-}"
       DEPLOY_HOST="${AMANAHKU_DEPLOY_HOST:-}"
       DEPLOY_USER="${AMANAHKU_DEPLOY_USER:-}"
