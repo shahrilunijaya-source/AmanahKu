@@ -18,6 +18,7 @@ use App\Models\Timesheet;
 use App\Models\UserPermission;
 use App\Services\FeatureManager;
 use App\Support\Amanahku;
+use App\Support\Changelog;
 use App\Support\DashboardPrefs;
 use App\Support\Permissions;
 use App\Support\ProfileCompletion;
@@ -368,6 +369,7 @@ class AppController extends Controller
             ],
             'setup' => app(SetupController::class)->screenData($request),
             'audit' => ['logs' => AuditLog::latest()->take(50)->get()],
+            'changelog' => ['releases' => Changelog::releases()],
             'roster' => app(RosterController::class)->screenData($request, $employee),
             'documents' => app(DocumentController::class)->screenData($request, $employee),
             'surveys' => app(SurveyController::class)->screenData($request, $employee),
