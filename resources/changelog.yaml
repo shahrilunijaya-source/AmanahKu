@@ -35,6 +35,9 @@
     - tag: added
       text: "Knowledge Bank lessons can now carry up to 10 pictures, each with its own caption. Drag to reorder, add or remove pictures when editing, and tap any picture to view it full-screen."
       text_ms: "Pengajaran Bank Pengetahuan kini boleh membawa sehingga 10 gambar, setiap satu dengan kapsyennya sendiri. Seret untuk susun semula, tambah atau buang gambar semasa menyunting, dan ketik mana-mana gambar untuk lihat skrin penuh."
+    - tag: improved
+      text: "Document Vault has a fresh look: documents are grouped by category with clearer icons, and tapping one opens its details — owner, file and download or delete — in a side panel."
+      text_ms: "Peti Dokumen kini bergaya baharu: dokumen dikumpulkan mengikut kategori dengan ikon yang lebih jelas, dan mengetik satu dokumen membuka butirannya — pemilik, fail dan muat turun atau padam — dalam panel sisi."
 
 # Recovered from the old, now-deleted config/changelog.php (commit c8bca8f,
 # corrected by 3376b80) for continuity — this was the app's real 1.0 launch.
