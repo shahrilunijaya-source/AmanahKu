@@ -1,4 +1,14 @@
-# Example project .gitlab-ci.yml — include central modules, do not hand-roll.
+# =============================================================================
+# Amanahku .gitlab-ci.yml
+# -----------------------------------------------------------------------------
+# Skeleton (lint/test/security/build/release) inherited from ci-templates.
+# Deploy jobs overridden below — SSH into server, git pull + deploy.sh.
+# All deploy jobs are MANUAL (human clicks the button in the pipeline).
+#
+# NOTE: shell in `- |` LITERAL BLOCKS to avoid YAML parsing issues with
+# colons in shell scripts.
+# =============================================================================
+
 include:
   - project: 'developer-unijaya/claudecode/ci-templates'
     ref: v0.4.0   # pin to a tag; bump deliberately per SOP-00
@@ -11,3 +21,56 @@ include:
       - '/templates/ci-release.yml'
 
 stages: [lint, test, security, build, deploy, release]
+
+# -----------------------------------------------------------------------------
+# Reusable deploy block (YAML anchor). Server has the repo cloned — deploy is
+# git pull + deploy.sh, not rsync.
+# -----------------------------------------------------------------------------
+.ssh_deploy: &ssh_deploy
+  image: alpine:latest
+  variables:
+    ALLOWED_ROOT: "/mnt/volume_sgp1_01/project/amanahku"
+  before_script:
+    - |
+      set -eu
+      apk add --no-cache openssh-client bash
+      DEPLOY_SSH_KEY="${AMANAHKU_DEPLOY_SSH_KEY:-}"
+      DEPLOY_HOST="${AMANAHKU_DEPLOY_HOST:-}"
+      DEPLOY_USER="${AMANAHKU_DEPLOY_USER:-}"
+      DEPLOY_PATH="${AMANAHKU_DEPLOY_PATH:-}"
+      # Safety: refuse empty or dangerous paths
+      test -n "$DEPLOY_SSH_KEY" || { echo "FATAL: AMANAHKU_DEPLOY_SSH_KEY not set"; exit 1; }
+      test -n "$DEPLOY_HOST"    || { echo "FATAL: AMANAHKU_DEPLOY_HOST not set"; exit 1; }
+      test -n "$DEPLOY_USER"    || { echo "FATAL: AMANAHKU_DEPLOY_USER not set"; exit 1; }
+      test -n "$DEPLOY_PATH"    || { echo "FATAL: AMANAHKU_DEPLOY_PATH is EMPTY"; exit 1; }
+      case "$DEPLOY_PATH" in "$ALLOWED_ROOT"|"$ALLOWED_ROOT"/*) : ;; *) echo "FATAL: DEPLOY_PATH outside ALLOWED_ROOT"; exit 1 ;; esac
+      # SSH setup
+      eval "$(ssh-agent -s)"
+      echo "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
+      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+  script:
+    - |
+      echo "Deploying commit $CI_COMMIT_SHORT_SHA to $CI_ENVIRONMENT_NAME ($DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH)"
+      ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && git pull origin main && bash deploy.sh"
+
+# ---- Production deploy: MANUAL button on main ----
+deploy-dev:
+  <<: *ssh_deploy
+  stage: deploy
+  environment:
+    name: production
+    url: https://amanahku.unijaya.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+
+# ---- UAT / staging: MANUAL button on main (future use) ----
+deploy-uat:
+  <<: *ssh_deploy
+  stage: deploy
+  environment:
+    name: uat
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
