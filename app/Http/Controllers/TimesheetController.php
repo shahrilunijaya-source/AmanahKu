@@ -89,6 +89,16 @@ class TimesheetController extends Controller
             ? Timesheet::with($with)->where('employee_id', $employee->id)->latest('week_start')->get()
             : new Collection;
 
+        // Cost map keyed by timesheet id (null when the owner has no position band).
+        // Built only for money roles, so a plain employee's payload never carries RM.
+        $timesheetCosts = [];
+        if ($canSeeCost) {
+            $rates = app(MandayRateService::class);
+            foreach ($myTimesheets as $t) {
+                $timesheetCosts[$t->id] = $rates->timesheetCost($t);
+            }
+        }
+
         // Personal time breakdown (person-days, never RM) for the signed-in staff: where
         // their own recorded time went, by category and by project, over a chosen period.
         [$pbFrom, $pbTo] = $this->periodFromRequest($request);
@@ -155,6 +165,9 @@ class TimesheetController extends Controller
         $tsItems = array_values($tsItems);
 
         return [
+            'myTimesheets' => $myTimesheets,
+            'canSeeCost' => $canSeeCost,
+            'timesheetCosts' => $timesheetCosts,
             // Prompt HR to assign a band when the signed-in money-role user has none.
             'positionMissing' => $canSeeCost && $employee && ! $employee->position_id,
             // Personal time breakdown (days only) + its period.

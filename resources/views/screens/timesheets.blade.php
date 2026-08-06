@@ -8,6 +8,12 @@
         'rejected' => 'var(--error)',
     ];
 
+    // Manday costing — visible to money roles only (manager/management/HR), set by TimesheetController.
+    $canSeeCost = $canSeeCost ?? false;
+    $timesheetCosts = $timesheetCosts ?? [];
+    $rm = fn ($id) => array_key_exists($id, $timesheetCosts) && $timesheetCosts[$id] !== null
+        ? 'RM '.number_format($timesheetCosts[$id], 2) : null;
+
     $weekStatus = $weekStatus ?? null;
     $weekLocked = $weekStatus && $weekStatus !== 'draft';
 
@@ -662,6 +668,29 @@
     </div>
 
     <div x-show="tab==='review'" x-cloak role="tabpanel">
+    @if ($canSeeCost && $myTimesheets->isNotEmpty())
+    {{-- ===================== REFERENCE PANEL: My weeks (RM, money roles only) ===================== --}}
+    {{-- Read-only — editing and submitting a week both live on the Record tab now, this
+         is only where a money role can see what their own weeks cost. --}}
+    <div class="uj-card" style="margin-bottom:16px;">
+        <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
+            <span x-text="$store.ui.lang==='en' ? 'My weeks' : 'Minggu saya'">My weeks</span>
+        </div>
+        <div>
+        @foreach ($myTimesheets as $t)
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--hairline-soft);">
+                <div style="min-width:0;">
+                    <div style="font-size:13px;color:var(--ink);">{{ $t->week_label ?: $t->week_start->format('j M Y') }}</div>
+                    <div style="font-size:11px;font-weight:600;color:{{ $sc[$t->status] }};">{{ ucfirst($t->status) }}</div>
+                </div>
+                @if ($rm($t->id))
+                    <div style="font-size:12px;font-family:var(--font-mono);color:var(--success);flex-shrink:0;">{{ $rm($t->id) }}</div>
+                @endif
+            </div>
+        @endforeach
+        </div>
+    </div>
+    @endif
     {{-- ===================== REFERENCE PANEL: My time spent ===================== --}}
     <div class="uj-card">
         {{-- Section: My time spent (personal, person-days only — never RM) --}}
