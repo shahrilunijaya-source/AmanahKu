@@ -29,6 +29,9 @@
     - tag: fixed
       text: "The Reports & Analytics screen is now limited to managers, HR and above, matching the rest of the oversight screens."
       text_ms: "Skrin Laporan & Analitik kini terhad kepada pengurus, HR dan ke atas, sejajar dengan skrin pengawasan yang lain."
+    - tag: improved
+      text: "Messages, the unread badge and the message panel now refresh automatically every few seconds — no more reopening a conversation to see a new reply. This checks for updates on a short timer rather than pushing them instantly, so there is still a small delay, not true live chat."
+      text_ms: "Mesej, lencana belum dibaca dan panel mesej kini muat semula secara automatik setiap beberapa saat — tidak perlu buka semula perbualan untuk lihat balasan baharu. Ini menyemak kemas kini pada tempoh masa yang singkat, bukan menghantar terus serta-merta, jadi masih ada sedikit kelewatan, bukan sembang langsung sepenuhnya."
 
 # Recovered from the old, now-deleted config/changelog.php (commit c8bca8f,
 # corrected by 3376b80) for continuity — this was the app's real 1.0 launch.
