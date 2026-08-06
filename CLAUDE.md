@@ -4,11 +4,13 @@ Laravel HR platform. Local dev under [Lerd](https://github.com/lerd-env/lerd) (P
 
 ## Lerd Site
 
-**Reach app at `http://localhost:9100`**, not `http://amanahku.test`. Nginx container serves that port fine, but `.test` DNS unreliable on this machine (systemd-resolved picks router as wlan0 DNS server, NXDOMAINs `.test`, no failover to lerd-dns; `lerd dns:repair` cannot win that race; nsswitch blocks an `/etc/hosts` workaround). Port is DNS-independent, always works. Registered as `laravel-app` in `.claude/launch.json`. `.env` still has `APP_URL=http://amanahku.test`, so APP_URL-derived absolute links (Mailpit emails) still emit `.test` host.
+**Reach app at `http://localhost:9100`**, `.test` DNS is off entirely now (see below), not worth chasing back on. `.env` `APP_URL` follows whatever domain lerd currently assigns the site — check it if absolute links (Mailpit emails) look wrong.
+
+`lerd dns:disable` was run on this machine: `.test` was unreliable (systemd-resolved picks the router as wlan0's DNS server, NXDOMAINs `.test`, no failover to lerd-dns; `lerd dns:repair` couldn't win that race; nsswitch's `resolve [!UNAVAIL=return]` blocks an `/etc/hosts` workaround too since a failed-but-answered `resolve` lookup never falls through to `files`) and it also made `lerd-watcher` sudo-retry the resolver setup every few minutes. With DNS management off, lerd falls back to the `.localhost` TLD, which glibc resolves natively (RFC 6761 special-use domain, no resolver config needed) — so `amanahku.test` is now `amanahku.localhost`. The numeric port below is still the fastest path in; it's DNS-independent by construction either way.
 
 | Site | Access URL | Services | PHP | Node |
 |------|-----------|----------|-----|------|
-| amanahku (lerd site `amanahku.test`) | http://localhost:9100 | mysql, redis, mailpit | 8.5 FPM | 22 |
+| amanahku (lerd site `amanahku.localhost`) | http://localhost:9100 | mysql, redis, mailpit | 8.5 FPM | 22 |
 
 **Commands:**
 ```fish
@@ -40,6 +42,21 @@ Example — log in as HR onto the unijaya workspace:
 ```
 http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
 ```
+
+### Git worktrees (Claude-created branches included)
+
+`lerd-watcher` (`systemctl --user status lerd-watcher`) auto-registers **any** git worktree — plain `git worktree add`, Claude's own worktree tooling, whatever — no `lerd worktree add` required. It must be running; it was previously disabled here because it kept sudo-retrying broken `.test` DNS setup (fixed by `lerd dns:disable`, see above — if it starts sudo-looping again, that's DNS management having come back on, not the watcher itself).
+
+Each worktree gets its own vhost at `worktree-<branch>.amanahku.localhost` (branch name slugified), with `vendor/` seeded and `.env` synced automatically — takes a few seconds after the worktree is created. Reachable directly, no numeric port needed (`.localhost` resolves natively). Check `~/.local/share/lerd/nginx/conf.d/` if a worktree isn't resolving yet.
+
+Two things don't carry over automatically and need a manual copy from the main checkout before dev-login works in a worktree:
+```fish
+set wt .claude/worktrees/<name>
+cp routes/dev-login.php $wt/routes/dev-login.php
+cp dev-login.html $wt/dev-login.html
+cp database/seeders/DevLoginSeeder.php $wt/database/seeders/DevLoginSeeder.php
+```
+They're gitignored (never committed, see above), so `git worktree add` — by lerd or anyone — never brings them along. The worktree shares the parent's database by default, so the seeded dev accounts already exist; no need to re-run `DevLoginSeeder`.
 
 ## Deploy to staging
 

@@ -1,4 +1,4 @@
-{{-- Knowledge Bank slide-over (toggled by `kb` on the shell root; `kbView` = feed|add|newseg).
+{{-- Knowledge Bank slide-over (toggled by `kb` on the shell root; `kbView` = feed|add).
      Mounted at app root alongside the AI panel. x-show + x-transition on each element
      directly (not a wrapping x-if/x-show): x-transition only takes effect on the exact
      element carrying x-show/x-if, and Alpine's x-if tears its subtree down immediately
@@ -105,10 +105,6 @@
                     @endif
                     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;">
                         <a href="{{ route('app.screen', 'knowledge-bank') }}" @click="kb = false" style="font-size:12.5px;color:var(--red);text-decoration:none;font-weight:500;" x-text="$store.ui.lang==='en' ? 'View all lessons →' : 'Lihat semua pengajaran →'">View all lessons →</a>
-                        @if ($kbCanSubmit)
-                            <span style="color:var(--hairline);">·</span>
-                            <button @click="kbView = 'newseg'" type="button" style="font-size:12.5px;color:var(--muted);background:none;cursor:pointer;" x-text="$store.ui.lang==='en' ? '+ New segment' : '+ Segmen baharu'">+ New segment</button>
-                        @endif
                     </div>
                 </div>
             </div>
@@ -192,30 +188,5 @@
                 </div>
             </div>
 
-            {{-- ── NEW SEGMENT ──────────────────────────────────────────────── --}}
-            <div x-show="kbView === 'newseg'" x-cloak x-transition.opacity.duration.150ms class="kb-view-col">
-                <div style="flex-shrink:0;padding:16px 16px 0;">
-                    <button @click="kbView = 'feed'" style="font-size:12.5px;color:var(--muted);background:none;cursor:pointer;" x-text="$store.ui.lang==='en' ? '← Back to feed' : '← Kembali ke suapan'">← Back to feed</button>
-                </div>
-                <div style="flex:1;overflow-y:auto;padding:14px 18px 18px;">
-                    <h2 style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.025em;text-wrap:balance;margin:0 0 4px;" x-text="$store.ui.lang==='en' ? 'Create a segment' : 'Cipta segmen'">Create a segment</h2>
-                    <p style="font-size:12.5px;color:var(--muted);margin:0 0 18px;" x-text="$store.ui.lang==='en' ? 'Group related lessons under a new topic everyone can file into.' : 'Kumpulkan pengajaran berkaitan di bawah topik baharu yang boleh digunakan semua.'">Group related lessons under a new topic.</p>
-
-                    @if ($errors->any() && old('kbform') === 'newseg')
-                        <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $errors->first() }}</div>
-                    @endif
-
-                    <form method="post" action="{{ route('knowledge.segments') }}">
-                        @csrf
-                        <input type="hidden" name="kbform" value="newseg">
-                        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Segment name' : 'Nama segmen'">Segment name</label>
-                        <input name="label" value="{{ old('label') }}" required maxlength="80" :placeholder="$store.ui.lang==='en' ? 'e.g. Vendor Management' : 'cth. Pengurusan Vendor'" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;margin-bottom:18px;outline:none;" />
-                        <div style="display:flex;gap:10px;">
-                            <button type="submit" class="uj-btn-primary" style="flex:1;height:44px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Create segment' : 'Cipta segmen'">Create segment</span></button>
-                            <button type="button" @click="kbView = 'feed'" style="height:44px;padding:0 18px;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--body);font-size:13.5px;font-weight:500;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
         </aside>
 </div>

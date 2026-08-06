@@ -83,11 +83,10 @@
 
                 <div x-show="!editing" x-html="bodyHtml" style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;white-space:pre-wrap;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
 
-                <div x-show="!editing && attachments.length" x-cloak style="display:grid;gap:6px;margin-top:14px;" :style="attachments.length === 1 ? 'grid-template-columns:1fr;' : 'grid-template-columns:1fr 1fr;'">
-                    <template x-for="(a, i) in attachments.slice(0, 4)" :key="a.id">
-                        <button type="button" @click="openLightbox(i)" style="position:relative;padding:0;border:none;border-radius:10px;overflow:hidden;aspect-ratio:1;cursor:pointer;">
+                <div x-show="!editing && attachments.length" x-cloak class="kb-attach-strip" style="gap:10px;margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+                    <template x-for="(a, i) in attachments" :key="a.id">
+                        <button type="button" @click="openLightbox(i)" style="position:relative;padding:0;border:none;border-radius:10px;overflow:hidden;width:96px;height:96px;flex-shrink:0;cursor:pointer;">
                             <img :src="a.url" :alt="a.caption || title" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" />
-                            <span x-show="i === 3 && attachments.length > 4" style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;" x-text="'+' + (attachments.length - 4)"></span>
                         </button>
                     </template>
                 </div>
@@ -194,12 +193,17 @@
              descendants — a fixed-position child of .wd would be positioned relative to
              the drawer, not the viewport. Kept inside the same teleported-to-body wrapper
              so it still only exists while the drawer is mounted. --}}
-        <div x-show="lightboxOpen" x-cloak @keydown.escape.window="closeLightbox()" class="kb-lightbox">
+        <div x-show="lightboxOpen" x-cloak
+             x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+             x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
+             @keydown.escape.window="closeLightbox()" @touchstart="swipeStart($event)" @touchmove="swipeMove($event)" @touchend="swipeEnd($event)" class="kb-lightbox">
             <button type="button" @click="closeLightbox()" style="position:absolute;top:20px;right:20px;color:#fff;font-size:28px;background:none;">&times;</button>
             <button type="button" x-show="lightboxIndex > 0" @click="prevImage()" style="position:absolute;left:20px;color:#fff;font-size:32px;background:none;">&larr;</button>
             <template x-if="lightboxOpen">
                 <div style="max-width:90vw;max-height:85vh;text-align:center;">
-                    <img :src="attachments[lightboxIndex]?.url" :alt="attachments[lightboxIndex]?.caption || title" style="max-width:90vw;max-height:78vh;object-fit:contain;" />
+                    <img data-kb-lightbox-img :src="attachments[lightboxIndex]?.url" :alt="attachments[lightboxIndex]?.caption || title"
+                         :class="{ 'kb-lightbox-img--settle': !dragging }"
+                         :style="'max-width:90vw;max-height:78vh;object-fit:contain;border-radius:12px;transform:translateX(' + dragX + 'px);'" />
                     <div x-show="attachments[lightboxIndex]?.caption" style="color:#fff;font-size:13px;margin-top:10px;" x-text="attachments[lightboxIndex]?.caption"></div>
                 </div>
             </template>

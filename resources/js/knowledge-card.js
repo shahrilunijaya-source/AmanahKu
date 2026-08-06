@@ -18,6 +18,9 @@ export function registerKnowledgeCard(Alpine) {
         editError: '',
         lightboxOpen: false,
         lightboxIndex: 0,
+        swipeStartX: null,
+        dragX: 0,
+        dragging: false,
 
         get reactionTotal() {
             return Object.values(this.reactions).reduce((a, b) => a + b, 0);
@@ -89,6 +92,62 @@ export function registerKnowledgeCard(Alpine) {
 
         prevImage() {
             if (this.lightboxIndex > 0) this.lightboxIndex--;
+        },
+
+        swipeStart(e) {
+            this.swipeStartX = e.touches[0].clientX;
+            this.dragging = true;
+        },
+
+        // Rubber-band at the first/last image instead of a hard stop — dragging
+        // still moves, just damped, so the edge reads as "give" rather than a wall.
+        swipeMove(e) {
+            if (this.swipeStartX === null) return;
+            let dx = e.touches[0].clientX - this.swipeStartX;
+            const atStart = dx > 0 && this.lightboxIndex === 0;
+            const atEnd = dx < 0 && this.lightboxIndex === this.attachments.length - 1;
+            if (atStart || atEnd) dx *= 0.35;
+            this.dragX = dx;
+        },
+
+        swipeEnd(e) {
+            if (this.swipeStartX === null) return;
+            const dx = e.changedTouches[0].clientX - this.swipeStartX;
+            this.swipeStartX = null;
+            this.dragging = false;
+            const canNext = dx < 0 && this.lightboxIndex < this.attachments.length - 1;
+            const canPrev = dx > 0 && this.lightboxIndex > 0;
+            if (Math.abs(dx) < 40 || (!canNext && !canPrev)) {
+                this.dragX = 0;
+                return;
+            }
+            this.slideAndSwap(e.currentTarget.querySelector('[data-kb-lightbox-img]'), canNext ? 'next' : 'prev');
+        },
+
+        // Interrupts the drag with a two-step WAAPI slide: current image continues
+        // off in the swipe direction, then the new one enters from the opposite
+        // edge — the swap reads as one continuous motion instead of a jump-cut.
+        slideAndSwap(img, dir) {
+            const startX = this.dragX;
+            if (!img) {
+                this.dragX = 0;
+                dir === 'next' ? this.nextImage() : this.prevImage();
+                return;
+            }
+            const out = dir === 'next' ? -60 : 60;
+            const inFrom = dir === 'next' ? 60 : -60;
+            const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+            img.animate(
+                [{ transform: `translateX(${startX}px)`, opacity: 1 }, { transform: `translateX(${out}px)`, opacity: 0 }],
+                { duration: 140, easing: ease, fill: 'forwards' }
+            ).finished.then(() => {
+                this.dragX = 0;
+                dir === 'next' ? this.nextImage() : this.prevImage();
+                img.animate(
+                    [{ transform: `translateX(${inFrom}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+                    { duration: 200, easing: ease }
+                );
+            });
         },
 
         startEdit() {
