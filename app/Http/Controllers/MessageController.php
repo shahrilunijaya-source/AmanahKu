@@ -316,6 +316,26 @@ class MessageController extends Controller
         return response()->json(['unread' => $employee ? $this->unreadCount($employee) : 0]);
     }
 
+    /**
+     * Unread count + the panel's thread list, same shape as context() — polled while the
+     * envelope badge or the slide-over panel is on screen, so a message that lands in a
+     * conversation you don't have open still moves it to the top / shows its snippet
+     * without a full page reload.
+     */
+    public function summary(Request $request): JsonResponse
+    {
+        $employee = $request->attributes->get('employee');
+        if (! $employee) {
+            return response()->json(['unread' => 0, 'threads' => []]);
+        }
+
+        $threads = $this->conversationsFor($employee, self::PANEL_LIMIT)
+            ->map(fn (Conversation $c) => $this->mapConversation($c, $employee))
+            ->values()->all();
+
+        return response()->json(['unread' => $this->unreadCount($employee), 'threads' => $threads]);
+    }
+
     // ── Internals ─────────────────────────────────────────────────────────────
 
     /**

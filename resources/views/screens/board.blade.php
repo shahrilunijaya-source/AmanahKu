@@ -8,7 +8,7 @@
 @endphp
 
 @section('screen')
-@include('partials.see-all-btn', ['target' => 'team-board', 'label' => 'See all staff tasks', 'labelMs' => 'Lihat tugasan semua staf'])
+<div class="uj-board-topbar">
 @include('partials.guide', [
     'key' => 'board',
     'en'  => [
@@ -34,6 +34,8 @@
         ],
     ],
 ])
+@include('partials.see-all-btn', ['target' => 'team-board', 'label' => 'See all staff tasks', 'labelMs' => 'Lihat tugasan semua staf'])
+</div>
 
 <div x-data="workBoard(@js($boardType), @js($people ?? []), @js($labelDef), @js($deepLinkCardId ?? null), @js($archivedCount ?? 0))"
      @if ($deepLinkCardId ?? null) data-deep-link-card="{{ $deepLinkCardId }}" @endif>

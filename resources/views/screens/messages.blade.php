@@ -39,6 +39,8 @@
         error: '',
         rootEl: null,
         threadEl: null,
+        lastMessageId: @js(collect($a['messages'] ?? [])->max('id') ?? 0),
+        pollTimer: null,
 
         hit(text) { return this.q === '' || (text ?? '').toLowerCase().includes(this.q.toLowerCase()); },
         group(bucket) { return this.convos.filter(c => c.bucket === bucket && (this.hit(c.other.name) || this.hit(c.snippet))); },
@@ -83,6 +85,35 @@
         /** Back to the index — a state change on this screen, not a navigation. */
         back(push = true) { return this.load('', push); },
 
+        /* ── Live thread poll ─────────────────────────────────────────────────
+            The pane is fetched once (open / send / popstate). Nothing else
+            refreshes it, so a message the other party sends while you have the
+            thread open never appears until you re-click it. This checks the
+            thread's newest id every few seconds and only re-swaps the pane
+            when it actually changed — a stale tab or a quiet thread costs one
+            small JSON fetch, not a re-render. */
+        schedulePoll() {
+            clearTimeout(this.pollTimer);
+            this.pollTimer = setTimeout(() => this.pollThread(), 4000);
+        },
+        async pollThread() {
+            if (! this.activeId || document.hidden) { this.schedulePoll(); return; }
+            try {
+                const res = await fetch('/app/messages/thread/' + this.activeId, { headers: { 'Accept': 'application/json' } });
+                if (res.ok) {
+                    const data = await res.json();
+                    const newest = data.messages.length ? data.messages[data.messages.length - 1].id : 0;
+                    if (newest !== this.lastMessageId) {
+                        this.lastMessageId = newest;
+                        await this.load('c=' + this.activeId, false);
+                    }
+                }
+            } catch (e) {
+                // A missed poll just retries next tick — no need to surface it.
+            }
+            this.schedulePoll();
+        },
+
         /** Post the composer and swap the same column back in with the new message. */
         async send(form) {
             if (this.sending) { return; }
@@ -101,6 +132,7 @@
                     return;
                 }
                 this.touch(data.conversationId, data.message, form);
+                this.lastMessageId = data.message.id;
                 await this.load('c=' + data.conversationId, data.conversationId !== this.activeId);
             } catch (e) {
                 this.error = this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.';
@@ -140,6 +172,7 @@
             window.addEventListener('popstate', () => {
                 this.load(window.location.search.replace(/^\?/, ''), false);
             });
+            this.schedulePoll();
         },
      }"
      @msg-read="convos.forEach(c => { if (c.id === $event.detail.id) { c.unread = 0; } })">

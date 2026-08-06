@@ -85,13 +85,16 @@
                 </a>
             </div>
 
-            <div class="uj-ar-drow uj-ar-dhead" style="background:none;">
+            <div class="uj-ar-drow uj-ar-dhead" style="background:none;{{ $canReversePunch ? 'grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,1fr);' : '' }}">
                 <span x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</span>
                 <span style="text-align:right;">In</span>
                 <span style="text-align:right;" class="uj-ar-hide-sm">Out</span>
                 <span style="text-align:right;" class="uj-ar-hide-sm"><span x-text="$store.ui.lang==='en' ? 'Worked' : 'Bekerja'">Worked</span></span>
                 <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></span>
                 <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Flags' : 'Tanda'">Flags</span></span>
+                @if ($canReversePunch)
+                    <span style="text-align:right;"></span>
+                @endif
             </div>
             @forelse ($drillRecords as $r)
                 @php
@@ -101,7 +104,7 @@
                     $worked = $wm > 0 ? intdiv($wm, 60).'h'.($wm % 60 ? ($wm % 60).'m' : '') : '—';
                     $sl = $stLabel[$r->status] ?? [$r->status, $r->status];
                 @endphp
-                <div class="uj-ar-drow" style="cursor:default;">
+                <div class="uj-ar-drow" style="cursor:default;{{ $canReversePunch ? 'grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,1fr);' : '' }}">
                     <span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $r->date->format('D, j M') }}</span>
                     <span class="uj-ar-num">{{ $rin }}</span>
                     <span class="uj-ar-num uj-ar-hide-sm">{{ $rout }}</span>
@@ -115,6 +118,25 @@
                             <span style="font-size:9px;font-weight:600;color:var(--error);background:var(--red-tint,rgba(214,35,43,.1));padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                         @endforeach
                     </span>
+                    @if ($canReversePunch)
+                        <span style="text-align:right;">
+                            @if ($r->clock_in)
+                                @php
+                                    $confirmMsg = $r->clock_out
+                                        ? "Reverse {$drill->name}'s clock-out on {$r->date->format('j M')}? They will be able to clock out again."
+                                        : "Reverse {$drill->name}'s clock-in on {$r->date->format('j M')}? They will be able to clock in again, and this record will be deleted.";
+                                    $revLabel = $r->clock_out ? ['Reverse out', 'Batal keluar'] : ['Reverse in', 'Batal masuk'];
+                                @endphp
+                                <form method="post" action="{{ route('attendance.admin.records.reverse', $r) }}"
+                                      onsubmit="return confirm(@js($confirmMsg))">
+                                    @csrf
+                                    <button type="submit" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11.5px;color:var(--red-active);border-color:var(--red-active);">
+                                        <span x-text="$store.ui.lang==='en' ? @js($revLabel[0]) : @js($revLabel[1])">{{ $revLabel[0] }}</span>
+                                    </button>
+                                </form>
+                            @endif
+                        </span>
+                    @endif
                     @php $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]); @endphp
                     @if ($notes)
                         <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:2px;">

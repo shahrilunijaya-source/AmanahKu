@@ -307,6 +307,7 @@ class Amanahku
             // Title/sub here are placeholders only — dashHeading() overrides them per
             // persona (see AppController::screen). This entry survives for the crumb.
             'dash' => ['title' => 'Dashboard', 'title_ms' => 'Papan Pemuka', 'sub' => '', 'sub_ms' => '', 'crumb' => ['Dashboard']],
+            'changelog' => ['title' => 'Changelog', 'title_ms' => 'Log Perubahan', 'sub' => "What's new in Amanahku.", 'sub_ms' => 'Apa yang baharu dalam Amanahku.', 'crumb' => ['Changelog']],
             'directory' => ['title' => 'Employee Directory', 'title_ms' => 'Direktori Pekerja', 'sub' => 'Everyone in the company, across all branches and departments.', 'sub_ms' => 'Semua orang dalam syarikat, merangkumi semua cawangan dan jabatan.', 'crumb' => ['People', 'Employees']],
             'profile' => ['title' => 'Nurul Iman binti Hassan', 'title_ms' => 'Nurul Iman binti Hassan', 'sub' => 'Senior HR Executive · People & Culture · Petaling Jaya HQ', 'sub_ms' => 'Eksekutif Kanan HR · People & Culture · Ibu Pejabat Petaling Jaya', 'crumb' => ['People', 'Employees', 'Nurul Iman']],
             'board' => ['title' => 'Tasks, Assignments & Adhoc', 'title_ms' => 'Tugasan, Penugasan & Adhoc', 'sub' => 'Plan, assign and review work across your team.', 'sub_ms' => 'Rancang, agih dan semak kerja seluruh pasukan anda.', 'crumb' => ['My Work', 'Board']],

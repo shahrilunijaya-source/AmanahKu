@@ -231,16 +231,25 @@ export function registerTimesheetCapture(Alpine) {
         rowColour(i) {
             return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][i % 4];
         },
-        // A category's colour in the picker — stable per category (same category always shows
-        // the same dot), keyed by its position in the category list rather than its id, so the
-        // colour doesn't jump every time an id happens to change. Deliberately a SEPARATE
-        // palette lookup from rowColour(): that one distinguishes lines within a single day and
-        // must stay index-based (four fixed slots for up to four lines) — reusing it here by
-        // category id would let two different categories on the same day collide onto the same
-        // colour, which is exactly what rowColour() exists to prevent.
+        // A category's colour in the picker — grouped by what the category actually is, not
+        // by its position in the list (index-based cycling repeats every 4 slots, so past the
+        // 4th category two unrelated categories share a dot with no way to tell them apart).
+        // Matched against the canonical `name`, not the localised label, so the group a
+        // category falls into doesn't change with the viewer's language. Deliberately a
+        // SEPARATE palette lookup from rowColour(): that one distinguishes lines within a
+        // single day and must stay index-based (four fixed slots for up to four lines).
+        categoryColourGroups: [
+            { test: (c) => c.requires_project, colour: 'var(--info)' }, // Development, Maintenance, InHouse Project, CI
+            { test: (c) => /leave/i.test(c.name), colour: 'var(--success)' }, // Medical Leave, On Leave
+            { test: (c) => /sales|marketing/i.test(c.name), colour: 'var(--amber)' }, // Sales, Marketing
+            { test: (c) => /account|admin/i.test(c.name), colour: 'var(--error)' }, // Account and Finance, Administration, HR and Admin
+        ],
         categoryColour(categoryId) {
-            const i = this.categories.findIndex((c) => String(c.id) === String(categoryId));
-            return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][Math.max(0, i) % 4];
+            const cat = this.categories.find((c) => String(c.id) === String(categoryId));
+            if (!cat) {
+                return 'var(--muted-soft)';
+            }
+            return this.categoryColourGroups.find((g) => g.test(cat))?.colour || 'var(--muted-soft)';
         },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
@@ -482,6 +491,24 @@ export function registerTimesheetCapture(Alpine) {
                     ],
                 },
             });
+            // Native title attrs give each toolbar button a hover tooltip — Quill's snow
+            // theme ships icons only, with no accessible label or hint visible until clicked.
+            const en = this.$store.ui.lang === 'en';
+            const toolbarHints = {
+                '.ql-bold': en ? 'Bold' : 'Tebal',
+                '.ql-italic': en ? 'Italic' : 'Condong',
+                '.ql-underline': en ? 'Underline' : 'Garis bawah',
+                '.ql-strike': en ? 'Strikethrough' : 'Coret',
+                '.ql-list[value="ordered"]': en ? 'Numbered list' : 'Senarai bernombor',
+                '.ql-list[value="bullet"]': en ? 'Bullet list' : 'Senarai bulet',
+                '.ql-blockquote': en ? 'Quote' : 'Petikan',
+                '.ql-link': en ? 'Link' : 'Pautan',
+                '.ql-clean': en ? 'Clear formatting' : 'Kosongkan format',
+            };
+            const toolbarEl = quill.getModule('toolbar').container;
+            for (const [selector, hint] of Object.entries(toolbarHints)) {
+                toolbarEl.querySelector(selector)?.setAttribute('title', hint);
+            }
             // The visible "Notes (optional)" <label> above isn't programmatically linked to
             // Quill's contenteditable root (no for/id pairing exists for a rich-text editor),
             // so its accessible name has to be set directly here.
