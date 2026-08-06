@@ -171,6 +171,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/attendance-admin/staff/{employee}', [AttendanceAdminController::class, 'updateEmployee'])->name('attendance.admin.staff');
         Route::post('/app/attendance-admin/staff/{employee}/home', [AttendanceAdminController::class, 'updateHome'])->name('attendance.admin.home');
         Route::post('/app/attendance-admin/wfh-policy', [AttendanceAdminController::class, 'updateWfhPolicy'])->name('attendance.admin.wfh-policy');
+        // Reverse a misclicked punch — narrower than the rest of this group (hr/director/super-admin only, checked in the controller).
+        Route::post('/app/attendance-admin/records/{record}/reverse', [AttendanceAdminController::class, 'reversePunch'])->name('attendance.admin.records.reverse');
         // Position rate card (manday/manhour costing bands) — privileged; screen GET is role-gated in AppController.
         Route::post('/app/position', [PositionController::class, 'store'])->name('position.store');
         // Bulk import — register before the /{position} wildcard so "import" isn't read as an id.

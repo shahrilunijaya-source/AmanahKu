@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Attendance\ScheduleResolver;
+use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Tenant;
@@ -10,6 +11,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -263,5 +265,106 @@ class AttendanceAdminTest extends TestCase
             ])->assertForbidden();
 
         $this->assertNull($foreign->fresh()->home_latitude);
+    }
+
+    // --- Reverse a punch -----------------------------------------------------
+
+    private function punchedRecord(Employee $employee, bool $withClockOut, ?array $extra = null): AttendanceRecord
+    {
+        return AttendanceRecord::create(array_merge([
+            'tenant_id' => $employee->tenant_id,
+            'employee_id' => $employee->id,
+            'date' => Carbon::today(),
+            'clock_in' => '09:00:00',
+            'clock_out' => $withClockOut ? '18:00:00' : null,
+            'latitude' => 3.0,
+            'longitude' => 101.0,
+            'flags' => $withClockOut ? ['out_of_radius_out'] : [],
+            'worked_minutes' => $withClockOut ? 540 : null,
+        ], $extra ?? []));
+    }
+
+    public function test_hr_reverses_a_clock_out_and_the_employee_can_clock_out_again(): void
+    {
+        Storage::fake('local');
+        $this->actingAsRole('hr');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true, extra: ['clock_out_photo_path' => 'attendance-photos/out.jpg']);
+        Storage::disk('local')->put('attendance-photos/out.jpg', 'x');
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $record->refresh();
+        $this->assertNotNull($record->clock_in);
+        $this->assertNull($record->clock_out);
+        $this->assertNull($record->worked_minutes);
+        $this->assertNotContains('out_of_radius_out', $record->flags ?? []);
+        Storage::disk('local')->assertMissing('attendance-photos/out.jpg');
+    }
+
+    public function test_hr_reverses_a_clock_in_and_deletes_the_record(): void
+    {
+        $this->actingAsRole('hr');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: false);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertModelMissing($record);
+    }
+
+    public function test_director_can_reverse_a_punch(): void
+    {
+        $this->actingAsRole('director');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")->assertRedirect()->assertSessionHas('ok');
+    }
+
+    public function test_plain_management_cannot_reverse_a_punch(): void
+    {
+        $this->actingAsRole('management');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")->assertForbidden();
+
+        $this->assertNotNull($record->fresh()->clock_out);
+    }
+
+    public function test_manager_cannot_reverse_a_punch(): void
+    {
+        $this->actingAsRole('manager');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")->assertForbidden();
+    }
+
+    public function test_super_admin_observer_can_reverse_a_punch(): void
+    {
+        $user = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $user->forceFill(['is_super_admin' => true])->save();
+        $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id]);
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")->assertRedirect()->assertSessionHas('ok');
+    }
+
+    public function test_hr_cannot_reverse_a_punch_for_another_tenants_staff(): void
+    {
+        $other = Tenant::create(['slug' => 'other2', 'name' => 'Other2', 'initials' => 'O2']);
+        $foreign = $this->staff('office', $other->id);
+        $record = $this->punchedRecord($foreign, withClockOut: true);
+
+        $this->actingAsRole('hr')
+            ->post("/app/attendance-admin/records/{$record->id}/reverse")
+            ->assertForbidden();
+
+        $this->assertNotNull($record->fresh()->clock_out);
     }
 }

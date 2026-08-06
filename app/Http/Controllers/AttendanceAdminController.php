@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceRecord;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -19,6 +21,16 @@ use Illuminate\Validation\Rule;
 class AttendanceAdminController extends Controller
 {
     private const PRIVILEGED_ROLES = ['management', 'hr'];
+
+    /**
+     * Reversing a punch (undoing a misclick that clocked someone in or out) is a step above
+     * the rest of this screen: 'management' — a plain manager elevated for setup — is left
+     * out on purpose, only HR, a director (board tier), or a super-admin observer may do it.
+     */
+    private const REVERSE_ROLES = ['hr', 'director'];
+
+    /** Clock-in/out selfies live on the private disk — mirrors AttendanceController. */
+    private const PHOTO_DISK = 'local';
 
     /** Data for the Attendance Setup screen. */
     public function screenData(Request $request): array
@@ -157,6 +169,60 @@ class AttendanceAdminController extends Controller
         return back()->with('ok', $employee->name.' home address saved.');
     }
 
+    /**
+     * Undo the most recent punch on a record: clears clock-out if the record has one (the
+     * employee stays clocked in and can clock out again), otherwise deletes the whole record
+     * (the employee stays not-clocked-in and can clock in again). Never partially undoes a
+     * clock-in that already has a clock-out — clear the clock-out first.
+     */
+    public function reversePunch(Request $request, AttendanceRecord $record): RedirectResponse
+    {
+        $this->authorizeReverse($request);
+        $this->assertTenant($record->tenant_id);
+
+        $employee = $record->employee;
+        abort_unless($record->clock_in !== null, 422);
+
+        if ($record->clock_out !== null) {
+            if ($record->clock_out_photo_path) {
+                Storage::disk(self::PHOTO_DISK)->delete($record->clock_out_photo_path);
+            }
+
+            $flags = array_values(array_diff($record->flags ?? [], [
+                'out_of_radius_out', 'early_out', 'short_hours',
+                // 'no_location' only ever meant the clock-OUT had no fix when the clock-IN
+                // did — a clock-in with no fix carries the same flag and must keep it.
+                ...($record->latitude !== null ? ['no_location'] : []),
+            ]));
+
+            $record->update([
+                'clock_out' => null,
+                'clock_out_latitude' => null,
+                'clock_out_longitude' => null,
+                'out_radius' => null,
+                'clock_out_justification' => null,
+                'clock_out_photo_path' => null,
+                'worked_minutes' => null,
+                'flags' => $flags,
+            ]);
+
+            AuditLog::record('Reversed clock-out', $employee?->name ?? 'Unknown employee');
+
+            return back()->with('ok', 'Clock-out reversed. '.($employee?->name ?? 'The employee').' can clock out again.');
+        }
+
+        if ($record->photo_path) {
+            Storage::disk(self::PHOTO_DISK)->delete($record->photo_path);
+        }
+
+        $name = $employee?->name ?? 'Unknown employee';
+        $record->delete();
+
+        AuditLog::record('Reversed clock-in', $name);
+
+        return back()->with('ok', 'Clock-in reversed. '.$name.' can clock in again.');
+    }
+
     /** @return array<string,mixed> */
     private function validateSite(Request $request): array
     {
@@ -175,6 +241,19 @@ class AttendanceAdminController extends Controller
     private function authorize(Request $request): void
     {
         $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+    }
+
+    /** Super-admin observers carry no tenant membership row, so hasTenantRole() alone
+     * would never admit them — same reason every other super-admin-reaching gate in
+     * this codebase checks it explicitly rather than through the tenant role. */
+    private function canReversePunch(Request $request): bool
+    {
+        return (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::REVERSE_ROLES);
+    }
+
+    private function authorizeReverse(Request $request): void
+    {
+        abort_unless($this->canReversePunch($request), 403);
     }
 
     private function assertTenant(int $tenantId): void

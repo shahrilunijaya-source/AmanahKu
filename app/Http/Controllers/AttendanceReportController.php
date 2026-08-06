@@ -24,6 +24,14 @@ class AttendanceReportController extends Controller
         'quarter' => 90,
     ];
 
+    /**
+     * Reversing a punch from the drill-down is a step above the rest of this (already
+     * management/HR-gated) report: 'management' is left out on purpose — only HR, a
+     * director (board tier), or a super-admin observer may undo one. Mirrors
+     * AttendanceAdminController::REVERSE_ROLES, which owns the actual reversePunch() action.
+     */
+    private const REVERSE_ROLES = ['hr', 'director'];
+
     public function screenData(Request $request): array
     {
         $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'month';
@@ -311,6 +319,7 @@ class AttendanceReportController extends Controller
             'totals' => $totals,
             'drill' => $drill,
             'drillRecords' => $drillRecords,
+            'canReversePunch' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::REVERSE_ROLES),
         ];
     }
 
