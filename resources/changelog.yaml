@@ -1,6 +1,12 @@
 # Newest release first. tag is one of: added, improved, fixed.
 # text_ms is optional — falls back to `text` when omitted.
-- version: "2026.08.06"
+#
+# Version is semver MAJOR.MINOR, not CalVer, and tracks what actually lands on
+# gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
+# main launch commit (predates this file; not re-listed here). Bump MINOR for
+# an ordinary release; bump MAJOR only for something meaningful (a real
+# breaking or headline change), never on a fixed cadence.
+- version: "1.1"
   date: "2026-08-06"
   entries:
     - tag: added

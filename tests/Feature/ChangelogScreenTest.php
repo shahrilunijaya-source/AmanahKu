@@ -55,7 +55,7 @@ class ChangelogScreenTest extends TestCase
             ->get('/app/changelog');
 
         $response->assertOk();
-        $response->assertSee('2026.08.06');
+        $response->assertSee('1.1');
         $response->assertSee('New Changelog screen', false);
         $response->assertSee('Timesheet add-entry now opens in one popup', false);
         $response->assertSee('Added');

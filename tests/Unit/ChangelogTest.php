@@ -14,7 +14,7 @@ class ChangelogTest extends TestCase
         $releases = Changelog::releases();
 
         $this->assertNotEmpty($releases);
-        $this->assertSame('2026.08.06', $releases[0]['version']);
+        $this->assertSame('1.1', $releases[0]['version']);
         $this->assertSame('2026-08-06', $releases[0]['date']);
     }
 

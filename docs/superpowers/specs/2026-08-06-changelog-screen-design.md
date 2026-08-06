@@ -1,10 +1,21 @@
 # Design: User-facing changelog screen
 
+## Amendment (2026-08-06, post-implementation)
+
+This exact feature already existed once: `config/changelog.php` + a Feedback-hub
+"What's New" tab + a sidebar "New" badge + an `artisan changelog:draft` command,
+shipped 2026-08-02 as version `1.0` (commit `c8bca8f`), then deliberately deleted
+2026-08-05 (commit `91f4070`, "unused going forward") — already live on `gitlab/main`
+and staging by the time this spec was written, so prod had no changelog feature at
+all when this design started. Confirmed with Shazwan: keep this build (simpler — no
+badge/read-state, no artisan command, just a page), don't resurrect the old shape.
+Versioning changed from date-based to semver as a result — see Data below.
+
 ## Purpose
 
 Give every Amanahku user a place to see what changed in the app (release notes), and
 give Shazwan a single source of truth to reference when answering helpdesk tickets
-("that's fixed in the 2026.08.06 release, see /app/changelog"). Not a per-tenant
+("that's fixed in 1.1, see /app/changelog"). Not a per-tenant
 `Announcement` (HR-authored company notices) and not the repo's `CHANGELOG.md`
 (governance/template lineage) — a third, new thing: app release notes, global across
 all tenants, authored by whoever ships the code.
@@ -21,7 +32,7 @@ all tenants, authored by whoever ships the code.
 `resources/changelog.yaml`, releases newest-first:
 
 ```yaml
-- version: "2026.08.06"
+- version: "1.1"
   date: "2026-08-06"
   entries:
     - tag: added
@@ -43,10 +54,14 @@ itself depends on it, no new package). No caching layer to start: the file is sm
 the screen is not hot-path traffic. Add `Cache::rememberForever` keyed on the file's
 mtime only if this ever shows up in a profile.
 
-Version string is a date (`YYYY.MM.DD`), not semver — this app doesn't tag semver
-releases (`git tag -l` shows one unrelated tag), and a date is the thing that will
-actually mean something when cross-referencing a helpdesk ticket ("were you on the
-version from before or after 2026.08.06").
+Version string is semver `MAJOR.MINOR` (no patch level — not asked for), not CalVer.
+Baseline `1.0` is the 2026-08-02 gitlab main launch commit (the old, now-deleted
+changelog's own launch entry — see Amendment above) and is not re-listed in this
+file. Versions track what actually lands on `gitlab main`, the prod branch, not dev
+commits — an entry authored on dev carries the version it will ship as once merged
+to main, so double-check the number still fits at merge time if other work landed on
+main first. Bump MINOR for an ordinary release; bump MAJOR only for something
+genuinely meaningful (a real breaking or headline change), never on a fixed cadence.
 
 ## Backend wiring
 
