@@ -126,7 +126,7 @@
                         <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $errors->first() }}</div>
                     @endif
 
-                    <form method="post" action="{{ route('knowledge.store') }}">
+                    <form method="post" action="{{ route('knowledge.store') }}" enctype="multipart/form-data" x-data="kbAttach()">
                         @csrf
                         <input type="hidden" name="kbform" value="add">
                         <input type="hidden" name="seg_id" :value="pickSeg">
@@ -156,6 +156,33 @@
 
                         <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Tags' : 'Tag'">Tags</span> <span style="color:var(--muted);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional, comma-separated)' : '(pilihan, pisah dengan koma)'">(optional)</span></label>
                         <input name="tags" value="{{ old('tags') }}" maxlength="200" placeholder="laravel, deploy, gotcha" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;margin-bottom:18px;outline:none;" />
+
+                        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:7px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Pictures' : 'Gambar'">Pictures</span>
+                            <span style="color:var(--muted);font-weight:400;" x-text="$store.ui.lang==='en' ? '(optional, up to 10)' : '(pilihan, sehingga 10)'">(optional, up to 10)</span>
+                        </label>
+
+                        {{-- Create form has no pre-existing pictures, so only `images[]` + index-aligned
+                             `captions[]` travel — no remove_images[]/reorder[]/caption_updates here, those
+                             only apply to the edit form in the drawer, which already has persisted attachments. --}}
+                        <input x-ref="input" type="file" name="images[]" multiple accept="image/*" style="display:none;" @change="addFiles($event.target.files)" />
+
+                        <div x-show="error" x-cloak style="font-size:12px;color:var(--red);margin-bottom:8px;">
+                            <span x-show="error==='type'" x-text="$store.ui.lang==='en' ? 'Only JPG, PNG, GIF, or WebP pictures.' : 'Hanya gambar JPG, PNG, GIF, atau WebP.'"></span>
+                            <span x-show="error==='size'" x-text="$store.ui.lang==='en' ? 'Each picture must be 8 MB or smaller.' : 'Setiap gambar mesti 8 MB atau lebih kecil.'"></span>
+                            <span x-show="error==='max'" x-text="$store.ui.lang==='en' ? 'You can attach up to 10 pictures.' : 'Anda boleh lampirkan sehingga 10 gambar.'"></span>
+                        </div>
+
+                        <div x-init="initSortable($el)" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                            <template x-for="(f, i) in files" :key="f.url">
+                                <div data-kb-tile style="position:relative;width:72px;">
+                                    <img :src="f.url" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--hairline);cursor:grab;" />
+                                    <button type="button" @click="remove(i)" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;line-height:1;">&times;</button>
+                                    <input x-model="f.caption" :name="'captions['+i+']'" maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Caption' : 'Kapsyen'" style="width:72px;font-size:10px;margin-top:4px;border:1px solid var(--hairline);border-radius:4px;padding:2px 4px;" />
+                                </div>
+                            </template>
+                            <button type="button" @click="$refs.input.click()" style="width:72px;height:72px;border:1px dashed var(--hairline);border-radius:8px;color:var(--muted);font-size:22px;background:#fff;">+</button>
+                        </div>
 
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="uj-btn-primary" style="flex:1;height:44px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Share with Unijaya' : 'Kongsi dengan Unijaya'">Share with Unijaya</span></button>
