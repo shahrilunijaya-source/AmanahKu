@@ -67,4 +67,14 @@ class ChangelogScreenTest extends TestCase
             'Exactly one entry in the seed data is tagged added.'
         );
     }
+
+    public function test_the_sidebar_footer_links_to_the_changelog_from_any_screen(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/dash');
+
+        $response->assertOk();
+        $response->assertSee(route('app.screen', 'changelog'), false);
+    }
 }

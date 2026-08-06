@@ -152,6 +152,13 @@
         </button>
         @endif
 
+        <a href="{{ route('app.screen', 'changelog') }}" class="uj-feedback-btn"
+           :title="$store.ui.lang==='en' ? 'Changelog' : 'Log Perubahan'"
+           style="width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:var(--t-sm);font-weight:500;text-align:left;text-decoration:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--sidebar-dim);"><path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"></path></svg>
+            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? 'Changelog' : 'Log Perubahan'">Changelog</span>
+        </a>
+
         <a href="{{ route('tenant.select') }}" class="uj-sb-ws"
            :title="$store.ui.lang==='en' ? 'Switch workspace' : 'Tukar ruang kerja'">
             <div style="width:28px;height:28px;border-radius:8px;background:{{ $tenant['color'] }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--t-sm);flex-shrink:0;">{{ $tenant['initials'] }}</div>
