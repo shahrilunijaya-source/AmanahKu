@@ -15,11 +15,11 @@
     - tag: improved
       text: "Timesheet add-entry now opens in one popup with rich-text notes."
     - tag: added
-      text: "HR, director and super-admin observers can now reverse a misclicked clock-in or clock-out, from an employee's Attendance Reports drill-down."
-      text_ms: "HR, director dan pemerhati super-admin kini boleh membalikkan clock-in atau clock-out yang tersilap klik, daripada rekod terperinci Laporan Kehadiran pekerja."
+      text: "HR and director can now reverse a misclicked clock-in or clock-out, from an employee's Attendance Reports drill-down."
+      text_ms: "HR dan director kini boleh membatalkan clock-in atau clock-out yang tersilap klik, daripada rekod terperinci Laporan Kehadiran pekerja."
     - tag: fixed
       text: "Board and the org chart now share the same page width as every other screen."
-      text_ms: "Papan dan carta organisasi kini berkongsi lebar halaman yang sama dengan skrin lain."
+      text_ms: "T.A.A. dan carta organisasi kini berkongsi lebar halaman yang sama dengan skrin lain."
 
 # Recovered from the old, now-deleted config/changelog.php (commit c8bca8f,
 # corrected by 3376b80) for continuity — this was the app's real 1.0 launch.
