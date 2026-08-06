@@ -47,4 +47,24 @@ class ChangelogScreenTest extends TestCase
         $response->assertViewHas('releases');
         $response->assertSee('Changelog');
     }
+
+    public function test_it_lists_every_release_with_its_tagged_entries(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/changelog');
+
+        $response->assertOk();
+        $response->assertSee('2026.08.06');
+        $response->assertSee('New Changelog screen', false);
+        $response->assertSee('Timesheet add-entry now opens in one popup', false);
+        $response->assertSee('Added');
+        $response->assertSee('Improved');
+        // 'added' carries the success tone; 'improved' carries no data-tone (neutral default).
+        $this->assertSame(
+            1,
+            substr_count($response->getContent(), 'uj-stamp" data-tone="success"'),
+            'Exactly one entry in the seed data is tagged added.'
+        );
+    }
 }
