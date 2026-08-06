@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\KnowledgeController;
 use App\Models\Employee;
 use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeSegment;
@@ -9,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -271,5 +273,20 @@ class KnowledgeAttachmentTest extends TestCase
         // Deliberately never written to the fake disk.
 
         $this->actingInTenant()->get(route('knowledge.attachments.show', $att))->assertNotFound();
+    }
+
+    public function test_screen_data_eager_loads_attachments(): void
+    {
+        $entry = $this->entryWithImages(2);
+
+        $controller = app(KnowledgeController::class);
+        $request = Request::create('/app/knowledge-bank');
+        $request->attributes->set('tenantRole', 'employee');
+
+        $data = $controller->screenData($request, $this->authorEmployee);
+        $loadedEntry = $data['entries']->firstWhere('id', $entry->id);
+
+        $this->assertTrue($loadedEntry->relationLoaded('attachments'));
+        $this->assertSame(2, $loadedEntry->attachments->count());
     }
 }

@@ -83,6 +83,7 @@ class KnowledgeController extends Controller
             'employee:id,name,initials,avatar_color,position',
             'segment:id,label',
             'subSegment:id,label',
+            'attachments',
             'comments' => fn ($c) => $c->with('employee:id,name,initials,avatar_color')->orderBy('id'),
         ])
             ->withCount(['stars', 'comments'])

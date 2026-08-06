@@ -195,6 +195,11 @@
                  stars: {{ $e->stars_count }},
                  starred: {{ $starred ? 'true' : 'false' }},
                  commentsCount: {{ $e->comments_count }},
+                 attachments: @js($e->attachments->map(fn ($a) => [
+                     'id' => $a->id,
+                     'url' => route('knowledge.attachments.show', $a),
+                     'caption' => $a->caption,
+                 ])->values()),
              })">
             {{-- Summary row — click opens the detail panel (drawer) --}}
             <div @click="openDrawer()" style="display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:18px;align-items:start;padding:22px 4px;cursor:pointer;">
@@ -217,9 +222,18 @@
                     <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
-                    <span x-show="reactionTotal" style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">♥ <span x-text="reactionTotal"></span></span>
-                    <span style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">★ <span x-text="stars"></span></span>
-                    <span style="font-size:12.5px;color:var(--muted-soft);white-space:nowrap;font-family:var(--font-mono);">◍ <span x-text="commentsCount"></span></span>
+                    <span x-show="reactionTotal" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                        <span x-text="reactionTotal"></span>
+                    </span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z"/></svg>
+                        <span x-text="stars"></span>
+                    </span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        <span x-text="commentsCount"></span>
+                    </span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
                 </div>
             </div>
