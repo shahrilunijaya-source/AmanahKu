@@ -51,8 +51,7 @@ class ImageCompressor
         match ($mime) {
             'image/jpeg', 'image/jpg' => imagejpeg($image, $absolutePath, self::QUALITY),
             'image/png' => imagepng($image, $absolutePath, 6),
-            'image/webp' => imagewebp($image, $absolutePath, self::QUALITY),
-            default => null,
+            default => imagewebp($image, $absolutePath, self::QUALITY),
         };
 
         imagedestroy($image);
