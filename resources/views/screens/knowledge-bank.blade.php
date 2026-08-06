@@ -145,7 +145,7 @@
 
 {{-- ── Segment chips + Add ───────────────────────────────────────────────── --}}
 @php $chipBase = 'height:32px;padding:0 15px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:7px;flex-shrink:0;'; @endphp
-<div style="display:flex;align-items:center;gap:8px;">
+<div style="display:flex;align-items:center;gap:8px;" x-data="{ addSeg: {{ $errors->any() && old('kbform') === 'newseg' ? 'true' : 'false' }} }">
     <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex:1;min-width:0;">
         <a href="{{ route('app.screen', 'knowledge-bank') }}"
            style="{{ $chipBase }}border:1px solid {{ ! $activeSeg ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ ! $activeSeg ? 'var(--ink)' : 'transparent' }};color:{{ ! $activeSeg ? '#fff' : 'var(--muted)' }};"
@@ -157,6 +157,11 @@
                 <span>{{ $seg->label }}</span>
             </a>
         @endforeach
+        @if ($canSubmit)
+            <button @click="addSeg = ! addSeg" type="button" style="{{ $chipBase }}border:1px dashed var(--shelf-line);background:transparent;color:var(--muted);">
+                <span style="font-size:14px;line-height:1;">＋</span><span x-text="$store.ui.lang==='en' ? 'Segment' : 'Segmen'">Segment</span>
+            </button>
+        @endif
     </div>
     @if ($canSubmit)
         <button @click="kb = true; kbView = 'add'" type="button" style="height:32px;padding:0 15px;background:var(--red);color:#fff;border:0;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -164,6 +169,34 @@
         </button>
     @endif
 </div>
+
+@if ($canSubmit)
+    {{-- Inline segment/sub-segment creation — the only place to add either, top-level or nested. --}}
+    <div x-show="addSeg" x-cloak x-transition.opacity.duration.150ms style="margin-top:10px;padding:14px 16px;background:var(--shelf);border:1px solid var(--shelf-line);border-radius:12px;">
+        @if ($errors->any() && old('kbform') === 'newseg')
+            <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:12px;">{{ $errors->first() }}</div>
+        @endif
+        <form method="post" action="{{ route('knowledge.segments') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+            @csrf
+            <input type="hidden" name="kbform" value="newseg">
+            <div style="flex:1;min-width:160px;">
+                <label style="display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Segment name' : 'Nama segmen'">Segment name</label>
+                <input name="label" value="{{ old('label') }}" required maxlength="80" :placeholder="$store.ui.lang==='en' ? 'e.g. Vendor Management' : 'cth. Pengurusan Vendor'" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;outline:none;" />
+            </div>
+            <div style="min-width:150px;">
+                <label style="display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Parent (optional)' : 'Induk (pilihan)'">Parent (optional)</label>
+                <select name="parent_id" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;outline:none;">
+                    <option value="" x-text="$store.ui.lang==='en' ? 'Top-level segment' : 'Segmen peringkat atas'">Top-level segment</option>
+                    @foreach ($segments as $seg)
+                        <option value="{{ $seg->id }}" @selected((string) old('parent_id') === (string) $seg->id)>{{ $seg->label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Create' : 'Cipta'">Create</span></button>
+            <button type="button" @click="addSeg = false" style="height:38px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--body);font-size:12.5px;font-weight:500;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+        </form>
+    </div>
+@endif
 
 {{-- Sub-segment chips (only when the active segment has children) --}}
 @if ($activeSegModel && $activeSegModel->children->count())
@@ -220,6 +253,13 @@
                     </div>
                     <div style="font-size:18px;font-weight:600;line-height:1.35;margin-top:6px;color:var(--ink);">{{ $e->title }}</div>
                     <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
+                    <div x-show="attachments.length" x-cloak style="display:flex;gap:5px;margin-top:8px;">
+                        <template x-for="(a, i) in attachments.slice(0, 4)" :key="a.id">
+                            <img :src="a.url" :alt="a.caption || title" @click.stop="openDrawer(); openLightbox(i)"
+                                 style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--hairline);cursor:pointer;flex-shrink:0;" loading="lazy" />
+                        </template>
+                        <span x-show="attachments.length > 4" style="font-size:11px;color:var(--muted);align-self:center;" x-text="'+' + (attachments.length - 4)"></span>
+                    </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
                     <span x-show="reactionTotal" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
