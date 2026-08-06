@@ -75,9 +75,11 @@ simple read-only list, not a data surface needing its own boundary):
   the date in `--muted` subline, separated by `·` — same idiom the sidebar clock/date
   pairing already uses.
 - Entries as a plain list under the header, each line: a `uj-stamp` tag
-  (`data-tone="success"` for added, `data-tone="info"` for improved, `data-tone="error"`
-  for fixed — never `red`, per the One Voice Rule: red means "act", and nothing here
-  is actionable) followed by the bilingual text via
+  (`data-tone="success"` for added, no `data-tone` — neutral grey — for improved,
+  `data-tone="error"` for fixed — never `red`, per the One Voice Rule: red means "act",
+  and nothing here is actionable; `uj-stamp` itself only wires `red`/`amber`/`success`/
+  `error` tones, so "improved" takes the component's own neutral default rather than
+  a non-existent `info` tone) followed by the bilingual text via
   `x-text="$store.ui.lang==='en' ? @js($entry['text']) : @js($entry['text_ms'] ?? $entry['text'])"`.
 - 1px hairline between releases (`--hairline`), no shadows at rest, 12px radius if a
   card frame ends up warranted for the first release (most-recent gets `.uj-card`
