@@ -20,6 +20,9 @@
     - tag: fixed
       text: "Board and the org chart now share the same page width as every other screen."
       text_ms: "T.A.A. dan carta organisasi kini berkongsi lebar halaman yang sama dengan skrin lain."
+    - tag: fixed
+      text: "The Reports & Analytics screen is now limited to managers, HR and above, matching the rest of the oversight screens."
+      text_ms: "Skrin Laporan & Analitik kini terhad kepada pengurus, HR dan ke atas, sejajar dengan skrin pengawasan yang lain."
 
 # Recovered from the old, now-deleted config/changelog.php (commit c8bca8f,
 # corrected by 3376b80) for continuity — this was the app's real 1.0 launch.
