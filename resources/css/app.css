@@ -524,7 +524,7 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-kid:hover { background: rgba(255, 255, 255, .06); color: #fff; }
 .uj-nav-kid[data-on] { background: var(--sidebar-soft); color: #fff; }
 
-.uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; }
+.uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .uj-sb-ws { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin-top: 8px; border-radius: 9px; text-decoration: none; }
 .uj-sb-ws:hover { background: rgba(255, 255, 255, .06); }
 
