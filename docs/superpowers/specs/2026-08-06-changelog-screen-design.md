@@ -9,7 +9,9 @@ shipped 2026-08-02 as version `1.0` (commit `c8bca8f`), then deliberately delete
 and staging by the time this spec was written, so prod had no changelog feature at
 all when this design started. Confirmed with Shazwan: keep this build (simpler — no
 badge/read-state, no artisan command, just a page), don't resurrect the old shape.
-Versioning changed from date-based to semver as a result — see Data below.
+Versioning changed from date-based to semver as a result — see Data below. The old
+1.0 entry's content was later recovered from `git show 91f4070^:config/changelog.php`
+and re-listed in `resources/changelog.yaml` for continuity, once Shazwan asked for it.
 
 ## Purpose
 
@@ -56,8 +58,10 @@ mtime only if this ever shows up in a profile.
 
 Version string is semver `MAJOR.MINOR` (no patch level — not asked for), not CalVer.
 Baseline `1.0` is the 2026-08-02 gitlab main launch commit (the old, now-deleted
-changelog's own launch entry — see Amendment above) and is not re-listed in this
-file. Versions track what actually lands on `gitlab main`, the prod branch, not dev
+changelog's own launch entry — see Amendment above), recovered and re-listed at the
+bottom of `resources/changelog.yaml` for continuity, with no `text_ms` since the old
+system never carried Malay copy either. Versions track what actually lands on
+`gitlab main`, the prod branch, not dev
 commits — an entry authored on dev carries the version it will ship as once merged
 to main, so double-check the number still fits at merge time if other work landed on
 main first. Bump MINOR for an ordinary release; bump MAJOR only for something

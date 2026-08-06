@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Changelog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -61,10 +62,15 @@ class ChangelogScreenTest extends TestCase
         $response->assertSee('Added');
         $response->assertSee('Improved');
         // 'added' carries the success tone; 'improved' carries no data-tone (neutral default).
+        // Derived from the data rather than hardcoded, so a new release doesn't need this test touched.
+        $expectedAddedCount = collect(Changelog::releases())
+            ->flatMap(fn (array $release) => $release['entries'])
+            ->filter(fn (array $entry) => $entry['tag'] === 'added')
+            ->count();
         $this->assertSame(
-            1,
+            $expectedAddedCount,
             substr_count($response->getContent(), 'uj-stamp" data-tone="success"'),
-            'Exactly one entry in the seed data is tagged added.'
+            'Every added-tagged entry must render with the success tone.'
         );
     }
 
