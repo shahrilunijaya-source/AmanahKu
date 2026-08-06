@@ -685,10 +685,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-measured > .uj-fade { max-width: 920px; margin-inline: auto; }
 .uj-main--wide > .uj-head-stack,
 .uj-main--wide > .uj-fade { max-width: 1280px; }
-/* Workspace canvases (board, org chart) use the whole width — no cap — so they
-   grow with the sidebar collapse. They keep the 28px gutter from .uj-main. */
-.uj-main--full > .uj-head-stack,
-.uj-main--full > .uj-fade { max-width: none; }
 
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
@@ -1572,8 +1568,6 @@ select.wd-inline {
 /* ── Centred single-task column ──
    The desktop reference width is 1920 (~1600px content area), so max-width
    920px keeps the screen focused and centred, matching .uj-at-wrap. */
-.uj-ar-wrap { max-width: 920px; margin: 0 auto; }
-
 .uj-ar-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
 .uj-ar-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
 .uj-ar-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
@@ -1681,7 +1675,6 @@ select.wd-inline {
    Namespaced uj-tr- ("timesheet report").
    ═══════════════════════════════════════════════════════════════════════ */
 
-.uj-tr-wrap { max-width: 980px; margin: 0 auto; }
 
 .uj-tr-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
 .uj-tr-lede { font-size: var(--t-sm); letter-spacing: .02em; color: var(--body); font-weight: 500; }

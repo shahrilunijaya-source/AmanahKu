@@ -55,13 +55,10 @@
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
                 'audit', 'roles', 'calendar', 'leave-report', 'timesheet-reports', 'attendance-report',
-                'attendance-admin', 'tot', 'tot-roster', 'messages', 'documents'];
-            // Board and the org chart take the whole width, no centred cap.
-            $fullScreens = ['board', 'orgchart'];
-            $isFull = ! $embed && in_array($screen ?? null, $fullScreens, true);
-            $isWide = ! $embed && ! $isFull && in_array($screen ?? null, $wideScreens, true);
+                'attendance-admin', 'tot', 'tot-roster', 'messages', 'documents', 'orgchart', 'board'];
+            $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
-        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $isFull ? 'uj-main--full' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
                      siblings of <main>. The header is position:absolute, so it takes no flow
