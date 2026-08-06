@@ -159,16 +159,16 @@
                                                 :class="{ 'is-sel': sel === id, 'is-new': justPlaced === id }"
                                                 @click="dive(id, 1)"
                                                 :data-name="person(id).name"
+                                                :title="[person(id).role, person(id).fullName].filter(Boolean).join(' · ')"
                                                 :aria-label="($store.ui.lang==='en' ? 'Move chart to ' : 'Alih carta ke ') + person(id).name">
                                             @include('partials.org-face', ['p' => 'person(id)'])
                                             <template x-if="person(id).swatch">
                                                 <span class="oc-dot" :style="`background:${person(id).swatch}`" aria-hidden="true"></span>
                                             </template>
                                         </button>
-                                        {{-- Falls back to the name: a face over a blank line, with the
-                                             name only on hover, leaves nothing to identify on a touch
-                                             screen. Plenty of staff have no position set. --}}
-                                        <div class="oc-role" x-text="person(id).role || person(id).name"></div>
+                                        {{-- Nickname under the seat; role and full name are one hover
+                                             (or long-press) away on the avatar above. --}}
+                                        <div class="oc-role" x-text="person(id).name"></div>
                                     </div>
                                 </div>
                             </template>

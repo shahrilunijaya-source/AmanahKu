@@ -103,7 +103,10 @@ class OrgController extends Controller
                     ->sortBy('name')
                     ->map(fn (Employee $e) => [
                         'id' => $e->id,
-                        'name' => $e->name,
+                        'name' => $e->display_name,
+                        // Only set when it differs from the nickname above — otherwise the
+                        // same string would render twice in the payload for no reason.
+                        'fullName' => blank($e->nickname) ? null : $e->name,
                         'role' => $e->position ?: null,
                         'dept' => $e->department?->name,
                         'initials' => $e->initials,

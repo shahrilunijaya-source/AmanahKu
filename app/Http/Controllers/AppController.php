@@ -15,7 +15,6 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Timesheet;
-use App\Models\UserPermission;
 use App\Services\FeatureManager;
 use App\Support\Amanahku;
 use App\Support\Changelog;
@@ -362,13 +361,7 @@ class AppController extends Controller
             'attendance-report' => app(AttendanceReportController::class)->screenData($request),
             'leave-report' => app(LeaveReportController::class)->screenData($request),
             'position' => app(PositionController::class)->screenData($request),
-            'roles' => [
-                'members' => app(CurrentTenant::class)->get()->users()->orderBy('name')->get(),
-                'permissionGroups' => Permissions::overridableGrouped(),
-                'permOverrides' => UserPermission::all()
-                    ->groupBy('user_id')
-                    ->map(fn ($g) => $g->pluck('granted', 'permission')),
-            ],
+            'roles' => $this->rolesData(),
             'setup' => app(SetupController::class)->screenData($request),
             'audit' => ['logs' => AuditLog::latest()->take(50)->get()],
             'changelog' => ['releases' => Changelog::releases()],
