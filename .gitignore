@@ -6,9 +6,7 @@
 .phpactor.json
 .phpunit.result.cache
 .impeccable
-.planning
 .superpowers
-CLAUDE.md
 /.codex
 /.cursor/
 /.idea
