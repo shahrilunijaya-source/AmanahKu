@@ -142,4 +142,134 @@ class KnowledgeAttachmentTest extends TestCase
 
         $this->assertSame(0, KnowledgeEntry::where('title', 'Too big')->count());
     }
+
+    private function entryWithImages(int $count = 2): KnowledgeEntry
+    {
+        $entry = KnowledgeEntry::create([
+            'tenant_id' => $this->tenant->id, 'seg_id' => $this->segment->id, 'employee_id' => $this->authorEmployee->id,
+            'title' => 'Original', 'body' => 'Original body.',
+        ]);
+        for ($i = 0; $i < $count; $i++) {
+            $entry->attachments()->create([
+                'tenant_id' => $this->tenant->id, 'path' => "knowledge-attachments/img{$i}.jpg",
+                'name' => "img{$i}.jpg", 'mime' => 'image/jpeg', 'size' => 10, 'sort_order' => $i,
+            ]);
+        }
+
+        return $entry;
+    }
+
+    public function test_update_can_add_and_remove_images(): void
+    {
+        $entry = $this->entryWithImages(2);
+        $keep = $entry->attachments()->first();
+        $remove = $entry->attachments()->skip(1)->first();
+
+        $this->actingInTenant()->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Original', 'body' => 'Original body.',
+            'images' => [UploadedFile::fake()->image('new.jpg', 50, 50)],
+            'remove_images' => [$remove->id],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('knowledge_attachments', ['id' => $remove->id]);
+        $this->assertDatabaseHas('knowledge_attachments', ['id' => $keep->id]);
+        $this->assertSame(2, $entry->attachments()->count());
+    }
+
+    public function test_update_rejects_exceeding_the_cap(): void
+    {
+        $entry = $this->entryWithImages(9);
+        $images = [UploadedFile::fake()->image('a.jpg', 20, 20), UploadedFile::fake()->image('b.jpg', 20, 20)];
+
+        $this->actingInTenant()->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Original', 'body' => 'Original body.',
+            'images' => $images,
+        ])->assertStatus(422);
+
+        $this->assertSame(9, $entry->attachments()->count());
+    }
+
+    public function test_update_reorders_existing_images(): void
+    {
+        $entry = $this->entryWithImages(2);
+        $ids = $entry->attachments()->orderBy('sort_order')->pluck('id')->all();
+        $reversed = array_reverse($ids);
+
+        $this->actingInTenant()->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Original', 'body' => 'Original body.',
+            'reorder' => $reversed,
+        ])->assertOk();
+
+        $this->assertSame($reversed, $entry->attachments()->orderBy('sort_order')->pluck('id')->all());
+    }
+
+    public function test_update_rejects_reorder_with_mismatched_id_set(): void
+    {
+        $entry = $this->entryWithImages(2);
+        $ids = $entry->attachments()->pluck('id')->all();
+
+        $this->actingInTenant()->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Original', 'body' => 'Original body.',
+            'reorder' => [$ids[0], 999999],
+        ])->assertStatus(422);
+    }
+
+    public function test_update_can_edit_captions(): void
+    {
+        $entry = $this->entryWithImages(1);
+        $att = $entry->attachments()->first();
+
+        $this->actingInTenant()->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Original', 'body' => 'Original body.',
+            'caption_updates' => [$att->id => 'New caption'],
+        ])->assertOk();
+
+        $this->assertSame('New caption', $att->fresh()->caption);
+    }
+
+    public function test_another_employee_cannot_touch_the_lessons_images(): void
+    {
+        $entry = $this->entryWithImages(1);
+        $att = $entry->attachments()->first();
+
+        $this->actingInTenant($this->other)->putJson("/app/knowledge-bank/{$entry->id}", [
+            'title' => 'Hijack', 'body' => 'Hijack body.',
+            'remove_images' => [$att->id],
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('knowledge_attachments', ['id' => $att->id]);
+    }
+
+    public function test_a_same_tenant_employee_can_stream_an_attachment(): void
+    {
+        $entry = $this->entryWithImages(1);
+        $att = $entry->attachments()->first();
+        Storage::disk('local')->put($att->path, 'fake-bytes');
+
+        $this->actingInTenant($this->other)->get(route('knowledge.attachments.show', $att))->assertOk();
+    }
+
+    public function test_a_different_tenant_employee_cannot_stream_an_attachment(): void
+    {
+        $entry = $this->entryWithImages(1);
+        $att = $entry->attachments()->first();
+        Storage::disk('local')->put($att->path, 'fake-bytes');
+
+        $otherTenant = Tenant::create(['slug' => 'other-co', 'name' => 'Other Co', 'initials' => 'OC']);
+        $intruder = User::create(['name' => 'Nosy', 'email' => 'nosy@example.com', 'password' => Hash::make('password')]);
+        $intruder->tenants()->attach($otherTenant->id, ['role' => 'employee']);
+        Employee::create(['tenant_id' => $otherTenant->id, 'user_id' => $intruder->id, 'name' => 'Nosy', 'status' => 'active', 'workload' => 'green']);
+
+        $this->actingAs($intruder)->withSession(['current_tenant' => $otherTenant->id])
+            ->get(route('knowledge.attachments.show', $att))->assertForbidden();
+    }
+
+    public function test_missing_file_on_disk_is_404(): void
+    {
+        $entry = $this->entryWithImages(1);
+        $att = $entry->attachments()->first();
+        // Deliberately never written to the fake disk.
+
+        $this->actingInTenant()->get(route('knowledge.attachments.show', $att))->assertNotFound();
+    }
 }

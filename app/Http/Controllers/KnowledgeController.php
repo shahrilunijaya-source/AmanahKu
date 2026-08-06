@@ -26,6 +26,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Knowledge Bank — company-wide lesson sharing with a mandatory monthly habit.
@@ -291,6 +292,20 @@ class KnowledgeController extends Controller
             'title' => ['required', 'string', 'max:200'],
             'body' => ['required', 'string', 'max:5000'],
             'tags' => ['nullable', 'string', 'max:200'],
+            'images' => ['nullable', 'array'],
+            'images.*' => ['image', 'mimes:'.self::IMAGE_MIMES, 'max:'.self::IMAGE_MAX_KB],
+            'captions' => ['nullable', 'array'],
+            'captions.*' => ['nullable', 'string', 'max:200'],
+            'remove_images' => ['nullable', 'array'],
+            'remove_images.*' => ['integer'],
+            'reorder' => ['nullable', 'array'],
+            'reorder.*' => ['integer'],
+            'caption_updates' => ['nullable', 'array'],
+            'caption_updates.*' => ['nullable', 'string', 'max:200'],
+        ], [
+            'images.*.image' => 'Attachments must be pictures.',
+            'images.*.mimes' => 'Pictures must be JPG, PNG, GIF, or WebP.',
+            'images.*.max' => 'Each picture must be 8 MB or smaller.',
         ]);
 
         $tags = collect(explode(',', (string) ($data['tags'] ?? '')))
@@ -302,14 +317,73 @@ class KnowledgeController extends Controller
             'tags' => $tags ?: null,
         ]);
 
+        $removeIds = array_map('intval', $data['remove_images'] ?? []);
+        if ($removeIds !== []) {
+            $toRemove = $entry->attachments()->whereIn('id', $removeIds)->get();
+            foreach ($toRemove as $att) {
+                Storage::disk(self::ATTACHMENT_DISK)->delete($att->path);
+                $att->delete();
+            }
+        }
+
+        $newFiles = array_values(array_filter((array) $request->file('images', []), fn ($f) => $f && $f->isValid()));
+        $remainingCount = $entry->attachments()->count();
+        abort_if($remainingCount + count($newFiles) > self::MAX_IMAGES, 422, 'A lesson can carry up to '.self::MAX_IMAGES.' pictures.');
+
+        if ($newFiles !== []) {
+            $startOrder = (int) ($entry->attachments()->max('sort_order') ?? -1) + 1;
+            $this->storeImages($entry, $newFiles, (array) ($data['captions'] ?? []), $startOrder);
+        }
+
+        if (! empty($data['reorder'])) {
+            $reorder = array_map('intval', $data['reorder']);
+            $survivingIds = $entry->attachments()->pluck('id')->sort()->values()->all();
+            $requestedIds = collect($reorder)->sort()->values()->all();
+            abort_unless($survivingIds === $requestedIds, 422, 'The picture order no longer matches this lesson\'s pictures.');
+
+            foreach ($reorder as $position => $id) {
+                $entry->attachments()->where('id', $id)->update(['sort_order' => $position]);
+            }
+        }
+
+        if (! empty($data['caption_updates'])) {
+            foreach ($data['caption_updates'] as $id => $caption) {
+                $entry->attachments()->where('id', (int) $id)->update(['caption' => trim((string) $caption) ?: null]);
+            }
+        }
+
         $this->forgetStatsCache();
         AuditLog::record('Edited a lesson', $entry->title);
 
         if ($request->expectsJson()) {
-            return response()->json(['title' => $entry->title, 'body' => $entry->body, 'tags' => $entry->tags]);
+            return response()->json([
+                'title' => $entry->title,
+                'body' => $entry->body,
+                'tags' => $entry->tags,
+                'attachments' => $entry->attachments()->get()->map(fn (KnowledgeAttachment $a) => [
+                    'id' => $a->id,
+                    'url' => route('knowledge.attachments.show', $a),
+                    'caption' => $a->caption,
+                ]),
+            ]);
         }
 
         return back()->with('ok', 'Lesson updated.');
+    }
+
+    /**
+     * Stream a lesson's picture inline through a tenant-gated action — never a public URL.
+     * A lesson is company-wide, so any employee in the same tenant may view it (unlike
+     * message attachments, which are participant-gated).
+     */
+    public function attachment(Request $request, KnowledgeAttachment $attachment): StreamedResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403);
+        abort_unless($attachment->tenant_id === app(CurrentTenant::class)->id(), 403);
+        abort_unless(Storage::disk(self::ATTACHMENT_DISK)->exists($attachment->path), 404);
+
+        return Storage::disk(self::ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
     /** Create a segment (top-level by default; sub-segment when a parent is given). */
