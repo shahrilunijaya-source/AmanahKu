@@ -78,6 +78,10 @@
               photoUrl: null,
               // Off-site punch was blocked for a missing selfie (client gate + server backstop).
               photoReq: {{ $errors->has('photo') ? 'true' : 'false' }},
+              // Which reason photoReq is for — old('latitude') survives the redirect that set
+              // photoReq, so an empty value means the selfie was demanded for no fix at all,
+              // not for standing outside the fence.
+              photoReqNoLoc: {{ (old('latitude') === null || old('latitude') === '') ? 'true' : 'false' }},
               camOpen: false,
               // The sheet is gating a punch (reason + selfie together) rather than just
               // attaching a photo someone asked for.
@@ -670,7 +674,11 @@
                 <label for="attendance-remarks" data-note-lbl>
                     <span x-show="!isReq" x-text="$store.ui.lang==='en' ? 'Remarks — optional, your manager sees this with the punch' : 'Catatan — pilihan, pengurus anda melihat ini bersama rekod'">Remarks — optional, your manager sees this with the punch</span>
                     <span x-show="isReq" x-cloak style="color:var(--red-active);"
-                          x-text="$store.ui.lang==='en' ? 'Reason required — you are outside the expected location or leaving early' : 'Sebab diperlukan — anda di luar lokasi atau balik awal'">Reason required — you are outside the expected location or leaving early</span>
+                          x-text="(siteLat !== null && fenceStatus === 'out')
+                              ? ($store.ui.lang==='en' ? 'Reason required — you appear to be outside the expected location' : 'Sebab diperlukan — anda kelihatan di luar lokasi yang dijangka')
+                              : ((action === 'out' && earlyNow())
+                                  ? ($store.ui.lang==='en' ? 'Reason required — you are clocking out before your shift ends' : 'Sebab diperlukan — anda clock out sebelum shift tamat')
+                                  : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah'))">Reason required — see details below</span>
                 </label>
                 <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
                           :placeholder="isReq
@@ -720,9 +728,9 @@
         @error('latitude')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
-             x-text="$store.ui.lang==='en'
-                 ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.'
-                 : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.'"></div>
+             x-text="photoReqNoLoc
+                 ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
+                 : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
         @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
@@ -740,13 +748,15 @@
                 <div class="uj-at-sheet">
                     <h2 id="uj-at-sheet-title"
                         x-text="sheetNeed
-                            ? ($store.ui.lang==='en' ? @js($ci && !$co ? 'Clock out without location' : 'Clock in without location') : @js($ci && !$co ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi'))
+                            ? (sheetFix && sheetFix.lat !== null
+                                ? ($store.ui.lang==='en' ? @js($ci && !$co ? 'Off-site clock out' : 'Off-site clock in') : @js($ci && !$co ? 'Clock out luar lokasi' : 'Clock in luar lokasi'))
+                                : ($store.ui.lang==='en' ? @js($ci && !$co ? 'Clock out without location' : 'Clock in without location') : @js($ci && !$co ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi')))
                             : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</h2>
 
                     <p x-show="sheetNeed" x-cloak class="uj-at-sheet-why"
-                       x-text="$store.ui.lang==='en'
-                           ? 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.'
-                           : 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.'"></p>
+                       x-text="(sheetFix && sheetFix.lat !== null)
+                           ? ($store.ui.lang==='en' ? 'You appear to be outside the expected location, so this punch needs a reason and a selfie. Your manager sees it flagged.' : 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.')
+                           : ($store.ui.lang==='en' ? 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.' : 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.')"></p>
 
                     <div class="uj-at-sheet-cam">
                         <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"></video>
