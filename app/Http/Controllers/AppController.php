@@ -415,11 +415,15 @@ class AppController extends Controller
             ->get()
             ->keyBy('user_id');
 
-        return $logs->map(fn (AuditLog $log): object => (object) [
-            'action' => $log->action,
-            'target' => $log->target,
-            'actor_name' => $displayNames->get($log->user_id)?->display_name ?? $log->actor_name,
-            'created_at' => $log->created_at,
-        ]);
+        return $logs->map(function (AuditLog $log) use ($displayNames): object {
+            $emp = $displayNames->get($log->user_id);
+
+            return (object) [
+                'action' => $log->action,
+                'target' => $log->target,
+                'actor_name' => $emp?->display_name ?? $log->actor_name,
+                'created_at' => $log->created_at,
+            ];
+        });
     }
 }

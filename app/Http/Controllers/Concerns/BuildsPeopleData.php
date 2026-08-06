@@ -267,7 +267,8 @@ trait BuildsPeopleData
             ->keyBy('user_id');
 
         $members->each(function ($u) use ($displayNames): void {
-            $u->displayName = $displayNames->get($u->id)?->display_name ?? $u->name;
+            $emp = $displayNames->get($u->id);
+            $u->displayName = $emp?->display_name ?? $u->name;
         });
 
         return [
