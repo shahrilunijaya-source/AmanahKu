@@ -73,7 +73,7 @@ class ClockService
             return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock in from here.'];
         }
 
-        $late = $this->isLate($site, $now);
+        $late = $this->isLate($site->workStart, $site->workEnd, $now);
         $flags = [];
         if ($late) {
             $flags[] = 'late';
@@ -121,18 +121,25 @@ class ClockService
      */
     public function clockOut(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now): array
     {
-        $record = $employee->attendanceRecords()->onDate($now)->first();
-        if (! $record || ! $record->clock_in) {
+        // Not onDate($now): a shift that crosses midnight (clock in 23:00, out 01:30) has
+        // its open record dated *yesterday*, so looking up "today" found nothing and told
+        // an employee mid-shift they had never clocked in. Look for the still-open punch
+        // instead, bounded to yesterday-or-today so a genuinely forgotten clock-out from
+        // days ago doesn't get attributed to whatever the employee is doing right now.
+        $record = $employee->attendanceRecords()
+            ->whereNotNull('clock_in')
+            ->whereNull('clock_out')
+            ->where('date', '>=', $now->copy()->subDay()->toDateString())
+            ->orderByDesc('date')
+            ->first();
+        if (! $record) {
             return ['status' => 'noop', 'message' => 'You have not clocked in yet today.'];
-        }
-        if ($record->clock_out) {
-            return ['status' => 'noop', 'message' => 'Already clocked out today.'];
         }
 
         $site = $this->resolver->matchActualSite($employee, $this->resolver->resolve($employee, $now), $lat, $lng);
         $outRadius = $this->within($site, $lat, $lng);
-        $worked = $this->minutesBetween($record->clock_in, $now);
-        $early = $this->isEarly($record->expected_end, $now);
+        $worked = $this->minutesBetween($record->date, $record->clock_in, $now);
+        $early = $this->isEarly($record->expected_start, $record->expected_end, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
         // Same price as an unlocatable clock-in: a reason, a selfie and a flag.
@@ -198,22 +205,57 @@ class ClockService
         return Geo::distanceMeters($lat, $lng, $site->latitude, $site->longitude) <= $site->radiusM;
     }
 
-    private function isLate(SiteSpec $site, Carbon $now): bool
+    /**
+     * $workStart/$workEnd describing an overnight window (e.g. 22:00-06:00, where the start
+     * is numerically later than the end) need their boundary anchored onto the *correct*
+     * calendar day relative to $now, not always $now's own date — otherwise a clock-in just
+     * after midnight compares against a start that is still hours in the future, and reads
+     * as on-time instead of hours late.
+     */
+    private function isLate(?string $workStart, ?string $workEnd, Carbon $now): bool
     {
-        if (! $site->workStart) {
+        if (! $workStart) {
             return false;
         }
 
-        return $now->gt($now->copy()->setTimeFromTimeString($site->workStart));
+        $start = $now->copy()->setTimeFromTimeString($workStart);
+        if ($workEnd && $this->overnight($workStart, $workEnd) && $this->minutesOfDay($now) < $this->toMinutes($workEnd)) {
+            $start->subDay();
+        }
+
+        return $now->gt($start);
     }
 
-    private function isEarly(?string $expectedEnd, Carbon $now): bool
+    /** Same overnight anchoring as isLate(), for the shift's end boundary instead of its start. */
+    private function isEarly(?string $expectedStart, ?string $expectedEnd, Carbon $now): bool
     {
         if (! $expectedEnd) {
             return false;
         }
 
-        return $now->lt($now->copy()->setTimeFromTimeString($expectedEnd));
+        $end = $now->copy()->setTimeFromTimeString($expectedEnd);
+        if ($expectedStart && $this->overnight($expectedStart, $expectedEnd) && $this->minutesOfDay($now) >= $this->toMinutes($expectedStart)) {
+            $end->addDay();
+        }
+
+        return $now->lt($end);
+    }
+
+    private function overnight(string $workStart, string $workEnd): bool
+    {
+        return $this->toMinutes($workStart) > $this->toMinutes($workEnd);
+    }
+
+    private function toMinutes(string $time): int
+    {
+        [$h, $m] = array_map('intval', explode(':', $time));
+
+        return $h * 60 + $m;
+    }
+
+    private function minutesOfDay(Carbon $now): int
+    {
+        return $now->hour * 60 + $now->minute;
     }
 
     private function isShort(?int $worked, mixed $minHours): bool
@@ -225,9 +267,12 @@ class ClockService
         return $worked < (float) $minHours * 60;
     }
 
-    private function minutesBetween(string $clockIn, Carbon $now): int
+    private function minutesBetween(Carbon $date, string $clockIn, Carbon $now): int
     {
-        $start = $now->copy()->setTimeFromTimeString($clockIn);
+        // Anchored to the record's own date, not $now's: for an overnight shift $now
+        // has already rolled to the next calendar day, and anchoring there would put
+        // "start" after "now" and clamp a real multi-hour shift to 0.
+        $start = $date->copy()->setTimeFromTimeString($clockIn);
 
         return (int) max(0, $start->diffInMinutes($now, false));
     }

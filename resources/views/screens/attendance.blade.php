@@ -173,14 +173,18 @@
                   }
               },
               /**
-               * Standing off-site is known before the tap, so the reason box says so up front.
+               * Gated on `attempted`, not just fenceStatus: without it, an off-site employee
+               * saw a red 'reason required' the instant the screen loaded, before they had
+               * tapped anything — an accusation for standing where the app expects them to be
+               * later, not for anything they had done. The passive amber fence chip already
+               * tells them they're off-site; this only turns red once they act on it.
                * Leaving early is NOT raised here: earlyNow() is true for the whole shift, so
                * it painted a red 'reason required' across the screen from the clock-in until
                * the end of the day. proceed() raises it on the clock-out attempt instead,
                * which is the only moment it means anything.
                */
               get isReq() {
-                  return (this.siteLat !== null && this.fenceStatus === 'out')
+                  return (this.attempted && this.siteLat !== null && this.fenceStatus === 'out')
                       || this.serverJustify;
               },
               toggleNote() {
@@ -772,10 +776,14 @@
 
                     <div x-show="sheetNeed" x-cloak class="uj-at-sheet-reason">
                         <label for="attendance-sheet-reason"
-                               x-text="$store.ui.lang==='en' ? 'Why are you clocking without location?' : 'Kenapa anda clock tanpa lokasi?'">Why are you clocking without location?</label>
+                               x-text="(sheetFix && sheetFix.lat !== null)
+                                   ? ($store.ui.lang==='en' ? 'Why are you outside the expected location?' : 'Kenapa anda di luar lokasi yang dijangka?')
+                                   : ($store.ui.lang==='en' ? 'Why are you clocking without location?' : 'Kenapa anda clock tanpa lokasi?')">Why are you clocking without location?</label>
                         <textarea id="attendance-sheet-reason" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
                                   aria-required="true"
-                                  :placeholder="$store.ui.lang==='en' ? 'e.g. Office wifi has no location on this desktop' : 'cth. Wifi pejabat tiada lokasi pada komputer ini'"></textarea>
+                                  :placeholder="(sheetFix && sheetFix.lat !== null)
+                                      ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
+                                      : ($store.ui.lang==='en' ? 'e.g. Office wifi has no location on this desktop' : 'cth. Wifi pejabat tiada lokasi pada komputer ini')"></textarea>
                     </div>
 
                     <div class="uj-at-sheet-acts">
