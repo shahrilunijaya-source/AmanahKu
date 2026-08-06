@@ -33,7 +33,7 @@ stages: [lint, test, security, build, deploy, release]
   before_script:
     - |
       set -eu
-      apk add --no-cache openssh-client openssh-keygen bash
+      apk add --no-cache openssh-client bash
       DEPLOY_SSH_KEY="${AMANAHKU_DEPLOY_SSH_KEY:-}"
       DEPLOY_HOST="${AMANAHKU_DEPLOY_HOST:-}"
       DEPLOY_USER="${AMANAHKU_DEPLOY_USER:-}"
@@ -45,14 +45,16 @@ stages: [lint, test, security, build, deploy, release]
       test -n "$DEPLOY_PATH"    || { echo "FATAL: AMANAHKU_DEPLOY_PATH is EMPTY"; exit 1; }
       case "$DEPLOY_PATH" in "$ALLOWED_ROOT"|"$ALLOWED_ROOT"/*) : ;; *) echo "FATAL: DEPLOY_PATH outside ALLOWED_ROOT"; exit 1 ;; esac
       # SSH setup
-      eval "$(ssh-agent -s)"
-      echo "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
+      # File-type variable — GitLab writes it to a temp file path
+      chmod 600 "$DEPLOY_SSH_KEY"
       mkdir -p ~/.ssh && chmod 700 ~/.ssh
       ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
     - |
       echo "Deploying commit $CI_COMMIT_SHORT_SHA to $CI_ENVIRONMENT_NAME ($DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH)"
-      ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && git pull origin main && bash deploy.sh"
+      # Sentinel check: deploy target must exist on the server
+      ssh -i "$DEPLOY_SSH_KEY" -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "test -f '$DEPLOY_PATH/.deploy-target'" || { echo "FATAL: '$DEPLOY_PATH/.deploy-target' missing on server - refusing"; exit 1; }
+      ssh -i "$DEPLOY_SSH_KEY" -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && git pull origin main && bash deploy.sh"
 
 # ---- Production deploy: MANUAL button on main ----
 deploy-dev:
