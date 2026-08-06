@@ -603,9 +603,28 @@ export function registerTimesheetCapture(Alpine) {
                 return this.joinDays(blank) + (en ? ' has a line with no percentage yet.' : ' ada baris tanpa peratus lagi.');
             }
             const days = this.blockingDays();
-            if (!days.length) return '';
+            if (days.length) {
+                return this.joinDays(days) + (en ? ' not at 100% yet' : ' belum 100%');
+            }
+            if (!this.weekEndReached()) {
+                return en ? 'Week is still open — submit becomes available on ' + this.dayLong(this.weekEndsOn()) + '.'
+                    : 'Minggu masih dibuka — hantar boleh dibuat pada ' + this.dayLong(this.weekEndsOn()) + '.';
+            }
 
-            return this.joinDays(days) + (en ? ' not at 100% yet' : ' belum 100%');
+            return '';
+        },
+        // The week's cutoff date: Friday, unless this week's Saturday is the first Saturday
+        // of the month (Unijaya's TOT day), which pushes the cutoff to that Saturday.
+        weekEndsOn() {
+            const [y, m, d] = this.weekStart.split('-').map(Number);
+            const friday = new Date(Date.UTC(y, m - 1, d + 4));
+            const saturday = new Date(Date.UTC(y, m - 1, d + 5));
+            return (saturday.getUTCDate() <= 7 ? saturday : friday).toISOString().slice(0, 10);
+        },
+        // A day can be fully filled without the week being over — a staffer could otherwise
+        // finish Mon-Wed by Wednesday and submit early, skipping days that haven't happened.
+        weekEndReached() {
+            return this.today >= this.weekEndsOn();
         },
         // Joins day names into a natural sentence fragment: "Monday", "Monday and Tuesday",
         // or "Monday, Tuesday, Wednesday and Friday" (no Oxford comma; "dan" in BM).
@@ -616,7 +635,7 @@ export function registerTimesheetCapture(Alpine) {
             return days.slice(0, -1).join(', ') + connector + days[days.length - 1];
         },
         weekComplete() {
-            return this.blockingDays().length === 0;
+            return this.blockingDays().length === 0 && this.weekEndReached();
         },
 
         // ---- persistence ---------------------------------------------------
