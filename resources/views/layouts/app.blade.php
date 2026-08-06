@@ -55,7 +55,7 @@
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
                 'audit', 'roles', 'calendar', 'leave-report', 'timesheet-reports', 'attendance-report',
-                'attendance-admin', 'messages', 'documents', 'orgchart', 'board'];
+                'attendance-admin', 'messages', 'orgchart', 'board'];
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
         <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
