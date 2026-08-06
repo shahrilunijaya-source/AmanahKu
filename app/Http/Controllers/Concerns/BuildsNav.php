@@ -37,7 +37,7 @@ trait BuildsNav
         if ($role === 'employee') {
             $items = array_values(array_filter(
                 $items,
-                fn ($i) => $i['section'] !== 'My Team' && $i['id'] !== 'oversight',
+                fn ($i) => $i['section'] !== 'My Team' && ! in_array($i['id'], ['oversight', 'reports'], true),
             ));
         }
 

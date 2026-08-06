@@ -164,8 +164,10 @@ class AppController extends Controller
         // Reports & Audit oversight surface + company-wide "see all" views (reachable
         // from the quick-action dock) open to management, HR, and immediate superiors —
         // anyone who oversees other staff. 'audit' moved here from admin-only so the
-        // manager role can reach the Audit Logs alongside the two reports.
-        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results'], true)) {
+        // manager role can reach the Audit Logs alongside the two reports. 'reports' is
+        // the company-wide analytics hub (headcount, department capacity, workload
+        // split) — same oversight class as its siblings, just missing from this list.
+        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results', 'reports'], true)) {
             abort_unless(Permissions::canSeeAll($employee, $role), 403);
         }
         // Probation tracking also covers managers (their own new hires).
