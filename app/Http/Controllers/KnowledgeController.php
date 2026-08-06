@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\KnowledgeAttachment;
 use App\Models\KnowledgeComment;
 use App\Models\KnowledgeContribution;
 use App\Models\KnowledgeEntry;
@@ -14,13 +15,16 @@ use App\Models\KnowledgeRead;
 use App\Models\KnowledgeSegment;
 use App\Models\KnowledgeStar;
 use App\Services\FeatureManager;
+use App\Support\ImageCompressor;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -45,6 +49,16 @@ class KnowledgeController extends Controller
 
     /** Entries per page on the full Knowledge Bank screen. */
     private const PAGE_SIZE = 20;
+
+    /** Pictures per lesson. */
+    private const MAX_IMAGES = 10;
+
+    /** Private disk pictures live on — reached only via attachment(). */
+    private const ATTACHMENT_DISK = 'local';
+
+    private const IMAGE_MIMES = 'jpeg,jpg,png,gif,webp';
+
+    private const IMAGE_MAX_KB = 8192;
 
     // ── Full page ───────────────────────────────────────────────────────────
 
@@ -191,6 +205,15 @@ class KnowledgeController extends Controller
             'title' => ['required', 'string', 'max:200'],
             'body' => ['required', 'string', 'max:5000'],
             'tags' => ['nullable', 'string', 'max:200'],
+            'images' => ['nullable', 'array', 'max:'.self::MAX_IMAGES],
+            'images.*' => ['image', 'mimes:'.self::IMAGE_MIMES, 'max:'.self::IMAGE_MAX_KB],
+            'captions' => ['nullable', 'array'],
+            'captions.*' => ['nullable', 'string', 'max:200'],
+        ], [
+            'images.max' => 'You can attach up to '.self::MAX_IMAGES.' pictures.',
+            'images.*.image' => 'Attachments must be pictures.',
+            'images.*.mimes' => 'Pictures must be JPG, PNG, GIF, or WebP.',
+            'images.*.max' => 'Each picture must be 8 MB or smaller.',
         ]);
 
         $tags = collect(explode(',', (string) ($data['tags'] ?? '')))
@@ -205,6 +228,8 @@ class KnowledgeController extends Controller
             'tags' => $tags ?: null,
         ]);
 
+        $this->storeImages($entry, (array) $request->file('images', []), (array) ($data['captions'] ?? []));
+
         // Mark this calendar month's contribution as fulfilled (clears the reminder
         // and turns the panel banner green). Author never "owes" on entries they
         // just wrote — mark the entry as read for them too.
@@ -218,6 +243,40 @@ class KnowledgeController extends Controller
         AuditLog::record('Shared a lesson', $entry->title);
 
         return back()->with('ok', 'Lesson shared with the company — "'.$entry->title.'".');
+    }
+
+    /**
+     * Persist validated image uploads as ordered, captioned KnowledgeAttachment rows,
+     * compressing each before it lands on disk. Called after the entry already exists so a
+     * rejected batch can never orphan files.
+     *
+     * @param  array<int, UploadedFile|null>  $files
+     * @param  array<int, string|null>  $captions
+     */
+    private function storeImages(KnowledgeEntry $entry, array $files, array $captions, int $startOrder = 0): void
+    {
+        $order = $startOrder;
+        foreach (array_values($files) as $i => $file) {
+            if (! $file || ! $file->isValid()) {
+                continue;
+            }
+
+            $path = $file->store('knowledge-attachments', self::ATTACHMENT_DISK);
+            abort_unless($path !== false, 500, 'Picture could not be stored.');
+
+            ImageCompressor::compress(Storage::disk(self::ATTACHMENT_DISK)->path($path), (string) $file->getMimeType());
+
+            $entry->attachments()->create([
+                'tenant_id' => $entry->tenant_id,
+                'path' => $path,
+                'name' => $file->getClientOriginalName() ?: 'picture',
+                'mime' => $file->getMimeType(),
+                'size' => Storage::disk(self::ATTACHMENT_DISK)->size($path),
+                'caption' => trim((string) ($captions[$i] ?? '')) ?: null,
+                'sort_order' => $order,
+            ]);
+            $order++;
+        }
     }
 
     /** The author may edit their own entry's title/body/tags at any time. */
