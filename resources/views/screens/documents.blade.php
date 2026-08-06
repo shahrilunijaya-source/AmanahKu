@@ -69,29 +69,37 @@
     </div>
 
     @forelse ($documents as $category => $docs)
-        <div style="padding:13px 20px 6px;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:{{ $catColor[$category] ?? 'var(--muted)' }};text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid var(--hairline-soft);">
-            <span style="font-size:14px;">{{ $catIcon[$category] ?? '📁' }}</span>{{ $category }}<span style="color:var(--muted);font-weight:500;">· {{ $docs->count() }}</span>
+        @php $cm = $catMeta[$category] ?? $catMeta['Other']; @endphp
+        <div style="padding:13px 20px 6px;font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:{{ $cm['tint'] }};border-top:1px solid var(--hairline-soft);">
+            {{ $category }} <span style="color:var(--muted);font-weight:600;letter-spacing:normal;text-transform:none;">· {{ $docs->count() }}</span>
         </div>
         @foreach ($docs as $doc)
-            <div style="display:grid;grid-template-columns:2.2fr 1.6fr 1fr 1fr auto;gap:8px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);align-items:center;">
-                <div style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $doc->title }}</span><span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);">{{ $doc->original_name }}</span></div>
-                <span style="font-size:13px;color:var(--body);">{{ $doc->employee?->name ?? '—' }}</span>
-                <span style="font-size:12.5px;color:var(--muted);">{{ $fmtSize($doc->size) }}</span>
-                <span style="font-size:12.5px;color:var(--muted);">{{ $doc->created_at?->format('d M Y') }}</span>
-                <span style="text-align:right;display:flex;gap:6px;justify-content:flex-end;">
-                    <a href="{{ route('documents.download', $doc) }}" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:11.5px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Download' : 'Muat turun'">Download</a>
-                    <form method="post" action="{{ route('documents.destroy', $doc) }}" onsubmit="return confirm('Delete this document?');">@csrf<button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:11.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
-                </span>
+            <div class="uj-lv-rw" x-data="{ drawerOpen: false }">
+                <button type="button" class="uj-lv-rw-head" @click="drawerOpen = true">
+                    <span class="uj-lv-rw-ico" style="background:{{ $cm['bg'] }};color:{{ $cm['tint'] }};">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{!! $cm['icon'] !!}</svg>
+                    </span>
+                    <span class="uj-lv-rw-t">
+                        <span class="uj-lv-rw-1">{{ $doc->title }}</span>
+                        <span class="uj-lv-rw-2">
+                            @if ($privileged){{ $doc->employee?->name ?? '—' }} · @endif
+                            {{ $fmtSize($doc->size) }} · {{ $doc->created_at?->format('d M Y') }}
+                        </span>
+                    </span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;color:var(--muted-soft);"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+
+                @include('partials.document-drawer', ['doc' => $doc, 'catTone' => $catTone, 'privileged' => $privileged, 'fmtSize' => $fmtSize])
             </div>
         @endforeach
     @empty
-        <div style="padding:28px 20px;text-align:center;">
-            <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'No documents yet' : 'Belum ada dokumen'"></span></div>
+        <div class="uj-lv-empty">
+            <b x-text="$store.ui.lang==='en' ? 'No documents yet' : 'Belum ada dokumen'">No documents yet</b>
             @php
                 $emptyEn = 'Click "+ Upload" to add the first file. ' . ($privileged ? 'Pick the right owner so it stays private to them.' : 'Only you and HR will be able to see it.');
                 $emptyMs = 'Klik "+ Upload" untuk tambah fail pertama. ' . ($privileged ? 'Pilih pemilik yang betul supaya ia kekal peribadi kepada mereka.' : 'Hanya anda dan HR akan dapat melihatnya.');
             @endphp
-            <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? {{ \Illuminate\Support\Js::from($emptyEn) }} : {{ \Illuminate\Support\Js::from($emptyMs) }}"></span></div>
+            <span x-text="$store.ui.lang==='en' ? @js($emptyEn) : @js($emptyMs)"></span>
         </div>
     @endforelse
 </div>
