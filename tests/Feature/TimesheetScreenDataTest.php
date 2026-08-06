@@ -9,6 +9,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -78,6 +79,20 @@ class TimesheetScreenDataTest extends TestCase
         $this->assertFalse($names->contains('On Leave'));
         $this->assertFalse($names->contains('Public Holiday'));
         $this->assertTrue($names->contains('Others'));
+    }
+
+    public function test_the_picker_includes_leave_categories_when_the_leave_module_is_off(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.leave', false);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $names = collect($response->viewData('tsCategories'))->pluck('name');
+        $this->assertTrue($names->contains('On Leave'));
+        $this->assertTrue($names->contains('Public Holiday'));
     }
 
     public function test_locked_days_reach_the_view(): void

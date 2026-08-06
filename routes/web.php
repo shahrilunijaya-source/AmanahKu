@@ -171,6 +171,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/attendance-admin/staff/{employee}', [AttendanceAdminController::class, 'updateEmployee'])->name('attendance.admin.staff');
         Route::post('/app/attendance-admin/staff/{employee}/home', [AttendanceAdminController::class, 'updateHome'])->name('attendance.admin.home');
         Route::post('/app/attendance-admin/wfh-policy', [AttendanceAdminController::class, 'updateWfhPolicy'])->name('attendance.admin.wfh-policy');
+        // Reverse a misclicked punch — narrower than the rest of this group (hr/director/super-admin only, checked in the controller).
+        Route::post('/app/attendance-admin/records/{record}/reverse', [AttendanceAdminController::class, 'reversePunch'])->name('attendance.admin.records.reverse');
         // Position rate card (manday/manhour costing bands) — privileged; screen GET is role-gated in AppController.
         Route::post('/app/position', [PositionController::class, 'store'])->name('position.store');
         // Bulk import — register before the /{position} wildcard so "import" isn't read as an id.
@@ -336,6 +338,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'commentsList'])->name('knowledge.comments.list');
         Route::post('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'comment'])->name('knowledge.comments');
         Route::delete('/app/knowledge-bank/comments/{comment}', [KnowledgeController::class, 'deleteComment'])->name('knowledge.comments.delete');
+        Route::get('/app/knowledge-bank/attachments/{attachment}', [KnowledgeController::class, 'attachment'])->name('knowledge.attachments.show');
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
@@ -441,7 +444,8 @@ Route::middleware('auth')->group(function () {
         // Messaging JSON — the ~30s unread poll + the slide-over's inline thread load.
         // Must sit above the /app/{screen?} catch-all or they resolve as screen names.
         Route::get('/app/messages/unread', [MessageController::class, 'unread'])->middleware('throttle:120,1')->name('messages.unread');
-        Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->name('messages.thread');
+        Route::get('/app/messages/summary', [MessageController::class, 'summary'])->middleware('throttle:60,1')->name('messages.summary');
+        Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->middleware('throttle:60,1')->name('messages.thread');
         // The screen's thread column as an HTML fragment — swapped in place of a reload.
         Route::get('/app/messages/pane', [MessageController::class, 'pane'])->name('messages.pane');
         Route::get('/app/messages/attachments/{attachment}', [MessageController::class, 'attachment'])->name('messages.attachment');

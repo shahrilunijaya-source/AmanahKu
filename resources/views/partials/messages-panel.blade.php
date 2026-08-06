@@ -11,7 +11,7 @@
 <template x-if="msg">
     <div>
         <div @click="msg = false" style="position:fixed;inset:0;background:rgba(31,30,26,.18);z-index:40;"></div>
-        <aside class="uj-slide" x-data="messagesPanel(@js($msgThreads))"
+        <aside class="uj-slide" x-data="messagesPanel()"
             style="position:fixed;top:0;right:0;width:464px;max-width:94vw;height:100vh;background:#fff;border-left:1px solid var(--hairline);z-index:50;display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(31,30,26,.10);">
 
             {{-- ── LIST ─────────────────────────────────────────────────────── --}}

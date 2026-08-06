@@ -409,7 +409,7 @@
             <div role="dialog" aria-modal="true" aria-labelledby="ts-picker-title"
                  x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
                  x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
-                 style="width:100%;max-width:420px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);display:flex;flex-direction:column;max-height:min(560px,88vh);">
+                 style="width:100%;max-width:clamp(420px,55vw,900px);margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);display:flex;flex-direction:column;max-height:min(720px,88vh);">
 
                 {{-- Header: back arrow, the question this step asks, and the trail of what is
                      already chosen so the staffer knows where they are. --}}
@@ -541,11 +541,17 @@
                                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                         <template x-for="pct in [100, 50, 25]" :key="pct">
                                             <button type="button" @click="picker.pendingPct = pct" class="uj-ts-pill"
-                                                style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
+                                                style="min-height:30px;padding:0 12px;border-radius:999px;font-family:var(--font-mono);font-size:11px;cursor:pointer;"
+                                                :style="picker.pendingPct == pct
+                                                    ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                                    : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }"
                                                 x-text="pct + '%'"></button>
                                         </template>
                                         <button type="button" x-show="remainder(selected) > 0" @click="picker.pendingPct = remainder(selected)" class="uj-ts-pill"
-                                            style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--success);background:color-mix(in srgb, var(--success) 8%, #fff);color:var(--success-ink);font-size:11px;cursor:pointer;"
+                                            style="min-height:30px;padding:0 12px;border-radius:999px;font-size:11px;cursor:pointer;"
+                                            :style="picker.pendingPct == remainder(selected)
+                                                ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                                : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }"
                                             x-text="($store.ui.lang==='en' ? 'Give it the ' : 'Beri baki ') + remainder(selected) + ($store.ui.lang==='en' ? '% left' : '%')"></button>
                                     </div>
                                 </div>

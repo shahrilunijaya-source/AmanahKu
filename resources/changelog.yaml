@@ -1,0 +1,83 @@
+# Newest release first. tag is one of: added, improved, fixed.
+# text_ms is optional — falls back to `text` when omitted.
+#
+# Version is semver MAJOR.MINOR, not CalVer, and tracks what actually lands on
+# gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
+# main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
+# something meaningful (a real breaking or headline change), never on a fixed
+# cadence.
+- version: "1.1"
+  date: "2026-08-06"
+  entries:
+    - tag: added
+      text: "New Changelog screen: see what shipped and when, right from the sidebar."
+      text_ms: "Skrin Log Perubahan baharu: lihat apa yang dilancarkan dan bila, terus dari bar sisi."
+    - tag: improved
+      text: "Timesheet add-entry now opens in one popup with rich-text notes."
+    - tag: improved
+      text: "Timesheet add-entry popup now scales up on wider screens instead of staying phone-width."
+      text_ms: "Popup tambah entri lembaran masa kini berskala lebih besar pada skrin luas, bukan kekal selebar telefon."
+    - tag: improved
+      text: "Timesheet category colours now group by what the category actually is, instead of cycling arbitrarily."
+      text_ms: "Warna kategori lembaran masa kini berkumpul mengikut jenis kategori sebenar, bukan berulang secara rawak."
+    - tag: added
+      text: "HR and director can now reverse a misclicked clock-in or clock-out, from an employee's Attendance Reports drill-down."
+      text_ms: "HR dan director kini boleh membatalkan clock-in atau clock-out yang tersilap klik, daripada rekod terperinci Laporan Kehadiran pekerja."
+    - tag: fixed
+      text: "Board and the org chart now share the same page width as every other screen."
+      text_ms: "T.A.A. dan carta organisasi kini berkongsi lebar halaman yang sama dengan skrin lain."
+    - tag: fixed
+      text: "The Reports & Analytics screen is now limited to managers, HR and above, matching the rest of the oversight screens."
+      text_ms: "Skrin Laporan & Analitik kini terhad kepada pengurus, HR dan ke atas, sejajar dengan skrin pengawasan yang lain."
+    - tag: improved
+      text: "Messages, the unread badge and the message panel now refresh automatically every few seconds — no more reopening a conversation to see a new reply. This checks for updates on a short timer rather than pushing them instantly, so there is still a small delay, not true live chat."
+      text_ms: "Mesej, lencana belum dibaca dan panel mesej kini muat semula secara automatik setiap beberapa saat — tidak perlu buka semula perbualan untuk lihat balasan baharu. Ini menyemak kemas kini pada tempoh masa yang singkat, bukan menghantar terus serta-merta, jadi masih ada sedikit kelewatan, bukan sembang langsung sepenuhnya."
+    - tag: added
+      text: "Knowledge Bank lessons can now carry up to 10 pictures, each with its own caption. Drag to reorder, add or remove pictures when editing, and tap any picture to view it full-screen."
+      text_ms: "Pengajaran Bank Pengetahuan kini boleh membawa sehingga 10 gambar, setiap satu dengan kapsyennya sendiri. Seret untuk susun semula, tambah atau buang gambar semasa menyunting, dan ketik mana-mana gambar untuk lihat skrin penuh."
+    - tag: improved
+      text: "Document Vault has a fresh look: documents are grouped by category with clearer icons, and tapping one opens its details — owner, file and download or delete — in a side panel."
+      text_ms: "Peti Dokumen kini bergaya baharu: dokumen dikumpulkan mengikut kategori dengan ikon yang lebih jelas, dan mengetik satu dokumen membuka butirannya — pemilik, fail dan muat turun atau padam — dalam panel sisi."
+
+# Recovered from the old, now-deleted config/changelog.php (commit c8bca8f,
+# corrected by 3376b80) for continuity — this was the app's real 1.0 launch.
+# No text_ms on these: the old system never carried Malay copy either.
+- version: "1.0"
+  date: "2026-08-02"
+  entries:
+    - tag: added
+      text: "Amanahku is now the official HR system for everyday work: attendance, timesheets, the team board, messages and the Knowledge Bank all run here from today."
+    - tag: added
+      text: "Sign in with your Google account, and tick \"Remember me\" so you stay signed in on your own device."
+    - tag: added
+      text: "Transfer of Technology (TOT): a year lineup screen, HR-owned roster, presenter assignment, reactions, private ratings, a discussion under each session, and reminders before the day. Three years of past sessions are already loaded."
+    - tag: added
+      text: "Knowledge Bank revamp, with the TOT month counted for each presenter."
+    - tag: added
+      text: "Timesheets: day-first capture with Record and Review tabs, a live week-percent shelf, and a report you can drill from a number down to the sheet behind it."
+    - tag: added
+      text: "Team board: real due dates, colour labels, an optional project, people on a card, and an autosaving detail window."
+    - tag: added
+      text: "Attendance: clock in and out with GPS matched to your branch site, add a remark, and get a reminder bell before your shift starts."
+    - tag: added
+      text: "Messages: send images and files, or snap a photo from your phone camera."
+    - tag: added
+      text: "Alerts on your phone and desktop for new bells, plus an email for the ones you must not miss while away."
+    - tag: added
+      text: "Install Amanahku to your Home Screen and open it like an app."
+    - tag: added
+      text: "If something goes wrong, the screen now shows a reference code you can quote to HR or support."
+    - tag: improved
+      text: "A new look across sign-in, the workspace picker, the dashboard and every screen, with a collapsible sidebar and one shared page width."
+    - tag: improved
+      text: "Your nickname shows beside your full name across the app."
+    - tag: improved
+      text: "The org chart moves one seat at a time and shows faces instead of names."
+    - tag: improved
+      text: "Text and greys across the app now meet the WCAG AA contrast standard."
+    - tag: fixed
+      text: "Camera and GPS work again on the clock-in screen."
+    - tag: fixed
+      text: "Uploaded files keep a safe, readable name when you download them."
+    - tag: fixed
+      text: "The end-of-shift email is gone. The reminder bell alone tells you to clock out."

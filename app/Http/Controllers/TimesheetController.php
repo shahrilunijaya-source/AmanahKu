@@ -15,6 +15,7 @@ use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\TimesheetTemplate;
 use App\Services\DataScope;
+use App\Services\FeatureManager;
 use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
@@ -788,13 +789,18 @@ class TimesheetController extends Controller
     /**
      * Categories offered in the capture picker.
      *
-     * On Leave and Public Holiday are excluded (D5): those rows are generated from approved
-     * leave requests and the holiday calendar, so offering them by hand would let somebody
-     * log leave HR never approved straight into the manday cost report. The categories
-     * themselves stay in the table, because LockedDays files its generated rows under them.
+     * On Leave and Public Holiday are excluded (D5) only while the leave module is on for
+     * this tenant: those rows are then generated from approved leave requests and the
+     * holiday calendar, so offering them by hand would let somebody log leave HR never
+     * approved straight into the manday cost report. With the leave module off, nothing
+     * auto-generates those rows, so staff need the manual option to log leave at all. The
+     * categories themselves always stay in the table, because LockedDays files its
+     * generated rows under them whenever the module is on.
      */
     private function categoryOptions(): Collection
     {
+        $leaveModuleOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave');
+
         return TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
             ->map(fn (TimesheetCategory $c) => [
                 'id' => $c->id,
@@ -802,7 +808,7 @@ class TimesheetController extends Controller
                 'name_ms' => $c->name_ms ?: $c->name,
                 'requires_project' => (bool) $c->requires_project,
             ])
-            ->reject(fn (array $c) => in_array($c['name'], ['On Leave', 'Public Holiday'], true))
+            ->reject(fn (array $c) => $leaveModuleOn && in_array($c['name'], ['On Leave', 'Public Holiday'], true))
             ->values();
     }
 

@@ -5,6 +5,8 @@
 .env.production
 .phpactor.json
 .phpunit.result.cache
+.impeccable
+.superpowers
 /.codex
 /.cursor/
 /.idea

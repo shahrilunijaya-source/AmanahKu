@@ -126,6 +126,12 @@ button, input, select, textarea { font: inherit; }
     .kb-chip:active { transform: none; }
 }
 
+/* x-show toggles inline style.display directly, wiping out an inline
+   display:flex when it restores visibility — the row falls back to
+   the div default of block and gap silently stops working. Flex lives
+   in the class instead so x-show's inline toggling can't touch it. */
+.kb-attach-strip { display: flex; }
+
 /* Partial navigation (resources/js/partial-nav.js): the screen body dims while the
    next screen is being fetched. The sidebar and header are untouched, so only this
    region reacts. Kept slow to start so a fast swap never flickers. */
@@ -524,7 +530,7 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-kid:hover { background: rgba(255, 255, 255, .06); color: #fff; }
 .uj-nav-kid[data-on] { background: var(--sidebar-soft); color: #fff; }
 
-.uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; }
+.uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .uj-sb-ws { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin-top: 8px; border-radius: 9px; text-decoration: none; }
 .uj-sb-ws:hover { background: rgba(255, 255, 255, .06); }
 
@@ -685,10 +691,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-measured > .uj-fade { max-width: 920px; margin-inline: auto; }
 .uj-main--wide > .uj-head-stack,
 .uj-main--wide > .uj-fade { max-width: 1280px; }
-/* Workspace canvases (board, org chart) use the whole width — no cap — so they
-   grow with the sidebar collapse. They keep the 28px gutter from .uj-main. */
-.uj-main--full > .uj-head-stack,
-.uj-main--full > .uj-fade { max-width: none; }
 
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
@@ -885,6 +887,17 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transition: transform 280ms cubic-bezier(.32,.72,0,1);
 }
 .wd[data-open] { transform: translateX(0); }
+/* Knowledge Bank picture lightbox. A plain class, not inline `display:flex` — Alpine's
+   x-show (no transition) clears the inline `display` property rather than restoring it,
+   which would collapse flex centering back to the div default of `block` every time the
+   lightbox re-opens. */
+.kb-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 65; display: flex; align-items: center; justify-content: center; }
+/* No transition while a finger is dragging the image (1:1 tracking); this class
+   only applies once the drag ends, so the release snaps/settles smoothly. */
+.kb-lightbox-img--settle { transition: transform 200ms cubic-bezier(.23, 1, .32, 1); }
+@media (prefers-reduced-motion: reduce) {
+    .kb-lightbox-img--settle { transition: transform 120ms ease; }
+}
 /* Focus lands here on open (tabindex="-1"), not on the title — see work-board.js
    openCard(). It's a programmatic focus target for the dialog pattern, not a
    control, so it draws no ring of its own. */
@@ -1572,8 +1585,6 @@ select.wd-inline {
 /* ── Centred single-task column ──
    The desktop reference width is 1920 (~1600px content area), so max-width
    920px keeps the screen focused and centred, matching .uj-at-wrap. */
-.uj-ar-wrap { max-width: 920px; margin: 0 auto; }
-
 .uj-ar-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
 .uj-ar-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
 .uj-ar-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
@@ -1681,7 +1692,6 @@ select.wd-inline {
    Namespaced uj-tr- ("timesheet report").
    ═══════════════════════════════════════════════════════════════════════ */
 
-.uj-tr-wrap { max-width: 980px; margin: 0 auto; }
 
 .uj-tr-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
 .uj-tr-lede { font-size: var(--t-sm); letter-spacing: .02em; color: var(--body); font-weight: 500; }

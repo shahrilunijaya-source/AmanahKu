@@ -229,4 +229,64 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertStringNotContainsString('Epsilon NeverName', $shelfHtml);
         $this->assertStringNotContainsString('Zeta NeverName', $shelfHtml);
     }
+
+    // --- Reverse punch button on the drill-down ------------------------------
+
+    private function punchedEmployee(): Employee
+    {
+        $e = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Punched Staff',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $e->id,
+            // A day inside the window but short of its exact end boundary — the window's
+            // upper edge is unreliable with SQLite's raw string date storage (matches every
+            // other date literal in this file), not something this test is about.
+            'date' => '2026-07-14',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+        ]);
+
+        return $e;
+    }
+
+    public function test_hr_sees_a_reverse_button_on_the_drill_down(): void
+    {
+        $e = $this->punchedEmployee();
+
+        $this->actAsHr()->get('/app/attendance-report?emp='.$e->id)
+            ->assertOk()
+            ->assertSee('attendance-admin/records/', false)
+            ->assertSee('Reverse out');
+    }
+
+    public function test_a_manager_does_not_see_a_reverse_button_on_the_drill_down(): void
+    {
+        $managerUser = User::create([
+            'name' => 'Line Manager',
+            'email' => 'manager@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        $managerUser->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        $managerEmployee = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $managerUser->id,
+            'name' => 'Line Manager',
+            'status' => 'active',
+            'workload' => 'green',
+        ]);
+        $e = $this->punchedEmployee();
+        $e->update(['reports_to_id' => $managerEmployee->id]);
+
+        $response = $this->actingAs($managerUser)
+            ->withSession(['current_tenant' => $this->tenant->id, 'persona' => 'manager'])
+            ->get('/app/attendance-report?emp='.$e->id);
+
+        $response->assertOk();
+        $response->assertDontSee('attendance-admin/records/', false);
+    }
 }

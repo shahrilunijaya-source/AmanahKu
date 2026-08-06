@@ -13,6 +13,14 @@ export function registerKnowledgeCard(Alpine) {
         editing: false,
         editTitle: '',
         editBody: '',
+        editFiles: [], // new picks: { file, caption, url }
+        editExisting: [], // { id, url, caption, removed }
+        editError: '',
+        lightboxOpen: false,
+        lightboxIndex: 0,
+        swipeStartX: null,
+        dragX: 0,
+        dragging: false,
 
         get reactionTotal() {
             return Object.values(this.reactions).reduce((a, b) => a + b, 0);
@@ -69,30 +77,144 @@ export function registerKnowledgeCard(Alpine) {
             return this.act(`/app/knowledge-bank/${this.id}/star`);
         },
 
+        openLightbox(i) {
+            this.lightboxIndex = i;
+            this.lightboxOpen = true;
+        },
+
+        closeLightbox() {
+            this.lightboxOpen = false;
+        },
+
+        nextImage() {
+            if (this.lightboxIndex < this.attachments.length - 1) this.lightboxIndex++;
+        },
+
+        prevImage() {
+            if (this.lightboxIndex > 0) this.lightboxIndex--;
+        },
+
+        swipeStart(e) {
+            this.swipeStartX = e.touches[0].clientX;
+            this.dragging = true;
+        },
+
+        // Rubber-band at the first/last image instead of a hard stop — dragging
+        // still moves, just damped, so the edge reads as "give" rather than a wall.
+        swipeMove(e) {
+            if (this.swipeStartX === null) return;
+            let dx = e.touches[0].clientX - this.swipeStartX;
+            const atStart = dx > 0 && this.lightboxIndex === 0;
+            const atEnd = dx < 0 && this.lightboxIndex === this.attachments.length - 1;
+            if (atStart || atEnd) dx *= 0.35;
+            this.dragX = dx;
+        },
+
+        swipeEnd(e) {
+            if (this.swipeStartX === null) return;
+            const dx = e.changedTouches[0].clientX - this.swipeStartX;
+            this.swipeStartX = null;
+            this.dragging = false;
+            const canNext = dx < 0 && this.lightboxIndex < this.attachments.length - 1;
+            const canPrev = dx > 0 && this.lightboxIndex > 0;
+            if (Math.abs(dx) < 40 || (!canNext && !canPrev)) {
+                this.dragX = 0;
+                return;
+            }
+            this.slideAndSwap(e.currentTarget.querySelector('[data-kb-lightbox-img]'), canNext ? 'next' : 'prev');
+        },
+
+        // Interrupts the drag with a two-step WAAPI slide: current image continues
+        // off in the swipe direction, then the new one enters from the opposite
+        // edge — the swap reads as one continuous motion instead of a jump-cut.
+        slideAndSwap(img, dir) {
+            const startX = this.dragX;
+            if (!img) {
+                this.dragX = 0;
+                dir === 'next' ? this.nextImage() : this.prevImage();
+                return;
+            }
+            const out = dir === 'next' ? -60 : 60;
+            const inFrom = dir === 'next' ? 60 : -60;
+            const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+            img.animate(
+                [{ transform: `translateX(${startX}px)`, opacity: 1 }, { transform: `translateX(${out}px)`, opacity: 0 }],
+                { duration: 140, easing: ease, fill: 'forwards' }
+            ).finished.then(() => {
+                this.dragX = 0;
+                dir === 'next' ? this.nextImage() : this.prevImage();
+                img.animate(
+                    [{ transform: `translateX(${inFrom}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+                    { duration: 200, easing: ease }
+                );
+            });
+        },
+
         startEdit() {
             this.editTitle = this.title;
             this.editBody = this.body;
+            this.editFiles = [];
+            this.editExisting = this.attachments.map((a) => ({ ...a, removed: false }));
+            this.editError = '';
             this.editing = true;
         },
 
+        addEditFiles(list) {
+            for (const f of Array.from(list || [])) {
+                const ext = (f.name.split('.').pop() || '').toLowerCase();
+                if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) { this.editError = 'type'; break; }
+                if (f.size > 8 * 1024 * 1024) { this.editError = 'size'; break; }
+                if (this.editExisting.filter((e) => !e.removed).length + this.editFiles.length >= 10) { this.editError = 'max'; break; }
+                this.editError = '';
+                this.editFiles.push({ file: f, caption: '', url: URL.createObjectURL(f) });
+            }
+        },
+
+        removeEditFile(i) {
+            const f = this.editFiles[i];
+            if (f && f.url) URL.revokeObjectURL(f.url);
+            this.editFiles.splice(i, 1);
+        },
+
+        toggleRemoveExisting(id) {
+            const e = this.editExisting.find((x) => x.id === id);
+            if (e) e.removed = !e.removed;
+        },
+
+        // Switches from a JSON PUT to a multipart POST with `_method=PUT` spoofing —
+        // Laravel's Kernel calls enableHttpMethodParameterOverride() unconditionally, so a
+        // POST carrying a `_method` field routes as that method (the same mechanism
+        // Blade's @method('PUT') directive relies on). PHP only populates $_FILES on a true
+        // POST, so a real PUT request can never carry files.
         async saveEdit() {
             if (this.busy || !this.editTitle.trim() || !this.editBody.trim()) return;
             this.busy = true;
             try {
+                const fd = new FormData();
+                fd.append('_method', 'PUT');
+                fd.append('title', this.editTitle);
+                fd.append('body', this.editBody);
+                this.editFiles.forEach((f, i) => {
+                    fd.append('images[]', f.file);
+                    fd.append(`captions[${i}]`, f.caption || '');
+                });
+                this.editExisting.filter((e) => e.removed).forEach((e) => fd.append('remove_images[]', e.id));
+                this.editExisting.filter((e) => !e.removed).forEach((e) => {
+                    fd.append('reorder[]', e.id);
+                    fd.append(`caption_updates[${e.id}]`, e.caption || '');
+                });
+
                 const res = await fetch(`/app/knowledge-bank/${this.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'X-CSRF-TOKEN': this.token(),
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ title: this.editTitle, body: this.editBody }),
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': this.token(), Accept: 'application/json' },
+                    body: fd,
                 });
                 if (!res.ok) throw new Error(res.status);
                 const payload = await res.json();
                 this.title = payload.title;
                 this.body = payload.body;
                 this.bodyHtml = document.createElement('div').appendChild(document.createTextNode(payload.body)).parentElement.innerHTML;
+                this.attachments = payload.attachments;
                 this.editing = false;
             } catch (e) {
                 Alpine.store('toast').error(

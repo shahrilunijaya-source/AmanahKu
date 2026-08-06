@@ -55,13 +55,10 @@
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
                 'audit', 'roles', 'calendar', 'leave-report', 'timesheet-reports', 'attendance-report',
-                'attendance-admin', 'tot', 'tot-roster', 'messages', 'documents'];
-            // Board and the org chart take the whole width, no centred cap.
-            $fullScreens = ['board', 'orgchart'];
-            $isFull = ! $embed && in_array($screen ?? null, $fullScreens, true);
-            $isWide = ! $embed && ! $isFull && in_array($screen ?? null, $wideScreens, true);
+                'attendance-admin', 'messages', 'orgchart', 'board'];
+            $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
-        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $isFull ? 'uj-main--full' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
                      siblings of <main>. The header is position:absolute, so it takes no flow
@@ -235,15 +232,17 @@
         @endif
 
         @if ($msgEnabled ?? false)
-        // Direct-messages unread badge. Seeded server-side, then refreshed by a ~30s poll
-        // (a real server count over per-message read_at, so it also reflects messages the
-        // other party sent since page load). init() runs automatically on registration.
+        // Direct-messages unread badge + the slide-over panel's thread list, both seeded
+        // server-side then refreshed by a ~5s poll — one shared store so the envelope
+        // count and the panel's rows (snippet, order, per-thread unread) stay live even
+        // when the panel is closed, instead of only catching up once it's reopened.
         Alpine.store('msgbadge', {
             unread: @js($msgUnread ?? 0),
-            init() { setInterval(() => this.poll(), 30000); },
+            threads: @js($msgThreads ?? []),
+            init() { setInterval(() => this.poll(), 5000); },
             poll() {
-                fetch('{{ route('messages.unread') }}', { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json()).then(d => { this.unread = d.unread; }).catch(() => {});
+                fetch('{{ route('messages.summary') }}', { headers: { 'Accept': 'application/json' } })
+                    .then(r => r.json()).then(d => { this.unread = d.unread; this.threads = d.threads; }).catch(() => {});
             },
         });
 
@@ -255,13 +254,18 @@
         //
         // It deliberately does NOT touch history: the panel floats over whatever screen
         // you are on, and rewriting the URL would strand you somewhere else on refresh.
-        Alpine.data('messagesPanel', (threads) => ({
+        Alpine.data('messagesPanel', () => ({
             view: 'list',
-            threads: threads,
+            // Read from the shared store (kept live by its own 5s poll) rather than a
+            // local copy, so the row list is already fresh the moment the panel opens —
+            // no separate poll to duplicate here.
+            get threads() { return this.$store.msgbadge.threads; },
             activeId: null,
             loading: false,
             sending: false,
             error: '',
+            lastMessageId: 0,
+            pollTimer: null,
             csrf() { return document.querySelector('meta[name=csrf-token]').content; },
 
             /** Fetch the thread fragment and drop it into the panel's pane. */
@@ -292,6 +296,38 @@
             /** The fragment's back button. In the panel that means the conversation list. */
             back() { this.view = 'list'; this.activeId = null; },
 
+            /* ── Live thread poll ─────────────────────────────────────────────
+                Same idea as the full messages screen: check the open thread's
+                newest id every few seconds, only re-swap the pane when it
+                actually changed. */
+            schedulePoll() {
+                clearTimeout(this.pollTimer);
+                this.pollTimer = setTimeout(() => this.pollThread(), 4000);
+            },
+            async pollThread() {
+                // x-if tears the panel down when it's closed and rebuilds it fresh next
+                // open — a plain setTimeout chain outlives that, so it must check its own
+                // element is still attached instead of running forever in the background.
+                if (! this.$el.isConnected) { return; }
+                if (this.view !== 'thread' || ! this.activeId || document.hidden) { this.schedulePoll(); return; }
+                try {
+                    const res = await fetch('/app/messages/thread/' + this.activeId, { headers: { 'Accept': 'application/json' } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const newest = data.messages.length ? data.messages[data.messages.length - 1].id : 0;
+                        if (newest !== this.lastMessageId) {
+                            this.lastMessageId = newest;
+                            await this.swap('c=' + this.activeId);
+                        }
+                    }
+                } catch (e) {
+                    // A missed poll just retries next tick.
+                }
+                this.schedulePoll();
+            },
+
+            init() { this.schedulePoll(); },
+
             /** The fragment's composer posts through here. */
             async send(form) {
                 if (this.sending) { return; }
@@ -310,6 +346,7 @@
                         return;
                     }
                     this.touch(data.conversationId, data.message);
+                    this.lastMessageId = data.message.id;
                     await this.swap('c=' + data.conversationId);
                 } catch (e) {
                     this.error = this.$store.ui.lang === 'en' ? 'Could not send that message.' : 'Tidak dapat menghantar mesej itu.';
@@ -326,7 +363,7 @@
                 t.lastMine = true;
                 t.at = this.$store.ui.lang === 'en' ? 'just now' : 'sebentar tadi';
                 t.unread = 0;
-                this.threads = [t, ...this.threads.filter(x => x.id !== id)];
+                this.$store.msgbadge.threads = [t, ...this.threads.filter(x => x.id !== id)];
             },
         }));
         @endif
