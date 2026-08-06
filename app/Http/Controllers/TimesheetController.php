@@ -487,7 +487,7 @@ class TimesheetController extends Controller
 
                         return [
                             'id' => (int) $emp->id,
-                            'name' => (string) $emp->name,
+                            'name' => (string) $emp->display_name,
                             'initials' => (string) $emp->initials,
                             'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                             'days' => $empDays,
@@ -520,7 +520,7 @@ class TimesheetController extends Controller
 
                         return [
                             'id' => (int) $emp->id,
-                            'name' => (string) $emp->name,
+                            'name' => (string) $emp->display_name,
                             'initials' => (string) $emp->initials,
                             'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                             'days' => $empDays,
@@ -550,7 +550,7 @@ class TimesheetController extends Controller
 
                 return [
                     'id' => (int) $emp->id,
-                    'name' => (string) $emp->name,
+                    'name' => (string) $emp->display_name,
                     'initials' => (string) $emp->initials,
                     'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                     'title' => (string) ($positionBand?->title ?? ''),

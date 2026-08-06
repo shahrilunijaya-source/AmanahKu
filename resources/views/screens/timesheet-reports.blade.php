@@ -162,7 +162,7 @@
                 if ($a['filledDays'] !== $b['filledDays']) {
                     return $a['filledDays'] <=> $b['filledDays'];
                 }
-                return strcasecmp($a['employee']->name, $b['employee']->name);
+                return strcasecmp($a['employee']->display_name, $b['employee']->display_name);
             })
             ->values();
 
@@ -203,7 +203,7 @@
                                 </span>
                                 <span>
                                     <span class="uj-tr-name">
-                                        {{ $row['employee']->name }}
+                                        {{ $row['employee']->display_name }}
                                         @if ($row['status'] === 'late')
                                             <span class="uj-stamp" data-tone="red" style="margin-left:6px;" x-text="$store.ui.lang==='en' ? 'Overdue' : 'Lewat'">Overdue</span>
                                         @endif

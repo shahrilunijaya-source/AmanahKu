@@ -210,7 +210,7 @@ class AttendanceReportController extends Controller
 
             return [
                 'id' => $emp->id,
-                'name' => $emp->name,
+                'name' => $emp->display_name,
                 'initials' => $emp->initials,
                 'color' => $emp->avatar_color,
                 'dept' => $emp->department?->name,

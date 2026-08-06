@@ -67,7 +67,7 @@
         <button type="button" @click="open = ! open" style="width:100%;display:flex;gap:13px;align-items:center;padding:14px 18px;background:none;border:0;cursor:pointer;text-align:left;">
             <span style="width:36px;height:36px;border-radius:10px;background:{{ $meta['accent'] ?? 'var(--canvas)' }};border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">{{ $meta ? ($animalEmoji[$r->animal_archetype] ?? '•') : '·' }}</span>
             <span style="flex:1;min-width:0;">
-                <span style="display:block;font-size:13.5px;font-weight:600;color:var(--ink);">{{ $person->name }}</span>
+                <span style="display:block;font-size:13.5px;font-weight:600;color:var(--ink);">{{ $person->display_name }}</span>
                 <span style="display:block;font-size:12px;color:var(--muted);">{{ $person->department?->name ?? '—' }}{{ $r?->self_mbti ? ' · '.$r->self_mbti : '' }}</span>
             </span>
             @if ($done)
