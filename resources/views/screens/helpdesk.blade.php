@@ -2,16 +2,24 @@
 
 @php
     $statusMeta = [
-        'open' => ['label' => 'Open', 'color' => 'var(--info)'],
-        'in_progress' => ['label' => 'In Progress', 'color' => 'var(--amber)'],
-        'resolved' => ['label' => 'Resolved', 'color' => 'var(--success)'],
-        'closed' => ['label' => 'Closed', 'color' => 'var(--muted)'],
+        'open' => ['label' => 'Open'],
+        'in_progress' => ['label' => 'In Progress'],
+        'resolved' => ['label' => 'Resolved'],
+        'closed' => ['label' => 'Closed'],
+    ];
+    // Stamp tone per status — null falls through to the stamp's neutral default,
+    // fitting for "not yet worked" (open) and "archived" (closed) alike.
+    $statusTone = [
+        'open' => null,
+        'in_progress' => 'amber',
+        'resolved' => 'success',
+        'closed' => null,
     ];
     $priorityColor = [
         'low' => 'var(--muted)',
         'medium' => 'var(--info)',
-        'high' => 'var(--amber)',
-        'urgent' => 'var(--red)',
+        'high' => 'var(--amber-ink)',
+        'urgent' => 'var(--error)',
     ];
     $statusMs = [
         'open' => 'Buka',
@@ -19,8 +27,19 @@
         'resolved' => 'Selesai',
         'closed' => 'Ditutup',
     ];
-    $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;';
-    $pill = fn ($s) => '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:'.($statusMeta[$s]['color'] ?? 'var(--muted)').';"><span style="width:8px;height:8px;border-radius:50%;background:'.($statusMeta[$s]['color'] ?? 'var(--muted)').';"></span>'.($statusMeta[$s]['label'] ?? ucfirst($s)).'</span>';
+    // Row icon tile per category — same tinted-tile convention as the Leave and
+    // Claims disclosure rows (partials/leave-type-icon.blade.php, claims $typeMeta).
+    $categoryMeta = [
+        'IT' => ['tint' => 'var(--info)', 'bg' => 'var(--info-tint,#eef4fb)', 'icon' => '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'],
+        'Facilities' => ['tint' => 'var(--amber)', 'bg' => 'var(--amber-tint,#f7efe0)', 'icon' => '<path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/>'],
+        'HR' => ['tint' => 'var(--success)', 'bg' => 'var(--success-tint,#e7f4ec)', 'icon' => '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'],
+        'Other' => ['tint' => 'var(--muted)', 'bg' => 'var(--shelf)', 'icon' => '<path d="M5 12h.01M12 12h.01M19 12h.01"/>'],
+        'Bug' => ['tint' => 'var(--red)', 'bg' => 'var(--red-tint)', 'icon' => '<path d="M12 9v4M12 17h.01"/><path d="M10.3 4.1 2.5 18a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z"/>'],
+        'Idea' => ['tint' => 'var(--error)', 'bg' => 'color-mix(in srgb, var(--error) 10%, #fff)', 'icon' => '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3Z"/>'],
+    ];
+    // Board vs My tickets — kept apart so a privileged viewer's own tickets don't
+    // dilute the working board. ?tab=mine deep-links straight to the second tab.
+    $initialTab = request()->query('tab') === 'mine' ? 'mine' : 'board';
 @endphp
 
 @section('screen')
@@ -62,120 +81,54 @@
 
 @else
 {{-- ───────────────────────── Privileged view: board + manage ───────────────────────── --}}
-<div x-data="{ open: {{ $errors->any() && old('_ticket') ? (int) old('_ticket') : 'null' }} }">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+<div class="uj-lv" x-data="{
+        tab: @js($initialTab),
+        go(t) {
+            this.tab = t;
+            const u = new URL(window.location);
+            t === 'board' ? u.searchParams.delete('tab') : u.searchParams.set('tab', t);
+            history.replaceState(null, '', u);
+        },
+    }">
+    <div style="display:flex;justify-content:flex-end;">
         <button type="button" @click="$dispatch('ticket-raise-open')" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? '+ New ticket' : '+ Ticket baharu'">+ New ticket</button>
     </div>
 
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+    <div class="uj-lv-tabs" role="tablist">
+        <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'board' ? '' : null"
+                :aria-selected="tab === 'board'" @click="go('board')"
+                x-text="$store.ui.lang==='en' ? 'Tickets' : 'Ticket'">Tickets</button>
+        <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'mine' ? '' : null"
+                :aria-selected="tab === 'mine'" @click="go('mine')"
+                x-text="$store.ui.lang==='en' ? 'My tickets' : 'Ticket saya'">My tickets</button>
+    </div>
+
+    <div role="tabpanel" x-show="tab === 'board'" x-cloak>
         @foreach ($statuses as $s)
-            <div class="uj-card uj-stat" style="flex:1;min-width:140px;">
-                <div class="uj-stat-label" x-text="$store.ui.lang==='en' ? @js($statusMeta[$s]['label']) : @js($statusMs[$s] ?? $statusMeta[$s]['label'])">{{ $statusMeta[$s]['label'] }}</div>
-                <div class="uj-stat-value" style="color:{{ $statusMeta[$s]['color'] }};">{{ $counts[$s] ?? 0 }}</div>
+            @php $bucket = $grouped->get($s, collect()); @endphp
+            <div class="uj-card" style="margin-bottom:16px;">
+                <div class="uj-card-head">
+                    <h3 class="uj-card-title" style="display:flex;align-items:center;gap:8px;">
+                        <span class="uj-stamp" @if ($statusTone[$s]) data-tone="{{ $statusTone[$s] }}" @endif
+                              x-text="$store.ui.lang==='en' ? @js($statusMeta[$s]['label']) : @js($statusMs[$s] ?? $statusMeta[$s]['label'])">{{ $statusMeta[$s]['label'] }}</span>
+                        <span style="color:var(--muted);font-weight:500;font-size:13px;">· {{ $bucket->count() }}</span>
+                    </h3>
+                </div>
+                @forelse ($bucket as $t)
+                    @include('partials.ticket-row', ['t' => $t, 'privileged' => true])
+                @empty
+                    <div class="uj-lv-empty">
+                        <b x-text="$store.ui.lang==='en' ? 'No {{ $statusMeta[$s]['label'] }} tickets' : 'Tiada ticket {{ $statusMeta[$s]['label'] }}'"></b>
+                        <span x-text="$store.ui.lang==='en' ? 'Tickets marked \'{{ $statusMeta[$s]['label'] }}\' will appear here. Open a ticket to change its status or assign it.' : 'Ticket bertanda \'{{ $statusMeta[$s]['label'] }}\' akan muncul di sini. Buka ticket untuk tukar status atau berikannya kepada seseorang.'"></span>
+                    </div>
+                @endforelse
             </div>
         @endforeach
     </div>
 
-    @foreach ($statuses as $s)
-        @php $bucket = $grouped->get($s, collect()); @endphp
-        <div class="uj-card" style="margin-bottom:16px;">
-            <div class="uj-card-head">
-                <h3 class="uj-card-title">{!! $pill($s) !!} <span style="color:var(--muted);font-weight:500;font-size:13px;">· {{ $bucket->count() }}</span></h3>
-            </div>
-            @forelse ($bucket as $t)
-                <div style="padding:14px 20px;border-bottom:1px solid var(--hairline-soft);">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                        <div style="min-width:0;">
-                            <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ $t->subject }}</div>
-                            <div style="font-size:12px;color:var(--muted);margin-top:3px;">
-                                @if ($t->employee?->name){{ $t->employee->name }}@else<span x-text="$store.ui.lang==='en' ? 'Unknown' : 'Tidak diketahui'">Unknown</span>@endif · {{ $t->category }} ·
-                                <span style="color:{{ $priorityColor[$t->priority] ?? 'var(--muted)' }};font-weight:600;">{{ ucfirst($t->priority) }}</span> ·
-                                {{ $t->created_at?->format('j M Y') }}
-                                @if ($t->assignee) · <span style="color:var(--body);">→ {{ $t->assignee->name }}</span>@endif
-                            </div>
-                        </div>
-                        <button @click="open = (open === {{ $t->id }} ? null : {{ $t->id }})" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;flex-shrink:0;" x-text="$store.ui.lang==='en' ? 'Manage' : 'Urus'">Manage</button>
-                    </div>
-                    @include('partials.ticket-description')
-                    @php $safeUrl = $t->page_url && preg_match('~^https?://~i', $t->page_url) ? $t->page_url : null; @endphp
-                    @if ($safeUrl)
-                        <div style="font-size:12px;color:var(--muted);margin-top:8px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Reported from' : 'Dilapor dari'">Reported from</span>
-                            <a href="{{ $safeUrl }}" style="color:var(--red);text-decoration:none;">{{ $safeUrl }}</a>
-                        </div>
-                    @endif
-                    {{-- Thumbnails and download chips both point at the auth-gated stream route,
-                         never a public URL — the file lives on the private 'local' disk. --}}
-                    @if ($t->attachments->isNotEmpty())
-                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
-                            @foreach ($t->attachments as $att)
-                                @if ($att->isImage())
-                                    <a href="{{ route('helpdesk.attachment', $att) }}" target="_blank" rel="noopener noreferrer"
-                                       style="display:block;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--hairline-soft);">
-                                        <img src="{{ route('helpdesk.attachment', $att) }}" alt="{{ $att->name }}" loading="lazy"
-                                             style="width:100%;height:100%;object-fit:cover;">
-                                    </a>
-                                @else
-                                    <a href="{{ route('helpdesk.attachment', $att) }}" target="_blank" rel="noopener noreferrer"
-                                       style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--hairline-soft);font-size:12.5px;color:var(--body);text-decoration:none;">
-                                        <span style="font-weight:700;font-size:10.5px;color:var(--muted);">{{ strtoupper(pathinfo($att->name, PATHINFO_EXTENSION)) }}</span>
-                                        <span>{{ $att->name }}</span>
-                                    </a>
-                                @endif
-                            @endforeach
-                        </div>
-                    @endif
-                    @if ($t->resolution)
-                        <div style="background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:8px;padding:10px 12px;margin-top:10px;">
-                            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Resolution' : 'Penyelesaian'">Resolution</div>
-                            <div style="font-size:13px;color:var(--body);white-space:pre-line;">{{ $t->resolution }}</div>
-                        </div>
-                    @endif
-
-                        <div x-show="open === {{ $t->id }}" x-cloak style="margin-top:12px;border-top:1px solid var(--hairline-soft);padding-top:12px;">
-                            <form method="post" action="{{ route('helpdesk.update', $t) }}">
-                                @csrf
-                                <input type="hidden" name="_ticket" value="{{ $t->id }}" />
-                                @if ($errors->any() && (int) old('_ticket') === $t->id)
-                                    <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:12px;">{{ $errors->first() }}</div>
-                                @endif
-                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;">
-                                    <div>
-                                        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Status *' : 'Status *'">Status *</label>
-                                        <select name="status" required style="{{ $fs }}width:100%;">
-                                            @foreach ($statuses as $opt)
-                                                <option value="{{ $opt }}" @selected(old('status', $t->status) === $opt) x-text="$store.ui.lang==='en' ? @js($statusMeta[$opt]['label']) : @js($statusMs[$opt] ?? $statusMeta[$opt]['label'])">{{ $statusMeta[$opt]['label'] }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Assignee' : 'Ditugaskan kepada'">Assignee</label>
-                                        <select name="assignee_employee_id" style="{{ $fs }}width:100%;">
-                                            <option value="" x-text="$store.ui.lang==='en' ? 'Unassigned' : 'Belum ditugaskan'">Unassigned</option>
-                                            @foreach ($employees as $e)
-                                                <option value="{{ $e->id }}" @selected((string) old('assignee_employee_id', (string) $t->assignee_employee_id) === (string) $e->id)>{{ $e->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div style="margin-top:12px;">
-                                    <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Resolution note' : 'Nota penyelesaian'">Resolution note</label>
-                                    <textarea name="resolution" maxlength="2000" rows="3" placeholder="What was done to resolve this." :placeholder="$store.ui.lang==='en' ? 'What was done to resolve this.' : 'Apa yang dibuat untuk menyelesaikannya.'" style="width:100%;padding:10px 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;resize:vertical;">{{ old('resolution', $t->resolution) }}</textarea>
-                                </div>
-                                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;margin-top:14px;" x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</button>
-                            </form>
-                        </div>
-                </div>
-            @empty
-                <div style="padding:28px 20px;text-align:center;">
-                    <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'No {{ $statusMeta[$s]['label'] }} tickets' : 'Tiada ticket {{ $statusMeta[$s]['label'] }}'"></span></div>
-                    <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Tickets marked \'{{ $statusMeta[$s]['label'] }}\' will appear here. Use \'Manage\' on a ticket to change its status or assign it.' : 'Ticket bertanda \'{{ $statusMeta[$s]['label'] }}\' akan muncul di sini. Guna \'Manage\' pada ticket untuk tukar status atau berikannya kepada seseorang.'"></span></div>
-                </div>
-            @endforelse
-        </div>
-    @endforeach
-
-    @include('partials.my-tickets')
+    <div role="tabpanel" x-show="tab === 'mine'" x-cloak>
+        @include('partials.my-tickets')
+    </div>
 </div>
 @endif
 

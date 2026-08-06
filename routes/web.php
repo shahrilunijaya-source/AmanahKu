@@ -338,6 +338,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'commentsList'])->name('knowledge.comments.list');
         Route::post('/app/knowledge-bank/{entry}/comments', [KnowledgeController::class, 'comment'])->name('knowledge.comments');
         Route::delete('/app/knowledge-bank/comments/{comment}', [KnowledgeController::class, 'deleteComment'])->name('knowledge.comments.delete');
+        Route::get('/app/knowledge-bank/attachments/{attachment}', [KnowledgeController::class, 'attachment'])->name('knowledge.attachments.show');
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');

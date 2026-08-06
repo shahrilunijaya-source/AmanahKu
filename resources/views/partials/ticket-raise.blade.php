@@ -51,8 +51,7 @@
                 <div>
                     <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                            x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</label>
-                    <select name="category" x-model="category" required
-                            style="height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;width:100%;">
+                    <select name="category" x-model="category" required class="uj-lv-in">
                         @foreach ($categories as $c)
                             <option value="{{ $c }}">{{ $c }}</option>
                         @endforeach
@@ -64,8 +63,7 @@
                 <div x-show="category !== 'Bug' && category !== 'Idea'">
                     <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                            x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</label>
-                    <select name="priority" :required="category !== 'Bug' && category !== 'Idea'"
-                            style="height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;width:100%;">
+                    <select name="priority" :required="category !== 'Bug' && category !== 'Idea'" class="uj-lv-in">
                         @foreach ($priorities as $p)
                             <option value="{{ $p }}" @selected(old('priority', 'medium') === $p)>{{ ucfirst($p) }}</option>
                         @endforeach
@@ -76,8 +74,7 @@
                 <div>
                     <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                            x-text="$store.ui.lang==='en' ? 'Subject' : 'Subjek'">Subject</label>
-                    <input x-ref="subject" name="subject" value="{{ old('subject') }}" required maxlength="150"
-                           style="height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;width:100%;">
+                    <input x-ref="subject" name="subject" value="{{ old('subject') }}" required maxlength="150" class="uj-lv-in">
                     @error('subject')<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
                 </div>
 
@@ -88,8 +85,7 @@
                 <div x-show="category !== 'Bug' && category !== 'Idea'">
                     <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                            x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label>
-                    <textarea name="description" :required="category !== 'Bug' && category !== 'Idea'" @paste="onPaste($event)" maxlength="2000" rows="4"
-                              style="width:100%;padding:11px 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;resize:vertical;">{{ old('description') }}</textarea>
+                    <textarea name="description" :required="category !== 'Bug' && category !== 'Idea'" @paste="onPaste($event)" maxlength="2000" rows="4" class="uj-lv-in">{{ old('description') }}</textarea>
                     @error('description')<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
                 </div>
 
@@ -99,7 +95,7 @@
                             <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                                    x-text="($store.ui.lang==='en' ? @js($label['en']) : @js($label['ms'])) + '{{ $key === 'additional_context' ? '' : ' *' }}'">{{ $label['en'] }}</label>
                             <textarea name="{{ $key }}" :required="category === 'Bug' && {{ $key === 'additional_context' ? 'false' : 'true' }}" @paste="onPaste($event)" maxlength="2000" rows="3"
-                                      style="width:100%;padding:11px 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;resize:vertical;">{{ old($key) }}</textarea>
+                                      class="uj-lv-in">{{ old($key) }}</textarea>
                             @error($key)<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
                         </div>
                     @endforeach
@@ -111,7 +107,7 @@
                             <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                                    x-text="($store.ui.lang==='en' ? @js($label['en']) : @js($label['ms'])) + '{{ $key === 'additional_context' ? '' : ' *' }}'">{{ $label['en'] }}</label>
                             <textarea name="{{ $key }}" :required="category === 'Idea' && {{ $key === 'additional_context' ? 'false' : 'true' }}" @paste="onPaste($event)" maxlength="2000" rows="3"
-                                      style="width:100%;padding:11px 12px;border:1px solid var(--hairline);border-radius:9px;font-size:13.5px;background:#fff;color:var(--ink);outline:none;resize:vertical;">{{ old($key) }}</textarea>
+                                      class="uj-lv-in">{{ old($key) }}</textarea>
                             @error($key)<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
                         </div>
                     @endforeach

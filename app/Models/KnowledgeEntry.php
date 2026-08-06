@@ -56,4 +56,10 @@ class KnowledgeEntry extends Model
     {
         return $this->hasMany(KnowledgeReaction::class, 'entry_id');
     }
+
+    /** @return HasMany<KnowledgeAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(KnowledgeAttachment::class, 'entry_id')->orderBy('sort_order');
+    }
 }
