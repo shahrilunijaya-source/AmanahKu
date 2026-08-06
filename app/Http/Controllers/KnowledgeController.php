@@ -327,15 +327,10 @@ class KnowledgeController extends Controller
             }
         }
 
-        $newFiles = array_values(array_filter((array) $request->file('images', []), fn ($f) => $f && $f->isValid()));
-        $remainingCount = $entry->attachments()->count();
-        abort_if($remainingCount + count($newFiles) > self::MAX_IMAGES, 422, 'A lesson can carry up to '.self::MAX_IMAGES.' pictures.');
-
-        if ($newFiles !== []) {
-            $startOrder = (int) ($entry->attachments()->max('sort_order') ?? -1) + 1;
-            $this->storeImages($entry, $newFiles, (array) ($data['captions'] ?? []), $startOrder);
-        }
-
+        // Reorder governs only the surviving pre-existing pictures — validated and applied
+        // BEFORE new uploads are appended, so its id set matches what the client actually
+        // sent (a freshly uploaded picture has no id yet on the client and is never part of
+        // the reorder payload; it always lands after the reordered set, in upload order).
         if (! empty($data['reorder'])) {
             $reorder = array_map('intval', $data['reorder']);
             $survivingIds = $entry->attachments()->pluck('id')->sort()->values()->all();
@@ -345,6 +340,15 @@ class KnowledgeController extends Controller
             foreach ($reorder as $position => $id) {
                 $entry->attachments()->where('id', $id)->update(['sort_order' => $position]);
             }
+        }
+
+        $newFiles = array_values(array_filter((array) $request->file('images', []), fn ($f) => $f && $f->isValid()));
+        $remainingCount = $entry->attachments()->count();
+        abort_if($remainingCount + count($newFiles) > self::MAX_IMAGES, 422, 'A lesson can carry up to '.self::MAX_IMAGES.' pictures.');
+
+        if ($newFiles !== []) {
+            $startOrder = (int) ($entry->attachments()->max('sort_order') ?? -1) + 1;
+            $this->storeImages($entry, $newFiles, (array) ($data['captions'] ?? []), $startOrder);
         }
 
         if (! empty($data['caption_updates'])) {
@@ -392,6 +396,12 @@ class KnowledgeController extends Controller
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        // A "Top-level segment" <select> option submits as an empty string, not an
+        // absent field — normalize it so `nullable` actually applies.
+        if ($request->input('parent_id') === '') {
+            $request->merge(['parent_id' => null]);
+        }
 
         $data = $request->validate([
             'label' => ['required', 'string', 'max:80'],

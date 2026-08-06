@@ -6,7 +6,7 @@
     <div x-show="drawerOpen" x-cloak>
         <div class="wd-scrim" :data-open="drawerOpen ? '' : null" @click="drawerOpen = false"></div>
         <aside class="wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
-               @keydown.escape.window="flyout ? (flyout = null) : (drawerOpen = false)">
+               @keydown.escape.window="lightboxOpen ? null : (flyout ? (flyout = null) : (drawerOpen = false))">
 
             <div class="wd-head">
                 <span style="font:600 13.5px var(--font-sans);color:var(--ink);">{{ $e->created_at?->format('j M Y') }}</span>
@@ -39,6 +39,31 @@
                     <div style="margin:0 0 14px;">
                         <input x-model="editTitle" maxlength="200" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:15px;font-weight:600;margin-bottom:8px;outline:none;" />
                         <textarea x-model="editBody" maxlength="5000" rows="5" style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;resize:vertical;outline:none;font-family:inherit;line-height:1.6;margin-bottom:8px;"></textarea>
+
+                        <div x-show="editError" x-cloak style="font-size:11.5px;color:var(--red);margin-bottom:6px;">
+                            <span x-show="editError==='type'" x-text="$store.ui.lang==='en' ? 'Only JPG, PNG, GIF, or WebP pictures.' : 'Hanya gambar JPG, PNG, GIF, atau WebP.'"></span>
+                            <span x-show="editError==='size'" x-text="$store.ui.lang==='en' ? 'Each picture must be 8 MB or smaller.' : 'Setiap gambar mesti 8 MB atau lebih kecil.'"></span>
+                            <span x-show="editError==='max'" x-text="$store.ui.lang==='en' ? 'You can attach up to 10 pictures.' : 'Anda boleh lampirkan sehingga 10 gambar.'"></span>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                            <template x-for="e in editExisting.filter(x => !x.removed)" :key="e.id">
+                                <div style="position:relative;width:64px;">
+                                    <img :src="e.url" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--hairline);" />
+                                    <button type="button" @click="toggleRemoveExisting(e.id)" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;line-height:1;">&times;</button>
+                                    <input x-model="e.caption" maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Caption' : 'Kapsyen'" style="width:64px;font-size:9.5px;margin-top:3px;border:1px solid var(--hairline);border-radius:4px;padding:2px 3px;" />
+                                </div>
+                            </template>
+                            <template x-for="(f, i) in editFiles" :key="f.url">
+                                <div style="position:relative;width:64px;">
+                                    <img :src="f.url" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--hairline);" />
+                                    <button type="button" @click="removeEditFile(i)" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;line-height:1;">&times;</button>
+                                    <input x-model="f.caption" maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Caption' : 'Kapsyen'" style="width:64px;font-size:9.5px;margin-top:3px;border:1px solid var(--hairline);border-radius:4px;padding:2px 3px;" />
+                                </div>
+                            </template>
+                            <button type="button" @click="$refs.editFileInput.click()" style="width:64px;height:64px;border:1px dashed var(--hairline);border-radius:8px;color:var(--muted);font-size:20px;background:#fff;">+</button>
+                            <input x-ref="editFileInput" type="file" multiple accept="image/*" style="display:none;" @change="addEditFiles($event.target.files); $event.target.value = ''" />
+                        </div>
+
                         <div style="display:flex;gap:8px;">
                             <button type="button" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" :disabled="busy" @click="saveEdit()"
                                     x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
@@ -57,6 +82,15 @@
                 </div>
 
                 <div x-show="!editing" x-html="bodyHtml" style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;white-space:pre-wrap;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
+
+                <div x-show="!editing && attachments.length" x-cloak style="display:grid;gap:6px;margin-top:14px;" :style="attachments.length === 1 ? 'grid-template-columns:1fr;' : 'grid-template-columns:1fr 1fr;'">
+                    <template x-for="(a, i) in attachments.slice(0, 4)" :key="a.id">
+                        <button type="button" @click="openLightbox(i)" style="position:relative;padding:0;border:none;border-radius:10px;overflow:hidden;aspect-ratio:1;cursor:pointer;">
+                            <img :src="a.url" :alt="a.caption || title" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" />
+                            <span x-show="i === 3 && attachments.length > 4" style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;" x-text="'+' + (attachments.length - 4)"></span>
+                        </button>
+                    </template>
+                </div>
 
                 @if (! empty($e->tags))
                     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:16px;">
@@ -154,5 +188,22 @@
                 </div>
             @endif
         </aside>
+
+        {{-- Sibling of .wd, not a descendant: .wd has `transform` for its slide-in
+             animation, which creates a new containing block for `position:fixed`
+             descendants — a fixed-position child of .wd would be positioned relative to
+             the drawer, not the viewport. Kept inside the same teleported-to-body wrapper
+             so it still only exists while the drawer is mounted. --}}
+        <div x-show="lightboxOpen" x-cloak @keydown.escape.window="closeLightbox()" class="kb-lightbox">
+            <button type="button" @click="closeLightbox()" style="position:absolute;top:20px;right:20px;color:#fff;font-size:28px;background:none;">&times;</button>
+            <button type="button" x-show="lightboxIndex > 0" @click="prevImage()" style="position:absolute;left:20px;color:#fff;font-size:32px;background:none;">&larr;</button>
+            <template x-if="lightboxOpen">
+                <div style="max-width:90vw;max-height:85vh;text-align:center;">
+                    <img :src="attachments[lightboxIndex]?.url" :alt="attachments[lightboxIndex]?.caption || title" style="max-width:90vw;max-height:78vh;object-fit:contain;" />
+                    <div x-show="attachments[lightboxIndex]?.caption" style="color:#fff;font-size:13px;margin-top:10px;" x-text="attachments[lightboxIndex]?.caption"></div>
+                </div>
+            </template>
+            <button type="button" x-show="lightboxIndex < attachments.length - 1" @click="nextImage()" style="position:absolute;right:20px;color:#fff;font-size:32px;background:none;">&rarr;</button>
+        </div>
     </div>
 </template>
