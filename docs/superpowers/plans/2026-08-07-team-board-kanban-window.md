@@ -150,7 +150,10 @@ Add to `tests/Feature/TeamBoardScreenTest.php` (same fixture helpers as the exis
         $response->assertOk();
 
         $html = $response->getContent();
-        $this->assertStringContainsString('data-id="'.$reviewCard->id.'" data-status="review"', $html);
+        $this->assertMatchesRegularExpression(
+            '/data-id="'.$reviewCard->id.'"\s+data-status="review"/',
+            $html
+        );
     }
 ```
 

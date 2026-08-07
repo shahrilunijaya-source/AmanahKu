@@ -218,18 +218,25 @@
                         <button type="button" class="tb-chip" @click="setWinLabelFilter('{{ $lk }}')"
                                 :style="win.labelFilter === '{{ $lk }}' ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' } : {}">{{ $lname }}</button>
                     @endforeach
-                    @foreach (['todo' => ['To Do', 'To Do'], 'prog' => ['In Progress', 'Sedang Jalan'], 'review' => ['In Review', 'Disemak'], 'done' => ['Done', 'Selesai']] as $sk => $sl)
-                        <button type="button" class="tb-chip" @click="toggleWinStatus('{{ $sk }}')" :data-on="win.statusFilter.includes('{{ $sk }}') ? '' : null">
-                            <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
-                        </button>
-                    @endforeach
                 </div>
 
-                <div x-ref="winTaskBody">
-                    @forelse ($teamRows as $row)
-                        @include('partials.team-board-row', ['row' => $row])
-                    @empty
-                    @endforelse
+                @php
+                    $tbWinCols = ['todo' => ['To Do', 'To Do'], 'prog' => ['In Progress', 'Sedang Jalan'], 'review' => ['In Review', 'Disemak'], 'done' => ['Done', 'Selesai']];
+                    $tbRowsByStatus = $teamRows->groupBy(fn ($row) => $row['item']->status);
+                @endphp
+                <div class="tb-win-kanban" x-ref="winTaskBody">
+                    @foreach ($tbWinCols as $sk => $sl)
+                        <div class="tb-win-col">
+                            <div class="tb-win-col-head">
+                                <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
+                            </div>
+                            <div class="tb-win-col-cards">
+                                @foreach ($tbRowsByStatus->get($sk, collect()) as $row)
+                                    @include('partials.work-card', ['c' => $row['item'], 'compact' => true, 'owner' => ['id' => $row['owner_id']]])
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
 
                 @if ($teamRows->isNotEmpty())
