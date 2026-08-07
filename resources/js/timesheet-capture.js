@@ -67,6 +67,14 @@ export function registerTimesheetCapture(Alpine) {
             this.selected = (this.dayDates().includes(this.today) && !this.isOffDay(this.today))
                 ? this.today
                 : this.firstDayNeedingWork();
+
+            // Every day reads 100% but the week is still a draft — a gentle nudge so the
+            // staffer doesn't leave it sitting unsubmitted after the last "Save draft".
+            if (!this.readonly && this.weekComplete()) {
+                this.$store.toast.info(this.$store.ui.lang === 'en'
+                    ? 'This week is ready — remember to submit it.'
+                    : 'Minggu ini sudah sedia — jangan lupa hantar.');
+            }
         },
 
         // ---- the week ------------------------------------------------------
