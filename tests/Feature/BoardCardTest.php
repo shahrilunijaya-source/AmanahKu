@@ -216,6 +216,22 @@ class BoardCardTest extends TestCase
             ->assertSee('data-project="'.$project->id.'"', false);
     }
 
+    public function test_board_card_emits_priority_data_attribute(): void
+    {
+        $this->card(['priority' => 'high', 'title' => 'Priority card']);
+
+        $this->actingInTenant()->get('/app/board')->assertOk()
+            ->assertSee('data-priority="high"', false);
+    }
+
+    public function test_board_card_never_emits_owner_id_on_the_personal_board(): void
+    {
+        $this->card(['title' => 'No owner here']);
+
+        $res = $this->actingInTenant()->get('/app/board')->assertOk();
+        $this->assertStringNotContainsString('data-owner-id=', $res->getContent());
+    }
+
     public function test_owner_books_a_card_to_a_project(): void
     {
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);

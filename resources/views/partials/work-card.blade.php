@@ -45,8 +45,10 @@
      data-id="{{ $c->id }}"
      data-status="{{ $c->status }}"
      data-type="{{ $c->type }}"
+     data-priority="{{ $c->priority }}"
      data-labels="{{ implode(',', $c->labels ?? []) }}"
      data-project="{{ $c->project_id }}"
+     @if ($owner ?? null) data-owner-id="{{ $owner['id'] }}" @endif
      @if ($c->assigned_by_id) data-assigned="1" @endif
      {{-- Keyboard path to the drawer. Only on the personal board: team-board renders
           this same partial read-only with no click handler at all, so making those
