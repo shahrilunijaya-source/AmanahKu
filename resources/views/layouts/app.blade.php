@@ -259,6 +259,23 @@
                 fetch('{{ route('notifications.summary') }}', { headers: { 'Accept': 'application/json' } })
                     .then(r => r.json()).then(d => { this.unread = d.unread; this.notifications = d.notifications; }).catch(() => {});
             },
+            /** Fired on click, alongside the link's own navigation — not blocking it. */
+            markOne(id) {
+                const n = this.notifications.find(n => n.id === id);
+                if (! n || n.read_at) return;
+                n.read_at = true;
+                this.unread = Math.max(0, this.unread - 1);
+                // keepalive: the click's own href navigates away right after this fires,
+                // which would otherwise abort the request mid-flight.
+                fetch(`/app/notifications/${id}/read`, {
+                    method: 'POST',
+                    keepalive: true,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                }).catch(() => {});
+            },
         });
 
         @if ($msgEnabled ?? false)

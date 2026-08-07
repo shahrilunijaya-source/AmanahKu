@@ -179,7 +179,7 @@
             </div>
             <div style="max-height:360px;overflow-y:auto;">
                 <template x-for="n in $store.notifbell.notifications" :key="n.id">
-                    <a :href="n.url || '#'" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;" :style="{ background: n.read_at ? '#fff' : 'var(--red-tint)' }">
+                    <a :href="n.url || '#'" @click="$store.notifbell.markOne(n.id)" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;" :style="{ background: n.read_at ? '#fff' : 'var(--red-tint)' }">
                         <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="n.title"></div>
                         <div x-show="n.body" style="font-size:var(--t-sm);color:var(--body);margin-top:2px;line-height:1.45;" x-text="n.body"></div>
                         <div style="font-size:var(--t-micro);color:var(--muted);margin-top:4px;font-family:var(--font-mono);" x-text="n.at"></div>

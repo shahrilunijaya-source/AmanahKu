@@ -24,6 +24,26 @@ class NotificationController extends Controller
     }
 
     /**
+     * Mark a single notification read (the bell dropdown calls this per-click, separate
+     * from "Mark all read"). Route-model binding is NOT tenant-scoped — SubstituteBindings
+     * runs before ResolveTenant — so ownership is checked explicitly here, not left to the
+     * global scope.
+     */
+    public function readOne(Request $request, AppNotification $notification): JsonResponse
+    {
+        abort_unless(
+            $notification->user_id === $request->user()->id && $notification->tenant_id === app(CurrentTenant::class)->id(),
+            403,
+        );
+
+        if ($notification->read_at === null) {
+            $notification->update(['read_at' => now()]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Poll target for the browser-notification client: unread bells newer than the
      * cursor the caller last saw, plus the current high-water id to store as the next
      * cursor. Capped at 5 so a long-idle tab raises a few alerts, not a burst.
