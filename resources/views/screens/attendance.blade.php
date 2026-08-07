@@ -100,9 +100,10 @@
               // Last good fix, kept briefly so a punch interrupted for a reason or a selfie
               // resumes on the coordinates it already had instead of waking the GPS again.
               lastFix: null,
-              // Consecutive timeouts on a real punch attempt. A second in a row means the
-              // network location lookup itself is stuck (VPN, firewall, ad blocker), not a
-              // fluke — 'try again' is dead advice at that point, so the message changes.
+              // Consecutive network-provider failures (timeout OR unavailable — see geoFail)
+              // on a real punch attempt. A second in a row means the lookup itself is stuck
+              // (VPN, firewall, ad blocker), not a fluke — 'try again' is dead advice at that
+              // point, so the message changes.
               timeoutStreak: 0,
               serverJustify: {{ (session('attendance_justify') || $errors->has('justification')) ? 'true' : 'false' }},
               reason: @js(old('justification', '')),
@@ -434,11 +435,17 @@
                   this.submitting = false;
                   this.fenceStatus = 'none';
                   if (kind === 'denied' && this.inAppBrowser()) { kind = 'denied_webview'; }
-                  this.timeoutStreak = kind === 'timeout' ? this.timeoutStreak + 1 : 0;
-                  // 'Try again' is only honest advice the first time — a second timeout in a
-                  // row means the network location lookup itself is stuck, and it will not
-                  // unstick on its own (see bestFix's deadline comment above).
-                  const displayKind = (kind === 'timeout' && this.timeoutStreak >= 2) ? 'timeout_repeat' : kind;
+                  // Both are the same broken network provider underneath — 'timeout' is a
+                  // silent hang, 'unavailable' is the same lookup failing fast instead. Firefox
+                  // switches between the two from one retry to the next, so counting only
+                  // 'timeout' let an 'unavailable' in between quietly reset the streak to 0 and
+                  // the escalated message never showed up.
+                  const isNetworkFail = kind === 'timeout' || kind === 'unavailable';
+                  this.timeoutStreak = isNetworkFail ? this.timeoutStreak + 1 : 0;
+                  // 'Try again' is only honest advice the first time — a second network-lookup
+                  // failure in a row means it is stuck, and it will not unstick on its own (see
+                  // bestFix's deadline comment above).
+                  const displayKind = (isNetworkFail && this.timeoutStreak >= 2) ? 'timeout_repeat' : kind;
                   const en = {
                       denied: 'Location is blocked for this site, so you cannot clock in or out. On a computer, tap the lock icon in the address bar and allow location. On a phone, also check that location is on for Chrome or Safari in your phone settings.',
                       denied_webview: 'You opened Amanahku inside another app (WhatsApp, Telegram, Facebook), and that window is not allowed to read your location — so clocking cannot work here. Tap the ⋮ or ↗ menu and choose “Open in browser”, then clock from Chrome or Safari.',
