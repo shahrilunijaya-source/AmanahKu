@@ -221,8 +221,9 @@ class ClockServiceTest extends TestCase
     }
 
     /**
-     * Late and off-site at once. The fence check runs first, so the employee is told about
-     * the thing they can see (their location), and the single reason they type covers both.
+     * Late and off-site at once. The fence check runs first and returns before the late
+     * gate is reached, so the employee is told about their location. This pins that
+     * ordering: it fails if the late gate is ever moved above the fence check.
      */
     public function test_a_late_off_site_punch_reports_the_fence_not_the_lateness(): void
     {
