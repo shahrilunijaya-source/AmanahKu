@@ -9,15 +9,17 @@
 // An Alpine component that filters and reorders already-rendered DOM nodes
 // by their data-* attributes, never a fetch — same pattern as
 // resources/js/work-board.js. The person table's row markup lives in this
-// file's Blade (resources/views/screens/team-board.blade.php); the task
-// line markup lives in partials/team-board-row.blade.php, rendered once per
-// $teamRows entry INSIDE the floating window (teleported to <body>) rather
-// than in a page-level table — opening a person only toggles which of
-// those already-rendered lines are visible (openWindow()/applyWinFilter()).
+// file's Blade (resources/views/screens/team-board.blade.php); each card is
+// rendered by the shared partials/work-card.blade.php, once per $teamRows
+// entry, grouped into 4 status columns INSIDE the floating window (teleported
+// to <body>) rather than in a page-level table — opening a person only
+// toggles which of those already-rendered cards are visible
+// (openWindow()/applyWinFilter()).
 //
-// The window reuses the personal board's .wd-* slide-over CSS wholesale
-// (see resources/css/app.css) so it looks and moves identically to
-// board.blade.php's drawer — this is deliberately NOT a second visual
+// The window is a centered popup (.tb-win-modal, see resources/css/app.css)
+// showing that person's cards as a 4-column kanban laid out side-by-side,
+// the same shape board.blade.php uses for its own kanban — reusing its
+// .wd-scrim/.wd-head/.wd-ico/.wd-body shell pieces, not a second visual
 // language. Unlike that drawer, nothing here writes: no fetch, no PATCH, no
 // comment composer. board.blade.php/work-board.js are not touched.
 
