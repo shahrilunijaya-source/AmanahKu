@@ -50,14 +50,11 @@ export function registerTeamBoard(Alpine) {
             // 280ms transition has something to animate from — see openWindow().
             person: null, // the full record from `people`, looked up by id.
             trigger: null, // the person row that opened the window — focus returns here on close.
-            // Task-level filters, scoped to the window's own task lines only.
-            // Done is excluded by default — the question this window answers
-            // most often is "what's still open for this person".
+            // Task-level filters, scoped to the window's own cards only.
             typeFilter: '',
             priorityFilter: '',
             projectFilter: '',
             labelFilter: null,
-            statusFilter: ['todo', 'prog', 'review'],
             _closeTimer: null,
         },
         winVisibleCount: 0,
@@ -190,7 +187,6 @@ export function registerTeamBoard(Alpine) {
             this.win.priorityFilter = '';
             this.win.projectFilter = '';
             this.win.labelFilter = null;
-            this.win.statusFilter = ['todo', 'prog', 'review'];
             this.applyWinFilter();
 
             this.win.show = true;
@@ -238,26 +234,20 @@ export function registerTeamBoard(Alpine) {
             }
         },
 
-        // ── Task-level filters, scoped to the window's own lines ──
-        toggleWinStatus(status) {
-            this.win.statusFilter = this.win.statusFilter.includes(status)
-                ? this.win.statusFilter.filter((s) => s !== status)
-                : [...this.win.statusFilter, status];
-            this.applyWinFilter();
-        },
-
+        // ── Task-level filters, scoped to the window's own cards ──
         setWinLabelFilter(key) {
             this.win.labelFilter = this.win.labelFilter === key ? null : key;
             this.applyWinFilter();
         },
 
-        // Recomputes every task line's visibility: owned by the open person,
-        // AND matching this window's own type/priority/project/label/status
-        // filters. Every $teamRows line lives in the DOM regardless of which
-        // (or whether any) person's window is open — comfortable to roughly
-        // 500 rows, same ceiling as the rest of this screen's client-side
-        // filtering; past that this needs server-side paging, not a bigger
-        // client-side filter.
+        // Recomputes every card's visibility: owned by the open person, AND
+        // matching this window's own type/priority/project/label filters. No
+        // status filter — status is the column layout itself now. Every
+        // $teamRows card lives in the DOM regardless of which (or whether
+        // any) person's window is open — comfortable to roughly 500 cards,
+        // same ceiling as the rest of this screen's client-side filtering;
+        // past that this needs server-side paging, not a bigger client-side
+        // filter.
         applyWinFilter() {
             const body = this.$refs.winTaskBody;
             if (!body || !this.win.person) {
@@ -266,10 +256,9 @@ export function registerTeamBoard(Alpine) {
             }
             const ownerId = String(this.win.person.id);
             let visible = 0;
-            body.querySelectorAll('[data-card-id]').forEach((row) => {
+            body.querySelectorAll('[data-id]').forEach((row) => {
                 const labels = (row.dataset.labels || '').split(',').filter(Boolean);
                 const matches = row.dataset.ownerId === ownerId
-                    && this.win.statusFilter.includes(row.dataset.status)
                     && (!this.win.typeFilter || row.dataset.type === this.win.typeFilter)
                     && (!this.win.priorityFilter || row.dataset.priority === this.win.priorityFilter)
                     && (!this.win.projectFilter || row.dataset.project === this.win.projectFilter)
