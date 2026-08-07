@@ -74,6 +74,16 @@ class ClockService
         }
 
         $late = $this->isLate($site->workStart, $site->workEnd, $now, $employee->tenant->late_grace_minutes ?? 0);
+
+        // Lateness was the one anomaly recorded in silence: the flag told HR that somebody
+        // was late but never why, and gave the employee no moment to say so. It now costs
+        // the same typed reason as an off-site or unlocatable punch. Placed after the fence
+        // checks on purpose — someone both late and off-site is told about their location,
+        // which is the part they can see, and the one reason they type covers both.
+        if ($late && ! $this->filled($justification)) {
+            return ['status' => 'needs_justification', 'message' => 'You are clocking in after '.$site->workStart.'. Add a reason to clock in.'];
+        }
+
         $flags = [];
         if ($late) {
             $flags[] = 'late';
