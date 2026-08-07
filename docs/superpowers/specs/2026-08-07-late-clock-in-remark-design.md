@@ -28,7 +28,8 @@ subsystem (see "Out of scope" below).
 | Mandatory or optional remark? | **Mandatory.** The punch is refused until a reason is typed, exactly like the off-site and early-out gates. An optional box would come back empty on most rows and give HR nothing to review. |
 | Any role exempt? | **No.** Director and management are gated the same as everybody else. `ClockService` currently contains no role logic at all and gains none here. |
 | Grace period | **15 minutes**, held in `tenants.late_grace_minutes`. |
-| Client-side mirror? | **Yes.** See "Why the client mirror is required". |
+| Client-side mirror? | **Yes**, re-confirmed after the original justification for it was found to be false. See "Why the client mirror is worth having". |
+| Where the grace control lives | **Lifted out of the Work from home tab** into its own always-visible row on the Attendance Setup screen. See section 5. |
 
 ## Grace period, the precondition
 
@@ -151,7 +152,42 @@ including a device whose clock is wrong (`lateNow()` trusts the browser clock, e
 `earlyNow()` already does), and `AttendanceController` already handles `needs_justification`
 by flashing `attendance_justify` and re-opening the field.
 
-### 4. Tests, `tests/Feature/ClockServiceTest.php`
+### 4. Lift the grace control out of the Work from home tab
+
+`resources/views/screens/attendance-admin.blade.php`
+
+The field that governs lateness for the entire company currently sits inside the **Work from
+home** tab, in the same form as the WFH hours (line 190). A caption underneath explains that
+it applies to every arrangement, which is a sign the placement already misleads people.
+
+Once the late gate ships, this stops being a dial nobody touches: it decides whether an
+office worker is stopped for a reason at 09:01. HR retuning it after complaints will look
+under Attendance, not under Work from home.
+
+Move `late_grace_minutes` into its own small form, placed **above the tab bar** (before line
+67) so it is visible on all three tabs, labelled for what it governs. The WFH form keeps the
+four `wfh_*` fields and loses the grace input and its caption. No new route: the field keeps
+posting to `attendance.admin.wfh-policy`.
+
+**This move introduces a data-loss regression unless the validation changes with it.**
+
+`updateWfhPolicy` currently ends in `$tenant->update($data)` with all five fields declared
+`nullable`. Laravel's validator backfills an absent-but-nullable key as `null`, so a form
+that posts only `late_grace_minutes` would write `NULL` over `wfh_work_start`,
+`wfh_work_end`, `wfh_min_hours` and `wfh_radius_m`. Saving the grace would silently erase
+the company's WFH hours.
+
+This exact trap is already documented in this codebase, with the same fix, at
+`app/Http/Controllers/WorkItemController.php:150-158`. Apply it here: change the four
+`wfh_*` rules from `nullable` to `sometimes, nullable`, so a partial post only touches the
+columns it actually carries.
+
+Clearing a field from the UI still works after the change. The WFH form's inputs are always
+present in its POST body, so blanking one sends an empty string, which
+`ConvertEmptyStringsToNull` turns into a real `null`. `sometimes` only skips keys that are
+genuinely absent, which is precisely the standalone grace post.
+
+### 5. Tests, `tests/Feature/ClockServiceTest.php`
 
 Extending the existing file, which already proves the current silent behaviour at
 `test_clock_in_after_work_start_is_marked_late` (lines 148 to 158). That test passes
@@ -173,6 +209,11 @@ Migration coverage: assert that a tenant whose `late_grace_minutes` is `NULL` en
 Under `RefreshDatabase` the migration has already run by the time the test starts, so seed a
 tenant with an explicit `NULL` and run the update statement against it rather than trying to
 replay the migration.
+
+One controller test is also required by section 4: posting **only** `late_grace_minutes` to
+`attendance.admin.wfh-policy` must leave `wfh_work_start`, `wfh_work_end`, `wfh_min_hours`
+and `wfh_radius_m` at their existing values. Without it the regression described in that
+section is invisible.
 
 ## Out of scope
 
@@ -203,4 +244,7 @@ of work.
 5. A late punch made through the screen opens the reason drawer in place, with no page
    reload and no failed submit, and the punch carries the reason on its first successful
    POST.
-6. `php artisan test --compact tests/Feature/ClockServiceTest.php` passes.
+6. The grace control is visible on the Attendance Setup screen without opening the Work from
+   home tab, and saving it leaves the WFH hours untouched.
+7. `php artisan test --compact tests/Feature/ClockServiceTest.php` passes, along with the
+   `AttendanceAdmin` controller test covering criterion 6.
