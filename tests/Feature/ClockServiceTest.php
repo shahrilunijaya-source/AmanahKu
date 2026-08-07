@@ -184,6 +184,18 @@ class ClockServiceTest extends TestCase
     }
 
     /**
+     * A tenant nobody has configured must still get a usable grace. Without a column
+     * default, every new workspace starts at zero and its staff are late at 09:00:15 —
+     * which, with the late-remark gate, means a typed reason every single morning.
+     */
+    public function test_a_new_tenant_gets_the_default_grace_period(): void
+    {
+        $fresh = Tenant::create(['slug' => 'brandnew', 'name' => 'Brand New', 'initials' => 'BN']);
+
+        $this->assertSame(15, $fresh->fresh()->late_grace_minutes);
+    }
+
+    /**
      * No coordinates at all (a desk machine that cannot locate itself). Never a lockout, but
      * never free either: the punch costs a reason, a selfie and a permanent flag.
      */
