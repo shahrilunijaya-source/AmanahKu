@@ -162,18 +162,19 @@
     </div>
 
     {{-- ═══════ Floating window: one person's tasks ═══════
-         Reuses the personal board's .wd-* slide-over shell wholesale (see
-         resources/css/app.css and board.blade.php's drawer) so it looks and
-         moves identically — 560px, 280ms cubic-bezier(.32,.72,0,1), the same
-         prefers-reduced-motion cross-fade. Every task line below is already
-         rendered server-side from $teamRows; opening a person only toggles
-         which lines are visible (resources/js/team-board.js's
+         A centered popup (.tb-win-modal), not the personal board's right-anchored
+         slide-over — wide enough to hold the same 4-column kanban side-by-side, the
+         way board.blade.php lays its own columns out. Still reuses .wd-scrim/.wd-head/
+         .wd-ico/.wd-body wholesale (those are already shell-agnostic); only the outer
+         .wd shell itself is swapped for .tb-win-modal (see resources/css/app.css).
+         Every card below is already rendered server-side from $teamRows; opening a
+         person only toggles which cards are visible (resources/js/team-board.js's
          openWindow()/applyWinFilter()) — no fetch, nothing here writes. --}}
     <template x-teleport="body">
     <div>
         <div class="wd-scrim" x-show="win.show" x-cloak :data-open="win.open ? '' : null" @click="closeWindow()"></div>
 
-        <aside class="wd" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
+        <aside class="tb-win-modal" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
                tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tb-win-name"
                @keydown.escape.window="win.show && closeWindow()" @keydown.tab="trapFocusWindow($event)">
 

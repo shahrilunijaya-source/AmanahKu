@@ -903,6 +903,25 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
    control, so it draws no ring of its own. */
 .wd:focus { outline: none; }
 
+/* ── Team-board's per-person window: a centered popup, not a slide-over ──
+   Shares .wd-scrim/.wd-head/.wd-ico/.wd-body with .wd above (those are already
+   generic); only the outer shell differs — centered + scale/fade instead of
+   right-anchored + slide, and wide enough to hold 4 kanban columns side-by-side
+   (see .tb-win-kanban below) the way board.blade.php lays its own out. Same
+   280ms cubic-bezier(.32,.72,0,1) timing as .wd, so team-board.js's closeWindow()
+   setTimeout(280) still lines up. */
+.tb-win-modal {
+    position: fixed; top: 50%; left: 50%; z-index: 61;
+    width: min(94vw, 1180px); max-height: 86vh;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 16px;
+    box-shadow: 0 28px 64px rgba(31,30,26,.22);
+    display: flex; flex-direction: column;
+    transform: translate(-50%, -50%) scale(.96); opacity: 0;
+    transition: transform 280ms cubic-bezier(.32,.72,0,1), opacity 280ms cubic-bezier(.32,.72,0,1);
+}
+.tb-win-modal[data-open] { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.tb-win-modal:focus { outline: none; }
+
 .wd-head {
     flex-shrink: 0; display: flex; align-items: center; gap: 8px;
     padding: 11px 12px 11px 14px; border-bottom: 1px solid var(--hairline);
@@ -1095,10 +1114,18 @@ select.wd-inline {
     .wd, .wd-scrim { transition: opacity 180ms ease; transform: none; }
     .wd { opacity: 0; }
     .wd[data-open] { opacity: 1; }
+    /* Unlike .wd, .tb-win-modal's transform also centers it (top/left:50% +
+       translate(-50%,-50%)), not just animates it — dropping to transform:none
+       would collapse it to the viewport's top-left corner. Keep the centering
+       offset, drop only the scale. */
+    .tb-win-modal { transition: opacity 180ms ease; transform: translate(-50%, -50%); }
+    .tb-win-modal { opacity: 0; }
+    .tb-win-modal[data-open] { opacity: 1; }
 }
 @media (max-width: 600px) {
     .wd { width: 100vw; max-width: 100vw; }
     .wd-seg button { padding: 5px 7px; }
+    .tb-win-modal { width: 96vw; max-height: 92vh; }
 }
 
 /* ── TOT session card reaction pills and icon row ── */
@@ -2223,13 +2250,13 @@ select.wd-inline {
    plus a separate 50-row task table collapsed into ONE table, one line per
    person (resources/views/screens/team-board.blade.php) — .tb-strip* below
    is that table now, not a strip above a bigger one. Clicking a person opens
-   a floating window (reusing .wd-* — see the "Card detail drawer" block
-   above) listing just their own tasks, rendered by
-   partials/team-board-row.blade.php as .tb-tline lines. Filtering and
-   sorting are client-side over already-rendered rows — see
-   resources/js/team-board.js. .wc-label / .wc-type / .wc-dot / .wc-when /
-   .wc-sep / .wc-proj are REUSED from the work-card block above, not
-   duplicated. ══════════════════════════════════════════════════════════ */
+   a centered popup (.tb-win-modal — see the "Card detail drawer" block above,
+   which also reuses .wd-scrim/.wd-head/.wd-ico/.wd-body) showing that
+   person's cards as a 4-column kanban (.tb-win-kanban below), reusing
+   partials/work-card.blade.php wholesale — the same partial the personal
+   board renders. Filtering is client-side over already-rendered cards — see
+   resources/js/team-board.js. .wc-* classes are REUSED from the work-card
+   block above, not duplicated. ══════════════════════════════════════════ */
 
 .tb-strip { border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); margin-bottom: 20px; overflow: hidden; }
 .tb-strip-cols { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px 84px 96px; align-items: center; gap: 10px; }
@@ -2282,11 +2309,6 @@ select.wd-inline {
 }
 .tb-clear { font-size: var(--t-sm); font-weight: 600; color: var(--muted); background: transparent; border: 0; cursor: pointer; text-decoration: underline; padding: 0; }
 
-.tb-pill { display: inline-flex; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.tb-pill[data-status="todo"] { background: var(--hairline-soft); color: var(--muted); }
-.tb-pill[data-status="prog"] { background: #e9f0f7; color: var(--info); }
-.tb-pill[data-status="review"] { background: #faf1e2; color: var(--amber); }
-.tb-pill[data-status="done"] { background: #e7f4ee; color: var(--success-ink); }
 .tb-empty { padding: 40px 20px; text-align: center; color: var(--muted); }
 .tb-empty-title { font-size: var(--t-base); font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .tb-empty-body { font-size: var(--t-sm); }
@@ -2300,8 +2322,8 @@ select.wd-inline {
    Person — at 375px there is only ~280px of row to divide five ways, and
    Person (avatar + name) needs most of it. A smaller avatar is what keeps
    38px still legible. The floating window needs no team-board-specific
-   query here: it already goes full-width below 600px via .wd-* itself
-   (see the "Card detail drawer" block above). ── */
+   query here: it already goes near-full-width below 600px via .tb-win-modal
+   itself (see the "Card detail drawer" block above). ── */
 @media (max-width: 700px) {
   .tb-strip-cols { grid-template-columns: minmax(0, 1fr) 38px 38px 38px 44px; gap: 6px; }
   .tb-strip-head, .tb-strip-row { padding-left: 12px; padding-right: 12px; }
@@ -2311,26 +2333,26 @@ select.wd-inline {
 }
 
 /* ── Floating window: one person's tasks (screens/team-board.blade.php) ──
-   The window shell itself is .wd-*, reused wholesale (see above) — nothing
-   here duplicates a .wd-* rule. These are for the two things that shell
-   never needed: a one-line count summary, and a row of task-level filters
-   (.tb-select / .tb-chip, both reused from the bar above). */
+   The window shell itself is .tb-win-modal / .wd-head / .wd-body (see the
+   "Card detail drawer" block above) — nothing here duplicates a shell rule.
+   These are for the things that shell never needed: a one-line count
+   summary, a row of task-level filters (.tb-select / .tb-chip, both reused
+   from the bar above), and the kanban itself. */
 .tb-win-summary { font-size: var(--t-sm); color: var(--muted); margin: 0 0 14px; }
 .tb-win-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
 
-/* ── Task line, inside the floating window (partials/team-board-row.blade.php) ──
-   One task per person's window, stacked (not a grid column) — the window is
-   always narrower than the old table ever needed to be, and there is no
-   Person column to align against anymore. Reuses .wc-type/.wc-dot,
-   .wc-when/.wc-sep/.wc-proj and .wc-labels/.wc-label from the card face
-   above; only the shell and the priority text are new here. */
-.tb-tline { padding: 11px 0; border-top: 1px solid var(--hairline-soft); }
-.tb-tline:first-of-type { border-top: 0; }
-.tb-tline-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.tb-tline-title { font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.4; margin: 0 0 6px; text-wrap: pretty; }
-.tb-tline-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--t-micro); color: var(--muted); margin-bottom: 6px; }
-.tb-tline-pri { font-weight: 600; }
-.tb-tline-pri[data-priority="high"] { color: var(--error); }
+/* ── Per-person kanban, inside the floating window ──
+   4 status columns side-by-side, same shape as board.blade.php's own kanban
+   (flex row, min-width 272px per column, horizontal scroll if the viewport
+   can't fit all 4) — .tb-win-modal is sized wide enough that this normally
+   doesn't scroll. Cards reuse partials/work-card.blade.php (.wc/.wc--sm)
+   wholesale; the only new rules are the column shell and an override for
+   .wc's cursor: pointer, since these cards aren't clickable. */
+.tb-win-kanban { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding-bottom: 4px; }
+.tb-win-col { flex: 1; min-width: 272px; }
+.tb-win-col-head { font-size: var(--t-micro); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding: 0 2px; }
+.tb-win-col-cards { display: flex; flex-direction: column; gap: 8px; }
+.tb-win-kanban .wc { cursor: default; }
 
 /* ── TOT year lineup ───────────────────────────────────────────
    Moved out of the page-level <style> in screens/tot.blade.php so

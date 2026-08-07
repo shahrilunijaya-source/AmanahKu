@@ -8,6 +8,8 @@
 
 **Tech Stack:** Laravel 13 Blade views, Alpine.js (`resources/js/team-board.js`), PHPUnit 12 feature tests.
 
+> **Revised mid-implementation** (after Tasks 1-3 below were built and committed as written): the shell changed from the `.wd` right-anchored slide-over (forcing the vertical stack described above and in Task 4) to a centered floating popup (`.tb-win-modal`) with the 4 columns laid out horizontally, matching `board.blade.php`'s own kanban shape. Task 4, below, was executed with this revision already in mind rather than as originally written — see the spec's "Revision: floating popup, horizontal columns" section for the exact diff. Tasks 1-3's file/interface contracts are unaffected.
+
 ## Global Constraints
 
 - Spec: `docs/superpowers/specs/2026-08-07-team-board-kanban-window-design.md`
