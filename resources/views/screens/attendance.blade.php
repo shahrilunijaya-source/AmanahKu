@@ -110,6 +110,8 @@
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
               radius: {{ $site?->radiusM ?? 0 }},
+              expectedStart: '{{ $site?->workStart ?? '' }}',
+              graceMin: {{ $lateGraceMinutes ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
               geoError: '',
@@ -249,6 +251,15 @@
                   }
                   return best;
               },
+              // Mirror of ClockService::isLate for the single-day case. The server gate is
+              // still the authority — this only saves the employee a failed submit, and a
+              // device with a wrong clock is caught there.
+              lateNow() {
+                  if (!this.expectedStart) return false;
+                  const p = this.expectedStart.split(':');
+                  const now = new Date();
+                  return (now.getHours()*60 + now.getMinutes()) > (Number(p[0])*60 + Number(p[1]) + this.graceMin);
+              },
               earlyNow() {
                   if (!this.expectedEnd) return false;
                   const p = this.expectedEnd.split(':');
@@ -268,6 +279,7 @@
                   const needPhoto = offSite || noFix;
                   let need = needPhoto;
                   if (this.action === 'out' && this.earlyNow()) need = true;
+                  if (this.action === 'in' && this.lateNow()) need = true;
                   // Both gates open the same sheet, once. They used to fire one at a time —
                   // back for a reason, tap, back for a selfie, tap — so a punch that needed
                   // both cost three taps and read as if it had failed twice.
@@ -702,7 +714,9 @@
                               ? ($store.ui.lang==='en' ? 'Reason required — you appear to be outside the expected location' : 'Sebab diperlukan — anda kelihatan di luar lokasi yang dijangka')
                               : ((action === 'out' && earlyNow())
                                   ? ($store.ui.lang==='en' ? 'Reason required — you are clocking out before your shift ends' : 'Sebab diperlukan — anda clock out sebelum shift tamat')
-                                  : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah'))">Reason required — see details below</span>
+                                  : ((action === 'in' && lateNow())
+                                      ? ($store.ui.lang==='en' ? 'Reason required — you are clocking in after your shift started' : 'Sebab diperlukan — anda clock in selepas shift bermula')
+                                      : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah')))">Reason required — see details below</span>
                 </label>
                 <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
                           :placeholder="isReq
