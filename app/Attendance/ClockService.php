@@ -73,7 +73,7 @@ class ClockService
             return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock in from here.'];
         }
 
-        $late = $this->isLate($site->workStart, $site->workEnd, $now);
+        $late = $this->isLate($site->workStart, $site->workEnd, $now, $employee->tenant->late_grace_minutes ?? 0);
         $flags = [];
         if ($late) {
             $flags[] = 'late';
@@ -212,7 +212,7 @@ class ClockService
      * after midnight compares against a start that is still hours in the future, and reads
      * as on-time instead of hours late.
      */
-    private function isLate(?string $workStart, ?string $workEnd, Carbon $now): bool
+    private function isLate(?string $workStart, ?string $workEnd, Carbon $now, int $graceMinutes = 0): bool
     {
         if (! $workStart) {
             return false;
@@ -223,7 +223,7 @@ class ClockService
             $start->subDay();
         }
 
-        return $now->gt($start);
+        return $now->gt($start->addMinutes($graceMinutes));
     }
 
     /** Same overnight anchoring as isLate(), for the shift's end boundary instead of its start. */

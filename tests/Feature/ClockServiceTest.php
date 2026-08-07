@@ -157,6 +157,32 @@ class ClockServiceTest extends TestCase
         $this->assertContains('late', $record->flags);
     }
 
+    public function test_clock_in_within_tenant_grace_period_is_on_time(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 5]);
+        $now = Carbon::parse('2026-07-02 09:04:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('on_time', $record->status);
+        $this->assertNotContains('late', $record->flags ?? []);
+    }
+
+    public function test_clock_in_past_tenant_grace_period_is_still_late(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 5]);
+        $now = Carbon::parse('2026-07-02 09:06:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('late', $record->status);
+        $this->assertContains('late', $record->flags);
+    }
+
     /**
      * No coordinates at all (a desk machine that cannot locate itself). Never a lockout, but
      * never free either: the punch costs a reason, a selfie and a permanent flag.
