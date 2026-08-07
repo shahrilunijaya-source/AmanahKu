@@ -251,14 +251,14 @@
                   }
                   return best;
               },
-              // Mirror of ClockService::isLate for the single-day case. The server gate is
-              // still the authority — this only saves the employee a failed submit, and a
-              // device with a wrong clock is caught there.
+              // Mirror of ClockService::isLate for the single-day case, close enough to save
+              // the employee a failed submit. The server gate is still the authority: it
+              // compares to the second, and a device with a wrong clock is caught there.
               lateNow() {
                   if (!this.expectedStart) return false;
                   const p = this.expectedStart.split(':');
                   const now = new Date();
-                  return (now.getHours()*60 + now.getMinutes()) > (Number(p[0])*60 + Number(p[1]) + this.graceMin);
+                  return (now.getHours()*60 + now.getMinutes()) >= (Number(p[0])*60 + Number(p[1]) + this.graceMin);
               },
               earlyNow() {
                   if (!this.expectedEnd) return false;
