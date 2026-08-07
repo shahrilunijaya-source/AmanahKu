@@ -242,6 +242,23 @@ class AttendanceScreenDataTest extends TestCase
         $this->assertSame(2, $response->viewData('offSiteThisMonth'));
     }
 
+    /**
+     * The screen mirrors the server's lateness rule so a late punch opens the reason drawer
+     * in place. It cannot do that without the grace, which lives on the tenant.
+     */
+    public function test_the_payload_carries_the_tenant_late_grace(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 25]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+
+        $this->assertSame(25, $response->viewData('lateGraceMinutes'));
+    }
+
     public function test_returns_zeros_for_employee_without_records(): void
     {
         $response = $this->actingAs($this->user)

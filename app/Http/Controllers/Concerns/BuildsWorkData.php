@@ -90,6 +90,10 @@ trait BuildsWorkData
             'geofencedSites' => $employee
                 ? app(ScheduleResolver::class)->configuredSites($employee->tenant_id)
                 : [],
+            // The screen judges lateness itself so a late punch opens the reason drawer in
+            // place instead of costing a failed submit. `?? 0` mirrors ClockService::isLate()
+            // exactly, so the browser and the server can never disagree about who is late.
+            'lateGraceMinutes' => (int) ($employee?->tenant->late_grace_minutes ?? 0),
             'weekRecords' => $weekRecords,
             'earlierRecords' => $earlierRecords,
             'weekWorkedMinutes' => $weekWorkedMinutes,
