@@ -323,6 +323,12 @@ export function registerTimesheetCapture(Alpine) {
         // of falling to <body> the way it does for the rest of the app's fixed-overlay dialogs.
         closePicker() {
             this.picker.open = false;
+            // Step must not stay 'details': openEditRow() sets step to 'details' again on
+            // the very next edit, and Alpine's x-if only remounts the details step (and its
+            // Quill container) on a false->true transition — leaving it at 'details' here
+            // would make that a same-value no-op, so the next edit's Quill instance keeps
+            // showing the previous row's notes instead of the new row's.
+            this.picker.step = 'category';
             this.$nextTick(() => this.$refs.addEntryBtn?.focus());
         },
         // What the staffer has chosen so far, for the panel's breadcrumb.
