@@ -100,6 +100,10 @@
               // Last good fix, kept briefly so a punch interrupted for a reason or a selfie
               // resumes on the coordinates it already had instead of waking the GPS again.
               lastFix: null,
+              // Consecutive timeouts on a real punch attempt. A second in a row means the
+              // network location lookup itself is stuck (VPN, firewall, ad blocker), not a
+              // fluke — 'try again' is dead advice at that point, so the message changes.
+              timeoutStreak: 0,
               serverJustify: {{ (session('attendance_justify') || $errors->has('justification')) ? 'true' : 'false' }},
               reason: @js(old('justification', '')),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
@@ -404,7 +408,7 @@
                */
               locate(highAccuracy) {
                   this.bestFix(
-                      (pos) => this.proceed(pos.coords.latitude, pos.coords.longitude),
+                      (pos) => { this.timeoutStreak = 0; this.proceed(pos.coords.latitude, pos.coords.longitude); },
                       (kind, err) => {
                           if (kind === 'denied') { this.geoFail('denied', err); return; }
                           if (highAccuracy) { this.locate(false); return; }
@@ -430,11 +434,17 @@
                   this.submitting = false;
                   this.fenceStatus = 'none';
                   if (kind === 'denied' && this.inAppBrowser()) { kind = 'denied_webview'; }
+                  this.timeoutStreak = kind === 'timeout' ? this.timeoutStreak + 1 : 0;
+                  // 'Try again' is only honest advice the first time — a second timeout in a
+                  // row means the network location lookup itself is stuck, and it will not
+                  // unstick on its own (see bestFix's deadline comment above).
+                  const displayKind = (kind === 'timeout' && this.timeoutStreak >= 2) ? 'timeout_repeat' : kind;
                   const en = {
                       denied: 'Location is blocked for this site, so you cannot clock in or out. On a computer, tap the lock icon in the address bar and allow location. On a phone, also check that location is on for Chrome or Safari in your phone settings.',
                       denied_webview: 'You opened Amanahku inside another app (WhatsApp, Telegram, Facebook), and that window is not allowed to read your location — so clocking cannot work here. Tap the ⋮ or ↗ menu and choose “Open in browser”, then clock from Chrome or Safari.',
                       unavailable: 'Your browser allowed location but could not work out where you are. On a desktop there is no GPS, so the browser looks your position up over the network and that lookup failed. Check that location services are on for the whole computer (Windows Settings, Privacy, Location), then try again. Clocking from your phone always works.',
                       timeout: 'Your location took too long to arrive, so the punch was not sent. Try again — if it keeps timing out, clock from your phone instead.',
+                      timeout_repeat: 'Your location has failed to arrive more than once in a row, so trying again will not help. Firefox looks up your location over the network, and something on this connection is blocking that (a VPN, a firewall, or an ad blocker are the usual causes). Turn off any VPN and retry, try Chrome or Edge instead, or clock from your phone.',
                       unsupported: 'This browser cannot share location, so clocking is not possible here. Use the app on your phone browser instead.',
                       insecure: 'This address (' + location.origin + ') is not secure, so the browser will not share your location and clocking is blocked. Open the app on its https:// address instead.',
                   };
@@ -443,6 +453,7 @@
                       denied_webview: 'Anda membuka Amanahku di dalam aplikasi lain (WhatsApp, Telegram, Facebook), dan tetingkap itu tidak dibenarkan membaca lokasi anda — jadi clock tidak boleh dibuat di sini. Tekan menu ⋮ atau ↗ dan pilih “Buka dalam pelayar”, kemudian clock dari Chrome atau Safari.',
                       unavailable: 'Pelayar anda membenarkan lokasi tetapi tidak dapat mengetahui di mana anda berada. Pada komputer tiada GPS, jadi pelayar mencari kedudukan melalui rangkaian dan carian itu gagal. Pastikan servis lokasi dihidupkan untuk seluruh komputer (Windows Settings, Privacy, Location), kemudian cuba lagi. Clock dari telefon sentiasa berfungsi.',
                       timeout: 'Lokasi anda terlalu lama sampai, jadi rekod tidak dihantar. Cuba lagi — jika masih gagal, clock dari telefon anda.',
+                      timeout_repeat: 'Lokasi anda gagal sampai lebih daripada sekali berturut-turut, jadi cuba lagi tidak akan membantu. Firefox mencari lokasi anda melalui rangkaian, dan sesuatu pada sambungan ini menyekat carian itu (VPN, firewall, atau ad blocker biasanya penyebabnya). Tutup mana-mana VPN dan cuba lagi, guna Chrome atau Edge sebaliknya, atau clock dari telefon anda.',
                       unsupported: 'Pelayar ini tidak boleh berkongsi lokasi, jadi clock tidak boleh dibuat di sini. Guna pelayar telefon anda.',
                       insecure: 'Alamat ini (' + location.origin + ') tidak selamat, jadi pelayar tidak akan berkongsi lokasi anda dan clock disekat. Buka aplikasi pada alamat https:// sebaliknya.',
                   };
@@ -452,6 +463,7 @@
                       denied_webview: 'This app window cannot read location — tap for how to fix',
                       unavailable: 'Your location could not be worked out — tap for how to fix',
                       timeout: 'Location took too long — tap for what to do',
+                      timeout_repeat: 'Location keeps failing — tap for what to try next',
                       unsupported: 'This browser cannot share location — tap for what to do',
                       insecure: 'This address is not secure, so location is blocked — tap for why',
                   };
@@ -460,11 +472,12 @@
                       denied_webview: 'Tetingkap aplikasi ini tidak boleh baca lokasi — tekan untuk cara betulkan',
                       unavailable: 'Lokasi anda tidak dapat dikesan — tekan untuk cara betulkan',
                       timeout: 'Lokasi terlalu lama — tekan untuk apa perlu buat',
+                      timeout_repeat: 'Lokasi terus gagal — tekan untuk apa nak cuba',
                       unsupported: 'Pelayar ini tidak boleh kongsi lokasi — tekan untuk apa perlu buat',
                       insecure: 'Alamat ini tidak selamat, jadi lokasi disekat — tekan untuk sebab',
                   };
-                  this.geoError = this.$store.ui.lang === 'en' ? en[kind] : ms[kind];
-                  this.geoShort = this.$store.ui.lang === 'en' ? shortEn[kind] : shortMs[kind];
+                  this.geoError = this.$store.ui.lang === 'en' ? en[displayKind] : ms[displayKind];
+                  this.geoShort = this.$store.ui.lang === 'en' ? shortEn[displayKind] : shortMs[displayKind];
                   // Support cannot reproduce a staff member's browser, so carry the browser's
                   // own verdict in the message. Without it every failure looks the same and
                   // the guesswork starts.
