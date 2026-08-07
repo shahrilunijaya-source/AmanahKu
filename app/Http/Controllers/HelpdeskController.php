@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Ticket;
@@ -256,6 +257,12 @@ class HelpdeskController extends Controller
         ]);
 
         AuditLog::record('Updated ticket', $ticket->subject.' · '.$data['status']);
+        AppNotification::send(
+            $ticket->employee->user_id,
+            'Ticket updated',
+            $ticket->subject.' · '.$data['status'],
+            route('app.screen', 'helpdesk'),
+        );
 
         return back()->with('ok', 'Ticket updated — '.$ticket->subject.'.');
     }

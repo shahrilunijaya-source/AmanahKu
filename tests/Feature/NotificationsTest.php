@@ -77,4 +77,38 @@ class NotificationsTest extends TestCase
 
         $this->assertNotNull(AppNotification::where('user_id', $this->user->id)->first()->read_at);
     }
+
+    /**
+     * The header bell composer must hand the view a plain array, not raw models — the
+     * same shape also seeds the notifbell Alpine store's first-paint state.
+     */
+    public function test_header_bell_data_is_shaped_for_the_live_store(): void
+    {
+        AppNotification::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+            'title' => 'Shaped', 'body' => 'x', 'url' => '/app/somewhere',
+        ]);
+
+        $response = $this->actingInTenant()->get(route('app.screen'));
+        $response->assertOk();
+
+        // @js() renders as JSON.parse('...'), with the JSON's own quotes "-escaped
+        // for the wrapping single-quoted JS string — not a raw [...] literal.
+        preg_match('/Alpine\.store\(.notifbell., \{\s*unread: (\d+),\s*notifications: JSON\.parse\(\'(.*?)\'\),\s*init/s', $response->getContent(), $matches);
+        $this->assertNotEmpty($matches, 'notifbell store block not found in rendered page');
+
+        $this->assertSame('1', $matches[1]);
+        $json = preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', fn ($m) => mb_chr(hexdec($m[1])), $matches[2]);
+        $notifications = json_decode($json, true);
+        $first = $notifications[0];
+
+        $this->assertIsArray($first);
+        $this->assertArrayHasKey('id', $first);
+        $this->assertArrayHasKey('title', $first);
+        $this->assertArrayHasKey('body', $first);
+        $this->assertArrayHasKey('url', $first);
+        $this->assertArrayHasKey('read_at', $first);
+        $this->assertIsBool($first['read_at']);
+        $this->assertArrayHasKey('at', $first);
+    }
 }

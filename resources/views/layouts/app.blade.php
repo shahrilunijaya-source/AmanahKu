@@ -244,6 +244,41 @@
                     .then(r => r.json()).then(d => { this.unread = d.unread; this.threads = d.threads; }).catch(() => {});
             },
         });
+        @endif
+
+        // Header bell unread badge + dropdown list. Seeded server-side (from the same
+        // AppServiceProvider composer that renders the first paint), then refreshed by
+        // a 15s poll — slower than msgbadge's 5s since HR events aren't chat-speed
+        // urgent. Full-replace, no cursor: same trade-off as msgbadge, simplest thing
+        // that stays correct even if another tab or "Mark all read" changed state.
+        Alpine.store('notifbell', {
+            unread: @js($unreadCount ?? 0),
+            notifications: @js($notifications ?? []),
+            init() { setInterval(() => this.poll(), 15000); },
+            poll() {
+                fetch('{{ route('notifications.summary') }}', { headers: { 'Accept': 'application/json' } })
+                    .then(r => r.json()).then(d => { this.unread = d.unread; this.notifications = d.notifications; }).catch(() => {});
+            },
+            /** Fired on click, alongside the link's own navigation — not blocking it. */
+            markOne(id) {
+                const n = this.notifications.find(n => n.id === id);
+                if (! n || n.read_at) return;
+                n.read_at = true;
+                this.unread = Math.max(0, this.unread - 1);
+                // keepalive: the click's own href navigates away right after this fires,
+                // which would otherwise abort the request mid-flight.
+                fetch(`/app/notifications/${id}/read`, {
+                    method: 'POST',
+                    keepalive: true,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                }).catch(() => {});
+            },
+        });
+
+        @if ($msgEnabled ?? false)
 
         // Slide-over messages: a list of conversations, and the SAME thread fragment the
         // full screen renders, fetched from messages.pane. This component used to carry

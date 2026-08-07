@@ -73,15 +73,31 @@ class AppServiceProvider extends ServiceProvider
             return $this->app->isProduction() ? $rule->uncompromised() : $rule;
         });
 
-        // Share the current user's notifications with the app header bell.
-        View::composer('partials.header', function ($view) {
+        // Share the current user's notifications with the app header bell. Shaped as a
+        // plain array (not raw models) because the same shape also seeds the notifbell
+        // Alpine store's first-paint state. Composed onto both views: partials.header
+        // renders the bell markup, but the @js(...) seed for the store lives in the
+        // layouts.app script block (alongside kbadge/msgbadge) — either alone would
+        // leave the other without $notifications/$unreadCount in scope.
+        View::composer(['partials.header', 'layouts.app'], function ($view) {
             $notifications = collect();
             $unreadCount = 0;
 
             if (Auth::check() && app(CurrentTenant::class)->check()) {
                 $uid = Auth::id();
                 $tid = app(CurrentTenant::class)->id();
-                $notifications = AppNotification::where('user_id', $uid)->where('tenant_id', $tid)->latest()->take(8)->get();
+                // orderByDesc('id'), not latest(): created_at ties on same-second inserts
+                // and sorts non-deterministically (see NotificationController::summary()).
+                $notifications = AppNotification::where('user_id', $uid)->where('tenant_id', $tid)
+                    ->orderByDesc('id')->take(8)->get()
+                    ->map(fn (AppNotification $n) => [
+                        'id' => $n->id,
+                        'title' => $n->title,
+                        'body' => $n->body,
+                        'url' => $n->url,
+                        'read_at' => $n->read_at !== null,
+                        'at' => $n->created_at->diffForHumans(),
+                    ])->values();
                 $unreadCount = AppNotification::where('user_id', $uid)->where('tenant_id', $tid)->whereNull('read_at')->count();
             }
 
