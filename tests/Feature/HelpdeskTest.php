@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\HelpdeskController;
+use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\Tenant;
@@ -149,6 +150,15 @@ class HelpdeskTest extends TestCase
             'user_id' => $this->user->id,
             'title' => 'Ticket updated',
         ]);
+
+        // A second status change on the SAME ticket must notify again too.
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/helpdesk/{$ticket->id}", [
+                'status' => 'open',
+                'assignee_employee_id' => $assignee->id,
+            ])->assertRedirect();
+
+        $this->assertSame(2, AppNotification::where('user_id', $this->user->id)->count());
     }
 
     public function test_plain_employee_cannot_update_a_ticket(): void
