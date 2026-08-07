@@ -1,7 +1,9 @@
 <aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''">
     <div class="uj-sb-brand">
-        <div style="width:26px;height:26px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:var(--t-base);flex-shrink:0;">A</div>
-        <span class="uj-sb-hide" style="font-weight:600;font-size:var(--t-lg);color:#fff;letter-spacing:-0.2px;white-space:nowrap;">Amanah<span style="color:var(--red);">ku</span></span>
+        <a href="{{ route('app.screen', 'dash') }}" style="display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0;">
+            <div style="width:26px;height:26px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:var(--t-base);flex-shrink:0;">A</div>
+            <span class="uj-sb-hide" style="font-weight:600;font-size:var(--t-lg);color:#fff;letter-spacing:-0.2px;white-space:nowrap;">Amanah<span style="color:var(--red);">ku</span></span>
+        </a>
         <div class="uj-sb-hide" style="flex:1;"></div>
         {{-- Collapse to the rail (desktop). Same action as the topbar menu button and Ctrl+B. --}}
         <button type="button" @click="toggleSb()" class="uj-sb-tgl uj-sb-hide"

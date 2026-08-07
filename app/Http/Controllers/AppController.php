@@ -84,6 +84,16 @@ class AppController extends Controller
             ? Tenant::query()
             : $request->user()->tenants();
 
+        // A plain member of exactly one company skips the picker entirely — nothing to
+        // choose. Super-admins still see the full picker, since their "membership" is
+        // every tenant.
+        if (! $request->user()->isSuperAdmin()) {
+            $only = $tenants->get();
+            if ($only->count() === 1) {
+                return redirect()->route('tenant.enter', $only->first());
+            }
+        }
+
         return view('tenant.select', [
             'tenants' => $tenants
                 ->withCount([
