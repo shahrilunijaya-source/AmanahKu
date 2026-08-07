@@ -143,6 +143,12 @@ class HelpdeskTest extends TestCase
         $this->assertSame('resolved', $fresh->status);
         $this->assertSame($assignee->id, $fresh->assignee_employee_id);
         $this->assertSame('Replaced the SSD; boots fine.', $fresh->resolution);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'title' => 'Ticket updated',
+        ]);
     }
 
     public function test_plain_employee_cannot_update_a_ticket(): void
