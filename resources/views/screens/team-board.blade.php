@@ -227,7 +227,7 @@
                 @endphp
                 <div class="tb-win-kanban" x-ref="winTaskBody">
                     @foreach ($tbWinCols as $sk => $sl)
-                        <div class="tb-win-col">
+                        <div class="tb-win-col" data-status="{{ $sk }}">
                             <div class="tb-win-col-head">
                                 <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
                             </div>

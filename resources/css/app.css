@@ -913,7 +913,12 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .tb-win-modal {
     position: fixed; top: 50%; left: 50%; z-index: 61;
     width: min(94vw, 1180px); max-height: 86vh;
-    background: var(--card); border: 1px solid var(--hairline); border-radius: 16px;
+    /* --canvas, not --card: the modal is a page-scale surface holding kanban
+       cards, the same "cards float on paper" material stack the personal
+       board itself sits in. --card here would put white .wc cards on a
+       white shell with no separation — see DESIGN.md's material doctrine
+       and its explicit "no pure white as a page background" rule. */
+    background: var(--canvas); border: 1px solid var(--hairline); border-radius: 14px;
     box-shadow: 0 28px 64px rgba(31,30,26,.22);
     display: flex; flex-direction: column;
     transform: translate(-50%, -50%) scale(.96); opacity: 0;
@@ -2347,10 +2352,32 @@ select.wd-inline {
    can't fit all 4) — .tb-win-modal is sized wide enough that this normally
    doesn't scroll. Cards reuse partials/work-card.blade.php (.wc/.wc--sm)
    wholesale; the only new rules are the column shell and an override for
-   .wc's cursor: pointer, since these cards aren't clickable. */
+   .wc's cursor: pointer, since these cards aren't clickable.
+
+   Each heading carries a small status dot in the same semantic tones the
+   rest of the app already uses for these exact 4 states (Info for In
+   Progress, Amber for In Review, Success for Done — see DESIGN.md's
+   Semantic colours). To Do stays neutral: it is the default, not-yet-
+   -in-motion state, so it gets no tone of its own, same as an unstarted
+   item never gets a stamp elsewhere in the system. Text uses the
+   text-safe -ink pairing (Amber Ink / Success Ink) per DESIGN.md's
+   Text-Safe Tone Rule — Info has no separate -ink token and is already
+   used directly as text elsewhere in this file (.tb-pill's old prog
+   state), so it's safe as-is. */
 .tb-win-kanban { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding-bottom: 4px; }
 .tb-win-col { flex: 1; min-width: 272px; }
-.tb-win-col-head { font-size: var(--t-micro); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding: 0 2px; }
+.tb-win-col-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: var(--t-micro); font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding: 0 2px;
+}
+.tb-win-col-head::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: var(--hairline-soft); flex-shrink: 0; }
+.tb-win-col[data-status="prog"] .tb-win-col-head { color: var(--info); }
+.tb-win-col[data-status="prog"] .tb-win-col-head::before { background: var(--info); }
+.tb-win-col[data-status="review"] .tb-win-col-head { color: var(--amber-ink); }
+.tb-win-col[data-status="review"] .tb-win-col-head::before { background: var(--amber); }
+.tb-win-col[data-status="done"] .tb-win-col-head { color: var(--success-ink); }
+.tb-win-col[data-status="done"] .tb-win-col-head::before { background: var(--success); }
 .tb-win-col-cards { display: flex; flex-direction: column; gap: 8px; }
 .tb-win-kanban .wc { cursor: default; }
 
