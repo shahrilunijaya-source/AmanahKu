@@ -251,9 +251,11 @@
                   }
                   return best;
               },
-              // Mirror of ClockService::isLate for the single-day case, close enough to save
-              // the employee a failed submit. The server gate is still the authority: it
-              // compares to the second, and a device with a wrong clock is caught there.
+              // Mirror of ClockService::isLate for the single-day case (an overnight shift,
+              // work_end before work_start, is not covered — see ReminderTargets ponytail
+              // note), close enough to save the employee a failed submit. The server gate is
+              // still the authority: it compares to the second, and a device with a wrong
+              // clock is caught there.
               lateNow() {
                   if (!this.expectedStart) return false;
                   const p = this.expectedStart.split(':');

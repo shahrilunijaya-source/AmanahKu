@@ -69,7 +69,9 @@
     <div class="uj-card-head" style="padding:0 0 10px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Lateness' : 'Kelewatan'">Lateness</h3></div>
     <form method="post" action="{{ route('attendance.admin.wfh-policy') }}" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
         @csrf
-        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Late grace (min)' : 'Tempoh lewat (min)'">Late grace (min)</span></label><input name="late_grace_minutes" type="number" min="0" max="120" value="{{ $wfhPolicy?->late_grace_minutes }}" placeholder="15" style="{{ $fs }}width:110px;{{ $mono }}" /></div>
+        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Late grace (min)' : 'Tempoh lewat (min)'">Late grace (min)</span></label><input name="late_grace_minutes" type="number" min="0" max="120" value="{{ $wfhPolicy?->late_grace_minutes }}" placeholder="15" style="{{ $fs }}width:110px;{{ $mono }}" />
+            @error('late_grace_minutes')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+        </div>
         <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
     </form>
     <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.' : 'Terpakai pada setiap susunan — pejabat, klien, kerja-dari-rumah dan hibrid. Staf yang clock in selepas tempoh ini mesti beri sebab sebelum rekod diterima.'">Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.</p>

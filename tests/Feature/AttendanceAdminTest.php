@@ -148,6 +148,8 @@ class AttendanceAdminTest extends TestCase
 
     public function test_hr_can_set_the_company_wfh_policy(): void
     {
+        $this->tenant->update(['late_grace_minutes' => 25]);
+
         $this->actingAsRole('hr')
             ->post('/app/attendance-admin/wfh-policy', [
                 'wfh_work_start' => '10:00',
@@ -162,6 +164,34 @@ class AttendanceAdminTest extends TestCase
         $this->assertSame('16:00', substr((string) $t->wfh_work_end, 0, 5));
         $this->assertEquals(6.0, (float) $t->wfh_min_hours);
         $this->assertSame(500, $t->wfh_radius_m);
+        // The WFH-hours form omits late_grace_minutes entirely; a plain 'nullable' rule would
+        // have accepted the missing key as null and zeroed the grace. It must survive untouched.
+        $this->assertSame(25, $t->late_grace_minutes);
+    }
+
+    public function test_late_grace_can_be_set_to_zero(): void
+    {
+        $this->actingAsRole('hr')
+            ->post('/app/attendance-admin/wfh-policy', ['late_grace_minutes' => 0])
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertSame(0, $this->tenant->fresh()->late_grace_minutes);
+    }
+
+    /**
+     * A cleared Lateness box posts late_grace_minutes='', which ConvertEmptyStringsToNull
+     * turns into null. Without a 'required' rule that null would validate as 'nullable' and
+     * zero every employee's grace. Must be rejected, and the stored value must not move.
+     */
+    public function test_clearing_the_late_grace_is_rejected(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 20]);
+
+        $this->actingAsRole('hr')
+            ->post('/app/attendance-admin/wfh-policy', ['late_grace_minutes' => ''])
+            ->assertSessionHasErrors(['late_grace_minutes']);
+
+        $this->assertSame(20, $this->tenant->fresh()->late_grace_minutes);
     }
 
     /**
