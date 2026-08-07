@@ -164,6 +164,33 @@ class AttendanceAdminTest extends TestCase
         $this->assertSame(500, $t->wfh_radius_m);
     }
 
+    /**
+     * The grace control now posts on its own, from its own form, without the WFH hours
+     * beside it. This is a standing regression guard: a grace-only post to this shared
+     * endpoint must never touch the company's work-from-home hours.
+     */
+    public function test_saving_the_grace_alone_leaves_the_wfh_hours_untouched(): void
+    {
+        $this->tenant->update([
+            'wfh_work_start' => '10:00',
+            'wfh_work_end' => '16:00',
+            'wfh_min_hours' => 6,
+            'wfh_radius_m' => 500,
+        ]);
+
+        $this->actingAsRole('hr')
+            ->post('/app/attendance-admin/wfh-policy', ['late_grace_minutes' => 20])
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $t = $this->tenant->fresh();
+        $this->assertSame(20, $t->late_grace_minutes);
+        // DB time format differs by driver (SQLite 'HH:MM' / MySQL 'HH:MM:SS'); compare on HH:MM.
+        $this->assertSame('10:00', substr((string) $t->wfh_work_start, 0, 5));
+        $this->assertSame('16:00', substr((string) $t->wfh_work_end, 0, 5));
+        $this->assertEquals(6.0, (float) $t->wfh_min_hours);
+        $this->assertSame(500, $t->wfh_radius_m);
+    }
+
     public function test_wfh_follows_company_hours_not_the_staffs_own_branch(): void
     {
         // Staff belongs to a branch with its own hours...
