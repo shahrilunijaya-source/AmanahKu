@@ -77,7 +77,7 @@
             <div class="uj-card-head" style="display:flex;align-items:center;gap:12px;">
                 <div class="uj-ar-av" style="background:{{ $drill->avatar_color }};">{{ $drill->initials }}</div>
                 <div style="min-width:0;">
-                    <h3 class="uj-card-title" style="margin:0;">{{ $drill->name }}</h3>
+                    <h3 class="uj-card-title" style="margin:0;">{{ $drill->display_name }}</h3>
                     <div style="font-size:11.5px;color:var(--muted);">{{ trim(($drill->position ?? '').' · '.($drill->department?->name ?? ''), ' ·') }}</div>
                 </div>
                 <a href="{{ $baseUrl }}" class="uj-btn-ghost" style="margin-left:auto;font-size:12px;padding:7px 12px;text-decoration:none;">
@@ -123,8 +123,8 @@
                             @if ($r->clock_in)
                                 @php
                                     $confirmMsg = $r->clock_out
-                                        ? "Reverse {$drill->name}'s clock-out on {$r->date->format('j M')}? They will be able to clock out again."
-                                        : "Reverse {$drill->name}'s clock-in on {$r->date->format('j M')}? They will be able to clock in again, and this record will be deleted.";
+                                        ? "Reverse {$drill->display_name}'s clock-out on {$r->date->format('j M')}? They will be able to clock out again."
+                                        : "Reverse {$drill->display_name}'s clock-in on {$r->date->format('j M')}? They will be able to clock in again, and this record will be deleted.";
                                     $revLabel = $r->clock_out ? ['Reverse out', 'Batal keluar'] : ['Reverse in', 'Batal masuk'];
                                 @endphp
                                 <form method="post" action="{{ route('attendance.admin.records.reverse', $r) }}"

@@ -67,6 +67,12 @@ class ClockServiceTest extends TestCase
         return new SiteSpec('office', 'HQ', 3.10, 101.60, 200, '09:00', '18:00', 8.0);
     }
 
+    /** A security-guard-style overnight site: same geofence, shift 22:00–06:00 next day. */
+    private function overnightSite(): SiteSpec
+    {
+        return new SiteSpec('office', 'HQ Night Shift', 3.10, 101.60, 200, '22:00', '06:00', 7.0);
+    }
+
     public function test_in_radius_on_time_clock_in_creates_an_on_time_record(): void
     {
         $now = Carbon::parse('2026-07-02 08:55:00');
@@ -151,6 +157,32 @@ class ClockServiceTest extends TestCase
         $this->assertContains('late', $record->flags);
     }
 
+    public function test_clock_in_within_tenant_grace_period_is_on_time(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 5]);
+        $now = Carbon::parse('2026-07-02 09:04:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('on_time', $record->status);
+        $this->assertNotContains('late', $record->flags ?? []);
+    }
+
+    public function test_clock_in_past_tenant_grace_period_is_still_late(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 5]);
+        $now = Carbon::parse('2026-07-02 09:06:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('late', $record->status);
+        $this->assertContains('late', $record->flags);
+    }
+
     /**
      * No coordinates at all (a desk machine that cannot locate itself). Never a lockout, but
      * never free either: the punch costs a reason, a selfie and a permanent flag.
@@ -204,6 +236,122 @@ class ClockServiceTest extends TestCase
     public function test_clock_out_without_clock_in_is_a_noop(): void
     {
         $res = $this->service($this->office())->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 18:00:00'));
+
+        $this->assertSame('noop', $res['status']);
+    }
+
+    /**
+     * A shift crossing midnight (in 23:00, out 01:30 next day) used to look up the clock-out
+     * record by "today", find nothing under yesterday's date, and tell the employee they had
+     * never clocked in. Worked minutes must also span the date boundary correctly, not clamp
+     * to 0 from anchoring the clock-in time onto the wrong day.
+     *
+     * A justification is supplied because isEarly()/isLate() have their own separate overnight
+     * wraparound bug (an 18:00 expected end still reads as "not yet reached" at 01:30 the next
+     * day) — not what this test is isolating.
+     */
+    public function test_overnight_clock_out_finds_the_open_punch_and_computes_real_hours(): void
+    {
+        $svc = $this->service($this->office());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 23:00:00'));
+
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, 'Overnight on-call shift', null, Carbon::parse('2026-07-03 01:30:00'));
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
+        $this->assertNotNull($record);
+        $this->assertSame(150, $record->worked_minutes);
+    }
+
+    /**
+     * A shift assigned 22:00-06:00 (next day). Clocking in right after midnight — well past
+     * the 22:00 start — used to compare against a start still hours in the future on the
+     * clock-in's own date and read as on-time. It must anchor the start onto the previous
+     * calendar day instead, so a genuinely late arrival is still flagged late.
+     */
+    public function test_overnight_shift_clock_in_after_midnight_is_still_marked_late(): void
+    {
+        $now = Carbon::parse('2026-07-03 00:30:00'); // 2.5h after the 22:00 start, previous evening
+
+        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('late', $record->status);
+        $this->assertContains('late', $record->flags);
+    }
+
+    /** Same shift, clocking in right on the 22:00 start (same calendar day) is on time. */
+    public function test_overnight_shift_clock_in_at_start_time_is_on_time(): void
+    {
+        $now = Carbon::parse('2026-07-02 22:00:00');
+
+        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('on_time', $record->status);
+    }
+
+    /**
+     * Same overnight shift, clocking out at 05:30 the next morning (before the 06:00 end) is
+     * genuinely early and must be flagged. This case already worked before the fix — $now was
+     * already on the correct calendar day for the 06:00 boundary — kept as a regression guard.
+     */
+    public function test_overnight_shift_clock_out_before_end_next_morning_is_early(): void
+    {
+        $svc = $this->service($this->overnightSite());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+
+        $blocked = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-03 05:30:00'));
+        $this->assertSame('needs_justification', $blocked['status']);
+
+        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Relieved early by the next shift', null, Carbon::parse('2026-07-03 05:30:00'));
+        $this->assertSame('ok', $ok['status']);
+        $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
+        $this->assertContains('early_out', $record->flags);
+    }
+
+    /**
+     * Same overnight shift, clocking out at 23:50 — before midnight, hours before the 06:00
+     * end the next day — used to compare against a 06:00 already hours in the past on that
+     * same calendar day and read as "not early" (technically past it). Must anchor the end
+     * onto the next calendar day and flag it early.
+     */
+    public function test_overnight_shift_clock_out_before_midnight_is_flagged_early(): void
+    {
+        $svc = $this->service($this->overnightSite());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+
+        $blocked = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 23:50:00'));
+        $this->assertSame('needs_justification', $blocked['status']);
+
+        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Called off early', null, Carbon::parse('2026-07-02 23:50:00'));
+        $this->assertSame('ok', $ok['status']);
+        $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
+        $this->assertContains('early_out', $record->flags);
+    }
+
+    /** Same overnight shift, clocking out right at 06:00 the next morning is on time, not early. */
+    public function test_overnight_shift_clock_out_at_end_time_is_not_early(): void
+    {
+        $svc = $this->service($this->overnightSite());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-03 06:00:00'));
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
+        $this->assertNotContains('early_out', $record->flags);
+    }
+
+    /** A genuinely forgotten clock-out from days ago is not silently attributed to today. */
+    public function test_clock_out_does_not_reach_back_past_yesterdays_open_punch(): void
+    {
+        $svc = $this->service($this->office());
+        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-06-28 09:00:00'));
+
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 18:00:00'));
 
         $this->assertSame('noop', $res['status']);
     }

@@ -15,7 +15,6 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Timesheet;
-use App\Models\UserPermission;
 use App\Services\FeatureManager;
 use App\Support\Amanahku;
 use App\Support\Changelog;
@@ -27,6 +26,7 @@ use App\Timesheet\TimesheetCompliance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\View;
 use Illuminate\View\View as ViewContract;
 
@@ -362,15 +362,9 @@ class AppController extends Controller
             'attendance-report' => app(AttendanceReportController::class)->screenData($request),
             'leave-report' => app(LeaveReportController::class)->screenData($request),
             'position' => app(PositionController::class)->screenData($request),
-            'roles' => [
-                'members' => app(CurrentTenant::class)->get()->users()->orderBy('name')->get(),
-                'permissionGroups' => Permissions::overridableGrouped(),
-                'permOverrides' => UserPermission::all()
-                    ->groupBy('user_id')
-                    ->map(fn ($g) => $g->pluck('granted', 'permission')),
-            ],
+            'roles' => $this->rolesData(),
             'setup' => app(SetupController::class)->screenData($request),
-            'audit' => ['logs' => AuditLog::latest()->take(50)->get()],
+            'audit' => ['logs' => $this->auditLogsData()],
             'changelog' => ['releases' => Changelog::releases()],
             'roster' => app(RosterController::class)->screenData($request, $employee),
             'documents' => app(DocumentController::class)->screenData($request, $employee),
@@ -410,5 +404,26 @@ class AppController extends Controller
             'security' => ['passkeyEnabled' => app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'security.passkey') !== 'off'],
             default => [],
         };
+    }
+
+    private function auditLogsData(): Collection
+    {
+        $logs = AuditLog::latest()->take(50)->get();
+
+        $displayNames = Employee::withoutGlobalScope('tenant')
+            ->whereIn('user_id', $logs->pluck('user_id')->filter())
+            ->get()
+            ->keyBy('user_id');
+
+        return $logs->map(function (AuditLog $log) use ($displayNames): object {
+            $emp = $displayNames->get($log->user_id);
+
+            return (object) [
+                'action' => $log->action,
+                'target' => $log->target,
+                'actor_name' => $emp?->display_name ?? $log->actor_name,
+                'created_at' => $log->created_at,
+            ];
+        });
     }
 }

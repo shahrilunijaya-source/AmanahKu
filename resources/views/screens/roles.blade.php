@@ -54,7 +54,7 @@
         @php $rolePerms = \App\Support\Permissions::forRole($m->pivot->role); $ov = $permOverrides[$m->id] ?? collect(); @endphp
         <div x-data="{ open:false }" style="border-bottom:1px solid var(--hairline-soft);">
             <div style="display:grid;grid-template-columns:1.6fr 1.6fr 1.1fr 1.3fr 0.8fr;gap:8px;padding:12px 20px;align-items:center;">
-                <span style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $m->name }}</span>
+                <span style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $m->displayName }}</span>
                 <span style="font-size:13px;color:var(--muted);">{{ $m->email }}</span>
                 <form method="post" action="{{ route('admin.roles.update', $m) }}" style="display:flex;align-items:center;gap:8px;">
                     @csrf

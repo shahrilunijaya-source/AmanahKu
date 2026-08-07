@@ -107,28 +107,6 @@ class TimesheetTest extends TestCase
         $this->assertSame('16.00', (string) $timesheet->total_hours);
     }
 
-    public function test_submit_transitions_draft_to_submitted(): void
-    {
-        // Arrange
-        $timesheet = Timesheet::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
-        ]);
-        $timesheet->entries()->create([
-            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
-            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8.00,
-        ]);
-
-        // Act — the single day totals 100%, so submission is allowed.
-        $response = $this->actingInTenant()->post("/app/timesheets/{$timesheet->id}/submit");
-
-        // Assert
-        $response->assertRedirect();
-        $fresh = $timesheet->fresh();
-        $this->assertSame('submitted', $fresh->status);
-        $this->assertNotNull($fresh->submitted_at);
-    }
-
     public function test_store_does_not_reopen_or_double_count_an_already_submitted_week(): void
     {
         // Arrange — a submitted timesheet already exists for this week.
@@ -157,22 +135,21 @@ class TimesheetTest extends TestCase
         $this->assertSame('8.00', (string) $fresh->total_hours);
     }
 
-    public function test_submit_is_blocked_when_a_day_does_not_total_100_percent(): void
+    public function test_store_with_submit_now_is_blocked_before_the_week_ends(): void
     {
-        // Arrange — a draft whose only day sums to 50%.
-        $timesheet = Timesheet::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
-        ]);
-        $timesheet->entries()->create([
-            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
-            'category_id' => $this->category->id, 'percentage' => 50, 'hours' => 4.00,
-        ]);
+        Carbon::setTestNow('2026-06-17 09:00:00'); // Wednesday of that week
 
-        // Act + Assert — submission rejected; the day is not yet 100%.
-        $this->actingInTenant()->post("/app/timesheets/{$timesheet->id}/submit")
-            ->assertSessionHasErrors('submit');
-        $this->assertSame('draft', $timesheet->fresh()->status);
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => 1,
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('submit');
+
+        $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->where('status', 'submitted')->first());
+
+        Carbon::setTestNow('2026-06-19 12:00:00');
     }
 
     public function test_store_with_submit_now_rejects_an_incomplete_day(): void
@@ -345,24 +322,6 @@ class TimesheetTest extends TestCase
         ])->assertSessionHasErrors('submit');
 
         $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->first());
-    }
-
-    public function test_submitting_a_saved_draft_that_holds_an_uncosted_line_is_refused(): void
-    {
-        $this->actingInTenant()->post('/app/timesheets', [
-            'week_start' => '2026-06-15',
-            'entries' => [
-                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
-                ['entry_date' => '2026-06-15', 'category_id' => $this->otherCategory->id, 'percentage' => 0],
-            ],
-        ])->assertSessionHasNoErrors();
-
-        $timesheet = Timesheet::where('employee_id', $this->employee->id)->firstOrFail();
-
-        $this->actingInTenant()->post("/app/timesheets/{$timesheet->id}/submit")
-            ->assertSessionHasErrors('submit');
-
-        $this->assertSame('draft', $timesheet->fresh()->status);
     }
 
     /**

@@ -16,10 +16,11 @@
                         {{-- Not a button, so the hover name is unreachable by keyboard —
                              role/label is what carries the director's name to a reader. --}}
                         <div class="oc-circle" style="cursor:default;" :data-name="d.name"
+                             :title="[d.role, d.fullName].filter(Boolean).join(' · ')"
                              role="img" :aria-label="d.name">
                             @include('partials.org-face', ['p' => 'd'])
                         </div>
-                        <div class="oc-role" x-text="d.role || d.name"></div>
+                        <div class="oc-role" x-text="d.name"></div>
                     </div>
                 </template>
             </div>

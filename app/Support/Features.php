@@ -28,7 +28,7 @@ class Features
      */
     public const MODULES = [
         'module.roster' => ['Roster & Shifts', ['roster', 'shiftswap'], 1],
-        'module.leave' => ['Leave & Time-off', ['leave', 'calendar'], 1],
+        'module.leave' => ['Leave & Time-off', ['leave', 'calendar', 'leave-report'], 1],
         'module.overtime' => ['Overtime', ['overtime'], 1],
         'module.events' => ['Company Events', ['events'], 1],
         'module.bookings' => ['Room & Vehicle Booking', ['rooms', 'vehicles'], 2],

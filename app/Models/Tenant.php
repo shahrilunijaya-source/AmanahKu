@@ -20,6 +20,7 @@ class Tenant extends Model
             'subscription_start' => 'date',
             'subscription_end' => 'date',
             'onboarding_enforced' => 'boolean',
+            'late_grace_minutes' => 'integer',
         ];
     }
 

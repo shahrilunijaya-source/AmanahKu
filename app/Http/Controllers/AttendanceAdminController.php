@@ -122,6 +122,10 @@ class AttendanceAdminController extends Controller
      * Set the single company-wide work-from-home policy (hours + geofence radius) for this
      * tenant. Every WFH / hybrid home day follows these hours (see ScheduleResolver::homeSite),
      * independent of any branch — so deleting a branch never changes WFH hours.
+     *
+     * late_grace_minutes rides along here too: it is not WFH-specific, but this is the one
+     * company-wide attendance policy endpoint, and ClockService::isLate() reads it for every
+     * arrangement (office, client, WFH, hybrid alike).
      */
     public function updateWfhPolicy(Request $request): RedirectResponse
     {
@@ -132,6 +136,7 @@ class AttendanceAdminController extends Controller
             'wfh_work_end' => ['nullable', 'date_format:H:i'],
             'wfh_min_hours' => ['nullable', 'numeric', 'between:0,24'],
             'wfh_radius_m' => ['nullable', 'integer', 'between:20,5000'],
+            'late_grace_minutes' => ['nullable', 'integer', 'between:0,120'],
         ]);
 
         $tenant = app(CurrentTenant::class)->get();

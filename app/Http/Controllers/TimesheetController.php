@@ -249,17 +249,18 @@ class TimesheetController extends Controller
 
         $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $normalised);
 
+        $weekStart = Carbon::parse($data['week_start'])->startOfDay();
+
         $submitNow = $request->boolean('submit_now');
         // A fully-locked week may submit with no user rows, but a genuinely empty week
         // must not: mirror submit()'s invariant so store()'s submit_now path can't create
         // a submitted timesheet with zero entries (which would land in the cost report).
         abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
         if ($submitNow) {
+            $this->assertWeekEnded($weekStart);
             $this->assertNoBlankLines($entries);
             $this->assertDayTotals($entries);
         }
-
-        $weekStart = Carbon::parse($data['week_start'])->startOfDay();
 
         $timesheet = Timesheet::firstOrNew([
             'employee_id' => $employee->id,
@@ -303,28 +304,6 @@ class TimesheetController extends Controller
         }
 
         return back()->with('ok', $message);
-    }
-
-    public function submit(Request $request, Timesheet $timesheet): RedirectResponse
-    {
-        $this->authorizeOwner($request, $timesheet);
-        abort_unless($timesheet->status === 'draft', 422);
-        abort_if($timesheet->entries()->count() === 0, 422, 'Cannot submit an empty timesheet.');
-
-        // A draft may be partial, but a submission must have every populated day at 100%
-        // and no line still waiting for its percentage.
-        $rows = $timesheet->entries()->get()->map(fn (TimesheetEntry $e) => [
-            'entry_date' => $e->entry_date->toDateString(),
-            'percentage' => (float) $e->percentage,
-        ])->all();
-        $this->assertNoBlankLines($rows);
-        $this->assertDayTotals($rows);
-
-        $timesheet->recomputeTotal();
-        $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
-        AuditLog::record('Submitted timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
-
-        return back()->with('ok', 'Timesheet submitted.');
     }
 
     /**
@@ -521,7 +500,7 @@ class TimesheetController extends Controller
 
                         return [
                             'id' => (int) $emp->id,
-                            'name' => (string) $emp->name,
+                            'name' => (string) $emp->display_name,
                             'initials' => (string) $emp->initials,
                             'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                             'days' => $empDays,
@@ -554,7 +533,7 @@ class TimesheetController extends Controller
 
                         return [
                             'id' => (int) $emp->id,
-                            'name' => (string) $emp->name,
+                            'name' => (string) $emp->display_name,
                             'initials' => (string) $emp->initials,
                             'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                             'days' => $empDays,
@@ -584,7 +563,7 @@ class TimesheetController extends Controller
 
                 return [
                     'id' => (int) $emp->id,
-                    'name' => (string) $emp->name,
+                    'name' => (string) $emp->display_name,
                     'initials' => (string) $emp->initials,
                     'color' => (string) ($emp->avatar_color ?? config('amanahku.avatar_color')),
                     'title' => (string) ($positionBand?->title ?? ''),
@@ -960,6 +939,22 @@ class TimesheetController extends Controller
      *
      * @param  array<int, array{entry_date:string, percentage:float}>  $entries
      */
+    /**
+     * Blocks submission before the week is over (Timesheet::weekEndsOn()). Without this, a
+     * staffer whose days-so-far already total 100% could submit mid-week — the "Submit"
+     * button on the Review tab is a plain form POST with no client-side gate, so the server
+     * must enforce this itself rather than trust the capture screen's own check.
+     */
+    private function assertWeekEnded(Carbon $weekStart): void
+    {
+        $endsOn = Timesheet::computeWeekEndsOn($weekStart);
+        if (Carbon::now()->startOfDay()->lessThan($endsOn)) {
+            throw ValidationException::withMessages([
+                'submit' => 'This week is not over yet — submit becomes available on '.$endsOn->format('D, j M').'.',
+            ]);
+        }
+    }
+
     private function assertDayTotals(array $entries): void
     {
         $byDay = [];

@@ -69,4 +69,18 @@ class Timesheet extends Model
     {
         $this->update(['total_hours' => (float) $this->entries()->sum('hours')]);
     }
+
+    /**
+     * A week's cutoff: Friday, unless that week's Saturday is the first Saturday of the
+     * month (Unijaya's TOT day, a work half-day), which pushes the cutoff there. Single
+     * source of truth for TimesheetController's submit gate (both the capture screen's
+     * submit_now and the Review tab's plain-form submit) — mirrors weekEndsOn() in
+     * resources/js/timesheet-capture.js for the capture screen's own button state.
+     */
+    public static function computeWeekEndsOn(CarbonInterface $weekStart): Carbon
+    {
+        $saturday = Carbon::parse($weekStart)->addDays(5);
+
+        return $saturday->day <= 7 ? $saturday : Carbon::parse($weekStart)->addDays(4);
+    }
 }

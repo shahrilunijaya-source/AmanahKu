@@ -14,17 +14,6 @@
     $rm = fn ($id) => array_key_exists($id, $timesheetCosts) && $timesheetCosts[$id] !== null
         ? 'RM '.number_format($timesheetCosts[$id], 2) : null;
 
-    // One-line summary of an entry for the read-only lists (category · project · sub-pillar).
-    $entryLabel = function ($e) {
-        $parts = array_filter([
-            $e->category?->name ?: $e->project,
-            $e->projectRef?->name,
-            $e->subPillar?->name,
-        ]);
-
-        return implode(' · ', $parts);
-    };
-
     $weekStatus = $weekStatus ?? null;
     $weekLocked = $weekStatus && $weekStatus !== 'draft';
 
@@ -679,63 +668,35 @@
     </div>
 
     <div x-show="tab==='review'" x-cloak role="tabpanel">
-    {{-- ===================== REFERENCE PANELS: My timesheets · My time spent ===================== --}}
-    {{-- Un-nested: the two panels stack under the Review tab, each with a section heading,
-         instead of the old inner tab bar. --}}
-    <div class="uj-card">
+    @if ($canSeeCost && $myTimesheets->isNotEmpty())
+    {{-- ===================== REFERENCE PANEL: My weeks (RM, money roles only) ===================== --}}
+    {{-- Read-only — editing and submitting a week both live on the Record tab now, this
+         is only where a money role can see what their own weeks cost. --}}
+    <div class="uj-card" style="margin-bottom:16px;">
         <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
-            <span x-text="$store.ui.lang==='en' ? 'My timesheets' : 'Timesheet saya'">My timesheets</span>
-            <span style="color:var(--muted);font-weight:400;">({{ $myTimesheets->count() }})</span>
+            <span x-text="$store.ui.lang==='en' ? 'My weeks' : 'Minggu saya'">My weeks</span>
         </div>
-
         <div>
-        @forelse ($myTimesheets as $t)
-            <div x-data="{ open: false }" style="border-bottom:1px solid var(--hairline-soft);">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 20px;">
-                    <div style="min-width:0;">
-                        <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $t->week_label ?: $t->week_start->format('j M Y') }}</div>
-                        <div style="font-size:11.5px;color:var(--muted);">{{ $t->entries->count() }} <span x-text="$store.ui.lang==='en' ? 'entries' : 'entri'">entries</span></div>
-                    </div>
-                    <div style="text-align:right;flex-shrink:0;">
-                        <div style="font-size:11px;font-weight:600;color:{{ $sc[$t->status] }};">{{ ucfirst($t->status) }}</div>
-                        @if ($canSeeCost && $rm($t->id))
-                            <div style="font-size:11px;font-family:var(--font-mono);color:var(--success);">{{ $rm($t->id) }}</div>
-                        @endif
-                    </div>
+        @foreach ($myTimesheets as $t)
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--hairline-soft);">
+                <div style="min-width:0;">
+                    <div style="font-size:13px;color:var(--ink);">{{ $t->week_label ?: $t->week_start->format('j M Y') }}</div>
+                    <div style="font-size:11px;font-weight:600;color:{{ $sc[$t->status] }};">{{ ucfirst($t->status) }}</div>
                 </div>
-                <div style="display:flex;gap:8px;padding:0 20px 12px;">
-                    <button type="button" @click="open = ! open" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;"><span x-text="open ? ($store.ui.lang==='en' ? 'Hide entries' : 'Sembunyi entri') : ($store.ui.lang==='en' ? 'View entries' : 'Lihat entri')"></span></button>
-                    @if ($t->status === 'draft')
-                        <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $t->week_start->toDateString()]) }}" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;"><span x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</span></a>
-                        <form method="post" action="{{ route('timesheets.submit', $t) }}">@csrf<button class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Submit' : 'Hantar'">Submit</span></button></form>
-                    @endif
-                </div>
-                <div x-show="open" x-cloak style="padding:0 20px 14px;">
-                    @foreach ($t->entries->sortBy('entry_date') as $entry)
-                        <div style="font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--hairline-soft);">
-                            <div style="display:flex;justify-content:space-between;gap:12px;">
-                                <span>{{ $entry->entry_date->format('D j M') }} · {{ $entryLabel($entry) }}</span>
-                                <span style="font-family:var(--font-mono);color:var(--ink);">{{ rtrim(rtrim(number_format($entry->percentage, 2), '0'), '.') }}%</span>
-                            </div>
-                            @if ($entry->description)
-                                <div class="uj-markdown" style="font-size:11.5px;margin-top:2px;">{!! $entry->description !!}</div>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
+                @if ($rm($t->id))
+                    <div style="font-size:12px;font-family:var(--font-mono);color:var(--success);flex-shrink:0;">{{ $rm($t->id) }}</div>
+                @endif
             </div>
-        @empty
-            <div style="padding:28px 20px;text-align:center;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'No timesheets yet' : 'Tiada timesheet lagi'">No timesheets yet</span></div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Build this week above: add lines and fill each day until it reads 100%, then submit it.' : 'Bina minggu ini di atas: tambah baris dan isi setiap hari sehingga membaca 100%, kemudian hantar.'">Build this week above.</span></div>
-            </div>
-        @endforelse
+        @endforeach
         </div>
-
+    </div>
+    @endif
+    {{-- ===================== REFERENCE PANEL: My time spent ===================== --}}
+    <div class="uj-card">
         {{-- Section: My time spent (personal, person-days only — never RM) --}}
         @if (! empty($myBreakdown))
             @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-            <div style="padding:16px 20px 4px;border-top:1px solid var(--hairline);font-size:13px;font-weight:600;color:var(--ink);">
+            <div style="padding:16px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
                 <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
             </div>
             <div style="padding:16px 22px 20px;">

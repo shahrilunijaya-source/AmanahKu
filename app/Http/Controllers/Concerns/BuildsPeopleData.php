@@ -15,8 +15,10 @@ use App\Models\PolicyAcknowledgement;
 use App\Models\Position;
 use App\Models\StaffLevel;
 use App\Models\TrainingRecord;
+use App\Models\UserPermission;
 use App\Models\WorkItem;
 use App\Services\DataScope;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -249,6 +251,32 @@ trait BuildsPeopleData
             'leaveApproved' => LeaveRequest::where('status', 'approved')->whereHas('employee', fn ($q) => $q->active())->count(),
             'leavePending' => LeaveRequest::where('status', 'submitted')->whereHas('employee', fn ($q) => $q->active())->count(),
             'pct' => fn ($n) => round($n / $total * 100),
+        ];
+    }
+
+    /** Roles screen: workspace members shown by nickname, full legal name on hover. */
+    private function rolesData(): array
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $members = $tenant->users()->orderBy('name')->get();
+
+        $displayNames = Employee::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('user_id', $members->pluck('id'))
+            ->get()
+            ->keyBy('user_id');
+
+        $members->each(function ($u) use ($displayNames): void {
+            $emp = $displayNames->get($u->id);
+            $u->displayName = $emp?->display_name ?? $u->name;
+        });
+
+        return [
+            'members' => $members,
+            'permissionGroups' => Permissions::overridableGrouped(),
+            'permOverrides' => UserPermission::all()
+                ->groupBy('user_id')
+                ->map(fn ($g) => $g->pluck('granted', 'permission')),
         ];
     }
 }
