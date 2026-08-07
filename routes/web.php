@@ -265,6 +265,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
         Route::get('/app/notifications/unseen', [NotificationController::class, 'unseen'])->middleware('throttle:120,1')->name('notifications.unseen');
+        Route::get('/app/notifications/summary', [NotificationController::class, 'summary'])->middleware('throttle:120,1')->name('notifications.summary');
         // Roster (shift scheduling)
         Route::post('/app/roster', [RosterController::class, 'store'])->name('roster.store');
         Route::post('/app/roster/{shift}/cancel', [RosterController::class, 'cancel'])->name('roster.cancel');

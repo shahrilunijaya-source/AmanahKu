@@ -53,4 +53,40 @@ class NotificationController extends Controller
             'latestId' => $max,
         ]);
     }
+
+    /**
+     * Poll target for the live header bell: the same latest-8, mixed-read-state
+     * snapshot the header composer renders on first paint (AppServiceProvider),
+     * flattened to JSON so a poll tick can fully replace the bell's client state.
+     * Unlike unseen(), this is not cursor-based and includes already-read rows.
+     */
+    public function summary(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $tenantId = app(CurrentTenant::class)->id();
+
+        // orderByDesc('id'), not latest(): created_at ties on same-second inserts and
+        // sorts non-deterministically, same reasoning as unseen() above.
+        $notifications = AppNotification::where('user_id', $userId)
+            ->where('tenant_id', $tenantId)   // explicit, not just the global scope
+            ->orderByDesc('id')
+            ->take(8)
+            ->get();
+
+        // A second query, not a count over $notifications: the true unread total is
+        // never bounded by the 8-row page, matching the composer's own approach.
+        $unread = AppNotification::where('user_id', $userId)->where('tenant_id', $tenantId)->whereNull('read_at')->count();
+
+        return response()->json([
+            'unread' => $unread,
+            'notifications' => $notifications->map(fn (AppNotification $n) => [
+                'id' => $n->id,
+                'title' => $n->title,
+                'body' => $n->body,
+                'url' => $n->url,
+                'read_at' => $n->read_at !== null,
+                'at' => $n->created_at->diffForHumans(),
+            ])->values(),
+        ]);
+    }
 }
