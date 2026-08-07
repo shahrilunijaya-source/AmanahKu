@@ -159,18 +159,18 @@
 
     <div x-data="{ notif: false }" style="position:relative;">
         <button @click="notif = ! notif" class="uj-hd-ib" :aria-expanded="notif"
-                :aria-label="$store.ui.lang==='en' ? @js($unreadCount ? "Notifications ({$unreadCount} unread)" : 'Notifications') : @js($unreadCount ? "Pemberitahuan ({$unreadCount} belum dibaca)" : 'Pemberitahuan')">
+                :aria-label="$store.ui.lang==='en' ? ($store.notifbell.unread ? `Notifications (${$store.notifbell.unread} unread)` : 'Notifications') : ($store.notifbell.unread ? `Pemberitahuan (${$store.notifbell.unread} belum dibaca)` : 'Pemberitahuan')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--body)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
-            @if ($unreadCount > 0)
-                <span style="position:absolute;top:3px;right:3px;min-width:15px;height:15px;padding:0 3px;background:var(--red);color:#fff;border-radius:9999px;border:1.5px solid #fff;font-size:var(--t-micro);font-weight:700;display:flex;align-items:center;justify-content:center;">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
-            @endif
+            <template x-if="$store.notifbell.unread > 0">
+                <span style="position:absolute;top:3px;right:3px;min-width:15px;height:15px;padding:0 3px;background:var(--red);color:#fff;border-radius:9999px;border:1.5px solid #fff;font-size:var(--t-micro);font-weight:700;display:flex;align-items:center;justify-content:center;" x-text="$store.notifbell.unread > 9 ? '9+' : $store.notifbell.unread"></span>
+            </template>
         </button>
         <div x-show="notif" x-cloak class="uj-hd-panel" @click.outside="notif = false" @keydown.escape.window="notif = false" style="position:absolute;right:0;top:46px;width:340px;max-width:88vw;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:var(--shadow-menu);z-index:60;overflow:hidden;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--hairline);">
                 <span style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Notifications' : 'Pemberitahuan'">Notifications</span>
-                @if ($unreadCount > 0)
+                <template x-if="$store.notifbell.unread > 0">
                     <form method="post" action="{{ route('notifications.read') }}">@csrf<button type="submit" style="font-size:var(--t-sm);color:var(--red);background:none;" x-text="$store.ui.lang==='en' ? 'Mark all read' : 'Tanda semua dibaca'">Mark all read</button></form>
-                @endif
+                </template>
                 {{-- Opt-in must be click-driven: browsers reject a permission request that
                      is not tied to a user gesture. Hidden once granted, denied, or unsupported. --}}
                 <button type="button" x-show="$store.alerts.canAsk" x-cloak @click="$store.alerts.enable()"
@@ -178,15 +178,16 @@
                         x-text="$store.ui.lang==='en' ? 'Turn on alerts' : 'Hidupkan makluman'">Turn on alerts</button>
             </div>
             <div style="max-height:360px;overflow-y:auto;">
-                @forelse ($notifications as $n)
-                    <a href="{{ $n->url ?? '#' }}" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;background:{{ $n->read_at ? '#fff' : 'var(--red-tint)' }};">
-                        <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);">{{ $n->title }}</div>
-                        @if ($n->body)<div style="font-size:var(--t-sm);color:var(--body);margin-top:2px;line-height:1.45;">{{ $n->body }}</div>@endif
-                        <div style="font-size:var(--t-micro);color:var(--muted);margin-top:4px;font-family:var(--font-mono);">{{ $n->created_at->diffForHumans() }}</div>
+                <template x-for="n in $store.notifbell.notifications" :key="n.id">
+                    <a :href="n.url || '#'" style="display:block;padding:12px 16px;border-bottom:1px solid var(--hairline-soft);text-decoration:none;" :style="{ background: n.read_at ? '#fff' : 'var(--red-tint)' }">
+                        <div style="font-size:var(--t-base);font-weight:600;color:var(--ink);" x-text="n.title"></div>
+                        <div x-show="n.body" style="font-size:var(--t-sm);color:var(--body);margin-top:2px;line-height:1.45;" x-text="n.body"></div>
+                        <div style="font-size:var(--t-micro);color:var(--muted);margin-top:4px;font-family:var(--font-mono);" x-text="n.at"></div>
                     </a>
-                @empty
+                </template>
+                <template x-if="$store.notifbell.notifications.length === 0">
                     <div style="padding:36px 20px;text-align:center;font-size:var(--t-base);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'You\'re all caught up.' : 'Semua sudah dibaca.'">You're all caught up.</div>
-                @endforelse
+                </template>
             </div>
         </div>
     </div>
