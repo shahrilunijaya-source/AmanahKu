@@ -128,21 +128,28 @@ condition that is true for a long stretch of the day paints a red accusation acr
 screen from morning to night. Lateness has the same shape, so it is raised the same way,
 inside `proceed()`, at the moment the employee actually punches.
 
-### Why the client mirror is required
+### Why the client mirror is worth having
 
-A server-only gate is the smaller diff, but it records the wrong time. The rejected punch
-returns through `back()->withInput()`; the employee types a reason and submits again, and
-`Carbon::now()` on that second submit is what lands in `clock_in`. Ninety seconds of typing
-becomes ninety extra seconds of recorded lateness.
+It does **not** make the recorded time more accurate. An earlier draft of this spec claimed
+it did; that claim was wrong and is recorded here so nobody revives it. In both designs the
+employee types the reason before the punch that succeeds, so `Carbon::now()` stamps the
+post-typing moment either way. Passing the first-attempt timestamp through instead would be
+client-forgeable, so it is not on the table.
 
-Off-site punches tolerate that drift because location is not the thing being judged.
-Lateness is judged on exactly that number. The mirror keeps the recorded time honest, and
-it also keeps this gate consistent with every other reason-gate on the screen, all of which
-are already mirrored.
+What the mirror actually buys:
+
+- **Consistency.** Off-site, no-GPS and early-out are all mirrored already. A late gate
+  without a mirror would be the only reason-gate on the screen that behaves differently.
+- **No page reload.** The server path returns through `back()->withInput()`, which discards
+  the Alpine state: the cached GPS fix in `lastFix` and any captured selfie preview are
+  gone, and the employee sees the screen flash and rebuild. The mirror opens the drawer in
+  place and keeps that state.
+- **Fewer taps.** One punch, type, punch. The server path costs an extra failed submit.
 
 The server gate stays regardless. It is the backstop for a submit that bypasses the client,
-and `AttendanceController` already handles `needs_justification` by flashing
-`attendance_justify` and re-opening the field.
+including a device whose clock is wrong (`lateNow()` trusts the browser clock, exactly as
+`earlyNow()` already does), and `AttendanceController` already handles `needs_justification`
+by flashing `attendance_justify` and re-opening the field.
 
 ### 4. Tests, `tests/Feature/ClockServiceTest.php`
 
@@ -162,8 +169,10 @@ New and changed cases:
 | Late **and** off-site, no reason | `needs_justification` carrying the fence message, not the late one |
 | On time, no reason | `ok`, unchanged, guards against gating everybody |
 
-Migration coverage: one assertion that a tenant left `NULL` comes out of the migration at
-15.
+Migration coverage: assert that a tenant whose `late_grace_minutes` is `NULL` ends up at 15.
+Under `RefreshDatabase` the migration has already run by the time the test starts, so seed a
+tenant with an explicit `NULL` and run the update statement against it rather than trying to
+replay the migration.
 
 ## Out of scope
 
@@ -191,5 +200,7 @@ of work.
    in `clock_in_justification`.
 3. A punch inside the 15-minute grace is untouched: on time, no reason asked.
 4. A director is gated identically to an employee.
-5. The recorded `clock_in` is the time of the first punch attempt, not the retry.
+5. A late punch made through the screen opens the reason drawer in place, with no page
+   reload and no failed submit, and the punch carries the reason on its first successful
+   POST.
 6. `php artisan test --compact tests/Feature/ClockServiceTest.php` passes.
