@@ -69,7 +69,7 @@ class AttendanceClockEndpointTest extends TestCase
 
     public function test_first_clock_in_is_a_success(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('ok');
+        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
 
         $this->assertNotNull($this->employee->attendanceRecords()->first()?->clock_in);
     }
@@ -81,13 +81,13 @@ class AttendanceClockEndpointTest extends TestCase
      */
     public function test_second_clock_in_is_declined_without_claiming_success(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('ok');
+        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
         $firstPunch = $this->employee->attendanceRecords()->first()->clock_in;
 
         $this->travel(30)->minutes();
         $response = $this->punch(['action' => 'in']);
 
-        $response->assertSessionMissing('ok');
+        $response->assertSessionMissing('clock_ok');
         $response->assertSessionHas('info', 'Already clocked in today.');
         $this->assertSame($firstPunch, $this->employee->attendanceRecords()->first()->clock_in);
         $this->assertSame(1, $this->employee->attendanceRecords()->count());
@@ -108,7 +108,7 @@ class AttendanceClockEndpointTest extends TestCase
      */
     public function test_a_declined_punch_leaves_no_orphan_selfie_on_the_disk(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('ok');
+        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
 
         $this->punch([
             'action' => 'in',
@@ -124,7 +124,7 @@ class AttendanceClockEndpointTest extends TestCase
         $this->punch([
             'action' => 'in',
             'photo' => UploadedFile::fake()->image('selfie.jpg'),
-        ])->assertSessionHas('ok');
+        ])->assertSessionHas('clock_ok');
 
         $path = $this->employee->attendanceRecords()->first()->photo_path;
 

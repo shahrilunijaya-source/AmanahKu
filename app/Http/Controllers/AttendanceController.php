@@ -93,7 +93,7 @@ class AttendanceController extends Controller
                 ->withErrors(['photo' => $result['message']]);
         }
 
-        return back()->with('ok', $result['message']);
+        return back()->with('clock_ok', $result['message']);
     }
 
     /**
