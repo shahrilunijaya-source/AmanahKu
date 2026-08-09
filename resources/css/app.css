@@ -1408,6 +1408,7 @@ select.wd-inline {
 .uj-at-fig, .uj-lv-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .uj-at-figsub, .uj-lv-figsub { font-size: var(--t-base); color: var(--body); }
 .uj-at-figsub b, .uj-lv-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-at-figrow--punched { border-radius: 10px; animation: uj-punch-pulse 1.2s cubic-bezier(.23, 1, .32, 1); }
 
 /* Where you are meant to be, and whether you are. The geofence verdict is inline
    here rather than a separate badge: it is a clause of the expectation sentence. */
@@ -1421,6 +1422,14 @@ select.wd-inline {
    that stops once the geolocation call resolves, not a decorative infinite animation. */
 .uj-at-fence[data-f="wait"] i { animation: uj-at-ping 1.4s ease-in-out infinite; }
 @keyframes uj-at-ping { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+/* One-shot ring on a successful clock punch, replacing the toast as the confirmation
+   for this screen — see .uj-at-figrow--punched / .uj-at-dock-go--punched below. */
+@keyframes uj-punch-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent); }
+  70% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--success) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent); }
+}
 
 /* ── Actions: selfie, remark, and punch button ── */
 .uj-at-acts { display: flex; gap: 10px; align-items: center; flex-shrink: 0; padding-top: 6px; flex-wrap: wrap; }
@@ -1574,6 +1583,7 @@ select.wd-inline {
   .uj-at-fence[data-f="wait"] i { animation: none; }
   .uj-at-go:active, .uj-at-ghost:active,
   .uj-at-dock-go:active { transform: none; }
+  .uj-at-figrow--punched, .uj-at-dock-go--punched { animation: none; }
 }
 
 /* ── Mobile action dock & responsive behaviour (≤640px) ── */
@@ -1591,6 +1601,7 @@ select.wd-inline {
   }
   .uj-at-dock-go:active { transform: scale(.98); }
   .uj-at-dock-go:disabled { background: #fff; border: 1px solid var(--hairline); color: var(--muted); transform: none; cursor: default; }
+  .uj-at-dock-go--punched { animation: uj-punch-pulse 1.2s cubic-bezier(.23, 1, .32, 1); }
 
   .uj-at-wrap { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .uj-at-shelf { padding: 18px; }
