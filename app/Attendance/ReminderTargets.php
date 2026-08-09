@@ -176,8 +176,9 @@ class ReminderTargets
         // ponytail: single business day only. An overnight shift (work_end < work_start)
         // puts $cutoff before $due, so this silently never fires for those staff. The whole
         // attendance subsystem shares that assumption (ClockService::isLate / isEarly /
-        // minutesBetween), so fixing it here alone would not make night shifts work —
-        // roll the day over in all of them together if night shifts ever land.
+        // minutesBetween, attendance.blade.php's lateNow() mirror), so fixing it here alone
+        // would not make night shifts work — roll the day over in all of them together if
+        // night shifts ever land.
         $cutoff = $site->workEnd !== null
             ? $now->copy()->setTimeFromTimeString($site->workEnd)
             : $due->copy()->addHours(self::FALLBACK_WINDOW_HOURS);

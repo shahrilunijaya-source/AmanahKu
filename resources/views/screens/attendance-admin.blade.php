@@ -62,6 +62,21 @@
 @endphp
 <div x-data="{ tab: (['sites','wfh','arr'].includes(localStorage.getItem('attTab')) ? localStorage.getItem('attTab') : 'sites') }" x-init="$watch('tab', v => localStorage.setItem('attTab', v))">
 
+{{-- 1. Lateness — above the tabs on purpose. This one setting governs every arrangement,
+     and it used to sit inside the Work from home card, where nobody looking for it would
+     think to open. It decides whether an office worker is stopped for a reason at 09:01. --}}
+<div class="uj-card" style="padding:18px 20px;margin:0 0 16px;">
+    <div class="uj-card-head" style="padding:0 0 10px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Lateness' : 'Kelewatan'">Lateness</h3></div>
+    <form method="post" action="{{ route('attendance.admin.wfh-policy') }}" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+        @csrf
+        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Late grace (min)' : 'Tempoh lewat (min)'">Late grace (min)</span></label><input name="late_grace_minutes" type="number" min="0" max="120" value="{{ $wfhPolicy?->late_grace_minutes }}" placeholder="15" style="{{ $fs }}width:110px;{{ $mono }}" />
+            @error('late_grace_minutes')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+        </div>
+        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
+    </form>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.' : 'Terpakai pada setiap susunan — pejabat, klien, kerja-dari-rumah dan hibrid. Staf yang clock in selepas tempoh ini mesti beri sebab sebelum rekod diterima.'">Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.</p>
+</div>
+
 {{-- ── Tab switcher (segmented control) ─────────────────────────────── --}}
 <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--canvas);border:1px solid var(--hairline);border-radius:11px;padding:4px;width:fit-content;max-width:100%;overflow-x:auto;">
     <button type="button" @click="tab='sites'" style="{{ $tabBtn }}"
@@ -188,10 +203,8 @@
             <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'End' : 'Tamat'">End</span></label><input name="wfh_work_end" type="time" value="{{ $hhmm($wfhPolicy?->wfh_work_end) }}" style="{{ $fs }}width:120px;" /></div>
             <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Min hrs' : 'Jam min'">Min hrs</span></label><input name="wfh_min_hours" type="number" step="0.5" min="0" max="24" value="{{ $wfhPolicy?->wfh_min_hours }}" style="{{ $fs }}width:90px;{{ $mono }}" /></div>
             <div><label style="{{ $lbl }}">Radius (m)</label><input name="wfh_radius_m" type="number" min="20" max="5000" value="{{ $wfhPolicy?->wfh_radius_m }}" placeholder="200" style="{{ $fs }}width:100px;{{ $mono }}" /></div>
-            <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Late grace (min)' : 'Tempoh lewat (min)'">Late grace (min)</span></label><input name="late_grace_minutes" type="number" min="0" max="120" value="{{ $wfhPolicy?->late_grace_minutes }}" placeholder="0" style="{{ $fs }}width:110px;{{ $mono }}" /></div>
             <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
         </form>
-        <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Grace period applies to every arrangement (office, client, WFH, hybrid) — not just work-from-home.' : 'Tempoh lewat terpakai pada setiap susunan (pejabat, klien, WFH, hibrid) — bukan kerja-dari-rumah sahaja.'">Grace period applies to every arrangement (office, client, WFH, hybrid) — not just work-from-home.</p>
     </div>
 
     <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Registered home addresses' : 'Alamat rumah berdaftar'">Registered home addresses</span>

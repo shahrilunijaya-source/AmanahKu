@@ -2,6 +2,7 @@
      the Home Screen from any screen, and the browser only reads these tags from the page
      it is on. On iOS this is also the only route to notifications at all: Safari shows
      them just for a web app added to the Home Screen. --}}
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#d6232b">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">

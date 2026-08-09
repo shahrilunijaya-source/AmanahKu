@@ -162,18 +162,19 @@
     </div>
 
     {{-- ═══════ Floating window: one person's tasks ═══════
-         Reuses the personal board's .wd-* slide-over shell wholesale (see
-         resources/css/app.css and board.blade.php's drawer) so it looks and
-         moves identically — 560px, 280ms cubic-bezier(.32,.72,0,1), the same
-         prefers-reduced-motion cross-fade. Every task line below is already
-         rendered server-side from $teamRows; opening a person only toggles
-         which lines are visible (resources/js/team-board.js's
+         A centered popup (.tb-win-modal), not the personal board's right-anchored
+         slide-over — wide enough to hold the same 4-column kanban side-by-side, the
+         way board.blade.php lays its own columns out. Still reuses .wd-scrim/.wd-head/
+         .wd-ico/.wd-body wholesale (those are already shell-agnostic); only the outer
+         .wd shell itself is swapped for .tb-win-modal (see resources/css/app.css).
+         Every card below is already rendered server-side from $teamRows; opening a
+         person only toggles which cards are visible (resources/js/team-board.js's
          openWindow()/applyWinFilter()) — no fetch, nothing here writes. --}}
     <template x-teleport="body">
     <div>
         <div class="wd-scrim" x-show="win.show" x-cloak :data-open="win.open ? '' : null" @click="closeWindow()"></div>
 
-        <aside class="wd" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
+        <aside class="tb-win-modal" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
                tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tb-win-name"
                @keydown.escape.window="win.show && closeWindow()" @keydown.tab="trapFocusWindow($event)">
 
@@ -218,18 +219,25 @@
                         <button type="button" class="tb-chip" @click="setWinLabelFilter('{{ $lk }}')"
                                 :style="win.labelFilter === '{{ $lk }}' ? { background: '{{ $lcolor }}', color: '#fff', borderColor: '{{ $lcolor }}' } : {}">{{ $lname }}</button>
                     @endforeach
-                    @foreach (['todo' => ['To Do', 'To Do'], 'prog' => ['In Progress', 'Sedang Jalan'], 'review' => ['In Review', 'Disemak'], 'done' => ['Done', 'Selesai']] as $sk => $sl)
-                        <button type="button" class="tb-chip" @click="toggleWinStatus('{{ $sk }}')" :data-on="win.statusFilter.includes('{{ $sk }}') ? '' : null">
-                            <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
-                        </button>
-                    @endforeach
                 </div>
 
-                <div x-ref="winTaskBody">
-                    @forelse ($teamRows as $row)
-                        @include('partials.team-board-row', ['row' => $row])
-                    @empty
-                    @endforelse
+                @php
+                    $tbWinCols = ['todo' => ['To Do', 'To Do'], 'prog' => ['In Progress', 'Sedang Jalan'], 'review' => ['In Review', 'Disemak'], 'done' => ['Done', 'Selesai']];
+                    $tbRowsByStatus = $teamRows->groupBy(fn ($row) => $row['item']->status);
+                @endphp
+                <div class="tb-win-kanban" x-ref="winTaskBody">
+                    @foreach ($tbWinCols as $sk => $sl)
+                        <div class="tb-win-col" data-status="{{ $sk }}">
+                            <div class="tb-win-col-head">
+                                <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
+                            </div>
+                            <div class="tb-win-col-cards">
+                                @foreach ($tbRowsByStatus->get($sk, collect()) as $row)
+                                    @include('partials.work-card', ['c' => $row['item'], 'compact' => true, 'owner' => ['id' => $row['owner_id']]])
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
 
                 @if ($teamRows->isNotEmpty())

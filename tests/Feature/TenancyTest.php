@@ -39,6 +39,31 @@ class TenancyTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_a_single_tenant_member_skips_the_picker(): void
+    {
+        $tenant = $this->makeTenantWithEmployees('alpha', 1);
+        $user = User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($tenant, ['role' => 'employee']);
+
+        $response = $this->actingAs($user)->get('/tenant');
+
+        $response->assertRedirect("/tenant/{$tenant->slug}");
+    }
+
+    public function test_a_multi_tenant_member_still_sees_the_picker(): void
+    {
+        $alpha = $this->makeTenantWithEmployees('alpha', 1);
+        $beta = $this->makeTenantWithEmployees('beta', 1);
+        $user = User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($alpha, ['role' => 'employee']);
+        $user->tenants()->attach($beta, ['role' => 'employee']);
+
+        $response = $this->actingAs($user)->get('/tenant');
+
+        $response->assertOk();
+        $response->assertViewIs('tenant.select');
+    }
+
     public function test_bad_credentials_are_rejected(): void
     {
         User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);

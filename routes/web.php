@@ -43,6 +43,7 @@ use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
+use App\Http\Controllers\ProjectQuickCreateController;
 use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
@@ -400,6 +401,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheet-setup/projects/{project}/subpillars', [TimesheetAdminController::class, 'storeSubPillar'])->name('timesheet.admin.subpillars.store');
         Route::post('/app/timesheet-setup/subpillars/{subPillar}', [TimesheetAdminController::class, 'updateSubPillar'])->name('timesheet.admin.subpillars.update');
         Route::post('/app/timesheet-setup/subpillars/{subPillar}/delete', [TimesheetAdminController::class, 'deleteSubPillar'])->name('timesheet.admin.subpillars.delete');
+
+        // Minimal project creation open to manager/management/hr — feeds Track's link.
+        Route::post('/app/project-quick-create', [ProjectQuickCreateController::class, 'store'])->name('project-quick-create.store');
         // Learning library / LMS
         Route::post('/app/learning/courses', [LearningController::class, 'storeCourse'])->name('learning.courses');
         Route::post('/app/learning/{course}/enroll', [LearningController::class, 'enroll'])->name('learning.enroll');

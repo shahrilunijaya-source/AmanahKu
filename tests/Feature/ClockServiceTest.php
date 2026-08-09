@@ -145,16 +145,23 @@ class ClockServiceTest extends TestCase
         $this->assertSame('ok', $inFence['status']);
     }
 
-    public function test_clock_in_after_work_start_is_marked_late(): void
+    public function test_clock_in_after_work_start_is_marked_late_and_needs_a_reason(): void
     {
         $now = Carbon::parse('2026-07-02 09:20:00');
+        $svc = $this->service($this->office());
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        // Lateness used to be recorded in silence. It now costs a reason, like every other
+        // irregular punch.
+        $this->assertSame('needs_justification', $svc->clockIn($this->employee, 3.10, 101.60, null, null, $now)['status']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
+
+        $res = $svc->clockIn($this->employee, 3.10, 101.60, 'Traffic jam on the LDP', null, $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertSame('late', $record->status);
         $this->assertContains('late', $record->flags);
+        $this->assertSame('Traffic jam on the LDP', $record->clock_in_justification);
     }
 
     public function test_clock_in_within_tenant_grace_period_is_on_time(): void
@@ -175,12 +182,70 @@ class ClockServiceTest extends TestCase
         $this->tenant->update(['late_grace_minutes' => 5]);
         $now = Carbon::parse('2026-07-02 09:06:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, 'Overslept', null, $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertSame('late', $record->status);
         $this->assertContains('late', $record->flags);
+    }
+
+    /**
+     * A punch inside the grace window is not late, so it must not be interrogated. This is
+     * the test that stops the feature from asking the whole company for a reason every day.
+     */
+    public function test_clock_in_within_the_grace_window_is_never_asked_for_a_reason(): void
+    {
+        $this->tenant->update(['late_grace_minutes' => 15]);
+        $now = Carbon::parse('2026-07-02 09:14:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $this->assertSame('on_time', $this->employee->attendanceRecords()->onDate($now)->first()->status);
+    }
+
+    /**
+     * A site with no configured start time has no bar to be late against, so the gate must
+     * stay silent rather than demand a reason nobody can give.
+     */
+    public function test_a_site_with_no_work_start_never_demands_a_late_reason(): void
+    {
+        $noHours = new SiteSpec('office', 'HQ', 3.10, 101.60, 200, null, null, null);
+        $now = Carbon::parse('2026-07-02 23:59:00');
+
+        $res = $this->service($noHours)->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+
+        $this->assertSame('ok', $res['status']);
+        $this->assertSame('on_time', $this->employee->attendanceRecords()->onDate($now)->first()->status);
+    }
+
+    /**
+     * Late and off-site at once. The fence check runs first and returns before the late
+     * gate is reached, so the employee is told about their location. This pins that
+     * ordering: it fails if the late gate is ever moved above the fence check.
+     */
+    public function test_a_late_off_site_punch_reports_the_fence_not_the_lateness(): void
+    {
+        $now = Carbon::parse('2026-07-02 09:20:00');
+
+        // ~11km away from the office pin, and 20 minutes past the 09:00 start.
+        $res = $this->service($this->office())->clockIn($this->employee, 3.20, 101.60, null, null, $now);
+
+        $this->assertSame('needs_justification', $res['status']);
+        $this->assertStringContainsString('outside', $res['message']);
+    }
+
+    /**
+     * A tenant nobody has configured must still get a usable grace. Without a column
+     * default, every new workspace starts at zero and its staff are late at 09:00:15 —
+     * which, with the late-remark gate, means a typed reason every single morning.
+     */
+    public function test_a_new_tenant_gets_the_default_grace_period(): void
+    {
+        $fresh = Tenant::create(['slug' => 'brandnew', 'name' => 'Brand New', 'initials' => 'BN']);
+
+        $this->assertSame(15, $fresh->fresh()->late_grace_minutes);
     }
 
     /**
@@ -248,12 +313,14 @@ class ClockServiceTest extends TestCase
      *
      * A justification is supplied because isEarly()/isLate() have their own separate overnight
      * wraparound bug (an 18:00 expected end still reads as "not yet reached" at 01:30 the next
-     * day) — not what this test is isolating.
+     * day) — not what this test is isolating. The clock-in also needs one: 23:00 is well past
+     * this employee's 09:00 office start, so it is genuinely late and the new late gate demands
+     * a reason before it — again, not what this test is isolating.
      */
     public function test_overnight_clock_out_finds_the_open_punch_and_computes_real_hours(): void
     {
         $svc = $this->service($this->office());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 23:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, 'Overnight on-call shift', null, Carbon::parse('2026-07-02 23:00:00'));
 
         $res = $svc->clockOut($this->employee, 3.10, 101.60, 'Overnight on-call shift', null, Carbon::parse('2026-07-03 01:30:00'));
 
@@ -268,12 +335,15 @@ class ClockServiceTest extends TestCase
      * the 22:00 start — used to compare against a start still hours in the future on the
      * clock-in's own date and read as on-time. It must anchor the start onto the previous
      * calendar day instead, so a genuinely late arrival is still flagged late.
+     *
+     * A justification is supplied because this arrival is genuinely late and the late gate
+     * now demands a reason before it — not what this test is isolating.
      */
     public function test_overnight_shift_clock_in_after_midnight_is_still_marked_late(): void
     {
         $now = Carbon::parse('2026-07-03 00:30:00'); // 2.5h after the 22:00 start, previous evening
 
-        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, 'Delayed relief handover', null, $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();

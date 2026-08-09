@@ -84,6 +84,16 @@ class AppController extends Controller
             ? Tenant::query()
             : $request->user()->tenants();
 
+        // A plain member of exactly one company skips the picker entirely — nothing to
+        // choose. Super-admins still see the full picker, since their "membership" is
+        // every tenant.
+        if (! $request->user()->isSuperAdmin()) {
+            $only = $tenants->get();
+            if ($only->count() === 1) {
+                return redirect()->route('tenant.enter', $only->first());
+            }
+        }
+
         return view('tenant.select', [
             'tenants' => $tenants
                 ->withCount([
@@ -176,6 +186,11 @@ class AppController extends Controller
         }
         // Onboarding content library is authored by the same privileged roles that run onboarding.
         if ($screen === 'onboarding-content') {
+            $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
+        }
+        // Project quick-create also covers managers (self-serve project creation
+        // feeding Track's link) — same trio as probation/onboarding-content above.
+        if ($screen === 'project-quick-create') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
 
@@ -393,6 +408,7 @@ class AppController extends Controller
             'compliance' => app(ComplianceController::class)->screenData($request, $employee),
             'timesheets' => app(TimesheetController::class)->screenData($request, $employee),
             'timesheet-setup' => app(TimesheetAdminController::class)->screenData($request),
+            'project-quick-create' => app(ProjectQuickCreateController::class)->screenData($request),
             'timesheet-reports' => app(TimesheetController::class)->reportData($request, $employee),
             'learning' => app(LearningController::class)->screenData($request, $employee),
             'skills' => app(SkillController::class)->screenData($request, $employee),

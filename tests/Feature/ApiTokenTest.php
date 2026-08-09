@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\PersonalAccessToken;
+use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -215,6 +216,36 @@ class ApiTokenTest extends TestCase
         $leave = $this->getJson('/api/v1/leave-requests', $this->bearer($this->hrA, $this->tenantA));
         $leave->assertOk();
         $this->assertContains('Other Omar', collect($leave->json('data'))->pluck('employee')->all());
+    }
+
+    public function test_any_valid_token_lists_tenant_active_projects(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $active = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'KPT', 'name' => 'KPT: RMS', 'is_active' => true]);
+        $inactive = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'OLD', 'name' => 'Retired Project', 'is_active' => false]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->getJson('/api/v1/projects', $this->bearer($this->staffA, $this->tenantA));
+
+        $response->assertOk()->assertJsonPath('error', null);
+        $ids = collect($response->json('data'))->pluck('id');
+        $this->assertTrue($ids->contains($active->id));
+        $this->assertFalse($ids->contains($inactive->id));
+    }
+
+    public function test_projects_endpoint_is_tenant_isolated(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'A1', 'name' => 'Tenant A Project', 'is_active' => true]);
+        app(CurrentTenant::class)->set($this->tenantB);
+        Project::create(['tenant_id' => $this->tenantB->id, 'code' => 'B1', 'name' => 'Tenant B Project', 'is_active' => true]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->getJson('/api/v1/projects', $this->bearer($this->hrA, $this->tenantA));
+
+        $names = collect($response->json('data'))->pluck('name');
+        $this->assertTrue($names->contains('Tenant A Project'));
+        $this->assertFalse($names->contains('Tenant B Project'));
     }
 
     public function test_command_mints_a_working_tenant_bound_token(): void

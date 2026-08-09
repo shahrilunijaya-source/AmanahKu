@@ -110,8 +110,14 @@
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
               radius: {{ $site?->radiusM ?? 0 }},
+              expectedStart: '{{ $site?->workStart ?? '' }}',
+              graceMin: {{ $lateGraceMinutes ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
+              // One-shot: true only on the reload right after a successful punch, driving the
+              // pulse on the status card / dock button. Cleared in init() so it never re-fires
+              // on a later plain refresh.
+              justPunched: {{ session('clock_ok') ? 'true' : 'false' }},
               geoError: '',
               geoShort: '',
               geoDetail: '',
@@ -125,6 +131,9 @@
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
               init() {
+                  if (this.justPunched) {
+                      setTimeout(() => { this.justPunched = false; }, 1800);
+                  }
                   this.tick();
                   setInterval(() => this.tick(), 1000);
                   if (!window.isSecureContext) {
@@ -249,6 +258,17 @@
                   }
                   return best;
               },
+              // Mirror of ClockService::isLate for the single-day case (an overnight shift,
+              // work_end before work_start, is not covered — see ReminderTargets ponytail
+              // note), close enough to save the employee a failed submit. The server gate is
+              // still the authority: it compares to the second, and a device with a wrong
+              // clock is caught there.
+              lateNow() {
+                  if (!this.expectedStart) return false;
+                  const p = this.expectedStart.split(':');
+                  const now = new Date();
+                  return (now.getHours()*60 + now.getMinutes()) >= (Number(p[0])*60 + Number(p[1]) + this.graceMin);
+              },
               earlyNow() {
                   if (!this.expectedEnd) return false;
                   const p = this.expectedEnd.split(':');
@@ -268,6 +288,7 @@
                   const needPhoto = offSite || noFix;
                   let need = needPhoto;
                   if (this.action === 'out' && this.earlyNow()) need = true;
+                  if (this.action === 'in' && this.lateNow()) need = true;
                   // Both gates open the same sheet, once. They used to fire one at a time —
                   // back for a reason, tap, back for a selfie, tap — so a punch that needed
                   // both cost three taps and read as if it had failed twice.
@@ -623,7 +644,7 @@
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
-                <div class="uj-at-figrow">
+                <div class="uj-at-figrow" :class="{ 'uj-at-figrow--punched': justPunched }">
                     @if ($co)
                         <div class="uj-at-fig">{{ $todayWorkedStr }}</div>
                         <div class="uj-at-figsub">
@@ -702,7 +723,9 @@
                               ? ($store.ui.lang==='en' ? 'Reason required — you appear to be outside the expected location' : 'Sebab diperlukan — anda kelihatan di luar lokasi yang dijangka')
                               : ((action === 'out' && earlyNow())
                                   ? ($store.ui.lang==='en' ? 'Reason required — you are clocking out before your shift ends' : 'Sebab diperlukan — anda clock out sebelum shift tamat')
-                                  : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah'))">Reason required — see details below</span>
+                                  : ((action === 'in' && lateNow())
+                                      ? ($store.ui.lang==='en' ? 'Reason required — you are clocking in after your shift started' : 'Sebab diperlukan — anda clock in selepas shift bermula')
+                                      : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah')))">Reason required — see details below</span>
                 </label>
                 <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
                           :placeholder="isReq
@@ -824,7 +847,7 @@
 
         {{-- Mobile action dock --}}
         <div class="uj-at-dock">
-            <button type="submit" class="uj-at-dock-go" @if ($co) disabled @else :disabled="submitting" @endif>
+            <button type="submit" class="uj-at-dock-go" :class="{ 'uj-at-dock-go--punched': justPunched }" @if ($co) disabled @else :disabled="submitting" @endif>
                 @if ($co)
                     <span x-text="$store.ui.lang==='en' ? 'Shift complete ✓' : 'Shift selesai ✓'">Shift complete ✓</span>
                 @else

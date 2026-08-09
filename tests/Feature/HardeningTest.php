@@ -92,8 +92,11 @@ class HardeningTest extends TestCase
         ])->assertRedirect('/tenant');
 
         $this->assertFalse($user->fresh()->password_change_required);
-        // Now the app is reachable again.
-        $this->actingAs($user->fresh())->get('/tenant')->assertOk();
+        // Now the app is reachable again: the rotation gate lets them through to
+        // /tenant, which then redirects straight into their one workspace (a plain
+        // member of exactly one tenant skips the picker by design, see AppController).
+        $this->actingAs($user->fresh())->get('/tenant')
+            ->assertRedirect(route('tenant.enter', $this->tenant));
     }
 
     public function test_wrong_temporary_password_is_rejected(): void
@@ -109,11 +112,15 @@ class HardeningTest extends TestCase
         $this->assertTrue($user->fresh()->password_change_required);
     }
 
-    public function test_unflagged_user_is_not_redirected(): void
+    public function test_unflagged_user_is_not_held_at_the_password_change_screen(): void
     {
         $user = $this->member(mustChange: false);
 
-        $this->actingAs($user)->get('/tenant')->assertOk();
+        // A plain member of exactly one tenant skips the picker by design (see
+        // AppController::tenantSelect), so the proof of "not held" is landing in
+        // that workspace, not a bare 200 at /tenant.
+        $this->actingAs($user)->get('/tenant')
+            ->assertRedirect(route('tenant.enter', $this->tenant));
     }
 
     public function test_member_invite_sets_the_rotation_flag(): void

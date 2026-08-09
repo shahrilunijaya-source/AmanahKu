@@ -123,9 +123,9 @@ class AttendanceAdminController extends Controller
      * tenant. Every WFH / hybrid home day follows these hours (see ScheduleResolver::homeSite),
      * independent of any branch — so deleting a branch never changes WFH hours.
      *
-     * late_grace_minutes rides along here too: it is not WFH-specific, but this is the one
-     * company-wide attendance policy endpoint, and ClockService::isLate() reads it for every
-     * arrangement (office, client, WFH, hybrid alike).
+     * late_grace_minutes posts separately here too: it is not WFH-specific, but this is the
+     * one company-wide attendance policy endpoint, and ClockService::isLate() reads it for
+     * every arrangement (office, client, WFH, hybrid alike).
      */
     public function updateWfhPolicy(Request $request): RedirectResponse
     {
@@ -136,7 +136,11 @@ class AttendanceAdminController extends Controller
             'wfh_work_end' => ['nullable', 'date_format:H:i'],
             'wfh_min_hours' => ['nullable', 'numeric', 'between:0,24'],
             'wfh_radius_m' => ['nullable', 'integer', 'between:20,5000'],
-            'late_grace_minutes' => ['nullable', 'integer', 'between:0,120'],
+            // sometimes: the WFH-hours form posts to this same endpoint and omits this key
+            // entirely. required: a cleared box still posts the key as '', which
+            // ConvertEmptyStringsToNull turns into null — reject that instead of zeroing the
+            // company's grace. A deliberate 0 still passes required (only null/''/[] fail it).
+            'late_grace_minutes' => ['sometimes', 'required', 'integer', 'between:0,120'],
         ]);
 
         $tenant = app(CurrentTenant::class)->get();

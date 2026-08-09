@@ -121,11 +121,31 @@ class TeamBoardScreenTest extends TestCase
         $html = $response->getContent();
 
         foreach ($teamRows as $row) {
-            $this->assertStringContainsString('data-card-id="'.$row['item']->id.'"', $html);
+            $this->assertStringContainsString('data-id="'.$row['item']->id.'"', $html);
+            $this->assertStringContainsString('data-owner-id="'.$row['owner_id'].'"', $html);
         }
 
-        // Exactly one task line per teamRows entry.
-        $this->assertSame($teamRows->count(), substr_count($html, 'data-card-id="'));
+        // Exactly one card per teamRows entry.
+        $this->assertSame($teamRows->count(), substr_count($html, 'data-owner-id="'));
+    }
+
+    /**
+     * Grouping happens by status — a card assigned to the "review" column
+     * must not also render (or get miscounted) under another column.
+     */
+    public function test_window_groups_cards_by_status(): void
+    {
+        $alice = $this->makeEmployee('Alice');
+        $reviewCard = $this->makeCard($alice, ['title' => 'In review card', 'status' => 'review']);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $this->assertMatchesRegularExpression(
+            '/data-id="'.$reviewCard->id.'"\s+data-status="review"/',
+            $html
+        );
     }
 
     public function test_guide_copy_no_longer_mentions_lanes(): void
