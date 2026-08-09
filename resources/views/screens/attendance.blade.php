@@ -114,6 +114,10 @@
               graceMin: {{ $lateGraceMinutes ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
+              // One-shot: true only on the reload right after a successful punch, driving the
+              // pulse on the status card / dock button. Cleared in init() so it never re-fires
+              // on a later plain refresh.
+              justPunched: {{ session('clock_ok') ? 'true' : 'false' }},
               geoError: '',
               geoShort: '',
               geoDetail: '',
@@ -127,6 +131,9 @@
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
               init() {
+                  if (this.justPunched) {
+                      setTimeout(() => { this.justPunched = false; }, 1800);
+                  }
                   this.tick();
                   setInterval(() => this.tick(), 1000);
                   if (!window.isSecureContext) {
@@ -637,7 +644,7 @@
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
-                <div class="uj-at-figrow">
+                <div class="uj-at-figrow" :class="{ 'uj-at-figrow--punched': justPunched }">
                     @if ($co)
                         <div class="uj-at-fig">{{ $todayWorkedStr }}</div>
                         <div class="uj-at-figsub">
@@ -840,7 +847,7 @@
 
         {{-- Mobile action dock --}}
         <div class="uj-at-dock">
-            <button type="submit" class="uj-at-dock-go" @if ($co) disabled @else :disabled="submitting" @endif>
+            <button type="submit" class="uj-at-dock-go" :class="{ 'uj-at-dock-go--punched': justPunched }" @if ($co) disabled @else :disabled="submitting" @endif>
                 @if ($co)
                     <span x-text="$store.ui.lang==='en' ? 'Shift complete ✓' : 'Shift selesai ✓'">Shift complete ✓</span>
                 @else

@@ -452,4 +452,22 @@ class AttendanceScreenTest extends TestCase
         $response->assertSee('uj-at-status" data-tone="amber"', false);
         $response->assertDontSee('uj-at-status" data-tone="red"', false);
     }
+
+    public function test_status_card_carries_the_punched_flag_right_after_a_successful_punch(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id, 'clock_ok' => 'Clocked in at 09:02.'])
+            ->get('/app/attendance');
+
+        $response->assertSee('justPunched: true', false);
+    }
+
+    public function test_status_card_does_not_carry_the_punched_flag_on_a_plain_visit(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertSee('justPunched: false', false);
+    }
 }
