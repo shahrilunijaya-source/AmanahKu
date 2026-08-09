@@ -20,4 +20,5 @@ Route::middleware(['auth:sanctum', 'api.tenant'])
         Route::get('/employees', [ApiController::class, 'employees']);
         Route::get('/leave-requests', [ApiController::class, 'leaveRequests']);
         Route::get('/payslips', [ApiController::class, 'payslips']);
+        Route::get('/projects', [ApiController::class, 'projects']);
     });

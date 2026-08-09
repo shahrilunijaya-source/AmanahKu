@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Payslip;
+use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -109,6 +110,22 @@ class ApiController extends Controller
             ]);
 
         return $this->ok($rows);
+    }
+
+    /** GET /api/v1/projects — any valid tenant token; the tenant's active projects. */
+    public function projects(Request $request): JsonResponse
+    {
+        $projects = Project::where('is_active', true)
+            ->orderBy('sort')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Project $p) => [
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+            ]);
+
+        return $this->ok($projects);
     }
 
     private function isPrivileged(Request $request): bool
