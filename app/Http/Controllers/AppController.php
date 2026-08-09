@@ -188,6 +188,11 @@ class AppController extends Controller
         if ($screen === 'onboarding-content') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
+        // Project quick-create also covers managers (self-serve project creation
+        // feeding Track's link) — same trio as probation/onboarding-content above.
+        if ($screen === 'project-quick-create') {
+            $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
+        }
 
         // Feature gate: a screen whose gating module is disabled for this tenant reads
         // as absent (404), so a switched-off module looks like it was never installed.
@@ -403,6 +408,7 @@ class AppController extends Controller
             'compliance' => app(ComplianceController::class)->screenData($request, $employee),
             'timesheets' => app(TimesheetController::class)->screenData($request, $employee),
             'timesheet-setup' => app(TimesheetAdminController::class)->screenData($request),
+            'project-quick-create' => app(ProjectQuickCreateController::class)->screenData($request),
             'timesheet-reports' => app(TimesheetController::class)->reportData($request, $employee),
             'learning' => app(LearningController::class)->screenData($request, $employee),
             'skills' => app(SkillController::class)->screenData($request, $employee),
