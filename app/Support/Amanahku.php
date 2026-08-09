@@ -92,6 +92,10 @@ class Amanahku
             // `claim-approvals` slug still resolves to that screen for old deep links.
             $s('My Team', 'Pasukan Saya', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
+            // Minimal Create Project screen (ProjectQuickCreateController) — server-gated to
+            // manager/management/hr there; no 'roles' key needed here since My Team is already
+            // hidden wholesale from employees above, the same set the controller enforces.
+            $s('My Team', 'Pasukan Saya', ['id' => 'project-quick-create', 'label' => 'New Project', 'label_ms' => 'Projek Baharu', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v8M8 12h8']),
             $s('My Team', 'Pasukan Saya', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
                 ['id' => 'kpi', 'label' => 'KPI', 'label_ms' => 'KPI'],
                 ['id' => 'achievements', 'label' => 'Achievements', 'label_ms' => 'Pencapaian'],

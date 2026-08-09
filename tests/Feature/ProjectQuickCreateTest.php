@@ -46,6 +46,28 @@ class ProjectQuickCreateTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_manager_sees_the_new_project_nav_link(): void
+    {
+        [$tenant, $user] = $this->tenantWithRole('manager');
+
+        $this->actingAs($user)
+            ->withSession(['current_tenant' => $tenant->id])
+            ->get(route('app.screen', 'dash'))
+            ->assertOk()
+            ->assertSee(route('app.screen', ['screen' => 'project-quick-create']));
+    }
+
+    public function test_employee_does_not_see_the_new_project_nav_link(): void
+    {
+        [$tenant, $user] = $this->tenantWithRole('employee');
+
+        $this->actingAs($user)
+            ->withSession(['current_tenant' => $tenant->id])
+            ->get(route('app.screen', 'dash'))
+            ->assertOk()
+            ->assertDontSee(route('app.screen', ['screen' => 'project-quick-create']));
+    }
+
     public function test_name_is_required(): void
     {
         [$tenant, $user] = $this->tenantWithRole('hr');
