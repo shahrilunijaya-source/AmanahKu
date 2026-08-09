@@ -20,7 +20,7 @@
     $priorities = \App\Http\Controllers\HelpdeskController::PRIORITIES;
 @endphp
 @if ($helpdeskEnabled ?? true)
-<div x-data="{ show: {{ $ticketHasError ? 'true' : 'false' }}, category: '{{ old('category', 'IT') }}' }"
+<div id="ticket-raise-modal" x-data="{ show: {{ $ticketHasError ? 'true' : 'false' }}, category: '{{ old('category', 'IT') }}' }"
      x-show="show" x-cloak
      @ticket-raise-open.window="show = true; category = $event.detail?.category || 'IT'; $nextTick(() => { document.getElementById('tr-page-url').value = window.location.href; $refs.subject?.focus(); })"
      @keydown.escape.window="show = false"

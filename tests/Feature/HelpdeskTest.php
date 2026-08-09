@@ -828,8 +828,7 @@ class HelpdeskTest extends TestCase
         // Confirms the empty payload really did fail Document Vault's own validation —
         // this is a genuine unrelated-form failure, not a vacuous request.
         $this->assertSame(0, EmployeeDocument::count());
-        $response->assertSee('show: false', false);
-        $response->assertDontSee('show: true', false);
+        $this->assertSame('false', $this->ticketRaiseModalShowValue($response->getContent()));
     }
 
     public function test_own_failed_submit_still_reopens_the_ticket_raise_modal(): void
@@ -842,7 +841,7 @@ class HelpdeskTest extends TestCase
         $response->assertOk();
         // Confirms validation genuinely failed (subject/priority/description missing).
         $this->assertSame(0, Ticket::withoutGlobalScopes()->count());
-        $response->assertSee('show: true', false);
+        $this->assertSame('true', $this->ticketRaiseModalShowValue($response->getContent()));
     }
 
     // ── Module gating (final-review finding 2) ───────────────────────
@@ -867,5 +866,18 @@ class HelpdeskTest extends TestCase
         $response->assertOk();
         $response->assertSee('Raise a ticket');
         $response->assertSee('tr-page-url', false);
+    }
+
+    /**
+     * Reads the ticket-raise modal's own Alpine "show" value out of the response body.
+     * A bare assertSee/assertDontSee('show: true') collides with unrelated x-data="{
+     * show: true }" blocks elsewhere on the page (e.g. the overdue-timesheet banner in
+     * layouts/app.blade.php), so this scopes the check to id="ticket-raise-modal".
+     */
+    private function ticketRaiseModalShowValue(string $html): ?string
+    {
+        preg_match('/id="ticket-raise-modal"[^>]*x-data="\{ show: (true|false)/', $html, $matches);
+
+        return $matches[1] ?? null;
     }
 }
