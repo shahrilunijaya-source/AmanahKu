@@ -23,6 +23,23 @@ class SentryWiringTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Production only, both SDKs. Anything else — local, testing, staging — resolves to a
+     * null DSN, and a null DSN makes each SDK inert rather than merely quiet: nothing is
+     * queued and no request is attempted. Asserted rather than trusted because the gate is
+     * an easy thing to lose in a merge, and losing it is silent: faults from a developer's
+     * machine would simply start appearing in the project alongside the real ones.
+     *
+     * This runs under APP_ENV=testing, so it exercises the closed branch. The open branch is
+     * proven on production itself, by /admin/errors/self-test.
+     */
+    public function test_no_dsn_resolves_outside_production(): void
+    {
+        $this->assertNotSame('production', config('app.env'));
+        $this->assertNull(config('sentry.dsn'));
+        $this->assertNull(config('services.sentry.browser_dsn'));
+    }
+
     public function test_request_bodies_are_never_sent(): void
     {
         $this->assertSame('none', config('sentry.max_request_body_size'));

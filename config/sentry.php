@@ -8,7 +8,14 @@
 return [
 
     // @see https://docs.sentry.io/concepts/key-terms/dsn-explainer/
-    'dsn' => env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')),
+    //
+    // Production only. A blank DSN makes the SDK inert, so gating here switches reporting
+    // off wholesale rather than filtering it later — nothing is queued, nothing is sent.
+    // The gate lives in config rather than at the call site on purpose: a DSN pasted into a
+    // development or staging .env then does nothing, instead of quietly filling the project
+    // with faults from a machine nobody is supporting. Local faults already have a better
+    // home in /admin/errors, which needs no third party.
+    'dsn' => env('APP_ENV') === 'production' ? env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')) : null,
 
     // The browser SDK's key is NOT here — this array is passed to the PHP client verbatim,
     // so an unknown key makes it log "Option ... does not exist" on every init. It lives at

@@ -91,7 +91,10 @@ return [
     | events to one project and grants nothing else.
     */
     'sentry' => [
-        'browser_dsn' => env('SENTRY_BROWSER_DSN'),
+        // Production only, matching config/sentry.php. Null renders an empty meta tag and
+        // resources/js/sentry.js then initialises nothing at all, so a development page
+        // carries no reporting and attempts no request.
+        'browser_dsn' => env('APP_ENV') === 'production' ? env('SENTRY_BROWSER_DSN') : null,
     ],
 
 ];
