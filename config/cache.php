@@ -19,6 +19,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limiter Store
+    |--------------------------------------------------------------------------
+    |
+    | RateLimiter::hit() runs on every throttled request. Left on the default
+    | store, that's the "database" store's `cache` table taking a write lock
+    | per hit — under concurrent hits on the same limiter key (e.g. several
+    | tabs polling the same endpoint) that deadlocked in production
+    | (SQLSTATE[40001] 1213, 2026-08-10). "file" writes to local disk instead,
+    | so the limiter no longer competes with real app writes for a DB lock.
+    | No Redis on this host, so this is the fix until that changes.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER', 'file'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |
