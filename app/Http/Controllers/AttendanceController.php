@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Attendance\ClockService;
+use App\Models\AttendanceAttempt;
 use App\Models\AttendanceRecord;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
@@ -29,19 +31,26 @@ class AttendanceController extends Controller
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
-        $validated = $request->validate([
-            'action' => ['required', 'in:in,out'],
-            // GPS is expected but not mandatory. Devices that cannot produce a fix at all
-            // (a desk machine with no GPS chip and no usable network lookup) would otherwise
-            // be locked out of clocking for good. ClockService charges a coordinate-less
-            // punch a reason, a selfie and a permanent no_location flag instead, which keeps
-            // the day on the record rather than pushing it into a hand-keyed entry that
-            // carries no evidence at all.
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
-            'justification' => ['nullable', 'string', 'max:500'],
-        ]);
+        // Caught only to leave a trace, then rethrown untouched so the normal redirect and
+        // error bag still reach the screen. Without this, the single most likely cause of
+        // "I cannot clock in on my phone" — a camera selfie larger than the 4MB rule, or
+        // larger than whatever PHP's own upload limit is on the host — produced no record
+        // anywhere: a validation failure is an ordinary 302, so it reaches neither the
+        // fault table nor any log line.
+        try {
+            $validated = $this->validateClock($request);
+        } catch (ValidationException $e) {
+            AttendanceAttempt::record(
+                $employee,
+                is_string($action = $request->input('action')) ? $action : null,
+                'invalid',
+                collect($e->errors())->flatten()->first(),
+                $request->filled('latitude') && $request->filled('longitude'),
+                $request->file('photo'),
+            );
+
+            throw $e;
+        }
 
         $lat = isset($validated['latitude']) ? (float) $validated['latitude'] : null;
         $lng = isset($validated['longitude']) ? (float) $validated['longitude'] : null;
@@ -69,6 +78,18 @@ class AttendanceController extends Controller
             Storage::disk(self::PHOTO_DISK)->delete($photoPath);
         }
 
+        // Every outcome, not only the refusals: a run of successful desktop punches next to
+        // a run of refused phone punches is the comparison that names the cause, and it only
+        // exists if the successes are recorded too. Two rows per employee per day.
+        AttendanceAttempt::record(
+            $employee,
+            $validated['action'],
+            $result['status'],
+            $result['message'],
+            $lat !== null && $lng !== null,
+            $request->file('photo'),
+        );
+
         // Understood and declined — a second clock-in on a day already punched. Not a
         // success: a green tick here reads as "punched again", which is the one thing it
         // did not do, and staff then believe they clocked twice.
@@ -94,6 +115,28 @@ class AttendanceController extends Controller
         }
 
         return back()->with('clock_ok', $result['message']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    private function validateClock(Request $request): array
+    {
+        return $request->validate([
+            'action' => ['required', 'in:in,out'],
+            // GPS is expected but not mandatory. Devices that cannot produce a fix at all
+            // (a desk machine with no GPS chip and no usable network lookup) would otherwise
+            // be locked out of clocking for good. ClockService charges a coordinate-less
+            // punch a reason, a selfie and a permanent no_location flag instead, which keeps
+            // the day on the record rather than pushing it into a hand-keyed entry that
+            // carries no evidence at all.
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
+            'justification' => ['nullable', 'string', 'max:500'],
+        ]);
     }
 
     /**

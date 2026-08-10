@@ -19,7 +19,10 @@
             <div style="width:30px;height:30px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">A</div>
             <span style="font-weight:600;font-size:18px;color:var(--ink);letter-spacing:-0.2px;">Amanah<span style="color:var(--red);">ku</span></span>
             <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);background:var(--hairline-soft);padding:4px 9px;border-radius:9999px;margin-left:4px;">Super Admin</span>
-            <a href="{{ route('superadmin.companies.index') }}" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--hairline);padding:8px 14px;border-radius:8px;">Companies</a>
+            {{-- A refused punch never reaches this table, so the link out matters: half the
+                 answer to "why can nobody clock in" lives on the other screen. --}}
+            <a href="{{ route('superadmin.attendance-attempts.index') }}" style="margin-left:auto;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--hairline);padding:8px 14px;border-radius:8px;">Clock attempts</a>
+            <a href="{{ route('superadmin.companies.index') }}" style="font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--hairline);padding:8px 14px;border-radius:8px;">Companies</a>
         </div>
 
         <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;">

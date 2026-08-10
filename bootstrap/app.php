@@ -13,6 +13,7 @@ use App\Http\Middleware\ForcePasswordChange;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Models\AttendanceAttempt;
 use App\Models\ErrorEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -72,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())
             ->dailyAt('03:00')->name('error-events:prune')->withoutOverlapping();
+        // Same reasoning for recorded punch attempts, and the same window: two rows per
+        // employee per day is small, but it is a diagnostic trail, not a record to keep.
+        // The attendance record itself is the lasting one.
+        $schedule->call(fn () => AttendanceAttempt::where('created_at', '<', now()->subDays(30))->delete())
+            ->dailyAt('03:05')->name('attendance-attempts:prune')->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         // Behind a TLS-terminating proxy (Nginx/ALB) the app only sees HTTP unless it
@@ -118,6 +125,22 @@ return Application::configure(basePath: dirname(__DIR__))
         // loud. Browsers get it from errors/500.blade.php; the header and the JSON key
         // carry it to fetch callers and to the API.
         $exceptions->respond(function (Response $response, Throwable $e, Request $request): Response {
+            // Punches refused before they ever reach the controller: a body over PHP's
+            // post_max_size (413), a stale token (419), the route's own rate limit (429).
+            // None of these are reportable, so report() above never fires for them and the
+            // punch failed leaving no trace at all. stopIgnoring() cannot reach them —
+            // it drops exact class names, and PostTooLargeException still matches the
+            // HttpException entry that stays in the list.
+            //
+            // Path, not routeIs(): ValidatePostSize throws before routing resolves.
+            // ValidationException is excluded because the controller already records those
+            // in attendance_attempts, with the employee and payload attached.
+            if ($request->is('app/attendance/clock')
+                && ! $e instanceof ValidationException
+                && ErrorEvent::currentReference() === null) {
+                ErrorEvent::capture($e);
+            }
+
             $reference = ErrorEvent::currentReference();
 
             if ($reference === null) {

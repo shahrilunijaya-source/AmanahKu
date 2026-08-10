@@ -54,6 +54,8 @@ class ErrorEvent extends Model
                 'url' => mb_substr(Request::fullUrl(), 0, 255),
                 'method' => Request::method(),
                 'ip' => Request::ip(),
+                // A fault only some people hit is usually a fault only some devices hit.
+                'user_agent' => mb_substr((string) Request::userAgent(), 0, 512),
                 'user_id' => Auth::id(),
                 'tenant_id' => app(CurrentTenant::class)->id(),
                 'created_at' => now(),
