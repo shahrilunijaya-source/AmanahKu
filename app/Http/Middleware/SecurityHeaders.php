@@ -53,7 +53,13 @@ class SecurityHeaders
             "font-src 'self'",
             // The map picker's address search calls Nominatim over fetch/XHR,
             // so connect-src must allow the geocoder host.
-            "connect-src 'self' https://nominatim.openstreetmap.org",
+            //
+            // Sentry's browser SDK posts events to the project's ingest host, which is a
+            // per-organisation subdomain and differs by region — hence the wildcards rather
+            // than one literal host. Without this the SDK is silently dead: the CSP blocks
+            // every send, the console shows a violation nobody is reading, and the dashboard
+            // simply stays empty, which reads as "no errors" instead of "no delivery".
+            "connect-src 'self' https://nominatim.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://*.ingest.us.sentry.io",
             'frame-ancestors '.($embed ? "'self'" : "'none'"),
             "base-uri 'self'",
             "form-action 'self'",

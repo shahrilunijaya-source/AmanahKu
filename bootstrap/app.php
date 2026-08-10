@@ -22,6 +22,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Sentry\Laravel\Integration;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -120,6 +121,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->report(function (Throwable $e): void {
             ErrorEvent::capture($e);
         });
+
+        // Sentry rides alongside the table above rather than replacing it. It reaches the
+        // same reportable exceptions and no more — it hooks this same chain, so the punches
+        // refused at 413/419/429 stay invisible to it and the respond() hook below is still
+        // what catches those. What Sentry adds is the half no server can see: the browser
+        // SDK in resources/js/sentry.js reports faults that never became a request.
+        //
+        // A no-op until SENTRY_LARAVEL_DSN is set, so this is safe on a host that has no DSN.
+        Integration::handles($exceptions);
 
         // The reference is only useful if the person who hit the fault can read it out
         // loud. Browsers get it from errors/500.blade.php; the header and the JSON key
