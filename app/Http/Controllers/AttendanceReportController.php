@@ -124,7 +124,8 @@ class AttendanceReportController extends Controller
         }
 
         // Build roster rows
-        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets) {
+        $todayStr = $end->toDateString();
+        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets, $todayStr) {
             $strip = '';
             foreach ($days as $dateStr) {
                 $r = $recordsMap[$emp->id][$dateStr] ?? null;
@@ -144,7 +145,9 @@ class AttendanceReportController extends Controller
                             }
                         }
                     }
-                    $strip .= $isCoveredByLeave ? 'v' : '-';
+                    // 'a' (absent, red) for a past day with no punch; 'p' (pending, grey) only
+                    // for today, so a not-yet-clocked-in employee isn't flagged red mid-morning.
+                    $strip .= $isCoveredByLeave ? 'v' : ($dateStr === $todayStr ? 'p' : 'a');
                 }
             }
 
@@ -162,7 +165,7 @@ class AttendanceReportController extends Controller
             $daysCount = count($days);
             for ($i = $daysCount - 1; $i >= 0; $i--) {
                 $c = $strip[$i];
-                if ($c !== '-' && $c !== 'v') {
+                if ($c !== 'a' && $c !== 'p' && $c !== 'v') {
                     $lastSeen = $days[$i];
                     $gapDays = ($daysCount - 1) - $i;
                     break;
@@ -170,11 +173,12 @@ class AttendanceReportController extends Controller
             }
 
             $never = ($clocked === 0 && $leaveDays === 0);
-            $stopped = ($clocked > 0 && preg_match('/-{5,}$/', $strip) === 1);
+            $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
 
             // Fold daily strip into weekly cells for quarter period
             if ($period === 'quarter') {
+                $todayIndex = $daysCount - 1;
                 $displayStrip = '';
                 foreach ($weekBuckets as $dayIndices) {
                     $wOnTime = 0;
@@ -200,7 +204,9 @@ class AttendanceReportController extends Controller
                     } elseif ($wLeave > 0) {
                         $displayStrip .= 'v';
                     } else {
-                        $displayStrip .= '-';
+                        // This week's bucket includes today and nobody in it has clocked yet →
+                        // pending (grey), not absent (red); every other empty week is past due.
+                        $displayStrip .= in_array($todayIndex, $dayIndices, true) ? 'p' : 'a';
                     }
                 }
                 $rowStrip = $displayStrip;
