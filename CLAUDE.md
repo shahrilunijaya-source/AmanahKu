@@ -26,22 +26,11 @@ lerd service start mysql      # start a stopped service
 
 ### Dev quick-login (one-click, local only)
 
-Debug behind auth without typing passwords. Browser (including Claude's browser pane) signs in as any seeded role by **navigating to one URL** — no form, no password:
+`resources/views/auth/login.blade.php` renders quick-login buttons when `app()->isLocal()`, tracked in git (not gitignored). Each button fills the normal login form and submits with password `password` — no `/dev/login` route, no gitignored route file (removed, was redundant with this).
 
-```
-http://localhost:9100/dev/login?email=<account>[&tenant=<slug>]
-```
-
-- `GET /dev/login` (route name `dev.login`) calls `Auth::login` by email, then redirects: super-admin → provisioning console, `tenant=<slug>` you belong to → that workspace dashboard, else → workspace picker.
-- **Local only.** `require`d from `routes/web.php` only when `APP_ENV=local`, and the route itself `abort_unless(app()->environment('local'), 404)`. Inert on staging/prod.
-- Seeded accounts (all password `password`, route needs none): `superadmin@amanahku.com` (super-admin), `hr@amanahku.test`, `manager@amanahku.test`, `management@amanahku.test`, `employee@amanahku.test`. Usual `tenant` slug is `unijaya`.
-- Reporting line seeded employee → manager → management = the two-step approval chain: **manager** (`manager@`) *verifies* a request, then **management** (`management@`, the only account in `Permissions::MANAGEMENT_TIER`) gives *final approval*. Use these three to drive a claim/leave/overtime request through submit → verify → approve. No other dev account can approve (hr/employee lack the management-tier role).
-- `routes/dev-login.php`, `dev-login.html`, and `database/seeders/DevLoginSeeder.php` are **gitignored** (never committed). Missing on a fresh machine: `lerd artisan db:seed --class=DevLoginSeeder`.
-
-Example — log in as HR onto the unijaya workspace:
-```
-http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
-```
+- Buttons: `hr@amanahku.test` (HR), `manager@amanahku.test` (Manager), `management@amanahku.test` (Management), `employee@amanahku.test` (Employee), `superadmin@amanahku.com` (Super Admin).
+- Reporting line seeded employee → manager → management = the two-step approval chain: **manager** *verifies* a request, then **management** (the only account in `Permissions::MANAGEMENT_TIER`) gives *final approval*. Use these three to drive a claim/leave/overtime request through submit → verify → approve. No other dev account can approve (hr/employee lack the management-tier role).
+- Accounts are seeded by `database/seeders/DevLoginSeeder.php`, which is **gitignored** (never committed). Missing on a fresh machine: `lerd artisan db:seed --class=DevLoginSeeder`.
 
 ### Git worktrees (Claude-created branches included)
 
@@ -49,14 +38,12 @@ http://localhost:9100/dev/login?email=hr@amanahku.test&tenant=unijaya
 
 Each worktree gets its own vhost at `worktree-<branch>.amanahku.localhost` (branch name slugified), with `vendor/` seeded and `.env` synced automatically — takes a few seconds after the worktree is created. Reachable directly, no numeric port needed (`.localhost` resolves natively). Check `~/.local/share/lerd/nginx/conf.d/` if a worktree isn't resolving yet.
 
-Two things don't carry over automatically and need a manual copy from the main checkout before dev-login works in a worktree:
+`database/seeders/DevLoginSeeder.php` doesn't carry over automatically and needs a manual copy from the main checkout before dev-login accounts exist in a worktree:
 ```fish
 set wt .claude/worktrees/<name>
-cp routes/dev-login.php $wt/routes/dev-login.php
-cp dev-login.html $wt/dev-login.html
 cp database/seeders/DevLoginSeeder.php $wt/database/seeders/DevLoginSeeder.php
 ```
-They're gitignored (never committed, see above), so `git worktree add` — by lerd or anyone — never brings them along. The worktree shares the parent's database by default, so the seeded dev accounts already exist; no need to re-run `DevLoginSeeder`.
+It's gitignored (never committed, see above), so `git worktree add` — by lerd or anyone — never brings it along. The worktree shares the parent's database by default, so the seeded dev accounts already exist; no need to re-run `DevLoginSeeder`.
 
 ## Deploy to staging
 
