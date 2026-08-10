@@ -77,7 +77,9 @@
               submitting: false,
               photoUrl: null,
               // Off-site punch was blocked for a missing selfie (client gate + server backstop).
-              photoReq: {{ $errors->has('photo') ? 'true' : 'false' }},
+              // The flash, not the error bag: a rejected photo (too large, wrong format) uses
+              // the same `photo` error key and is not a demand for one.
+              photoReq: {{ session('attendance_photo') ? 'true' : 'false' }},
               // Which reason photoReq is for — old('latitude') survives the redirect that set
               // photoReq, so an empty value means the selfie was demanded for no fix at all,
               // not for standing outside the fence.
@@ -611,17 +613,56 @@
                   c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
                   c.toBlob((blob) => {
                       if (!blob) { this.camError = 'Capture failed, try again.'; return; }
-                      const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
-                      const dt = new DataTransfer();
-                      dt.items.add(file);
-                      this.$refs.photo.files = dt.files;
-                      if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
-                      this.photoUrl = URL.createObjectURL(file);
+                      this.setPhoto(new File([blob], 'selfie.jpg', { type: 'image/jpeg' }));
                       this.photoReq = false;
                       if (after) { after(); return; }
                       this.closeCam();
                       this.resumeAfterSelfie();
                   }, 'image/jpeg', 0.9);
+              },
+              /** Put a file on the hidden form input and mirror it into the preview. */
+              setPhoto(file) {
+                  const dt = new DataTransfer();
+                  if (file) { dt.items.add(file); }
+                  this.$refs.photo.files = dt.files;
+                  if (this.photoUrl) { URL.revokeObjectURL(this.photoUrl); }
+                  this.photoUrl = file ? URL.createObjectURL(file) : null;
+              },
+              /**
+               * The fallback input hands back whatever the phone has stored: a 3-8MB camera
+               * JPEG, or an iPhone HEIC the server does not accept at all. Both refuse a punch
+               * that the in-page camera would have passed, because capture() sends a small
+               * canvas JPEG and this input sent the original file. Re-encode it through the
+               * same canvas so both paths hand the server the same kind of picture — under
+               * the 4MB rule, and under whatever PHP or the web server allow on the host,
+               * neither of which this repo sets.
+               */
+              attachFile(file) {
+                  this.camNotice = '';
+                  if (!file) { this.setPhoto(null); return; }
+                  const img = new Image();
+                  const src = URL.createObjectURL(file);
+                  img.onload = () => {
+                      URL.revokeObjectURL(src);
+                      const c = this.$refs.canvas;
+                      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+                      c.width = Math.round(img.width * scale);
+                      c.height = Math.round(img.height * scale);
+                      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                      c.toBlob((blob) => {
+                          this.usePhoto(blob ? new File([blob], 'selfie.jpg', { type: 'image/jpeg' }) : file);
+                      }, 'image/jpeg', 0.85);
+                  };
+                  // A format this browser cannot decode (HEIC anywhere but Safari) never loads.
+                  // Send the original and let the server's own rule produce the message.
+                  img.onerror = () => { URL.revokeObjectURL(src); this.usePhoto(file); };
+                  img.src = src;
+              },
+              /** Accept a chosen file and carry on with whatever punch was waiting on it. */
+              usePhoto(file) {
+                  this.setPhoto(file);
+                  this.photoReq = false;
+                  if (! this.sheetNeed) { this.resumeAfterSelfie(); }
               },
               closeCam() {
                   if (this.stream) { this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; }
@@ -640,7 +681,7 @@
              the gallery as readily as the camera. --}}
         <input type="file" id="attendance-photo" name="photo" accept="image/*" x-ref="photo"
                style="display:none;"
-               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) { photoReq = false; if (! sheetNeed) { resumeAfterSelfie(); } }" />
+               @change="attachFile($event.target.files[0])" />
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -774,11 +815,16 @@
         </div>
         @error('latitude')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
-        <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
-             x-text="photoReqNoLoc
-                 ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
-                 : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
-        @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        {{-- One line, never two. A demand for a selfie gets the bilingual instruction; a photo
+             the server refused gets the server's own words, which say what is wrong with it. --}}
+        @if (session('attendance_photo'))
+            <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
+                 x-text="photoReqNoLoc
+                     ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
+                     : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
+        @else
+            @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @endif
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 

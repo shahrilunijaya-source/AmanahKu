@@ -108,9 +108,17 @@ class AttendanceController extends Controller
 
         // Same backstop for the mandatory off-site selfie. A file input cannot be refilled
         // from old input, so the screen asks for a fresh capture.
+        //
+        // The flash, not the error bag, is what tells the screen this is a demand for a
+        // selfie rather than a complaint about the one that was sent. A file too large or
+        // in a format the server will not take lands in the same `photo` error key, and the
+        // screen used to read any entry there as "no selfie attached" — so a staff member
+        // who did attach one was told to attach one, took the same oversized photo again,
+        // and never saw the size message sitting underneath.
         if ($result['status'] === 'needs_photo') {
             return back()
                 ->withInput()
+                ->with('attendance_photo', $validated['action'])
                 ->withErrors(['photo' => $result['message']]);
         }
 

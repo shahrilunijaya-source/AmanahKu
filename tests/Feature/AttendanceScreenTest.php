@@ -193,6 +193,28 @@ class AttendanceScreenTest extends TestCase
     }
 
     /**
+     * Smoke check only, same limit as the locator test above: it proves the picked file goes
+     * through the re-encode rather than straight onto the form. The size it comes out at is
+     * browser-side and PHPUnit cannot measure it — a 4032x3024 camera JPEG re-encodes to
+     * well under the 4MB rule in a real browser, verified by hand.
+     *
+     * This is the phone-only failure: the in-page camera writes a small canvas JPEG, so a
+     * desktop punch always passed, while the fallback input used to send the original 3-8MB
+     * photo (or an iPhone HEIC) and the same punch was refused.
+     */
+    public function test_a_picked_photo_is_re_encoded_before_it_reaches_the_form(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('@change="attachFile($event.target.files[0])"', false);
+        $response->assertSee('attachFile(file) {', false);
+        $response->assertSee('1600 / Math.max(img.width, img.height)', false);
+    }
+
+    /**
      * The clock-without-location punch is a from-anywhere punch, so it stays out of reach
      * until a real attempt has failed: `attempted` starts false, and the punch button only
      * becomes the no-location one through `noLoc`, which needs both a real attempt and a

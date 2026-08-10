@@ -132,6 +132,57 @@ class AttendanceClockEndpointTest extends TestCase
         Storage::disk('local')->assertExists($path);
     }
 
+    /**
+     * A photo the server refused (too large, wrong format) lands in the same `photo` error
+     * key as a demand for one, so the screen used to read either as "no selfie attached".
+     * Staff who had attached one were told to attach one, took the same oversized photo
+     * again, and never acted on the size message sitting underneath. The flash, not the
+     * error bag, now marks which of the two it is.
+     */
+    public function test_a_refused_photo_is_not_reported_as_a_missing_one(): void
+    {
+        $response = $this->punchOntoTheScreen([
+            'action' => 'in',
+            'latitude' => 3.1073,
+            'longitude' => 101.6067,
+            'photo' => UploadedFile::fake()->image('IMG_0421.jpg')->size(5000),
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('4096 kilobytes', false);
+        $response->assertDontSee('so a selfie is required', false);
+    }
+
+    /** The other side: a genuine demand for a selfie keeps the bilingual instruction. */
+    public function test_a_demanded_selfie_is_reported_as_a_demand(): void
+    {
+        $response = $this->punchOntoTheScreen([
+            'action' => 'in',
+            'justification' => 'Client site, no signal.',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('so a selfie is required', false);
+        $response->assertSee('selfie diperlukan', false);
+        $response->assertDontSee('4096 kilobytes', false);
+    }
+
+    /**
+     * A punch followed all the way back onto the attendance screen. The error bag only
+     * reaches a view through the redirect that carries it, so the two tests above have to
+     * land on the rendered screen rather than read the session.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function punchOntoTheScreen(array $payload): TestResponse
+    {
+        return $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/attendance')
+            ->followingRedirects()
+            ->post('/app/attendance/clock', $payload);
+    }
+
     /** Each post accepts a 4MB upload, so an unthrottled endpoint is a way to fill the disk. */
     public function test_the_clock_endpoint_is_throttled(): void
     {
