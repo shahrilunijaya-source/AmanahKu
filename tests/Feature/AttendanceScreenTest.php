@@ -193,16 +193,16 @@ class AttendanceScreenTest extends TestCase
     }
 
     /**
-     * Smoke check only, same limit as the locator test above: it proves the picked file goes
-     * through the re-encode rather than straight onto the form. The size it comes out at is
-     * browser-side and PHPUnit cannot measure it — a 4032x3024 camera JPEG re-encodes to
-     * well under the 4MB rule in a real browser, verified by hand.
+     * Smoke check only, same limit as the locator test above: it proves both selfie paths go
+     * through the one capped draw rather than onto the form at full size. The size they come
+     * out at is browser-side and PHPUnit cannot measure it — a 4032x3024 camera JPEG
+     * re-encodes to well under 1MB in a real browser, verified by hand.
      *
-     * This is the phone-only failure: the in-page camera writes a small canvas JPEG, so a
-     * desktop punch always passed, while the fallback input used to send the original 3-8MB
-     * photo (or an iPhone HEIC) and the same punch was refused.
+     * Production runs stock PHP, so upload_max_filesize is 2MB there and a raw phone photo
+     * never survives it. The camera path is capped for the same reason: an unconstrained
+     * getUserMedia stream can hand back 4K.
      */
-    public function test_a_picked_photo_is_re_encoded_before_it_reaches_the_form(): void
+    public function test_both_selfie_paths_are_capped_before_they_reach_the_form(): void
     {
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
@@ -210,8 +210,9 @@ class AttendanceScreenTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('@change="attachFile($event.target.files[0])"', false);
-        $response->assertSee('attachFile(file) {', false);
-        $response->assertSee('1600 / Math.max(img.width, img.height)', false);
+        $response->assertSee('this.drawScaled(img, img.width, img.height)', false);
+        $response->assertSee('this.drawScaled(v, v.videoWidth, v.videoHeight)', false);
+        $response->assertSee('Math.min(1, 1600 / Math.max(width, height))', false);
     }
 
     /**

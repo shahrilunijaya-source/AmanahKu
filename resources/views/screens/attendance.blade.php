@@ -609,8 +609,7 @@
                       this.submitting = false;
                       return;
                   }
-                  c.width = v.videoWidth; c.height = v.videoHeight;
-                  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                  this.drawScaled(v, v.videoWidth, v.videoHeight);
                   c.toBlob((blob) => {
                       if (!blob) { this.camError = 'Capture failed, try again.'; return; }
                       this.setPhoto(new File([blob], 'selfie.jpg', { type: 'image/jpeg' }));
@@ -618,7 +617,23 @@
                       if (after) { after(); return; }
                       this.closeCam();
                       this.resumeAfterSelfie();
-                  }, 'image/jpeg', 0.9);
+                  }, 'image/jpeg', 0.85);
+              },
+              /**
+               * Draw a camera frame or a picked photo onto the shared canvas, never wider or
+               * taller than 1600px. Both paths cap here because both end up as one upload, and
+               * the smallest limit in the way is set on the host, not in this repo: production
+               * runs stock PHP, whose upload_max_filesize is 2MB. Over that, PHP truncates the
+               * file and the punch is refused for a reason the staff member cannot act on.
+               * 1600px stays legible as proof of who was standing there and lands in the
+               * hundreds of kilobytes; an uncapped 4K front camera does not.
+               */
+              drawScaled(source, width, height) {
+                  const c = this.$refs.canvas;
+                  const scale = Math.min(1, 1600 / Math.max(width, height));
+                  c.width = Math.round(width * scale);
+                  c.height = Math.round(height * scale);
+                  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
               },
               /** Put a file on the hidden form input and mirror it into the preview. */
               setPhoto(file) {
@@ -630,12 +645,11 @@
               },
               /**
                * The fallback input hands back whatever the phone has stored: a 3-8MB camera
-               * JPEG, or an iPhone HEIC the server does not accept at all. Both refuse a punch
-               * that the in-page camera would have passed, because capture() sends a small
-               * canvas JPEG and this input sent the original file. Re-encode it through the
-               * same canvas so both paths hand the server the same kind of picture — under
-               * the 4MB rule, and under whatever PHP or the web server allow on the host,
-               * neither of which this repo sets.
+               * JPEG, or an iPhone HEIC the server does not accept at all. This input used to
+               * send that original file untouched, which is why a punch failed here that the
+               * in-page camera would have passed. Re-encode it through the same canvas so
+               * both paths hand the server the same kind of picture. Safari decodes HEIC into
+               * a canvas, so the format is normalised on the way through.
                */
               attachFile(file) {
                   this.camNotice = '';
@@ -644,12 +658,8 @@
                   const src = URL.createObjectURL(file);
                   img.onload = () => {
                       URL.revokeObjectURL(src);
-                      const c = this.$refs.canvas;
-                      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
-                      c.width = Math.round(img.width * scale);
-                      c.height = Math.round(img.height * scale);
-                      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-                      c.toBlob((blob) => {
+                      this.drawScaled(img, img.width, img.height);
+                      this.$refs.canvas.toBlob((blob) => {
                           this.usePhoto(blob ? new File([blob], 'selfie.jpg', { type: 'image/jpeg' }) : file);
                       }, 'image/jpeg', 0.85);
                   };
