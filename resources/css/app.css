@@ -99,6 +99,7 @@ button, input, select, textarea { font: inherit; }
    clears an inline `display` on show, so the flex column can't live in the
    same style attribute it toggles — it has to come from a class instead. */
 .kb-view-col { display: flex; flex-direction: column; height: 100%; }
+.kb-reaction-pill { display: inline-flex; }
 
 /* Knowledge Bank panel enter/leave (x-transition, since x-if unmounts the panel —
    a CSS `animation` like .uj-slide only ever plays on enter). Same drawer curve
