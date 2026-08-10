@@ -10,12 +10,16 @@ use App\Services\Ai\ClaudeAiProvider;
 use App\Services\FeatureManager;
 use App\Services\OidcClient;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Sanctum\Sanctum;
+use Sentry\Laravel\Integration;
+use Sentry\State\Scope;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -50,6 +54,16 @@ class AppServiceProvider extends ServiceProvider
     {
         // Use the tenant-aware token model so /api/v1 calls resolve to the token's tenant.
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+        // Who hit a Sentry-reported fault, by id only — never the name or the email that
+        // send_default_pii would attach. It answers the one question a fault needs a user
+        // for ("one person or everybody?"), and the id resolves to a person in this
+        // application, where the staff list belongs, rather than in a vendor's dashboard.
+        Event::listen(function (Authenticated $event): void {
+            Integration::configureScope(function (Scope $scope) use ($event): void {
+                $scope->setUser(['id' => $event->user->getAuthIdentifier()]);
+            });
+        });
 
         // Surface deliverability risk in `php artisan about` (AK-CONFIG-02): a production
         // deploy still on the `log` mailer silently drops password-reset + invite emails to

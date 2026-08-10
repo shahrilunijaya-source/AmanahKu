@@ -99,6 +99,7 @@ button, input, select, textarea { font: inherit; }
    clears an inline `display` on show, so the flex column can't live in the
    same style attribute it toggles — it has to come from a class instead. */
 .kb-view-col { display: flex; flex-direction: column; height: 100%; }
+.kb-reaction-pill { display: inline-flex; }
 
 /* Knowledge Bank panel enter/leave (x-transition, since x-if unmounts the panel —
    a CSS `animation` like .uj-slide only ever plays on enter). Same drawer curve
@@ -1667,12 +1668,13 @@ select.wd-inline {
 .uj-ar-cell { width: 10px; height: 22px; border-radius: 2px; flex-shrink: 0; }
 .uj-ar-cell[data-s="o"] { background: var(--success); }
 .uj-ar-cell[data-s="l"] { background: var(--amber); }
-.uj-ar-cell[data-s="x"] { background: var(--error); }
+.uj-ar-cell[data-s="x"] { background: var(--info); }
 .uj-ar-cell[data-s="v"] { background: #c3d5e6; }
-/* The day cell for a missing day is filled (background:#dedbd2), not an outline.
-   At 10px an outline-only cell disappears, and a row of 22 of them reads as blank space,
-   which is the exact thing this screen exists to make visible. */
-.uj-ar-cell[data-s="-"] { background: #dedbd2; }
+.uj-ar-cell[data-s="a"] { background: var(--error); }
+/* The day cell for a missing day is filled, not an outline. At 10px an outline-only
+   cell disappears, and a row of 22 of them reads as blank space, which is the exact
+   thing this screen exists to make visible. */
+.uj-ar-cell[data-s="p"] { background: #dedbd2; }
 .uj-ar-cell[data-today] { box-shadow: inset 0 0 0 1px var(--ink); }
 .uj-ar-anim .uj-ar-cell { animation: uj-ar-in .34s cubic-bezier(.23, 1, .32, 1) both; }
 @keyframes uj-ar-in { from { opacity: 0; transform: translateY(4px) scaleY(.5); } to { opacity: 1; transform: none; } }

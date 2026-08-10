@@ -43,6 +43,7 @@
                     'Company' => $event->tenant?->name ?? 'None resolved',
                     'User' => $event->user ? $event->user->name.' ('.$event->user->email.')' : 'Not signed in',
                     'IP' => $event->ip ?? '—',
+                    'Device' => $event->user_agent ?? '—',
                     'When' => $event->created_at?->format('D, j M Y H:i:s'),
                 ] as $label => $value)
                     <tr style="border-top:1px solid var(--hairline,#e6e6ec);">

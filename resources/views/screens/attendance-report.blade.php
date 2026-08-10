@@ -54,7 +54,7 @@
             'steps' => [
                 'Pick a period, and a department if you want one. Ninety days shows one cell per week instead of one per day.',
                 'The block at the top counts who is clocking, who stopped, who is on approved leave, and who never clocked at all. The four add up to your headcount.',
-                'Read a strip left to right: green on time, amber late, red off-site, blue approved leave, grey no record.',
+                'Read a strip left to right: green on time, amber late, blue off-site, pale blue approved leave, red no punch, grey pending today.',
                 'Click any row to see that person day by day.',
             ],
         ],
@@ -65,7 +65,7 @@
             'steps' => [
                 'Pilih tempoh, dan jabatan jika perlu. 90 hari menunjukkan satu petak bagi setiap minggu, bukan setiap hari.',
                 'Blok di atas mengira siapa yang clock in, siapa yang berhenti, siapa yang bercuti diluluskan, dan siapa yang tidak pernah clock in. Empat-empat berjumlah bilangan staf anda.',
-                'Baca jalur dari kiri ke kanan: hijau tepat masa, kuning lewat, merah luar lokasi, biru cuti diluluskan, kelabu tiada rekod.',
+                'Baca jalur dari kiri ke kanan: hijau tepat masa, kuning lewat, biru luar lokasi, biru pudar cuti diluluskan, merah tiada clock in, kelabu menunggu hari ini.',
                 'Klik mana-mana baris untuk lihat hari demi hari.',
             ],
         ],
@@ -253,9 +253,10 @@
         <div class="uj-ar-legend">
             <span><b style="background:var(--success);"></b><span x-text="$store.ui.lang==='en' ? 'On time' : 'Tepat masa'">On time</span></span>
             <span><b style="background:var(--amber);"></b><span x-text="$store.ui.lang==='en' ? 'Late' : 'Lewat'">Late</span></span>
-            <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? 'Off-site' : 'Luar lokasi'">Off-site</span></span>
+            <span><b style="background:var(--info);"></b><span x-text="$store.ui.lang==='en' ? 'Off-site' : 'Luar lokasi'">Off-site</span></span>
             <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? 'Approved leave' : 'Cuti diluluskan'">Approved leave</span></span>
-            <span><b style="background:#dedbd2;"></b><span x-text="$store.ui.lang==='en' ? 'No record' : 'Tiada rekod'">No record</span></span>
+            <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? 'No punch' : 'Tiada clock in'">No punch</span></span>
+            <span><b style="background:#dedbd2;"></b><span x-text="$store.ui.lang==='en' ? 'Pending today' : 'Menunggu hari ini'">Pending today</span></span>
         </div>
         @if ($stripUnit === 'week')
             <div style="font-size:var(--t-micro);color:var(--muted);margin-top:6px;">

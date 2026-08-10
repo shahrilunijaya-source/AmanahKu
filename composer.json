@@ -13,6 +13,7 @@
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
         "league/commonmark": "^2.9",
+        "sentry/sentry-laravel": "^4.27",
         "symfony/yaml": "^7.4"
     },
     "require-dev": {

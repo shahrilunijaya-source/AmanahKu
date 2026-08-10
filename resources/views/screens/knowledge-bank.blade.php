@@ -255,7 +255,7 @@
                     <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
-                    <span x-show="reactionTotal" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
+                    <span x-show="reactionTotal" class="kb-reaction-pill" style="align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
                         <span x-text="reactionTotal"></span>
                     </span>

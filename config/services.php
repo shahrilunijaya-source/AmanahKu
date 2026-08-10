@@ -77,4 +77,24 @@ return [
         'label' => env('OIDC_LABEL', 'SSO'),
     ],
 
+    /*
+    | Sentry's browser SDK key, read by partials/pwa-head.blade.php and used in
+    | resources/js/sentry.js. Kept here rather than in config/sentry.php: that file is
+    | handed to the PHP SDK verbatim as its option array, so an extra key there makes the
+    | client log "Option ... does not exist and will be ignored" on every single init.
+    |
+    | Separate from SENTRY_LARAVEL_DSN because Sentry keeps one project per platform, and
+    | server faults and browser faults read better apart. Set both to the same value when
+    | only one project exists — neither SDK minds.
+    |
+    | Public by design: it ships in the page source to every visitor. It permits posting
+    | events to one project and grants nothing else.
+    */
+    'sentry' => [
+        // Production only, matching config/sentry.php. Null renders an empty meta tag and
+        // resources/js/sentry.js then initialises nothing at all, so a development page
+        // carries no reporting and attempts no request.
+        'browser_dsn' => env('APP_ENV') === 'production' ? env('SENTRY_BROWSER_DSN') : null,
+    ],
+
 ];

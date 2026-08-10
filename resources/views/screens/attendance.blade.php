@@ -77,7 +77,9 @@
               submitting: false,
               photoUrl: null,
               // Off-site punch was blocked for a missing selfie (client gate + server backstop).
-              photoReq: {{ $errors->has('photo') ? 'true' : 'false' }},
+              // The flash, not the error bag: a rejected photo (too large, wrong format) uses
+              // the same `photo` error key and is not a demand for one.
+              photoReq: {{ session('attendance_photo') ? 'true' : 'false' }},
               // Which reason photoReq is for — old('latitude') survives the redirect that set
               // photoReq, so an empty value means the selfie was demanded for no fix at all,
               // not for standing outside the fence.
@@ -607,21 +609,70 @@
                       this.submitting = false;
                       return;
                   }
-                  c.width = v.videoWidth; c.height = v.videoHeight;
-                  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                  this.drawScaled(v, v.videoWidth, v.videoHeight);
                   c.toBlob((blob) => {
                       if (!blob) { this.camError = 'Capture failed, try again.'; return; }
-                      const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
-                      const dt = new DataTransfer();
-                      dt.items.add(file);
-                      this.$refs.photo.files = dt.files;
-                      if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
-                      this.photoUrl = URL.createObjectURL(file);
+                      this.setPhoto(new File([blob], 'selfie.jpg', { type: 'image/jpeg' }));
                       this.photoReq = false;
                       if (after) { after(); return; }
                       this.closeCam();
                       this.resumeAfterSelfie();
-                  }, 'image/jpeg', 0.9);
+                  }, 'image/jpeg', 0.85);
+              },
+              /**
+               * Draw a camera frame or a picked photo onto the shared canvas, never wider or
+               * taller than 1600px. Both paths cap here because both end up as one upload, and
+               * the smallest limit in the way is set on the host, not in this repo: production
+               * runs stock PHP, whose upload_max_filesize is 2MB. Over that, PHP truncates the
+               * file and the punch is refused for a reason the staff member cannot act on.
+               * 1600px stays legible as proof of who was standing there and lands in the
+               * hundreds of kilobytes; an uncapped 4K front camera does not.
+               */
+              drawScaled(source, width, height) {
+                  const c = this.$refs.canvas;
+                  const scale = Math.min(1, 1600 / Math.max(width, height));
+                  c.width = Math.round(width * scale);
+                  c.height = Math.round(height * scale);
+                  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+              },
+              /** Put a file on the hidden form input and mirror it into the preview. */
+              setPhoto(file) {
+                  const dt = new DataTransfer();
+                  if (file) { dt.items.add(file); }
+                  this.$refs.photo.files = dt.files;
+                  if (this.photoUrl) { URL.revokeObjectURL(this.photoUrl); }
+                  this.photoUrl = file ? URL.createObjectURL(file) : null;
+              },
+              /**
+               * The fallback input hands back whatever the phone has stored: a 3-8MB camera
+               * JPEG, or an iPhone HEIC the server does not accept at all. This input used to
+               * send that original file untouched, which is why a punch failed here that the
+               * in-page camera would have passed. Re-encode it through the same canvas so
+               * both paths hand the server the same kind of picture. Safari decodes HEIC into
+               * a canvas, so the format is normalised on the way through.
+               */
+              attachFile(file) {
+                  this.camNotice = '';
+                  if (!file) { this.setPhoto(null); return; }
+                  const img = new Image();
+                  const src = URL.createObjectURL(file);
+                  img.onload = () => {
+                      URL.revokeObjectURL(src);
+                      this.drawScaled(img, img.width, img.height);
+                      this.$refs.canvas.toBlob((blob) => {
+                          this.usePhoto(blob ? new File([blob], 'selfie.jpg', { type: 'image/jpeg' }) : file);
+                      }, 'image/jpeg', 0.85);
+                  };
+                  // A format this browser cannot decode (HEIC anywhere but Safari) never loads.
+                  // Send the original and let the server's own rule produce the message.
+                  img.onerror = () => { URL.revokeObjectURL(src); this.usePhoto(file); };
+                  img.src = src;
+              },
+              /** Accept a chosen file and carry on with whatever punch was waiting on it. */
+              usePhoto(file) {
+                  this.setPhoto(file);
+                  this.photoReq = false;
+                  if (! this.sheetNeed) { this.resumeAfterSelfie(); }
               },
               closeCam() {
                   if (this.stream) { this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; }
@@ -640,7 +691,7 @@
              the gallery as readily as the camera. --}}
         <input type="file" id="attendance-photo" name="photo" accept="image/*" x-ref="photo"
                style="display:none;"
-               @change="photoUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null; camNotice = ''; if (photoUrl) { photoReq = false; if (! sheetNeed) { resumeAfterSelfie(); } }" />
+               @change="attachFile($event.target.files[0])" />
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -774,11 +825,16 @@
         </div>
         @error('latitude')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
 
-        <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
-             x-text="photoReqNoLoc
-                 ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
-                 : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
-        @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        {{-- One line, never two. A demand for a selfie gets the bilingual instruction; a photo
+             the server refused gets the server's own words, which say what is wrong with it. --}}
+        @if (session('attendance_photo'))
+            <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
+                 x-text="photoReqNoLoc
+                     ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
+                     : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
+        @else
+            @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
+        @endif
 
         <div x-show="camNotice" x-cloak x-text="camNotice" style="color:var(--amber);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"></div>
 

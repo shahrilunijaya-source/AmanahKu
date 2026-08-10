@@ -95,4 +95,21 @@ class NotificationSummaryTest extends TestCase
     {
         $this->getJson(route('notifications.summary'))->assertUnauthorized();
     }
+
+    /**
+     * The route is throttle:120,1, and the limiter's hit-counter used to live in the
+     * "database" cache store's `cache` table — a row every request contends for. Repeated
+     * concurrent hits on that row deadlocked in production (SQLSTATE[40001] 1213,
+     * 2026-08-10). config/cache.php now points the limiter at "file" instead; this asserts
+     * that wiring holds rather than silently regressing back to a DB-backed limiter.
+     */
+    public function test_rate_limiter_does_not_write_to_the_database_cache_table(): void
+    {
+        collect(range(1, 5))->each(
+            fn () => $this->actingAs($this->user)->withSession(['current_tenant' => $this->tenant->id])
+                ->getJson(route('notifications.summary'))->assertOk()
+        );
+
+        $this->assertDatabaseCount('cache', 0);
+    }
 }

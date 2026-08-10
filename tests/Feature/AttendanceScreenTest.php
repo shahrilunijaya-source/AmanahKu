@@ -193,6 +193,29 @@ class AttendanceScreenTest extends TestCase
     }
 
     /**
+     * Smoke check only, same limit as the locator test above: it proves both selfie paths go
+     * through the one capped draw rather than onto the form at full size. The size they come
+     * out at is browser-side and PHPUnit cannot measure it — a 4032x3024 camera JPEG
+     * re-encodes to well under 1MB in a real browser, verified by hand.
+     *
+     * Production runs stock PHP, so upload_max_filesize is 2MB there and a raw phone photo
+     * never survives it. The camera path is capped for the same reason: an unconstrained
+     * getUserMedia stream can hand back 4K.
+     */
+    public function test_both_selfie_paths_are_capped_before_they_reach_the_form(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('@change="attachFile($event.target.files[0])"', false);
+        $response->assertSee('this.drawScaled(img, img.width, img.height)', false);
+        $response->assertSee('this.drawScaled(v, v.videoWidth, v.videoHeight)', false);
+        $response->assertSee('Math.min(1, 1600 / Math.max(width, height))', false);
+    }
+
+    /**
      * The clock-without-location punch is a from-anywhere punch, so it stays out of reach
      * until a real attempt has failed: `attempted` starts false, and the punch button only
      * becomes the no-location one through `noLoc`, which needs both a real attempt and a

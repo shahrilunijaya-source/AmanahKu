@@ -57,6 +57,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\SkillController;
+use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
 use App\Http\Controllers\SuperAdmin\ErrorEventController;
 use App\Http\Controllers\SuperAdmin\FeatureController;
@@ -76,13 +77,6 @@ use Illuminate\Support\Facades\Route;
 
 // Entry: guests → Fortify login (custom view), authed users → tenant select.
 Route::get('/', fn () => Auth::check() ? redirect()->route('tenant.select') : redirect('/login'));
-
-// Local-only password-less quick-login helper for dev-login.html. The route file is
-// gitignored and only present on dev machines; loaded solely under APP_ENV=local so it
-// can never register outside local development. Inert (and absent) on staging/prod.
-if (app()->environment('local') && file_exists(__DIR__.'/dev-login.php')) {
-    require __DIR__.'/dev-login.php';
-}
 
 // Enterprise SSO (OIDC, authorization-code flow). Guest-accessible; the controller
 // 404s when OIDC isn't configured. Sign-in only — no tenant/role is ever granted here.
@@ -131,6 +125,10 @@ Route::middleware('auth')->group(function () {
         // Declared before the bound route, so the word is never read as a record id.
         Route::get('/errors/self-test', [ErrorEventController::class, 'selfTest'])->name('errors.self-test');
         Route::get('/errors/{errorEvent}', [ErrorEventController::class, 'show'])->name('errors.show');
+        // Recorded clock attempts, refusals included. A refused punch is ordinary HTTP
+        // traffic, so it reaches no log and no error tracker; this is where it is read
+        // back. Super-admin only: it names staff and their devices.
+        Route::get('/attendance-attempts', [AttendanceAttemptController::class, 'index'])->name('attendance-attempts.index');
     });
 
     // Everything inside the shell is tenant-scoped. company.active blocks suspended/
