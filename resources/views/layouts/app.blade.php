@@ -248,17 +248,18 @@
 
         // Header bell unread badge + dropdown list. Seeded server-side (from the same
         // AppServiceProvider composer that renders the first paint), then refreshed by
-        // a 15s poll — slower than msgbadge's 5s since HR events aren't chat-speed
-        // urgent. Full-replace, no cursor: same trade-off as msgbadge, simplest thing
-        // that stays correct even if another tab or "Mark all read" changed state.
+        // a 15-20s poll (self-rescheduled with jitter, not a fixed setInterval) — slower
+        // than msgbadge's 5s since HR events aren't chat-speed urgent. Full-replace, no
+        // cursor: same trade-off as msgbadge, simplest thing that stays correct even if
+        // another tab or "Mark all read" changed state.
+        //
+        // The jitter and the document.hidden skip in poll() below both exist because a
+        // fixed 15s interval let many tabs land on this route at the same instant, and
+        // concurrent hits on the same rate-limit key deadlocked the DB-backed cache store
+        // in production (SQLSTATE[40001] 1213 on `cache`, 2026-08-10).
         Alpine.store('notifbell', {
             unread: @js($unreadCount ?? 0),
             notifications: @js($notifications ?? []),
-            // Self-rescheduling instead of setInterval, with jitter on every tick: a fixed
-            // 15s interval lets many tabs land on this route at the same instant, and
-            // concurrent hits on the same rate-limit key deadlocked the DB-backed cache
-            // store in production (SQLSTATE[40001] 1213 on `cache`, 2026-08-10). Skipping
-            // the fetch while the tab is hidden cuts background-tab load the same way.
             init() { this.schedule(); },
             schedule() { setTimeout(() => { this.poll(); this.schedule(); }, 15000 + Math.random() * 5000); },
             poll() {
