@@ -254,8 +254,15 @@
         Alpine.store('notifbell', {
             unread: @js($unreadCount ?? 0),
             notifications: @js($notifications ?? []),
-            init() { setInterval(() => this.poll(), 15000); },
+            // Self-rescheduling instead of setInterval, with jitter on every tick: a fixed
+            // 15s interval lets many tabs land on this route at the same instant, and
+            // concurrent hits on the same rate-limit key deadlocked the DB-backed cache
+            // store in production (SQLSTATE[40001] 1213 on `cache`, 2026-08-10). Skipping
+            // the fetch while the tab is hidden cuts background-tab load the same way.
+            init() { this.schedule(); },
+            schedule() { setTimeout(() => { this.poll(); this.schedule(); }, 15000 + Math.random() * 5000); },
             poll() {
+                if (document.hidden) return;
                 fetch('{{ route('notifications.summary') }}', { headers: { 'Accept': 'application/json' } })
                     .then(r => r.json()).then(d => { this.unread = d.unread; this.notifications = d.notifications; }).catch(() => {});
             },
