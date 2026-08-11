@@ -114,7 +114,8 @@ class AttendanceReportDataTest extends TestCase
             'status' => 'approved',
         ]);
 
-        $data = $this->getScreenData();
+        // The leave falls outside the 'week' default — widen the window so it's in view.
+        $data = $this->getScreenData(['period' => 'month']);
 
         $roster = collect($data['roster']);
         $row = $roster->firstWhere('id', $leaveEmp->id);
@@ -171,7 +172,9 @@ class AttendanceReportDataTest extends TestCase
             'clock_in' => '08:00:00',
         ]);
 
-        $data = $this->getScreenData();
+        // Gap detection needs a window wide enough to see the last clock-in — the
+        // default period is 'week' now, too narrow for a 5-day-old record.
+        $data = $this->getScreenData(['period' => 'month']);
 
         $roster = collect($data['roster']);
         $row = $roster->firstWhere('id', $stoppedEmp->id);
@@ -468,7 +471,9 @@ class AttendanceReportDataTest extends TestCase
             'status' => 'approved',
         ]);
 
-        $data = $this->getScreenData();
+        // The leave falls outside the 'week' default — widen the window so both the
+        // leave and the clock-in are in view.
+        $data = $this->getScreenData(['period' => 'month']);
         $roster = collect($data['roster']);
         $row = $roster->firstWhere('id', $empBoth->id);
 
