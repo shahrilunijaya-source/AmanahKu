@@ -145,7 +145,10 @@
 
 {{-- ── Segment chips + Add ───────────────────────────────────────────────── --}}
 @php $chipBase = 'height:32px;padding:0 15px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:7px;flex-shrink:0;'; @endphp
-<div style="display:flex;align-items:center;gap:8px;" x-data="{ addSeg: {{ $errors->any() && old('kbform') === 'newseg' ? 'true' : 'false' }} }">
+{{-- x-data wraps the chip row AND the inline creation panel below — addSeg has to
+     stay in scope for both, they used to be split across two sibling divs. --}}
+<div x-data="{ addSeg: {{ $errors->any() && old('kbform') === 'newseg' ? 'true' : 'false' }} }">
+<div style="display:flex;align-items:center;gap:8px;">
     <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex:1;min-width:0;">
         <a href="{{ route('app.screen', 'knowledge-bank') }}"
            style="{{ $chipBase }}border:1px solid {{ ! $activeSeg ? 'var(--ink)' : 'var(--shelf-line)' }};background:{{ ! $activeSeg ? 'var(--ink)' : 'transparent' }};color:{{ ! $activeSeg ? '#fff' : 'var(--muted)' }};"
@@ -197,6 +200,7 @@
         </form>
     </div>
 @endif
+</div>
 
 {{-- Sub-segment chips (only when the active segment has children) --}}
 @if ($activeSegModel && $activeSegModel->children->count())
