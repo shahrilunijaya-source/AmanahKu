@@ -34,7 +34,7 @@ class AttendanceReportController extends Controller
 
     public function screenData(Request $request): array
     {
-        $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'month';
+        $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'week';
         $daysBack = self::PERIODS[$period];
         $end = now()->startOfDay();
         $start = $end->copy()->subDays($daysBack - 1);
