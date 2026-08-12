@@ -85,6 +85,7 @@ class WritePathsTest extends TestCase
             'action' => 'in',
             'latitude' => '3.1039000',
             'longitude' => '101.6021000',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertRedirect();
 
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
@@ -148,6 +149,7 @@ class WritePathsTest extends TestCase
             'action' => 'in',
             'latitude' => '3.1039000',
             'longitude' => '101.6021000',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertRedirect();
 
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
@@ -200,6 +202,7 @@ class WritePathsTest extends TestCase
             'latitude' => '3.1039000',
             'longitude' => '101.6021000',
             'justification' => 'Starting at the client office this morning.',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();
@@ -215,6 +218,7 @@ class WritePathsTest extends TestCase
             'latitude' => '3.1039000',
             'longitude' => '101.6021000',
             'justification' => 'Morning note.',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertRedirect();
 
         $this->actingInTenant()->post('/app/attendance/clock', [
@@ -222,6 +226,7 @@ class WritePathsTest extends TestCase
             'latitude' => '3.1039000',
             'longitude' => '101.6021000',
             'justification' => 'Evening note.',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertRedirect();
 
         $record = $this->employee->attendanceRecords()->whereDate('date', now())->first();

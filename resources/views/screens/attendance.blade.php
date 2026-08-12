@@ -42,26 +42,28 @@
     'key'   => 'attendance',
     'en'  => [
         'title' => 'Attendance',
-        'body'  => 'Clock in when you start and clock out when you finish. Your GPS is checked against where you are meant to be that day — your office, your client site, or your home. If you are outside that location, you can still clock but must give a reason. Clocking out early or off-site is also flagged.',
+        'body'  => 'Clock in when you start and clock out when you finish — a selfie is required every time, the camera opens on its own. Your GPS is checked against where you are meant to be that day — your office, your client site, or your home. If you are outside that location, you can still clock but must give a reason. Clocking out early or off-site is also flagged.',
         'who'   => 'Everyone clocks their own time',
         'steps' => [
             'The banner shows where you are expected today and your hours.',
-            'Tap "Clock in" and allow location. If your device genuinely cannot find your location, the screen offers to clock without it — that punch needs a reason and a selfie, and is flagged for your manager.',
+            'Tap "Clock in" and allow location — the camera opens to take your selfie. A selfie is required for every clock in and clock out, no exceptions.',
+            'If your device genuinely cannot find your location, the screen offers to clock without it — that punch also needs a typed reason, and is flagged for your manager.',
             'Add a remark if there is something your manager should know about the day. It is optional.',
-            'If you are outside the location, that same box turns into a required reason — say why (e.g. client meeting) — and a selfie is required as well.',
-            'Clock out when you finish. Leaving before your end time or off-site needs a reason too.',
+            'If you are outside the location, or you clock in late or out early, that same box turns into a required reason — say why (e.g. client meeting).',
+            'Clock out when you finish, with another selfie. Leaving before your end time or off-site needs a reason too.',
         ],
     ],
     'ms'  => [
         'title' => 'Kehadiran',
-        'body'  => 'Clock in bila mula dan clock out bila habis. GPS anda disemak dengan tempat anda sepatutnya berada hari itu — pejabat, lokasi klien, atau rumah. Jika anda di luar lokasi itu, anda masih boleh clock tetapi perlu beri sebab. Clock out awal atau di luar lokasi juga ditanda.',
+        'body'  => 'Clock in bila mula dan clock out bila habis — selfie diperlukan setiap kali, kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu — pejabat, lokasi klien, atau rumah. Jika anda di luar lokasi itu, anda masih boleh clock tetapi perlu beri sebab. Clock out awal atau di luar lokasi juga ditanda.',
         'who'   => 'Semua orang rekod masa sendiri',
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
-            'Tekan "Clock in" dan benarkan lokasi. Jika peranti anda benar-benar tidak dapat mencari lokasi, skrin menawarkan clock tanpa lokasi — rekod itu perlu sebab dan selfie, dan ditanda untuk pengurus anda.',
+            'Tekan "Clock in" dan benarkan lokasi — kamera terbuka untuk ambil selfie anda. Selfie diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
+            'Jika peranti anda benar-benar tidak dapat mencari lokasi, skrin menawarkan clock tanpa lokasi — rekod itu juga perlu sebab ditaip, dan ditanda untuk pengurus anda.',
             'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
-            'Jika anda di luar lokasi, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien) — dan selfie juga wajib.',
-            'Clock out bila habis. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
+            'Jika anda di luar lokasi, atau clock in lewat / clock out awal, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
+            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
         ],
     ],
 ])
@@ -80,14 +82,16 @@
               // The flash, not the error bag: a rejected photo (too large, wrong format) uses
               // the same `photo` error key and is not a demand for one.
               photoReq: {{ session('attendance_photo') ? 'true' : 'false' }},
-              // Which reason photoReq is for — old('latitude') survives the redirect that set
-              // photoReq, so an empty value means the selfie was demanded for no fix at all,
-              // not for standing outside the fence.
-              photoReqNoLoc: {{ (old('latitude') === null || old('latitude') === '') ? 'true' : 'false' }},
               camOpen: false,
-              // The sheet is gating a punch (reason + selfie together) rather than just
-              // attaching a photo someone asked for.
+              // The sheet is gating a punch (selfie, and maybe a reason too) rather than
+              // just attaching a photo someone asked for.
               sheetNeed: false,
+              // Whether THIS gated punch also needs a typed reason — off-site, no-location,
+              // late-in or early-out. A selfie is required every time; the reason is not.
+              sheetReasonNeed: false,
+              // Which of the four reasons above, driving the sheet's title/copy/label — null
+              // when sheetReasonNeed is false (a plain punch, gated on the selfie alone).
+              sheetReasonKind: null,
               // Coordinates the sheet's punch is for. Both null = a no-location punch.
               sheetFix: null,
               stream: null,
@@ -286,25 +290,18 @@
                   // null for a deliberate no-location punch, which is why resuming reuses them
                   // but submit() will not (see both guards).
                   this.lastFix = { lat: noFix ? null : lat, lng: noFix ? null : lng, at: Date.now() };
-                  // Off-site and unlocatable punches must carry a selfie — mirrors ClockService.
-                  const needPhoto = offSite || noFix;
-                  let need = needPhoto;
-                  if (this.action === 'out' && this.earlyNow()) need = true;
-                  if (this.action === 'in' && this.lateNow()) need = true;
-                  // Both gates open the same sheet, once. They used to fire one at a time —
-                  // back for a reason, tap, back for a selfie, tap — so a punch that needed
-                  // both cost three taps and read as if it had failed twice.
-                  if (needPhoto && (!this.reason.trim() || !this.photoUrl)) {
+                  // A selfie is mandatory for every punch — mirrors ClockService. A typed
+                  // reason is still only for off-site, unlocatable, late-in or early-out — in
+                  // that priority, matching the order ClockService itself checks them in.
+                  let reasonKind = noFix ? 'no_location' : (offSite ? 'off_site' : null);
+                  if (! reasonKind && this.action === 'out' && this.earlyNow()) { reasonKind = 'early'; }
+                  if (! reasonKind && this.action === 'in' && this.lateNow()) { reasonKind = 'late'; }
+                  const needReason = reasonKind !== null;
+                  // Reason and selfie gate together, once, when both are missing — so a punch
+                  // that needs both costs one sheet, not a reason drawer then a camera sheet.
+                  if (!this.photoUrl || (needReason && !this.reason.trim())) {
                       this.submitting = false;
-                      this.openPunchSheet(noFix ? null : lat, noFix ? null : lng);
-                      return;
-                  }
-                  // A reason without a selfie: leaving early. No camera, so the drawer is enough.
-                  if (need && !this.reason.trim()) {
-                      this.serverJustify = true;
-                      this.noteOpen = true;
-                      this.submitting = false;
-                      this.$nextTick(() => this.$refs.reason?.focus());
+                      this.openPunchSheet(noFix ? null : lat, noFix ? null : lng, needReason, reasonKind);
                       return;
                   }
                   // Empty inputs, not '0' — ConvertEmptyStringsToNull hands the controller a
@@ -323,7 +320,7 @@
                */
               submitWithoutLocation() {
                   if (this.submitting) return;
-                  this.openPunchSheet(null, null);
+                  this.openPunchSheet(null, null, true, 'no_location');
               },
               submit() {
                   if (this.submitting) return;
@@ -515,22 +512,94 @@
                       ? 'Browser reported: ' + kind + ' (code ' + err.code + (err.message ? ' — ' + err.message : '') + ')'
                       : 'Browser reported: ' + kind;
               },
+              /** Sheet heading: which of the four reasons this gated punch is for, or a plain selfie ask. */
+              sheetTitle(lang) {
+                  const out = this.action === 'out';
+                  if (!this.sheetNeed) { return lang === 'en' ? 'Take a selfie' : 'Ambil selfie'; }
+                  const en = {
+                      off_site: out ? 'Off-site clock out' : 'Off-site clock in',
+                      no_location: out ? 'Clock out without location' : 'Clock in without location',
+                      late: 'Late clock in',
+                      early: 'Early clock out',
+                  };
+                  const ms = {
+                      off_site: out ? 'Clock out luar lokasi' : 'Clock in luar lokasi',
+                      no_location: out ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi',
+                      late: 'Clock in lewat',
+                      early: 'Clock out awal',
+                  };
+                  const fallback = lang === 'en'
+                      ? (out ? 'Clock out selfie' : 'Clock in selfie')
+                      : (out ? 'Selfie clock out' : 'Selfie clock in');
+                  return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? fallback;
+              },
+              /** Why a reason is needed too — shown only when sheetReasonNeed is true. */
+              sheetWhy(lang) {
+                  const en = {
+                      off_site: 'You appear to be outside the expected location, so this punch needs a reason and a selfie. Your manager sees it flagged.',
+                      no_location: 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.',
+                      late: 'You are clocking in after your shift started, so this punch needs a reason. Your manager sees it flagged.',
+                      early: 'You are clocking out before your shift ends, so this punch needs a reason. Your manager sees it flagged.',
+                  };
+                  const ms = {
+                      off_site: 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
+                      no_location: 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
+                      late: 'Anda clock in selepas shift bermula, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
+                      early: 'Anda clock out sebelum shift tamat, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
+                  };
+                  return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
+              },
+              sheetReasonLabel(lang) {
+                  const en = {
+                      off_site: 'Why are you outside the expected location?',
+                      no_location: 'Why are you clocking without location?',
+                      late: 'Why are you clocking in late?',
+                      early: 'Why are you clocking out early?',
+                  };
+                  const ms = {
+                      off_site: 'Kenapa anda di luar lokasi yang dijangka?',
+                      no_location: 'Kenapa anda clock tanpa lokasi?',
+                      late: 'Kenapa anda clock in lewat?',
+                      early: 'Kenapa anda clock out awal?',
+                  };
+                  return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
+              },
+              sheetReasonPlaceholder(lang) {
+                  const en = {
+                      off_site: 'e.g. Client meeting at HQ, approved by manager',
+                      no_location: 'e.g. Office wifi has no location on this desktop',
+                      late: 'e.g. Traffic jam on the way in',
+                      early: 'e.g. Site visit ended early',
+                  };
+                  const ms = {
+                      off_site: 'cth. Mesyuarat klien di HQ, diluluskan pengurus',
+                      no_location: 'cth. Wifi pejabat tiada lokasi pada komputer ini',
+                      late: 'cth. Kesesakan jalan raya',
+                      early: 'cth. Lawatan tapak tamat awal',
+                  };
+                  return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
+              },
               /** Voluntary selfie: the plain capture sheet, no reason box, no punch waiting on it. */
               triggerSelfie() {
                   this.sheetNeed = false;
+                  this.sheetReasonNeed = false;
+                  this.sheetReasonKind = null;
                   this.sheetFix = null;
                   this.openCam();
               },
               /**
-               * The whole off-grid punch in one surface: live preview, the reason, and the
-               * button that sends it. Nothing here hands off to the phone camera app — the
-               * file input's capture attribute launches the full-screen system camera, which
-               * leaves the page, loses the reason box, and costs another two taps to come
-               * back from. The stream renders in this sheet instead.
+               * The whole gated punch in one surface: live preview, and — when this punch
+               * also needs one — the reason, and the button that sends it. Nothing here hands
+               * off to the phone camera app — the file input's capture attribute launches the
+               * full-screen system camera, which leaves the page, loses the reason box, and
+               * costs another two taps to come back from. The stream renders in this sheet
+               * instead.
                */
-              openPunchSheet(lat, lng) {
+              openPunchSheet(lat, lng, reasonNeed = true, reasonKind = null) {
                   this.sheetFix = { lat, lng };
                   this.sheetNeed = true;
+                  this.sheetReasonNeed = reasonNeed;
+                  this.sheetReasonKind = reasonKind;
                   this.photoReq = false;
                   this.submitting = false;
                   this.openCam();
@@ -541,7 +610,7 @@
                   this.camOpen = true;
                   this.$nextTick(() => {
                       this.startCam();
-                      if (this.sheetNeed && !this.reason.trim()) { this.$refs.sheetReason?.focus(); }
+                      if (this.sheetReasonNeed && !this.reason.trim()) { this.$refs.sheetReason?.focus(); }
                   });
               },
               /**
@@ -582,12 +651,13 @@
               },
               /** True once the sheet has everything the server will demand of this punch. */
               get sheetReady() {
-                  return this.reason.trim().length > 0 && (this.photoUrl !== null || this.stream !== null);
+                  return (this.photoUrl !== null || this.stream !== null)
+                      && (! this.sheetReasonNeed || this.reason.trim().length > 0);
               },
               /** The sheet's one button: capture if needed, then send. */
               confirmPunch() {
                   if (this.submitting) { return; }
-                  if (!this.reason.trim()) { this.$refs.sheetReason?.focus(); return; }
+                  if (this.sheetReasonNeed && !this.reason.trim()) { this.$refs.sheetReason?.focus(); return; }
                   if (this.photoUrl) { this.sendSheet(); return; }
                   if (!this.stream) { this.camError = 'A selfie is required for this punch. Allow the camera, or attach a photo below.'; return; }
                   this.capture(() => this.sendSheet());
@@ -678,6 +748,8 @@
                   if (this.stream) { this.stream.getTracks().forEach((t) => t.stop()); this.stream = null; }
                   this.camOpen = false;
                   this.sheetNeed = false;
+                  this.sheetReasonNeed = false;
+                  this.sheetReasonKind = null;
               }
           }"
           @submit.prevent="noLoc ? submitWithoutLocation() : submit()">
@@ -784,11 +856,11 @@
                               : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"></textarea>
                 @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
 
-                {{-- The selfie lives here rather than beside the punch button. It is only ever
-                     required off-site or with no location, and proceed() opens the camera itself
-                     in both cases, so a permanent button on the resting screen bought nothing and
-                     cost a third of the action row. Inside the drawer it stays available to anyone
-                     who wants to attach one on purpose. --}}
+                {{-- The selfie lives here rather than beside the punch button. proceed() opens
+                     the camera itself on every punch anyway, so a permanent button on the
+                     resting screen bought nothing and cost a third of the action row. Inside the
+                     drawer it stays available to anyone who wants to attach one before tapping
+                     "Clock in" or "Clock out", so the sheet has nothing left to ask for. --}}
                 <div class="uj-at-selfie">
                     <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -829,9 +901,9 @@
              the server refused gets the server's own words, which say what is wrong with it. --}}
         @if (session('attendance_photo'))
             <div x-show="photoReq" x-cloak style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;"
-                 x-text="photoReqNoLoc
-                     ? ($store.ui.lang==='en' ? 'Your location could not be read, so a selfie is required. Take one, then clock again.' : 'Lokasi anda tidak dapat dibaca, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')
-                     : ($store.ui.lang==='en' ? 'You are outside the expected location, so a selfie is required. Take one, then clock again.' : 'Anda di luar lokasi, jadi selfie diperlukan. Ambil satu, kemudian clock semula.')"></div>
+                 x-text="$store.ui.lang==='en'
+                     ? 'A selfie is required for every clock in and out. Take one, then clock again.'
+                     : 'Selfie diperlukan untuk setiap clock in dan clock out. Ambil satu, kemudian clock semula.'"></div>
         @else
             @error('photo')<div style="color:var(--red-active);font-size:11.5px;margin-top:7px;line-height:1.45;text-align:left;">{{ $message }}</div>@enderror
         @endif
@@ -849,17 +921,9 @@
                  @keydown.escape.window="closeCam()" @click.self="closeCam()"
                  role="dialog" aria-modal="true" aria-labelledby="uj-at-sheet-title">
                 <div class="uj-at-sheet">
-                    <h2 id="uj-at-sheet-title"
-                        x-text="sheetNeed
-                            ? (sheetFix && sheetFix.lat !== null
-                                ? ($store.ui.lang==='en' ? @js($ci && !$co ? 'Off-site clock out' : 'Off-site clock in') : @js($ci && !$co ? 'Clock out luar lokasi' : 'Clock in luar lokasi'))
-                                : ($store.ui.lang==='en' ? @js($ci && !$co ? 'Clock out without location' : 'Clock in without location') : @js($ci && !$co ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi')))
-                            : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</h2>
+                    <h2 id="uj-at-sheet-title" x-text="sheetTitle($store.ui.lang)">Take a selfie</h2>
 
-                    <p x-show="sheetNeed" x-cloak class="uj-at-sheet-why"
-                       x-text="(sheetFix && sheetFix.lat !== null)
-                           ? ($store.ui.lang==='en' ? 'You appear to be outside the expected location, so this punch needs a reason and a selfie. Your manager sees it flagged.' : 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.')
-                           : ($store.ui.lang==='en' ? 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.' : 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.')"></p>
+                    <p x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-why" x-text="sheetWhy($store.ui.lang)"></p>
 
                     <div class="uj-at-sheet-cam">
                         <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"></video>
@@ -873,16 +937,10 @@
                                 x-text="$store.ui.lang==='en' ? 'Attach a photo instead' : 'Lampirkan gambar sebaliknya'"></button>
                     </div>
 
-                    <div x-show="sheetNeed" x-cloak class="uj-at-sheet-reason">
-                        <label for="attendance-sheet-reason"
-                               x-text="(sheetFix && sheetFix.lat !== null)
-                                   ? ($store.ui.lang==='en' ? 'Why are you outside the expected location?' : 'Kenapa anda di luar lokasi yang dijangka?')
-                                   : ($store.ui.lang==='en' ? 'Why are you clocking without location?' : 'Kenapa anda clock tanpa lokasi?')">Why are you clocking without location?</label>
+                    <div x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-reason">
+                        <label for="attendance-sheet-reason" x-text="sheetReasonLabel($store.ui.lang)">Why are you clocking without location?</label>
                         <textarea id="attendance-sheet-reason" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
-                                  aria-required="true"
-                                  :placeholder="(sheetFix && sheetFix.lat !== null)
-                                      ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
-                                      : ($store.ui.lang==='en' ? 'e.g. Office wifi has no location on this desktop' : 'cth. Wifi pejabat tiada lokasi pada komputer ini')"></textarea>
+                                  aria-required="true" :placeholder="sheetReasonPlaceholder($store.ui.lang)"></textarea>
                     </div>
 
                     <div class="uj-at-sheet-acts">

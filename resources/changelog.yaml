@@ -6,6 +6,13 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.2"
+  date: "2026-08-12"
+  entries:
+    - tag: improved
+      text: "Clocking in and out now always opens the camera for a selfie. Before, it only asked when you were away from the office or your location could not be found. The reason box is unchanged: it still appears only when you are off-site, have no location, clock in late or clock out early."
+      text_ms: "Clock in dan clock out kini sentiasa membuka kamera untuk swafoto. Sebelum ini ia hanya diminta apabila anda berada di luar pejabat atau lokasi anda tidak dapat dikesan. Kotak sebab tidak berubah: ia masih muncul hanya apabila anda berada di luar pejabat, tiada lokasi, clock in lewat atau clock out awal."
+
 - version: "1.1"
   date: "2026-08-06"
   entries:

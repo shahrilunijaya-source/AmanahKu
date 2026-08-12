@@ -77,7 +77,7 @@ class ClockServiceTest extends TestCase
     {
         $now = Carbon::parse('2026-07-02 08:55:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.1001, 101.6001, null, null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.1001, 101.6001, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -108,13 +108,14 @@ class ClockServiceTest extends TestCase
         $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
     }
 
-    public function test_in_radius_clock_in_needs_no_selfie(): void
+    public function test_in_radius_clock_in_still_requires_a_selfie(): void
     {
         $now = Carbon::parse('2026-07-02 08:55:00');
 
         $res = $this->service($this->office())->clockIn($this->employee, 3.1001, 101.6001, null, null, $now);
 
-        $this->assertSame('ok', $res['status']);
+        $this->assertSame('needs_photo', $res['status']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
     }
 
     public function test_out_of_radius_clock_in_with_justification_and_selfie_is_flagged_not_blocked(): void
@@ -131,17 +132,20 @@ class ClockServiceTest extends TestCase
         $this->assertSame('attendance-photos/a.jpg', $record->photo_path);
     }
 
-    public function test_off_site_clock_out_requires_a_selfie_but_an_early_in_radius_one_does_not(): void
+    public function test_off_site_clock_out_and_an_early_in_radius_one_both_require_a_selfie(): void
     {
         $svc = $this->service($this->office());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 09:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 09:00:00'));
         $early = Carbon::parse('2026-07-02 15:00:00');
 
         $offSite = $svc->clockOut($this->employee, 3.20, 101.60, 'Left from the client site', null, $early);
         $this->assertSame('needs_photo', $offSite['status']);
 
-        // Same early exit from inside the fence needs the reason only.
-        $inFence = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', null, $early);
+        // Same early exit from inside the fence needs the reason, and now the selfie too.
+        $inFenceNoPhoto = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', null, $early);
+        $this->assertSame('needs_photo', $inFenceNoPhoto['status']);
+
+        $inFence = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', 'attendance-photos/out.jpg', $early);
         $this->assertSame('ok', $inFence['status']);
     }
 
@@ -155,7 +159,7 @@ class ClockServiceTest extends TestCase
         $this->assertSame('needs_justification', $svc->clockIn($this->employee, 3.10, 101.60, null, null, $now)['status']);
         $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
 
-        $res = $svc->clockIn($this->employee, 3.10, 101.60, 'Traffic jam on the LDP', null, $now);
+        $res = $svc->clockIn($this->employee, 3.10, 101.60, 'Traffic jam on the LDP', 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -169,7 +173,7 @@ class ClockServiceTest extends TestCase
         $this->tenant->update(['late_grace_minutes' => 5]);
         $now = Carbon::parse('2026-07-02 09:04:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -182,7 +186,7 @@ class ClockServiceTest extends TestCase
         $this->tenant->update(['late_grace_minutes' => 5]);
         $now = Carbon::parse('2026-07-02 09:06:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, 'Overslept', null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, 'Overslept', 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -199,7 +203,7 @@ class ClockServiceTest extends TestCase
         $this->tenant->update(['late_grace_minutes' => 15]);
         $now = Carbon::parse('2026-07-02 09:14:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $this->assertSame('on_time', $this->employee->attendanceRecords()->onDate($now)->first()->status);
@@ -214,7 +218,7 @@ class ClockServiceTest extends TestCase
         $noHours = new SiteSpec('office', 'HQ', 3.10, 101.60, 200, null, null, null);
         $now = Carbon::parse('2026-07-02 23:59:00');
 
-        $res = $this->service($noHours)->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($noHours)->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $this->assertSame('on_time', $this->employee->attendanceRecords()->onDate($now)->first()->status);
@@ -273,7 +277,7 @@ class ClockServiceTest extends TestCase
     public function test_clock_out_with_no_coordinates_is_flagged_too(): void
     {
         $svc = $this->service($this->office());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 09:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 09:00:00'));
         $end = Carbon::parse('2026-07-02 18:00:00');
 
         $this->assertSame('needs_justification', $svc->clockOut($this->employee, null, null, null, null, $end)['status']);
@@ -291,7 +295,7 @@ class ClockServiceTest extends TestCase
         $now = Carbon::parse('2026-07-02 08:55:00');
         $svc = $this->service($this->office());
 
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/a.jpg', $now);
         $res = $svc->clockIn($this->employee, 3.10, 101.60, null, null, $now->copy()->addMinutes(5));
 
         $this->assertSame('noop', $res['status']);
@@ -320,9 +324,9 @@ class ClockServiceTest extends TestCase
     public function test_overnight_clock_out_finds_the_open_punch_and_computes_real_hours(): void
     {
         $svc = $this->service($this->office());
-        $svc->clockIn($this->employee, 3.10, 101.60, 'Overnight on-call shift', null, Carbon::parse('2026-07-02 23:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, 'Overnight on-call shift', 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 23:00:00'));
 
-        $res = $svc->clockOut($this->employee, 3.10, 101.60, 'Overnight on-call shift', null, Carbon::parse('2026-07-03 01:30:00'));
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, 'Overnight on-call shift', 'attendance-photos/out.jpg', Carbon::parse('2026-07-03 01:30:00'));
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
@@ -343,7 +347,7 @@ class ClockServiceTest extends TestCase
     {
         $now = Carbon::parse('2026-07-03 00:30:00'); // 2.5h after the 22:00 start, previous evening
 
-        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, 'Delayed relief handover', null, $now);
+        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, 'Delayed relief handover', 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -356,7 +360,7 @@ class ClockServiceTest extends TestCase
     {
         $now = Carbon::parse('2026-07-02 22:00:00');
 
-        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, null, null, $now);
+        $res = $this->service($this->overnightSite())->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -371,12 +375,12 @@ class ClockServiceTest extends TestCase
     public function test_overnight_shift_clock_out_before_end_next_morning_is_early(): void
     {
         $svc = $this->service($this->overnightSite());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 22:00:00'));
 
         $blocked = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-03 05:30:00'));
         $this->assertSame('needs_justification', $blocked['status']);
 
-        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Relieved early by the next shift', null, Carbon::parse('2026-07-03 05:30:00'));
+        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Relieved early by the next shift', 'attendance-photos/out.jpg', Carbon::parse('2026-07-03 05:30:00'));
         $this->assertSame('ok', $ok['status']);
         $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
         $this->assertContains('early_out', $record->flags);
@@ -391,12 +395,12 @@ class ClockServiceTest extends TestCase
     public function test_overnight_shift_clock_out_before_midnight_is_flagged_early(): void
     {
         $svc = $this->service($this->overnightSite());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 22:00:00'));
 
         $blocked = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 23:50:00'));
         $this->assertSame('needs_justification', $blocked['status']);
 
-        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Called off early', null, Carbon::parse('2026-07-02 23:50:00'));
+        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Called off early', 'attendance-photos/out.jpg', Carbon::parse('2026-07-02 23:50:00'));
         $this->assertSame('ok', $ok['status']);
         $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
         $this->assertContains('early_out', $record->flags);
@@ -406,9 +410,9 @@ class ClockServiceTest extends TestCase
     public function test_overnight_shift_clock_out_at_end_time_is_not_early(): void
     {
         $svc = $this->service($this->overnightSite());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 22:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 22:00:00'));
 
-        $res = $svc->clockOut($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-03 06:00:00'));
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, null, 'attendance-photos/out.jpg', Carbon::parse('2026-07-03 06:00:00'));
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
@@ -429,13 +433,13 @@ class ClockServiceTest extends TestCase
     public function test_early_clock_out_requires_justification_then_flags_it(): void
     {
         $svc = $this->service($this->office());
-        $svc->clockIn($this->employee, 3.10, 101.60, null, null, Carbon::parse('2026-07-02 09:00:00'));
+        $svc->clockIn($this->employee, 3.10, 101.60, null, 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 09:00:00'));
 
         $early = Carbon::parse('2026-07-02 15:00:00'); // before 18:00 AND under 8h
         $blocked = $svc->clockOut($this->employee, 3.10, 101.60, null, null, $early);
         $this->assertSame('needs_justification', $blocked['status']);
 
-        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', null, $early);
+        $ok = $svc->clockOut($this->employee, 3.10, 101.60, 'Site visit ended early', 'attendance-photos/out.jpg', $early);
         $this->assertSame('ok', $ok['status']);
 
         $record = $this->employee->attendanceRecords()->onDate($early)->first();
@@ -449,7 +453,7 @@ class ClockServiceTest extends TestCase
         $home = new SiteSpec('home', 'Home', null, null, 200, '09:00', '18:00', 8.0, needsHomeCapture: true);
         $now = Carbon::parse('2026-07-02 08:55:00');
 
-        $res = $this->service($home)->clockIn($this->employee, 3.15, 101.70, null, null, $now);
+        $res = $this->service($home)->clockIn($this->employee, 3.15, 101.70, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $fresh = $this->employee->fresh();
@@ -472,7 +476,7 @@ class ClockServiceTest extends TestCase
         ]);
         $now = Carbon::parse('2026-07-02 08:55:00');
 
-        $res = $this->service($this->office())->clockIn($this->employee, 3.0450, 101.4452, null, null, $now);
+        $res = $this->service($this->office())->clockIn($this->employee, 3.0450, 101.4452, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
@@ -530,7 +534,7 @@ class ClockServiceTest extends TestCase
         $home = new SiteSpec('home', 'Work from home', null, null, 200, '09:00', '18:00', 8.0, needsHomeCapture: true);
         $now = Carbon::parse('2026-07-02 08:55:00');
 
-        $res = $this->service($home)->clockIn($this->employee, 3.1074, 101.6068, null, null, $now);
+        $res = $this->service($home)->clockIn($this->employee, 3.1074, 101.6068, null, 'attendance-photos/a.jpg', $now);
 
         $this->assertSame('ok', $res['status']);
         $this->assertNull($this->employee->fresh()->home_latitude);

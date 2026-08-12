@@ -12,7 +12,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 /**
  * Clock-in / clock-out business rules: geofence checks against the expected site,
  * punctuality (late / early / short hours), home auto-registration, and justification
- * enforcement for out-of-radius or early exits (out-of-radius also demands a selfie).
+ * enforcement for out-of-radius or early exits. A selfie is mandatory for every punch.
  * Persists the attendance record.
  */
 class ClockService
@@ -48,29 +48,17 @@ class ClockService
 
         $inRadius = $this->within($site, $lat, $lng);
 
-        // A punch with no coordinates at all is allowed, but never cheap: it costs a reason,
-        // a selfie and a permanent flag. Blocking it instead only pushed the day off-system
-        // into a hand-keyed record with no GPS, no selfie and no flag — a worse audit trail
-        // than a punch that says plainly that location was unavailable.
-        if ($lat === null || $lng === null) {
-            if (! $this->filled($justification)) {
-                return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock in without it.'];
-            }
-            if ($photoPath === null) {
-                return ['status' => 'needs_photo', 'message' => 'Clocking in without location needs a selfie.'];
-            }
+        // A punch with no coordinates at all is allowed, but never cheap: it costs a reason
+        // and a permanent flag. Blocking it instead only pushed the day off-system into a
+        // hand-keyed record with no GPS and no flag — a worse audit trail than a punch that
+        // says plainly that location was unavailable.
+        if (($lat === null || $lng === null) && ! $this->filled($justification)) {
+            return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock in without it.'];
         }
 
         // Outside the geofence must be justified — never hard-blocked (bad GPS shouldn't strand staff).
         if ($inRadius === false && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'You appear to be outside '.$site->label.'. Add a reason to clock in.'];
-        }
-
-        // An off-site punch also needs a selfie: a typed reason proves nothing about who
-        // was standing there. In-radius punches, and punches with no geofence or no GPS
-        // to judge, stay selfie-optional.
-        if ($inRadius === false && $photoPath === null) {
-            return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock in from here.'];
         }
 
         $late = $this->isLate($site->workStart, $site->workEnd, $now, $employee->tenant->late_grace_minutes ?? 0);
@@ -82,6 +70,19 @@ class ClockService
         // which is the part they can see, and the one reason they type covers both.
         if ($late && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'You are clocking in after '.$site->workStart.'. Add a reason to clock in.'];
+        }
+
+        // A selfie is mandatory for every clock-in now, on-site and on-time included — it
+        // proves who actually punched, not only who was standing where.
+        if ($photoPath === null) {
+            if ($lat === null || $lng === null) {
+                return ['status' => 'needs_photo', 'message' => 'Clocking in without location needs a selfie.'];
+            }
+            if ($inRadius === false) {
+                return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock in from here.'];
+            }
+
+            return ['status' => 'needs_photo', 'message' => 'Attach a selfie to clock in.'];
         }
 
         $flags = [];
@@ -109,10 +110,8 @@ class ClockService
             'in_radius' => $inRadius,
             'clock_in_justification' => $this->filled($justification) ? $justification : null,
             'flags' => $flags,
+            'photo_path' => $photoPath,
         ];
-        if ($photoPath !== null) {
-            $attributes['photo_path'] = $photoPath;
-        }
 
         // Two rapid taps can both pass the $existing check and race into the same
         // INSERT; the (employee_id, date) unique index rejects the loser. Treat that
@@ -152,14 +151,9 @@ class ClockService
         $early = $this->isEarly($record->expected_start, $record->expected_end, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
-        // Same price as an unlocatable clock-in: a reason, a selfie and a flag.
-        if ($lat === null || $lng === null) {
-            if (! $this->filled($justification)) {
-                return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock out without it.'];
-            }
-            if ($photoPath === null) {
-                return ['status' => 'needs_photo', 'message' => 'Clocking out without location needs a selfie.'];
-            }
+        // Same price as an unlocatable clock-in: a reason and a flag.
+        if (($lat === null || $lng === null) && ! $this->filled($justification)) {
+            return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock out without it.'];
         }
 
         // Leaving the site early, off-site, or short of hours must be justified.
@@ -167,10 +161,16 @@ class ClockService
             return ['status' => 'needs_justification', 'message' => 'This clock-out looks early or off-site. Add a reason to clock out.'];
         }
 
-        // Selfie is mandatory only for the off-site case — an early or short clock-out made
-        // inside the geofence is already located by the fence itself.
-        if ($outRadius === false && $photoPath === null) {
-            return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock out from here.'];
+        // A selfie is mandatory for every clock-out now, not only the off-site one.
+        if ($photoPath === null) {
+            if ($lat === null || $lng === null) {
+                return ['status' => 'needs_photo', 'message' => 'Clocking out without location needs a selfie.'];
+            }
+            if ($outRadius === false) {
+                return ['status' => 'needs_photo', 'message' => 'You are outside '.$site->label.'. Attach a selfie to clock out from here.'];
+            }
+
+            return ['status' => 'needs_photo', 'message' => 'Attach a selfie to clock out.'];
         }
 
         $flags = $record->flags ?? [];
@@ -195,10 +195,8 @@ class ClockService
             'clock_out_justification' => $this->filled($justification) ? $justification : null,
             'worked_minutes' => $worked,
             'flags' => array_values(array_unique($flags)),
+            'clock_out_photo_path' => $photoPath,
         ];
-        if ($photoPath !== null) {
-            $updates['clock_out_photo_path'] = $photoPath;
-        }
 
         $record->update($updates);
 

@@ -69,7 +69,7 @@ class AttendanceClockEndpointTest extends TestCase
 
     public function test_first_clock_in_is_a_success(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')])->assertSessionHas('clock_ok');
 
         $this->assertNotNull($this->employee->attendanceRecords()->first()?->clock_in);
     }
@@ -81,7 +81,7 @@ class AttendanceClockEndpointTest extends TestCase
      */
     public function test_second_clock_in_is_declined_without_claiming_success(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')])->assertSessionHas('clock_ok');
         $firstPunch = $this->employee->attendanceRecords()->first()->clock_in;
 
         $this->travel(30)->minutes();
@@ -104,18 +104,22 @@ class AttendanceClockEndpointTest extends TestCase
     /**
      * The selfie is stored before ClockService decides, so a refused punch used to leave a
      * file on the private disk that no record ever pointed at — up to 4MB, forever, on
-     * every repeat tap.
+     * every repeat tap. The accepted punch's own selfie is not that orphan — it stays.
      */
     public function test_a_declined_punch_leaves_no_orphan_selfie_on_the_disk(): void
     {
-        $this->punch(['action' => 'in'])->assertSessionHas('clock_ok');
+        $this->punch([
+            'action' => 'in',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertSessionHas('clock_ok');
+        $keptPath = $this->employee->attendanceRecords()->first()->photo_path;
 
         $this->punch([
             'action' => 'in',
             'photo' => UploadedFile::fake()->image('selfie.jpg'),
         ])->assertSessionHas('info');
 
-        $this->assertEmpty(Storage::disk('local')->allFiles('attendance-photos'));
+        $this->assertSame([$keptPath], Storage::disk('local')->allFiles('attendance-photos'));
     }
 
     /** An accepted punch keeps its selfie — the cleanup must only bite refused punches. */
@@ -150,7 +154,7 @@ class AttendanceClockEndpointTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('4096 kilobytes', false);
-        $response->assertDontSee('so a selfie is required', false);
+        $response->assertDontSee('Take one, then clock again', false);
     }
 
     /** The other side: a genuine demand for a selfie keeps the bilingual instruction. */
@@ -162,8 +166,8 @@ class AttendanceClockEndpointTest extends TestCase
         ]);
 
         $response->assertOk();
-        $response->assertSee('so a selfie is required', false);
-        $response->assertSee('selfie diperlukan', false);
+        $response->assertSee('Take one, then clock again', false);
+        $response->assertSee('Ambil satu, kemudian clock semula', false);
         $response->assertDontSee('4096 kilobytes', false);
     }
 
