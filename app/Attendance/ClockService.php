@@ -110,10 +110,8 @@ class ClockService
             'in_radius' => $inRadius,
             'clock_in_justification' => $this->filled($justification) ? $justification : null,
             'flags' => $flags,
+            'photo_path' => $photoPath,
         ];
-        if ($photoPath !== null) {
-            $attributes['photo_path'] = $photoPath;
-        }
 
         // Two rapid taps can both pass the $existing check and race into the same
         // INSERT; the (employee_id, date) unique index rejects the loser. Treat that
@@ -197,10 +195,8 @@ class ClockService
             'clock_out_justification' => $this->filled($justification) ? $justification : null,
             'worked_minutes' => $worked,
             'flags' => array_values(array_unique($flags)),
+            'clock_out_photo_path' => $photoPath,
         ];
-        if ($photoPath !== null) {
-            $updates['clock_out_photo_path'] = $photoPath;
-        }
 
         $record->update($updates);
 
