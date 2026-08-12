@@ -232,14 +232,21 @@
 
         @if ($msgEnabled ?? false)
         // Direct-messages unread badge + the slide-over panel's thread list, both seeded
-        // server-side then refreshed by a ~5s poll — one shared store so the envelope
+        // server-side then refreshed by a 5-7s poll — one shared store so the envelope
         // count and the panel's rows (snippet, order, per-thread unread) stay live even
         // when the panel is closed, instead of only catching up once it's reopened.
+        //
+        // Self-rescheduled with jitter and skipped while the tab is hidden, for the same
+        // reasons spelled out on notifbell below: a fixed interval let every open tab hit
+        // this route on the same tick, and background tabs kept polling forever. A profile
+        // of production (2026-08-12) caught a background tab still calling this every 5s.
         Alpine.store('msgbadge', {
             unread: @js($msgUnread ?? 0),
             threads: @js($msgThreads ?? []),
-            init() { setInterval(() => this.poll(), 5000); },
+            init() { this.schedule(); },
+            schedule() { setTimeout(() => { this.poll(); this.schedule(); }, 5000 + Math.random() * 2000); },
             poll() {
+                if (document.hidden) return;
                 fetch('{{ route('messages.summary') }}', { headers: { 'Accept': 'application/json' } })
                     .then(r => r.json()).then(d => { this.unread = d.unread; this.threads = d.threads; }).catch(() => {});
             },
