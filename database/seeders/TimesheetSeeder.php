@@ -54,6 +54,10 @@ class TimesheetSeeder extends Seeder
             'Lee Weng Yew' => [['Maintenance', 'JKDM: MyStods', 100]],
             'Muhammad Shukri Bin Aman' => [['Maintenance', 'MOTAC: TTMS', 100]],
             'Nurhidayah Abdul Halim' => [['Maintenance', 'JBG: iGuaman', 100]],
+            // An intern, so Track shows a band that costs against its single Intern
+            // position. 40% across five days is the same two person-days the row was
+            // originally filed as, and person-days is what the ledger costs from.
+            'Muhammad Shazwan Shah Bin Mohd Norhadi Shah' => [['Maintenance', 'MOTAC: TTMS', 40]],
             'Muhamad Rubmin Bin Muhamad' => [['Maintenance', 'JBG: iGuaman', 60], ['Development', 'KDN: iLPF', 40]],
         ];
 
