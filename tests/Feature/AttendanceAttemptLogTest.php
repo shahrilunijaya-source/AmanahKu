@@ -82,7 +82,7 @@ class AttendanceAttemptLogTest extends TestCase
 
     public function test_a_successful_punch_is_recorded_with_its_device(): void
     {
-        $this->punch(['action' => 'in']);
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')]);
 
         $attempt = AttendanceAttempt::sole();
 
@@ -92,7 +92,7 @@ class AttendanceAttemptLogTest extends TestCase
         $this->assertSame($this->tenant->id, $attempt->tenant_id);
         $this->assertSame('iPhone', $attempt->deviceLabel());
         $this->assertTrue($attempt->has_location);
-        $this->assertFalse($attempt->has_photo);
+        $this->assertTrue($attempt->has_photo);
     }
 
     /**
@@ -114,7 +114,7 @@ class AttendanceAttemptLogTest extends TestCase
 
     public function test_a_second_clock_in_is_recorded_as_a_noop(): void
     {
-        $this->punch(['action' => 'in']);
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')]);
         $this->punch(['action' => 'in']);
 
         $this->assertSame(
