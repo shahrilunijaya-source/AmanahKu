@@ -154,7 +154,7 @@ class AttendanceClockEndpointTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('4096 kilobytes', false);
-        $response->assertDontSee('so a selfie is required', false);
+        $response->assertDontSee('Take one, then clock again', false);
     }
 
     /** The other side: a genuine demand for a selfie keeps the bilingual instruction. */
@@ -166,8 +166,8 @@ class AttendanceClockEndpointTest extends TestCase
         ]);
 
         $response->assertOk();
-        $response->assertSee('so a selfie is required', false);
-        $response->assertSee('selfie diperlukan', false);
+        $response->assertSee('Take one, then clock again', false);
+        $response->assertSee('Ambil satu, kemudian clock semula', false);
         $response->assertDontSee('4096 kilobytes', false);
     }
 
