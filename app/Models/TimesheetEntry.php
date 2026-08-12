@@ -31,6 +31,7 @@ class TimesheetEntry extends Model
         ];
     }
 
+    /** @return BelongsTo<Timesheet, $this> */
     public function timesheet(): BelongsTo
     {
         return $this->belongsTo(Timesheet::class);
