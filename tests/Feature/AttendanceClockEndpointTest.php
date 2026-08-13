@@ -196,4 +196,20 @@ class AttendanceClockEndpointTest extends TestCase
 
         $this->punch(['action' => 'in'])->assertStatus(429);
     }
+
+    /**
+     * A staff member who trips the throttle by rage-tapping the button should not land on
+     * Laravel's bare default 429 page — that reads as a crash and invites more tapping.
+     */
+    public function test_a_throttled_punch_renders_the_app_own_slow_down_page(): void
+    {
+        for ($i = 0; $i < 20; $i++) {
+            $this->punch(['action' => 'in']);
+        }
+
+        $this->punch(['action' => 'in'])
+            ->assertStatus(429)
+            ->assertSee('Slow down a moment')
+            ->assertSee('Retrying faster will not help');
+    }
 }
