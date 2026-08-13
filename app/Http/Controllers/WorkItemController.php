@@ -167,6 +167,16 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->authorizeManage($request, $workItem, $employee);
 
+        // The drawer's link editor keeps a blank "+ Add a link" row in local state
+        // until it's filled in — drop rows nobody touched before validating, same
+        // rule TotController::store() uses for TOT session links.
+        if (is_array($request->input('links'))) {
+            $request->merge(['links' => array_values(array_filter(
+                $request->input('links'),
+                fn ($link) => is_array($link) && ! $this->isUntouchedLinkRow($link),
+            ))]);
+        }
+
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:160'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
@@ -178,6 +188,9 @@ class WorkItemController extends Controller
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'labels' => ['sometimes', 'array'],
             'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
+            'links' => ['sometimes', 'array', 'max:12'],
+            'links.*.label' => ['required_with:links', 'string', 'max:60'],
+            'links.*.url' => ['required_with:links', 'url', 'max:2000'],
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
         ]);
@@ -195,6 +208,18 @@ class WorkItemController extends Controller
             'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    /**
+     * A link row nobody filled in: no label and no URL. Dropped on save rather
+     * than rejected — mirrors TotController::isUntouchedLinkRow(), simplified
+     * since WorkItem has no pre-seeded default labels to also check for.
+     *
+     * @param  array<string, mixed>  $link
+     */
+    private function isUntouchedLinkRow(array $link): bool
+    {
+        return blank($link['label'] ?? null) && blank($link['url'] ?? null);
     }
 
     /**
@@ -602,6 +627,7 @@ class WorkItemController extends Controller
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
             'labels' => $item->labels ?? [],
+            'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [

@@ -200,6 +200,64 @@ class BoardCardTest extends TestCase
         $this->assertSame([['label' => 'Doc', 'url' => 'https://example.com']], $item->fresh()->links);
     }
 
+    public function test_owner_sets_links(): void
+    {
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'links' => [
+                ['label' => 'Doc', 'url' => 'https://example.com/doc'],
+                ['label' => 'Meet', 'url' => 'https://example.com/meet'],
+            ],
+        ])->assertOk()->assertJsonPath('card.links', [
+            ['label' => 'Doc', 'url' => 'https://example.com/doc'],
+            ['label' => 'Meet', 'url' => 'https://example.com/meet'],
+        ]);
+
+        $this->assertSame([
+            ['label' => 'Doc', 'url' => 'https://example.com/doc'],
+            ['label' => 'Meet', 'url' => 'https://example.com/meet'],
+        ], $item->fresh()->links);
+    }
+
+    public function test_link_missing_url_is_rejected(): void
+    {
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'links' => [['label' => 'Doc', 'url' => '']],
+        ])->assertStatus(422)->assertJsonValidationErrors(['links.0.url']);
+    }
+
+    public function test_blank_link_row_is_dropped_not_rejected(): void
+    {
+        $item = $this->card();
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'links' => [
+                ['label' => '', 'url' => ''],
+                ['label' => 'Doc', 'url' => 'https://example.com/doc'],
+            ],
+        ])->assertOk()->assertJsonPath('card.links', [
+            ['label' => 'Doc', 'url' => 'https://example.com/doc'],
+        ]);
+    }
+
+    public function test_more_than_twelve_links_is_rejected(): void
+    {
+        $item = $this->card();
+
+        $links = array_map(fn ($n) => ['label' => "Link {$n}", 'url' => "https://example.com/{$n}"], range(1, 13));
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
+            'title' => 'X', 'type' => 'task', 'priority' => 'low',
+            'links' => $links,
+        ])->assertStatus(422)->assertJsonValidationErrors(['links']);
+    }
+
     public function test_board_marks_overdue_open_cards_and_emits_label_data(): void
     {
         // Open past-due card: carries a label and gets the overdue marker.
