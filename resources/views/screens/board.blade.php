@@ -307,6 +307,32 @@
                                   :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
                                   @input="scheduleCommit('description')" @blur="commitFieldFromCard('description')"></textarea>
 
+                        <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</h3>
+                        <template x-if="!drawer.locked">
+                            <div>
+                                <template x-for="(link, idx) in drawer.card.links" :key="idx">
+                                    <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;margin-bottom:8px;">
+                                        <input class="wd-inline" style="margin:0;" x-model="link.label" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="Label" maxlength="60">
+                                        <input class="wd-inline" style="margin:0;" x-model="link.url" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="https://...">
+                                        <button type="button" @click="removeLink(idx)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                                    </div>
+                                </template>
+                                <button type="button" class="wd-add" @click="addLink()">
+                                    <span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'"></span>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="drawer.locked">
+                            <div class="wd-chiprow">
+                                <template x-for="link in drawer.card.links" :key="link.url">
+                                    <a :href="link.url" target="_blank" rel="noopener noreferrer" class="wd-inline" x-text="link.label"></a>
+                                </template>
+                                <template x-if="!drawer.card.links.length">
+                                    <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></span>
+                                </template>
+                            </div>
+                        </template>
+
                         <hr class="wd-rule">
 
                         <h3 class="wd-sech" x-text="drawer.comments.length ? (($store.ui.lang==='en' ? 'Comments' : 'Komen') + ' (' + drawer.comments.length + ')') : ($store.ui.lang==='en' ? 'Comments' : 'Komen')">Comments</h3>

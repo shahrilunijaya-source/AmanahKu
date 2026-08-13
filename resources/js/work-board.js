@@ -333,6 +333,15 @@ export function registerWorkBoard(Alpine) {
             }
             if (field === 'description') {
                 this.commitField('description', this.drawer.card.description || null);
+                return;
+            }
+            if (field === 'links') {
+                // Send a filtered copy so the server never rejects an untouched
+                // blank row — but leave drawer.card.links itself alone, so a
+                // half-typed row (label filled, url not yet) doesn't disappear
+                // from the screen mid-edit.
+                const filled = this.drawer.card.links.filter((l) => l.label.trim() || l.url.trim());
+                this.commitField('links', filled);
             }
         },
 
@@ -350,6 +359,21 @@ export function registerWorkBoard(Alpine) {
             this.drawer.card.labels = next;
             this.drawer.labelMenuOpen = false;
             this.commitField('labels', next);
+        },
+
+        addLink() {
+            if (this.drawer.locked) return;
+            this.drawer.card.links.push({ label: '', url: '' });
+        },
+
+        removeLink(idx) {
+            if (this.drawer.locked) return;
+            this.drawer.card.links.splice(idx, 1);
+            this.commitField('links', this.drawer.card.links);
+        },
+
+        onLinkInput() {
+            this.scheduleCommit('links');
         },
 
         addPerson(id) {
@@ -480,6 +504,7 @@ export function registerWorkBoard(Alpine) {
                     description: card.description ?? '',
                     due_at: card.due_at ?? '',
                     labels: card.labels ?? [],
+                    links: card.links ?? [],
                     participants: card.participants ?? [],
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
