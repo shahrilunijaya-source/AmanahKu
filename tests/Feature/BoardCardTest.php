@@ -193,6 +193,13 @@ class BoardCardTest extends TestCase
         $this->assertSame('2026-08-01', $fresh->due_at->format('Y-m-d'));
     }
 
+    public function test_links_column_casts_to_array(): void
+    {
+        $item = $this->card(['links' => [['label' => 'Doc', 'url' => 'https://example.com']]]);
+
+        $this->assertSame([['label' => 'Doc', 'url' => 'https://example.com']], $item->fresh()->links);
+    }
+
     public function test_board_marks_overdue_open_cards_and_emits_label_data(): void
     {
         // Open past-due card: carries a label and gets the overdue marker.
