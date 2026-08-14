@@ -10,7 +10,6 @@ use App\Models\LeaveRequest;
 use App\Models\Payslip;
 use App\Models\Position;
 use App\Models\Project;
-use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -194,17 +193,9 @@ class ApiController extends Controller
 
         $weekStart = $request->validate(['week_start' => ['required', 'date']])['week_start'];
 
-        // The counted weeks are selected on their own builder rather than inside a
-        // whereHas() closure: a closure argument is typed Builder<Model>, which cannot
-        // see Timesheet's forWeek() scope. Same rows, one indexed subquery on the FK.
-        $countedWeeks = Timesheet::query()
-            ->whereIn('status', self::COUNTED_TIMESHEET_STATUSES)
-            ->forWeek($weekStart)
-            ->select('id');
-
         $entries = TimesheetEntry::query()
             ->whereNotNull('project_id')
-            ->whereIn('timesheet_id', $countedWeeks)
+            ->whereHas('timesheet', fn ($query) => $query->whereIn('status', self::COUNTED_TIMESHEET_STATUSES)->forWeek($weekStart))
             ->with('timesheet.employee')
             ->get();
 
@@ -231,16 +222,16 @@ class ApiController extends Controller
      * cannot exceed 100 because a single employee-day never exceeds 100 percent.
      *
      * @param  Collection<int, TimesheetEntry>  $rows
-     * @return array<int, array{position_id: ?int, position_title: ?string, headcount: int, person_days: float, days_present: int, alloc_pct: float}>
+     * @return Collection<int, array{position_id: ?int, position_title: ?string, headcount: int, person_days: float, days_present: int, alloc_pct: float}>
      */
-    private function effortByPosition(Collection $rows): array
+    private function effortByPosition(Collection $rows): Collection
     {
         return $rows
             // Employees with no position band share one bucket; Track flags it the same
             // way it flags a band nobody has mapped yet.
-            ->groupBy(fn (TimesheetEntry $entry) => $entry->timesheet->employee->position_id ?? 'unbanded')
+            ->groupBy(fn (TimesheetEntry $entry) => $entry->timesheet->employee?->position_id ?? 'unbanded')
             ->map(function (Collection $banded) {
-                $band = $banded->first()->timesheet->employee->positionBand;
+                $band = $banded->first()->timesheet->employee?->positionBand;
                 $personDays = round($banded->sum(fn (TimesheetEntry $e) => (float) $e->percentage) / 100, 2);
                 $headcount = $banded->pluck('timesheet.employee_id')->unique()->count();
                 $daysPresent = $banded->pluck('entry_date')->map->toDateString()->unique()->count();
@@ -256,8 +247,7 @@ class ApiController extends Controller
                 ];
             })
             ->sortBy(fn (array $row) => $row['position_title'] ?? '')
-            ->values()
-            ->all();
+            ->values();
     }
 
     private function isPrivileged(Request $request): bool
