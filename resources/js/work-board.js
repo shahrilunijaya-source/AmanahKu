@@ -43,8 +43,6 @@ export function registerWorkBoard(Alpine) {
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-        open: { todo: false, prog: false, review: false, done: false },
-        draft: { todo: '', prog: '', review: '', done: '' },
         busy: false,
         // The roster to pick from when including people on a card. Every role gets
         // it; `drawer.locked` decides per-card whether the picker is usable.
@@ -816,20 +814,16 @@ export function registerWorkBoard(Alpine) {
             }
         },
 
-        toggleComposer(status) {
-            this.open[status] = !this.open[status];
-            if (this.open[status]) this.$nextTick(() => this.$refs['draft_' + status]?.focus());
-        },
-
-        async submitAdd(status) {
-            const title = this.draft[status].trim();
-            if (!title || this.busy) return;
+        async addCard(status) {
+            if (this.busy) return;
             this.busy = true;
             try {
-                // New cards take the type of the active filter so they stay visible;
-                // on "All work" they default to an assignment (refine later in the drawer).
+                // Same type-from-active-filter rule the old inline composer used, so
+                // a card added while viewing one type of work stays visible under
+                // that filter.
                 const type = ['task', 'assignment', 'adhoc'].includes(this.filter) ? this.filter : 'assignment';
-                const { html } = await this.api('/app/board', {
+                const title = this.t('Untitled card', 'Kad tanpa tajuk');
+                const { card, html } = await this.api('/app/board', {
                     method: 'POST',
                     body: JSON.stringify({ title, status, type, priority: 'medium' }),
                 });
@@ -838,12 +832,11 @@ export function registerWorkBoard(Alpine) {
                 if (empty) empty.remove();
                 list.insertAdjacentHTML('beforeend', html);
                 this.playEnter(list.lastElementChild);
-                this.draft[status] = '';
                 // A brand-new card changes the totals every chip reports, so this is
                 // one of the few autosave-adjacent paths that legitimately needs the
                 // full applyFilter() rather than the single-card applyFilterTo().
                 this.applyFilter();
-                this.$nextTick(() => this.$refs['draft_' + status]?.focus());
+                await this.openCardCore(String(card.id), list.lastElementChild);
             } finally {
                 this.busy = false;
             }
