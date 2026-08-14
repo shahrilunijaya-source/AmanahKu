@@ -16,8 +16,8 @@
         'body'  => 'Plan and track work as cards that move across four columns — To Do, In Progress, In Review, then Done. Drag a card to move it, or click it to add detail and comments.',
         'who'   => 'Anyone adds work · Owner moves their cards',
         'steps' => [
-            'Click "+ Add a card" at the bottom of a column and type what needs doing.',
-            'Click a card to open it — set type, priority, a due label, and write a description.',
+            'Click "+ Add a card" at the bottom of a column — it opens right away so you can name it and fill in the details.',
+            'Click any existing card to open it — set type, priority, a due label, and write a description.',
             'Drag the card across columns as the work progresses, or use the status menu inside it.',
             'Leave comments on a card to keep the back-and-forth in one place.',
         ],
@@ -27,8 +27,8 @@
         'body'  => 'Rancang dan jejak kerja sebagai kad yang bergerak melalui empat lajur — To Do, In Progress, In Review, kemudian Done. Seret kad untuk gerakkannya, atau klik untuk tambah butiran dan komen.',
         'who'   => 'Sesiapa boleh tambah kerja · Pemilik gerak kad sendiri',
         'steps' => [
-            'Klik "+ Tambah kad" di bahagian bawah lajur dan taip apa yang perlu dibuat.',
-            'Klik kad untuk buka — tetapkan jenis, keutamaan, label tarikh akhir, dan tulis penerangan.',
+            'Klik "+ Tambah kad" di bahagian bawah lajur — ia terus terbuka supaya anda boleh namakannya dan isi butiran.',
+            'Klik mana-mana kad sedia ada untuk buka — tetapkan jenis, keutamaan, label tarikh akhir, dan tulis penerangan.',
             'Seret kad merentas lajur apabila kerja maju, atau guna menu status di dalamnya.',
             'Tinggalkan komen pada kad supaya perbualan kekal di satu tempat.',
         ],
@@ -118,24 +118,10 @@
 
                 @if ($employee)
                     <div style="margin-top:10px;">
-                        <button type="button" x-show="!open['{{ $key }}']" @click="toggleComposer('{{ $key }}')"
+                        <button type="button" :disabled="busy" @click="addCard('{{ $key }}')"
                                 style="width:100%;text-align:left;padding:9px 12px;border:1px dashed var(--hairline);border-radius:10px;background:transparent;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;">
                             <span x-text="$store.ui.lang==='en' ? '+ Add a card' : '+ Tambah kad'"></span>
                         </button>
-                        <div x-show="open['{{ $key }}']" x-cloak class="uj-card" style="padding:10px;">
-                            <textarea x-ref="draft_{{ $key }}" x-model="draft['{{ $key }}']"
-                                      @keydown.enter.prevent="submitAdd('{{ $key }}')"
-                                      @keydown.escape="toggleComposer('{{ $key }}')"
-                                      rows="2" maxlength="160"
-                                      :placeholder="$store.ui.lang==='en' ? 'What needs doing?' : 'Apa yang perlu dibuat?'"
-                                      style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink);outline:none;resize:vertical;font-family:inherit;"></textarea>
-                            <div style="display:flex;gap:8px;margin-top:8px;">
-                                <button type="button" @click="submitAdd('{{ $key }}')" :disabled="busy" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Add card' : 'Tambah'"></span>
-                                </button>
-                                <button type="button" @click="toggleComposer('{{ $key }}')" style="height:34px;padding:0 10px;font-size:12.5px;color:var(--muted);background:transparent;cursor:pointer;">×</button>
-                            </div>
-                        </div>
                     </div>
                 @endif
             </div>
@@ -306,6 +292,32 @@
                         <textarea class="wd-desc" x-model="drawer.card.description" :readonly="drawer.locked" maxlength="5000"
                                   :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
                                   @input="scheduleCommit('description')" @blur="commitFieldFromCard('description')"></textarea>
+
+                        <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</h3>
+                        <template x-if="!drawer.locked">
+                            <div>
+                                <template x-for="(link, idx) in drawer.card.links" :key="idx">
+                                    <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;margin-bottom:8px;">
+                                        <input class="wd-inline" style="margin:0;" x-model="link.label" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="Label" maxlength="60">
+                                        <input class="wd-inline" style="margin:0;" x-model="link.url" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="https://...">
+                                        <button type="button" @click="removeLink(idx)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                                    </div>
+                                </template>
+                                <button type="button" class="wd-add" @click="addLink()">
+                                    <span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'"></span>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="drawer.locked">
+                            <div class="wd-chiprow">
+                                <template x-for="link in drawer.card.links" :key="link.url">
+                                    <a :href="link.url" target="_blank" rel="noopener noreferrer" class="wd-inline" x-text="link.label"></a>
+                                </template>
+                                <template x-if="!drawer.card.links.length">
+                                    <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'"></span>
+                                </template>
+                            </div>
+                        </template>
 
                         <hr class="wd-rule">
 

@@ -6,6 +6,19 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.3"
+  date: "2026-08-14"
+  entries:
+    - tag: improved
+      text: "Adding a card to the board now opens the full card right away — no more typing a title first and reopening it to add anything else."
+      text_ms: "Menambah kad pada papan kini terus membuka kad penuh — tidak perlu taip tajuk dahulu dan buka semula untuk tambah butiran lain."
+    - tag: added
+      text: "Cards on the board can now hold links — a document, a meeting link, anything — with a name and URL, shown as clickable buttons."
+      text_ms: "Kad pada papan kini boleh membawa pautan — dokumen, pautan mesyuarat, apa sahaja — dengan nama dan URL, dipaparkan sebagai butang boleh klik."
+    - tag: fixed
+      text: "Hitting the request limit now shows the app's own error page instead of a bare browser error."
+      text_ms: "Mencecah had permintaan kini memaparkan halaman ralat aplikasi sendiri, bukan ralat pelayar kosong."
+
 - version: "1.2"
   date: "2026-08-12"
   entries:
