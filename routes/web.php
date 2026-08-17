@@ -57,6 +57,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\SkillController;
+use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
 use App\Http\Controllers\SuperAdmin\ErrorEventController;
@@ -117,6 +118,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
+
+        // Machine API keys, per company. An app key belongs to an ApiClient rather than
+        // a staff member, so it survives that person leaving and carries only the scopes
+        // ticked here. Super-admin only: a key that reads projects is one mis-tick away
+        // from a key that reads payslips.
+        Route::get('/companies/{tenant:slug}/api-keys', [ApiKeyController::class, 'index'])->name('companies.api-keys');
+        Route::post('/companies/{tenant:slug}/api-keys', [ApiKeyController::class, 'store'])->name('companies.api-keys.store');
+        Route::post('/companies/{tenant:slug}/api-keys/{token}/revoke', [ApiKeyController::class, 'revoke'])->name('companies.api-keys.revoke');
 
         // Captured production faults. A user reports the reference printed on the error
         // page and this is where it is read back. Super-admin only: a stack trace names
