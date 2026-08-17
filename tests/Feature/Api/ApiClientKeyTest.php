@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\ApiClient;
+use App\Models\Employee;
 use App\Models\PersonalAccessToken;
+use App\Models\Project;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -52,5 +54,74 @@ class ApiClientKeyTest extends TestCase
         $client->delete();
 
         $this->assertSame(0, PersonalAccessToken::count());
+    }
+
+    public function test_an_app_key_reads_a_granted_scope(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['projects:read'])->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/projects');
+
+        $response->assertOk();
+        $this->assertSame('iLPF', $response->json('data.0.name'));
+    }
+
+    public function test_a_key_whose_client_moved_tenant_is_rejected(): void
+    {
+        $other = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BE']);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['projects:read'])->plainTextToken;
+
+        // The token still carries tenant A; the client now says tenant B. The two must
+        // agree or the key is dead — otherwise re-homing a client silently leaves a
+        // working key pointed at the tenant it used to belong to.
+        $client->forceFill(['tenant_id' => $other->id])->save();
+
+        $this->withHeader('Authorization', 'Bearer '.$plain)
+            ->getJson('/api/v1/projects')
+            ->assertStatus(401);
+    }
+
+    public function test_an_app_key_cannot_see_another_companys_projects(): void
+    {
+        $other = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BE']);
+        Project::create(['tenant_id' => $other->id, 'name' => 'Beta Secret', 'code' => 'B-1', 'is_active' => true, 'sort' => 1]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['projects:read'])->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/projects');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $this->assertStringNotContainsString('Beta Secret', $response->getContent() ?: '');
+    }
+
+    public function test_an_app_key_survives_every_employee_being_archived(): void
+    {
+        // The regression the whole design exists for. A key minted against a staff
+        // account dies the moment that person is archived (ApiTenant treats it as
+        // revoked membership); a client key has no person to lose.
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Ali', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['projects:read'])->plainTextToken;
+
+        // Archive every last one, so the update below is not a no-op against an empty
+        // table — the point is that a real archived roster changes nothing for an app key.
+        $archived = Employee::query()->update(['status' => 'archived']);
+        $this->assertSame(1, $archived);
+
+        $this->withHeader('Authorization', 'Bearer '.$plain)
+            ->getJson('/api/v1/projects')
+            ->assertOk();
     }
 }
