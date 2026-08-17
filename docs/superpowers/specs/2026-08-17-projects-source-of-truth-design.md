@@ -161,10 +161,12 @@ sort (default 0), timestamps, unique(tenant_id, name)
    **strictly by name match** (old row → its tenant + lowercased trimmed name → the new
    row's id). Old ids run 1..~72 and new ids run 1..~6, so they overlap numerically —
    matching on id in any form would corrupt history silently.
-5. Add the new foreign keys pointing at `sub_pillars`, `nullOnDelete` as before.
-6. Assert, and throw on failure: every non-null `sub_pillar_id` in both tables resolves
+5. Assert, and throw on failure: every non-null `sub_pillar_id` in both tables resolves
    to a `sub_pillars` row whose name equals the pre-migration name. A loud failed
-   deploy beats a quiet wrong remap.
+   deploy beats a quiet wrong remap. Runs **before** the foreign keys are re-added
+   (step 6) — a failed assertion should abort with the columns still unconstrained,
+   not after they're already pinned to the new table.
+6. Add the new foreign keys pointing at `sub_pillars`, `nullOnDelete` as before.
 
 Written in **portable Eloquent, not `UPDATE ... JOIN`** — migrations run on sqlite
 under `RefreshDatabase`, so MySQL-only syntax would pass on the dev DB and break the
@@ -331,7 +333,7 @@ reporting still work when a sub-pillar is not owned by a project.
 
 **The backfill is not feature-tested.** `RefreshDatabase` runs migrations against an
 empty database, so there is nothing for an assertion to catch. Its checks are the
-in-migration assertion (step 6), a run against the dev database, and the staging
+in-migration assertion (step 5), a run against the dev database, and the staging
 rehearsal — and staging is a true rehearsal, because the Management/Meeting/Technical
 data originally came from there.
 

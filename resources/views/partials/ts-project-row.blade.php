@@ -2,7 +2,7 @@
      AJAX append on add. Expects $project (with categories loaded and entries_count /
      work_items_count), $categories (full list, for the edit form) and $canEdit. --}}
 @php
-    $canEdit = $canEdit ?? true;
+    $canEdit = $canEdit ?? false;
     $hay = mb_strtolower(trim($project->name.' '.$project->code));
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
@@ -23,7 +23,7 @@
                     <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span></span>
                 @endunless
                 @foreach ($project->categories as $cat)
-                    <span class="uj-pill">{{ $cat->name }}</span>
+                    <span class="uj-pill" style="background:var(--canvas);color:var(--muted);">{{ $cat->name }}</span>
                 @endforeach
                 <span style="font-size:11.5px;font-weight:500;color:var(--muted-soft);font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
                     @if ($project->entries_count || $project->work_items_count)
