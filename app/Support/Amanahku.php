@@ -92,10 +92,6 @@ class Amanahku
             // `claim-approvals` slug still resolves to that screen for old deep links.
             $s('My Team', 'Pasukan Saya', ['id' => 'probation', 'label' => 'Probation', 'label_ms' => 'Percubaan', 'icon' => 'M12 8v4l3 3M3.05 11a9 9 0 1 1 .5 4M3 4v4h4']),
             $s('My Team', 'Pasukan Saya', ['id' => 'cases', 'label' => 'Cases', 'label_ms' => 'Kes', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
-            // Minimal Create Project screen (ProjectQuickCreateController) — server-gated to
-            // manager/management/hr there; no 'roles' key needed here since My Team is already
-            // hidden wholesale from employees above, the same set the controller enforces.
-            $s('My Team', 'Pasukan Saya', ['id' => 'project-quick-create', 'label' => 'New Project', 'label_ms' => 'Projek Baharu', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v8M8 12h8']),
             $s('My Team', 'Pasukan Saya', ['id' => 'perf', 'label' => 'Performance', 'label_ms' => 'Prestasi', 'icon' => 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6', 'children' => [
                 ['id' => 'kpi', 'label' => 'KPI', 'label_ms' => 'KPI'],
                 ['id' => 'achievements', 'label' => 'Achievements', 'label_ms' => 'Pencapaian'],
@@ -119,6 +115,10 @@ class Amanahku
             $s('Workplace', 'Tempat Kerja', ['id' => 'vehicles', 'label' => 'Vehicle Booking', 'label_ms' => 'Tempahan Kenderaan', 'icon' => 'M5 17h14M5 17a2 2 0 1 0 4 0M5 17a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0M3 17V9l2-4h10l3 4h1a2 2 0 0 1 2 2v6M3 9h15']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'assets', 'label' => 'Assets', 'label_ms' => 'Aset', 'icon' => 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'shared-resources', 'label' => 'Shared Resources', 'label_ms' => 'Sumber Bersama', 'icon' => 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4']),
+            // The project register — readable by everyone (no `roles` key), written by
+            // manager/management/HR (gated in ProjectController). Lives in Workplace
+            // because it is a shared company reference list, not personal work.
+            $s('Workplace', 'Tempat Kerja', ['id' => 'projects', 'label' => 'Projects', 'label_ms' => 'Projek', 'icon' => 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z']),
 
             // ── Pay & Benefits ────────────────────────────────────────────────
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8']),
@@ -373,8 +373,10 @@ class Amanahku
             'profile-test' => ['title' => 'My Profile Test', 'title_ms' => 'Ujian Profil Saya', 'sub' => 'A short working-style check — no right or wrong answers. Your result shows on your profile.', 'sub_ms' => 'Semakan gaya kerja ringkas — tiada jawapan betul atau salah. Keputusan anda dipaparkan pada profil anda.', 'crumb' => ['People', 'My Profile Test']],
             'profile-test-results' => ['title' => 'Profile Test Results', 'title_ms' => 'Keputusan Ujian Profil', 'sub' => 'Everyone\'s answers, read-only. Managers see their own staff.', 'sub_ms' => 'Jawapan semua orang, baca sahaja. Pengurus melihat staf sendiri.', 'crumb' => ['Insights', 'Profile Test Results']],
             'profile-test-admin' => ['title' => 'Profile Test Editor', 'title_ms' => 'Editor Ujian Profil', 'sub' => 'Manage the working-style and colour questions everyone answers.', 'sub_ms' => 'Urus soalan gaya kerja dan colour yang dijawab oleh semua orang.', 'crumb' => ['Administration', 'Profile Test Editor']],
-            'timesheet-setup' => ['title' => 'Timesheet Setup', 'title_ms' => 'Tetapan Lembaran Masa', 'sub' => 'Categories, projects and sub-pillars staff pick when allocating their week.', 'sub_ms' => 'Kategori, projek dan sub-tiang yang dipilih staf semasa memperuntukkan minggu mereka.', 'crumb' => ['Administration', 'Timesheet Setup']],
-            'project-quick-create' => ['title' => 'New Project', 'title_ms' => 'Projek Baharu', 'sub' => 'Create the basic AmanahKu record. Link it from Track next.', 'sub_ms' => 'Cipta rekod asas AmanahKu. Pautkan dari Track seterusnya.', 'crumb' => ['New Project']],
+            'timesheet-setup' => ['title' => 'Timesheet Setup', 'title_ms' => 'Tetapan Lembaran Masa', 'sub' => 'The categories staff pick when allocating their week.', 'sub_ms' => 'Kategori yang dipilih staf semasa memperuntukkan minggu mereka.', 'crumb' => ['Administration', 'Timesheet Setup']],
+            'projects' => ['title' => 'Projects', 'title_ms' => 'Projek', 'sub' => 'Every project in Unijaya, and the sub-pillars they all share.', 'sub_ms' => 'Setiap projek di Unijaya, dan sub-tiang yang dikongsi semuanya.', 'crumb' => ['Workplace', 'Projects']],
+            // Retired slug, same destination — see AppController::screen.
+            'project-quick-create' => ['title' => 'Projects', 'title_ms' => 'Projek', 'sub' => 'Every project in Unijaya, and the sub-pillars they all share.', 'sub_ms' => 'Setiap projek di Unijaya, dan sub-tiang yang dikongsi semuanya.', 'crumb' => ['Workplace', 'Projects']],
             'timesheet-reports' => ['title' => 'Timesheet Reports', 'title_ms' => 'Laporan Lembaran Masa', 'sub' => 'Staff time allocation by project and by person over a period.', 'sub_ms' => 'Peruntukan masa staf mengikut projek dan mengikut individu untuk satu tempoh.', 'crumb' => ['Reports & Audit', 'Timesheet Reports']],
             'reports' => ['title' => 'Reports', 'title_ms' => 'Laporan', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],

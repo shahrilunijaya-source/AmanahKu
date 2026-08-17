@@ -55,6 +55,6 @@ class TimesheetEntry extends Model
 
     public function subPillar(): BelongsTo
     {
-        return $this->belongsTo(ProjectSubPillar::class, 'sub_pillar_id');
+        return $this->belongsTo(SubPillar::class, 'sub_pillar_id');
     }
 }

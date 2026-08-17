@@ -23,11 +23,6 @@ class Project extends Model
         ];
     }
 
-    public function subPillars(): HasMany
-    {
-        return $this->hasMany(ProjectSubPillar::class);
-    }
-
     /** Timesheet categories this project falls under (e.g. Development, Maintenance). */
     public function categories(): BelongsToMany
     {
@@ -37,5 +32,11 @@ class Project extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(TimesheetEntry::class);
+    }
+
+    /** Board cards that name this project. Counted on the Projects register. */
+    public function workItems(): HasMany
+    {
+        return $this->hasMany(WorkItem::class, 'project_id');
     }
 }

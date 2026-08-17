@@ -87,7 +87,7 @@ class SetupController extends Controller
             'attendance_policy' => ['label' => 'Set attendance policy', 'label_ms' => 'Tetapkan dasar kehadiran', 'desc' => 'Client sites, work-from-home policy and per-staff work arrangements. (Branch geofences live under Branches.)', 'screen' => 'attendance-admin', 'query' => [], 'auto' => true, 'domain' => 'attendance', 'critical' => true],
 
             // Time & work (previously orphaned)
-            'timesheet_categories' => ['label' => 'Set up timesheet categories', 'label_ms' => 'Sediakan kategori timesheet', 'desc' => 'Categories, projects and sub-pillars staff allocate time against.', 'screen' => 'timesheet-setup', 'query' => [], 'auto' => true, 'domain' => 'time', 'critical' => false],
+            'timesheet_categories' => ['label' => 'Set up timesheet categories', 'label_ms' => 'Sediakan kategori timesheet', 'desc' => 'The categories staff allocate time against. Projects and sub-pillars live under Workplace → Projects.', 'screen' => 'timesheet-setup', 'query' => [], 'auto' => true, 'domain' => 'time', 'critical' => false],
 
             // Leave & requests
             'leave_types' => ['label' => 'Configure leave types', 'label_ms' => 'Konfigur jenis cuti', 'desc' => 'Annual, medical, unpaid and other leave types with entitlements.', 'screen' => 'leave-setup', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => true],

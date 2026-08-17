@@ -6,6 +6,7 @@ use App\Http\Controllers\TimesheetController;
 use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Project;
+use App\Models\SubPillar;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -335,7 +336,7 @@ class TimesheetReportLensTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'name' => 'KPT: RMS',
         ]);
-        $subPillar = $project->subPillars()->create([
+        $subPillar = SubPillar::create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Reporting module',
         ]);

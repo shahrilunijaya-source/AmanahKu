@@ -703,12 +703,6 @@ parameters:
 			path: app/Http/Controllers/SuperAdmin/FeatureController.php
 
 		-
-			message: '#^Parameter \#2 \$project of method App\\Http\\Controllers\\TimesheetAdminController\:\:validateSubPillar\(\) expects App\\Models\\Project, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/TimesheetAdminController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\TimesheetEntry\:\:\$cost\.$#'
 			identifier: property.notFound
 			count: 2
@@ -717,12 +711,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/TimesheetController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string\}, Closure\(App\\Models\\ProjectSubPillar\)\: array\{id\: int, name\: string\} given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/TimesheetController.php
 

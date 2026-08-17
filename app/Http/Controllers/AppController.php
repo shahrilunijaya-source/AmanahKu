@@ -188,12 +188,6 @@ class AppController extends Controller
         if ($screen === 'onboarding-content') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
-        // Project quick-create also covers managers (self-serve project creation
-        // feeding Track's link) — same trio as probation/onboarding-content above.
-        if ($screen === 'project-quick-create') {
-            $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
-        }
-
         // Feature gate: a screen whose gating module is disabled for this tenant reads
         // as absent (404), so a switched-off module looks like it was never installed.
         // Core screens have no gating module and always pass.
@@ -226,9 +220,14 @@ class AppController extends Controller
             ];
         }
 
-        // claim-approvals was merged into the unified claims screen; the slug still resolves
-        // (deep links, notifications) and lands on the Approvals tab, driven by $screen.
-        $viewScreen = $screen === 'claim-approvals' ? 'claims' : $screen;
+        // claim-approvals was merged into the unified claims screen, and
+        // project-quick-create into the Projects register; both slugs still resolve
+        // (deep links, bookmarks) and land on the screen that replaced them.
+        $viewScreen = match ($screen) {
+            'claim-approvals' => 'claims',
+            'project-quick-create' => 'projects',
+            default => $screen,
+        };
         $view = View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty';
 
         return view($view, array_merge([
@@ -408,7 +407,7 @@ class AppController extends Controller
             'compliance' => app(ComplianceController::class)->screenData($request, $employee),
             'timesheets' => app(TimesheetController::class)->screenData($request, $employee),
             'timesheet-setup' => app(TimesheetAdminController::class)->screenData($request),
-            'project-quick-create' => app(ProjectQuickCreateController::class)->screenData($request),
+            'projects', 'project-quick-create' => app(ProjectController::class)->screenData($request),
             'timesheet-reports' => app(TimesheetController::class)->reportData($request, $employee),
             'learning' => app(LearningController::class)->screenData($request, $employee),
             'skills' => app(SkillController::class)->screenData($request, $employee),

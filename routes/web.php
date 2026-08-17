@@ -43,7 +43,7 @@ use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
-use App\Http\Controllers\ProjectQuickCreateController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
@@ -389,19 +389,19 @@ Route::middleware('auth')->group(function () {
         // Per-staff reusable allocation templates (owned by the acting employee)
         Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
         Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');
-        // Timesheet master data (categories / projects / sub-pillars) — privileged (management / HR)
+        // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');
         Route::post('/app/timesheet-setup/categories/{category}', [TimesheetAdminController::class, 'updateCategory'])->name('timesheet.admin.categories.update');
         Route::post('/app/timesheet-setup/categories/{category}/delete', [TimesheetAdminController::class, 'deleteCategory'])->name('timesheet.admin.categories.delete');
-        Route::post('/app/timesheet-setup/projects', [TimesheetAdminController::class, 'storeProject'])->name('timesheet.admin.projects.store');
-        Route::post('/app/timesheet-setup/projects/{project}', [TimesheetAdminController::class, 'updateProject'])->name('timesheet.admin.projects.update');
-        Route::post('/app/timesheet-setup/projects/{project}/delete', [TimesheetAdminController::class, 'deleteProject'])->name('timesheet.admin.projects.delete');
-        Route::post('/app/timesheet-setup/projects/{project}/subpillars', [TimesheetAdminController::class, 'storeSubPillar'])->name('timesheet.admin.subpillars.store');
-        Route::post('/app/timesheet-setup/subpillars/{subPillar}', [TimesheetAdminController::class, 'updateSubPillar'])->name('timesheet.admin.subpillars.update');
-        Route::post('/app/timesheet-setup/subpillars/{subPillar}/delete', [TimesheetAdminController::class, 'deleteSubPillar'])->name('timesheet.admin.subpillars.delete');
+        // Projects register (Workplace → Projects) — manager / management / HR write,
+        // everyone reads. Sub-pillars are tenant-wide, not nested under a project.
+        Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
+        Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
+        Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
+        Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
+        Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
+        Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');
 
-        // Minimal project creation open to manager/management/hr — feeds Track's link.
-        Route::post('/app/project-quick-create', [ProjectQuickCreateController::class, 'store'])->name('project-quick-create.store');
         // Learning library / LMS
         Route::post('/app/learning/courses', [LearningController::class, 'storeCourse'])->name('learning.courses');
         Route::post('/app/learning/{course}/enroll', [LearningController::class, 'enroll'])->name('learning.enroll');
