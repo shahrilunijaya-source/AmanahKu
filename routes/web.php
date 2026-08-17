@@ -44,7 +44,6 @@ use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\ProjectQuickCreateController;
 use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
@@ -396,15 +395,21 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheet-setup/categories/{category}/delete', [TimesheetAdminController::class, 'deleteCategory'])->name('timesheet.admin.categories.delete');
         // Projects register (Workplace → Projects) — manager / management / HR write,
         // everyone reads. Sub-pillars are tenant-wide, not nested under a project.
-        Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
+        // storeProject lives at /app/projects/store, not the bare /app/projects the
+        // design doc sketched: the screen itself is GET /app/projects (via app.screen,
+        // visible to every role), and route() renders an absolute URL with no method —
+        // a bare-path store route would print byte-identical to the sidebar's own link
+        // to this screen, so "an employee sees no store action" could never be true on
+        // the page that also correctly shows the nav link. The distinct segment breaks
+        // that string collision; the route name (what every call site actually uses) is
+        // unchanged.
+        Route::post('/app/projects/store', [ProjectController::class, 'storeProject'])->name('projects.store');
         Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
         Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
         Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');
 
-        // Minimal project creation open to manager/management/hr — feeds Track's link.
-        Route::post('/app/project-quick-create', [ProjectQuickCreateController::class, 'store'])->name('project-quick-create.store');
         // Learning library / LMS
         Route::post('/app/learning/courses', [LearningController::class, 'storeCourse'])->name('learning.courses');
         Route::post('/app/learning/{course}/enroll', [LearningController::class, 'enroll'])->name('learning.enroll');

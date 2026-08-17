@@ -230,4 +230,80 @@ class ProjectScreenTest extends TestCase
             ->post(route('projects.store'), ['name' => 'KPT: RMS'])
             ->assertSessionHasErrors('name');
     }
+
+    public function test_an_employee_sees_the_register_with_no_write_controls(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM: MyStods']);
+        SubPillar::create(['tenant_id' => $this->tenant->id, 'name' => 'Technical']);
+
+        $response = $this->actingAsRole('employee')->get('/app/projects');
+
+        $response->assertOk()
+            ->assertSee('JKDM: MyStods')
+            ->assertSee('Technical')
+            ->assertDontSee(route('projects.store'))
+            ->assertDontSee(route('sub-pillars.store'));
+    }
+
+    public function test_a_manager_sees_the_add_forms(): void
+    {
+        $response = $this->actingAsRole('manager')->get('/app/projects');
+
+        $response->assertOk()
+            ->assertSee(route('projects.store'))
+            ->assertSee(route('sub-pillars.store'));
+    }
+
+    public function test_the_add_form_offers_active_categories_only(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Retired Category', 'requires_project' => true, 'is_active' => false]);
+
+        // No project exists, so the only category chips on the page are the add form's.
+        $this->actingAsRole('manager')->get('/app/projects')
+            ->assertOk()
+            ->assertSee('Development')
+            ->assertDontSee('Retired Category');
+    }
+
+    public function test_everyone_sees_the_projects_nav_link(): void
+    {
+        $this->actingAsRole('employee')
+            ->get(route('app.screen', 'dash'))
+            ->assertOk()
+            ->assertSee(route('app.screen', ['screen' => 'projects']));
+    }
+
+    public function test_the_old_new_project_link_still_lands_on_the_register(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM: MyStods']);
+
+        $this->actingAsRole('manager')
+            ->get('/app/project-quick-create')
+            ->assertOk()
+            ->assertSee('JKDM: MyStods');
+    }
+
+    public function test_the_usage_counts_are_rendered(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM: MyStods']);
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true,
+        ]);
+        $user = $this->actorWithRole('employee');
+        $employee = Employee::where('user_id', $user->id)->firstOrFail();
+        $timesheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $timesheet->id,
+            'entry_date' => '2026-06-15', 'category_id' => $category->id,
+            'project_id' => $project->id, 'percentage' => 100,
+        ]);
+
+        $this->actingAsRole('hr')->get('/app/projects')
+            ->assertOk()
+            ->assertSee('timesheet lines');
+    }
 }
