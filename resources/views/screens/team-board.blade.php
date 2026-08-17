@@ -344,6 +344,25 @@
                     <textarea name="description" rows="3" maxlength="5000" class="wd-desc"
                               x-bind:placeholder="$store.ui.lang==='en' ? 'Description (optional)' : 'Penerangan (pilihan)'">{{ old('description') }}</textarea>
 
+                    {{-- Own small x-data, same technique tot-edit-form.blade.php uses for its
+                         classic-form link rows: bracket-indexed :name bindings so a plain POST
+                         carries them, no autosave/JS submission needed. Visual style (wd-inline
+                         inputs, wd-add button) matches the card drawer's own link editor
+                         instead — this is a one-shot create form, not that drawer. --}}
+                    <div style="margin-top:16px;" x-data="{ links: @js(old('links', [])) }">
+                        <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</h3>
+                        <template x-for="(link, idx) in links" :key="idx">
+                            <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;margin-bottom:8px;">
+                                <input class="wd-inline" style="margin:0;" :name="`links[${idx}][label]`" x-model="link.label" placeholder="Label" maxlength="60">
+                                <input class="wd-inline" style="margin:0;" :name="`links[${idx}][url]`" x-model="link.url" placeholder="https://...">
+                                <button type="button" @click="links.splice(idx, 1)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                            </div>
+                        </template>
+                        <button type="button" class="wd-add" @click="links.push({ label: '', url: '' })">
+                            <span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'"></span>
+                        </button>
+                    </div>
+
                     <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;width:100%;margin-top:16px;">
                         <span x-text="$store.ui.lang==='en' ? 'Assign task' : 'Beri tugas'">Assign task</span>
                     </button>

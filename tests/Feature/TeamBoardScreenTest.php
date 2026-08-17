@@ -230,6 +230,23 @@ class TeamBoardScreenTest extends TestCase
         $this->assertStringContainsString('value="'.$bob->id.'"', $response->getContent());
     }
 
+    /** Link rows: matches assign()'s own bracket-indexed `links[idx][label|url]` shape. */
+    public function test_assign_modal_carries_a_link_row_editor(): void
+    {
+        // assignableEmployees excludes self — someone else must exist, or the
+        // whole modal (this block included) stays gated off per Task 2's fix.
+        $this->makeEmployee('Alice');
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $this->assertStringContainsString('links[${idx}][label]', $html);
+        $this->assertStringContainsString('links[${idx}][url]', $html);
+        $this->assertStringContainsString('+ Add a link', $html);
+    }
+
     public function test_assign_button_absent_for_viewer_without_assign_role(): void
     {
         $leadUser = User::create(['name' => 'Lead', 'email' => 'lead3@example.com', 'password' => Hash::make('password')]);
