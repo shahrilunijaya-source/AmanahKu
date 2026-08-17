@@ -107,6 +107,13 @@ Nothing else on the `api` stack assumes a `User`: `bootstrap/app.php` appends no
 middleware to the API group, so `auth:sanctum` plus `api.tenant` is the whole chain
 (`routes/api.php`).
 
+`ApiClient` must implement `Illuminate\Contracts\Auth\Authenticatable` (the
+`AuthenticatableTrait` `User` already uses is the shortest route), because
+`$request->user()` is typed to that contract and this is what the guard returns for a
+machine caller. Worth settling up front: this repo has already reverted a round of
+API work over static-analysis typing (`bf3a16d`, `6939900`), so larastan should not
+be the thing that discovers it.
+
 ### 3. Scopes are Sanctum abilities
 
 Named `<resource>:read`, one per endpoint. Initial set, matching today's surface:
@@ -128,10 +135,33 @@ if (! $request->user()->tokenCan('projects:read')) {
 
 **Why this is backward compatible:** every existing token is minted `['*']`
 (`User::mintApiToken()`'s default) and Sanctum's `tokenCan()` returns true for `*`.
-So adding these guards changes nothing for person-tokens. The existing role checks
-stay where they are and run alongside — a person-token is still gated by
-`isPrivileged()`, an app-key is gated only by its scopes. To be verified against
+So adding these guards changes nothing for person-tokens. To be verified against
 `tests/Feature/ApiTokenTest.php` during implementation, not assumed.
+
+**The scope guard alone is not enough — the role checks must also learn about machine
+callers.** A scope guard that passes still lands in `isPrivileged()`
+(`ApiController.php:131`), which reads `tenantRole` off the request. `ApiTenant` sets
+no role for a machine caller, so the default `'employee'` applies and an app key with
+`employees:read` would get a 403, while `leave:read` and `payslips:read` would fall to
+the own-records branch, find no employee, and return an empty array. Granted scopes
+would silently return nothing. `projects` would work only because it has no role
+logic at all.
+
+The fix is one line. `ApiTenant` puts the resolved client on the request as
+`apiClient`, and `isPrivileged()` treats its presence as already-authorized:
+
+```php
+private function isPrivileged(Request $request): bool
+{
+    return $request->attributes->get('apiClient') !== null
+        || in_array($request->attributes->get('tenantRole', 'employee'), self::PRIVILEGED, true);
+}
+```
+
+A machine caller that cleared the scope guard is tenant-wide by definition — the
+super-admin ticking the scope was the authorization act. A person-token never sets
+`apiClient`, so the role expression it evaluates is byte-for-byte what it evaluates
+today. That is what keeps all 14 existing tests untouched.
 
 `payslips:read` exists for completeness and should be tickable, but no planned
 consumer needs it. The screen shows it unticked by default.
@@ -218,6 +248,10 @@ Keeping the two in step is a checklist item on the endpoint's test, not a build 
 New file `tests/Feature/Api/ApiClientKeyTest.php`:
 
 - An app key reads a granted scope and gets `200`.
+- An app key with `leave:read` sees **all** the tenant's leave requests, not an empty
+  own-records list. Same for `employees:read` returning the directory rather than a
+  403. This is the regression test for the role-check branch above: without it, a
+  granted scope silently returns nothing and every status code still looks fine.
 - An app key hitting an endpoint it lacks the scope for gets `403`, with the data
   absent from the body — not merely a status check.
 - An app key for tenant A cannot read tenant B, mirroring
