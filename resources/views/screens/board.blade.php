@@ -297,10 +297,19 @@
                         <template x-if="!drawer.locked">
                             <div>
                                 <template x-for="(link, idx) in drawer.card.links" :key="idx">
-                                    <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;margin-bottom:8px;">
-                                        <input class="wd-inline" style="margin:0;" x-model="link.label" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="Label" maxlength="60">
-                                        <input class="wd-inline" style="margin:0;" x-model="link.url" @input="onLinkInput()" @blur="commitFieldFromCard('links')" placeholder="https://...">
-                                        <button type="button" @click="removeLink(idx)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                                    <div>
+                                        {{-- A saved row (label + url both filled) shows as its clickable
+                                             button instead, unless editLink() forced it back open. --}}
+                                        <div class="wd-link-row" x-show="drawer.editingLinkIdx === idx || !link.label.trim() || !link.url.trim()">
+                                            <input class="wd-inline" style="margin:0;" x-model="link.label" @input="onLinkInput()" @blur="finishLinkEdit(idx)" placeholder="Label" maxlength="60">
+                                            <input class="wd-inline" style="margin:0;" x-model="link.url" @input="onLinkInput()" @blur="finishLinkEdit(idx)" placeholder="https://...">
+                                            <button type="button" @click="removeLink(idx)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                                        </div>
+                                        <div class="wd-chiprow" x-show="!(drawer.editingLinkIdx === idx || !link.label.trim() || !link.url.trim())" style="margin-bottom:8px;">
+                                            <a :href="link.url" target="_blank" rel="noopener noreferrer" class="wd-inline" style="margin:0;" x-text="link.label"></a>
+                                            <button type="button" @click="editLink(idx)" :aria-label="$store.ui.lang==='en' ? 'Edit link' : 'Sunting pautan'" style="border:0;background:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;">&#9998;</button>
+                                            <button type="button" @click="removeLink(idx)" :aria-label="$store.ui.lang==='en' ? 'Remove link' : 'Buang pautan'" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;">&times;</button>
+                                        </div>
                                     </div>
                                 </template>
                                 <button type="button" class="wd-add" @click="addLink()">
