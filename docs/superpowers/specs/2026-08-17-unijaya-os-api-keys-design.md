@@ -342,9 +342,16 @@ alone, no shell, no devops ticket.
 
 ## Open items
 
-### The Track endpoints are on staging, missing from dev, and the next deploy deletes them
+### The Track endpoints were on staging, missing from dev — RESOLVED
 
-Verified branch state as of 2026-08-17:
+**Resolved 2026-08-17 by `b78e180` on `dev`**, a revert of the two reverts. `dev` and
+`origin/staging` now agree on `routes/api.php` and `ApiController`, so the fast-forward
+described below is a no-op for the API surface. 28 tests, 88 assertions green; Pint and
+phpstan clean. The scope list for this spec is therefore **six endpoints, not four** —
+see the consequence note at the end of this section. The history below is kept because
+it explains why the two endpoints exist and how the trap formed.
+
+Branch state before the fix:
 
 | Branch | `positions` + `timesheet-effort` |
 |---|---|
@@ -373,23 +380,27 @@ staging. No conflict, no warning, no failing test — the tests that covered the
 nightly effort sync start 404ing against staging the next time anything at all is
 deployed.
 
-This is a live landmine independent of this spec and should be resolved before the
-next staging push, by whichever route the user prefers:
+The fix taken was to restore on `dev`, which matches "Amanahku is the source of truth
+for Unijaya projects": those two endpoints are how Track reads effort back, and the
+integration was demoed end to end on 2026-08-12 against exactly this code
+(`Track/docs/DEMO-AMANAHKU-LOCAL.md`: TTMS week of 2026-08-03 costing RM 7,065.00 from
+AmanahKu timesheets, twenty position bands mapped). The alternative — accepting the
+loss and changing Track's client to stop calling them — was available but nobody had
+chosen it; doing nothing would have picked it by accident, on an unrelated deploy.
 
-- **Restore on `dev`** by reverting the reverts (`git revert 3d74337 6939900`, which
-  brings back the code, the typing fixes from `bf3a16d`, and both test files). Staging
-  then keeps what it has and `dev` stops being the thing that erases it. This is the
-  option that matches "Amanahku is the source of truth for Unijaya projects", since
-  those two endpoints are how Track reads effort back.
-- **Or accept the loss deliberately**, with Track's client changed to stop calling
-  them. Doing nothing is not the same as choosing this — doing nothing picks it by
-  accident, on a deploy nobody connected to the outcome.
+**Consequence for this spec: the scope list is six, not four.**
 
-**Consequence for this spec.** If the endpoints are restored, the scope list grows to
-six: `positions:read` and `effort:read`, guarded and documented exactly like the other
-four. Both are currently `isPrivileged()`-gated, which means they hit the same
-machine-caller trap described in section 3 and are fixed by the same one-line change.
-Both belong in `docs/API.md` and `public/openapi.json`, and `effort:read` is the one
-scope no consumer but Track should ever be granted — it is aggregated timesheet data,
-and while it deliberately carries no name, employee id or salary, it is still the
-closest thing in the API to payroll.
+| Scope | Endpoint | Grants |
+|---|---|---|
+| `positions:read` | `GET /api/v1/positions` | Position bands including retired ones: id, title, code, department, level, status. No salary. |
+| `effort:read` | `GET /api/v1/timesheet-effort?week_start=` | One week's effort per project per band: headcount, person-days, days present, average allocation. No employee name, id or salary. |
+
+Both are `isPrivileged()`-gated today, so they hit the same machine-caller trap
+described in section 3 and are fixed by the same one-line change. Both belong in
+`docs/API.md` and `public/openapi.json`.
+
+`effort:read` is the one scope no consumer but Track should be granted. The endpoint
+deliberately aggregates server-side so that no name, employee id or salary leaves
+Amanahku, but per-band person-days across a company this size is still the closest
+thing in the API to payroll, and it should be ticked only for the app that costs
+against it.
