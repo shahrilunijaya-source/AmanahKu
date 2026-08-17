@@ -56,7 +56,7 @@ inside those, recorded here so they are not re-litigated mid-build.
 | Where does an app key attach, given Sanctum tokens are polymorphic? | **A new `ApiClient` model**, one row per consuming app per tenant, used as the token's `tokenable`. Not `Tenant` (a tenant is not a caller and one tenant may have several apps), not a fake staff `User` (that reintroduces exactly the person-shaped identity being removed). |
 | Do existing person-tokens get removed? | **No.** This is additive. `api:token`, `User::mintApiToken()`, the role-gated behavior and all 14 tests in `tests/Feature/ApiTokenTest.php` stay exactly as they are. Removing them was not asked for and would break passing tests. |
 | What does an app key see? | **Tenant-wide read for every scope it was granted.** There is no "own records" concept for a machine — a super-admin ticking `employees:read` at mint time *is* the authorization decision. |
-| Do the reverted Track endpoints (`positions`, weekly effort) come back in this build? | **No.** They were deliberately pulled from release 1.3 (`3d74337`, `6939900`, 2026-08-14) with no reason recorded. Restoring them is a separate call with its own evidence trail; see Open items. |
+| Do the Track endpoints (`positions`, weekly effort) come back in this build? | **They are not gone.** They are live on `staging` and were held out of the 1.3 release to `main` only. They are absent from `dev`, which is the live problem; see Open items. This spec's four-endpoint scope list becomes six once they are back on `dev`. |
 
 ## Architecture
 
@@ -342,15 +342,54 @@ alone, no shell, no devops ticket.
 
 ## Open items
 
-**The reverted Track endpoints.** `positions` and the weekly timesheet effort
-endpoint were built (`a7a7c21`, typed in `bf3a16d`, with `SPEC.md`,
-`tests/Feature/Api/TimesheetEffortApiTest.php` and 47 lines added to `ApiTokenTest`),
-then reverted out of release 1.3 on 2026-08-14 (`3d74337`, `6939900`). The revert
-commits carry no reason. Meanwhile `Track/app/Services/AmanahkuClient.php` still calls
-both, so two of its three calls 404 against Amanahku as it stands.
+### The Track endpoints are on staging, missing from dev, and the next deploy deletes them
 
-This spec does not restore them, because reversing a deliberate release decision
-without knowing why it was made is how the same problem ships twice. The work is
-recoverable — `git show a7a7c21` has the whole thing, and it can be cherry-picked
-once the reason is established. Whoever picks this up should also decide the scope
-name (`positions:read`, `effort:read`) at that point.
+Verified branch state as of 2026-08-17:
+
+| Branch | `positions` + `timesheet-effort` |
+|---|---|
+| `origin/staging` (tip `2494e27`) | **present** |
+| `dev` | absent |
+| `main` / production | absent |
+
+The two reverts (`6939900`, `3d74337`) were applied on `release-20260814` *on top of*
+`2494e27` and merged to `main`. Staging was never advanced past `2494e27`, so it kept
+the endpoints. This was a release decision — hold the Track work back from production —
+not a deletion.
+
+**The problem: `dev` carries both revert commits, and `origin/staging` is an ancestor
+of `dev`.** So the ordinary release step in CLAUDE.md,
+
+```fish
+git push origin dev:staging
+```
+
+is a clean fast-forward that removes `Route::get('/positions', …)`,
+`Route::get('/timesheet-effort', …)`, `ApiController::positions()`,
+`timesheetEffort()`, `effortByPosition()` and `COUNTED_TIMESHEET_STATUSES` from
+staging. No conflict, no warning, no failing test — the tests that covered them
+(`tests/Feature/Api/TimesheetEffortApiTest.php`) left with the revert too.
+`Track/app/Services/AmanahkuClient.php` calls both, so Track's positions screen and
+nightly effort sync start 404ing against staging the next time anything at all is
+deployed.
+
+This is a live landmine independent of this spec and should be resolved before the
+next staging push, by whichever route the user prefers:
+
+- **Restore on `dev`** by reverting the reverts (`git revert 3d74337 6939900`, which
+  brings back the code, the typing fixes from `bf3a16d`, and both test files). Staging
+  then keeps what it has and `dev` stops being the thing that erases it. This is the
+  option that matches "Amanahku is the source of truth for Unijaya projects", since
+  those two endpoints are how Track reads effort back.
+- **Or accept the loss deliberately**, with Track's client changed to stop calling
+  them. Doing nothing is not the same as choosing this — doing nothing picks it by
+  accident, on a deploy nobody connected to the outcome.
+
+**Consequence for this spec.** If the endpoints are restored, the scope list grows to
+six: `positions:read` and `effort:read`, guarded and documented exactly like the other
+four. Both are currently `isPrivileged()`-gated, which means they hit the same
+machine-caller trap described in section 3 and are fixed by the same one-line change.
+Both belong in `docs/API.md` and `public/openapi.json`, and `effort:read` is the one
+scope no consumer but Track should ever be granted — it is aggregated timesheet data,
+and while it deliberately carries no name, employee id or salary, it is still the
+closest thing in the API to payroll.
