@@ -382,6 +382,7 @@ leaves project_sub_pillars in place as the way back."
 - Modify: `app/Models/TimesheetEntry.php:55`, `app/Models/TimesheetTemplate.php:40-43`
 - Modify: `app/Http/Controllers/TimesheetController.php:213`, `:338`, `:800-810`, `:847`, `:869-874`
 - Modify: `database/seeders/ProjectSeeder.php`, `database/seeders/StagingTimesheetCategoryImportSeeder.php`
+- Modify: `tests/Feature/TimesheetReportLensTest.php:338-341`
 - Delete: `app/Models/ProjectSubPillar.php`
 - Test: `tests/Feature/SubPillarTest.php`
 
@@ -502,7 +503,7 @@ Lines 869-874 — **delete** the whole ownership block:
             }
 ```
 
-The tenant-scoped `exists` rule in `validate()` already proves the id is real and belongs to this tenant; there is no project to belong to any more. `$subPillars` is now only used by that deleted block, so delete its lookup at line 847 too and drop the `SubPillar` import if nothing else uses it.
+The tenant-scoped `exists` rule in `validate()` already proves the id is real and belongs to this tenant; there is no project to belong to any more. `$subPillars` was only read by that deleted block, so delete its lookup at line 847 as well. **Keep the `SubPillar` import** — `projectOptions()` below uses it.
 
 Lines 800-810 — `projectOptions()` attaches the one shared list to every project, which is what keeps `timesheet-capture.js` unchanged:
 
@@ -612,23 +613,47 @@ In `database/seeders/StagingTimesheetCategoryImportSeeder.php`, the import is a 
 
 Delete the now-unused `use App\Models\ProjectSubPillar;` import — leaving it would fail Larastan, and pushes to staging are not analysed by CI.
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 6: Fix the one existing test that builds a sub-pillar through the project**
+
+`tests/Feature/TimesheetReportLensTest.php:338-341` creates its fixture through the relation this task deletes:
+
+```php
+        $subPillar = $project->subPillars()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Reporting module',
+        ]);
+```
+
+Replace those four lines with:
+
+```php
+        $subPillar = SubPillar::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Reporting module',
+        ]);
+```
+
+Add `use App\Models\SubPillar;` to that file's imports. Nothing else in the test changes — the entry at `:356` still sets `sub_pillar_id`, and the report still groups by it.
+
+`tests/Feature/TimesheetTest.php` needs no change (its only sub-pillar references are `null`), and `app/Timesheet/WeekReconciler.php:126` / `app/Timesheet/LockedDays.php:212` pass the raw `sub_pillar_id` value through without touching the model.
+
+- [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `lerd artisan test --compact --filter=SubPillarTest`
 Expected: PASS, 4 tests.
 
-Run: `lerd artisan test --compact tests/Feature/TimesheetTest.php`
-Expected: PASS, unchanged. This is the proof that allocation still works.
+Run: `lerd artisan test --compact tests/Feature/TimesheetTest.php tests/Feature/TimesheetReportLensTest.php`
+Expected: PASS, unchanged behaviour. This is the proof that allocation and reporting still work.
 
-- [ ] **Step 7: Confirm nothing still references the deleted model**
+- [ ] **Step 8: Confirm nothing still references the deleted model**
 
 ```bash
 grep -rn "ProjectSubPillar\|subPillars()" --include="*.php" app/ database/ tests/
 ```
 
-Expected: no output.
+Expected: matches only in `database/migrations/` (the original create migration and the new data migration both name the old table on purpose).
 
-- [ ] **Step 8: Run Pint and commit**
+- [ ] **Step 9: Run Pint and commit**
 
 ```bash
 vendor/bin/pint --dirty --format agent
@@ -655,7 +680,7 @@ carries sub_pillars per project, so timesheet-capture.js is untouched."
 
 **Interfaces:**
 - Consumes: `SubPillar`, `Project::workItems()` from Tasks 1-2.
-- Produces: route names `projects.store`, `projects.update`, `projects.delete`, `sub-pillars.store`, `sub-pillars.update`, `sub-pillars.delete`. `ProjectController::screenData(Request): array` returning keys `projects`, `subPillars`, `projectCategories`, `canEdit`. Partials `ts-project-row` and `ts-subpillar-row` accept `$canEdit` (bool, defaults true).
+- Produces: route names `projects.store`, `projects.update`, `projects.delete`, `sub-pillars.store`, `sub-pillars.update`, `sub-pillars.delete`. `ProjectController::screenData(Request): array` returning keys `projects`, `subPillars`, `addCategories` (active only, for the add form), `projectCategories` (all, for edit forms), `canEdit`. Partials `ts-project-row` and `ts-subpillar-row` accept `$canEdit` (bool, defaults true).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -753,7 +778,7 @@ class ProjectScreenTest extends TestCase
         $this->assertDatabaseMissing('sub_pillars', ['name' => 'Technical']);
     }
 
-    public function test_a_manager_can_add_update_and_deactivate_a_sub_pillar(): void
+    public function test_a_manager_can_add_and_rename_a_sub_pillar_and_remove_an_unused_one(): void
     {
         $this->actingAsRole('manager')
             ->post(route('sub-pillars.store'), ['name' => 'Technical'])
@@ -772,6 +797,48 @@ class ProjectScreenTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseMissing('sub_pillars', ['id' => $sub->id]);
+    }
+
+    public function test_a_sub_pillar_in_use_is_deactivated_rather_than_deleted(): void
+    {
+        $sub = SubPillar::create(['tenant_id' => $this->tenant->id, 'name' => 'Technical']);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true,
+        ]);
+        $booker = $this->actorWithRole('employee');
+        $employee = Employee::where('user_id', $booker->id)->firstOrFail();
+        $timesheet = \App\Models\Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        \App\Models\TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $timesheet->id,
+            'entry_date' => '2026-06-15', 'category_id' => $category->id,
+            'project_id' => $project->id, 'sub_pillar_id' => $sub->id, 'percentage' => 100,
+        ]);
+
+        $this->actingAsRole('hr')->post(route('sub-pillars.delete', $sub))->assertRedirect();
+
+        // The row survives so old timesheets and reports keep their label.
+        $this->assertDatabaseHas('sub_pillars', ['id' => $sub->id, 'is_active' => false]);
+    }
+
+    public function test_a_project_in_use_keeps_its_categories_when_edited(): void
+    {
+        $retired = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Retired Category',
+            'requires_project' => true, 'is_active' => false,
+        ]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+        $project->categories()->sync([$retired->id]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.update', $project), [
+                'name' => 'KPT: RMS', 'categories' => [$retired->id],
+            ])->assertRedirect();
+
+        $this->assertSame([$retired->id], $project->fresh()->categories->pluck('id')->all());
     }
 
     public function test_a_project_in_use_is_deactivated_rather_than_deleted(): void
@@ -848,6 +915,11 @@ class ProjectController extends Controller
                 ->orderBy('sort')->orderBy('name')->get(),
             'subPillars' => SubPillar::withCount('entries')
                 ->orderBy('sort')->orderBy('name')->get(),
+            // Two lists on purpose: the ADD form offers active categories only (a
+            // retired category should not be pickable on a brand-new project), while
+            // an EDIT form must show every category a project might already be tied
+            // to, or saving an unrelated field would silently drop that link.
+            'addCategories' => $this->projectCategories()->where('is_active', true)->values(),
             'projectCategories' => $this->projectCategories(),
             'canEdit' => $this->hasTenantRole($request, self::EDITOR_ROLES),
         ];
@@ -1308,6 +1380,18 @@ Append to `tests/Feature/ProjectScreenTest.php`:
             ->assertSee(route('sub-pillars.store'));
     }
 
+    public function test_the_add_form_offers_active_categories_only(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Retired Category', 'requires_project' => true, 'is_active' => false]);
+
+        // No project exists, so the only category chips on the page are the add form's.
+        $this->actingAsRole('manager')->get('/app/projects')
+            ->assertOk()
+            ->assertSee('Development')
+            ->assertDontSee('Retired Category');
+    }
+
     public function test_everyone_sees_the_projects_nav_link(): void
     {
         $this->actingAsRole('employee')
@@ -1420,7 +1504,7 @@ Create `resources/views/screens/projects.blade.php`:
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
-                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'submitLabel' => 'Add project', 'ajaxTarget' => '#ts-projects', 'categories' => $projectCategories])
+                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'submitLabel' => 'Add project', 'ajaxTarget' => '#ts-projects', 'categories' => $addCategories])
             </div>
         </div>
     @endif
@@ -1749,3 +1833,4 @@ This release migrates data, so the person deploying needs three things written d
 - **The project count badge is not live.** It shows the total, and searching does not change it, because the AJAX add script increments that node directly — an Alpine-bound number would fight it. The "no project matches that search" line covers the empty case.
 - **A project added by AJAX while a search is active is not in the Alpine `items` index**, so the empty-state line can briefly disagree with what is on screen. Harmless: the row itself renders, and any reload fixes the index. Adding a project mid-search is not a real workflow.
 - **Search and the inactive toggle are client-side** over the rendered rows. Fine at Unijaya's scale (14 projects per tenant). If the list ever passes a few hundred, this needs to move server-side with pagination.
+- **The add form offers active categories only; edit forms offer all of them.** The retired quick-create screen filtered to active, the Timesheet Setup form did not, and this change keeps both behaviours where each one is right: a switched-off category should not be pickable on a new project, but must stay visible on a project already tagged with it, or saving an unrelated field would drop the link. Hence the two keys, `addCategories` and `projectCategories`.
