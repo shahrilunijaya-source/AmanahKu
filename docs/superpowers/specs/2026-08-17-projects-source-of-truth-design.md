@@ -61,6 +61,11 @@ Three parts, top to bottom:
    `partials.ts-project-form` and the existing AJAX add script (`data-ajax` form →
    server-rendered row appended → form reset → focus back in the name field). Same
    pattern Timesheet Setup uses today, so bulk entry stays one screen, no reloads.
+   That script is inline at `screens/timesheet-setup.blade.php:88-137` and two screens
+   now need it, so it is **extracted to `partials.ajax-row-add`** and included by both.
+   Not copied: a second copy is how the last one rotted. The project count badge on the
+   new screen keeps the id `ts-proj-count`, so `storeProject`'s
+   `'count_sel' => '#ts-proj-count'` response is genuinely unchanged by the move.
 3. **The list** — one card per project via `partials.ts-project-row`, showing code
    chip, name, category tags, sub-pillar count, inactive marker, and a new **usage
    line**: how many timesheet lines and how many board cards point at that project
@@ -80,7 +85,9 @@ sub-pillars, and has no form and no buttons at all — no add panel, no Edit, no
 Delete, no Add sub-pillar. Read-only means nothing to fill in.
 
 **Edit (create / update / deactivate / sub-pillars): `['manager', 'management', 'hr']`**
-(`director` folds into `management` via `Permissions::effectiveRole`). The blade
+(`director` is admitted: `Controller::hasTenantRole` at
+`app/Http/Controllers/Controller.php:32-33` tests the raw role *and* its
+`Permissions::effectiveRole`, and director folds into management). The blade
 receives a `canEdit` flag from the controller and renders the write affordances only
 for those roles; every write endpoint enforces the same set server-side.
 
@@ -159,9 +166,12 @@ two validators leave with the move; the class docblock and
 - `app/Support/Amanahku.php:98` — the *My Team* "New Project" nav entry becomes a
   *Workplace* "Projects" entry (`id => 'projects'`, label `Projects` / `Projek`, no
   `roles` key). Its comment about server-gating is rewritten.
-- `app/Support/Amanahku.php:377` — `project-quick-create` screens entry becomes
-  `projects`: title "Projects" / "Projek", subtitle "Every project in Unijaya, and the
-  sub-pillars under each one.", crumb `['Workplace', 'Projects']`.
+- `app/Support/Amanahku.php:377` — a `projects` entry in `Amanahku::page()`: title
+  "Projects" / "Projek", subtitle "Every project in Unijaya, and the sub-pillars under
+  each one.", crumb `['Workplace', 'Projects']`. The `project-quick-create` key **stays**
+  with the same copy, exactly as `claim-approvals` is retained at `:353`: `page()` falls
+  back to the `soon` placeholder for unknown slugs (`:390`), so dropping the old key
+  would give old bookmarks a blank header rather than a 404.
 - `AppController.php:231` — `project-quick-create` aliases to the `projects` view, and
   `:411` aliases to the same `screenData`, following the `claim-approvals` precedent
   at `:229-231` / `:368`, so old deep links and bookmarks still land somewhere real.
@@ -189,9 +199,24 @@ New `tests/Feature/ProjectScreenTest.php`:
 - HR and management still pass every write
 - usage counts render: a project with N timesheet entries and M board cards shows both
 
-`tests/Feature/TimesheetSetupAjaxTest.php` — the four project/sub-pillar cases move to
-the new file with the new route names; the category case stays. The AJAX contract
-(`html` + `count_sel` JSON, 422 on validation error) is unchanged and must stay green.
+`tests/Feature/TimesheetSetupAjaxTest.php` — its project cases
+(`test_project_ajax_add_returns_rendered_row`,
+`test_project_categories_are_synced_on_store_and_update`,
+`test_validation_error_returns_422_json_not_a_redirect`) move to the new file with the
+new route names. `test_category_and_subpillar_ajax_add_return_rows` covers both a
+category and a sub-pillar in one case, so it **splits**: the category half stays, the
+sub-pillar half moves. The AJAX contract (`html` + `count_sel` JSON, 422 on validation
+error) is unchanged and must stay green.
+
+`tests/Feature/ProjectQuickCreateTest.php` is **deleted, absorbed into
+ProjectScreenTest**. Its create, category-visibility and validation cases carry over
+against the new route. Two of its cases invert by design and must be rewritten, not
+dropped:
+
+- `test_employee_cannot_reach_the_screen` (403) becomes: employee reaches it and sees
+  the list, with no write controls
+- the nav-visibility pair (link shown to manager, hidden from employee) becomes: the
+  Workplace link is shown to everyone, employee included
 
 `tests/Feature/TimesheetTest.php` and the report tests must pass untouched — proof that
 moving the management surface did not disturb allocation.
