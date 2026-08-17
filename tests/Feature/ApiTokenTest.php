@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\PersonalAccessToken;
+use App\Models\Position;
 use App\Models\Project;
+use App\Models\StaffLevel;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -246,6 +249,50 @@ class ApiTokenTest extends TestCase
         $names = collect($response->json('data'))->pluck('name');
         $this->assertTrue($names->contains('Tenant A Project'));
         $this->assertFalse($names->contains('Tenant B Project'));
+    }
+
+    public function test_privileged_token_lists_tenant_positions_without_salary(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $dept = Department::create(['tenant_id' => $this->tenantA->id, 'name' => 'Operation']);
+        $level = StaffLevel::create(['tenant_id' => $this->tenantA->id, 'name' => 'Senior', 'rank' => 20]);
+        $position = Position::create([
+            'tenant_id' => $this->tenantA->id, 'department_id' => $dept->id, 'staff_level_id' => $level->id,
+            'title' => 'Senior Engineer', 'code' => 'SE', 'status' => 'active', 'max_salary' => 7000,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->getJson('/api/v1/positions', $this->bearer($this->hrA, $this->tenantA));
+
+        $response->assertOk()->assertJsonPath('error', null);
+        $row = collect($response->json('data'))->firstWhere('id', $position->id);
+        $this->assertSame('Senior Engineer', $row['title']);
+        $this->assertSame('Operation', $row['department']);
+        $this->assertSame('Senior', $row['level']);
+        $this->assertSame('active', $row['status']);
+        // Track derives its own rates; AmanahKu salary must never cross the wire.
+        $this->assertArrayNotHasKey('max_salary', $row);
+    }
+
+    public function test_positions_endpoint_rejects_a_plain_employee_token(): void
+    {
+        $this->getJson('/api/v1/positions', $this->bearer($this->staffA, $this->tenantA))
+            ->assertForbidden();
+    }
+
+    public function test_positions_endpoint_is_tenant_isolated(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        Position::create(['tenant_id' => $this->tenantA->id, 'title' => 'Alpha Role', 'status' => 'active']);
+        app(CurrentTenant::class)->set($this->tenantB);
+        Position::create(['tenant_id' => $this->tenantB->id, 'title' => 'Beta Role', 'status' => 'active']);
+        app(CurrentTenant::class)->set(null);
+
+        $titles = collect($this->getJson('/api/v1/positions', $this->bearer($this->hrA, $this->tenantA))->json('data'))
+            ->pluck('title');
+
+        $this->assertTrue($titles->contains('Alpha Role'));
+        $this->assertFalse($titles->contains('Beta Role'));
     }
 
     public function test_command_mints_a_working_tenant_bound_token(): void

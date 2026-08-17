@@ -34,13 +34,21 @@ class Position extends Model
         return $this->hasMany(Employee::class);
     }
 
-    /** Org department this band sits in (rate-card column). */
+    /**
+     * Org department this band sits in (rate-card column).
+     *
+     * @return BelongsTo<Department, $this>
+     */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
 
-    /** Seniority/grade band (rate-card row). */
+    /**
+     * Seniority/grade band (rate-card row).
+     *
+     * @return BelongsTo<StaffLevel, $this>
+     */
     public function staffLevel(): BelongsTo
     {
         return $this->belongsTo(StaffLevel::class);
