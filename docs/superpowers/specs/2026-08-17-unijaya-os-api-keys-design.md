@@ -120,7 +120,7 @@ Named `<resource>:read`, one per endpoint. Initial set, matching today's surface
 
 | Scope | Endpoint | Grants |
 |---|---|---|
-| `projects:read` | `GET /api/v1/projects` | Active projects: id, code, name |
+| `projects:read` | `GET /api/v1/projects` | Active projects: id, code, name, category tags |
 | `employees:read` | `GET /api/v1/employees` | Directory: name, email, position, status, department, branch |
 | `leave:read` | `GET /api/v1/leave-requests` | All leave requests in the tenant |
 | `payslips:read` | `GET /api/v1/payslips` | Finalized payslips only, tenant-wide |
@@ -221,7 +221,9 @@ Keeping the two in step is a checklist item on the endpoint's test, not a build 
 
 1. `ApiClient` model, migration, `mintKey()`.
 2. `ApiTenant` tokenable branch.
-3. Scope guard on the four existing endpoints.
+3. Scope guard on the four existing endpoints, plus category tags added to the
+   projects payload (eager-loaded via `with('categories')`, or the list is one query
+   per project).
 4. Super-admin key screen: list, create, show-once, revoke.
 5. `docs/API.md` and `public/openapi.json` for the existing four endpoints.
 6. Tests (below).
@@ -260,6 +262,9 @@ New file `tests/Feature/Api/ApiClientKeyTest.php`:
 - Deleting an `ApiClient` kills its tokens.
 - An app key is unaffected by any employee being archived — the regression that
   motivates the whole design.
+- The projects payload carries category tags, and an untagged project carries `[]`.
+  Existing `test_any_valid_token_lists_tenant_active_projects` must still pass, which
+  is the check that the addition stayed additive.
 
 New file `tests/Feature/SuperAdmin/ApiKeyScreenTest.php`:
 
@@ -271,16 +276,69 @@ New file `tests/Feature/SuperAdmin/ApiKeyScreenTest.php`:
 Existing `tests/Feature/ApiTokenTest.php` (14 tests) must pass untouched. If a scope
 guard breaks one, the guard is wrong, not the test.
 
+## Relationship to the Projects screen redesign
+
+A parallel session is rebuilding Amanahku's project surface into a single register
+(`docs/superpowers/specs/2026-08-17-projects-source-of-truth-design.md`, branch
+`claude/project-screen-redesign-521aef`): one Projects screen every employee can view,
+editable by manager/management/hr, with Timesheet Setup's project block and the
+category tags folded in. That spec's non-goals say it plainly — *"No change to how
+projects are consumed. Timesheets, board cards and Track's API read the same table,
+unchanged."* So it does not block this build, and this build does not block it.
+
+Two consequences that are real anyway:
+
+**The projects payload gains category tags.** Category is already a many-to-many on
+`Project` as of `23e97c8` (`Project::categories()`, pivot `project_timesheet_category`,
+values `Development`, `Maintenance`, `InHouse Project`, `Sales` from
+`TimesheetCategory::PROJECT_LINKABLE`). Those tags are exactly the
+development-versus-maintenance distinction that makes a Unijaya project what it is, so
+a consumer that can't see them can't tell two projects apart in any way that matters.
+`GET /api/v1/projects` returns them as a flat array of names:
+
+```json
+{"id": 12, "code": "UJ-014", "name": "AmanahKu", "categories": ["Development", "Maintenance"]}
+```
+
+Additive, so Track's current call is unaffected. An untagged project returns `[]`,
+matching the screen's rule that untagged means "shows under every category".
+
+**Where the line falls between Amanahku and Track.** The Projects spec deliberately
+holds project *identity* only — code, name, active, sort, categories, sub-pillars — and
+leaves budget, phases and cadence to Track, on the grounds that duplicating them
+creates two records to keep current. That division belongs in `docs/API.md` in as many
+words, because it is the first question a coding agent in the DevStage or SupportOS
+repo will have: Amanahku answers *which projects exist and what kind they are*, not
+*how they are going*.
+
+**Sub-pillars are not exposed.** They become a visible part of the register on that
+screen, but no consumer has asked for them and the endpoint stays flat. Add
+`subpillars` to the payload when something needs it, not before.
+
+**Merge order.** Both branches touch `routes/web.php` in different blocks (theirs the
+tenant `/app/*` routes, this one the `super.admin` group), so a rebase is the whole
+coordination cost. Whichever lands second rebases onto dev.
+
 ## Rollout
 
-1. Ship the mechanism. Nothing in production changes on deploy — no existing token's
-   behavior differs.
-2. Super-admin creates a `Track` client with `projects:read` on the `unijaya` tenant.
-3. Track's `amanahku_api_token` row is updated to the new key. Track's behavior does
-   not change; it is the same header on the same GET.
-4. The old hand-minted person-token is revoked once Track is confirmed working.
+Amanahku's release path is dev → staging → PR staging into main → GitLab, and staging
+is the gate. Nothing here reaches production until it has been exercised on staging.
+
+1. Ship the mechanism to staging. No existing token's behavior differs, on either
+   host — this is additive throughout.
+2. On **staging**: super-admin creates a `Track` client with `projects:read`, points a
+   Track instance at it, confirms the call works and that revoking kills it. That
+   round trip is the thing staging is for; it is the first time the screen, the key
+   and a real consumer meet.
+3. Only then does the release move on to production, by the normal PR route.
+4. On **production**, once the code is live: super-admin creates the `Track` client,
+   Track's `amanahku_api_token` row is updated to the new key, and the old hand-minted
+   person-token is revoked once Track is confirmed working.
 5. DevStage 01 and SupportOS get their own clients when they are ready to consume,
    with only the scopes each actually needs.
+
+Step 4 is the point of the screen: it is doable with the production super-admin login
+alone, no shell, no devops ticket.
 
 ## Open items
 
