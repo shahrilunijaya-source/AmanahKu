@@ -1034,6 +1034,10 @@ select.wd-inline {
    truth, not disabled chrome. Only the affordance goes away. */
 .wd-inline:disabled { color: var(--ink); background: none; cursor: default; background-image: none; padding-right: 8px; }
 .wd-chiprow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 3px 0; }
+/* A link's editor row (label + url + remove). display lives in the class, not
+   inline, because x-show toggles the element's inline display style directly —
+   an inline "display: grid" gets wiped rather than restored on re-show. */
+.wd-link-row { display: grid; grid-template-columns: 140px 1fr 30px; gap: 8px; margin-bottom: 8px; }
 .wd-add {
     height: 22px; padding: 0 8px; border-radius: 6px; border: 1px dashed var(--hairline);
     background: none; color: var(--muted); cursor: pointer; font-size: var(--t-micro);
