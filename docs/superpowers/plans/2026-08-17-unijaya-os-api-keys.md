@@ -448,7 +448,7 @@ Also update the class docblock's first line to read:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `php artisan test --compact tests/Feature/Api/ApiClientKeyTest.php tests/Feature/ApiTokenTest.php`
-Expected: PASS. 6 in `ApiClientKeyTest` (2 from Task 1, 4 from this task) plus the 14 existing.
+Expected: PASS. 6 in `ApiClientKeyTest` (2 from Task 1, 4 from this task) plus the 17 existing (the dev merge that restored the Track endpoints added three).
 
 - [ ] **Step 5: Run Pint and PHPStan**
 
@@ -600,7 +600,7 @@ if (! $this->tokenCan($request, 'effort:read')) {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `php artisan test --compact tests/Feature/Api/ApiClientKeyTest.php tests/Feature/Api/TimesheetEffortApiTest.php tests/Feature/ApiTokenTest.php`
-Expected: PASS, all of them. The 14 `ApiTokenTest` cases and the `TimesheetEffortApiTest` cases must be untouched — they are the proof that `['*']` still means "everything".
+Expected: PASS, all of them. The `ApiTokenTest` cases (17 of them) and the `TimesheetEffortApiTest` cases must be untouched — they are the proof that `['*']` still means "everything".
 
 - [ ] **Step 6: Run Pint and PHPStan**
 
