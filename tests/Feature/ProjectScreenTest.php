@@ -260,6 +260,17 @@ class ProjectScreenTest extends TestCase
             ->assertSee(route('sub-pillars.store'));
     }
 
+    public function test_the_submit_button_label_differs_between_add_and_edit_mode(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+
+        $response = $this->actingAsRole('manager')->get('/app/projects');
+
+        $response->assertOk()
+            ->assertSee("\$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'", false)
+            ->assertSee("\$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'", false);
+    }
+
     public function test_the_add_form_offers_active_categories_only(): void
     {
         TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);

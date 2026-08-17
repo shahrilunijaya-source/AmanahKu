@@ -23,5 +23,11 @@
             <span x-text="$store.ui.lang==='en' ? 'Active' : 'Aktif'">Active</span>
         </label>
     @endif
-    <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? '{{ $s ? 'Save' : '+ Add' }}' : '{{ $s ? 'Simpan' : '+ Tambah' }}'">{{ $s ? 'Save' : '+ Add' }}</span></button>
+    <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12.5px;">
+        @if ($s)
+            <span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span>
+        @else
+            <span x-text="$store.ui.lang==='en' ? '+ Add' : '+ Tambah'">+ Add</span>
+        @endif
+    </button>
 </form>
