@@ -12,7 +12,14 @@
 
 ## Global Constraints
 
-- **Base branch:** `dev`, at `b78e180` or later. That commit restored `GET /api/v1/positions` and `GET /api/v1/timesheet-effort`; this plan guards six endpoints, and on an older base two of them do not exist. Verify with `grep -c "Route::get" routes/api.php` → must print `6`.
+- **Base branch:** must contain `b78e180` (which restored `GET /api/v1/positions` and `GET /api/v1/timesheet-effort`) and `23e97c8` (which added `Project::categories()`). Both are on `dev`. A branch cut from `main` has neither, and the failure is late and confusing: Task 3 finds no `positions()` to guard and Task 4 calls a relation that does not exist. **Check before Task 1:**
+
+  ```bash
+  grep -c "Route::get" routes/api.php          # must print 6
+  grep -c "function categories" app/Models/Project.php   # must print 1
+  ```
+
+  If either is wrong, `git merge dev` first.
 - **No new dependencies.** Everything here uses Sanctum and Laravel as already installed.
 - **Read-only API.** No endpoint added, changed or planned here writes. Write access is roadmap, not this build.
 - **Additive only.** `php artisan api:token`, `User::mintApiToken()`, the `isPrivileged()` role rules for person-tokens, and all 14 tests in `tests/Feature/ApiTokenTest.php` must still pass untouched. If a change breaks one of those tests, the change is wrong, not the test.
@@ -338,11 +345,17 @@ Append to `tests/Feature/Api/ApiClientKeyTest.php` (and add `use App\Models\Proj
         // account dies the moment that person is archived (ApiTenant treats it as
         // revoked membership); a client key has no person to lose.
         Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Ali', 'status' => 'active', 'workload' => 'green',
+        ]);
 
         $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
         $plain = $client->mintKey(['projects:read'])->plainTextToken;
 
-        Employee::query()->update(['status' => 'archived']);
+        // Archive every last one, so the update below is not a no-op against an empty
+        // table — the point is that a real archived roster changes nothing for an app key.
+        $archived = Employee::query()->update(['status' => 'archived']);
+        $this->assertSame(1, $archived);
 
         $this->withHeader('Authorization', 'Bearer '.$plain)
             ->getJson('/api/v1/projects')
@@ -1263,6 +1276,7 @@ git commit -m "docs(api): document the v1 endpoints for the apps that consume th
 - [ ] **Formatting:** `vendor/bin/pint --dirty --format agent` → passed.
 - [ ] **Migration runs on the dev database:** `lerd artisan migrate`. Tests use a separate database, so a green suite does not prove the dev app still boots.
 - [ ] **Set a token prefix** so keys are greppable and secret scanners can spot one committed by accident. Add `SANCTUM_TOKEN_PREFIX=amk_` to `.env` and `.env.example` (`config/sanctum.php:68` already reads it). Existing tokens are unaffected — the prefix applies to newly minted ones only.
+  **A deploy does not carry `.env`.** The line has to be added to the staging host's own `.env` before the first key is minted there, and later to production's, or the prefix quietly does not apply on the host where it matters. Production's `.env` is devops-owned, so that half is a request, not a task.
 - [ ] **Walk the screen by hand** at `http://localhost:9100/admin/companies/unijaya/api-keys`: create a key, confirm the plaintext shows once, refresh and confirm it is gone, call `/api/v1/projects` with it, revoke it, call again and get a 401.
 
 ## Out of scope, deliberately
