@@ -1,8 +1,8 @@
 {{--
     Single source of truth for a work-item card's markup. Rendered in three
     places that must stay identical: the personal board's column loop, the
-    read-only team board (with $compact = true), and every write response in
-    WorkItemController via cardHtml().
+    team board's view + comment only cards (with $compact = true), and every
+    write response in WorkItemController via cardHtml().
 
     Reads title-first: the type is a 5px dot, priority only draws when High,
     and labels are tinted rather than filled. See docs/superpowers/specs/
@@ -50,10 +50,10 @@
      data-project="{{ $c->project_id }}"
      @if ($owner ?? null) data-owner-id="{{ $owner['id'] }}" @endif
      @if ($c->assigned_by_id) data-assigned="1" @endif
-     {{-- Keyboard path to the drawer. Only on the personal board: team-board renders
-          this same partial read-only with no click handler at all, so making those
-          copies focusable would tab-stop on something Enter/Space does nothing to. --}}
-     @unless ($wcCompact) tabindex="0" role="button" aria-haspopup="dialog" @endunless
+     {{-- Keyboard path to the drawer — both the personal board and the team board's
+          compact cards open a (view + comment only, on team-board) drawer on click
+          or Enter/Space. See work-board.js / team-board.js's click delegation. --}}
+     tabindex="0" role="button" aria-haspopup="dialog"
 >
     <div class="wc-top">
         <span class="wc-type"><span class="wc-dot" style="--wc-type:{{ $wcTypeColor }};"></span>{{ $wcTypeLabel }}</span>

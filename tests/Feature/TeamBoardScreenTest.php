@@ -196,6 +196,51 @@ class TeamBoardScreenTest extends TestCase
         $this->assertStringNotContainsString('/app/board?card=', $response->getContent());
     }
 
+    /**
+     * A task card must be keyboard-reachable too, same as a person row, so
+     * the drawer can open without a mouse.
+     */
+    public function test_task_cards_are_keyboard_reachable(): void
+    {
+        $alice = $this->makeEmployee('Alice');
+        $card = $this->makeCard($alice, ['title' => 'Reachable task']);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $this->assertMatchesRegularExpression(
+            '/data-id="'.$card->id.'"[^>]*tabindex="0"[^>]*role="button"/s',
+            $html
+        );
+    }
+
+    /**
+     * The card drawer renders in its view + comment only shape here — no
+     * editable title, no status buttons, no delete/archive menu — while the
+     * comment composer stays fully present. See partials.work-drawer's
+     * $interactive flag and resources/js/team-board.js's drawer.locked.
+     */
+    public function test_card_drawer_renders_view_and_comment_only(): void
+    {
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        // The read-only title has no contenteditable attribute at all.
+        $this->assertStringNotContainsString('contenteditable', $html);
+        // The personal board's status segmented control and "..." actions menu
+        // are absent here.
+        $this->assertStringNotContainsString('setStatus(', $html);
+        $this->assertStringNotContainsString('archiveCard()', $html);
+        $this->assertStringNotContainsString('deleteCard()', $html);
+        // The comment composer is present and wired up.
+        $this->assertStringContainsString('addComment()', $html);
+        $this->assertStringContainsString('wd-post', $html);
+    }
+
     public function test_plain_employee_with_no_direct_reports_gets_403(): void
     {
         $plainUser = User::create(['name' => 'Plain', 'email' => 'plain@example.com', 'password' => Hash::make('password')]);

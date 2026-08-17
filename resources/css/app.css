@@ -888,6 +888,14 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transition: transform 280ms cubic-bezier(.32,.72,0,1);
 }
 .wd[data-open] { transform: translateX(0); }
+/* Card drawer opened FROM the team board's own person window (.tb-win-modal,
+   z-index 61): .wd-scrim/.wd are shared with that window's own backdrop+shell,
+   so bumping their bare z-index here would also lift the window's OWN scrim
+   above its OWN content — exactly the bug this modifier fixes by staying
+   scoped to partials.work-drawer's $interactive:false instance only (see its
+   wd--over-modal class). */
+.wd-scrim.wd--over-modal { z-index: 64; }
+.wd.wd--over-modal { z-index: 65; }
 /* Knowledge Bank picture lightbox. A plain class, not inline `display:flex` — Alpine's
    x-show (no transition) clears the inline `display` property rather than restoring it,
    which would collapse flex centering back to the div default of `block` every time the

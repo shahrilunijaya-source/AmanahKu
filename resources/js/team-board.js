@@ -7,8 +7,10 @@
 // viewer onto their OWN board and discarded this screen's state).
 //
 // An Alpine component that filters and reorders already-rendered DOM nodes
-// by their data-* attributes, never a fetch — same pattern as
-// resources/js/work-board.js. The person table's row markup lives in this
+// by their data-* attributes for the person table and the window's own task
+// filters — the only fetch on this screen is opening a card's drawer (below),
+// mirroring resources/js/work-board.js's own openCardCore(). The person
+// table's row markup lives in this
 // file's Blade (resources/views/screens/team-board.blade.php); each card is
 // rendered by the shared partials/work-card.blade.php, once per $teamRows
 // entry, grouped into 4 status columns INSIDE the floating window (teleported
@@ -20,11 +22,18 @@
 // showing that person's cards as a 4-column kanban laid out side-by-side,
 // the same shape board.blade.php uses for its own kanban — reusing its
 // .wd-scrim/.wd-head/.wd-ico/.wd-body shell pieces, not a second visual
-// language. Unlike that drawer, nothing here writes: no fetch, no PATCH, no
-// comment composer. board.blade.php/work-board.js are not touched.
+// language.
+//
+// A card inside the window CAN be opened — the shared partials.work-drawer
+// (interactive: false) — to read its full detail and comment. It can never be
+// edited or moved from here: drawer.locked is forced true unconditionally
+// (never read from the server's card.can_manage, unlike work-board.js's own
+// drawer), and the read-only branches partials.work-drawer already has for
+// board.blade.php's own locked cards are what render everything else. See
+// docs/superpowers/specs/2026-07-29-team-board-redesign-design.md.
 
 export function registerTeamBoard(Alpine) {
-    Alpine.data('teamBoard', (people = []) => ({
+    Alpine.data('teamBoard', (people = [], labels = {}) => ({
         // Full per-person records from $teamPeople (id, name, initials,
         // avatar_color, position, department, open, overdue, blocked,
         // in_review, done) — embedded once from the server, read back by id
@@ -32,6 +41,10 @@ export function registerTeamBoard(Alpine) {
         // carrying work), so this is comfortable to keep in memory whole
         // rather than re-deriving it from the DOM.
         people,
+        // The label palette, from the server (WorkItem::LABELS): slug => [name, color].
+        // Only read by the card drawer's read-only Labels row.
+        labels,
+        token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
 
         // ── Always-visible, person-level filters ──
         search: '',
@@ -61,6 +74,47 @@ export function registerTeamBoard(Alpine) {
         },
         winVisibleCount: 0,
 
+        // ── Card detail drawer: view + comment only, opened from a card inside
+        // the person window. Shape mirrors work-board.js's own `drawer`, minus
+        // every autosave/edit field that partials.work-drawer's $interactive
+        // branch never renders here (menuOpen, saved, seq/lastApplied, _timers).
+        drawer: {
+            show: false,
+            open: false,
+            loading: false,
+            error: '',
+            locked: true, // always — never read from the server's card.can_manage.
+            lockedReason: '',
+            id: null,
+            node: null,
+            trigger: null,
+            sub: '',
+            newComment: '',
+            labelMenuOpen: false,
+            card: {
+                id: null, title: '', description: '', type: 'task', priority: 'medium',
+                due_at: '', due_label: '', status: 'todo', labels: [], links: [], participants: [],
+                project_id: '', project: null, comments_count: 0, mentionable: [],
+            },
+            comments: [],
+            mention: { open: false, hits: [], idx: 0 },
+            _closeTimer: null,
+        },
+
+        // Who this card may mention: participants plus the assigner, exactly as
+        // WorkItemController::show() sends it — never the full roster.
+        get mentionPool() {
+            return this.drawer.card.mentionable || [];
+        },
+
+        // The "add someone" picker itself is always hidden here (drawer.locked
+        // is always true), but its x-for inside that x-show'd block still runs
+        // regardless — x-show only toggles display, it doesn't stop Alpine from
+        // evaluating child directives. Real content is never needed.
+        get availablePeople() {
+            return [];
+        },
+
         init() {
             this.totalCount = this.$root.querySelectorAll('[data-person-id]').length;
             // The table already renders sorted by open descending (Blade sorts
@@ -84,6 +138,22 @@ export function registerTeamBoard(Alpine) {
                 if (!row || !this.$root.contains(row)) return;
                 e.preventDefault();
                 this.openWindow(row);
+            });
+
+            // Open the card drawer on click, or Enter/Space from the keyboard.
+            // The kanban cards live inside the person window's own x-teleport
+            // (moved to <body> in the real DOM), so they're never inside
+            // $root — listen on document instead, scoped to winTaskBody.
+            document.addEventListener('click', (e) => {
+                const card = e.target.closest('[data-card]');
+                if (card && this.$refs.winTaskBody?.contains(card)) this.openCard(card);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+                const card = e.target.closest('[data-card][role="button"]');
+                if (!card || !this.$refs.winTaskBody?.contains(card)) return;
+                e.preventDefault();
+                this.openCard(card);
             });
         },
 
@@ -269,6 +339,220 @@ export function registerTeamBoard(Alpine) {
                 if (matches) visible += 1;
             });
             this.winVisibleCount = visible;
+        },
+
+        // ── Card detail drawer ─────────────────────────────────────
+        async api(url, opts = {}) {
+            const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+            if (opts.body) headers['Content-Type'] = 'application/json';
+            const res = await fetch(url, { headers, ...opts });
+            if (!res.ok) throw new Error('Request failed: ' + res.status);
+            return res.status === 204 ? null : res.json();
+        },
+
+        // Swaps a card's whole DOM node for freshly server-rendered markup, so
+        // the small card's comment-count badge reflects a comment just posted
+        // from inside the drawer. Scoped to winTaskBody, not $root — see the
+        // click-listener comment in init() for why (x-teleport).
+        repaintNode(html) {
+            const node = this.drawer.node;
+            if (!node || !html) return;
+            const id = node.dataset.id;
+            node.outerHTML = html;
+            this.drawer.node = this.$refs.winTaskBody?.querySelector(`[data-card][data-id="${id}"]`) ?? null;
+        },
+
+        subline(card) {
+            if (!card.opened_at) return '';
+            const verb = card.assigned_by ? this.t('Assigned', 'Ditugaskan') : this.t('Opened', 'Dibuka');
+            const by = this.t('by', 'oleh');
+            return `${verb} ${card.opened_at} ${by} ${card.owner_name || ''} · #${card.id}`;
+        },
+
+        async openCard(node) {
+            const id = node.dataset.id;
+            this.drawer.trigger = node;
+            this.drawer.node = node;
+            this.drawer.id = id;
+            this.drawer.loading = true;
+            this.drawer.error = '';
+            this.drawer.newComment = '';
+            this.drawer.labelMenuOpen = false;
+            this.closeMention();
+            this.drawer.show = true;
+            this.$nextTick(() => requestAnimationFrame(() => {
+                this.drawer.open = true;
+            }));
+            try {
+                const { card, comments } = await this.api(`/app/board/${id}`);
+                this.drawer.card = {
+                    ...card,
+                    description: card.description ?? '',
+                    due_at: card.due_at ?? '',
+                    labels: card.labels ?? [],
+                    links: card.links ?? [],
+                    participants: card.participants ?? [],
+                    mentionable: card.mentionable ?? [],
+                    project_id: card.project?.id ?? '',
+                };
+                // Always locked here, regardless of card.can_manage — the team
+                // board is view + comment only for everyone, even a manager who
+                // could edit this same card from their own personal board.
+                this.drawer.locked = true;
+                this.drawer.lockedReason = this.t(
+                    'This is the company-wide board — view and comment only. Open this card from its owner\'s own board to edit it.',
+                    'Ini papan seluruh syarikat — hanya boleh lihat dan komen. Buka kad ini dari papan pemiliknya sendiri untuk menyuntingnya.',
+                );
+                this.drawer.sub = this.subline(card);
+                this.drawer.comments = comments;
+            } catch (err) {
+                this.drawer.error = this.t('Could not load this card.', 'Tidak dapat memuatkan kad ini.');
+            } finally {
+                this.drawer.loading = false;
+                if (this.drawer.show) {
+                    this.$nextTick(() => {
+                        this.$refs.drawerEl?.focus({ preventScroll: true });
+                    });
+                }
+            }
+        },
+
+        closeDrawer() {
+            if (!this.drawer.show) return;
+            this.drawer.open = false;
+            this.drawer.labelMenuOpen = false;
+            this.closeMention();
+            const trigger = this.drawer.trigger;
+            clearTimeout(this.drawer._closeTimer);
+            this.drawer._closeTimer = setTimeout(() => {
+                this.drawer.show = false;
+                this.drawer.node = null;
+                trigger?.focus?.({ preventScroll: true });
+            }, 280);
+        },
+
+        // Keeps Tab cycling inside the drawer while it is open (WAI-ARIA
+        // dialog pattern) — identical algorithm to work-board.js's trapFocus().
+        trapFocus(e) {
+            if (e.key !== 'Tab') return;
+            const root = this.$refs.drawerEl;
+            if (!root) return;
+            const nodes = root.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]');
+            const list = Array.from(nodes).filter((el) => !el.disabled && el.offsetParent !== null);
+            if (!list.length) return;
+            const first = list[0];
+            const last = list[list.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        },
+
+        // ── Mention picker — identical algorithm to work-board.js's own. ──
+        closeMention() {
+            this.drawer.mention.open = false;
+            this.drawer.mention.hits = [];
+            this.drawer.mention.idx = 0;
+        },
+
+        mentionActiveQuery(el) {
+            const upto = el.value.slice(0, el.selectionStart);
+            const m = upto.match(/(?:^|\s)@([\p{L}\s]{0,30})$/u);
+            return m ? m[1] : null;
+        },
+
+        paintMention(q) {
+            this.drawer.mention.hits = this.mentionPool.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+            this.drawer.mention.idx = 0;
+            this.drawer.mention.open = true;
+        },
+
+        onCommentInput(e) {
+            const q = this.mentionActiveQuery(e.target);
+            q === null ? this.closeMention() : this.paintMention(q);
+        },
+
+        onCommentKeydown(e) {
+            if (!this.drawer.mention.open) return;
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                this.closeMention();
+                return;
+            }
+            if (!this.drawer.mention.hits.length) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = this.drawer.mention.hits.length;
+                this.drawer.mention.idx = (this.drawer.mention.idx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.insertMention(this.drawer.mention.hits[this.drawer.mention.idx]);
+            }
+        },
+
+        insertMention(p) {
+            if (!p) return;
+            const el = this.$refs.newCommentEl;
+            const caret = el ? el.selectionStart : this.drawer.newComment.length;
+            const value = this.drawer.newComment;
+            const upto = value.slice(0, caret).replace(/(^|\s)@[\p{L}\s]{0,30}$/u, '$1');
+            const rest = value.slice(caret);
+            const inserted = `${upto}@${p.name} `;
+            this.drawer.newComment = inserted + rest;
+            this.closeMention();
+            this.$nextTick(() => {
+                if (!el) return;
+                el.focus();
+                el.setSelectionRange(inserted.length, inserted.length);
+            });
+        },
+
+        escapeHtml(s) {
+            return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        },
+
+        // Escape FIRST, then tint — see work-board.js's own renderCommentBody()
+        // for why the order matters (c.body is user input, rendered via x-html).
+        renderCommentBody(body) {
+            let html = this.escapeHtml(body);
+            for (const p of this.mentionPool) {
+                const at = '@' + this.escapeHtml(p.name);
+                html = html.split(at).join(`<span class="wd-at">${at}</span>`);
+            }
+            return html;
+        },
+
+        async addComment() {
+            const body = this.drawer.newComment.trim();
+            if (!body) return;
+            this.closeMention();
+            try {
+                const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, {
+                    method: 'POST',
+                    body: JSON.stringify({ body }),
+                });
+                this.drawer.comments.push(comment);
+                this.drawer.newComment = '';
+                this.drawer.card.comments_count = count;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not post comment.', 'Tidak dapat hantar komen.');
+            }
+        },
+
+        async deleteComment(id) {
+            try {
+                const { count, html } = await this.api(`/app/board/comments/${id}`, { method: 'DELETE' });
+                this.drawer.comments = this.drawer.comments.filter((c) => c.id !== id);
+                this.drawer.card.comments_count = count;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not delete comment.', 'Tidak dapat padam komen.');
+            }
         },
     }));
 }

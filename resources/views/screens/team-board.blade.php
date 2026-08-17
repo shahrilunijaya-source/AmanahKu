@@ -13,24 +13,26 @@
     'key' => 'team-board',
     'en'  => [
         'title' => 'Team board — all tasks',
-        'body'  => 'A read-only, company-wide view of every staff member\'s work: one row per person, showing what they are carrying. Click a person to see their tasks in a window, without leaving this screen.',
+        'body'  => 'A company-wide view of every staff member\'s work: one row per person, showing what they are carrying. Click a person to see their tasks in a window, without leaving this screen. Click a task there to open it and comment — the details themselves stay read-only.',
         'who'   => 'Management · HR · Immediate superiors',
         'steps' => [
             'Each row is one person, ranked by open items. Click a row (or press Enter) to open that person\'s tasks.',
             'Search a name or a task title, or switch on Overdue / Blocked to see only people carrying that trouble.',
             'Inside a person\'s window, filter by type, priority, project, label or status to narrow their own list.',
+            'Click a task card to open it — read its details and leave a comment. Only its owner can edit it.',
             'Click a sortable column heading to sort by it; click again to reverse the order.',
             'Press Escape, or the close button, to leave a person\'s window — the table underneath keeps your search, toggles and sort exactly as you left them.',
         ],
     ],
     'ms'  => [
         'title' => 'Papan pasukan — semua tugasan',
-        'body'  => 'Paparan baca-sahaja seluruh syarikat bagi kerja setiap staf: satu baris bagi setiap orang, menunjukkan apa yang mereka pikul. Klik seseorang untuk lihat tugasan mereka dalam satu tetingkap, tanpa perlu tinggalkan skrin ini.',
+        'body'  => 'Paparan seluruh syarikat bagi kerja setiap staf: satu baris bagi setiap orang, menunjukkan apa yang mereka pikul. Klik seseorang untuk lihat tugasan mereka dalam satu tetingkap, tanpa perlu tinggalkan skrin ini. Klik satu tugasan di situ untuk buka dan beri komen — butirannya sendiri kekal baca-sahaja.',
         'who'   => 'Pengurusan · HR · Penyelia terdekat',
         'steps' => [
             'Setiap baris mewakili seorang staf, disusun mengikut item terbuka. Klik baris itu (atau tekan Enter) untuk buka tugasan orang berkenaan.',
             'Cari mengikut nama atau tajuk tugasan, atau hidupkan suis Lewat / Tersekat untuk lihat sesiapa sahaja yang menghadapi masalah itu.',
             'Di dalam tetingkap seseorang, tapis mengikut jenis, keutamaan, projek, label atau status untuk sempitkan senarai mereka sendiri.',
+            'Klik kad tugasan untuk buka — baca butirannya dan tinggalkan komen. Hanya pemiliknya boleh menyuntingnya.',
             'Klik kepala lajur yang boleh disusun untuk susun mengikutnya; klik lagi untuk terbalikkan susunan.',
             'Tekan Escape, atau butang tutup, untuk keluar dari tetingkap seseorang — jadual di bawah kekal dengan carian, suis dan susunan seperti sebelumnya.',
         ],
@@ -62,7 +64,7 @@
     $tbLabelDef = \App\Models\WorkItem::LABELS;
 @endphp
 
-<div x-data="teamBoard(@js($tbPeopleByOpen))">
+<div x-data="teamBoard(@js($tbPeopleByOpen), @js($tbLabelDef))">
     {{-- ═══════ Filter bar — always-visible, person-level controls ═══════ --}}
     <div class="tb-filters">
         <input x-model="search" @input="applyFilter()" type="search"
@@ -250,5 +252,9 @@
         </aside>
     </div>
     </template>
+
+    {{-- Card detail drawer, view + comment only — no edit, no move (see
+         partials.work-drawer and resources/js/team-board.js's drawer.* code). --}}
+    @include('partials.work-drawer', ['interactive' => false])
 </div>
 @endsection
