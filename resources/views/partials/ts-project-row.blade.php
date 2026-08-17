@@ -1,11 +1,11 @@
 {{-- One project card with its sub-pillars. Shared by the initial render and the AJAX
-     append on add. Expects $project (Project, with subPillars loaded). --}}
+     append on add. Expects $project (Project, with subPillars + categories loaded) and $categories (full list, for the edit form). --}}
 <div class="uj-card" style="padding:16px 20px;margin-bottom:12px;{{ $project->is_active ? '' : 'opacity:.6;' }}" x-data="{ edit: false, sub: false }">
     <div style="display:flex;gap:12px;align-items:center;">
         <span style="width:34px;height:34px;border-radius:8px;background:var(--canvas);border:1px solid var(--hairline);color:var(--muted);font-size:11px;font-weight:600;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $project->code ?: '—' }}</span>
         <div style="flex:1;min-width:0;">
             <div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $project->name }}</div>
-            <div style="font-size:11.5px;color:var(--muted);"><span data-sub-count>{{ $project->subPillars->count() }}</span> <span x-text="$store.ui.lang==='en' ? 'sub-pillars' : 'sub-tiang'">sub-pillars</span>@unless ($project->is_active) · <span x-text="$store.ui.lang==='en' ? 'inactive' : 'tidak aktif'">inactive</span>@endunless</div>
+            <div style="font-size:11.5px;color:var(--muted);"><span data-sub-count>{{ $project->subPillars->count() }}</span> <span x-text="$store.ui.lang==='en' ? 'sub-pillars' : 'sub-tiang'">sub-pillars</span>@if ($project->categories->isNotEmpty()) · {{ $project->categories->pluck('name')->join(', ') }}@endif @unless ($project->is_active) · <span x-text="$store.ui.lang==='en' ? 'inactive' : 'tidak aktif'">inactive</span>@endunless</div>
         </div>
         <button @click="sub = ! sub" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="sub ? ($store.ui.lang==='en' ? 'Hide sub-pillars' : 'Sembunyi sub-tiang') : ($store.ui.lang==='en' ? 'Sub-pillars' : 'Sub-tiang')">Sub-pillars</span></button>
         <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
@@ -17,7 +17,7 @@
 
     {{-- Edit project --}}
     <div x-show="edit" x-cloak style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
-        @include('partials.ts-project-form', ['project' => $project, 'action' => route('timesheet.admin.projects.update', $project), 'submitLabel' => 'Save changes'])
+        @include('partials.ts-project-form', ['project' => $project, 'action' => route('timesheet.admin.projects.update', $project), 'submitLabel' => 'Save changes', 'categories' => $categories])
     </div>
 
     {{-- Sub-pillars --}}

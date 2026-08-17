@@ -2920,6 +2920,29 @@ select.wd-inline {
 
 .uj-lv-more { margin-top: 10px; background: none; border: 0; padding: 6px 0; font-size: var(--t-sm); font-weight: 500; color: var(--red); cursor: pointer; }
 
+/* Project category chips (quick-create + Timesheet Setup project form). A small,
+   fixed set of options reads better as inline pills than as a full-width list, so
+   this is a compact multi-select variant of .uj-lv-type's red-tint + tick language
+   rather than the neutral .uj-seg segmented control — that one is single-select
+   "where am I" and stays red-free by design; this is a form choice. The real
+   checkbox stays in the DOM (native semantics, x-model, plain-form fallback) and
+   is only visually hidden with .uj-sr-only; selected-state styling is driven by
+   Alpine's .is-on class (matching .uj-lv-type[aria-pressed] elsewhere), not
+   :has(), which doesn't reliably invalidate on script-driven :checked changes. */
+.uj-cat-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.uj-cat-chip {
+    position: relative; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 12px;
+    border-radius: 999px; border: 1px solid var(--hairline); background: #fff;
+    font-size: var(--t-sm); font-weight: 500; color: var(--body); cursor: pointer; user-select: none;
+    transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1), transform .1s ease;
+}
+.uj-cat-chip:hover { border-color: var(--muted-soft); }
+.uj-cat-chip:active { transform: scale(.97); }
+.uj-cat-chip:focus-within { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-cat-chip.is-on { background: var(--red-tint); border-color: color-mix(in srgb, var(--red) 35%, transparent); color: var(--red); }
+.uj-cat-chip-tick { flex: 0 0 12px; opacity: 0; transform: scale(.6); transition: opacity .18s cubic-bezier(.23, 1, .32, 1), transform .18s cubic-bezier(.23, 1, .32, 1); }
+.uj-cat-chip.is-on .uj-cat-chip-tick { opacity: 1; transform: none; }
+
 /* Rule notes. Only the ones that apply to the chosen type are rendered, which
    is what replaced the four hint paragraphs that used to sit open permanently. */
 .uj-lv-note { font-size: var(--t-sm); line-height: 1.5; border-radius: 10px; padding: 10px 12px; margin-top: 12px; border: 1px solid; }
