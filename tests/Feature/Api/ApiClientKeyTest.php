@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\PersonalAccessToken;
 use App\Models\Project;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -156,5 +157,25 @@ class ApiClientKeyTest extends TestCase
         $response->assertOk();
         $this->assertCount(1, $response->json('data'));
         $this->assertSame('Ali', $response->json('data.0.name'));
+    }
+
+    public function test_projects_carry_their_category_tags_and_an_untagged_project_carries_none(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'is_active' => true, 'sort' => 1]);
+        $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'is_active' => true, 'sort' => 2]);
+
+        $tagged = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+        $tagged->categories()->sync([$dev->id, $maint->id]);
+
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Untagged', 'code' => 'UJ-2', 'is_active' => true, 'sort' => 2]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['projects:read'])->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/projects');
+
+        $response->assertOk();
+        $this->assertSame(['Development', 'Maintenance'], $response->json('data.0.categories'));
+        $this->assertSame([], $response->json('data.1.categories'));
     }
 }

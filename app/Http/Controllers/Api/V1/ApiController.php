@@ -132,14 +132,16 @@ class ApiController extends Controller
         return $this->ok($rows);
     }
 
-    /** GET /api/v1/projects — any valid tenant token; the tenant's active projects. */
+    /** GET /api/v1/projects — the tenant's active projects and their category tags. */
     public function projects(Request $request): JsonResponse
     {
         if (! $this->tokenCan($request, 'projects:read')) {
             return $this->denyScope('projects:read');
         }
 
+        // Eager-loaded: without it the map below fires one query per project.
         $projects = Project::where('is_active', true)
+            ->with('categories:id,name')
             ->orderBy('sort')
             ->orderBy('name')
             ->get()
@@ -147,6 +149,9 @@ class ApiController extends Controller
                 'id' => $p->id,
                 'code' => $p->code,
                 'name' => $p->name,
+                // Names, not ids: a category id means nothing outside AmanahKu, and a
+                // consumer matching on "Development" needs no second lookup.
+                'categories' => $p->categories->pluck('name')->values()->all(),
             ]);
 
         return $this->ok($projects);
