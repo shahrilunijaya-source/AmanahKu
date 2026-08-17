@@ -41,7 +41,7 @@
       },
       "ServerError": {
         "type": "object",
-        "description": "A 5xx failure: an uncaught fault, so it does NOT use the {data, error} envelope. message is whatever the framework's default handler rendered and should not be relied on; reference is stable and is what to quote when reporting the fault.",
+        "description": "A 5xx failure: an uncaught fault, so it does NOT use the {data, error} envelope. message is whatever the framework's default handler rendered and should not be relied on. reference is stable and is what to quote when reporting the fault, but it is only present when the fault was actually logged — a deliberate abort(500, ...) or a maintenance-mode 503 is not, so treat reference as optional.",
         "properties": {
           "message": { "type": "string" },
           "reference": { "type": "string" }
@@ -101,7 +101,7 @@
                           "id": { "type": "integer" },
                           "code": { "type": ["string", "null"] },
                           "name": { "type": "string" },
-                          "categories": { "type": "array", "items": { "type": "string" } }
+                          "categories": { "type": "array", "items": { "type": "string" }, "description": "Sorted alphabetically; the underlying relation has no defined order, so this API sorts it to keep the array stable for consumers that diff it." }
                         }
                       }
                     },

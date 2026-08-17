@@ -31,7 +31,12 @@ class ApiKeyController extends Controller
     {
         return view('superadmin.companies.api-keys', [
             'company' => $tenant,
+            // ->has('tokens') excludes clients left behind with zero live tokens (revoke()
+            // deletes only the token row, not the client), which would otherwise reach the
+            // view as a non-empty $clients whose inner @foreach renders nothing — a blank
+            // page instead of the "no keys issued" empty state.
             'clients' => ApiClient::where('tenant_id', $tenant->id)
+                ->has('tokens')
                 ->with(['creator:id,name', 'tokens'])
                 ->orderBy('name')
                 ->get(),

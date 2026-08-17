@@ -151,7 +151,10 @@ class ApiController extends Controller
                 'name' => $p->name,
                 // Names, not ids: a category id means nothing outside AmanahKu, and a
                 // consumer matching on "Development" needs no second lookup.
-                'categories' => $p->categories->pluck('name')->values()->all(),
+                // Sorted: Project::categories() carries no ORDER BY, so unsorted order
+                // depends on MySQL's query plan — a consumer diffing this array would
+                // see phantom changes between otherwise-identical calls.
+                'categories' => $p->categories->pluck('name')->sort()->values()->all(),
             ]);
 
         return $this->ok($projects);

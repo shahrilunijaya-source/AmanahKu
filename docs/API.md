@@ -117,16 +117,22 @@ this is easy to get wrong if you only test one case:
 A `5xx` means the request never reached a controller's own error handling —
 it is an uncaught fault, so it does **not** use this API's `{data, error}`
 envelope either. The body is whatever AmanahKu's framework-level handler
-renders for that fault, plus a `reference` key added on top:
+renders for that fault, plus a `reference` key added on top **when the fault
+was actually logged**:
 
 ```json
 { "message": "Server Error", "reference": "AB12CD34" }
 ```
 
 Do not depend on `message` being any particular string — treat a `5xx` as
-"AmanahKu failed, try again later." If you need to report the fault, quote
-`reference` — it is how the team finds the matching entry in AmanahKu's own
-error log.
+"AmanahKu failed, try again later." If `reference` is present, quote it when
+reporting the fault — it is how the team finds the matching entry in
+AmanahKu's own error log. Most faults carry one, but do not assume it is
+always there: `reference` is only set when the fault was captured for the
+error log, and a deliberate `abort(500, ...)` or a maintenance-mode `503` is
+a kind of exception Laravel does not log, so those responses have no
+`reference` key at all. Code that reads the body should treat the key as
+optional.
 
 ## 5. Endpoints
 
@@ -138,7 +144,10 @@ All six endpoints live under `/api/v1` and require `Authorization: Bearer
 Every active project in the key's company, with its category tags.
 Categories are drawn from a fixed set: `Development`, `Maintenance`,
 `InHouse Project`, `Sales`. A project with no category tags returns an
-empty array, not `null`.
+empty array, not `null`. `categories` is sorted alphabetically — the
+underlying relation carries no defined order, so this API sorts it rather
+than leave a consumer that stores or diffs the array to see phantom
+changes.
 
 ```json
 {
