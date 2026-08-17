@@ -270,9 +270,12 @@ as-is for categories.
 - `app/Support/Amanahku.php:377` — a `projects` entry in `Amanahku::page()`: title
   "Projects" / "Projek", subtitle "Every project in Unijaya, and the sub-pillars they
   all share.", crumb `['Workplace', 'Projects']`. The `project-quick-create` key
-  **stays** with the same copy, exactly as `claim-approvals` is retained at `:353`:
-  `page()` falls back to the `soon` placeholder for unknown slugs (`:390`), so dropping
-  the old key would give old bookmarks a blank header rather than a 404.
+  **stays in the array** — as shipped, it is a duplicate of the `projects` entry
+  (identical title, subtitle and crumb), not its own old "New Project" copy. Either
+  way the effect described below holds: `page()` falls back to the `soon` placeholder
+  for unknown slugs (`:390`), so dropping the old key would give old bookmarks a blank
+  header rather than a 404 — the same reason `claim-approvals` is retained at `:353`,
+  though that key keeps its own distinct copy rather than being duplicated.
 - `AppController.php:231` — `project-quick-create` aliases to the `projects` view, and
   `:411` aliases to the same `screenData`, following the `claim-approvals` precedent at
   `:229-231` / `:368`, so old deep links and bookmarks still land somewhere real.
