@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -20,6 +21,33 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // 0. Refuse to run against a database this migration already started
+        //    rewriting. Every abort path below leaves `sub_pillars` created
+        //    (MySQL has no transactional DDL), but the two meaningfully
+        //    different states are "abort before the backfill wrote a single
+        //    row" (safe: nothing has been remapped yet, dropping and
+        //    recreating loses nothing) and "abort during or after the
+        //    backfill" (unsafe: `sub_pillars` regenerates the exact same ids
+        //    1..~6 on a re-run, and a row already repointed at *new* id 4
+        //    would be read back as *old* id 4 and remapped a second time —
+        //    silently repointing or renaming already-correct history, with
+        //    no self-check able to catch it since both the before and after
+        //    values are derived from the same corrupted id). A row count is
+        //    the exact line between them: the remap (step 3+) only begins
+        //    once the backfill has run, so an empty table provably means it
+        //    never started. This also stops a hand re-run against a live,
+        //    populated production table from being destroyed by the
+        //    `dropIfExists` below.
+        if (Schema::hasTable('sub_pillars') && DB::table('sub_pillars')->exists()) {
+            throw new RuntimeException(
+                'sub_pillars already has rows. A previous run of this migration '
+                .'aborted part-way through and may already have repointed '
+                .'timesheet history against a stale id mapping — re-running now '
+                .'risks corrupting it further. Restore the pre-migration database '
+                .'dump before retrying this migration.'
+            );
+        }
+
         // 1. Release the foreign key pinning sub_pillar_id, whichever table it
         //    currently references, and clear any leftover `sub_pillars` from a
         //    partial run. MySQL has no transactional DDL: every abort path below
@@ -161,7 +189,7 @@ return new class extends Migration
         });
 
         $oldIdByProjectKey = []; // "tenantId|projectId|folded name" => old id
-        $oldIdByNameKey = [];    // "tenantId|folded name" => old id (project_id IS NULL rows only)
+        $oldIdByNameKey = [];    // "tenantId|folded name" => lowest old id for that name across ALL projects (tenant-wide fallback, used when a row's own project_id is null)
 
         foreach (DB::table('project_sub_pillars')->orderBy('id')->get() as $old) {
             $folded = $this->foldName(trim($old->name));
@@ -222,11 +250,21 @@ return new class extends Migration
      * under utf8mb4_unicode_ci, which is accent-insensitive; mb_strtolower
      * alone is not, and two names differing only by an accent would pass a
      * plain-lowercase dedup and then collide on insert at that index.
+     *
+     * `Str::ascii()`, not `normalizer_normalize()`: the latter needs
+     * ext-intl, which `composer.json` never declares — it happens to be
+     * present in this container and on staging, but nothing guarantees it on
+     * production, and a missing extension there would be a fatal error on
+     * every deploy. `Str::ascii()` transliterates through
+     * voku/portable-ascii, a hard (non-optional) dependency of
+     * laravel/framework itself, so it needs nothing this app doesn't already
+     * require. Confirmed against the live dev data that this produces the
+     * exact same merge groups as the old normalizer-based fold (0 diff,
+     * task-6 report) — moot today either way, since the reviewer also
+     * confirmed zero non-ASCII sub-pillar names exist in that data.
      */
     private function foldName(string $name): string
     {
-        $decomposed = normalizer_normalize($name, Normalizer::FORM_D) ?: $name;
-
-        return mb_strtolower(preg_replace('/\p{Mn}/u', '', $decomposed) ?? $decomposed);
+        return mb_strtolower(Str::ascii($name));
     }
 };
