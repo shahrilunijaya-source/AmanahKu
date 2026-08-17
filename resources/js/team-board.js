@@ -33,7 +33,7 @@
 // docs/superpowers/specs/2026-07-29-team-board-redesign-design.md.
 
 export function registerTeamBoard(Alpine) {
-    Alpine.data('teamBoard', (people = [], labels = {}) => ({
+    Alpine.data('teamBoard', (people = [], labels = {}, assignInit = { defaultId: null, show: false, employeeId: null }) => ({
         // Full per-person records from $teamPeople (id, name, initials,
         // avatar_color, position, department, open, overdue, blocked,
         // in_review, done) — embedded once from the server, read back by id
@@ -113,6 +113,22 @@ export function registerTeamBoard(Alpine) {
         // evaluating child directives. Real content is never needed.
         get availablePeople() {
             return [];
+        },
+
+        // ── Assign-task modal: reachable from the top-of-page button (any
+        // active employee) or a person window's header button (that person
+        // preselected). `show`/`open` follow the exact two-stage dance `win`
+        // uses above (mount, then a frame later flip the transform/opacity
+        // state) so the 280ms CSS transition has something to animate from.
+        // `assignInit.show`/`employeeId` come from a validation error
+        // ($errors->getBag('assign')) reopening the modal on page reload —
+        // in that case it should just appear already-open, no animation.
+        assign: {
+            show: assignInit.show,
+            open: assignInit.show,
+            employeeId: assignInit.employeeId ?? assignInit.defaultId,
+            trigger: null,
+            _closeTimer: null,
         },
 
         init() {
@@ -281,6 +297,33 @@ export function registerTeamBoard(Alpine) {
             clearTimeout(this.win._closeTimer);
             this.win._closeTimer = setTimeout(() => {
                 this.win.show = false;
+                trigger?.focus?.({ preventScroll: true });
+            }, 280);
+        },
+
+        // employeeId omitted (top-of-page button): falls back to the
+        // roster's first person. Provided (window header button): always
+        // wins, even if a previous open left a different person selected.
+        openAssign(employeeId = null, triggerEl = null) {
+            this.assign.employeeId = employeeId ?? assignInit.defaultId;
+            this.assign.trigger = triggerEl;
+            clearTimeout(this.assign._closeTimer);
+            this.assign.show = true;
+            this.$nextTick(() => requestAnimationFrame(() => {
+                this.assign.open = true;
+            }));
+            this.$nextTick(() => {
+                this.$refs.assignTitleEl?.focus({ preventScroll: true });
+            });
+        },
+
+        closeAssign() {
+            if (!this.assign.show) return;
+            this.assign.open = false;
+            const trigger = this.assign.trigger;
+            clearTimeout(this.assign._closeTimer);
+            this.assign._closeTimer = setTimeout(() => {
+                this.assign.show = false;
                 trigger?.focus?.({ preventScroll: true });
             }, 280);
         },

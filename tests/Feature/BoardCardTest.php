@@ -452,6 +452,48 @@ class BoardCardTest extends TestCase
         ]);
     }
 
+    public function test_assign_accepts_links(): void
+    {
+        $mgr = $this->manager('management');
+
+        $response = $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
+            'title' => 'With links', 'type' => 'task', 'priority' => 'medium',
+            'links' => [['label' => 'Spec', 'url' => 'https://example.com/spec']],
+        ]);
+        $response->assertCreated();
+
+        $item = WorkItem::where('title', 'With links')->firstOrFail();
+        $this->assertSame([['label' => 'Spec', 'url' => 'https://example.com/spec']], $item->links);
+    }
+
+    /** Same rule update() applies (WorkItemController::isUntouchedLinkRow) — a row nobody filled in is dropped, not rejected. */
+    public function test_assign_drops_a_blank_link_row(): void
+    {
+        $mgr = $this->manager('management');
+
+        $response = $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
+            'title' => 'Blank row', 'type' => 'task', 'priority' => 'medium',
+            'links' => [['label' => '', 'url' => '']],
+        ]);
+        $response->assertCreated();
+
+        $item = WorkItem::where('title', 'Blank row')->firstOrFail();
+        $this->assertSame([], $item->links);
+    }
+
+    public function test_assign_rejects_a_half_filled_link_row(): void
+    {
+        $mgr = $this->manager('management');
+
+        $this->actingAsManager($mgr)
+            ->from('/app/team-board')
+            ->post("/app/board/assign/{$this->employee->id}", [
+                'title' => 'Half link', 'type' => 'task', 'priority' => 'medium',
+                'links' => [['label' => 'Spec', 'url' => '']],
+            ])
+            ->assertSessionHasErrors(['links.0.url'], null, 'assign');
+    }
+
     public function test_assignee_can_move_and_comment_a_tac(): void
     {
         $mgr = $this->manager('manager');

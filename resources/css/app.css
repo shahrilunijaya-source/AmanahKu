@@ -936,6 +936,30 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .tb-win-modal[data-open] { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 .tb-win-modal:focus { outline: none; }
 
+/* Assign-task modal (team board): can be open while the person window
+   (.tb-win-modal) is also open — its own "Assign task" button opens this on
+   top of it. That's a real nested-overlay case, not hypothetical, so this
+   gets its own scrim/shell classes above the existing .wd-scrim/.wd/
+   .tb-win-modal stack (all z-index 60/61) rather than reusing them — see
+   "Board .wd z-index trap" for why three overlays sharing one z-index once
+   collided. Same 280ms cubic-bezier(.32,.72,0,1) timing as the rest of this
+   family, just narrower: one form, not a 4-column kanban. */
+.tb-assign-scrim {
+    position: fixed; inset: 0; background: rgba(31,30,26,.18); z-index: 62;
+    opacity: 0; transition: opacity 260ms cubic-bezier(.32,.72,0,1);
+}
+.tb-assign-scrim[data-open] { opacity: 1; }
+.tb-assign-modal {
+    position: fixed; top: 50%; left: 50%; z-index: 63;
+    width: min(94vw, 480px); max-height: 86vh; overflow-y: auto;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 14px;
+    box-shadow: 0 28px 64px rgba(31,30,26,.22);
+    transform: translate(-50%, -50%) scale(.96); opacity: 0;
+    transition: transform 280ms cubic-bezier(.32,.72,0,1), opacity 280ms cubic-bezier(.32,.72,0,1);
+}
+.tb-assign-modal[data-open] { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.tb-assign-modal:focus { outline: none; }
+
 .wd-head {
     flex-shrink: 0; display: flex; align-items: center; gap: 8px;
     padding: 11px 12px 11px 14px; border-bottom: 1px solid var(--hairline);

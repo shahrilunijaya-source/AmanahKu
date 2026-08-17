@@ -50,7 +50,6 @@ class Timesheet extends Model
         ];
     }
 
-    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
