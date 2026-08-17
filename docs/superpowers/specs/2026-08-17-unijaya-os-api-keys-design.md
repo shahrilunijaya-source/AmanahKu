@@ -342,6 +342,41 @@ alone, no shell, no devops ticket.
 
 ## Open items
 
+### The screen cannot revoke the old person-token — found by the final review, not fixed
+
+`ApiKeyController::index()` lists `ApiClient` rows only. A token whose `tokenable_type`
+is `User` — every key that exists today, including the one Track is using — is invisible
+to it. No other screen in the app lists or revokes tokens.
+
+The consequence lands squarely on rollout step 4. Once Track is moved to its new app
+key, the old hand-minted person-token should be revoked, and on production there is no
+shell to do it with. So the key this whole design was written to retire is the one key
+the new screen cannot retire.
+
+The `revoke` action itself already handles a person-token correctly — it checks only
+`tenant_id`, so it would delete one. Only the listing is missing. Two ways out:
+
+- Add a second section to the screen listing person-tokens for the company, revocable
+  the same way. Small, and it closes the loop this spec opened.
+- Or a one-time devops request to revoke that token on production, and leave the screen
+  app-keys-only.
+
+Not folded into this build because the spec's in-scope list said app keys, and widening
+it mid-flight would have gone unreviewed. It should be settled before rollout step 4,
+not after.
+
+### A suspended company's API keys keep working — pre-existing, worth a ticket
+
+`EnsureCompanyIsActive` and `EnsureModuleEnabled` run on the tenant web group only.
+`routes/api.php` is `auth:sanctum` + `api.tenant`, and `ApiTenant` checks neither. So
+suspending a company 403s every `/app/*` screen while its API keys keep reading, and a
+company with payroll switched off in the feature matrix still serves
+`/api/v1/payslips`.
+
+This is not a regression — it was true for person-tokens before this branch. It becomes
+newly visible because key issuance now sits one click from the company status control,
+so a super-admin who suspends a company will reasonably assume access is cut.
+
 ### The Track endpoints were on staging, missing from dev — RESOLVED
 
 **Resolved 2026-08-17 by `b78e180` on `dev`**, a revert of the two reverts. `dev` and
