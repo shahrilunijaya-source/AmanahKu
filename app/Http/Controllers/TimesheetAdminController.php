@@ -5,19 +5,17 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
-use App\Models\Project;
-use App\Models\ProjectSubPillar;
 use App\Models\TimesheetCategory;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 /**
- * HR setup for timesheet master data: the categories, projects and sub-pillars
- * staff pick from when allocating their week. Privileged (management / HR) only.
+ * HR setup for the timesheet categories staff pick from when allocating their
+ * week. Privileged (management / HR) only. Projects and sub-pillars moved to
+ * ProjectController — their edit roles now include managers.
  *
  * Records in use are never hard-deleted (that would null historical entries via
  * the nullOnDelete FKs and erase report history) — they are deactivated instead.
@@ -26,14 +24,11 @@ class TimesheetAdminController extends Controller
 {
     private const PRIVILEGED_ROLES = ['management', 'hr'];
 
-    /** Data for the Timesheet Setup screen. */
+    /** Data for the Timesheet Setup screen — categories only; projects live on their own screen. */
     public function screenData(Request $request): array
     {
         return [
             'categories' => TimesheetCategory::orderBy('sort')->orderBy('name')->get(),
-            'projectCategories' => $this->projectCategories(),
-            'projects' => Project::with(['subPillars' => fn ($q) => $q->orderBy('sort')->orderBy('name'), 'categories'])
-                ->orderBy('sort')->orderBy('name')->get(),
         ];
     }
 
@@ -86,115 +81,6 @@ class TimesheetAdminController extends Controller
         return back()->with('ok', $name.' removed.');
     }
 
-    // ---- Projects ---------------------------------------------------------
-
-    public function storeProject(Request $request): JsonResponse|RedirectResponse
-    {
-        $this->authorize($request);
-        $data = $this->validateProject($request);
-        $categories = $data['categories'] ?? [];
-        unset($data['categories']);
-
-        $project = Project::create($data);
-        $project->categories()->sync($categories);
-        AuditLog::record('Added project', $project->name);
-
-        if ($request->wantsJson()) {
-            $project->load(['subPillars', 'categories']);
-
-            return response()->json([
-                'html' => view('partials.ts-project-row', ['project' => $project, 'categories' => $this->projectCategories()])->render(),
-                'count_sel' => '#ts-proj-count',
-            ]);
-        }
-
-        return back()->with('ok', $project->name.' added.');
-    }
-
-    public function updateProject(Request $request, Project $project): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($project->tenant_id);
-
-        $data = $this->validateProject($request, $project->id);
-        $categories = $data['categories'] ?? [];
-        unset($data['categories']);
-
-        $project->update($data);
-        $project->categories()->sync($categories);
-        AuditLog::record('Updated project', $project->name);
-
-        return back()->with('ok', $project->name.' updated.');
-    }
-
-    public function deleteProject(Request $request, Project $project): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($project->tenant_id);
-
-        if ($project->entries()->exists()) {
-            $project->update(['is_active' => false]);
-
-            return back()->with('ok', $project->name.' is in use — deactivated instead of deleted.');
-        }
-
-        $name = $project->name;
-        $project->delete(); // sub-pillars cascade
-        AuditLog::record('Removed project', $name);
-
-        return back()->with('ok', $name.' removed.');
-    }
-
-    // ---- Sub-pillars ------------------------------------------------------
-
-    public function storeSubPillar(Request $request, Project $project): JsonResponse|RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($project->tenant_id);
-
-        $data = $this->validateSubPillar($request, $project);
-        $sub = $project->subPillars()->create($data);
-        AuditLog::record('Added sub-pillar', $project->name.' · '.$sub->name);
-
-        if ($request->wantsJson()) {
-            return response()->json([
-                'html' => view('partials.ts-subpillar-row', ['sp' => $sub])->render(),
-                'count_sel' => null,
-            ]);
-        }
-
-        return back()->with('ok', $sub->name.' added to '.$project->name.'.');
-    }
-
-    public function updateSubPillar(Request $request, ProjectSubPillar $subPillar): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($subPillar->tenant_id);
-
-        $subPillar->update($this->validateSubPillar($request, $subPillar->project, $subPillar->id));
-        AuditLog::record('Updated sub-pillar', $subPillar->name);
-
-        return back()->with('ok', $subPillar->name.' updated.');
-    }
-
-    public function deleteSubPillar(Request $request, ProjectSubPillar $subPillar): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($subPillar->tenant_id);
-
-        if ($subPillar->entries()->exists()) {
-            $subPillar->update(['is_active' => false]);
-
-            return back()->with('ok', $subPillar->name.' is in use — deactivated instead of deleted.');
-        }
-
-        $name = $subPillar->name;
-        $subPillar->delete();
-        AuditLog::record('Removed sub-pillar', $name);
-
-        return back()->with('ok', $name.' removed.');
-    }
-
     // ---- Validation -------------------------------------------------------
 
     /** @return array<string,mixed> */
@@ -211,50 +97,6 @@ class TimesheetAdminController extends Controller
         ]);
 
         $data['requires_project'] = $request->boolean('requires_project');
-        $data['is_active'] = $request->boolean('is_active', true);
-
-        return $data;
-    }
-
-    /** @return array<string,mixed> */
-    private function validateProject(Request $request, ?int $ignoreId = null): array
-    {
-        $tid = app(CurrentTenant::class)->id();
-
-        $data = $request->validate([
-            'code' => ['nullable', 'string', 'max:40'],
-            'name' => ['required', 'string', 'max:160', Rule::unique('projects', 'name')->where('tenant_id', $tid)->ignore($ignoreId)],
-            'sort' => ['nullable', 'integer', 'between:0,9999'],
-            'is_active' => ['nullable', 'boolean'],
-            'categories' => ['nullable', 'array'],
-            'categories.*' => [Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
-        ]);
-
-        $data['is_active'] = $request->boolean('is_active', true);
-
-        return $data;
-    }
-
-    /**
-     * The project-linkable categories, for the project form's category chips. Not
-     * filtered to active-only — a project already tied to a deactivated category
-     * must keep showing that chip, or re-syncing the form (e.g. on an unrelated
-     * field edit) would silently drop the association.
-     */
-    private function projectCategories(): Collection
-    {
-        return TimesheetCategory::projectLinkable()->orderBy('sort')->orderBy('name')->get();
-    }
-
-    /** @return array<string,mixed> */
-    private function validateSubPillar(Request $request, Project $project, ?int $ignoreId = null): array
-    {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:160', Rule::unique('project_sub_pillars', 'name')->where('project_id', $project->id)->ignore($ignoreId)],
-            'sort' => ['nullable', 'integer', 'between:0,9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
         $data['is_active'] = $request->boolean('is_active', true);
 
         return $data;

@@ -54,33 +54,6 @@
     @endforelse
 </div>
 
-{{-- ============================ PROJECTS ============================ --}}
-<div style="display:flex;align-items:center;gap:9px;margin:26px 0 11px;">
-    <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Projects & sub-pillars' : 'Projek & sub-tiang'">Projects &amp; sub-pillars</span></h2>
-    <span id="ts-proj-count" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;">{{ $projects->count() }}</span>
-</div>
-
-<div class="uj-card" style="padding:0;margin-bottom:14px;" x-data="{ open: false }">
-    <button @click="open = ! open" type="button" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;background:none;cursor:pointer;border:0;">
-        <span style="display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;color:var(--ink);">
-            <span style="width:24px;height:24px;border-radius:7px;background:var(--red-tint);color:var(--red);display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;">+</span>
-            <span x-text="$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'">Add project</span>
-        </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
-        @include('partials.ts-project-form', ['project' => null, 'action' => route('timesheet.admin.projects.store'), 'submitLabel' => 'Add project', 'ajaxTarget' => '#ts-projects', 'categories' => $projectCategories])
-    </div>
-</div>
-
-<div id="ts-projects">
-    @forelse ($projects as $project)
-        @include('partials.ts-project-row', ['project' => $project, 'categories' => $projectCategories])
-    @empty
-        <div data-empty class="uj-card" style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No projects yet.' : 'Tiada projek lagi.'">No projects yet.</span></div>
-    @endforelse
-</div>
-
 {{-- Inline add without a page reload: intercept forms marked data-ajax, POST them,
      append the server-rendered row to the target list, then reset the form so the
      next entry is one keystroke away. Kills the "add → full refresh → re-scroll →

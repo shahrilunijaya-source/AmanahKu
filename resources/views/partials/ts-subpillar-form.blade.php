@@ -1,4 +1,4 @@
-{{-- Shared add/edit form for a project sub-pillar. Expects $sub (or null), $action, $submitLabel, $compact. --}}
+{{-- Shared add/edit form for a sub-pillar. Expects $sub (or null), $action, $submitLabel, $compact. --}}
 @php $s = $sub ?? null; @endphp
 <form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
     @csrf
