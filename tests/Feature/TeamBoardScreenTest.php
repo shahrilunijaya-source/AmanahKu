@@ -211,4 +211,51 @@ class TeamBoardScreenTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_assign_button_and_modal_render_for_assign_permitted_role(): void
+    {
+        $alice = $this->makeEmployee('Alice');
+        $this->makeCard($alice);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $this->assertStringContainsString('tb-assign-modal', $html);
+        $this->assertStringContainsString('openAssign(', $html);
+
+        // The roster's <option> for a person with no current tasks must be present too.
+        $bob = $this->makeEmployee('Bob');
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $this->assertStringContainsString('value="'.$bob->id.'"', $response->getContent());
+    }
+
+    public function test_assign_button_absent_for_viewer_without_assign_role(): void
+    {
+        $leadUser = User::create(['name' => 'Lead', 'email' => 'lead3@example.com', 'password' => Hash::make('password')]);
+        $leadUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $lead = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $leadUser->id,
+            'name' => 'Lead', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $this->makeEmployee('Report', ['reports_to_id' => $lead->id]);
+        $this->makeCard($lead);
+
+        $response = $this->actingAs($leadUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/team-board');
+        $response->assertOk();
+
+        $this->assertStringNotContainsString('tb-assign-modal', $response->getContent());
+    }
+
+    public function test_guide_copy_no_longer_calls_the_screen_read_only(): void
+    {
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $this->assertStringNotContainsString('read-only', strtolower($response->getContent()));
+    }
 }
