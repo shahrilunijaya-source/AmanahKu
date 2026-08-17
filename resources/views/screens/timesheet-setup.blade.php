@@ -5,21 +5,21 @@
     'key' => 'timesheet-setup',
     'en'  => [
         'title' => 'Timesheet setup',
-        'body'  => 'Manage the building blocks staff pick from when they allocate their week: categories, projects, and the sub-pillars under each project. Mark a category "requires a project" (like Development or Maintenance) and staff must choose a project for it; others (Sales, On Leave, Public Holiday…) stand alone.',
+        'body'  => 'Manage the categories staff pick from when they allocate their week. Mark a category "requires a project" (like Development or Maintenance) and staff must choose a project for it; others (Sales, On Leave, Public Holiday…) stand alone.',
         'who'   => 'HR & Management',
         'steps' => [
             'Add or edit the categories everyone sees in the dropdown — tick "requires a project" for delivery work.',
-            'Add your projects (e.g. "KPT: RMS"), then add sub-pillars under each one (e.g. Frontend, Backend).',
+            'Projects and sub-pillars live on their own screen now: Workplace → Projects.',
             'Anything already used on a timesheet is deactivated instead of deleted, so reports keep their history.',
         ],
     ],
     'ms'  => [
         'title' => 'Tetapan lembaran masa',
-        'body'  => 'Urus blok binaan yang dipilih staf semasa memperuntukkan minggu mereka: kategori, projek, dan sub-tiang di bawah setiap projek. Tandakan kategori "memerlukan projek" (seperti Pembangunan atau Penyelenggaraan) dan staf mesti memilih projek untuknya; yang lain (Jualan, Bercuti, Cuti Umum…) berdiri sendiri.',
+        'body'  => 'Urus kategori yang dipilih staf semasa memperuntukkan minggu mereka. Tandakan kategori "memerlukan projek" (seperti Pembangunan atau Penyelenggaraan) dan staf mesti memilih projek untuknya; yang lain (Jualan, Bercuti, Cuti Umum…) berdiri sendiri.',
         'who'   => 'HR & Pengurusan',
         'steps' => [
             'Tambah atau sunting kategori yang dilihat semua orang — tandakan "memerlukan projek" untuk kerja penghantaran.',
-            'Tambah projek anda (cth. "KPT: RMS"), kemudian tambah sub-tiang di bawah setiap satu (cth. Frontend, Backend).',
+            'Projek dan sub-tiang kini berada di skrin sendiri: Tempat Kerja → Projek.',
             'Apa-apa yang telah digunakan pada lembaran masa akan dinyahaktifkan, bukan dipadam, supaya laporan kekal sejarahnya.',
         ],
     ],
@@ -54,58 +54,5 @@
     @endforelse
 </div>
 
-{{-- Inline add without a page reload: intercept forms marked data-ajax, POST them,
-     append the server-rendered row to the target list, then reset the form so the
-     next entry is one keystroke away. Kills the "add → full refresh → re-scroll →
-     re-open" loop that made bulk entry painful. --}}
-<script>
-    (function () {
-        function bump(sel, by) {
-            var el = sel && document.querySelector(sel);
-            if (el) { el.textContent = (parseInt(el.textContent, 10) || 0) + by; }
-        }
-        document.addEventListener('submit', function (e) {
-            var form = e.target;
-            if (! form || ! form.matches || ! form.matches('form[data-ajax]')) { return; }
-            e.preventDefault();
-            var target = document.querySelector(form.dataset.target);
-            var btn = form.querySelector('[type=submit]');
-            if (btn) { btn.disabled = true; }
-
-            fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                body: new FormData(form),
-            }).then(function (r) {
-                return r.json().then(function (d) { return { ok: r.ok, d: d }; }, function () { return { ok: r.ok, d: {} }; });
-            }).then(function (res) {
-                if (btn) { btn.disabled = false; }
-                if (! res.ok) {
-                    alert(res.d && res.d.message ? res.d.message : 'Could not save — check the fields.');
-                    return;
-                }
-                if (target && res.d.html) {
-                    var empty = target.querySelector('[data-empty]');
-                    if (empty) { empty.remove(); }
-                    target.insertAdjacentHTML('beforeend', res.d.html);
-                    var added = target.lastElementChild;
-                    if (window.Alpine && added) { window.Alpine.initTree(added); }
-                    // Sub-pillar adds live inside a project card — bump that card's own count.
-                    if (! res.d.count_sel) {
-                        var card = target.closest('.uj-card');
-                        var c = card && card.querySelector('[data-sub-count]');
-                        if (c) { c.textContent = (parseInt(c.textContent, 10) || 0) + 1; }
-                    }
-                }
-                bump(res.d.count_sel, 1);
-                form.reset();
-                var first = form.querySelector('input[name=name]');
-                if (first) { first.focus(); }
-            }).catch(function () {
-                if (btn) { btn.disabled = false; }
-                alert('Network error — not saved.');
-            });
-        });
-    })();
-</script>
+@include('partials.ajax-row-add')
 @endsection

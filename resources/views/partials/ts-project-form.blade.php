@@ -1,4 +1,6 @@
-{{-- Shared add/edit form for a project. Expects $project (or null), $action, $submitLabel, $categories. --}}
+{{-- Shared add/edit form for a project. Expects $project (or null), $action, $categories.
+     The submit label is derived from $project (add vs. edit) rather than passed in, so
+     it renders bilingually the same way for every caller. --}}
 @php
     $p = $project ?? null;
     $selectedCategoryIds = array_map('strval', old('categories', $p ? $p->categories->pluck('id')->all() : []));
@@ -40,5 +42,5 @@
             <span x-text="$store.ui.lang==='en' ? 'Active (shown to staff)' : 'Aktif (dipaparkan kepada staf)'">Active</span>
         </label>
     @endif
-    <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">{{ $submitLabel }}</button></div>
+    <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? '{{ $p ? 'Save changes' : 'Add project' }}' : '{{ $p ? 'Simpan perubahan' : 'Tambah projek' }}'">{{ $p ? 'Save changes' : 'Add project' }}</span></button></div>
 </form>

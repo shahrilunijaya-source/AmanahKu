@@ -46,7 +46,7 @@
 
     @if ($canEdit)
         <div x-show="edit" x-cloak style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
-            @include('partials.ts-project-form', ['project' => $project, 'action' => route('projects.update', $project), 'submitLabel' => 'Save changes', 'categories' => $categories])
+            @include('partials.ts-project-form', ['project' => $project, 'action' => route('projects.update', $project), 'categories' => $categories])
         </div>
     @endif
 </div>

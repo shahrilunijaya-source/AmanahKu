@@ -14,7 +14,7 @@
             <button type="submit" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
         </form>
         <div x-show="se" x-cloak style="flex-basis:100%;padding:8px 0 4px;">
-            @include('partials.ts-subpillar-form', ['sub' => $sp, 'action' => route('sub-pillars.update', $sp), 'submitLabel' => 'Save', 'compact' => true])
+            @include('partials.ts-subpillar-form', ['sub' => $sp, 'action' => route('sub-pillars.update', $sp), 'compact' => true])
         </div>
     @endif
 </div>

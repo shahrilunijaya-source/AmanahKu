@@ -56,7 +56,7 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
-                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'submitLabel' => 'Add project', 'ajaxTarget' => '#ts-projects', 'categories' => $addCategories])
+                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'ajaxTarget' => '#ts-projects', 'categories' => $addCategories])
             </div>
         </div>
     @endif
@@ -72,7 +72,7 @@
     {{-- Shown only when a search or the inactive filter hides everything. --}}
     <div x-show="items.length && ! items.some(i => (showOff || i.active) && i.hay.includes(q.toLowerCase()))" x-cloak
          class="uj-card" style="padding:24px;text-align:center;font-size:13px;color:var(--muted);">
-        <span x-text="$store.ui.lang==='en' ? 'No project matches that search.' : 'Tiada projek sepadan dengan carian itu.'">No project matches that search.</span>
+        <span x-text="$store.ui.lang==='en' ? 'Nothing to show with these filters.' : 'Tiada apa-apa untuk dipaparkan dengan tapisan ini.'">Nothing to show with these filters.</span>
     </div>
 </div>
 
@@ -97,7 +97,7 @@
     </div>
     @if ($canEdit)
         <div style="margin-top:12px;padding-top:13px;border-top:1px solid var(--hairline);">
-            @include('partials.ts-subpillar-form', ['sub' => null, 'action' => route('sub-pillars.store'), 'submitLabel' => '+ Add', 'compact' => false, 'ajaxTarget' => '#ts-subpillars'])
+            @include('partials.ts-subpillar-form', ['sub' => null, 'action' => route('sub-pillars.store'), 'compact' => false, 'ajaxTarget' => '#ts-subpillars'])
         </div>
     @endif
 </div>

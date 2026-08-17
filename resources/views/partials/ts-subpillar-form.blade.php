@@ -1,4 +1,6 @@
-{{-- Shared add/edit form for a sub-pillar. Expects $sub (or null), $action, $submitLabel, $compact. --}}
+{{-- Shared add/edit form for a sub-pillar. Expects $sub (or null), $action, $compact.
+     The submit label is derived from $sub (add vs. edit) rather than passed in, so
+     it renders bilingually the same way for every caller. --}}
 @php $s = $sub ?? null; @endphp
 <form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
     @csrf
@@ -6,7 +8,7 @@
         @unless ($compact ?? false)
             <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Sub-pillar name' : 'Nama sub-tiang'">Sub-pillar name</span></label>
         @endunless
-        <input name="name" required value="{{ old('name', $s->name ?? '') }}" :placeholder="$store.ui.lang==='en' ? 'e.g. Frontend' : 'cth. Frontend'" style="width:100%;height:34px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+        <input name="name" required value="{{ old('name', $s->name ?? '') }}" :placeholder="$store.ui.lang==='en' ? 'e.g. Technical' : 'cth. Teknikal'" style="width:100%;height:34px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
     </div>
     <div style="width:72px;">
         @unless ($compact ?? false)
@@ -21,5 +23,5 @@
             <span x-text="$store.ui.lang==='en' ? 'Active' : 'Aktif'">Active</span>
         </label>
     @endif
-    <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12.5px;">{{ $submitLabel }}</button>
+    <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? '{{ $s ? 'Save' : '+ Add' }}' : '{{ $s ? 'Simpan' : '+ Tambah' }}'">{{ $s ? 'Save' : '+ Add' }}</span></button>
 </form>
