@@ -9,7 +9,7 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
-use App\Models\ProjectSubPillar;
+use App\Models\SubPillar;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
@@ -210,7 +210,7 @@ class TimesheetController extends Controller
             'entries.*.entry_date' => ['required', 'date'],
             'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'entries.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
-            'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('project_sub_pillars', 'id')->where('tenant_id', $tid)],
+            'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
             // 0 is legal in a DRAFT: a line the staffer has added but not yet costed must
             // survive a reload, or it disappears the moment the page is refreshed and they
             // are never told. assertNoBlankLines() blocks 0 at submit, so a submitted week
@@ -335,7 +335,7 @@ class TimesheetController extends Controller
             'name' => ['required', 'string', 'max:80'],
             'category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
-            'sub_pillar_id' => ['nullable', 'integer', Rule::exists('project_sub_pillars', 'id')->where('tenant_id', $tid)],
+            'sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
             'percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             'description' => ['nullable', 'string', 'max:10000'],
         ]);
@@ -792,20 +792,26 @@ class TimesheetController extends Controller
     }
 
     /**
-     * Active projects (with active sub-pillars) as plain arrays for the grid.
-     * `category_ids` drives the picker's filter: a project with no categories at
-     * all is uncategorized and stays selectable under every category, so existing
-     * projects don't disappear the moment this feature ships.
+     * Active projects as plain arrays for the grid. `category_ids` drives the
+     * picker's filter: a project with no categories at all is uncategorized and
+     * stays selectable under every category, so existing projects don't disappear.
+     *
+     * Every project carries the same `sub_pillars` — one tenant-wide list since
+     * sub-pillars stopped belonging to a project. The key stays per-project so the
+     * capture JS (which reads `p.sub_pillars`) needs no change.
      */
     private function projectOptions(): Collection
     {
-        return Project::with(['subPillars' => fn ($q) => $q->where('is_active', true)->orderBy('sort')->orderBy('name'), 'categories'])
+        $subPillars = SubPillar::where('is_active', true)->orderBy('sort')->orderBy('name')
+            ->get()->map(fn (SubPillar $s) => ['id' => $s->id, 'name' => $s->name])->values();
+
+        return Project::with('categories')
             ->where('is_active', true)->orderBy('sort')->orderBy('name')->get()
             ->map(fn (Project $p) => [
                 'id' => $p->id,
                 'name' => $p->name,
                 'category_ids' => $p->categories->pluck('id')->values(),
-                'sub_pillars' => $p->subPillars->map(fn (ProjectSubPillar $s) => ['id' => $s->id, 'name' => $s->name])->values(),
+                'sub_pillars' => $subPillars,
             ])->values();
     }
 
@@ -830,10 +836,10 @@ class TimesheetController extends Controller
 
     /**
      * Apply business rules to raw validated entries and shape them for persistence:
-     * enforce requires_project, ensure a sub-pillar belongs to its project, sanitise
-     * the description, set the legacy `project` string, and derive `hours` from the
-     * percentage so manday RM costing (hours * rate) keeps working — one full day at
-     * 100% equals one manday (config('manday.hours_per_day') hours).
+     * enforce requires_project, sanitise the description, set the legacy `project`
+     * string, and derive `hours` from the percentage so manday RM costing (hours *
+     * rate) keeps working — one full day at 100% equals one manday
+     * (config('manday.hours_per_day') hours).
      *
      * @param  array<int, array<string, mixed>>  $raw
      * @return array<int, array<string, mixed>>
@@ -844,7 +850,6 @@ class TimesheetController extends Controller
 
         $categories = TimesheetCategory::whereIn('id', collect($raw)->pluck('category_id')->filter()->unique())->get()->keyBy('id');
         $projects = Project::whereIn('id', collect($raw)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
-        $subPillars = ProjectSubPillar::whereIn('id', collect($raw)->pluck('sub_pillar_id')->filter()->unique())->get()->keyBy('id');
 
         $out = [];
         foreach ($raw as $i => $e) {
@@ -864,13 +869,6 @@ class TimesheetController extends Controller
                 // Standalone categories never carry a project or sub-pillar.
                 $projectId = null;
                 $subId = null;
-            }
-
-            if ($subId) {
-                $sub = $subPillars->get($subId);
-                if (! $sub || (int) $sub->project_id !== (int) $projectId) {
-                    throw ValidationException::withMessages(["entries.$i.sub_pillar_id" => 'That sub-pillar does not belong to the chosen project.']);
-                }
             }
 
             $percentage = round((float) $e['percentage'], 2);

@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Employee;
 use App\Models\Project;
 use App\Models\SubPillar;
 use App\Models\Tenant;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
+use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
@@ -55,5 +61,45 @@ class SubPillarTest extends TestCase
         // The old shape stored one row per project. One row now serves both.
         $this->assertSame(2, Project::where('tenant_id', $this->tenant->id)->count());
         $this->assertSame(1, SubPillar::where('tenant_id', $this->tenant->id)->count());
+    }
+
+    public function test_any_sub_pillar_can_be_booked_against_any_project(): void
+    {
+        Carbon::setTestNow('2026-06-19 12:00:00');
+
+        $user = User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $employee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
+            'name' => 'Demo', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true,
+        ]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM: MyStods']);
+        // A sub-pillar created with no reference to that project at all.
+        $sub = SubPillar::create(['tenant_id' => $this->tenant->id, 'name' => 'Technical']);
+
+        $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/timesheets', [
+                'week_start' => '2026-06-15',
+                'entries' => [[
+                    'entry_date' => '2026-06-15',
+                    'category_id' => $category->id,
+                    'project_id' => $project->id,
+                    'sub_pillar_id' => $sub->id,
+                    'percentage' => 100,
+                ]],
+            ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('timesheet_entries', [
+            'project_id' => $project->id,
+            'sub_pillar_id' => $sub->id,
+        ]);
+
+        $this->assertSame(1, Timesheet::where('employee_id', $employee->id)->count());
+
+        Carbon::setTestNow();
     }
 }
