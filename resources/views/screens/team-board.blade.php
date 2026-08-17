@@ -1,6 +1,35 @@
 @extends('layouts.app')
 
 @section('screen')
+@php
+    // One table, one line per person — ranked by open count descending. See
+    // the design doc's "Person table". teamPeople itself stays ordered by
+    // name (that contract belongs to BuildsWorkData::teamBoardData()); this
+    // re-sort is presentation-only, scoped to this view.
+    $tbPeopleByOpen = $teamPeople->sortByDesc('open')->values();
+    // A zero renders as an en dash rather than "0" so a non-zero count is
+    // what draws the eye down the column.
+    $tbZero = fn (int $n) => $n > 0 ? (string) $n : '—';
+
+    // The search box matches a person's name AND any of their own task
+    // titles ("payroll" surfaces the people who have payroll work), so each
+    // row carries a combined, lowercased haystack built once here.
+    $tbRowsByOwner = $teamRows->groupBy('owner_id');
+    $tbSearchText = fn (array $p) => mb_strtolower(
+        trim($p['name'].' '.$tbRowsByOwner->get($p['id'], collect())->pluck('item.title')->implode(' '))
+    );
+
+    // Distinct projects actually referenced among today's rows, for the
+    // floating window's task-level project filter — narrower than, and
+    // always in sync with, loading every active tenant project.
+    $tbProjects = $teamRows->pluck('item.projectRef')->filter()->unique('id')->sortBy('name')->values();
+    $tbLabelDef = \App\Models\WorkItem::LABELS;
+@endphp
+<div x-data="teamBoard(@js($tbPeopleByOpen), @js([
+    'defaultId' => $assignableEmployees->first()['id'] ?? null,
+    'show' => $errors->getBag('assign')->any(),
+    'employeeId' => old('employee_id') ? (int) old('employee_id') : null,
+]))">
 {{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
      is reached by that one-way shortcut, so offer a one-tap way back to My tasks
      rather than leaving the browser Back button as the only exit. --}}
@@ -42,36 +71,6 @@
     ],
 ])
 
-@php
-    // One table, one line per person — ranked by open count descending. See
-    // the design doc's "Person table". teamPeople itself stays ordered by
-    // name (that contract belongs to BuildsWorkData::teamBoardData()); this
-    // re-sort is presentation-only, scoped to this view.
-    $tbPeopleByOpen = $teamPeople->sortByDesc('open')->values();
-    // A zero renders as an en dash rather than "0" so a non-zero count is
-    // what draws the eye down the column.
-    $tbZero = fn (int $n) => $n > 0 ? (string) $n : '—';
-
-    // The search box matches a person's name AND any of their own task
-    // titles ("payroll" surfaces the people who have payroll work), so each
-    // row carries a combined, lowercased haystack built once here.
-    $tbRowsByOwner = $teamRows->groupBy('owner_id');
-    $tbSearchText = fn (array $p) => mb_strtolower(
-        trim($p['name'].' '.$tbRowsByOwner->get($p['id'], collect())->pluck('item.title')->implode(' '))
-    );
-
-    // Distinct projects actually referenced among today's rows, for the
-    // floating window's task-level project filter — narrower than, and
-    // always in sync with, loading every active tenant project.
-    $tbProjects = $teamRows->pluck('item.projectRef')->filter()->unique('id')->sortBy('name')->values();
-    $tbLabelDef = \App\Models\WorkItem::LABELS;
-@endphp
-
-<div x-data="teamBoard(@js($tbPeopleByOpen), @js([
-    'defaultId' => $assignableEmployees->first()['id'] ?? null,
-    'show' => $errors->getBag('assign')->any(),
-    'employeeId' => old('employee_id') ? (int) old('employee_id') : null,
-]))">
     {{-- ═══════ Filter bar — always-visible, person-level controls ═══════ --}}
     <div class="tb-filters">
         <input x-model="search" @input="applyFilter()" type="search"
