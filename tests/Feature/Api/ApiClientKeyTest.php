@@ -124,4 +124,37 @@ class ApiClientKeyTest extends TestCase
             ->getJson('/api/v1/projects')
             ->assertOk();
     }
+
+    public function test_an_app_key_without_the_scope_is_refused_and_returns_no_data(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'iLPF', 'code' => 'UJ-1', 'is_active' => true, 'sort' => 1]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'SupportOS']);
+        $plain = $client->mintKey(['employees:read'])->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/projects');
+
+        $response->assertStatus(403);
+        $this->assertNull($response->json('data'));
+        $this->assertStringNotContainsString('iLPF', $response->getContent() ?: '');
+    }
+
+    public function test_an_app_key_sees_the_whole_tenant_not_an_empty_own_records_list(): void
+    {
+        // The regression this whole task exists for. A machine caller has no employee
+        // record, so the own-records branch would hand back [] behind a healthy 200,
+        // and a granted scope would look like a working integration returning nothing.
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Ali', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $client = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track']);
+        $plain = $client->mintKey(['employees:read'])->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/employees');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame('Ali', $response->json('data.0.name'));
+    }
 }

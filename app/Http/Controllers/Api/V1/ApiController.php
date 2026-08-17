@@ -36,6 +36,10 @@ class ApiController extends Controller
     /** GET /api/v1/employees — privileged only; the tenant's employee directory. */
     public function employees(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'employees:read')) {
+            return $this->denyScope('employees:read');
+        }
+
         if (! $this->isPrivileged($request)) {
             return $this->error('This endpoint requires a management or HR role.', 403);
         }
@@ -59,6 +63,10 @@ class ApiController extends Controller
     /** GET /api/v1/leave-requests — own requests, or all for privileged roles. */
     public function leaveRequests(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'leave:read')) {
+            return $this->denyScope('leave:read');
+        }
+
         $query = LeaveRequest::with(['leaveType:id,name', 'employee:id,name']);
 
         if (! $this->isPrivileged($request)) {
@@ -87,6 +95,10 @@ class ApiController extends Controller
     /** GET /api/v1/payslips — own finalized payslips, or all for privileged roles. */
     public function payslips(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'payslips:read')) {
+            return $this->denyScope('payslips:read');
+        }
+
         // The API only ever exposes FINALIZED payslips — draft / in-progress runs
         // are work-in-progress (pre four-eyes approval) and must not leak through a
         // read token, regardless of role. Privileged tokens see all employees'
@@ -123,6 +135,10 @@ class ApiController extends Controller
     /** GET /api/v1/projects — any valid tenant token; the tenant's active projects. */
     public function projects(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'projects:read')) {
+            return $this->denyScope('projects:read');
+        }
+
         $projects = Project::where('is_active', true)
             ->orderBy('sort')
             ->orderBy('name')
@@ -145,6 +161,10 @@ class ApiController extends Controller
      */
     public function positions(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'positions:read')) {
+            return $this->denyScope('positions:read');
+        }
+
         if (! $this->isPrivileged($request)) {
             return $this->error('This endpoint requires a management or HR role.', 403);
         }
@@ -188,6 +208,10 @@ class ApiController extends Controller
      */
     public function timesheetEffort(Request $request): JsonResponse
     {
+        if (! $this->tokenCan($request, 'effort:read')) {
+            return $this->denyScope('effort:read');
+        }
+
         if (! $this->isPrivileged($request)) {
             return $this->error('This endpoint requires a management or HR role.', 403);
         }
@@ -260,9 +284,36 @@ class ApiController extends Controller
             ->all();
     }
 
+    /**
+     * Whether the caller's token carries a scope. A person-token is minted ['*'],
+     * which Sanctum treats as every ability, so this is true for all of them and the
+     * guards below are invisible to the existing token stack.
+     */
+    private function tokenCan(Request $request, string $scope): bool
+    {
+        /** @var list<string> $abilities */
+        $abilities = $request->attributes->get('tokenAbilities', []);
+
+        return in_array('*', $abilities, true) || in_array($scope, $abilities, true);
+    }
+
+    private function denyScope(string $scope): JsonResponse
+    {
+        return $this->error("This token lacks the {$scope} scope.", 403);
+    }
+
+    /**
+     * Whether the caller may see the whole tenant rather than only its own records.
+     *
+     * A machine caller always may: it cleared its scope guard to get here, and the
+     * super-admin who ticked that scope was the authorization act. There is no "own
+     * records" for an app — it has no employee record to own any. A person-token is
+     * judged exactly as before, on its tenant role.
+     */
     private function isPrivileged(Request $request): bool
     {
-        return in_array($request->attributes->get('tenantRole', 'employee'), self::PRIVILEGED, true);
+        return $request->attributes->get('apiClient') !== null
+            || in_array($request->attributes->get('tenantRole', 'employee'), self::PRIVILEGED, true);
     }
 
     private function employee(Request $request): ?Employee
