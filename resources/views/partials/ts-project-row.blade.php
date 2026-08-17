@@ -7,6 +7,10 @@
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
      x-data="{ edit: false }"
+     {{-- Registers this row in the parent's `items` index (search/empty-state banner)
+          on both the initial render and an AJAX-appended row (Alpine.initTree runs
+          x-init same as first paint) — no separate server-built index to fall stale. --}}
+     x-init="items.push({ hay: @js($hay), active: @js($project->is_active) })"
      x-show="(showOff || @js($project->is_active)) && @js($hay).includes(q.toLowerCase())">
     <div style="display:flex;gap:13px;align-items:center;">
         @if ($project->code)

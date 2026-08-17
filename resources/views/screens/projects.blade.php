@@ -26,13 +26,11 @@
 ])
 
 {{-- ============================ PROJECTS ============================ --}}
-@php
-    $projectIndex = $projects->map(fn ($p) => [
-        'hay' => mb_strtolower(trim($p->name.' '.$p->code)),
-        'active' => (bool) $p->is_active,
-    ])->values();
-@endphp
-<div x-data="{ q: '', showOff: false, items: @js($projectIndex) }">
+{{-- items starts empty: each row registers itself via x-init (see
+     ts-project-row.blade.php) so a row appended later by the AJAX add script joins
+     the same list through the same path as the initial render — one source of truth,
+     no separately-computed index that a later add could fall out of sync with. --}}
+<div x-data="{ q: '', showOff: false, items: [] }">
     <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px;">
         <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Projects' : 'Projek'">Projects</span></h2>
         {{-- Plain text, never Alpine-bound: the AJAX add script increments this node. --}}

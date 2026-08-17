@@ -241,7 +241,11 @@ class ProjectScreenTest extends TestCase
         $response->assertOk()
             ->assertSee('JKDM: MyStods')
             ->assertSee('Technical')
-            ->assertDontSee(route('projects.store'))
+            // Not a bare assertDontSee(route('projects.store')): that URL is also the
+            // screen's own GET path, so the sidebar's nav link to this very page would
+            // make the assertion fail regardless of whether an add form renders. Pin
+            // it to the <form action="..."> attribute so it only matches a real control.
+            ->assertDontSee('action="'.route('projects.store').'"', false)
             ->assertDontSee(route('sub-pillars.store'));
     }
 
@@ -250,7 +254,9 @@ class ProjectScreenTest extends TestCase
         $response = $this->actingAsRole('manager')->get('/app/projects');
 
         $response->assertOk()
-            ->assertSee(route('projects.store'))
+            // See the comment above — the bare URL also matches the page's own nav
+            // link, so this would have passed even with no add form rendered at all.
+            ->assertSee('action="'.route('projects.store').'"', false)
             ->assertSee(route('sub-pillars.store'));
     }
 
