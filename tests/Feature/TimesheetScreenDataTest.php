@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Project;
 use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
@@ -93,6 +94,21 @@ class TimesheetScreenDataTest extends TestCase
         $names = collect($response->viewData('tsCategories'))->pluck('name');
         $this->assertTrue($names->contains('On Leave'));
         $this->assertTrue($names->contains('Public Holiday'));
+    }
+
+    public function test_ts_projects_carry_their_category_ids(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $categorized = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $categorized->categories()->attach($dev->id);
+        $uncategorized = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Legacy Project', 'is_active' => true]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $projects = collect($response->viewData('tsProjects'))->keyBy('name');
+        $this->assertSame([$dev->id], $projects['KPT: RMS']['category_ids']->all());
+        // Uncategorized projects carry an empty list — the picker treats that as "show under every category".
+        $this->assertSame([], $projects['Legacy Project']['category_ids']->all());
     }
 
     public function test_locked_days_reach_the_view(): void

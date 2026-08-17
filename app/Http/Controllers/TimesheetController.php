@@ -791,14 +791,20 @@ class TimesheetController extends Controller
             ->values();
     }
 
-    /** Active projects (with active sub-pillars) as plain arrays for the grid. */
+    /**
+     * Active projects (with active sub-pillars) as plain arrays for the grid.
+     * `category_ids` drives the picker's filter: a project with no categories at
+     * all is uncategorized and stays selectable under every category, so existing
+     * projects don't disappear the moment this feature ships.
+     */
     private function projectOptions(): Collection
     {
-        return Project::with(['subPillars' => fn ($q) => $q->where('is_active', true)->orderBy('sort')->orderBy('name')])
+        return Project::with(['subPillars' => fn ($q) => $q->where('is_active', true)->orderBy('sort')->orderBy('name'), 'categories'])
             ->where('is_active', true)->orderBy('sort')->orderBy('name')->get()
             ->map(fn (Project $p) => [
                 'id' => $p->id,
                 'name' => $p->name,
+                'category_ids' => $p->categories->pluck('id')->values(),
                 'sub_pillars' => $p->subPillars->map(fn (ProjectSubPillar $s) => ['id' => $s->id, 'name' => $s->name])->values(),
             ])->values();
     }

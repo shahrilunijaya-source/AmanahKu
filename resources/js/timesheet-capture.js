@@ -367,15 +367,20 @@ export function registerTimesheetCapture(Alpine) {
                 item: c.requires_project ? null : this.pickerItem(c, null, null),
             }));
         },
-        // Step 2. Every project, terminal only when the project carries no sub-pillar.
+        // Step 2. Every project under the chosen category, terminal only when the project
+        // carries no sub-pillar. A project with no categories of its own is uncategorized
+        // and shows under every category, so projects never disappear until someone opts
+        // them into a category on the Timesheet Setup screen.
         pickerProjects() {
             const c = this.picker.category;
 
-            return this.projects.map((p) => ({
-                p,
-                label: p.name,
-                item: (p.sub_pillars || []).length ? null : this.pickerItem(c, p, null),
-            }));
+            return this.projects
+                .filter((p) => !(p.category_ids || []).length || p.category_ids.includes(c.id))
+                .map((p) => ({
+                    p,
+                    label: p.name,
+                    item: (p.sub_pillars || []).length ? null : this.pickerItem(c, p, null),
+                }));
         },
         // Step 3. The whole project first, then each sub-pillar. All terminal.
         pickerSubs() {

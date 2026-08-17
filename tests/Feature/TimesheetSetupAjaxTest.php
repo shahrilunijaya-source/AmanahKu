@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -70,6 +71,27 @@ class TimesheetSetupAjaxTest extends TestCase
         $this->assertStringContainsString('Frontend', $sp->json('html'));
         // Sub-pillar count is bumped relative to its project card, so no global selector.
         $this->assertNull($sp->json('count_sel'));
+    }
+
+    public function test_project_categories_are_synced_on_store_and_update(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
+
+        $res = $this->actingHr()->postJson(route('timesheet.admin.projects.store'), [
+            'name' => 'KPT: RMS', 'categories' => [$dev->id],
+        ]);
+        $res->assertOk();
+        $this->assertStringContainsString('Development', $res->json('html'));
+
+        $project = Project::where('name', 'KPT: RMS')->firstOrFail();
+        $this->assertSame([$dev->id], $project->categories->pluck('id')->all());
+
+        $this->actingHr()->post(route('timesheet.admin.projects.update', $project), [
+            'name' => 'KPT: RMS', 'categories' => [$maint->id],
+        ])->assertRedirect();
+
+        $this->assertSame([$maint->id], $project->fresh()->categories->pluck('id')->all());
     }
 
     public function test_validation_error_returns_422_json_not_a_redirect(): void

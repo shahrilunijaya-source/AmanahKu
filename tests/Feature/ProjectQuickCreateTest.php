@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -34,6 +35,20 @@ class ProjectQuickCreateTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('projects', ['tenant_id' => $tenant->id, 'code' => 'KPT', 'name' => 'KPT: RMS', 'is_active' => true]);
+    }
+
+    public function test_screen_shows_the_active_categories(): void
+    {
+        [$tenant, $user] = $this->tenantWithRole('manager');
+        TimesheetCategory::create(['tenant_id' => $tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        TimesheetCategory::create(['tenant_id' => $tenant->id, 'name' => 'Retired Category', 'requires_project' => true, 'is_active' => false]);
+
+        $this->actingAs($user)
+            ->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/project-quick-create')
+            ->assertOk()
+            ->assertSee('Development')
+            ->assertDontSee('Retired Category');
     }
 
     public function test_employee_cannot_reach_the_screen(): void
@@ -66,6 +81,37 @@ class ProjectQuickCreateTest extends TestCase
             ->get(route('app.screen', 'dash'))
             ->assertOk()
             ->assertDontSee(route('app.screen', ['screen' => 'project-quick-create']));
+    }
+
+    public function test_project_can_be_created_with_categories(): void
+    {
+        [$tenant, $user] = $this->tenantWithRole('manager');
+        $dev = TimesheetCategory::create(['tenant_id' => $tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $maint = TimesheetCategory::create(['tenant_id' => $tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
+
+        $this->actingAs($user)
+            ->withSession(['current_tenant' => $tenant->id])
+            ->post(route('project-quick-create.store'), [
+                'name' => 'KPT: RMS',
+                'categories' => [$dev->id, $maint->id],
+            ])
+            ->assertRedirect();
+
+        $project = Project::where('name', 'KPT: RMS')->firstOrFail();
+        $this->assertSame([$dev->id, $maint->id], $project->categories->pluck('id')->sort()->values()->all());
+    }
+
+    public function test_categories_are_optional(): void
+    {
+        [$tenant, $user] = $this->tenantWithRole('manager');
+
+        $this->actingAs($user)
+            ->withSession(['current_tenant' => $tenant->id])
+            ->post(route('project-quick-create.store'), ['name' => 'KPT: RMS'])
+            ->assertRedirect();
+
+        $project = Project::where('name', 'KPT: RMS')->firstOrFail();
+        $this->assertTrue($project->categories->isEmpty());
     }
 
     public function test_name_is_required(): void
