@@ -12,6 +12,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 /**
@@ -30,7 +31,8 @@ class TimesheetAdminController extends Controller
     {
         return [
             'categories' => TimesheetCategory::orderBy('sort')->orderBy('name')->get(),
-            'projects' => Project::with(['subPillars' => fn ($q) => $q->orderBy('sort')->orderBy('name')])
+            'projectCategories' => $this->projectCategories(),
+            'projects' => Project::with(['subPillars' => fn ($q) => $q->orderBy('sort')->orderBy('name'), 'categories'])
                 ->orderBy('sort')->orderBy('name')->get(),
         ];
     }
@@ -89,14 +91,19 @@ class TimesheetAdminController extends Controller
     public function storeProject(Request $request): JsonResponse|RedirectResponse
     {
         $this->authorize($request);
-        $project = Project::create($this->validateProject($request));
+        $data = $this->validateProject($request);
+        $categories = $data['categories'] ?? [];
+        unset($data['categories']);
+
+        $project = Project::create($data);
+        $project->categories()->sync($categories);
         AuditLog::record('Added project', $project->name);
 
         if ($request->wantsJson()) {
-            $project->load('subPillars');
+            $project->load(['subPillars', 'categories']);
 
             return response()->json([
-                'html' => view('partials.ts-project-row', ['project' => $project])->render(),
+                'html' => view('partials.ts-project-row', ['project' => $project, 'categories' => $this->projectCategories()])->render(),
                 'count_sel' => '#ts-proj-count',
             ]);
         }
@@ -109,7 +116,12 @@ class TimesheetAdminController extends Controller
         $this->authorize($request);
         $this->assertTenant($project->tenant_id);
 
-        $project->update($this->validateProject($request, $project->id));
+        $data = $this->validateProject($request, $project->id);
+        $categories = $data['categories'] ?? [];
+        unset($data['categories']);
+
+        $project->update($data);
+        $project->categories()->sync($categories);
         AuditLog::record('Updated project', $project->name);
 
         return back()->with('ok', $project->name.' updated.');
@@ -214,11 +226,24 @@ class TimesheetAdminController extends Controller
             'name' => ['required', 'string', 'max:160', Rule::unique('projects', 'name')->where('tenant_id', $tid)->ignore($ignoreId)],
             'sort' => ['nullable', 'integer', 'between:0,9999'],
             'is_active' => ['nullable', 'boolean'],
+            'categories' => ['nullable', 'array'],
+            'categories.*' => [Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
 
         return $data;
+    }
+
+    /**
+     * The project-linkable categories, for the project form's category chips. Not
+     * filtered to active-only — a project already tied to a deactivated category
+     * must keep showing that chip, or re-syncing the form (e.g. on an unrelated
+     * field edit) would silently drop the association.
+     */
+    private function projectCategories(): Collection
+    {
+        return TimesheetCategory::projectLinkable()->orderBy('sort')->orderBy('name')->get();
     }
 
     /** @return array<string,mixed> */

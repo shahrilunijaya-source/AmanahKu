@@ -888,6 +888,14 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transition: transform 280ms cubic-bezier(.32,.72,0,1);
 }
 .wd[data-open] { transform: translateX(0); }
+/* Card drawer opened FROM the team board's own person window (.tb-win-modal,
+   z-index 61): .wd-scrim/.wd are shared with that window's own backdrop+shell,
+   so bumping their bare z-index here would also lift the window's OWN scrim
+   above its OWN content — exactly the bug this modifier fixes by staying
+   scoped to partials.work-drawer's $interactive:false instance only (see its
+   wd--over-modal class). */
+.wd-scrim.wd--over-modal { z-index: 64; }
+.wd.wd--over-modal { z-index: 65; }
 /* Knowledge Bank picture lightbox. A plain class, not inline `display:flex` — Alpine's
    x-show (no transition) clears the inline `display` property rather than restoring it,
    which would collapse flex centering back to the div default of `block` every time the
@@ -927,6 +935,30 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 }
 .tb-win-modal[data-open] { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 .tb-win-modal:focus { outline: none; }
+
+/* Assign-task modal (team board): can be open while the person window
+   (.tb-win-modal) is also open — its own "Assign task" button opens this on
+   top of it. That's a real nested-overlay case, not hypothetical, so this
+   gets its own scrim/shell classes above the existing .wd-scrim/.wd/
+   .tb-win-modal stack (all z-index 60/61) rather than reusing them — see
+   "Board .wd z-index trap" for why three overlays sharing one z-index once
+   collided. Same 280ms cubic-bezier(.32,.72,0,1) timing as the rest of this
+   family, just narrower: one form, not a 4-column kanban. */
+.tb-assign-scrim {
+    position: fixed; inset: 0; background: rgba(31,30,26,.18); z-index: 62;
+    opacity: 0; transition: opacity 260ms cubic-bezier(.32,.72,0,1);
+}
+.tb-assign-scrim[data-open] { opacity: 1; }
+.tb-assign-modal {
+    position: fixed; top: 50%; left: 50%; z-index: 63;
+    width: min(94vw, 480px); max-height: 86vh; overflow-y: auto;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 14px;
+    box-shadow: 0 28px 64px rgba(31,30,26,.22);
+    transform: translate(-50%, -50%) scale(.96); opacity: 0;
+    transition: transform 280ms cubic-bezier(.32,.72,0,1), opacity 280ms cubic-bezier(.32,.72,0,1);
+}
+.tb-assign-modal[data-open] { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.tb-assign-modal:focus { outline: none; }
 
 .wd-head {
     flex-shrink: 0; display: flex; align-items: center; gap: 8px;
@@ -1002,6 +1034,10 @@ select.wd-inline {
    truth, not disabled chrome. Only the affordance goes away. */
 .wd-inline:disabled { color: var(--ink); background: none; cursor: default; background-image: none; padding-right: 8px; }
 .wd-chiprow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 3px 0; }
+/* A link's editor row (label + url + remove). display lives in the class, not
+   inline, because x-show toggles the element's inline display style directly —
+   an inline "display: grid" gets wiped rather than restored on re-show. */
+.wd-link-row { display: grid; grid-template-columns: 140px 1fr 30px; gap: 8px; margin-bottom: 8px; }
 .wd-add {
     height: 22px; padding: 0 8px; border-radius: 6px; border: 1px dashed var(--hairline);
     background: none; color: var(--muted); cursor: pointer; font-size: var(--t-micro);
@@ -2919,6 +2955,29 @@ select.wd-inline {
 .uj-lv-type[aria-pressed="true"] .uj-lv-tick { opacity: 1; transform: none; }
 
 .uj-lv-more { margin-top: 10px; background: none; border: 0; padding: 6px 0; font-size: var(--t-sm); font-weight: 500; color: var(--red); cursor: pointer; }
+
+/* Project category chips (quick-create + Timesheet Setup project form). A small,
+   fixed set of options reads better as inline pills than as a full-width list, so
+   this is a compact multi-select variant of .uj-lv-type's red-tint + tick language
+   rather than the neutral .uj-seg segmented control — that one is single-select
+   "where am I" and stays red-free by design; this is a form choice. The real
+   checkbox stays in the DOM (native semantics, x-model, plain-form fallback) and
+   is only visually hidden with .uj-sr-only; selected-state styling is driven by
+   Alpine's .is-on class (matching .uj-lv-type[aria-pressed] elsewhere), not
+   :has(), which doesn't reliably invalidate on script-driven :checked changes. */
+.uj-cat-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.uj-cat-chip {
+    position: relative; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 12px;
+    border-radius: 999px; border: 1px solid var(--hairline); background: #fff;
+    font-size: var(--t-sm); font-weight: 500; color: var(--body); cursor: pointer; user-select: none;
+    transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1), transform .1s ease;
+}
+.uj-cat-chip:hover { border-color: var(--muted-soft); }
+.uj-cat-chip:active { transform: scale(.97); }
+.uj-cat-chip:focus-within { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-cat-chip.is-on { background: var(--red-tint); border-color: color-mix(in srgb, var(--red) 35%, transparent); color: var(--red); }
+.uj-cat-chip-tick { flex: 0 0 12px; opacity: 0; transform: scale(.6); transition: opacity .18s cubic-bezier(.23, 1, .32, 1), transform .18s cubic-bezier(.23, 1, .32, 1); }
+.uj-cat-chip.is-on .uj-cat-chip-tick { opacity: 1; transform: none; }
 
 /* Rule notes. Only the ones that apply to the chosen type are rendered, which
    is what replaced the four hint paragraphs that used to sit open permanently. */

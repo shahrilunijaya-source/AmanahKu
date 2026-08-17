@@ -1,42 +1,6 @@
 @extends('layouts.app')
 
 @section('screen')
-{{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
-     is reached by that one-way shortcut, so offer a one-tap way back to My tasks
-     rather than leaving the browser Back button as the only exit. --}}
-<div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-    <a href="{{ route('app.screen', 'board') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
-        <span x-text="$store.ui.lang==='en' ? '← My tasks' : '← Tugasan saya'">← My tasks</span>
-    </a>
-</div>
-@include('partials.guide', [
-    'key' => 'team-board',
-    'en'  => [
-        'title' => 'Team board — all tasks',
-        'body'  => 'A read-only, company-wide view of every staff member\'s work: one row per person, showing what they are carrying. Click a person to see their tasks in a window, without leaving this screen.',
-        'who'   => 'Management · HR · Immediate superiors',
-        'steps' => [
-            'Each row is one person, ranked by open items. Click a row (or press Enter) to open that person\'s tasks.',
-            'Search a name or a task title, or switch on Overdue / Blocked to see only people carrying that trouble.',
-            'Inside a person\'s window, filter by type, priority, project, label or status to narrow their own list.',
-            'Click a sortable column heading to sort by it; click again to reverse the order.',
-            'Press Escape, or the close button, to leave a person\'s window — the table underneath keeps your search, toggles and sort exactly as you left them.',
-        ],
-    ],
-    'ms'  => [
-        'title' => 'Papan pasukan — semua tugasan',
-        'body'  => 'Paparan baca-sahaja seluruh syarikat bagi kerja setiap staf: satu baris bagi setiap orang, menunjukkan apa yang mereka pikul. Klik seseorang untuk lihat tugasan mereka dalam satu tetingkap, tanpa perlu tinggalkan skrin ini.',
-        'who'   => 'Pengurusan · HR · Penyelia terdekat',
-        'steps' => [
-            'Setiap baris mewakili seorang staf, disusun mengikut item terbuka. Klik baris itu (atau tekan Enter) untuk buka tugasan orang berkenaan.',
-            'Cari mengikut nama atau tajuk tugasan, atau hidupkan suis Lewat / Tersekat untuk lihat sesiapa sahaja yang menghadapi masalah itu.',
-            'Di dalam tetingkap seseorang, tapis mengikut jenis, keutamaan, projek, label atau status untuk sempitkan senarai mereka sendiri.',
-            'Klik kepala lajur yang boleh disusun untuk susun mengikutnya; klik lagi untuk terbalikkan susunan.',
-            'Tekan Escape, atau butang tutup, untuk keluar dari tetingkap seseorang — jadual di bawah kekal dengan carian, suis dan susunan seperti sebelumnya.',
-        ],
-    ],
-])
-
 @php
     // One table, one line per person — ranked by open count descending. See
     // the design doc's "Person table". teamPeople itself stays ordered by
@@ -61,8 +25,54 @@
     $tbProjects = $teamRows->pluck('item.projectRef')->filter()->unique('id')->sortBy('name')->values();
     $tbLabelDef = \App\Models\WorkItem::LABELS;
 @endphp
+<div x-data="teamBoard(@js($tbPeopleByOpen), @js($tbLabelDef), @js([
+    'defaultId' => $assignableEmployees->first()['id'] ?? null,
+    'show' => $errors->getBag('assign')->any(),
+    'employeeId' => old('employee_id') ? (int) old('employee_id') : null,
+]))">
+{{-- Reciprocal of the "see all staff" icon on the personal board screen: this board
+     is reached by that one-way shortcut, so offer a one-tap way back to My tasks
+     rather than leaving the browser Back button as the only exit. --}}
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px;">
+    @if (($canAssign ?? false) && $assignableEmployees->isNotEmpty())
+        <button type="button" class="uj-btn-primary" style="font-size:12px;padding:7px 14px;" @click="openAssign(null, $event.currentTarget)">
+            <span x-text="$store.ui.lang==='en' ? '+ Assign task' : '+ Beri tugas'">+ Assign task</span>
+        </button>
+    @endif
+    <a href="{{ route('app.screen', 'board') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
+        <span x-text="$store.ui.lang==='en' ? '← My tasks' : '← Tugasan saya'">← My tasks</span>
+    </a>
+</div>
+@include('partials.guide', [
+    'key' => 'team-board',
+    'en'  => [
+        'title' => 'Team board — all tasks',
+        'body'  => 'A company-wide view of every staff member\'s work: one row per person, showing what they are carrying. Click a person to see their tasks in a window, without leaving this screen. Click a task there to open it and comment — the details themselves stay read-only.',
+        'who'   => 'Management · HR · Immediate superiors',
+        'steps' => [
+            'Each row is one person, ranked by open items. Click a row (or press Enter) to open that person\'s tasks.',
+            'Search a name or a task title, or switch on Overdue / Blocked to see only people carrying that trouble.',
+            'Inside a person\'s window, filter by type, priority, project, label or status to narrow their own list.',
+            'Click a task card to open it — read its details and leave a comment. Only its owner can edit it.',
+            'Click a sortable column heading to sort by it; click again to reverse the order.',
+            'Press Escape, or the close button, to leave a person\'s window — the table underneath keeps your search, toggles and sort exactly as you left them.',
+        ],
+    ],
+    'ms'  => [
+        'title' => 'Papan pasukan — semua tugasan',
+        'body'  => 'Paparan seluruh syarikat bagi kerja setiap staf: satu baris bagi setiap orang, menunjukkan apa yang mereka pikul. Klik seseorang untuk lihat tugasan mereka dalam satu tetingkap, tanpa perlu tinggalkan skrin ini. Klik satu tugasan di situ untuk buka dan beri komen — butirannya sendiri kekal baca-sahaja.',
+        'who'   => 'Pengurusan · HR · Penyelia terdekat',
+        'steps' => [
+            'Setiap baris mewakili seorang staf, disusun mengikut item terbuka. Klik baris itu (atau tekan Enter) untuk buka tugasan orang berkenaan.',
+            'Cari mengikut nama atau tajuk tugasan, atau hidupkan suis Lewat / Tersekat untuk lihat sesiapa sahaja yang menghadapi masalah itu.',
+            'Di dalam tetingkap seseorang, tapis mengikut jenis, keutamaan, projek, label atau status untuk sempitkan senarai mereka sendiri.',
+            'Klik kad tugasan untuk buka — baca butirannya dan tinggalkan komen. Hanya pemiliknya boleh menyuntingnya.',
+            'Klik kepala lajur yang boleh disusun untuk susun mengikutnya; klik lagi untuk terbalikkan susunan.',
+            'Tekan Escape, atau butang tutup, untuk keluar dari tetingkap seseorang — jadual di bawah kekal dengan carian, suis dan susunan seperti sebelumnya.',
+        ],
+    ],
+])
 
-<div x-data="teamBoard(@js($tbPeopleByOpen))">
     {{-- ═══════ Filter bar — always-visible, person-level controls ═══════ --}}
     <div class="tb-filters">
         <input x-model="search" @input="applyFilter()" type="search"
@@ -176,7 +186,7 @@
 
         <aside class="tb-win-modal" x-show="win.show" x-cloak :data-open="win.open ? '' : null" x-ref="winEl"
                tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tb-win-name"
-               @keydown.escape.window="win.show && closeWindow()" @keydown.tab="trapFocusWindow($event)">
+               @keydown.escape.window="win.show && !assign.show && !drawer.show && closeWindow()" @keydown.tab="trapFocusWindow($event)">
 
             <div class="wd-head" style="gap:12px;">
                 <span class="tb-av" :style="'background:' + (win.person ? (win.person.avatar_color || 'var(--muted)') : 'var(--muted)')"
@@ -185,6 +195,12 @@
                     <h2 id="tb-win-name" class="wd-title" style="margin:0;font-size:16px;" x-text="win.person ? win.person.name : ''"></h2>
                     <p class="wd-sub" style="margin:2px 0 0;" x-text="winPersonSub"></p>
                 </div>
+                @if (($canAssign ?? false) && $assignableEmployees->isNotEmpty())
+                    <button type="button" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;"
+                            @click="openAssign(win.person.id, $event.currentTarget)">
+                        <span x-text="$store.ui.lang==='en' ? 'Assign task' : 'Beri tugas'">Assign task</span>
+                    </button>
+                @endif
                 <button type="button" class="wd-ico" @click="closeWindow()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
@@ -250,5 +266,117 @@
         </aside>
     </div>
     </template>
+
+    {{-- Card detail drawer, view + comment only — no edit, no move (see
+         partials.work-drawer and resources/js/team-board.js's drawer.* code). --}}
+    @include('partials.work-drawer', ['interactive' => false])
+
+    {{-- ═══════ Assign-task modal — teleported to body, its own scrim/shell
+         (see .tb-assign-scrim/.tb-assign-modal in app.css) so it can layer
+         above the person window when opened from that window's own button.
+         A plain form POST to the existing work.assign route/controller —
+         submitting reloads the page, same as the profile screen's own
+         assign form does today. Gated the same as the two trigger buttons —
+         not just hidden client-side, since $assignableEmployees is the full
+         tenant-wide active roster and has no business reaching a browser
+         that has no way to act on it. ═══════ --}}
+    @if (($canAssign ?? false) && $assignableEmployees->isNotEmpty())
+    <template x-teleport="body">
+    <div>
+        <div class="tb-assign-scrim" x-show="assign.show" x-cloak :data-open="assign.open ? '' : null" @click="closeAssign()"></div>
+
+        <div class="tb-assign-modal" x-show="assign.show" x-cloak :data-open="assign.open ? '' : null"
+             role="dialog" aria-modal="true" aria-labelledby="tb-assign-title"
+             @keydown.escape.window="assign.show && closeAssign()">
+            <form method="post" :action="'/app/board/assign/' + assign.employeeId">
+                @csrf
+                {{-- Never read by the controller (the URL path segment above is what it
+                     acts on) — this is purely so a validation error's back()-redirect
+                     can reopen the modal already pointed at the right person, via
+                     old('employee_id') feeding assignInit above. --}}
+                <input type="hidden" name="employee_id" :value="assign.employeeId" />
+
+                <div class="wd-head">
+                    <span id="tb-assign-title" style="font-size:13px;font-weight:600;color:var(--ink);flex:1;"
+                          x-text="$store.ui.lang==='en' ? 'Assign a task' : 'Beri tugas'">Assign a task</span>
+                    <button type="button" class="wd-ico" @click="closeAssign()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="wd-body">
+                    @if ($errors->getBag('assign')->any())
+                        <div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;margin-bottom:14px;">{{ $errors->getBag('assign')->first() }}</div>
+                    @endif
+
+                    <input type="text" name="title" maxlength="160" required value="{{ old('title') }}" x-ref="assignTitleEl"
+                           class="wd-title" style="width:100%;border-color:var(--hairline);"
+                           x-bind:placeholder="$store.ui.lang==='en' ? 'Task title' : 'Tajuk tugas'" />
+
+                    <div class="wd-props" style="margin-top:14px;">
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Assign to' : 'Beri kepada'">Assign to</span>
+                        <span class="wd-pval">
+                            <select class="wd-inline" x-model.number="assign.employeeId" required>
+                                @foreach ($assignableEmployees as $e)
+                                    <option value="{{ $e['id'] }}">{{ $e['name'] }}</option>
+                                @endforeach
+                            </select>
+                        </span>
+
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
+                        <span class="wd-pval">
+                            <select name="type" class="wd-inline">
+                                @foreach (['adhoc' => 'Adhoc', 'task' => 'Task', 'assignment' => 'Assignment'] as $v => $l)
+                                    <option value="{{ $v }}" @selected(old('type', 'adhoc') === $v)>{{ $l }}</option>
+                                @endforeach
+                            </select>
+                        </span>
+
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</span>
+                        <span class="wd-pval">
+                            <select name="priority" class="wd-inline">
+                                @foreach (['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $v => $l)
+                                    <option value="{{ $v }}" @selected(old('priority', 'medium') === $v)>{{ $l }}</option>
+                                @endforeach
+                            </select>
+                        </span>
+
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
+                        <span class="wd-pval">
+                            <input type="date" name="due_at" value="{{ old('due_at') }}" class="wd-inline" />
+                        </span>
+                    </div>
+
+                    <textarea name="description" rows="3" maxlength="5000" class="wd-desc"
+                              x-bind:placeholder="$store.ui.lang==='en' ? 'Description (optional)' : 'Penerangan (pilihan)'">{{ old('description') }}</textarea>
+
+                    {{-- Own small x-data, same technique tot-edit-form.blade.php uses for its
+                         classic-form link rows: bracket-indexed :name bindings so a plain POST
+                         carries them, no autosave/JS submission needed. Visual style (wd-inline
+                         inputs, wd-add button) matches the card drawer's own link editor
+                         instead — this is a one-shot create form, not that drawer. --}}
+                    <div style="margin-top:16px;" x-data="{ links: @js(old('links', [])) }">
+                        <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</h3>
+                        <template x-for="(link, idx) in links" :key="idx">
+                            <div style="display:grid;grid-template-columns:140px 1fr 30px;gap:8px;margin-bottom:8px;">
+                                <input class="wd-inline" style="margin:0;" :name="`links[${idx}][label]`" x-model="link.label" placeholder="Label" maxlength="60">
+                                <input class="wd-inline" style="margin:0;" :name="`links[${idx}][url]`" x-model="link.url" placeholder="https://...">
+                                <button type="button" @click="links.splice(idx, 1)" style="border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer;">&times;</button>
+                            </div>
+                        </template>
+                        <button type="button" class="wd-add" @click="links.push({ label: '', url: '' })">
+                            <span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'"></span>
+                        </button>
+                    </div>
+
+                    <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;width:100%;margin-top:16px;">
+                        <span x-text="$store.ui.lang==='en' ? 'Assign task' : 'Beri tugas'">Assign task</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </template>
+    @endif
 </div>
 @endsection

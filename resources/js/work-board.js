@@ -66,6 +66,10 @@ export function registerWorkBoard(Alpine) {
             error: '',
             locked: false,
             lockedReason: '',
+            // Index of the link row currently forced open for editing, even though
+            // it already has both a label and a url (otherwise a saved link renders
+            // as its clickable button — see editLink()/finishLinkEdit()).
+            editingLinkIdx: null,
             id: null,
             node: null, // the [data-card] DOM node this drawer is showing; re-resolved
             // by [data-id] after every outerHTML repaint, since that swap
@@ -367,11 +371,29 @@ export function registerWorkBoard(Alpine) {
         removeLink(idx) {
             if (this.drawer.locked) return;
             this.drawer.card.links.splice(idx, 1);
+            if (this.drawer.editingLinkIdx === idx) this.drawer.editingLinkIdx = null;
+            else if (this.drawer.editingLinkIdx > idx) this.drawer.editingLinkIdx -= 1;
             this.commitField('links', this.drawer.card.links);
+        },
+
+        // Reopens an already-saved link (both label and url filled, otherwise
+        // it's already showing as inputs) for editing instead of its button.
+        editLink(idx) {
+            if (this.drawer.locked) return;
+            this.drawer.editingLinkIdx = idx;
         },
 
         onLinkInput() {
             this.scheduleCommit('links');
+        },
+
+        // The links blur handler: saves as usual, then — once both fields are
+        // filled — drops the forced-edit flag so the row collapses back to its
+        // clickable button. A row with an empty label or url stays on inputs
+        // regardless, so this never hides a link the user hasn't finished typing.
+        finishLinkEdit(idx) {
+            if (this.drawer.editingLinkIdx === idx) this.drawer.editingLinkIdx = null;
+            this.commitFieldFromCard('links');
         },
 
         addPerson(id) {
@@ -488,6 +510,7 @@ export function registerWorkBoard(Alpine) {
             this.drawer.newComment = '';
             this.drawer.menuOpen = false;
             this.drawer.labelMenuOpen = false;
+            this.drawer.editingLinkIdx = null;
             this.closeMention();
             this.drawer.seq = 0;
             this.drawer.lastApplied = 0;
@@ -548,6 +571,7 @@ export function registerWorkBoard(Alpine) {
             this.drawer.open = false;
             this.drawer.menuOpen = false;
             this.drawer.labelMenuOpen = false;
+            this.drawer.editingLinkIdx = null;
             this.closeMention();
             const trigger = this.drawer.trigger;
             clearTimeout(this.drawer._closeTimer);

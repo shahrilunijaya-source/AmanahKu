@@ -243,6 +243,23 @@ trait BuildsWorkData
             'teamPeople' => $teamPeople,
             'teamOpenTotal' => $teamPeople->sum('open'),
             'teamPeopleCount' => $teamPeople->count(),
+            // Same three roles WorkItemController::ASSIGNER_ROLES and the profile
+            // page's own "Assign task" button check — director included, via
+            // hasTenantRole()'s effectiveRole() fold.
+            'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
+            // Every active employee, tenant-wide, minus the viewer themselves —
+            // deliberately NOT the DataScope-restricted $employees above, and
+            // deliberately not limited to people already in $teamPeople (a
+            // brand-new hire with zero tasks must still be assignable). This
+            // matches assign()'s own authorization boundary exactly: role + tenant
+            // + not-archived, no DataScope check — see the design doc's "Data"
+            // section for why a narrower roster here would just be confusing.
+            'assignableEmployees' => Employee::active()
+                ->where('id', '!=', $self?->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
+                ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+                ->values(),
         ];
     }
 

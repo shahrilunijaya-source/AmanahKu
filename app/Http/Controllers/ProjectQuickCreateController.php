@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Project;
+use App\Models\TimesheetCategory;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,10 +20,12 @@ use Illuminate\Validation\Rule;
  */
 class ProjectQuickCreateController extends Controller
 {
-    /** Data for the screen (empty — the view is just the create form). */
+    /** Data for the screen — the create form plus the categories it may fall under. */
     public function screenData(Request $request): array
     {
-        return [];
+        return [
+            'categories' => TimesheetCategory::projectLinkable()->where('is_active', true)->orderBy('sort')->orderBy('name')->get(),
+        ];
     }
 
     public function store(Request $request): RedirectResponse
@@ -32,9 +35,15 @@ class ProjectQuickCreateController extends Controller
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:40'],
             'name' => ['required', 'string', 'max:160', Rule::unique('projects', 'name')->where('tenant_id', $tid)],
+            'categories' => ['nullable', 'array'],
+            'categories.*' => [Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
         ]);
 
+        $categories = $data['categories'] ?? [];
+        unset($data['categories']);
+
         $project = Project::create($data + ['is_active' => true]);
+        $project->categories()->sync($categories);
         AuditLog::record('Added project', $project->name);
 
         return back()->with('ok', $project->name.' created. Link it from Track next.');
