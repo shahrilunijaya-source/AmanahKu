@@ -11,6 +11,7 @@ use App\Models\LeaveRequest;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Read-only attendance analytics for management / HR: roster view of active staff.
@@ -323,25 +324,12 @@ class AttendanceReportController extends Controller
             ? Carbon::parse($date)->format('D')          // Mon–Fri each appear once in a 7-day window
             : Carbon::parse($date)->format('j M');       // 30/90 days: a weekday name would be ambiguous
 
-        /** @return \Illuminate\Support\Collection<int, array{id: int, name: string, initials: string|null, color: string, days: array<string>}> */
-        $bucket = fn (string $key) => $roster
-            ->filter(fn (array $r) => $r[$key] !== [])
-            // Worst first, matching the roster's own ordering. PHP sorts are stable, so
-            // ties keep the roster's sequence rather than reshuffling.
-            ->sortByDesc(fn (array $r) => count($r[$key]))
-            ->map(fn (array $r) => [
-                'id' => $r['id'],
-                'name' => $r['name'],
-                'initials' => $r['initials'],
-                'color' => $r['color'],
-                'days' => array_map($dayLabel, $r[$key]),
-            ])
-            ->values();
+        $rosterRows = $roster->all();
 
         $summary = [
-            'absent' => $bucket('absentDates'),
-            'late' => $bucket('lateDates'),
-            'short' => $bucket('shortHoursDates'),
+            'absent' => $this->bucket($rosterRows, 'absentDates', $dayLabel),
+            'late' => $this->bucket($rosterRows, 'lateDates', $dayLabel),
+            'short' => $this->bucket($rosterRows, 'shortHoursDates', $dayLabel),
         ];
 
         // Totals
@@ -407,5 +395,36 @@ class AttendanceReportController extends Controller
     private function hasAnyFlag(AttendanceRecord $r, array $flags): bool
     {
         return count(array_intersect($flags, $r->flags ?? [])) > 0;
+    }
+
+    /**
+     * The filter/sort run on a plain array rather than a typed Collection: Collection's
+     * TValue is invariant, and this row shape is wide enough (20 keys) that Larastan's
+     * template resolution rejects an identically-printed shape at each of the three call
+     * sites — a known class of false positive (see the phpstan.org covariance write-up
+     * linked in the CI failure). The Blade view calls ->count() on the result, so the
+     * return value still needs to be a Collection; leaving its @return generic
+     * undeclared (rather than spelling out the array shape again) is what keeps that
+     * same invariance check from firing a second time on the way out.
+     *
+     * @param  array<int, array{id: int, name: string, initials: string|null, color: string, lateDates: list<string>, absentDates: list<string>, shortHoursDates: list<string>}>  $roster
+     * @param  'lateDates'|'absentDates'|'shortHoursDates'  $key
+     * @param  \Closure(string): string  $dayLabel
+     */
+    private function bucket(array $roster, string $key, \Closure $dayLabel): Collection
+    {
+        $rows = array_values(array_filter($roster, fn (array $r) => $r[$key] !== []));
+
+        // Worst first, matching the roster's own ordering. PHP sorts are stable, so ties
+        // keep the roster's sequence rather than reshuffling.
+        usort($rows, fn (array $a, array $b) => count($b[$key]) <=> count($a[$key]));
+
+        return collect($rows)->map(fn (array $r) => [
+            'id' => $r['id'],
+            'name' => $r['name'],
+            'initials' => $r['initials'],
+            'color' => $r['color'],
+            'days' => array_map($dayLabel, $r[$key]),
+        ]);
     }
 }
