@@ -323,6 +323,7 @@ class AttendanceReportController extends Controller
             ? Carbon::parse($date)->format('D')          // Mon–Fri each appear once in a 7-day window
             : Carbon::parse($date)->format('j M');       // 30/90 days: a weekday name would be ambiguous
 
+        /** @return \Illuminate\Support\Collection<int, array{id: int, name: string, initials: string|null, color: string, days: array<string>}> */
         $bucket = fn (string $key) => $roster
             ->filter(fn (array $r) => $r[$key] !== [])
             // Worst first, matching the roster's own ordering. PHP sorts are stable, so
