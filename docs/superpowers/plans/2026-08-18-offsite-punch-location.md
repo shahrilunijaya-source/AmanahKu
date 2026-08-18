@@ -383,7 +383,7 @@ php artisan view:cache
 npm run build
 ```
 
-Then sign in at `http://amanahku.test` (quick-login → HR), open `/app/attendance-report`, click any person to reach the drill-down, and in the browser console run:
+Then sign in at your local site — `http://localhost:9100` or `amanahku.localhost` under lerd, `amanahku.test` under Herd; see CLAUDE.md for this machine's URL — using quick-login → HR. Open `/app/attendance-report`, click any person to reach the drill-down, and in the browser console run:
 
 ```js
 window.dispatchEvent(new CustomEvent('open-map-view', { detail: {
