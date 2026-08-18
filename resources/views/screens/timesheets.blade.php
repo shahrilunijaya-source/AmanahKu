@@ -776,11 +776,8 @@
                     <div class="uj-tr-wk" :data-dir="weekDir">
                         <div class="hdr">
                             <span x-text="wk.label + ' · ' + wk.dates"></span>
-                            <span>
-                                <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"
-                                    x-text="wk.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar') : ($store.ui.lang==='en' ? 'Draft' : 'Draf')"></span>
-                                <span x-text="fmtDays(wk.days) + ' md'"></span>
-                            </span>
+                            <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"
+                                x-text="wk.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar') : ($store.ui.lang==='en' ? 'Draft' : 'Draf')"></span>
                         </div>
                         <template x-if="wk.lines.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
