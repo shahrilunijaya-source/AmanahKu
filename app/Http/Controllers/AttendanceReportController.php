@@ -176,6 +176,20 @@ class AttendanceReportController extends Controller
             $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
 
+            // The days behind the two summary buckets, read off the SAME strip the row
+            // draws, so the summary can never disagree with the cells beside the name.
+            // $strip, not $rowStrip: the quarter view folds days into weeks to display,
+            // but the summary still names real days.
+            $lateDates = [];
+            $absentDates = [];
+            foreach ($days as $i => $dateStr) {
+                if ($strip[$i] === 'l') {
+                    $lateDates[] = $dateStr;
+                } elseif ($strip[$i] === 'a') {
+                    $absentDates[] = $dateStr;
+                }
+            }
+
             // Fold daily strip into weekly cells for quarter period
             if ($period === 'quarter') {
                 $todayIndex = $daysCount - 1;
@@ -232,6 +246,8 @@ class AttendanceReportController extends Controller
                 'never' => $never,
                 'stopped' => $stopped,
                 'onLeave' => $onLeave,
+                'lateDates' => $lateDates,
+                'absentDates' => $absentDates,
             ];
         });
 
@@ -271,6 +287,37 @@ class AttendanceReportController extends Controller
 
             return $a['id'] <=> $b['id'];
         })->values();
+
+        // ── Summary buckets (the "View summary" dialog) ──
+        // A person is listed from their FIRST offending day: no hidden threshold, so the
+        // names here are exactly the amber / red cells visible on the roster. A rule like
+        // "2+ days" would quietly drop someone whose red cell is right there on screen.
+        //
+        // Off-site ('x') days are deliberately not counted as late. The strip resolves
+        // off-site ahead of late, and the row's own `late` figure counts the same way, so
+        // both numbers on this screen stay consistent with each other.
+        $dayLabel = fn (string $date): string => $period === 'week'
+            ? Carbon::parse($date)->format('D')          // Mon–Fri each appear once in a 7-day window
+            : Carbon::parse($date)->format('j M');       // 30/90 days: a weekday name would be ambiguous
+
+        $bucket = fn (string $key) => $roster
+            ->filter(fn (array $r) => $r[$key] !== [])
+            // Worst first, matching the roster's own ordering. PHP sorts are stable, so
+            // ties keep the roster's sequence rather than reshuffling.
+            ->sortByDesc(fn (array $r) => count($r[$key]))
+            ->map(fn (array $r) => [
+                'id' => $r['id'],
+                'name' => $r['name'],
+                'initials' => $r['initials'],
+                'color' => $r['color'],
+                'days' => array_map($dayLabel, $r[$key]),
+            ])
+            ->values();
+
+        $summary = [
+            'absent' => $bucket('absentDates'),
+            'late' => $bucket('lateDates'),
+        ];
 
         // Totals
         $headcount = $roster->count();
@@ -322,6 +369,7 @@ class AttendanceReportController extends Controller
             'stripUnit' => $stripUnit,
             'cells' => $cells,
             'roster' => $roster,
+            'summary' => $summary,
             'totals' => $totals,
             'drill' => $drill,
             'drillRecords' => $drillRecords,

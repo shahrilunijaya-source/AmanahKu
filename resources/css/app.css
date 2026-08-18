@@ -1687,9 +1687,56 @@ select.wd-inline {
 .uj-ar-name { display: block; font-size: var(--t-base); color: var(--ink); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .uj-ar-sub { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.uj-ar-sect { margin-top: 34px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.uj-ar-sect { margin-top: 34px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.uj-ar-sect-left { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .uj-ar-sect h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
 .uj-ar-sect .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ── "View summary" trigger + dialog ──
+   The roster answers "how is each person doing"; the dialog answers the question a
+   manager actually opens this screen with — "who do I need to talk to, and about
+   which day". Both read the same strip, so the two can't disagree. */
+.uj-ar-sumbtn {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px;
+  border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); color: var(--body);
+  font: 500 var(--t-sm) var(--font-sans); cursor: pointer;
+}
+.uj-ar-sumbtn:hover { border-color: var(--muted-soft); color: var(--ink); }
+.uj-ar-sumbtn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+.uj-ar-sumhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
+.uj-ar-sumhead h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.uj-ar-sumhead p { margin: 3px 0 0; font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-ar-sumclose { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.uj-ar-sumclose:hover { background: var(--hairline-soft); color: var(--ink); }
+
+/* Two tiles, not three: "clocked out late" has no per-day source in this model
+   (attendance_records carries one status per day), so it would be a number with
+   nothing behind it. */
+.uj-ar-sumgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--hairline); flex-shrink: 0; }
+.uj-ar-sumtile { background: var(--card); padding: 16px 16px 14px; text-align: center; border: 0; font: inherit; cursor: pointer; box-shadow: inset 0 -2px 0 0 transparent; }
+.uj-ar-sumtile:hover { background: var(--canvas); }
+.uj-ar-sumtile:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+.uj-ar-sumtile.uj-ar-sumon { background: var(--canvas); }
+.uj-ar-sumtile.uj-ar-sumon[data-t="absent"] { box-shadow: inset 0 -2px 0 0 var(--error); }
+.uj-ar-sumtile.uj-ar-sumon[data-t="late"] { box-shadow: inset 0 -2px 0 0 var(--amber-ink); }
+.uj-ar-sumnum { display: block; font: 600 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-ar-sumnum[data-t="absent"] { color: var(--error); }
+.uj-ar-sumnum[data-t="late"] { color: var(--amber-ink); }
+.uj-ar-sumlbl { display: block; margin-top: 6px; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; }
+
+.uj-ar-sumnames { padding: 14px 18px 10px; overflow-y: auto; }
+.uj-ar-sumnameshead { font-size: var(--t-micro); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.uj-ar-sumchip { display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 9px; text-decoration: none; color: inherit; }
+.uj-ar-sumchip:hover { background: var(--canvas); }
+.uj-ar-sumname { display: block; font-size: var(--t-sm); color: var(--ink); font-weight: 500; line-height: 1.35; }
+/* The day is the point: on a week view "late once on Tuesday" and "late every day"
+   are different conversations that a bare headcount hides. */
+.uj-ar-sumdays { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.uj-ar-sumday { font: 600 10px/1 var(--font-mono); padding: 3px 6px; border-radius: 5px; background: var(--hairline-soft); color: var(--body); }
+.uj-ar-sumday[data-t="absent"] { background: var(--red-tint); color: var(--red-active); }
+.uj-ar-sumday[data-t="late"] { background: color-mix(in srgb, var(--amber) 16%, var(--card)); color: var(--amber-ink); }
+.uj-ar-sumempty { padding: 18px 6px 22px; text-align: center; font-size: var(--t-sm); color: var(--muted); }
 
 .uj-ar-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
 .uj-ar-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
