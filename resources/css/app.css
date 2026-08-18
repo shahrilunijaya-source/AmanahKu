@@ -1924,9 +1924,13 @@ select.wd-inline {
 
 /* Review tab's entry rows are real links into Record; the report screen's own
    .uj-tr-ent (plain divs, no link) is untouched by this. */
-a.uj-tr-ent { text-decoration: none; cursor: pointer; border-radius: 8px; margin: 0 -8px; padding: 3px 8px; transition: background .12s var(--ease); }
-a.uj-tr-ent:hover { background: var(--hairline-soft); }
-a.uj-tr-ent:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+/* [href] scoping: a line with no id (system-generated) renders as the same <a> tag but
+   with no href bound (see timesheets.blade.php), so it stays visually plain — no pointer
+   cursor or hover to promise a click that does nothing. */
+a.uj-tr-ent { text-decoration: none; border-radius: 8px; margin: 0 -8px; padding: 3px 8px; }
+a.uj-tr-ent[href] { cursor: pointer; transition: background .12s var(--ease); }
+a.uj-tr-ent[href]:hover { background: var(--hairline-soft); }
+a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }

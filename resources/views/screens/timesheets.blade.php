@@ -785,27 +785,20 @@
                         <template x-if="wk.lines.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
                         </template>
+                        {{-- A single <a> for every line — x-for needs one root element per
+                             iteration. Lines with no id (system-generated: leave/holiday)
+                             get entryUrl()=== null, so :href binds to nothing and the tag
+                             renders as a plain, non-interactive anchor: no href, no
+                             underline needed, not in tab order, not clickable. --}}
                         <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                            <template x-if="line.id">
-                                <a class="uj-tr-ent" :href="entryUrl(line)">
-                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                    <span x-text="line.label"></span>
-                                    <template x-if="line.note">
-                                        <span class="n" x-html="line.note"></span>
-                                    </template>
-                                    <span class="d" x-text="fmtDays(line.days)"></span>
-                                </a>
-                            </template>
-                            <template x-if="!line.id">
-                                <div class="uj-tr-ent">
-                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                    <span x-text="line.label"></span>
-                                    <template x-if="line.note">
-                                        <span class="n" x-html="line.note"></span>
-                                    </template>
-                                    <span class="d" x-text="fmtDays(line.days)"></span>
-                                </div>
-                            </template>
+                            <a class="uj-tr-ent" :href="entryUrl(line)">
+                                <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
+                                <span x-text="line.label"></span>
+                                <template x-if="line.note">
+                                    <span class="n" x-html="line.note"></span>
+                                </template>
+                                <span class="d" x-text="fmtDays(line.days)"></span>
+                            </a>
                         </template>
                         <template x-if="wk.status === 'submitted'">
                             <div class="uj-tr-note" x-text="$store.ui.lang==='en'
