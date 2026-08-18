@@ -1,0 +1,346 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AmanahKu API",
+    "version": "1.0.0",
+    "description": "Read-only. AmanahKu is the source of truth for which projects exist in Unijaya and what kind each is — not how they are going; budget, phases and delivery cadence live in Track. No write endpoints, no webhooks, no pagination, no rate limit."
+  },
+  "servers": [
+    { "url": "https://amanahku.unijaya.com/api/v1" }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "AmanahKu's own failure envelope: {data, error}.",
+        "properties": {
+          "data": { "type": "null" },
+          "error": { "type": "string" }
+        }
+      },
+      "LaravelUnauthenticated": {
+        "type": "object",
+        "description": "The body for a 401 when the key is missing or entirely unrecognized — the request never reaches AmanahKu's own code, so it never gets the {data, error} envelope.",
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "description": "Laravel's default validation-failure body, returned by /timesheet-effort when week_start is missing or not a valid date. Also not the {data, error} envelope.",
+        "properties": {
+          "message": { "type": "string" },
+          "errors": { "type": "object" }
+        }
+      },
+      "ServerError": {
+        "type": "object",
+        "description": "A 5xx failure: an uncaught fault, so it does NOT use the {data, error} envelope. message is whatever the framework's default handler rendered and should not be relied on. reference is stable and is what to quote when reporting the fault, but it is only present when the fault was actually logged — a deliberate abort(500, ...) or a maintenance-mode 503 is not, so treat reference as optional.",
+        "properties": {
+          "message": { "type": "string" },
+          "reference": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "401. Key missing, unknown, or (if recognized) its company binding no longer holds. A missing/unknown key returns LaravelUnauthenticated; a recognized-but-unbound key returns Error — the status code is the only thing to rely on.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                { "$ref": "#/components/schemas/Error" },
+                { "$ref": "#/components/schemas/LaravelUnauthenticated" }
+              ]
+            }
+          }
+        }
+      },
+      "MissingScope": {
+        "description": "403. Key is valid but lacks the scope this endpoint requires.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "ServerFault": {
+        "description": "5xx. Something broke on AmanahKu's side. Not the {data, error} envelope — see ServerError.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ServerError" }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/projects": {
+      "get": {
+        "summary": "Active projects and their category tags",
+        "description": "Requires the projects:read scope. Returns every active project in the key's company. categories is a flat array of category names (Development, Maintenance, InHouse Project, Sales); an untagged project returns an empty array.",
+        "responses": {
+          "200": {
+            "description": "Every active project in the key's company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "code": { "type": ["string", "null"] },
+                          "name": { "type": "string" },
+                          "categories": { "type": "array", "items": { "type": "string" }, "description": "Sorted alphabetically; the underlying relation has no defined order, so this API sorts it to keep the array stable for consumers that diff it." }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    },
+    "/employees": {
+      "get": {
+        "summary": "Active employee directory",
+        "description": "Requires the employees:read scope. Returns the company's active employees (archived employees are excluded). No pagination — the whole directory comes back in one response.",
+        "responses": {
+          "200": {
+            "description": "Every active employee in the key's company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "email": { "type": ["string", "null"] },
+                          "position": { "type": ["string", "null"] },
+                          "status": { "type": "string" },
+                          "department": { "type": ["string", "null"] },
+                          "branch": { "type": ["string", "null"] }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    },
+    "/positions": {
+      "get": {
+        "summary": "Position bands, with no salary figure",
+        "description": "Requires the positions:read scope. Returns the company's position bands, including inactive ones (a mapping may still need to cover historical effort booked under a retired band). No max_salary or any other pay figure is ever present.",
+        "responses": {
+          "200": {
+            "description": "Every position band in the key's company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "title": { "type": "string" },
+                          "code": { "type": ["string", "null"] },
+                          "department": { "type": ["string", "null"] },
+                          "level": { "type": ["string", "null"] },
+                          "status": { "type": "string" }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    },
+    "/timesheet-effort": {
+      "get": {
+        "summary": "Weekly timesheet effort per project and position band",
+        "description": "Requires the effort:read scope. Aggregated server-side so no employee name, id, or salary ever leaves AmanahKu. A week counts once it is submitted or approved; draft and rejected weeks contribute nothing. Only grant this scope to an app that costs work against the figures it returns.",
+        "parameters": [
+          {
+            "name": "week_start",
+            "in": "query",
+            "required": true,
+            "description": "The exact date the target week starts on (the Monday) — matched exactly, not as a range. Any other day of that week is NOT an error: it returns 200 with projects: [] rather than a validation failure, so an off-by-a-day value silently reads as a week with no effort.",
+            "schema": { "type": "string", "format": "date" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effort for every project that had counted activity in that week.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "week_start": { "type": "string", "format": "date" },
+                        "projects": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "project_id": { "type": "integer" },
+                              "positions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "position_id": { "type": ["integer", "null"] },
+                                    "position_title": { "type": ["string", "null"] },
+                                    "headcount": { "type": "integer" },
+                                    "person_days": { "type": "number" },
+                                    "days_present": { "type": "integer" },
+                                    "alloc_pct": { "type": "number" }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "422": {
+            "description": "week_start is missing or is not a valid date. Not the {data, error} envelope — this is Laravel's default validation-failure body.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationError" }
+              }
+            }
+          },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    },
+    "/leave-requests": {
+      "get": {
+        "summary": "Leave requests",
+        "description": "Requires the leave:read scope. Returns every leave request in the key's company, newest first.",
+        "responses": {
+          "200": {
+            "description": "Every leave request in the key's company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "employee": { "type": ["string", "null"] },
+                          "leave_type": { "type": ["string", "null"] },
+                          "date_from": { "type": "string", "format": "date" },
+                          "date_to": { "type": "string", "format": "date" },
+                          "days": { "type": "number" },
+                          "status": { "type": "string" }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    },
+    "/payslips": {
+      "get": {
+        "summary": "Finalized payslips",
+        "description": "Requires the payslips:read scope. Returns only finalized payslips — draft or in-progress payroll runs never appear here, regardless of scope.",
+        "responses": {
+          "200": {
+            "description": "Every finalized payslip in the key's company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "employee": { "type": ["string", "null"] },
+                          "period": { "type": ["string", "null"] },
+                          "run_status": { "type": "string" },
+                          "gross": { "type": "number" },
+                          "net_pay": { "type": "number" },
+                          "total_deductions": { "type": "number" }
+                        }
+                      }
+                    },
+                    "error": { "type": "null" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MissingScope" },
+          "5XX": { "$ref": "#/components/responses/ServerFault" }
+        }
+      }
+    }
+  }
+}
