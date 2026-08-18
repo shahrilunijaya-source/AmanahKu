@@ -793,7 +793,7 @@ export function registerTimesheetCapture(Alpine) {
                 for (const r of (this.rows[iso] || [])) {
                     const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
                     const key = 'cat:' + r.category_id;
-                    buckets[key] = buckets[key] || { label: cat ? cat.name : '', colour: this.categoryColour(r.category_id), amount: 0 };
+                    buckets[key] = buckets[key] || { label: cat ? this.categoryName(cat) : '', colour: this.categoryColour(r.category_id), amount: 0 };
                     buckets[key].amount += (parseFloat(r.percentage) || 0) * scale;
                 }
             }
