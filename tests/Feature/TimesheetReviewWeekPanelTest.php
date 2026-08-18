@@ -81,4 +81,48 @@ class TimesheetReviewWeekPanelTest extends TestCase
         $this->assertNull($week['status']); // reportData() doesn't pass $timesheetsByWeekStart
         $this->assertSame($entry->id, $week['lines'][0]['id']);
     }
+
+    public function test_screendata_my_weeks_includes_every_week_including_an_empty_draft(): void
+    {
+        $submitted = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-08', 'status' => 'submitted', 'total_hours' => 8,
+        ]);
+        $submitted->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-08',
+            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+        // Current week's draft exists but has no entries yet.
+        Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets');
+
+        $response->assertOk();
+        $weeks = collect($response->viewData('myWeeks'))->keyBy('weekStart');
+        $this->assertCount(2, $weeks);
+        $this->assertSame('submitted', $weeks['2026-06-08']['status']);
+        $this->assertSame(1.0, $weeks['2026-06-08']['days']);
+        $this->assertSame('draft', $weeks['2026-06-15']['status']);
+        $this->assertSame([], $weeks['2026-06-15']['lines']);
+    }
+
+    public function test_existing_grid_rows_carry_the_entry_id(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $entry = $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
+            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $grid = $response->viewData('existingGrid');
+        $this->assertSame($entry->id, $grid['2026-06-15'][0]['id']);
+    }
 }

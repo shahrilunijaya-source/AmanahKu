@@ -99,10 +99,11 @@ class TimesheetController extends Controller
             }
         }
 
-        // Personal time breakdown (person-days, never RM) for the signed-in staff: where
-        // their own recorded time went, by category and by project, over a chosen period.
-        [$pbFrom, $pbTo] = $this->periodFromRequest($request);
-        $myBreakdown = $employee ? $this->personalBreakdown($employee, $pbFrom, $pbTo) : null;
+        // Week-by-week view of the signed-in staff's own entries (Review tab): every
+        // week they have a Timesheet row for, draft or submitted, entries grouped by
+        // day. No date bound — one person's data, small by construction.
+        $myTimesheetsByWeekStart = $myTimesheets->keyBy(fn (Timesheet $t) => $t->week_start->toDateString());
+        $myWeeks = $employee ? $this->buildWeekBlocks($myTimesheets->flatMap->entries, $myTimesheetsByWeekStart) : [];
 
         // The timesheet (if any) for the selected capture week, and its grid prefill.
         $weekTimesheet = $employee
@@ -117,6 +118,7 @@ class TimesheetController extends Controller
                 }
 
                 $existingGrid[$e->entry_date->toDateString()][] = [
+                    'id' => $e->id,
                     'category_id' => $e->category_id,
                     'project_id' => $e->project_id,
                     'sub_pillar_id' => $e->sub_pillar_id,
@@ -170,10 +172,8 @@ class TimesheetController extends Controller
             'timesheetCosts' => $timesheetCosts,
             // Prompt HR to assign a band when the signed-in money-role user has none.
             'positionMissing' => $canSeeCost && $employee && ! $employee->position_id,
-            // Personal time breakdown (days only) + its period.
-            'myBreakdown' => $myBreakdown,
-            'breakdownFrom' => $pbFrom->toDateString(),
-            'breakdownTo' => $pbTo->toDateString(),
+            // Week-by-week view of the signed-in staff's own entries (Review tab).
+            'myWeeks' => $myWeeks,
             // Capture grid inputs.
             'tsCategories' => $this->categoryOptions(),
             'tsProjects' => $this->projectOptions(),
@@ -731,44 +731,6 @@ class TimesheetController extends Controller
         }
 
         return $weekBlocks;
-    }
-
-    /**
-     * One employee's own recorded time (person-days, never RM) over a period, grouped by
-     * category (Study, Leave, …) and by project. Submitted weeks only — this is what
-     * staff see about themselves, without any salary-derived figures.
-     *
-     * @return array<string, mixed>
-     */
-    private function personalBreakdown(Employee $employee, Carbon $from, Carbon $to): array
-    {
-        $entries = TimesheetEntry::with(['category', 'projectRef'])
-            ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id)->where('status', 'submitted'))
-            ->get();
-
-        $total = round($entries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
-        $slice = fn (Collection $rows, string $label) => [
-            'label' => $label,
-            'days' => round($rows->sum(fn ($e) => (float) $e->percentage) / 100, 2),
-            'pct' => $total > 0 ? (int) round($rows->sum(fn ($e) => (float) $e->percentage) / 100 / $total * 100) : 0,
-        ];
-
-        $byCategory = $entries->groupBy(fn ($e) => $e->category?->name ?? 'Uncategorised')
-            ->map(fn (Collection $rows, string $label) => $slice($rows, $label))
-            ->values()->sortByDesc('days')->values()->all();
-
-        $byProject = $entries->filter(fn ($e) => $e->projectRef)
-            ->groupBy(fn ($e) => $e->projectRef->name)
-            ->map(fn (Collection $rows, string $label) => $slice($rows, $label))
-            ->values()->sortByDesc('days')->values()->all();
-
-        return [
-            'totalDays' => $total,
-            'byCategory' => $byCategory,
-            'byProject' => $byProject,
-            'empty' => $entries->isEmpty(),
-        ];
     }
 
     /**
