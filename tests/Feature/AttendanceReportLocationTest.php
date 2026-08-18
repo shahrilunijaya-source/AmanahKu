@@ -126,6 +126,17 @@ class AttendanceReportLocationTest extends TestCase
             ->assertSee('101.717', false);
     }
 
+    public function test_the_map_point_carries_both_language_variants(): void
+    {
+        $subject = $this->subject();
+        $this->offSiteRecord($subject);
+
+        $this->openDrillAs('hr', $subject)
+            ->assertOk()
+            ->assertSee('Clocked in 09:31', false)
+            ->assertSee('Clock in 09:31', false);
+    }
+
     public function test_an_on_site_punch_exposes_no_coordinates(): void
     {
         $subject = $this->subject();

@@ -147,17 +147,21 @@
                         $recFlags = $r->flags ?? [];
                         $locPoints = [];
                         if (in_array('out_of_radius_in', $recFlags, true) && $r->latitude !== null && $r->longitude !== null) {
+                            $inTime = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '';
                             $locPoints[] = [
                                 'lat' => (float) $r->latitude,
                                 'lng' => (float) $r->longitude,
-                                'label' => 'Clocked in '.($r->clock_in ? Str::of($r->clock_in)->limit(5, '') : ''),
+                                'labelEn' => 'Clocked in '.$inTime,
+                                'labelMs' => 'Clock in '.$inTime,
                             ];
                         }
                         if (in_array('out_of_radius_out', $recFlags, true) && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
+                            $outTime = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '';
                             $locPoints[] = [
                                 'lat' => (float) $r->clock_out_latitude,
                                 'lng' => (float) $r->clock_out_longitude,
-                                'label' => 'Clocked out '.($r->clock_out ? Str::of($r->clock_out)->limit(5, '') : ''),
+                                'labelEn' => 'Clocked out '.$outTime,
+                                'labelMs' => 'Clock out '.$outTime,
                             ];
                         }
                     @endphp

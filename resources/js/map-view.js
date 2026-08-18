@@ -29,7 +29,12 @@ async function loadLeaflet() {
  * punched, so read-only is structural rather than a setting that can be flipped.
  *
  * A row opens it by firing a window `open-map-view` event:
- *   detail: { title: 'Ravi Kumar · Tue, 12 Aug', points: [{ lat, lng, label }] }
+ *   detail: { title: 'Ravi Kumar · Tue, 12 Aug', points: [{ lat, lng, labelEn, labelMs }] }
+ *
+ * Point labels carry both languages rather than one baked string, since the
+ * tooltip is genuine user-facing text and must follow the EN/BM toggle like
+ * everything else on the screen. `label` (no suffix) is accepted as a
+ * fallback for callers that only have one string.
  */
 export function registerMapView(Alpine) {
     Alpine.data('mapView', () => ({
@@ -42,6 +47,13 @@ export function registerMapView(Alpine) {
         init() {
             this._onOpen = (ev) => this.show(ev.detail || {});
             window.addEventListener('open-map-view', this._onOpen);
+
+            // Re-bind tooltips if the language toggle fires while the map is open.
+            this.$watch(() => Alpine.store('ui').lang, () => {
+                if (this.open && this.map) {
+                    this.render();
+                }
+            });
         },
 
         destroy() {
@@ -80,9 +92,12 @@ export function registerMapView(Alpine) {
             this.markers.forEach((m) => this.map.removeLayer(m));
             this.markers = [];
 
+            const isEn = Alpine.store('ui').lang === 'en';
+
             this.points.forEach((p) => {
                 const marker = L.marker([p.lat, p.lng], { icon: pinIcon }).addTo(this.map);
-                marker.bindTooltip(p.label, { permanent: true, direction: 'top', offset: [0, -10] });
+                const label = (isEn ? p.labelEn : p.labelMs) ?? p.label ?? '';
+                marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
                 this.markers.push(marker);
             });
 
