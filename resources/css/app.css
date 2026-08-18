@@ -1916,6 +1916,18 @@ select.wd-inline {
 .uj-tr-wk[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
 .uj-tr-wk[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
 
+.uj-tr-status-badge { display: inline-block; font-size: var(--t-micro); font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+.uj-tr-status-badge[data-status="draft"] { color: var(--muted); background: var(--hairline-soft); }
+.uj-tr-status-badge[data-status="submitted"] { color: var(--amber-ink); background: #f8ecd8; }
+
+.uj-tr-weekpick { display: block; width: 100%; max-width: 280px; margin: 8px auto 12px; padding: 7px 10px; text-align: center; font-size: var(--t-sm); color: var(--ink); background: var(--card); border: 1px solid var(--shelf-line); border-radius: 9px; }
+
+/* Review tab's entry rows are real links into Record; the report screen's own
+   .uj-tr-ent (plain divs, no link) is untouched by this. */
+a.uj-tr-ent { text-decoration: none; cursor: pointer; border-radius: 8px; margin: 0 -8px; padding: 3px 8px; transition: background .12s var(--ease); }
+a.uj-tr-ent:hover { background: var(--hairline-soft); }
+a.uj-tr-ent:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }
   .uj-tr-panel[data-dir="fwd"], .uj-tr-panel[data-dir="back"],

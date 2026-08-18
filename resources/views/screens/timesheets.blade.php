@@ -8,12 +8,6 @@
         'rejected' => 'var(--error)',
     ];
 
-    // Manday costing — visible to money roles only (manager/management/HR), set by TimesheetController.
-    $canSeeCost = $canSeeCost ?? false;
-    $timesheetCosts = $timesheetCosts ?? [];
-    $rm = fn ($id) => array_key_exists($id, $timesheetCosts) && $timesheetCosts[$id] !== null
-        ? 'RM '.number_format($timesheetCosts[$id], 2) : null;
-
     $weekStatus = $weekStatus ?? null;
     $weekLocked = $weekStatus && $weekStatus !== 'draft';
 
@@ -752,96 +746,75 @@
     </div>
     </div>
 
-    <div x-show="tab==='review'" x-cloak role="tabpanel">
-    @if ($canSeeCost && $myTimesheets->isNotEmpty())
-    {{-- ===================== REFERENCE PANEL: My weeks (RM, money roles only) ===================== --}}
-    {{-- Read-only — editing and submitting a week both live on the Record tab now, this
-         is only where a money role can see what their own weeks cost. --}}
-    <div class="uj-card" style="margin-bottom:16px;">
-        <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
-            <span x-text="$store.ui.lang==='en' ? 'My weeks' : 'Minggu saya'">My weeks</span>
-        </div>
-        <div>
-        @foreach ($myTimesheets as $t)
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--hairline-soft);">
-                <div style="min-width:0;">
-                    <div style="font-size:13px;color:var(--ink);">{{ $t->week_label ?: $t->week_start->format('j M Y') }}</div>
-                    <div style="font-size:11px;font-weight:600;color:{{ $sc[$t->status] }};">{{ ucfirst($t->status) }}</div>
+    <div x-show="tab==='review'" x-cloak role="tabpanel"
+         x-data="timesheetReview({
+            baseUrl: @js(route('app.screen', ['screen' => 'timesheets'])),
+            weeks: @js($myWeeks),
+         })">
+        <template x-if="weeks.length === 0">
+            <div class="uj-tr-panel">
+                <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No weeks yet.' : 'Belum ada minggu.'"></div>
+            </div>
+        </template>
+        <template x-if="weeks.length > 0">
+            <div class="uj-tr-panel">
+                <div class="uj-tr-weeknav-hd">
+                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeks.length"></span>
+                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeks.length - 1"
+                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                 </div>
-                @if ($rm($t->id))
-                    <div style="font-size:12px;font-family:var(--font-mono);color:var(--success);flex-shrink:0;">{{ $rm($t->id) }}</div>
-                @endif
-            </div>
-        @endforeach
-        </div>
-    </div>
-    @endif
-    {{-- ===================== REFERENCE PANEL: My time spent ===================== --}}
-    <div class="uj-card">
-        {{-- Section: My time spent (personal, person-days only — never RM) --}}
-        @if (! empty($myBreakdown))
-            @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-            <div style="padding:16px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
-                <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
-            </div>
-            <div style="padding:16px 22px 20px;">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
-                    <div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Where your recorded time went — by category and project. Submitted weeks only.' : 'Ke mana masa anda direkod — mengikut kategori dan projek. Minggu dihantar sahaja.'"></span></div>
-            </div>
-            <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-                <input type="hidden" name="week" value="{{ $weekStart }}" />
-                <div>
-                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
-                    <input type="date" name="from" value="{{ $breakdownFrom }}" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
-                </div>
-                <div>
-                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
-                    <input type="date" name="to" value="{{ $breakdownTo }}" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
-                </div>
-                <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
-            </form>
-        </div>
-
-        @if ($myBreakdown['empty'])
-            <div style="padding:22px;text-align:center;font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No recorded time in this period. Submit a week to see your breakdown.' : 'Tiada masa direkod dalam tempoh ini. Hantar satu minggu untuk melihat pecahan anda.'"></span></div>
-        @else
-            <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">
-                <span style="font-family:var(--font-mono);color:var(--ink);font-weight:600;">{{ $totalMd }}</span>
-                <span x-text="$store.ui.lang==='en' ? 'person-days total' : 'hari-orang jumlah'">person-days total</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px;">
-                <div>
-                    <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:11px;"><span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span></div>
-                    @foreach ($myBreakdown['byCategory'] as $row)
-                        <div style="margin-bottom:9px;">
-                            <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $row['label'] }}</span>
-                                <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">{{ rtrim(rtrim(number_format($row['days'], 2), '0'), '.') }} md · {{ $row['pct'] }}%</span>
-                            </div>
-                            <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;"><div style="height:100%;width:{{ $row['pct'] }}%;background:var(--info);border-radius:9999px;"></div></div>
+                <select class="uj-tr-weekpick" x-model.number="weekIdx"
+                    :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
+                    <template x-for="(w, i) in weeks" :key="i">
+                        <option :value="i" x-text="w.label + ' — ' + w.dates"></option>
+                    </template>
+                </select>
+                <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
+                    <div class="uj-tr-wk" :data-dir="weekDir">
+                        <div class="hdr">
+                            <span x-text="wk.label + ' · ' + wk.dates"></span>
+                            <span>
+                                <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"
+                                    x-text="wk.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar') : ($store.ui.lang==='en' ? 'Draft' : 'Draf')"></span>
+                                <span x-text="fmtDays(wk.days) + ' md'"></span>
+                            </span>
                         </div>
-                    @endforeach
-                </div>
-                <div>
-                    <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:11px;"><span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span></div>
-                    @forelse ($myBreakdown['byProject'] as $row)
-                        <div style="margin-bottom:9px;">
-                            <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $row['label'] }}</span>
-                                <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">{{ rtrim(rtrim(number_format($row['days'], 2), '0'), '.') }} md · {{ $row['pct'] }}%</span>
-                            </div>
-                            <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;"><div style="height:100%;width:{{ $row['pct'] }}%;background:var(--success);border-radius:9999px;"></div></div>
-                        </div>
-                    @empty
-                        <div style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No project-linked time in this period.' : 'Tiada masa berkaitan projek dalam tempoh ini.'">No project-linked time.</span></div>
-                    @endforelse
-                </div>
+                        <template x-if="wk.lines.length === 0">
+                            <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
+                        </template>
+                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
+                            <template x-if="line.id">
+                                <a class="uj-tr-ent" :href="entryUrl(line)">
+                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
+                                    <span x-text="line.label"></span>
+                                    <template x-if="line.note">
+                                        <span class="n" x-html="line.note"></span>
+                                    </template>
+                                    <span class="d" x-text="fmtDays(line.days)"></span>
+                                </a>
+                            </template>
+                            <template x-if="!line.id">
+                                <div class="uj-tr-ent">
+                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
+                                    <span x-text="line.label"></span>
+                                    <template x-if="line.note">
+                                        <span class="n" x-html="line.note"></span>
+                                    </template>
+                                    <span class="d" x-text="fmtDays(line.days)"></span>
+                                </div>
+                            </template>
+                        </template>
+                        <template x-if="wk.status === 'submitted'">
+                            <div class="uj-tr-note" x-text="$store.ui.lang==='en'
+                                ? 'This week is submitted. Click an entry to open it on the Record tab — reopen it there to make changes.'
+                                : 'Minggu ini telah dihantar. Ketik satu entri untuk membukanya di tab Rekod — buka semula di sana untuk membuat perubahan.'"></div>
+                        </template>
+                    </div>
+                </template>
             </div>
-        @endif
-    </div>
-@endif
-    </div>
+        </template>
     </div>{{-- /tab=review panel --}}
 </div>{{-- /tab root --}}
 @endsection

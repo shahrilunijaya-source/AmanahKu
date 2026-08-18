@@ -125,4 +125,42 @@ class TimesheetReviewWeekPanelTest extends TestCase
         $grid = $response->viewData('existingGrid');
         $this->assertSame($entry->id, $grid['2026-06-15'][0]['id']);
     }
+
+    public function test_review_tab_renders_week_nav_and_entry_link(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
+            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        $response->assertOk();
+        // The component is wired with the controller's myWeeks data. @js() hex-escapes
+        // quotes into JSON.parse('...'), so this checks for the unescaped key/value text
+        // rather than matching the exact quoting, which is Js::from()'s concern, not this
+        // view's.
+        $response->assertSee('timesheetReview(', false);
+        $response->assertSee('weekStart', false);
+        $response->assertSee('2026-06-15', false);
+    }
+
+    public function test_review_tab_has_no_cost_gate(): void
+    {
+        // A plain employee (not a money role) still gets myWeeks — no canSeeCost check
+        // wraps the Review tab any more.
+        Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        $response->assertOk();
+        $response->assertSee('timesheetReview(', false);
+    }
 }
