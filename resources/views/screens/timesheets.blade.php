@@ -99,6 +99,7 @@
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
+            editEntryId: @js(request()->query('edit')),
          })"
          @popstate.window="if ($store.tsReview.open) closeReview()"
          @keydown.escape.window="if ($store.tsReview.open) history.back()">
