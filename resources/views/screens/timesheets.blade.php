@@ -789,11 +789,18 @@
                              underline needed, not in tab order, not clickable. --}}
                         <template x-for="(line, lidx) in wk.lines" :key="lidx">
                             <a class="uj-tr-ent" :href="entryUrl(line)">
-                                <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                <span x-text="line.label"></span>
-                                <template x-if="line.note">
-                                    <span class="n" x-html="line.note"></span>
-                                </template>
+                                <div>
+                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
+                                    <template x-if="line.category">
+                                        <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
+                                    </template>
+                                    <template x-if="line.project">
+                                        <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
+                                    </template>
+                                    <template x-if="line.note">
+                                        <span class="n" x-html="line.note"></span>
+                                    </template>
+                                </div>
                                 <span class="d" x-text="fmtDays(line.days)"></span>
                             </a>
                         </template>

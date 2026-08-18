@@ -701,16 +701,18 @@ class TimesheetController extends Controller
 
             $lines = [];
             foreach ($sortedLines as $e) {
-                $labelParts = array_filter([
-                    $e->category?->name ?: $e->project,
-                    $e->projectRef?->name,
-                    $e->subPillar?->name,
-                ]);
+                $category = $e->category?->name ?: $e->project;
+                $project = implode(' · ', array_filter([$e->projectRef?->name, $e->subPillar?->name]));
 
                 $lines[] = [
                     'id' => $e->id,
                     'day' => $e->entry_date->format('D j M'),
-                    'label' => implode(' · ', $labelParts),
+                    // label: pre-joined "category · project · sub-pillar" for the all-staff
+                    // report's single-line rows. category/project: the same parts kept
+                    // separate, for the Review tab's two-pill rows.
+                    'label' => implode(' · ', array_filter([$category, $project])),
+                    'category' => $category ?: null,
+                    'project' => $project ?: null,
                     'note' => $e->description,
                     'days' => round((float) $e->percentage / 100, 2),
                 ];
