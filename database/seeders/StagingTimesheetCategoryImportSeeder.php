@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Project;
-use App\Models\ProjectSubPillar;
 use App\Models\Tenant;
 use App\Models\TimesheetCategory;
 use Illuminate\Database\Seeder;
@@ -11,11 +10,10 @@ use Illuminate\Database\Seeder;
 class StagingTimesheetCategoryImportSeeder extends Seeder
 {
     /**
-     * One-off import of staging's timesheet categories, projects, and project
-     * sub-pillars into prod. Additive only: for each tenant, adds any staging
-     * row whose name isn't already present (case-insensitive, sub-pillars scoped
-     * to their project), appended after the tenant's current max sort. Existing
-     * prod rows are never modified or removed.
+     * One-off import of staging's timesheet categories and projects into prod.
+     * Additive only: for each tenant, adds any staging row whose name isn't
+     * already present (case-insensitive), appended after the tenant's current
+     * max sort. Existing prod rows are never modified or removed.
      */
     public function run(): void
     {
@@ -32,22 +30,13 @@ class StagingTimesheetCategoryImportSeeder extends Seeder
             ['Public Holiday', 'Cuti Umum', false],
         ];
 
-        // Project name => sub-pillar names — from staging tenant 1, 2026-08-05.
+        // Project names — from staging tenant 1, 2026-08-05. Sub-pillars are no
+        // longer per project (see the sub_pillars migration), so this import only
+        // creates the projects; the shared list is seeded by ProjectSeeder.
         $stagingProjects = [
-            'JKDM: MyStods' => ['Management', 'Technical', 'Meeting'],
-            'JKDM: MyDLV' => ['Management', 'Meeting', 'Technical'],
-            'KKM: NSFIRM' => ['Management', 'Meeting', 'Technical'],
-            'SPA: IRIS' => ['Technical', 'Meeting', 'Management'],
-            'MOTAC: TTMS' => ['Management', 'Meeting', 'Technical'],
-            'KUSKOP: EPMS' => ['Technical', 'Meeting', 'Management'],
-            'KDN: iLPF' => ['Technical', 'Meeting', 'Management'],
-            'KKDW: Pendigitalan' => ['Management', 'Technical', 'Meeting'],
-            'DOA: MyLRMP' => ['Management', 'Meeting', 'Technical'],
-            'JBG: iGuaman' => ['Technical', 'Meeting', 'Management'],
-            'DOSM: HIES/BA' => ['Technical', 'Management', 'Meeting'],
-            'JSM: eACC' => ['Meeting', 'Management', 'Technical'],
-            'InHouse Project X' => [],
-            'Amanahku' => [],
+            'JKDM: MyStods', 'JKDM: MyDLV', 'KKM: NSFIRM', 'SPA: IRIS', 'MOTAC: TTMS',
+            'KUSKOP: EPMS', 'KDN: iLPF', 'KKDW: Pendigitalan', 'DOA: MyLRMP',
+            'JBG: iGuaman', 'DOSM: HIES/BA', 'JSM: eACC', 'InHouse Project X', 'Amanahku',
         ];
 
         foreach (Tenant::all() as $tenant) {
@@ -87,50 +76,29 @@ class StagingTimesheetCategoryImportSeeder extends Seeder
     }
 
     /**
-     * @param  array<string, array<int, string>>  $stagingProjects
+     * @param  array<int, string>  $stagingProjects
      */
     private function importProjects(int $tenantId, array $stagingProjects): void
     {
         $nextProjectSort = (int) Project::where('tenant_id', $tenantId)->max('sort');
 
-        foreach ($stagingProjects as $projectName => $subPillars) {
-            $project = Project::where('tenant_id', $tenantId)
+        foreach ($stagingProjects as $projectName) {
+            $exists = Project::where('tenant_id', $tenantId)
                 ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($projectName))])
-                ->first();
+                ->exists();
 
-            if (! $project) {
-                $nextProjectSort++;
-
-                $project = Project::create([
-                    'tenant_id' => $tenantId,
-                    'name' => $projectName,
-                    'sort' => $nextProjectSort,
-                    'is_active' => true,
-                ]);
+            if ($exists) {
+                continue;
             }
 
-            $existingSubPillarNames = ProjectSubPillar::where('project_id', $project->id)
-                ->pluck('name')
-                ->map(fn (string $name) => mb_strtolower(trim($name)))
-                ->all();
+            $nextProjectSort++;
 
-            $nextSubPillarSort = (int) ProjectSubPillar::where('project_id', $project->id)->max('sort');
-
-            foreach ($subPillars as $subPillarName) {
-                if (in_array(mb_strtolower(trim($subPillarName)), $existingSubPillarNames, true)) {
-                    continue;
-                }
-
-                $nextSubPillarSort++;
-
-                ProjectSubPillar::create([
-                    'tenant_id' => $tenantId,
-                    'project_id' => $project->id,
-                    'name' => $subPillarName,
-                    'sort' => $nextSubPillarSort,
-                    'is_active' => true,
-                ]);
-            }
+            Project::create([
+                'tenant_id' => $tenantId,
+                'name' => $projectName,
+                'sort' => $nextProjectSort,
+                'is_active' => true,
+            ]);
         }
     }
 }

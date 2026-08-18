@@ -199,4 +199,75 @@ class TeamBoardDataTest extends TestCase
         $this->assertContains($report->id, $ownerIds, 'Direct report must be visible');
         $this->assertNotContains($outsider->id, $ownerIds, 'Outsider must not be visible under team scope');
     }
+
+    public function test_can_assign_flag_true_for_manager(): void
+    {
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $this->assertTrue($response->viewData('canAssign'));
+    }
+
+    /**
+     * An 'employee'-role user with a direct report can still see team board
+     * (Permissions::canSeeAll()'s reports_to_id clause), but is not one of
+     * the three assign-permitted roles — the button must stay hidden for them.
+     */
+    public function test_can_assign_flag_false_for_lead_without_assign_role(): void
+    {
+        $leadUser = User::create(['name' => 'Lead', 'email' => 'lead@example.com', 'password' => Hash::make('password')]);
+        $leadUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $lead = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $leadUser->id,
+            'name' => 'Lead', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $this->makeEmployee('Report', ['reports_to_id' => $lead->id]);
+        $this->makeCard($lead);
+
+        $response = $this->actingAs($leadUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/team-board');
+        $response->assertOk();
+
+        $this->assertFalse($response->viewData('canAssign'));
+    }
+
+    public function test_assignable_employees_are_active_and_exclude_self(): void
+    {
+        $alice = $this->makeEmployee('Alice');
+        $archived = $this->makeEmployee('Gone', ['archived_at' => now()]);
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $roster = $response->viewData('assignableEmployees');
+        $ids = $roster->pluck('id')->all();
+
+        $this->assertContains($alice->id, $ids);
+        $this->assertNotContains($archived->id, $ids, 'Archived staff must not be assignable');
+        $this->assertNotContains($this->managerEmployee->id, $ids, 'Viewer must not appear in their own assign-to roster');
+    }
+
+    /**
+     * The roster is deliberately NOT restricted to people already carrying a
+     * task — that's the whole point (assign to someone with zero open items).
+     */
+    public function test_assignable_employees_include_people_with_no_current_tasks(): void
+    {
+        $noTasks = $this->makeEmployee('Fresh Hire');
+        $this->makeCard($this->managerEmployee);
+
+        $response = $this->actingAsManager()->get('/app/team-board');
+        $response->assertOk();
+
+        $roster = $response->viewData('assignableEmployees');
+        $this->assertContains($noTasks->id, $roster->pluck('id')->all());
+
+        // Confirm the person table itself stays as-is (this employee has no row there).
+        $teamPeople = $response->viewData('teamPeople');
+        $this->assertNotContains($noTasks->id, $teamPeople->pluck('id')->all());
+    }
 }

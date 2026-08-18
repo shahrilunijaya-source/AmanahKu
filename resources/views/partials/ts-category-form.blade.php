@@ -1,4 +1,6 @@
-{{-- Shared add/edit form for a timesheet category. Expects $category (or null), $action, $submitLabel. --}}
+{{-- Shared add/edit form for a timesheet category. Expects $category (or null), $action.
+     The submit label is derived from $category (add vs. edit) rather than passed in, so
+     it renders bilingually the same way for every caller. --}}
 @php $c = $category ?? null; @endphp
 <form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;flex-direction:column;gap:12px;">
     @csrf
@@ -27,5 +29,13 @@
             <span x-text="$store.ui.lang==='en' ? 'Active (shown to staff)' : 'Aktif (dipaparkan kepada staf)'">Active</span>
         </label>
     @endif
-    <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">{{ $submitLabel }}</button></div>
+    <div>
+        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">
+            @if ($c)
+                <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span>
+            @else
+                <span x-text="$store.ui.lang==='en' ? 'Add category' : 'Tambah kategori'">Add category</span>
+            @endif
+        </button>
+    </div>
 </form>

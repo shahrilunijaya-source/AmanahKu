@@ -1,5 +1,10 @@
-{{-- Shared add/edit form for a project. Expects $project (or null), $action, $submitLabel. --}}
-@php $p = $project ?? null; @endphp
+{{-- Shared add/edit form for a project. Expects $project (or null), $action, $categories.
+     The submit label is derived from $project (add vs. edit) rather than passed in, so
+     it renders bilingually the same way for every caller. --}}
+@php
+    $p = $project ?? null;
+    $selectedCategoryIds = array_map('strval', old('categories', $p ? $p->categories->pluck('id')->all() : []));
+@endphp
 <form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;flex-direction:column;gap:12px;">
     @csrf
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -16,6 +21,20 @@
             <input type="number" name="sort" min="0" max="9999" value="{{ old('sort', $p->sort ?? 0) }}" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;font-family:var(--font-mono);outline:none;" />
         </div>
     </div>
+    @if ($categories->isNotEmpty())
+        <div>
+            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Categories' : 'Kategori'">Categories</span></label>
+            <div class="uj-cat-chips" role="group" aria-label="Categories" x-data="{ selected: @js($selectedCategoryIds) }">
+                @foreach ($categories as $cat)
+                    <label class="uj-cat-chip" :class="{ 'is-on': selected.includes('{{ $cat->id }}') }">
+                        <input type="checkbox" name="categories[]" value="{{ $cat->id }}" class="uj-sr-only" x-model="selected" />
+                        <svg class="uj-cat-chip-tick" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        {{ $cat->name }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
+    @endif
     @if ($p)
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--body);cursor:pointer;">
             <input type="hidden" name="is_active" value="0" />
@@ -23,5 +42,13 @@
             <span x-text="$store.ui.lang==='en' ? 'Active (shown to staff)' : 'Aktif (dipaparkan kepada staf)'">Active</span>
         </label>
     @endif
-    <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">{{ $submitLabel }}</button></div>
+    <div>
+        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">
+            @if ($p)
+                <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span>
+            @else
+                <span x-text="$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'">Add project</span>
+            @endif
+        </button>
+    </div>
 </form>

@@ -76,12 +76,25 @@ class WorkItemController extends Controller
         // No new work onto an archived person — they hold no live responsibility (H8).
         abort_if($employee->isArchived(), 422, 'You cannot assign a task to an archived staff member.');
 
+        // Same rule update() applies (isUntouchedLinkRow(), below) — a link row left
+        // completely blank is dropped rather than rejected, so a form always carrying
+        // one empty row (see team-board.blade.php) doesn't fail validation by default.
+        if (is_array($request->input('links'))) {
+            $request->merge(['links' => array_values(array_filter(
+                $request->input('links'),
+                fn ($link) => is_array($link) && ! $this->isUntouchedLinkRow($link),
+            ))]);
+        }
+
         $data = $request->validateWithBag('assign', [
             'title' => ['required', 'string', 'max:160'],
             'type' => ['required', 'in:assignment,task,adhoc'],
             'priority' => ['required', 'in:high,medium,low'],
             'due_at' => ['nullable', 'date'],
             'description' => ['nullable', 'string', 'max:5000'],
+            'links' => ['sometimes', 'array', 'max:12'],
+            'links.*.label' => ['required_with:links', 'string', 'max:60'],
+            'links.*.url' => ['required_with:links', 'url', 'max:2000'],
         ]);
 
         $item = $employee->workItems()->create([
@@ -90,6 +103,7 @@ class WorkItemController extends Controller
             'priority' => $data['priority'],
             'due_at' => $data['due_at'] ?? null,
             'description' => $data['description'] ?? null,
+            'links' => $data['links'] ?? [],
             'status' => 'todo',
             'progress' => 0,
             'assigned_by_id' => $assigner->id,

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
@@ -22,13 +23,20 @@ class Project extends Model
         ];
     }
 
-    public function subPillars(): HasMany
+    /** Timesheet categories this project falls under (e.g. Development, Maintenance). */
+    public function categories(): BelongsToMany
     {
-        return $this->hasMany(ProjectSubPillar::class);
+        return $this->belongsToMany(TimesheetCategory::class, 'project_timesheet_category');
     }
 
     public function entries(): HasMany
     {
         return $this->hasMany(TimesheetEntry::class);
+    }
+
+    /** Board cards that name this project. Counted on the Projects register. */
+    public function workItems(): HasMany
+    {
+        return $this->hasMany(WorkItem::class, 'project_id');
     }
 }

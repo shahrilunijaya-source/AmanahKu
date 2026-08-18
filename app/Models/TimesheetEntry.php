@@ -31,6 +31,7 @@ class TimesheetEntry extends Model
         ];
     }
 
+    /** @return BelongsTo<Timesheet, $this> */
     public function timesheet(): BelongsTo
     {
         return $this->belongsTo(Timesheet::class);
@@ -54,6 +55,6 @@ class TimesheetEntry extends Model
 
     public function subPillar(): BelongsTo
     {
-        return $this->belongsTo(ProjectSubPillar::class, 'sub_pillar_id');
+        return $this->belongsTo(SubPillar::class, 'sub_pillar_id');
     }
 }

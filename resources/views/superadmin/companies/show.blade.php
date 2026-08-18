@@ -38,6 +38,7 @@
             </div>
             <a href="{{ route('superadmin.companies.edit', $company) }}" class="uj-btn" style="text-decoration:none;padding:10px 16px;border:1px solid var(--hairline,#e6e6ec);border-radius:10px;font-size:13.5px;font-weight:600;background:#fff;color:var(--ink);">Edit profile</a>
             <a href="{{ route('superadmin.companies.features', $company) }}" class="uj-btn" style="text-decoration:none;padding:10px 16px;border:1px solid var(--hairline,#e6e6ec);border-radius:10px;font-size:13.5px;font-weight:600;background:#fff;color:var(--ink);">Feature matrix →</a>
+            <a href="{{ route('superadmin.companies.api-keys', $company) }}" class="uj-btn" style="text-decoration:none;padding:10px 16px;border:1px solid var(--hairline,#e6e6ec);border-radius:10px;font-size:13.5px;font-weight:600;background:#fff;color:var(--ink);">API keys →</a>
         </div>
 
         @if (session('ok'))

@@ -4,6 +4,7 @@ use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\ActivationController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AssistantController;
@@ -43,7 +44,7 @@ use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
-use App\Http\Controllers\ProjectQuickCreateController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
@@ -57,6 +58,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\SkillController;
+use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
 use App\Http\Controllers\SuperAdmin\ErrorEventController;
@@ -93,6 +95,13 @@ Route::get('/login/{tenant:slug}', [AppController::class, 'brandedLogin'])->name
 Route::get('/activate/{user}', [ActivationController::class, 'show'])->middleware('signed')->name('activation.show');
 Route::post('/activate/{user}', [ActivationController::class, 'update'])->middleware('signed')->name('activation.update');
 
+// Public API reference for the apps that consume AmanahKu (Track, DevStage 01,
+// SupportOS). No auth on purpose: it documents shapes, not data, and public/openapi.json
+// is already served unauthenticated. Deliberately not under /api/*, where the exception
+// handler renders every error as JSON — a typo'd URL there would hand a developer a raw
+// JSON body instead of a 404 page.
+Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
+
 Route::middleware('auth')->group(function () {
     // First-sign-in password rotation for invited members (I-008). Outside the tenant
     // group so a freshly-invited user can rotate before selecting a tenant. The
@@ -117,6 +126,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
+
+        // Machine API keys, per company. An app key belongs to an ApiClient rather than
+        // a staff member, so it survives that person leaving and carries only the scopes
+        // ticked here. Super-admin only: a key that reads projects is one mis-tick away
+        // from a key that reads payslips.
+        Route::get('/companies/{tenant:slug}/api-keys', [ApiKeyController::class, 'index'])->name('companies.api-keys');
+        Route::post('/companies/{tenant:slug}/api-keys', [ApiKeyController::class, 'store'])->name('companies.api-keys.store');
+        Route::post('/companies/{tenant:slug}/api-keys/{token}/revoke', [ApiKeyController::class, 'revoke'])->name('companies.api-keys.revoke');
 
         // Captured production faults. A user reports the reference printed on the error
         // page and this is where it is read back. Super-admin only: a stack trace names
@@ -389,19 +406,19 @@ Route::middleware('auth')->group(function () {
         // Per-staff reusable allocation templates (owned by the acting employee)
         Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
         Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');
-        // Timesheet master data (categories / projects / sub-pillars) — privileged (management / HR)
+        // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');
         Route::post('/app/timesheet-setup/categories/{category}', [TimesheetAdminController::class, 'updateCategory'])->name('timesheet.admin.categories.update');
         Route::post('/app/timesheet-setup/categories/{category}/delete', [TimesheetAdminController::class, 'deleteCategory'])->name('timesheet.admin.categories.delete');
-        Route::post('/app/timesheet-setup/projects', [TimesheetAdminController::class, 'storeProject'])->name('timesheet.admin.projects.store');
-        Route::post('/app/timesheet-setup/projects/{project}', [TimesheetAdminController::class, 'updateProject'])->name('timesheet.admin.projects.update');
-        Route::post('/app/timesheet-setup/projects/{project}/delete', [TimesheetAdminController::class, 'deleteProject'])->name('timesheet.admin.projects.delete');
-        Route::post('/app/timesheet-setup/projects/{project}/subpillars', [TimesheetAdminController::class, 'storeSubPillar'])->name('timesheet.admin.subpillars.store');
-        Route::post('/app/timesheet-setup/subpillars/{subPillar}', [TimesheetAdminController::class, 'updateSubPillar'])->name('timesheet.admin.subpillars.update');
-        Route::post('/app/timesheet-setup/subpillars/{subPillar}/delete', [TimesheetAdminController::class, 'deleteSubPillar'])->name('timesheet.admin.subpillars.delete');
+        // Projects register (Workplace → Projects) — manager / management / HR write,
+        // everyone reads. Sub-pillars are tenant-wide, not nested under a project.
+        Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
+        Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
+        Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
+        Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
+        Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
+        Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');
 
-        // Minimal project creation open to manager/management/hr — feeds Track's link.
-        Route::post('/app/project-quick-create', [ProjectQuickCreateController::class, 'store'])->name('project-quick-create.store');
         // Learning library / LMS
         Route::post('/app/learning/courses', [LearningController::class, 'storeCourse'])->name('learning.courses');
         Route::post('/app/learning/{course}/enroll', [LearningController::class, 'enroll'])->name('learning.enroll');

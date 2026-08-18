@@ -1,11 +1,46 @@
 # Newest release first. tag is one of: added, improved, fixed.
 # text_ms is optional — falls back to `text` when omitted.
+# A \n inside a double-quoted text renders as a line break (the screen sets
+# white-space: pre-line). Keep text and text_ms broken at the same places.
+# link/link_text/link_text_ms are optional too: they render a button beside the
+# entry, for a release note that names a screen worth opening.
 #
 # Version is semver MAJOR.MINOR, not CalVer, and tracks what actually lands on
 # gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.4"
+  date: "2026-08-18"
+  entries:
+    - tag: added
+      text: "New Projects screen under Workplace: every project in the company in one list, with how much each one is actually being used. Everyone can see it; managers, HR and management can add and edit. It replaces the old New Project screen, which could only create."
+      text_ms: "Skrin Projek baharu di bawah Tempat Kerja: setiap projek syarikat dalam satu senarai, lengkap dengan sebanyak mana ia digunakan. Semua orang boleh melihatnya; pengurus, HR dan pengurusan boleh menambah dan menyunting. Ia menggantikan skrin Projek Baharu lama yang hanya boleh mencipta."
+    - tag: improved
+      text: "Sub-pillars are now one shared list used by every project, instead of a separate copy kept under each one. Adding a project no longer means retyping Management, Meeting and Technical, and renaming one changes it everywhere at once."
+      text_ms: "Sub-tiang kini satu senarai yang dikongsi setiap projek, bukan salinan berasingan di bawah setiap satu. Menambah projek tidak lagi bermakna menaip semula Pengurusan, Mesyuarat dan Teknikal, dan menukar nama satu sub-tiang mengubahnya di semua tempat sekali gus."
+    - tag: improved
+      text: "Timesheet Setup now covers categories only. Projects and sub-pillars moved to the Projects screen, so there is one place to manage them."
+      text_ms: "Tetapan Lembaran Masa kini merangkumi kategori sahaja. Projek dan sub-tiang telah berpindah ke skrin Projek, jadi ada satu tempat sahaja untuk mengurusnya."
+    - tag: improved
+      text: "On the timesheet, a project that previously had no sub-pillars now shows the sub-pillar step like every other project. \"The whole project\" stays the first choice, so booking time against it is still one tap."
+      text_ms: "Pada lembaran masa, projek yang sebelum ini tiada sub-tiang kini memaparkan langkah sub-tiang seperti projek lain. \"Keseluruhan projek\" kekal pilihan pertama, jadi merekod masa untuknya masih satu ketukan."
+    - tag: added
+      text: "Other Unijaya systems can now be given their own key to read AmanahKu's project list, staff directory and weekly effort. Each key is limited to exactly what that system needs, belongs to the system rather than to a person, and can be cancelled at any time from the super admin console.\nA developer reference for that connection now lives at /docs/api, with sample code and a one-click copy for AI coding tools."
+      text_ms: "Sistem Unijaya yang lain kini boleh diberi kunci mereka sendiri untuk membaca senarai projek, direktori kakitangan dan usaha mingguan AmanahKu. Setiap kunci terhad kepada apa yang sistem itu perlukan sahaja, dimiliki oleh sistem itu dan bukan oleh seseorang, dan boleh dibatalkan bila-bila masa dari konsol super admin.\nRujukan pembangun untuk sambungan itu kini berada di /docs/api, lengkap dengan contoh kod dan satu klik salin untuk alat pengekodan AI."
+      link: "/docs/api"
+      link_text: "Open the API reference"
+      link_text_ms: "Buka rujukan API"
+    - tag: improved
+      text: "Projects shared with other systems now carry their category tags, so a connected system can tell whether a project is Development, Maintenance, InHouse or Sales work."
+      text_ms: "Projek yang dikongsi dengan sistem lain kini membawa tag kategorinya, supaya sistem yang bersambung tahu sama ada sesuatu projek ialah kerja Pembangunan, Penyelenggaraan, InHouse atau Jualan."
+    - tag: fixed
+      text: "The Add passkey button on Account & Security now works when you reach that screen by clicking around the app, not only on a fresh page load."
+      text_ms: "Butang Tambah passkey pada skrin Akaun & Keselamatan kini berfungsi apabila anda sampai ke skrin itu dengan mengklik dalam aplikasi, bukan hanya semasa muat halaman baharu."
+    - tag: fixed
+      text: "Adding a note on the timesheet screen no longer breaks with an error after an app update. It now reloads once automatically to pick up the latest version."
+      text_ms: "Menambah nota pada skrin lembaran masa tidak lagi rosak dengan ralat selepas kemas kini aplikasi. Ia kini memuat semula sekali secara automatik untuk mendapatkan versi terkini."
+
 - version: "1.3"
   date: "2026-08-14"
   entries:
