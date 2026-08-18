@@ -295,11 +295,27 @@ payload = r.<span class="f">json</span>()
       <h2>Endpoints</h2>
       <p class="sub">Real response bodies, not invented ones.</p>
 
-      <details class="ep" open>
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/projects</span><span class="tail"><span class="scope" style="margin:0">projects:read</span></span></summary>
-        <div class="body">
-          <p>Active projects only. <code>categories</code> is sorted alphabetically and is <code>[]</code> for an untagged project.</p>
-          <div class="codewrap rel"><button class="copysm" onclick="copyPre(this)">Copy</button><pre>{
+      {{-- Path, scope chip and the "Staff tokens only" marker come from $endpoints, same
+           as the capability cards above, so a scope rename can't leave this section
+           contradicting them. The worked JSON bodies below have no structured equivalent
+           in ApiReference::ENDPOINTS, so they stay hand-authored here, matched by path. --}}
+      @foreach ($endpoints as $endpoint)
+        <details class="ep" @if ($loop->first) open @endif>
+          <summary>
+            <span class="arrow">▶</span><span class="verb">GET</span><span class="path">{{ $endpoint['path'] }}</span>
+            <span class="tail">
+              @if ($endpoint['path'] === '/timesheet-effort')<span class="t">?week_start=</span>@endif
+              @if ($endpoint['app_key'])
+                <span class="scope" style="margin:0">{{ $endpoint['scope'] }}</span>
+              @else
+                <span class="scope" style="margin:0;background:var(--shelf);color:var(--muted);border-color:var(--shelf-line);">Staff tokens only</span>
+              @endif
+            </span>
+          </summary>
+          <div class="body">
+            @if ($endpoint['path'] === '/projects')
+              <p>Active projects only. <code>categories</code> is sorted alphabetically and is <code>[]</code> for an untagged project.</p>
+              <div class="codewrap rel"><button class="copysm" onclick="copyPre(this)">Copy</button><pre>{
   <span class="n">"data"</span>: [
     { <span class="n">"id"</span>: <span class="n">7</span>,  <span class="n">"code"</span>: <span class="s">"UJ-014"</span>, <span class="n">"name"</span>: <span class="s">"KDN: iLPF"</span>,    <span class="n">"categories"</span>: [<span class="s">"Development"</span>, <span class="s">"Maintenance"</span>] },
     { <span class="n">"id"</span>: <span class="n">1</span>,  <span class="n">"code"</span>: <span class="k">null</span>,      <span class="n">"name"</span>: <span class="s">"JKDM: MyStods"</span>, <span class="n">"categories"</span>: [<span class="s">"Development"</span>] },
@@ -307,21 +323,9 @@ payload = r.<span class="f">json</span>()
   ],
   <span class="n">"error"</span>: <span class="k">null</span>
 }</pre></div>
-          <table>
-            <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
-            <tr><td><code>id</code></td><td class="t">integer</td><td>Store this. It is how every other Unijaya app refers to the project.</td></tr>
-            <tr><td><code>code</code></td><td class="t">string · nullable</td><td>Often null. Never use it as a key.</td></tr>
-            <tr><td><code>name</code></td><td class="t">string</td><td>Unique within a company.</td></tr>
-            <tr><td><code>categories</code></td><td class="t">string[]</td><td>Sorted A→Z. Empty until someone tags the project.</td></tr>
-          </table>
-        </div>
-      </details>
-
-      <details class="ep">
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/timesheet-effort</span><span class="tail"><span class="t">?week_start=</span><span class="scope" style="margin:0">effort:read</span></span></summary>
-        <div class="body">
-          <p>One week of effort, aggregated per project per position band. Aggregation happens server-side on purpose: no employee name, id or salary ever crosses the wire.</p>
-          <div class="codewrap rel"><button class="copysm" onclick="copyPre(this)">Copy</button><pre>{
+            @elseif ($endpoint['path'] === '/timesheet-effort')
+              <p>One week of effort, aggregated per project per position band. Aggregation happens server-side on purpose: no employee name, id or salary ever crosses the wire.</p>
+              <div class="codewrap rel"><button class="copysm" onclick="copyPre(this)">Copy</button><pre>{
   <span class="n">"data"</span>: {
     <span class="n">"week_start"</span>: <span class="s">"2026-08-03"</span>,
     <span class="n">"projects"</span>: [
@@ -335,25 +339,12 @@ payload = r.<span class="f">json</span>()
   },
   <span class="n">"error"</span>: <span class="k">null</span>
 }</pre></div>
-        </div>
-      </details>
-
-      <details class="ep">
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/employees</span><span class="tail"><span class="scope" style="margin:0">employees:read</span></span></summary>
-        <div class="body"><p>Active staff only. Archived people are excluded here but are still named on historical leave records.</p></div>
-      </details>
-      <details class="ep">
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/positions</span><span class="tail"><span class="scope" style="margin:0">positions:read</span></span></summary>
-        <div class="body"><p>Includes retired bands, so effort booked under a closed band still resolves to a title. Carries no salary.</p></div>
-      </details>
-      <details class="ep">
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/leave-requests</span><span class="tail"><span class="scope" style="margin:0">leave:read</span></span></summary>
-        <div class="body"><p>Every request in the company, newest first, with type, dates, day count and status.</p></div>
-      </details>
-      <details class="ep">
-        <summary><span class="arrow">▶</span><span class="verb">GET</span><span class="path">/payslips</span><span class="tail"><span class="scope" style="margin:0;background:var(--shelf);color:var(--muted);border-color:var(--shelf-line);">Staff tokens only</span></span></summary>
-        <div class="body"><p>Finalized payroll runs only. A draft run is work in progress and never appears, whatever your scopes say.</p></div>
-      </details>
+            @else
+              <p>{{ $endpoint['blurb'] }}</p>
+            @endif
+          </div>
+        </details>
+      @endforeach
     </section>
 
     <section id="errors">
@@ -403,14 +394,8 @@ payload = r.<span class="f">json</span>()
 {{-- The agent brief, rendered server-side from ApiReference::agentBrief() so the "copy
      everything for your AI" button and the page can never disagree. A hidden <pre> (not
      a <script> raw-text element) so the browser parses and decodes it normally: reading
-     .textContent below returns the real characters, not HTML entities.
-
-     Only "&" and "<" are escaped, not ">" or quotes: the brief's placeholders
-     ("Bearer <key>", "the <scope> scope") would otherwise be parsed as real start tags,
-     silently swallowing the word between the brackets from .textContent. Leaving ">"
-     and quotes raw is safe (they are inert in HTML text content) and keeps the brief's
-     JSON snippets, like `success -> {"data"`, byte-identical to what agentBrief() wrote. --}}
-<pre id="agent-brief" hidden>{!! strtr($brief, ['&' => '&amp;', '<' => '&lt;']) !!}</pre>
+     .textContent below returns the real characters, not HTML entities. --}}
+<pre id="agent-brief" hidden>{{ $brief }}</pre>
 
 @php
     $openapiUrl = \Illuminate\Support\Str::replaceLast(\App\Support\ApiReference::BASE_PATH, '/openapi.json', $baseUrl);

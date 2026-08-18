@@ -53,11 +53,15 @@ class ApiDocsPageTest extends TestCase
         $response->assertSee('HARD CONSTRAINTS', escape: false);
         $response->assertSee('week_start MUST be an exact Monday', escape: false);
 
-        // The discriminating one. Blade escapes entities, so a brief embedded in a raw-text
-        // element (<script>) reaches the clipboard as &quot;data&quot; and -&gt;. This line
-        // fails under that embed and passes under a correct one, which the phrases above
-        // cannot distinguish because they contain no escapable characters.
-        $response->assertSee('success -> {"data"', escape: false);
+        // Test the property, not the escaping style: whatever escaping the view uses,
+        // no unescaped '<' may survive into the element (it could open a tag), and the
+        // text the browser hands the clipboard must equal the brief exactly. This fails
+        // for a fully-raw embed, which silently eats the <key> and <scope> placeholders.
+        preg_match('#<pre id="agent-brief" hidden>(.*?)</pre>#s', $response->getContent(), $m);
+
+        $this->assertNotEmpty($m, 'The agent brief is not embedded in a hidden <pre>.');
+        $this->assertStringNotContainsString('<', $m[1]);
+        $this->assertSame(ApiReference::agentBrief(), html_entity_decode($m[1], ENT_QUOTES));
     }
 
     public function test_it_does_not_leak_a_key_or_invite_anyone_to_paste_one(): void
