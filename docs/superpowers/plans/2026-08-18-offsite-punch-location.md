@@ -236,7 +236,18 @@ export function registerMapView(Alpine) {
         markers: [],
 
         init() {
-            window.addEventListener('open-map-view', (ev) => this.show(ev.detail || {}));
+            // Held on the instance so destroy() can remove it. partial-nav.js swaps
+            // main.innerHTML on in-app navigation, so this component is torn down and
+            // re-created whenever the reviewer moves between employees' drill-downs.
+            // An inline arrow here would leave a listener behind on every pass, each
+            // bound to a dead component whose $refs.canvas has gone. map-picker.js
+            // solves it the same way.
+            this._onOpen = (ev) => this.show(ev.detail || {});
+            window.addEventListener('open-map-view', this._onOpen);
+        },
+
+        destroy() {
+            window.removeEventListener('open-map-view', this._onOpen);
         },
 
         async show({ title = '', points = [] }) {
