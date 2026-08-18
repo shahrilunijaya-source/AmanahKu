@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -51,5 +52,16 @@ class TimesheetSetupAjaxTest extends TestCase
         $cat->assertOk();
         $this->assertStringContainsString('Development', $cat->json('html'));
         $this->assertSame('#ts-cat-count', $cat->json('count_sel'));
+    }
+
+    public function test_the_submit_button_label_differs_between_add_and_edit_mode(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development']);
+
+        $response = $this->actingHr()->get(route('app.screen', 'timesheet-setup'));
+
+        $response->assertOk()
+            ->assertSee("\$store.ui.lang==='en' ? 'Add category' : 'Tambah kategori'", false)
+            ->assertSee("\$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'", false);
     }
 }

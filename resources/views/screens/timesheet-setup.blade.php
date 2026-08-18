@@ -42,7 +42,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
     </button>
     <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
-        @include('partials.ts-category-form', ['category' => null, 'action' => route('timesheet.admin.categories.store'), 'submitLabel' => 'Add category', 'ajaxTarget' => '#ts-categories'])
+        @include('partials.ts-category-form', ['category' => null, 'action' => route('timesheet.admin.categories.store'), 'ajaxTarget' => '#ts-categories'])
     </div>
 </div>
 

@@ -20,6 +20,6 @@
         </form>
     </div>
     <div x-show="edit" x-cloak style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
-        @include('partials.ts-category-form', ['category' => $cat, 'action' => route('timesheet.admin.categories.update', $cat), 'submitLabel' => 'Save changes'])
+        @include('partials.ts-category-form', ['category' => $cat, 'action' => route('timesheet.admin.categories.update', $cat)])
     </div>
 </div>
