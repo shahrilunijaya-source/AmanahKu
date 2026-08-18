@@ -34,6 +34,9 @@
     - tag: improved
       text: "Projects shared with other systems now carry their category tags, so a connected system can tell whether a project is Development, Maintenance, InHouse or Sales work."
       text_ms: "Projek yang dikongsi dengan sistem lain kini membawa tag kategorinya, supaya sistem yang bersambung tahu sama ada sesuatu projek ialah kerja Pembangunan, Penyelenggaraan, InHouse atau Jualan."
+    - tag: fixed
+      text: "The Add passkey button on Account & Security now works when you reach that screen by clicking around the app, not only on a fresh page load."
+      text_ms: "Butang Tambah passkey pada skrin Akaun & Keselamatan kini berfungsi apabila anda sampai ke skrin itu dengan mengklik dalam aplikasi, bukan hanya semasa muat halaman baharu."
 
 - version: "1.3"
   date: "2026-08-14"
