@@ -411,15 +411,18 @@
             {{-- Level 1: a category/project's members, full width --}}
             <template x-if="sel.view==='slice' && currentSlice()">
                 <div class="uj-tr-panel" :data-dir="direction">
-                    <div class="uj-tr-crumb" x-ref="drillHeading" tabindex="-1">
+                    {{-- Own ref name (not shared with the person panel below): two x-if
+                         blocks racing to register/unregister the same x-ref name in one
+                         reactive flush can leave $refs pointing at neither. --}}
+                    <div class="uj-tr-crumb" x-ref="drillHeadingSlice" tabindex="-1">
                         <template x-for="(c, i) in crumbs()" :key="i">
                             <span>
-                                <template x-if="c.action">
+                                <template x-if="c.target !== null">
                                     <button type="button" class="uj-tr-crumb-btn" @click="c.action()">
                                         <span x-show="i === 0">&larr;</span> <span x-text="c.label"></span>
                                     </button>
                                 </template>
-                                <template x-if="!c.action">
+                                <template x-if="c.target === null">
                                     <span class="uj-tr-crumb-cur" x-text="c.label"></span>
                                 </template>
                                 <span x-show="i < crumbs().length - 1" class="uj-tr-crumb-sep" aria-hidden="true">/</span>
@@ -449,57 +452,62 @@
 
             {{-- Level 2 (or level 1 for the staff lens): one person's weeks and lines, full width --}}
             <template x-if="sel.view==='person' && personToDisplay()">
-                <div class="uj-tr-panel" :data-dir="direction" x-data="{ get p() { return personToDisplay() } }">
-                    <div class="uj-tr-crumb" x-ref="drillHeading" tabindex="-1">
+                <div class="uj-tr-panel" :data-dir="direction">
+                    <div class="uj-tr-crumb" x-ref="drillHeadingPerson" tabindex="-1">
                         <template x-for="(c, i) in crumbs()" :key="i">
                             <span>
-                                <template x-if="c.action">
+                                <template x-if="c.target !== null">
                                     <button type="button" class="uj-tr-crumb-btn" @click="c.action()">
                                         <span x-show="i === 0">&larr;</span> <span x-text="c.label"></span>
                                     </button>
                                 </template>
-                                <template x-if="!c.action">
+                                <template x-if="c.target === null">
                                     <span class="uj-tr-crumb-cur" x-text="c.label"></span>
                                 </template>
                                 <span x-show="i < crumbs().length - 1" class="uj-tr-crumb-sep" aria-hidden="true">/</span>
                             </span>
                         </template>
                     </div>
-                    <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
-                        <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
-                        <div style="min-width:0;flex:1">
-                            <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
-                        </div>
-                    </div>
-                    <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
-                    <template x-if="(weeks[p.id] || []).length === 0">
-                        <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
-                    </template>
-                    <template x-for="wk in (weeks[p.id] || [])" :key="wk.label">
-                        <div class="uj-tr-wk">
-                            <div class="hdr">
-                                <span x-text="wk.label + ' · ' + wk.dates"></span>
-                                <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                    {{-- x-ref must live outside this nested scope: Alpine registers a ref to
+                         its nearest x-data ancestor, and focusHeading() reads $refs from the
+                         OUTER component. A ref inside here would be invisible to it. --}}
+                    <div x-data="{ get p() { return personToDisplay() } }">
+                        <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
+                            <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
+                            <div style="min-width:0;flex:1">
+                                <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
                             </div>
-                            <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                <div class="uj-tr-ent">
-                                    <div>
-                                        <span x-text="line.label"></span>
-                                        <template x-if="line.note">
-                                            <span class="n" x-html="line.note"></span>
-                                        </template>
-                                    </div>
-                                    <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
-                                </div>
-                            </template>
                         </div>
-                    </template>
-                    <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
-                        <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
-                    </template>
-                    <template x-if="!p.costed">
-                        <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
-                    </template>
+                        <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
+                        <template x-if="(weeks[p.id] || []).length === 0">
+                            <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
+                        </template>
+                        <template x-for="wk in (weeks[p.id] || [])" :key="wk.label">
+                            <div class="uj-tr-wk">
+                                <div class="hdr">
+                                    <span x-text="wk.label + ' · ' + wk.dates"></span>
+                                    <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                                </div>
+                                <template x-for="(line, lidx) in wk.lines" :key="lidx">
+                                    <div class="uj-tr-ent">
+                                        <div>
+                                            <span x-text="line.label"></span>
+                                            <template x-if="line.note">
+                                                <span class="n" x-html="line.note"></span>
+                                            </template>
+                                        </div>
+                                        <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
+                            <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
+                        </template>
+                        <template x-if="!p.costed">
+                            <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
+                        </template>
+                    </div>
                 </div>
             </template>
         </div>

@@ -24,9 +24,9 @@ test('selFromSearch reads a slice whose id exists', () => {
     expect(result).toEqual({ lens: 'category', sel: { view: 'slice', key: '3', from: null }, stale: false });
 });
 
-test('selFromSearch reads a person with a from slice', () => {
+test('selFromSearch reads a person with a from slice (pid= query key, not from=)', () => {
     const rows = [{ id: 42 }];
-    const result = selFromSearch(new URLSearchParams('view=person&lens=category&id=42&from=3'), 'category', () => rows);
+    const result = selFromSearch(new URLSearchParams('view=person&lens=category&id=42&pid=3'), 'category', () => rows);
     expect(result).toEqual({ lens: 'category', sel: { view: 'person', key: '42', from: '3' }, stale: false });
 });
 
@@ -42,19 +42,19 @@ test('selFromSearch ignores a slice view for the staff lens (no member-list step
 
 test('selToParams clears every param at bars', () => {
     expect(selToParams({ view: 'bars', key: null, from: null }, 'category'))
-        .toEqual({ view: null, lens: null, id: null, from: null });
+        .toEqual({ view: null, lens: null, id: null, pid: null });
 });
 
 test('selToParams carries lens and id for a slice', () => {
     expect(selToParams({ view: 'slice', key: '3', from: null }, 'category'))
-        .toEqual({ view: 'slice', lens: 'category', id: '3', from: null });
+        .toEqual({ view: 'slice', lens: 'category', id: '3', pid: null });
 });
 
-test('selToParams carries from only for a person opened from a slice', () => {
+test('selToParams carries pid only for a person opened from a slice (not the from= query key)', () => {
     expect(selToParams({ view: 'person', key: '42', from: '3' }, 'category'))
-        .toEqual({ view: 'person', lens: 'category', id: '42', from: '3' });
+        .toEqual({ view: 'person', lens: 'category', id: '42', pid: '3' });
     expect(selToParams({ view: 'person', key: '42', from: null }, 'staff'))
-        .toEqual({ view: 'person', lens: 'staff', id: '42', from: null });
+        .toEqual({ view: 'person', lens: 'staff', id: '42', pid: null });
 });
 
 test('breadcrumb for a slice: root + current slice, only root clickable', () => {

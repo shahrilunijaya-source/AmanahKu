@@ -197,8 +197,13 @@ re-derives `sel`, so the URL moves and the screen does not.
 
 - `?tab=report` — bars (no `view` param).
 - `?tab=report&view=slice&lens=category&id=3`
-- `?tab=report&view=person&lens=category&id=42&from=3`
-- `?tab=report&view=person&lens=staff&id=42` (person lens, no `from`)
+- `?tab=report&view=person&lens=category&id=42&pid=3`
+- `?tab=report&view=person&lens=staff&id=42` (person lens, no `pid`)
+
+Query key is `pid` ("parent id"), not `from` — `from` is already the report's
+date-range-start param (`TimesheetController::periodFromRequest()`), and this
+collision wasn't caught until implementation: reaching a person-from-slice URL
+made the server try to `Carbon::parse()` a category id as a date and 500.
 
 ### The mechanism: let partial-nav own Back
 

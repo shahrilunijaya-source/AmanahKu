@@ -14,9 +14,14 @@ export function backTarget(sel) {
 }
 
 /**
- * Read view/lens/id/from off a URLSearchParams into { lens, sel, stale }.
+ * Read view/lens/id/pid off a URLSearchParams into { lens, sel, stale }.
  * rowsForLens(lens) returns that lens's row array, used to validate `id` still
  * exists — a filter change can shrink the result set out from under a deep link.
+ *
+ * The query key for "which slice this person was opened from" is `pid`
+ * (parent id), not `from` — `from` is already the report's date-range-start
+ * param (TimesheetController::periodFromRequest()), and reusing it made the
+ * server try to Carbon::parse() a category id as a date and 500.
  */
 export function selFromSearch(search, lensFallback, rowsForLens) {
     const view = search.get('view');
@@ -35,8 +40,8 @@ export function selFromSearch(search, lensFallback, rowsForLens) {
     }
 
     if (view === 'person') {
-        const from = search.get('from');
-        return { lens, sel: { view: 'person', key: id, from: from || null }, stale: false };
+        const pid = search.get('pid');
+        return { lens, sel: { view: 'person', key: id, from: pid || null }, stale: false };
     }
     if (view === 'slice' && lens !== 'staff') {
         return { lens, sel: { view: 'slice', key: id, from: null }, stale: false };
@@ -46,17 +51,18 @@ export function selFromSearch(search, lensFallback, rowsForLens) {
 
 /**
  * sel + lens -> params pushUrl() should set on the URL. null means "delete this
- * param" — bars carries none of them.
+ * param" — bars carries none of them. See selFromSearch() above for why the
+ * query key is `pid`, not `from`.
  */
 export function selToParams(sel, lens) {
     if (sel.view === 'bars') {
-        return { view: null, lens: null, id: null, from: null };
+        return { view: null, lens: null, id: null, pid: null };
     }
     return {
         view: sel.view,
         lens,
         id: sel.key,
-        from: sel.view === 'person' && sel.from ? sel.from : null,
+        pid: sel.view === 'person' && sel.from ? sel.from : null,
     };
 }
 
@@ -130,7 +136,7 @@ export function registerTimesheetReport(Alpine) {
             this.tab = t;
             const url = new URL(location);
             url.searchParams.set('tab', t);
-            ['view', 'lens', 'id', 'from'].forEach((p) => url.searchParams.delete(p));
+            ['view', 'lens', 'id', 'pid'].forEach((p) => url.searchParams.delete(p));
             history.replaceState(null, '', url);
         },
 
@@ -160,11 +166,26 @@ export function registerTimesheetReport(Alpine) {
         },
 
         focusHeading() {
-            (this.sel.view === 'bars' ? this.$refs.barList : this.$refs.drillHeading)?.focus();
+            // Not this.$root: navigating from a click on a row that's about to be
+            // torn down (e.g. a member row inside the slice panel, when the click
+            // itself moves sel to 'person' and unmounts that panel) detaches the
+            // clicked element before this callback runs, and Alpine resolves $root
+            // from the triggering element's context — so it comes back undefined.
+            // document.querySelector doesn't depend on that context.
+            const refName = this.sel.view === 'bars' ? 'barList'
+                : this.sel.view === 'slice' ? 'drillHeadingSlice'
+                : 'drillHeadingPerson';
+            document.querySelector(`[x-ref="${refName}"]`)?.focus();
         },
         focusRow(id) {
             if (id === null || id === undefined) { return false; }
-            const el = this.$root.querySelector(`[data-row-id="${CSS.escape(String(id))}"]`);
+            // Scoped to the landing view's own container: category/project/staff ids
+            // and member/employee ids are different entities that can share a numeric
+            // id (e.g. category 5 and employee 5), and the bars list stays in the DOM
+            // (x-show, not x-if) even while hidden, so an unscoped id match can hit a
+            // display:none row instead of the one actually on screen.
+            const scope = this.sel.view === 'bars' ? '[x-ref="barList"]' : '.uj-tr-panel';
+            const el = document.querySelector(`${scope} [data-row-id="${CSS.escape(String(id))}"]`);
             if (!el) { return false; }
             el.focus();
             return true;
