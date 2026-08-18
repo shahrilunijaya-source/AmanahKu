@@ -345,28 +345,28 @@ class TimesheetChaseCardTest extends TestCase
             ->assertDontSee('uj-tr-tabcount', false);
     }
 
-    public function test_the_report_tab_opens_by_default_and_tab_week_deep_links_the_other(): void
+    public function test_the_week_tab_opens_by_default_and_tab_report_deep_links_the_other(): void
     {
         $this->actingInTenant($this->hrUser)
             ->get('/app/timesheet-reports')
             ->assertOk()
-            ->assertSee("tab: 'report'", false);
+            ->assertSee("tab: 'week'", false);
 
         $this->actingInTenant($this->hrUser)
-            ->get('/app/timesheet-reports?tab=week')
+            ->get('/app/timesheet-reports?tab=report')
             ->assertOk()
-            ->assertSee("tab: 'week'", false);
+            ->assertSee("tab: 'report'", false);
     }
 
     /**
      * An unknown ?tab= must land somewhere real rather than rendering a screen with both
      * panels hidden, which would read as a broken page.
      */
-    public function test_an_unknown_tab_falls_back_to_the_report(): void
+    public function test_an_unknown_tab_falls_back_to_the_week_tab(): void
     {
         $this->actingInTenant($this->hrUser)
             ->get('/app/timesheet-reports?tab=nonsense')
             ->assertOk()
-            ->assertSee("tab: 'report'", false);
+            ->assertSee("tab: 'week'", false);
     }
 }
