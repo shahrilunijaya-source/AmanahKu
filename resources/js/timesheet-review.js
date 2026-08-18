@@ -20,6 +20,27 @@ export function reviewEntryUrl(baseUrl, weekStart, line) {
     return `${baseUrl}${sep}tab=record&week=${encodeURIComponent(weekStart)}&edit=${encodeURIComponent(line.id)}`;
 }
 
+/**
+ * A week's `lines` (backend-shared with the all-staff report, one flat array — see
+ * TimesheetController::buildWeekBlocks()) grouped into one heading per day, in the
+ * order days first appear. Frontend-only: the report screen still gets the flat
+ * array unchanged, this grouping is Review's own presentation choice.
+ */
+export function groupLinesByDay(lines) {
+    const groups = [];
+    const byDay = new Map();
+    for (const line of lines) {
+        if (!byDay.has(line.day)) {
+            const group = { day: line.day, lines: [] };
+            byDay.set(line.day, group);
+            groups.push(group);
+        }
+        byDay.get(line.day).lines.push(line);
+    }
+
+    return groups;
+}
+
 export function registerTimesheetReview(Alpine) {
     Alpine.data('timesheetReview', (cfg) => ({
         baseUrl: cfg.baseUrl,
@@ -32,6 +53,7 @@ export function registerTimesheetReview(Alpine) {
         nextWeek() { if (this.weekIdx < this.weeks.length - 1) { this.weekDir = 'fwd'; this.weekIdx++; } },
 
         dayColor,
+        daysInWeek(wk) { return groupLinesByDay(wk.lines); },
         entryUrl(line) { return reviewEntryUrl(this.baseUrl, this.currentWeek?.weekStart, line); },
     }));
 }

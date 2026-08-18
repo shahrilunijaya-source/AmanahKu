@@ -782,26 +782,31 @@
                         <template x-if="wk.lines.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
                         </template>
-                        {{-- A single <a> for every line — x-for needs one root element per
-                             iteration. Lines with no id (system-generated: leave/holiday)
-                             get entryUrl()=== null, so :href binds to nothing and the tag
-                             renders as a plain, non-interactive anchor: no href, no
-                             underline needed, not in tab order, not clickable. --}}
-                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                            <a class="uj-tr-ent" :href="entryUrl(line)">
-                                <div>
-                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                    <template x-if="line.category">
-                                        <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
-                                    </template>
-                                    <template x-if="line.project">
-                                        <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
-                                    </template>
-                                    <template x-if="line.note">
-                                        <span class="n" x-html="line.note"></span>
-                                    </template>
-                                </div>
-                            </a>
+                        {{-- One heading per day, however many entries fall on it (backend
+                             `lines` is a flat array shared with the all-staff report —
+                             daysInWeek() groups it client-side, Review-only). A single <a>
+                             per entry — x-for needs one root element per iteration. Lines
+                             with no id (system-generated: leave/holiday) get entryUrl()
+                             === null, so :href binds to nothing and the tag renders as a
+                             plain, non-interactive anchor: no href, no underline needed,
+                             not in tab order, not clickable. --}}
+                        <template x-for="grp in daysInWeek(wk)" :key="grp.day">
+                            <div class="uj-tr-day-grp">
+                                <div class="uj-tr-ent-day" :style="'color:' + dayColor(grp.day)" x-text="grp.day"></div>
+                                <template x-for="(line, lidx) in grp.lines" :key="lidx">
+                                    <a class="uj-tr-ent" :href="entryUrl(line)">
+                                        <template x-if="line.category">
+                                            <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
+                                        </template>
+                                        <template x-if="line.project">
+                                            <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
+                                        </template>
+                                        <template x-if="line.note">
+                                            <span class="n" x-html="line.note"></span>
+                                        </template>
+                                    </a>
+                                </template>
+                            </div>
                         </template>
                         <template x-if="wk.status === 'submitted'">
                             <div class="uj-tr-note" x-text="$store.ui.lang==='en'

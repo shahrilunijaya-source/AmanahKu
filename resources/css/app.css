@@ -1932,6 +1932,9 @@ a.uj-tr-ent[href] { cursor: pointer; transition: background .12s var(--ease); }
 a.uj-tr-ent[href]:hover { background: var(--hairline-soft); }
 a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
 
+/* One heading per day, however many entries fall under it. */
+.uj-tr-day-grp + .uj-tr-day-grp { margin-top: 10px; }
+
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }
   .uj-tr-panel[data-dir="fwd"], .uj-tr-panel[data-dir="back"],
