@@ -32,6 +32,15 @@ class AttendanceReportController extends Controller
      */
     private const REVERSE_ROLES = ['hr', 'director'];
 
+    /**
+     * Seeing where a colleague physically stood is a step beyond reading that they
+     * were off-site, so it does not inherit this screen's own gate. canSeeAll() also
+     * admits an `employee`-role user who merely has a direct report on the org chart;
+     * that route keeps the badge and the typed reason but not the coordinates.
+     * Narrower-than-its-host is the same shape as REVERSE_ROLES above.
+     */
+    private const LOCATION_ROLES = ['hr', 'manager', 'management', 'director'];
+
     public function screenData(Request $request): array
     {
         $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'week';
@@ -374,6 +383,7 @@ class AttendanceReportController extends Controller
             'drill' => $drill,
             'drillRecords' => $drillRecords,
             'canReversePunch' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::REVERSE_ROLES),
+            'canSeeLocation' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::LOCATION_ROLES),
         ];
     }
 
