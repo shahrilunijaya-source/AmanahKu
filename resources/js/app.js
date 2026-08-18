@@ -24,6 +24,23 @@ import { registerWorkBoard } from './work-board';
 window.Alpine = Alpine;
 window.Sortable = Sortable;
 
+// Vite wraps every dynamic import() and dispatches this event when a lazy chunk 404s —
+// the file existed at build time but a later deploy removed it. This app never does a
+// full-page reload between screens (see CLAUDE.md), so a tab left open across a deploy
+// hits this the next time it lazy-loads Quill or Leaflet. Reload once to pick up the
+// current build.
+// ponytail: sessionStorage guard means only the FIRST stale-chunk hit per tab
+// auto-reloads; a second deploy landing in the same still-open tab needs a manual
+// refresh. Upgrade to a time-based key if that turns out to matter in practice.
+window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    if (sessionStorage.getItem('chunk-reload')) {
+        return;
+    }
+    sessionStorage.setItem('chunk-reload', '1');
+    window.location.reload();
+});
+
 // Quill and Leaflet are NOT imported here: each is used on exactly one screen
 // (timesheet note modal / attendance-admin map picker) and dynamic-imports
 // itself on first use instead of taxing every page's bundle.
