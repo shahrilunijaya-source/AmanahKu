@@ -11,6 +11,7 @@ use App\Models\LeaveRequest;
 use App\Services\DataScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Read-only attendance analytics for management / HR: roster view of active staff.
@@ -31,6 +32,15 @@ class AttendanceReportController extends Controller
      * AttendanceAdminController::REVERSE_ROLES, which owns the actual reversePunch() action.
      */
     private const REVERSE_ROLES = ['hr', 'director'];
+
+    /**
+     * Seeing where a colleague physically stood is a step beyond reading that they
+     * were off-site, so it does not inherit this screen's own gate. canSeeAll() also
+     * admits an `employee`-role user who merely has a direct report on the org chart;
+     * that route keeps the badge and the typed reason but not the coordinates.
+     * Narrower-than-its-host is the same shape as REVERSE_ROLES above.
+     */
+    private const LOCATION_ROLES = ['hr', 'manager', 'management', 'director'];
 
     public function screenData(Request $request): array
     {
@@ -176,6 +186,33 @@ class AttendanceReportController extends Controller
             $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
 
+            // The days behind the summary buckets. Late and absent are read off the SAME
+            // strip the row draws, so those two can never disagree with the cells beside
+            // the name. $strip, not $rowStrip: the quarter view folds days into weeks to
+            // display, but the summary still names real days.
+            //
+            // Short hours is different in kind and cannot come from the strip. It is a
+            // clock-OUT flag (ClockService::isShort — worked minutes under the site's
+            // minimum), so the day still renders green, amber or blue depending on how it
+            // began. Someone can arrive on time, leave early, and be flagged short while
+            // their cell stays green. It is therefore read from the record's own flags,
+            // and its count deliberately does not correspond to any colour on the strip.
+            $lateDates = [];
+            $absentDates = [];
+            $shortHoursDates = [];
+            foreach ($days as $i => $dateStr) {
+                if ($strip[$i] === 'l') {
+                    $lateDates[] = $dateStr;
+                } elseif ($strip[$i] === 'a') {
+                    $absentDates[] = $dateStr;
+                }
+
+                $rec = $recordsMap[$emp->id][$dateStr] ?? null;
+                if ($rec !== null && in_array('short_hours', $rec->flags ?? [], true)) {
+                    $shortHoursDates[] = $dateStr;
+                }
+            }
+
             // Fold daily strip into weekly cells for quarter period
             if ($period === 'quarter') {
                 $todayIndex = $daysCount - 1;
@@ -232,6 +269,9 @@ class AttendanceReportController extends Controller
                 'never' => $never,
                 'stopped' => $stopped,
                 'onLeave' => $onLeave,
+                'lateDates' => $lateDates,
+                'absentDates' => $absentDates,
+                'shortHoursDates' => $shortHoursDates,
             ];
         });
 
@@ -271,6 +311,26 @@ class AttendanceReportController extends Controller
 
             return $a['id'] <=> $b['id'];
         })->values();
+
+        // ── Summary buckets (the "View summary" dialog) ──
+        // A person is listed from their FIRST offending day: no hidden threshold, so the
+        // names here are exactly the amber / red cells visible on the roster. A rule like
+        // "2+ days" would quietly drop someone whose red cell is right there on screen.
+        //
+        // Off-site ('x') days are deliberately not counted as late. The strip resolves
+        // off-site ahead of late, and the row's own `late` figure counts the same way, so
+        // both numbers on this screen stay consistent with each other.
+        $dayLabel = fn (string $date): string => $period === 'week'
+            ? Carbon::parse($date)->format('D')          // Mon–Fri each appear once in a 7-day window
+            : Carbon::parse($date)->format('j M');       // 30/90 days: a weekday name would be ambiguous
+
+        $rosterRows = $roster->all();
+
+        $summary = [
+            'absent' => $this->bucket($rosterRows, 'absentDates', $dayLabel),
+            'late' => $this->bucket($rosterRows, 'lateDates', $dayLabel),
+            'short' => $this->bucket($rosterRows, 'shortHoursDates', $dayLabel),
+        ];
 
         // Totals
         $headcount = $roster->count();
@@ -322,10 +382,12 @@ class AttendanceReportController extends Controller
             'stripUnit' => $stripUnit,
             'cells' => $cells,
             'roster' => $roster,
+            'summary' => $summary,
             'totals' => $totals,
             'drill' => $drill,
             'drillRecords' => $drillRecords,
             'canReversePunch' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::REVERSE_ROLES),
+            'canSeeLocation' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::LOCATION_ROLES),
         ];
     }
 
@@ -333,5 +395,36 @@ class AttendanceReportController extends Controller
     private function hasAnyFlag(AttendanceRecord $r, array $flags): bool
     {
         return count(array_intersect($flags, $r->flags ?? [])) > 0;
+    }
+
+    /**
+     * The filter/sort run on a plain array rather than a typed Collection: Collection's
+     * TValue is invariant, and this row shape is wide enough (20 keys) that Larastan's
+     * template resolution rejects an identically-printed shape at each of the three call
+     * sites — a known class of false positive (see the phpstan.org covariance write-up
+     * linked in the CI failure). The Blade view calls ->count() on the result, so the
+     * return value still needs to be a Collection; leaving its @return generic
+     * undeclared (rather than spelling out the array shape again) is what keeps that
+     * same invariance check from firing a second time on the way out.
+     *
+     * @param  array<int, array{id: int, name: string, initials: string|null, color: string, lateDates: list<string>, absentDates: list<string>, shortHoursDates: list<string>}>  $roster
+     * @param  'lateDates'|'absentDates'|'shortHoursDates'  $key
+     * @param  \Closure(string): string  $dayLabel
+     */
+    private function bucket(array $roster, string $key, \Closure $dayLabel): Collection
+    {
+        $rows = array_values(array_filter($roster, fn (array $r) => $r[$key] !== []));
+
+        // Worst first, matching the roster's own ordering. PHP sorts are stable, so ties
+        // keep the roster's sequence rather than reshuffling.
+        usort($rows, fn (array $a, array $b) => count($b[$key]) <=> count($a[$key]));
+
+        return collect($rows)->map(fn (array $r) => [
+            'id' => $r['id'],
+            'name' => $r['name'],
+            'initials' => $r['initials'],
+            'color' => $r['color'],
+            'days' => array_map($dayLabel, $r[$key]),
+        ]);
     }
 }

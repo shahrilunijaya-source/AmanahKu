@@ -3,6 +3,7 @@ import Sortable from 'sortablejs';
 import './passkeys';
 import { registerTicketAttach } from './ticket-attach';
 import { registerMapPicker } from './map-picker';
+import { registerMapView } from './map-view';
 import { registerNotifier } from './notifier';
 import { registerOrgChart } from './org-chart';
 import { registerPartialNav } from './partial-nav';
@@ -48,6 +49,7 @@ window.addEventListener('vite:preloadError', (event) => {
 registerSentry();
 registerTicketAttach(Alpine);
 registerMapPicker(Alpine);
+registerMapView(Alpine);
 registerNotifier(Alpine);
 registerOrgChart(Alpine);
 registerPartialNav();

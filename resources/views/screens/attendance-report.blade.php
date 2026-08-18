@@ -137,7 +137,45 @@
                             @endif
                         </span>
                     @endif
-                    @php $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]); @endphp
+                    @php
+                        $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]);
+
+                        // Only points that were actually off-site. within() returns null (never
+                        // false) when coordinates or the site geofence are missing, so an
+                        // out_of_radius_* flag already implies a usable point; the null-checks
+                        // guard hand-edited rows, not the normal path.
+                        $recFlags = $r->flags ?? [];
+                        $locPoints = [];
+                        if (in_array('out_of_radius_in', $recFlags, true) && $r->latitude !== null && $r->longitude !== null) {
+                            $inTime = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '';
+                            $locPoints[] = [
+                                'lat' => (float) $r->latitude,
+                                'lng' => (float) $r->longitude,
+                                'labelEn' => 'Clocked in '.$inTime,
+                                'labelMs' => 'Clock in '.$inTime,
+                            ];
+                        }
+                        if (in_array('out_of_radius_out', $recFlags, true) && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
+                            $outTime = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '';
+                            $locPoints[] = [
+                                'lat' => (float) $r->clock_out_latitude,
+                                'lng' => (float) $r->clock_out_longitude,
+                                'labelEn' => 'Clocked out '.$outTime,
+                                'labelMs' => 'Clock out '.$outTime,
+                            ];
+                        }
+                    @endphp
+                    @if ($canSeeLocation && $locPoints)
+                        <div style="grid-column:1/-1;margin-top:5px;">
+                            <button type="button" class="uj-ar-loc" x-data
+                                    @click="window.dispatchEvent(new CustomEvent('open-map-view', { detail: {
+                                        title: @js($drill->display_name.' · '.$r->date->format('D, j M')),
+                                        points: @js($locPoints)
+                                    } }))">
+                                📍 <span x-text="$store.ui.lang==='en' ? 'View location' : 'Lihat lokasi'">View location</span>
+                            </button>
+                        </div>
+                    @endif
                     @if ($notes)
                         <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:2px;">
                             @foreach ($notes as $slot => $note)
@@ -153,6 +191,7 @@
             @empty
                 <div style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No attendance in this period.' : 'Tiada kehadiran dalam tempoh ini.'">No attendance in this period.</span></div>
             @endforelse
+        @include('partials.map-view')
         </div>
     @else
         {{-- ── Shelf Lead Block ─────────────────────────────────────────────── --}}
@@ -245,9 +284,112 @@
         </div>
 
         {{-- ── Section header & Legend ───────────────────────────────────────── --}}
-        <div class="uj-ar-sect">
-            <h2><span x-text="$store.ui.lang==='en' ? 'Everyone' : 'Semua staf'">Everyone</span></h2>
-            <span class="sum"><span x-text="$store.ui.lang==='en' ? @js(count($days) . ' working days · needs attention first') : @js(count($days) . ' hari bekerja · perlu perhatian dahulu')">{{ count($days) }} working days · needs attention first</span></span>
+        @php
+            // Both buckets are rendered server-side and toggled with x-show, rather than
+            // shipped to Alpine as JSON — the data already lives here, and duplicating it
+            // into a JS literal is one more place for the two to drift apart.
+            $summaryBuckets = [
+                'absent' => [
+                    'rows' => $summary['absent'],
+                    'tileEn' => 'with no punch', 'tileMs' => 'tiada clock in',
+                    'headEn' => 'No punch', 'headMs' => 'Tiada clock in',
+                    'emptyEn' => 'Nobody missed a day.', 'emptyMs' => 'Tiada sesiapa terlepas hari.',
+                ],
+                'late' => [
+                    'rows' => $summary['late'],
+                    'tileEn' => 'clocked in late', 'tileMs' => 'clock in lewat',
+                    'headEn' => 'Clocked in late', 'headMs' => 'Clock in lewat',
+                    'emptyEn' => 'Nobody clocked in late.', 'emptyMs' => 'Tiada sesiapa clock in lewat.',
+                ],
+                // Wording matches the flag badge this screen already renders for the same
+                // record ($flagLabel['short_hours'] above), so the dialog and the drill-down
+                // call one thing by one name.
+                'short' => [
+                    'rows' => $summary['short'],
+                    'tileEn' => 'short hours', 'tileMs' => 'jam kurang',
+                    'headEn' => 'Short hours', 'headMs' => 'Jam kurang',
+                    'emptyEn' => 'Nobody worked short hours.', 'emptyMs' => 'Tiada sesiapa bekerja kurang jam.',
+                ],
+            ];
+            // Enough pills to read a pattern; the rest collapse into a +N so a 90-day
+            // window can't spill 40 pills into one row.
+            $dayPillCap = 6;
+        @endphp
+
+        <div x-data="{ summaryOpen: false, bucket: 'absent' }">
+            <div class="uj-ar-sect">
+                <div class="uj-ar-sect-left">
+                    <h2><span x-text="$store.ui.lang==='en' ? 'Everyone' : 'Semua staf'">Everyone</span></h2>
+                    <button type="button" class="uj-ar-sumbtn" @click="summaryOpen = true">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+                        <span x-text="$store.ui.lang==='en' ? 'View summary' : 'Lihat ringkasan'">View summary</span>
+                    </button>
+                </div>
+                <span class="sum"><span x-text="$store.ui.lang==='en' ? @js(count($days) . ' working days · needs attention first') : @js(count($days) . ' hari bekerja · perlu perhatian dahulu')">{{ count($days) }} working days · needs attention first</span></span>
+            </div>
+
+            {{-- ── Summary dialog: who was absent / late, and on which day ──────── --}}
+            <div x-show="summaryOpen" x-cloak class="uj-dialog-overlay"
+                 @click.self="summaryOpen = false"
+                 @keydown.escape.window="summaryOpen = false"
+                 style="position:fixed;inset:0;z-index:200;padding:16px;background:rgba(31,30,26,.55);backdrop-filter:blur(2px);">
+                <div role="dialog" aria-modal="true" aria-labelledby="uj-ar-sumtitle"
+                     x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+                     x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
+                     style="width:100%;max-width:460px;margin:auto;background:var(--card);border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);display:flex;flex-direction:column;max-height:min(640px,88vh);">
+
+                    <div class="uj-ar-sumhead">
+                        <div>
+                            <h3 id="uj-ar-sumtitle"><span x-text="$store.ui.lang==='en' ? 'Attendance summary' : 'Ringkasan kehadiran'">Attendance summary</span></h3>
+                            <p>{{ $rangeLabel }} · {{ $totals['headcount'] }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></p>
+                        </div>
+                        <button type="button" class="uj-ar-sumclose" @click="summaryOpen = false"
+                                :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="uj-ar-sumgrid">
+                        @foreach ($summaryBuckets as $key => $b)
+                            <button type="button" class="uj-ar-sumtile" data-t="{{ $key }}"
+                                    :class="bucket === @js($key) && 'uj-ar-sumon'"
+                                    @click="bucket = @js($key)">
+                                <span class="uj-ar-sumnum" data-t="{{ $key }}">{{ $b['rows']->count() }}</span>
+                                <span class="uj-ar-sumlbl" x-text="$store.ui.lang==='en' ? @js($b['tileEn']) : @js($b['tileMs'])">{{ $b['tileEn'] }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+
+                    @foreach ($summaryBuckets as $key => $b)
+                        <div x-show="bucket === @js($key)" class="uj-ar-sumnames">
+                            <div class="uj-ar-sumnameshead">
+                                <span x-text="$store.ui.lang==='en' ? @js($b['headEn'].' — '.$b['rows']->count().' people') : @js($b['headMs'].' — '.$b['rows']->count().' orang')">{{ $b['headEn'] }} — {{ $b['rows']->count() }} people</span>
+                            </div>
+                            @forelse ($b['rows'] as $p)
+                                @php $extraDays = count($p['days']) - $dayPillCap; @endphp
+                                <a href="{{ $baseUrl.'&emp='.$p['id'] }}" class="uj-ar-sumchip">
+                                    <span class="uj-ar-av" style="background:{{ $p['color'] }};">{{ $p['initials'] }}</span>
+                                    <span style="min-width:0;">
+                                        <span class="uj-ar-sumname">{{ $p['name'] }}</span>
+                                        <span class="uj-ar-sumdays">
+                                            @foreach (array_slice($p['days'], 0, $dayPillCap) as $d)
+                                                <span class="uj-ar-sumday" data-t="{{ $key }}">{{ $d }}</span>
+                                            @endforeach
+                                            @if ($extraDays > 0)
+                                                <span class="uj-ar-sumday">+{{ $extraDays }}</span>
+                                            @endif
+                                        </span>
+                                    </span>
+                                </a>
+                            @empty
+                                <div class="uj-ar-sumempty">
+                                    <span x-text="$store.ui.lang==='en' ? @js($b['emptyEn']) : @js($b['emptyMs'])">{{ $b['emptyEn'] }}</span>
+                                </div>
+                            @endforelse
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
 
         <div class="uj-ar-legend">
