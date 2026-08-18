@@ -31,60 +31,14 @@
 @endphp
 
 @section('screen')
-<div class="uj-tr-wrap" x-data="{
-    lens: 'category',
-    category: @js($lensCategory),
-    project: @js($lensProject),
-    staff: @js($lensStaff),
-    weeks: @js($staffWeeks),
-    sel: { kind: 'slice', key: null, from: null },
-    rows() {
-        return this.lens === 'category' ? this.category
-             : this.lens === 'project' ? this.project : this.staff;
-    },
-    setLens(l) { this.lens = l; this.sel = { kind: 'slice', key: null, from: null } },
-    slice(key) { this.sel = { kind: 'slice', key: key, from: null } },
-    openPerson(id, from) { this.sel = { kind: 'person', key: id, from: from } },
-    currentSlice() {
-        const rs = this.rows()
-        return rs.find(r => String(r.id) === String(this.sel.key)) || rs[0] || null
-    },
-    currentPerson() {
-        return this.staff.find(r => String(r.id) === String(this.sel.key)) || null
-    },
-    personToDisplay() {
-        return this.currentPerson() || this.staff[0] || null
-    },
-    formatSliceSubline(slice) {
-        if (!slice) return ''
-        const memCount = slice.members ? slice.members.length : 0
-        const isEn = this.$store.ui.lang === 'en'
-        const pWord = isEn ? (memCount === 1 ? 'person' : 'people') : 'orang'
-        const mdVal = (Math.round((slice.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md'
-        const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})
-        return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal
-    },
-    /* Two jobs, two tabs: chasing this week's missing sheets, and reading where a
-       period's time and money went. They shared one scroll before. The tab is
-       client state, but ?tab= is kept true so a link can point at either one. */
-    tab: @js($tab),
-    setTab(t) {
-        this.tab = t
-        const url = new URL(location)
-        url.searchParams.set('tab', t)
-        history.replaceState(null, '', url)
-    },
-    formatMissingWeeks(p) {
-        if (!p || !p.missingWeeks || p.missingWeeks.length === 0) return ''
-        const mw = p.missingWeeks
-        const isEn = this.$store.ui.lang === 'en'
-        const names = mw.length === 1 ? mw[0] : mw.slice(0, -1).join(', ') + (isEn ? ' and ' : ' dan ') + mw[mw.length - 1]
-        const verb = mw.length === 1
-            ? (isEn ? 'is not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.')
-            : (isEn ? 'are not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.')
-        return names + ' ' + verb
-    }
-}">
+<div x-data="timesheetReport({
+        category: @js($lensCategory),
+        project: @js($lensProject),
+        staff: @js($lensStaff),
+        weeks: @js($staffWeeks),
+        tab: @js($tab),
+    })"
+    @keydown.escape.window="tab === 'report' && sel.view !== 'bars' && back()">
     {{-- Reciprocal of the "see all staff" icon on the personal timesheet screen: this
          report is reached by that one-way shortcut, so offer a one-tap way back to My
          timesheets rather than leaving the browser Back button as the only exit. --}}
@@ -127,12 +81,14 @@
          report tab already contains one, and two identical pill rows would read as one
          control with six options. --}}
     <div class="uj-tr-tabs" role="tablist">
-        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='report'"
-            :aria-selected="tab==='report'" @click="setTab('report')">
+        <button type="button" id="tr-tab-report" class="uj-tr-tab" role="tab" :data-on="tab==='report'"
+            :aria-selected="tab==='report'" aria-controls="tr-panel-report" :tabindex="tab==='report' ? 0 : -1"
+            @click="setTab('report')" @keydown.right.prevent="setTab('week')" @keydown.left.prevent="setTab('week')">
             <span x-text="$store.ui.lang==='en' ? 'Where time went' : 'Ke mana masa pergi'">Where time went</span>
         </button>
-        <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='week'"
-            :aria-selected="tab==='week'" @click="setTab('week')">
+        <button type="button" id="tr-tab-week" class="uj-tr-tab" role="tab" :data-on="tab==='week'"
+            :aria-selected="tab==='week'" aria-controls="tr-panel-week" :tabindex="tab==='week' ? 0 : -1"
+            @click="setTab('week')" @keydown.right.prevent="setTab('report')" @keydown.left.prevent="setTab('report')">
             <span x-text="$store.ui.lang==='en' ? 'This week' : 'Minggu ini'">This week</span>
             @if ($oweCount > 0)
                 <span class="uj-tr-tabcount">{{ $oweCount }}</span>
@@ -143,7 +99,7 @@
     {{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
          403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check
          here. Always the current week, independent of the report period below. --}}
-    <div x-show="tab==='week'" x-cloak role="tabpanel">
+    <div x-show="tab==='week'" x-cloak role="tabpanel" id="tr-panel-week" aria-labelledby="tr-tab-week" tabindex="0">
     @php
         $tsRoster = collect($tsRoster ?? []);
         $tsDoneCount = $tsRoster->where('status', 'done')->count();
@@ -298,95 +254,95 @@
     @endif
     </div>{{-- /tab: week --}}
 
-    <div x-show="tab==='report'" x-cloak role="tabpanel">
-    {{-- Shelf --}}
-    <div class="uj-tr-shelf">
-        <div class="uj-tr-lede">
-            <span x-text="$store.ui.lang==='en' ? 'Submitted timesheets' : 'Timesheet dihantar'">Submitted timesheets</span> · <b>{{ $dateRange }}</b>
-        </div>
-        <div class="uj-tr-figrow">
-            <span class="uj-tr-fig">{{ $md($totals['days']) }}</span>
-            <span class="uj-tr-figsub">
-                <b><span x-text="$store.ui.lang==='en' ? 'person-days recorded' : 'hari-orang direkod'">person-days recorded</span></b>@if($totals['cost'] > 0), <span x-text="$store.ui.lang==='en' ? 'worth' : 'bernilai'">worth</span> {{ $rm($totals['cost']) }} <span x-text="$store.ui.lang==='en' ? 'at charge-out rates.' : 'pada kadar caj.'">at charge-out rates.</span>@else.@endif
-                @if ($totals['uncostedDays'] > 0)
-                    {{ $md($totals['uncostedDays']) }} md <span x-text="$store.ui.lang==='en' ? 'have no band and no cost.' : 'tiada band dan tiada kos.'">have no band dan tiada kos.</span>
-                @endif
-            </span>
-        </div>
-        <div class="uj-tr-chips">
-            <div class="uj-tr-chip">
-                <b>{{ $md($totals['days']) }}</b>
-                <span x-text="$store.ui.lang==='en' ? 'PERSON-DAYS' : 'HARI-ORANG'">PERSON-DAYS</span>
+    <div x-show="tab==='report'" x-cloak role="tabpanel" id="tr-panel-report" aria-labelledby="tr-tab-report" tabindex="0">
+    {{-- Shelf + filters: full while browsing; a one-line summary while drilled in,
+         so the thing you drilled into doesn't have to compete with eight controls
+         above it. --}}
+    <div x-show="sel.view==='bars'">
+        <div class="uj-tr-shelf">
+            <div class="uj-tr-lede">
+                <span x-text="$store.ui.lang==='en' ? 'Submitted timesheets' : 'Timesheet dihantar'">Submitted timesheets</span> · <b>{{ $dateRange }}</b>
             </div>
-            @if (count($lensStaff) > 0)
-                <div class="uj-tr-chip">
-                    <b>{{ $md($totals['days'] / count($lensStaff)) }}</b>
-                    <span x-text="$store.ui.lang==='en' ? 'PER HEAD' : 'SETIAP ORANG'">PER HEAD</span>
-                </div>
-            @endif
-            @if ($totals['uncostedDays'] > 0)
-                <div class="uj-tr-chip" data-t="warn">
-                    <b>{{ $md($totals['uncostedDays']) }}</b>
-                    <span x-text="$store.ui.lang==='en' ? 'UNCOSTED MD' : 'MD TANPA KOS'">UNCOSTED MD</span>
-                </div>
-            @endif
-            @if ($totals['weeksNotIn'] > 0)
-                <div class="uj-tr-chip" data-t="warn">
-                    <b>{{ $totals['weeksNotIn'] }}</b>
-                    <span x-text="$store.ui.lang==='en' ? 'WEEKS NOT IN' : 'MINGGU BELUM MASUK'">WEEKS NOT IN</span>
-                </div>
-            @endif
+            <div class="uj-tr-figrow">
+                <span class="uj-tr-fig">{{ $md($totals['days']) }}</span>
+                <span class="uj-tr-figsub">
+                    <b><span x-text="$store.ui.lang==='en' ? 'person-days recorded' : 'hari-orang direkod'">person-days recorded</span></b>@if($totals['cost'] > 0), <span x-text="$store.ui.lang==='en' ? 'worth' : 'bernilai'">worth</span> {{ $rm($totals['cost']) }} <span x-text="$store.ui.lang==='en' ? 'at charge-out rates.' : 'pada kadar caj.'">at charge-out rates.</span>@else.@endif
+                    @if ($totals['uncostedDays'] > 0)
+                        {{ $md($totals['uncostedDays']) }} md <span x-text="$store.ui.lang==='en' ? 'have no band and no cost.' : 'tiada band dan tiada kos.'">have no band dan tiada kos.</span>
+                    @endif
+                </span>
+            </div>
+            {{-- PERSON-DAYS chip dropped: it repeated the hero figure above it verbatim. --}}
+            <div class="uj-tr-chips">
+                @if ($totals['uncostedDays'] > 0)
+                    <div class="uj-tr-chip" data-t="warn">
+                        <b>{{ $md($totals['uncostedDays']) }}</b>
+                        <span x-text="$store.ui.lang==='en' ? 'UNCOSTED MD' : 'MD TANPA KOS'">UNCOSTED MD</span>
+                    </div>
+                @endif
+                @if ($totals['weeksNotIn'] > 0)
+                    <div class="uj-tr-chip" data-t="warn">
+                        <b>{{ $totals['weeksNotIn'] }}</b>
+                        <span x-text="$store.ui.lang==='en' ? 'WEEKS NOT IN' : 'MINGGU BELUM MASUK'">WEEKS NOT IN</span>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
+            <div>
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
+                <input type="date" name="from" value="{{ $from }}" class="uj-tr-sel" />
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
+                <input type="date" name="to" value="{{ $to }}" class="uj-tr-sel" />
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span></label>
+                <select name="category" class="uj-tr-sel">
+                    <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
+                    @foreach ($filterCategories as $c)
+                        <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>
+                <select name="project" class="uj-tr-sel">
+                    <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
+                    @foreach ($filterProjects as $p)
+                        <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button type="submit" class="uj-tr-btn" data-primary style="align-self:flex-end;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
+            <span class="uj-tr-range">{{ $dateRange }}</span>
+        </form>
+
+        <div style="margin-top:20px;">
+            <div class="uj-tr-pills" role="group" :aria-label="$store.ui.lang==='en' ? 'Break down by' : 'Pecahkan mengikut'">
+                <button type="button" class="uj-tr-pill" :data-on="lens==='category'" :aria-pressed="lens==='category'" @click="setLens('category')">
+                    <span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span>
+                </button>
+                <button type="button" class="uj-tr-pill" :data-on="lens==='project'" :aria-pressed="lens==='project'" @click="setLens('project')">
+                    <span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span>
+                </button>
+                <button type="button" class="uj-tr-pill" :data-on="lens==='staff'" :aria-pressed="lens==='staff'" @click="setLens('staff')">
+                    <span x-text="$store.ui.lang==='en' ? 'By person' : 'Mengikut individu'">By person</span>
+                </button>
+            </div>
         </div>
     </div>
 
-    {{-- Filter row --}}
-    <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
-        <div>
-            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
-            <input type="date" name="from" value="{{ $from }}" class="uj-tr-sel" />
-        </div>
-        <div>
-            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
-            <input type="date" name="to" value="{{ $to }}" class="uj-tr-sel" />
-        </div>
-        <div>
-            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span></label>
-            <select name="category" class="uj-tr-sel">
-                <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
-                @foreach ($filterCategories as $c)
-                    <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>
-            <select name="project" class="uj-tr-sel">
-                <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
-                @foreach ($filterProjects as $p)
-                    <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
-                @endforeach
-            </select>
-        </div>
-        <button type="submit" class="uj-tr-btn" data-primary style="align-self:flex-end;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
-        <span class="uj-tr-range">{{ $dateRange }}</span>
-    </form>
-
-    {{-- Lens control --}}
-    <div style="margin-top:20px;">
-        <div class="uj-tr-pills" role="group" aria-label="Break down by">
-            <button type="button" class="uj-tr-pill" :data-on="lens==='category'" @click="setLens('category')">
-                <span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span>
-            </button>
-            <button type="button" class="uj-tr-pill" :data-on="lens==='project'" @click="setLens('project')">
-                <span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span>
-            </button>
-            <button type="button" class="uj-tr-pill" :data-on="lens==='staff'" @click="setLens('staff')">
-                <span x-text="$store.ui.lang==='en' ? 'By person' : 'Mengikut individu'">By person</span>
-            </button>
-        </div>
+    {{-- Collapsed summary line, shown only while drilled in. --}}
+    <div class="uj-tr-summary" x-show="sel.view!=='bars'">
+        <span>{{ $dateRange }}</span>
+        @if ($selCatName || $selProjName)
+            <span>&middot; {{ $activeFilterName }}</span>
+        @endif
     </div>
 
-    {{-- Bar list / Empty state --}}
     @if ($reportEmpty)
         <div class="uj-tr-card">
             <div class="uj-tr-empty">
@@ -396,9 +352,15 @@
             </div>
         </div>
     @else
+        <div x-show="staleNotice" class="uj-tr-notice">
+            <span x-text="$store.ui.lang==='en' ? 'That row is not in the current period or filter.' : 'Baris itu tiada dalam tempoh atau tapisan semasa.'"></span>
+            <button type="button" class="uj-tr-notice-close" @click="staleNotice=false" :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'">&times;</button>
+        </div>
+
         <div class="uj-tr-lens">
-            <div>
-                <div class="uj-tr-card uj-tr-anim">
+            {{-- Level 0: bars --}}
+            <div x-show="sel.view==='bars'">
+                <div class="uj-tr-card" :class="{ 'uj-tr-anim': !hasAnimated }" x-ref="barList" tabindex="-1">
                     <template x-if="rows().length === 0">
                         <div class="uj-tr-empty"
                              x-text="lens === 'category' ? ($store.ui.lang === 'en' ? 'No categorised time in this period.' : 'Tiada masa berkategori dalam tempoh ini.')
@@ -408,10 +370,7 @@
                         </div>
                     </template>
                     <template x-for="(row, index) in rows()" :key="row.id || row.label || index">
-                        <button type="button" class="uj-tr-lensrow"
-                                :data-on="lens === 'staff'
-                                    ? String(row.id) === String(personToDisplay() ? personToDisplay().id : '')
-                                    : String(row.id) === String(sel.kind === 'person' && sel.from ? sel.from : (currentSlice() ? currentSlice().id : ''))"
+                        <button type="button" class="uj-tr-lensrow" :data-row-id="row.id"
                                 @click="lens === 'staff' ? openPerson(row.id, null) : slice(row.id)">
                             <div class="uj-tr-barrow">
                                 <span class="lbl">
@@ -439,7 +398,7 @@
                                 </span>
                             </div>
                             <div class="uj-tr-bar">
-                                <i :style="'width:' + Math.max(row.pct || 0, 1.5) + '%;background:' + (lens === 'category' ? 'var(--info)' : (lens === 'project' ? 'var(--success)' : (row.color || 'var(--info)'))) + ';animation-delay:' + (index * 45) + 'ms'"></i>
+                                <i aria-hidden="true" :style="'width:' + Math.max(row.pct || 0, 1.5) + '%;background:' + (lens === 'category' ? 'var(--info)' : (lens === 'project' ? 'var(--success)' : (row.color || 'var(--info)'))) + ';animation-delay:' + Math.min(index * 45, 200) + 'ms'"></i>
                             </div>
                         </button>
                     </template>
@@ -449,77 +408,100 @@
                 @endif
             </div>
 
-            {{-- The rail --}}
-            <aside class="uj-tr-panel" aria-label="Timesheet detail">
-                <template x-if="lens !== 'staff' && sel.kind !== 'person'">
-                    <div>
-                        <template x-if="currentSlice()">
-                            <div>
-                                <div class="hd">
-                                    <div style="min-width:0;flex:1">
-                                        <h3 x-text="currentSlice().label || currentSlice().name"></h3>
-                                        <div class="uj-tr-sub" x-text="formatSliceSubline(currentSlice())"></div>
-                                    </div>
-                                </div>
-                                <template x-for="member in (currentSlice().members || [])" :key="member.id">
-                                    <button type="button" class="uj-tr-lensrow" style="padding:11px 0;border-top:1px solid var(--hairline-soft)" @click="openPerson(member.id, currentSlice().id)">
-                                        <div class="uj-tr-barrow" style="margin-bottom:0">
-                                            <span class="lbl" x-text="member.name"></span>
-                                            <span class="val" x-text="(Math.round((member.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md · ' + (member.pct || 0) + '%'"></span>
-                                        </div>
+            {{-- Level 1: a category/project's members, full width --}}
+            <template x-if="sel.view==='slice' && currentSlice()">
+                <div class="uj-tr-panel" :data-dir="direction">
+                    <div class="uj-tr-crumb" x-ref="drillHeading" tabindex="-1">
+                        <template x-for="(c, i) in crumbs()" :key="i">
+                            <span>
+                                <template x-if="c.action">
+                                    <button type="button" class="uj-tr-crumb-btn" @click="c.action()">
+                                        <span x-show="i === 0">&larr;</span> <span x-text="c.label"></span>
                                     </button>
                                 </template>
-                                <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'Pick a person to read the lines behind their share.' : 'Pilih seorang untuk membaca baris di sebalik bahagian mereka.'">Pick a person to read the lines behind their share.</div>
+                                <template x-if="!c.action">
+                                    <span class="uj-tr-crumb-cur" x-text="c.label"></span>
+                                </template>
+                                <span x-show="i < crumbs().length - 1" class="uj-tr-crumb-sep" aria-hidden="true">/</span>
+                            </span>
+                        </template>
+                        <span class="uj-tr-crumb-share" x-text="formatSliceSubline(currentSlice())"></span>
+                    </div>
+                    <div class="uj-tr-bar" style="margin-bottom:6px">
+                        <i aria-hidden="true" :style="'width:' + Math.max(currentSlice().pct || 0, 1.5) + '%;background:' + (lens === 'category' ? 'var(--info)' : 'var(--success)')"></i>
+                    </div>
+                    <template x-if="(currentSlice().members || []).length === 0">
+                        <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'Nobody in this slice for the current filter.' : 'Tiada sesiapa dalam bahagian ini untuk tapisan semasa.'"></div>
+                    </template>
+                    <template x-for="member in (currentSlice().members || [])" :key="member.id">
+                        <button type="button" class="uj-tr-lensrow" :data-row-id="member.id" @click="openPerson(member.id, currentSlice().id)">
+                            <div class="uj-tr-barrow">
+                                <span class="lbl" x-text="member.name"></span>
+                                <span class="val" x-text="(Math.round((member.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md · ' + (member.pct || 0) + '%'"></span>
                             </div>
+                            <div class="uj-tr-bar">
+                                <i aria-hidden="true" :style="'width:' + Math.max(member.pct || 0, 1.5) + '%;background:' + (lens === 'category' ? 'var(--info)' : 'var(--success)')"></i>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </template>
+
+            {{-- Level 2 (or level 1 for the staff lens): one person's weeks and lines, full width --}}
+            <template x-if="sel.view==='person' && personToDisplay()">
+                <div class="uj-tr-panel" :data-dir="direction" x-data="{ get p() { return personToDisplay() } }">
+                    <div class="uj-tr-crumb" x-ref="drillHeading" tabindex="-1">
+                        <template x-for="(c, i) in crumbs()" :key="i">
+                            <span>
+                                <template x-if="c.action">
+                                    <button type="button" class="uj-tr-crumb-btn" @click="c.action()">
+                                        <span x-show="i === 0">&larr;</span> <span x-text="c.label"></span>
+                                    </button>
+                                </template>
+                                <template x-if="!c.action">
+                                    <span class="uj-tr-crumb-cur" x-text="c.label"></span>
+                                </template>
+                                <span x-show="i < crumbs().length - 1" class="uj-tr-crumb-sep" aria-hidden="true">/</span>
+                            </span>
                         </template>
                     </div>
-                </template>
-
-                <template x-if="lens === 'staff' || sel.kind === 'person'">
-                    <div>
-                        <template x-if="personToDisplay()">
-                            <div x-data="{ get p() { return personToDisplay() } }">
-                                <div class="hd">
-                                    <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
-                                    <div style="min-width:0;flex:1">
-                                        <h3 x-text="p.name"></h3>
-                                        <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
-                                    </div>
-                                    <template x-if="sel.from">
-                                        <button type="button" class="uj-tr-btn" style="height:28px;padding:0 10px" @click="slice(sel.from)" :aria-label="$store.ui.lang==='en' ? 'Back' : 'Kembali'">←</button>
-                                    </template>
-                                </div>
-                                <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
-                                <template x-for="wk in (weeks[p.id] || [])" :key="wk.label">
-                                    <div class="uj-tr-wk">
-                                        <div class="hdr">
-                                            <span x-text="wk.label + ' · ' + wk.dates"></span>
-                                            <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
-                                        </div>
-                                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                            <div class="uj-tr-ent">
-                                                <div>
-                                                    <span x-text="line.label"></span>
-                                                    <template x-if="line.note">
-                                                        <span class="n" x-html="line.note"></span>
-                                                    </template>
-                                                </div>
-                                                <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
-                                            </div>
+                    <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
+                        <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
+                        <div style="min-width:0;flex:1">
+                            <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
+                        </div>
+                    </div>
+                    <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
+                    <template x-if="(weeks[p.id] || []).length === 0">
+                        <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
+                    </template>
+                    <template x-for="wk in (weeks[p.id] || [])" :key="wk.label">
+                        <div class="uj-tr-wk">
+                            <div class="hdr">
+                                <span x-text="wk.label + ' · ' + wk.dates"></span>
+                                <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                            </div>
+                            <template x-for="(line, lidx) in wk.lines" :key="lidx">
+                                <div class="uj-tr-ent">
+                                    <div>
+                                        <span x-text="line.label"></span>
+                                        <template x-if="line.note">
+                                            <span class="n" x-html="line.note"></span>
                                         </template>
                                     </div>
-                                </template>
-                                <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
-                                    <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
-                                </template>
-                                <template x-if="!p.costed">
-                                    <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
-                                </template>
-                            </div>
-                        </template>
-                    </div>
-                </template>
-            </aside>
+                                    <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
+                        <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
+                    </template>
+                    <template x-if="!p.costed">
+                        <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
+                    </template>
+                </div>
+            </template>
         </div>
     @endif
     </div>{{-- /tab: report --}}
