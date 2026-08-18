@@ -101,11 +101,12 @@ class TimesheetCostTest extends TestCase
         return $user;
     }
 
-    public function test_money_role_sees_rm_on_their_own_timesheet(): void
+    public function test_money_role_no_longer_sees_rm_on_their_own_timesheet(): void
     {
-        // The timesheets screen shows RM for the viewer's OWN weeks when they are a money
-        // role (management/HR). Cross-employee cost lives in the report, not here.
-        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('hr'))->assertOk()->assertSee('RM 900.00');
+        // The Review tab's "My weeks" RM list was removed (2026-08-18): it's now a
+        // read-only weekly entry view for every role, with no cost figures at all —
+        // money-role cost lives only in the all-staff timesheet-reports screen now.
+        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('hr'))->assertOk()->assertDontSee('RM 900.00');
     }
 
     public function test_manager_does_not_see_rm_on_their_own_timesheet(): void
