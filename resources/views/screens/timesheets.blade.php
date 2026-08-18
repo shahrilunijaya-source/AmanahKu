@@ -794,16 +794,22 @@
                             <div class="uj-tr-day-grp">
                                 <div class="uj-tr-ent-day" :style="'color:' + dayColor(grp.day)" x-text="grp.day"></div>
                                 <template x-for="(line, lidx) in grp.lines" :key="lidx">
+                                    {{-- `.uj-tr-ent` is a flex row (align-items: stretch by
+                                         default) — the pills must sit inside their own block
+                                         wrapper, not as direct flex children, or they stretch
+                                         to the note's full height instead of staying pill-sized. --}}
                                     <a class="uj-tr-ent" :href="entryUrl(line)">
-                                        <template x-if="line.category">
-                                            <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
-                                        </template>
-                                        <template x-if="line.project">
-                                            <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
-                                        </template>
-                                        <template x-if="line.note">
-                                            <span class="n" x-html="line.note"></span>
-                                        </template>
+                                        <div>
+                                            <template x-if="line.category">
+                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
+                                            </template>
+                                            <template x-if="line.project">
+                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
+                                            </template>
+                                            <template x-if="line.note">
+                                                <span class="n" x-html="line.note"></span>
+                                            </template>
+                                        </div>
                                     </a>
                                 </template>
                             </div>
