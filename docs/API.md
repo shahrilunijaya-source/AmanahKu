@@ -297,6 +297,8 @@ curl -H "Authorization: Bearer $AMANAHKU_KEY" https://amanahku.unijaya.com/api/v
 
 ### `GET /payslips` — requires `payslips:read`
 
+Requires the payslips:read scope, which is held only by staff tokens — it cannot be granted to an application key.
+
 Every **finalized** payslip in the company. Draft or in-progress payroll
 runs (still awaiting the four-eyes approval AmanahKu requires before a
 payslip is final) never appear here, regardless of the key's scopes —
@@ -337,7 +339,8 @@ filtered response — there is no partial access to an endpoint.
 | `positions:read` | Position bands (no salary) |
 | `effort:read` | Weekly timesheet effort per band (no names, no salary) |
 | `leave:read` | Leave requests |
-| `payslips:read` | Finalized payslips |
+
+`payslips:read` cannot be granted to an application key. The endpoint remains reachable by a staff token, which carries every ability, and is documented below for that reason.
 
 `effort:read` should only be granted to an app that costs work against it
 — it is the one scope whose data exists specifically to feed another
