@@ -16,7 +16,7 @@
 - **Markers must be CSS-only `L.divIcon`, never image files.** The CSP limits `img-src` to `'self' data: blob: https://*.tile.openstreetmap.org` (`app/Http/Middleware/SecurityHeaders.php:52`). This also sidesteps the known Leaflet + Vite broken default-marker problem.
 - **No CSP changes.** `*.tile.openstreetmap.org` is already allowed in `img-src`. Do not add hosts.
 - **The map is read-only.** No click-to-place, no draggable markers, no address search. Read-only is structural — do not add a flag to `mapPicker` instead.
-- **Every user-facing string needs EN + BM**, via `x-text="$store.ui.lang==='en' ? 'English' : 'Bahasa'"`, matching the surrounding file.
+- **Every user-facing string needs EN + BM**, via `x-text="$store.ui.lang==='en' ? 'English' : 'Bahasa'"`, matching the surrounding file. This includes strings rendered from JavaScript rather than Blade — the map's pin tooltips are user-facing text and must switch language too. From a JS module, read the store directly: `Alpine.store('ui').lang === 'en' ? … : …`, as `resources/js/knowledge-card.js:52` does. Use the screen's established Malay vocabulary rather than a literal translation: `attendance-report.blade.php` already renders these concepts as `Clock in luar` / `Clock out luar`.
 - **Run `vendor/bin/pint --dirty --format agent`** before every commit touching PHP.
 - **Do not push.** Commit locally only. `origin`, staging and GitLab are out of scope for this plan.
 
