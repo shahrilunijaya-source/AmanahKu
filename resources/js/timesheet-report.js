@@ -85,3 +85,133 @@ export function breadcrumb(sel, lens, currentSliceRow, personRow, fromSliceRow, 
     }
     return [];
 }
+
+export function registerTimesheetReport(Alpine) {
+    Alpine.data('timesheetReport', (cfg) => ({
+        lens: 'category',
+        category: cfg.category,
+        project: cfg.project,
+        staff: cfg.staff,
+        weeks: cfg.weeks,
+        tab: cfg.tab,
+        sel: { view: 'bars', key: null, from: null },
+        direction: 'fwd',
+        hasAnimated: false,
+        staleNotice: false,
+
+        init() {
+            const { lens, sel, stale } = selFromSearch(
+                new URLSearchParams(window.location.search),
+                this.lens,
+                (l) => this.rowsFor(l)
+            );
+            this.lens = lens;
+            this.sel = sel;
+            this.staleNotice = stale;
+            this.$nextTick(() => { this.hasAnimated = true; });
+        },
+
+        rowsFor(lens) {
+            return lens === 'category' ? this.category
+                : lens === 'project' ? this.project : this.staff;
+        },
+        rows() { return this.rowsFor(this.lens); },
+
+        setLens(l) {
+            this.lens = l;
+            this.sel = { view: 'bars', key: null, from: null };
+            this.pushUrl();
+        },
+
+        /* tab switching stays a replaceState (not a Back-button step, same as
+           today) but must not leave stale drill params behind — a link copied
+           from the "This week" tab used to carry view=person&id=42 forever. */
+        setTab(t) {
+            this.tab = t;
+            const url = new URL(location);
+            url.searchParams.set('tab', t);
+            ['view', 'lens', 'id', 'from'].forEach((p) => url.searchParams.delete(p));
+            history.replaceState(null, '', url);
+        },
+
+        navigate(nextSel, dir) {
+            const restoreId = this.sel.key;
+            this.direction = dir;
+            this.sel = nextSel;
+            this.pushUrl();
+            this.$nextTick(() => {
+                if (dir === 'back' && this.focusRow(restoreId)) { return; }
+                this.focusHeading();
+            });
+        },
+        slice(key) { this.navigate({ view: 'slice', key, from: null }, 'fwd'); },
+        openPerson(id, from) { this.navigate({ view: 'person', key: id, from }, 'fwd'); },
+        back() { this.navigate(backTarget(this.sel), 'back'); },
+        goToBars() { this.navigate({ view: 'bars', key: null, from: null }, 'back'); },
+        goToSlice(key) { this.navigate({ view: 'slice', key, from: null }, 'back'); },
+
+        pushUrl() {
+            const url = new URL(location);
+            const params = selToParams(this.sel, this.lens);
+            Object.entries(params).forEach(([k, v]) => {
+                if (v === null) { url.searchParams.delete(k); } else { url.searchParams.set(k, v); }
+            });
+            history.pushState({ partialNav: true }, '', url);
+        },
+
+        focusHeading() {
+            (this.sel.view === 'bars' ? this.$refs.barList : this.$refs.drillHeading)?.focus();
+        },
+        focusRow(id) {
+            if (id === null || id === undefined) { return false; }
+            const el = this.$root.querySelector(`[data-row-id="${CSS.escape(String(id))}"]`);
+            if (!el) { return false; }
+            el.focus();
+            return true;
+        },
+
+        currentSlice() {
+            if (this.sel.key === null) { return null; }
+            return this.rows().find((r) => String(r.id) === String(this.sel.key)) || null;
+        },
+        currentPerson() {
+            if (this.sel.key === null) { return null; }
+            return this.staff.find((r) => String(r.id) === String(this.sel.key)) || null;
+        },
+        personToDisplay() { return this.currentPerson(); },
+
+        crumbs() {
+            const isEn = this.$store.ui.lang === 'en';
+            const fromRow = this.sel.from
+                ? this.rowsFor(this.lens).find((r) => String(r.id) === String(this.sel.from))
+                : null;
+            return breadcrumb(this.sel, this.lens, this.currentSlice(), this.personToDisplay(), fromRow, isEn)
+                .map((c) => ({
+                    ...c,
+                    action: c.target === 'bars' ? () => this.goToBars()
+                        : c.target === 'slice' ? () => this.goToSlice(this.sel.from)
+                        : null,
+                }));
+        },
+
+        formatSliceSubline(slice) {
+            if (!slice) { return ''; }
+            const memCount = slice.members ? slice.members.length : 0;
+            const isEn = this.$store.ui.lang === 'en';
+            const pWord = isEn ? (memCount === 1 ? 'person' : 'people') : 'orang';
+            const mdVal = (Math.round((slice.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md';
+            const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal;
+        },
+        formatMissingWeeks(p) {
+            if (!p || !p.missingWeeks || p.missingWeeks.length === 0) { return ''; }
+            const mw = p.missingWeeks;
+            const isEn = this.$store.ui.lang === 'en';
+            const names = mw.length === 1 ? mw[0] : mw.slice(0, -1).join(', ') + (isEn ? ' and ' : ' dan ') + mw[mw.length - 1];
+            const verb = mw.length === 1
+                ? (isEn ? 'is not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.')
+                : (isEn ? 'are not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.');
+            return names + ' ' + verb;
+        },
+    }));
+}
