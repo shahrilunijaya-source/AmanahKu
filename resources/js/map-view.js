@@ -40,7 +40,12 @@ export function registerMapView(Alpine) {
         markers: [],
 
         init() {
-            window.addEventListener('open-map-view', (ev) => this.show(ev.detail || {}));
+            this._onOpen = (ev) => this.show(ev.detail || {});
+            window.addEventListener('open-map-view', this._onOpen);
+        },
+
+        destroy() {
+            window.removeEventListener('open-map-view', this._onOpen);
         },
 
         async show({ title = '', points = [] }) {
