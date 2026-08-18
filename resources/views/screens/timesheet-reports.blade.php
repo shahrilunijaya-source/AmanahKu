@@ -489,21 +489,11 @@
                                     <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
                                 </div>
                                 <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                    <div class="uj-tr-ent" x-data="{ expanded: false, clamped: false }"
-                                         x-init="$nextTick(() => {
-                                             const el = $refs.noteEl;
-                                             if (!el) return;
-                                             const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 16;
-                                             clamped = el.scrollHeight > lineHeight * 3 + 2;
-                                         })">
+                                    <div class="uj-tr-ent">
                                         <div>
                                             <span x-text="line.label"></span>
                                             <template x-if="line.note">
-                                                <div>
-                                                    <span class="n" x-ref="noteEl" :class="{ 'uj-tr-note-clamp': clamped && !expanded }" x-html="line.note"></span>
-                                                    <button type="button" class="uj-tr-note-toggle" x-show="clamped" @click="expanded = !expanded"
-                                                        x-text="expanded ? ($store.ui.lang==='en' ? 'Show less' : 'Lihat kurang') : ($store.ui.lang==='en' ? 'Show more' : 'Lihat lebih')"></button>
-                                                </div>
+                                                <span class="n" x-html="line.note"></span>
                                             </template>
                                         </div>
                                         <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
