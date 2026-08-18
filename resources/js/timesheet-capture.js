@@ -14,6 +14,18 @@
  * own rows. The POST body is unchanged: one entry per (day, allocation); the server
  * re-appends the leave portion itself.
  */
+
+/** Find which day + row index carries this entry id, for the Review tab's "open this
+ *  entry" deep link. Pure — no Alpine/DOM — so it's testable without a browser. */
+export function findEditTarget(rows, editId) {
+    for (const iso of Object.keys(rows)) {
+        const i = rows[iso].findIndex((r) => String(r.id) === String(editId));
+        if (i !== -1) return { iso, index: i };
+    }
+
+    return null;
+}
+
 export function registerTimesheetCapture(Alpine) {
     // Shared with the outer tab-bar scope (a sibling Alpine root) so it can hide itself
     // while the pre-submit review is open — Alpine scope chaining only flows parent to
@@ -32,6 +44,7 @@ export function registerTimesheetCapture(Alpine) {
         projects: cfg.projects || [],
         templates: cfg.templates || [],
         readonly: cfg.readonly || false,
+        editEntryId: cfg.editEntryId || null,
         rows: {},
         selected: null,
         sheetOpen: false,
@@ -65,6 +78,7 @@ export function registerTimesheetCapture(Alpine) {
                 // owns the day). A half day keeps the staffer's work rows, so seed those.
                 if (this.isFullyLocked(iso)) continue;
                 this.rows[iso] = seed[iso].map((e) => ({
+                    id: e.id,
                     category_id: e.category_id || '',
                     project_id: e.project_id || '',
                     sub_pillar_id: e.sub_pillar_id || '',
@@ -86,6 +100,17 @@ export function registerTimesheetCapture(Alpine) {
                 this.$store.toast.info(this.$store.ui.lang === 'en'
                     ? 'This week is ready — remember to submit it.'
                     : 'Minggu ini sudah sedia — jangan lupa hantar.');
+            }
+
+            // Deep link from the Review tab ("open this entry"). Skipped on a submitted
+            // week: Record shows it locked with a reopen banner, there is no row to edit
+            // until it's recalled, and openEditRow() assumes an editable this.selected day.
+            if (this.editEntryId && !this.readonly) {
+                const target = findEditTarget(this.rows, this.editEntryId);
+                if (target) {
+                    this.selected = target.iso;
+                    this.$nextTick(() => this.openEditRow(target.index));
+                }
             }
         },
 

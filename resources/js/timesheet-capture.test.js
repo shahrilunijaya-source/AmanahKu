@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { registerTimesheetCapture } from './timesheet-capture';
+import { registerTimesheetCapture, findEditTarget } from './timesheet-capture';
 
 // 2026-08-03 is a Monday, so a 7-day week from there is Mon..Sun with Saturday at index 5.
 const WEEK_START = '2026-08-03';
@@ -91,4 +91,24 @@ test('categoryTotals() does not double-count a day that flipped fully-locked whi
     expect(totals.length).toBe(1);
     expect(totals[0].label).toBe('On Leave');
     expect(totals.reduce((s, b) => s + b.pct, 0)).toBe(100);
+});
+
+test('findEditTarget() finds the day and index of a matching row id', () => {
+    const rows = {
+        '2026-08-03': [{ id: 10, category_id: 1 }, { id: 11, category_id: 2 }],
+        '2026-08-04': [{ id: 12, category_id: 1 }],
+    };
+    expect(findEditTarget(rows, '11')).toEqual({ iso: '2026-08-03', index: 1 });
+    expect(findEditTarget(rows, 12)).toEqual({ iso: '2026-08-04', index: 0 });
+});
+
+test('findEditTarget() returns null when no row matches', () => {
+    const rows = { '2026-08-03': [{ id: 10 }] };
+    expect(findEditTarget(rows, '999')).toBeNull();
+});
+
+test('init() ignores editEntryId on a readonly (submitted) week — nothing to auto-open until recalled', () => {
+    const c = makeComponent({ days: 5, readonly: true, editEntryId: '10', existing: { [WEEK_START]: [{ id: 10, category_id: 1, percentage: 100 }] } });
+    expect(() => c.init()).not.toThrow();
+    expect(c.picker.open).toBe(false);
 });
