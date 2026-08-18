@@ -95,6 +95,27 @@ class AttendanceReportLocationTest extends TestCase
         ]);
     }
 
+    /**
+     * @param  array<int, string>  $flags
+     */
+    private function offSiteRecordWith(Employee $emp, array $flags, bool $withIn, bool $withOut): AttendanceRecord
+    {
+        return AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $emp->id,
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '09:31:00',
+            'clock_out' => '18:05:00',
+            'latitude' => $withIn ? 3.1627800 : null,
+            'longitude' => $withIn ? 101.7172189 : null,
+            'clock_out_latitude' => $withOut ? 3.1699900 : null,
+            'clock_out_longitude' => $withOut ? 101.7233300 : null,
+            'in_radius' => false,
+            'flags' => $flags,
+        ]);
+    }
+
     private function subject(): Employee
     {
         return Employee::create([
@@ -155,6 +176,7 @@ class AttendanceReportLocationTest extends TestCase
 
         $this->openDrillAs('hr', $subject)
             ->assertOk()
+            ->assertSee('Off Site Staff', false)
             ->assertDontSee('open-map-view', false)
             ->assertDontSee('101.717', false);
     }
@@ -167,7 +189,46 @@ class AttendanceReportLocationTest extends TestCase
 
         $this->openDrillAs('employee', $subject)
             ->assertOk()
+            ->assertSee('Off Site Staff', false)
+            ->assertSee('Off-site in', false)
             ->assertDontSee('open-map-view', false)
             ->assertDontSee('101.717', false);
+    }
+
+    public function test_an_off_site_clock_out_only_offers_a_location_control(): void
+    {
+        $subject = $this->subject();
+        $this->offSiteRecordWith($subject, ['out_of_radius_out'], withIn: false, withOut: true);
+
+        $this->openDrillAs('hr', $subject)
+            ->assertOk()
+            ->assertSee('open-map-view', false)
+            ->assertSee('Clocked out 18:05', false)
+            ->assertSee('101.723', false);
+    }
+
+    public function test_off_site_on_both_in_and_out_carries_two_points(): void
+    {
+        $subject = $this->subject();
+        $this->offSiteRecordWith($subject, ['out_of_radius_in', 'out_of_radius_out'], withIn: true, withOut: true);
+
+        $response = $this->openDrillAs('hr', $subject)->assertOk();
+        $response->assertSee('open-map-view', false)
+            ->assertSee('Clocked in 09:31', false)
+            ->assertSee('Clocked out 18:05', false)
+            ->assertSee('101.717', false)
+            ->assertSee('101.723', false);
+    }
+
+    public function test_off_site_flag_with_null_coordinates_renders_no_control(): void
+    {
+        $subject = $this->subject();
+        $this->offSiteRecordWith($subject, ['out_of_radius_in', 'out_of_radius_out'], withIn: false, withOut: false);
+
+        $this->openDrillAs('hr', $subject)
+            ->assertOk()
+            ->assertSee('Off Site Staff', false)
+            ->assertDontSee('open-map-view', false)
+            ->assertDontSee('101.7', false);
     }
 }

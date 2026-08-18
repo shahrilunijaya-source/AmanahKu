@@ -6,10 +6,10 @@
         <div x-show="open" x-transition.opacity @keydown.escape.window="close()"
              class="uj-dialog-overlay"
              style="position:fixed;inset:0;z-index:1000;background:rgba(15,18,20,.55);padding:20px;">
-            <div @click.outside="close()" class="uj-mv-panel">
+            <div @click.outside="close()" class="uj-mv-panel" role="dialog" aria-modal="true" aria-labelledby="uj-mv-title">
                 <div class="uj-mv-head">
                     <div style="min-width:0;">
-                        <div class="uj-mv-title" x-text="title"></div>
+                        <div class="uj-mv-title" id="uj-mv-title" x-text="title"></div>
                         <div class="uj-mv-sub"
                              x-text="$store.ui.lang==='en'
                                 ? 'Where this punch was recorded. Read-only.'
