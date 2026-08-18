@@ -801,7 +801,6 @@
                                         <span class="n" x-html="line.note"></span>
                                     </template>
                                 </div>
-                                <span class="d" x-text="fmtDays(line.days)"></span>
                             </a>
                         </template>
                         <template x-if="wk.status === 'submitted'">

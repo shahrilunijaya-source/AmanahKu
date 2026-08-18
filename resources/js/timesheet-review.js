@@ -7,10 +7,6 @@
  */
 import { dayColor } from './timesheet-report';
 
-export function fmtDays(n) {
-    return (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
-}
-
 /**
  * Build the link into Record for one entry line: its week, its edit form. Lines with
  * no `id` are system-generated (leave/holiday) — Record has no editable row for those
@@ -35,7 +31,6 @@ export function registerTimesheetReview(Alpine) {
         prevWeek() { if (this.weekIdx > 0) { this.weekDir = 'back'; this.weekIdx--; } },
         nextWeek() { if (this.weekIdx < this.weeks.length - 1) { this.weekDir = 'fwd'; this.weekIdx++; } },
 
-        fmtDays,
         dayColor,
         entryUrl(line) { return reviewEntryUrl(this.baseUrl, this.currentWeek?.weekStart, line); },
     }));
