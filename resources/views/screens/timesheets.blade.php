@@ -691,12 +691,12 @@
                     <span style="font-size:12px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'"></span>
                 </div>
                 <div aria-hidden="true" style="display:flex;height:9px;border-radius:999px;overflow:hidden;gap:2px;margin-bottom:10px;">
-                    <template x-for="b in categoryTotals()" :key="b.label">
+                    <template x-for="b in categoryTotals()" :key="b.key">
                         <div :style="{ width: b.pct + '%', background: b.colour }"></div>
                     </template>
                 </div>
                 <div style="display:flex;gap:14px;flex-wrap:wrap;">
-                    <template x-for="b in categoryTotals()" :key="b.label + '-legend'">
+                    <template x-for="b in categoryTotals()" :key="b.key">
                         <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--body);">
                             <span style="width:8px;height:8px;border-radius:2px;flex-shrink:0;" :style="{ background: b.colour }"></span>
                             <span x-text="b.label + ' · ' + b.pct + '%'"></span>
@@ -718,7 +718,7 @@
                                 <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="lockedPct(d) + '%'"></div>
                             </div>
                         </template>
-                        <template x-for="(r, i) in (rows[d] || [])" :key="i">
+                        <template x-for="(r, i) in (isFullyLocked(d) ? [] : (rows[d] || []))" :key="i">
                             <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
                                 <span :style="{ background: categoryColour(r.category_id) }" style="width:8px;height:8px;border-radius:2px;margin-top:4px;flex-shrink:0;"></span>
                                 <div style="flex:1;min-width:0;">
@@ -747,6 +747,7 @@
                     </button>
                 </div>
             </div>
+            <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
         </div>
     </div>
     </div>

@@ -53,6 +53,12 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         init() {
+            // The review pane's open/closed flag lives on a store (singleton across screen
+            // navigations, see the class-level comment above), so a previous mount leaving it
+            // `true` would otherwise land a fresh mount straight on the review pane. Every
+            // mount starts closed regardless of what the last one left behind.
+            this.$store.tsReview.open = false;
+
             const seed = cfg.existing || {};
             for (const iso of Object.keys(seed)) {
                 // Fully locked days never carry editable rows (the server drops them and
@@ -787,19 +793,25 @@ export function registerTimesheetCapture(Alpine) {
                 if (this.locked[iso]) {
                     const label = this.locked[iso].label;
                     const key = 'locked:' + label;
-                    buckets[key] = buckets[key] || { label, colour: 'var(--muted)', amount: 0 };
+                    buckets[key] = buckets[key] || { key, label, colour: 'var(--muted)', amount: 0 };
                     buckets[key].amount += this.lockedPct(iso) * scale;
                 }
-                for (const r of (this.rows[iso] || [])) {
+                // A fully-locked day contributes only its locked amount (handled above) —
+                // never its rows. Those can still be sitting in this.rows[iso] stale from
+                // before HR approved leave / added a holiday mid-session (save() refreshes
+                // `locked` from the server but never touches `rows`), and dayTotal() already
+                // reads the day as 100 regardless of what's in rows. Counting the stale rows
+                // on top of that would push this day's bucket contributions past 100.
+                for (const r of (this.isFullyLocked(iso) ? [] : (this.rows[iso] || []))) {
                     const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
                     const key = 'cat:' + r.category_id;
-                    buckets[key] = buckets[key] || { label: cat ? this.categoryName(cat) : '', colour: this.categoryColour(r.category_id), amount: 0 };
+                    buckets[key] = buckets[key] || { key, label: cat ? this.categoryName(cat) : '', colour: this.categoryColour(r.category_id), amount: 0 };
                     buckets[key].amount += (parseFloat(r.percentage) || 0) * scale;
                 }
             }
 
             return Object.values(buckets)
-                .map((b) => ({ label: b.label, colour: b.colour, pct: Math.round((b.amount / denom) * 100) }))
+                .map((b) => ({ key: b.key, label: b.label, colour: b.colour, pct: Math.round((b.amount / denom) * 100) }))
                 .filter((b) => b.pct > 0)
                 .sort((a, b) => b.pct - a.pct);
         },
