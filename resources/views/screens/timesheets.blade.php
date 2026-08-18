@@ -684,7 +684,26 @@
             </h2>
             <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M Y') }} &middot; <span x-text="$store.ui.lang==='en' ? 'every working day at 100%' : 'setiap hari bekerja pada 100%'"></span></div>
 
-            <div id="ts-review-summary"></div>
+            <div id="ts-review-summary" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:16px;margin-bottom:20px;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
+                    <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);"
+                        x-text="Math.round(reviewDays().reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, reviewDays().length*100) * 100) + '%'">0%</span>
+                    <span style="font-size:12px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'"></span>
+                </div>
+                <div aria-hidden="true" style="display:flex;height:9px;border-radius:999px;overflow:hidden;gap:2px;margin-bottom:10px;">
+                    <template x-for="b in categoryTotals()" :key="b.label">
+                        <div :style="{ width: b.pct + '%', background: b.colour }"></div>
+                    </template>
+                </div>
+                <div style="display:flex;gap:14px;flex-wrap:wrap;">
+                    <template x-for="b in categoryTotals()" :key="b.label + '-legend'">
+                        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--body);">
+                            <span style="width:8px;height:8px;border-radius:2px;flex-shrink:0;" :style="{ background: b.colour }"></span>
+                            <span x-text="b.label + ' · ' + b.pct + '%'"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
             <div id="ts-review-days"></div>
 
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid var(--hairline);flex-wrap:wrap;">

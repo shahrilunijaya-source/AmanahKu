@@ -762,5 +762,46 @@ export function registerTimesheetCapture(Alpine) {
             this.$store.tsReview.open = false;
             this.$nextTick(() => document.getElementById('ts-submit-btn')?.focus());
         },
+        // The exact set flatRows() will POST: isEditable() days holding rows, plus every
+        // locked day. Deliberately NOT dayDates() — that follows the reactive 5/7 "Show
+        // weekend" toggle, which flatRows() ignores entirely (Saturday's rows still post
+        // even after the toggle is switched back to 5). Sorted so the day cards read Mon→Fri.
+        reviewDays() {
+            const rowDays = Object.keys(this.rows).filter((d) => this.isEditable(d) && (this.rows[d] || []).length);
+            const lockedDays = Object.keys(this.locked);
+
+            return [...new Set([...rowDays, ...lockedDays])].sort();
+        },
+        // Week split by category, over reviewDays() — not dayDates() — for the same reason.
+        // Each day's contribution clamps at 100 so an over-allocated day can't push the split
+        // past the headline week-percent figure shown directly above it.
+        categoryTotals() {
+            const days = this.reviewDays();
+            const denom = Math.max(1, days.length) * 100;
+            const buckets = {};
+
+            for (const iso of days) {
+                const raw = this.dayTotal(iso);
+                const scale = raw > 100 ? 100 / raw : 1;
+
+                if (this.locked[iso]) {
+                    const label = this.locked[iso].label;
+                    const key = 'locked:' + label;
+                    buckets[key] = buckets[key] || { label, colour: 'var(--muted)', amount: 0 };
+                    buckets[key].amount += this.lockedPct(iso) * scale;
+                }
+                for (const r of (this.rows[iso] || [])) {
+                    const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
+                    const key = 'cat:' + r.category_id;
+                    buckets[key] = buckets[key] || { label: cat ? cat.name : '', colour: this.categoryColour(r.category_id), amount: 0 };
+                    buckets[key].amount += (parseFloat(r.percentage) || 0) * scale;
+                }
+            }
+
+            return Object.values(buckets)
+                .map((b) => ({ label: b.label, colour: b.colour, pct: Math.round((b.amount / denom) * 100) }))
+                .filter((b) => b.pct > 0)
+                .sort((a, b) => b.pct - a.pct);
+        },
     }));
 }

@@ -86,4 +86,14 @@ class TimesheetSubmitReviewTest extends TestCase
         $r->assertSee('@keydown.escape.window', false);
         $r->assertSee('@popstate.window', false);
     }
+
+    public function test_the_review_pane_has_a_category_summary(): void
+    {
+        $r = $this->actingInTenant()->get('/app/timesheets');
+
+        $r->assertOk();
+        $r->assertSee('id="ts-review-summary"', false);
+        $r->assertSee('categoryTotals()', false);
+        $r->assertSee('reviewDays()', false);
+    }
 }
