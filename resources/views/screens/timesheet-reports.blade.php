@@ -21,10 +21,9 @@
     $activeFilterParts = array_filter([$selCatName, $selProjName]);
     $activeFilterName = count($activeFilterParts) > 0 ? implode(' + ', $activeFilterParts) : 'This period';
 
-    // Which tab opens. Defaults to the report, because that is what this screen is called
-    // in the nav and what its subtitle promises; the week tab carries a count so an
-    // unfilled sheet is visible without switching. ?tab=week deep-links the other one.
-    $tab = request()->query('tab') === 'week' ? 'week' : 'report';
+    // Which tab opens. Defaults to this week, so an unfilled sheet is the first
+    // thing seen. ?tab=report deep-links the other one.
+    $tab = request()->query('tab') === 'report' ? 'report' : 'week';
 
     // Rows the chase tab is about, so the tab label can carry the number.
     $oweCount = collect($tsRoster ?? [])->where('status', '!=', 'done')->count();
