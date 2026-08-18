@@ -256,4 +256,63 @@ class AttendanceReportSummaryTest extends TestCase
         $lateIds = collect($data['summary']['late'])->pluck('id');
         $this->assertTrue($lateIds->contains($c->id));
     }
+
+    /**
+     * Short hours is a clock-OUT flag, not a strip state — ClockService raises it when
+     * worked minutes fall under the site's minimum. It therefore has to be read from the
+     * record's own flags rather than the day strip, which is what the other two buckets use.
+     */
+    public function test_short_hours_days_are_named_in_the_short_bucket(): void
+    {
+        $emp = $this->staff('Left Early');
+        $this->punchAllExcept($emp, ['2026-07-14']);
+        $this->punch($emp, '2026-07-14', 'on_time', [
+            'clock_out' => '13:00:00',
+            'worked_minutes' => 240,
+            'expected_min_hours' => 8,
+            'flags' => ['short_hours'],
+        ]);
+
+        $row = $this->bucketRow($this->getScreenData(), 'short', $emp->id);
+
+        $this->assertNotNull($row, 'A short-hours day must list the person.');
+        $this->assertSame(['Tue'], $row['days']);
+    }
+
+    /**
+     * The distinguishing property of this bucket: the person arrived on time, so their
+     * cell stays green and no strip character marks the day. Only the flag carries it —
+     * a strip-derived bucket would miss them entirely.
+     */
+    public function test_a_short_day_that_started_on_time_is_not_late_or_absent(): void
+    {
+        $emp = $this->staff('On Time But Short');
+        $this->punchAllExcept($emp, ['2026-07-13']);
+        $this->punch($emp, '2026-07-13', 'on_time', [
+            'clock_out' => '12:30:00',
+            'worked_minutes' => 210,
+            'expected_min_hours' => 8,
+            'flags' => ['short_hours'],
+        ]);
+
+        $data = $this->getScreenData();
+
+        $this->assertNotNull($this->bucketRow($data, 'short', $emp->id));
+        $this->assertNull($this->bucketRow($data, 'late', $emp->id), 'They clocked in on time.');
+        $this->assertNull($this->bucketRow($data, 'absent', $emp->id), 'They were present.');
+    }
+
+    public function test_a_full_length_day_is_not_reported_as_short(): void
+    {
+        $emp = $this->staff('Full Day');
+        $this->punchAllExcept($emp, ['2026-07-14']);
+        $this->punch($emp, '2026-07-14', 'on_time', [
+            'clock_out' => '18:05:00',
+            'worked_minutes' => 605,
+            'expected_min_hours' => 8,
+            'flags' => [],
+        ]);
+
+        $this->assertNull($this->bucketRow($this->getScreenData(), 'short', $emp->id));
+    }
 }

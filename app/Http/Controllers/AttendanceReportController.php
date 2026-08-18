@@ -185,17 +185,30 @@ class AttendanceReportController extends Controller
             $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
 
-            // The days behind the two summary buckets, read off the SAME strip the row
-            // draws, so the summary can never disagree with the cells beside the name.
-            // $strip, not $rowStrip: the quarter view folds days into weeks to display,
-            // but the summary still names real days.
+            // The days behind the summary buckets. Late and absent are read off the SAME
+            // strip the row draws, so those two can never disagree with the cells beside
+            // the name. $strip, not $rowStrip: the quarter view folds days into weeks to
+            // display, but the summary still names real days.
+            //
+            // Short hours is different in kind and cannot come from the strip. It is a
+            // clock-OUT flag (ClockService::isShort — worked minutes under the site's
+            // minimum), so the day still renders green, amber or blue depending on how it
+            // began. Someone can arrive on time, leave early, and be flagged short while
+            // their cell stays green. It is therefore read from the record's own flags,
+            // and its count deliberately does not correspond to any colour on the strip.
             $lateDates = [];
             $absentDates = [];
+            $shortHoursDates = [];
             foreach ($days as $i => $dateStr) {
                 if ($strip[$i] === 'l') {
                     $lateDates[] = $dateStr;
                 } elseif ($strip[$i] === 'a') {
                     $absentDates[] = $dateStr;
+                }
+
+                $rec = $recordsMap[$emp->id][$dateStr] ?? null;
+                if ($rec !== null && in_array('short_hours', $rec->flags ?? [], true)) {
+                    $shortHoursDates[] = $dateStr;
                 }
             }
 
@@ -257,6 +270,7 @@ class AttendanceReportController extends Controller
                 'onLeave' => $onLeave,
                 'lateDates' => $lateDates,
                 'absentDates' => $absentDates,
+                'shortHoursDates' => $shortHoursDates,
             ];
         });
 
@@ -326,6 +340,7 @@ class AttendanceReportController extends Controller
         $summary = [
             'absent' => $bucket('absentDates'),
             'late' => $bucket('lateDates'),
+            'short' => $bucket('shortHoursDates'),
         ];
 
         // Totals

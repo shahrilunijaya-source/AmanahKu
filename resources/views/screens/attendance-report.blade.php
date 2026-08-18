@@ -301,6 +301,15 @@
                     'headEn' => 'Clocked in late', 'headMs' => 'Clock in lewat',
                     'emptyEn' => 'Nobody clocked in late.', 'emptyMs' => 'Tiada sesiapa clock in lewat.',
                 ],
+                // Wording matches the flag badge this screen already renders for the same
+                // record ($flagLabel['short_hours'] above), so the dialog and the drill-down
+                // call one thing by one name.
+                'short' => [
+                    'rows' => $summary['short'],
+                    'tileEn' => 'short hours', 'tileMs' => 'jam kurang',
+                    'headEn' => 'Short hours', 'headMs' => 'Jam kurang',
+                    'emptyEn' => 'Nobody worked short hours.', 'emptyMs' => 'Tiada sesiapa bekerja kurang jam.',
+                ],
             ];
             // Enough pills to read a pattern; the rest collapse into a +N so a 90-day
             // window can't spill 40 pills into one row.

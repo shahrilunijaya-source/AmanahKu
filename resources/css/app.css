@@ -1710,19 +1710,24 @@ select.wd-inline {
 .uj-ar-sumclose { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
 .uj-ar-sumclose:hover { background: var(--hairline-soft); color: var(--ink); }
 
-/* Two tiles, not three: "clocked out late" has no per-day source in this model
-   (attendance_records carries one status per day), so it would be a number with
-   nothing behind it. */
-.uj-ar-sumgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--hairline); flex-shrink: 0; }
+/* Three tiles: no punch, clocked in late, short hours — each backed by a real
+   per-day source. Note "clocked out late" is deliberately absent: nothing records
+   it, and the flags that do exist for the end of a day are early_out and
+   short_hours (leaving early / working too few hours), which are the opposite
+   concern. auto-fit rather than a fixed 3 so a fourth tile would wrap instead of
+   crushing the numbers to an unreadable width. */
+.uj-ar-sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--hairline); flex-shrink: 0; }
 .uj-ar-sumtile { background: var(--card); padding: 16px 16px 14px; text-align: center; border: 0; font: inherit; cursor: pointer; box-shadow: inset 0 -2px 0 0 transparent; }
 .uj-ar-sumtile:hover { background: var(--canvas); }
 .uj-ar-sumtile:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
 .uj-ar-sumtile.uj-ar-sumon { background: var(--canvas); }
 .uj-ar-sumtile.uj-ar-sumon[data-t="absent"] { box-shadow: inset 0 -2px 0 0 var(--error); }
 .uj-ar-sumtile.uj-ar-sumon[data-t="late"] { box-shadow: inset 0 -2px 0 0 var(--amber-ink); }
+.uj-ar-sumtile.uj-ar-sumon[data-t="short"] { box-shadow: inset 0 -2px 0 0 var(--info); }
 .uj-ar-sumnum { display: block; font: 600 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 .uj-ar-sumnum[data-t="absent"] { color: var(--error); }
 .uj-ar-sumnum[data-t="late"] { color: var(--amber-ink); }
+.uj-ar-sumnum[data-t="short"] { color: var(--info); }
 .uj-ar-sumlbl { display: block; margin-top: 6px; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; }
 
 .uj-ar-sumnames { padding: 14px 18px 10px; overflow-y: auto; }
@@ -1736,6 +1741,7 @@ select.wd-inline {
 .uj-ar-sumday { font: 600 10px/1 var(--font-mono); padding: 3px 6px; border-radius: 5px; background: var(--hairline-soft); color: var(--body); }
 .uj-ar-sumday[data-t="absent"] { background: var(--red-tint); color: var(--red-active); }
 .uj-ar-sumday[data-t="late"] { background: color-mix(in srgb, var(--amber) 16%, var(--card)); color: var(--amber-ink); }
+.uj-ar-sumday[data-t="short"] { background: color-mix(in srgb, var(--info) 14%, var(--card)); color: var(--info); }
 .uj-ar-sumempty { padding: 18px 6px 22px; text-align: center; font-size: var(--t-sm); color: var(--muted); }
 
 .uj-ar-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
