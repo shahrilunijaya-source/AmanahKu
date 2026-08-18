@@ -132,7 +132,9 @@ class TimesheetCostTest extends TestCase
 
     public function test_hr_report_shows_total_rm_cost(): void
     {
-        $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('RM 900.00');
+        // Formatted "RM 900.00" is client-rendered (Alpine x-text) since the totals shelf
+        // was dropped; assert the server-rendered payload it reads from instead.
+        $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_manager_cannot_open_the_all_staff_report(): void
@@ -144,7 +146,7 @@ class TimesheetCostTest extends TestCase
 
     public function test_management_report_shows_cost(): void
     {
-        $this->viewReportAs($this->actor('management'))->assertOk()->assertSee('RM 900.00');
+        $this->viewReportAs($this->actor('management'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_director_report_shows_cost(): void
@@ -152,7 +154,7 @@ class TimesheetCostTest extends TestCase
         // 'director' is a management super-set (Permissions::effectiveRole), so it must pass
         // both the screen gate and the money gate — the money gate used the raw role string
         // before, which let a director in and then showed them a report with no RM in it.
-        $this->viewReportAs($this->actor('director'))->assertOk()->assertSee('RM 900.00');
+        $this->viewReportAs($this->actor('director'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_plain_employee_cannot_open_the_timesheet_report(): void
