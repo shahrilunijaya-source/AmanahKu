@@ -1849,9 +1849,9 @@ select.wd-inline {
 .uj-tr-tag[data-t="part"] { background: #faf1e2; color: var(--amber-ink); }
 .uj-tr-tag[data-t="none"] { background: var(--hairline-soft); color: var(--muted); }
 
-.uj-tr-btn { height: 32px; padding: 0 13px; border: 1px solid var(--shelf-line); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease); }
+.uj-tr-btn { min-height: 44px; padding: 0 13px; border: 1px solid var(--shelf-line); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease), transform .04s var(--ease); }
 .uj-tr-btn:hover { border-color: var(--muted-soft); }
-.uj-tr-btn:active { background: var(--hairline-soft); transition-duration: .04s; }
+.uj-tr-btn:active { background: var(--hairline-soft); transform: scale(0.97); transition-duration: .04s; }
 .uj-tr-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .uj-tr-btn[data-primary] { background: var(--red); border-color: var(--red); color: #fff; font-weight: 500; }
 .uj-tr-btn[data-primary]:hover { background: var(--red-active); border-color: var(--red-active); }
@@ -1861,7 +1861,7 @@ select.wd-inline {
 .uj-tr-empty { padding: 34px 22px; text-align: center; font-size: var(--t-sm); color: var(--muted); line-height: 1.6; }
 .uj-tr-empty b { display: block; color: var(--ink); font-size: var(--t-base); font-weight: 600; margin-bottom: 4px; }
 
-.uj-tr-lens { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; margin-top: 14px; }
+.uj-tr-lens { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; margin-top: 14px; }
 .uj-tr-lensrow { width: 100%; display: block; text-align: left; background: none; border: 0; border-top: 1px solid var(--hairline-soft); padding: 13px 18px; font: inherit; color: inherit; cursor: pointer; transition: background .14s var(--ease); }
 .uj-tr-lensrow:first-child { border-top: 0; }
 .uj-tr-lensrow:hover { background: #faf9f5; }
@@ -1869,9 +1869,26 @@ select.wd-inline {
 .uj-tr-lensrow[data-on] { background: var(--red-tint); }
 .uj-tr-lensrow:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
 
-.uj-tr-panel { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px; position: sticky; top: 24px; }
+.uj-tr-panel { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px; }
 .uj-tr-panel .hd { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 14px; }
 .uj-tr-panel h3 { margin: 0; font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.3; }
+
+/* Drill header: replaces the old rail's "back arrow only" with wayfinding at
+   every level. Sticky because the entry list under it can run long — losing
+   the way back at the top of a long scroll was the rail's exact problem. */
+.uj-tr-crumb { position: sticky; top: 0; background: var(--card); z-index: 1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-sm); }
+.uj-tr-crumb-btn { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; font: inherit; font-size: var(--t-sm); color: var(--muted); cursor: pointer; border-radius: 6px; min-height: 28px; }
+.uj-tr-crumb-btn:hover { color: var(--ink); background: var(--hairline-soft); }
+.uj-tr-crumb-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+.uj-tr-crumb-cur { color: var(--ink); font-weight: 600; }
+.uj-tr-crumb-sep { color: var(--muted); }
+.uj-tr-crumb-share { margin-left: auto; color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-sm); white-space: nowrap; }
+
+/* One line replacing the shelf + filter form while drilled in. */
+.uj-tr-summary { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin: 14px 0; }
+
+.uj-tr-notice { display: flex; align-items: center; gap: 10px; background: #faf1e2; border: 1px solid #f0dfc0; border-radius: 10px; padding: 10px 14px; margin: 14px 0; font-size: var(--t-sm); color: var(--amber-ink); }
+.uj-tr-notice-close { margin-left: auto; background: none; border: 0; font-size: 16px; line-height: 1; color: inherit; cursor: pointer; padding: 4px; }
 
 .uj-tr-wk { border-top: 1px solid var(--hairline-soft); padding: 11px 0; }
 .uj-tr-wk .hdr { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-micro); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-bottom: 7px; }
@@ -1879,12 +1896,14 @@ select.wd-inline {
 .uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; }
 .uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
 
-.uj-tr-anim .uj-tr-panel, .uj-tr-panel[data-fresh] { animation: uj-tr-panel-in .3s var(--ease) both; }
-@keyframes uj-tr-panel-in { from { opacity: 0; transform: translateX(14px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.uj-tr-panel[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
+.uj-tr-panel[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
+@keyframes uj-tr-panel-in-fwd { from { opacity: 0; transform: translateX(12px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes uj-tr-panel-in-back { from { opacity: 0; transform: translateX(-12px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
 
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }
-  .uj-tr-anim .uj-tr-panel, .uj-tr-panel[data-fresh] { animation: uj-tr-fade .2s ease-out both; }
+  .uj-tr-panel[data-dir="fwd"], .uj-tr-panel[data-dir="back"] { animation: uj-tr-fade .2s ease-out both; }
   @keyframes uj-tr-fade { from { opacity: 0; } to { opacity: 1; } }
 }
 
@@ -1895,8 +1914,6 @@ select.wd-inline {
   .uj-tr-range { margin-left: 0; width: 100%; }
   .uj-tr-owe { grid-template-columns: 1fr; gap: 11px; }
   .uj-tr-owe .act { justify-content: flex-start; }
-  .uj-tr-lens { grid-template-columns: 1fr; }
-  .uj-tr-panel { position: static; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
