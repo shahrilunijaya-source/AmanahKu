@@ -497,6 +497,12 @@ class ApiDocsPageTest extends TestCase
         // rather than the button being wired to an empty string.
         $response->assertSee('HARD CONSTRAINTS', escape: false);
         $response->assertSee('week_start MUST be an exact Monday', escape: false);
+
+        // The discriminating one. Blade escapes entities, so a brief embedded in a raw-text
+        // element (<script>) reaches the clipboard as &quot;data&quot; and -&gt;. This line
+        // fails under that embed and passes under a correct one, which the phrases above
+        // cannot distinguish because they contain no escapable characters.
+        $response->assertSee('success -> {"data"', escape: false);
     }
 
     public function test_it_does_not_leak_a_key_or_invite_anyone_to_paste_one(): void
@@ -581,9 +587,10 @@ Structural requirements, all of which the mockup already satisfies:
 - Styling via inline styles and the existing CSS variables (`--ink`, `--muted`, `--red`, `--red-tint`, `--canvas`, `--card`, `--hairline`, `--hairline-soft`, `--shelf`, `--sidebar`, `--amber-ink`, `--success`). No new Tailwind utilities.
 - The base URL is printed from `$baseUrl`, never hardcoded.
 - **The endpoint cards loop over `$endpoints`.** Each card shows the path, `title`, `blurb`, and either its `scope` as a chip when `app_key` is true, or the exact text `Staff tokens only` when it is false.
-- **The agent brief is rendered into the page** inside `<script type="text/plain" id="agent-brief">{{ $brief }}</script>`, and the copy button reads `textContent` from that element. Do not rebuild the brief in JavaScript.
+- **The agent brief is rendered into the page** inside `<pre id="agent-brief" hidden>{{ $brief }}</pre>`, and the copy button reads `textContent` from that element. Do not rebuild the brief in JavaScript, and do **not** put it inside `<script type="text/plain">`: `<script>` is a raw-text element, so the browser never decodes the entities Blade writes, and the clipboard ends up carrying `&quot;data&quot;` and `-&gt;` instead of the real characters. A hidden `<pre>` is parsed normally, so `textContent` comes back clean. The test asserting `success -> {"data"` is what catches this if it is got wrong.
 - Three buttons: *Copy everything for your AI* (the brief), *Copy OpenAPI JSON* (the absolute URL of `/openapi.json`), *Copy a test call* (a `curl` against `/projects`).
 - Copy uses `navigator.clipboard.writeText`. `SecurityHeaders` already allows `script-src 'self' 'unsafe-inline'`, so an inline handler needs no CSP change. Clipboard needs a secure context, which `https://` in production and `localhost` in dev both satisfy.
+- **Replace the mockup's placeholder key.** Quick Start step 2 in the mockup renders `Authorization: Bearer amk_live_xxxxxxxxxxxx`. Change it to `Authorization: Bearer <key>`, matching the brief's own wording. A faithful port would fail `test_it_does_not_leak_a_key_or_invite_anyone_to_paste_one`, which asserts the page never contains `amk_live_` — the test is right and the mockup's placeholder is the thing that gives.
 - No credential appears anywhere, and there is no input inviting one. The tests assert both.
 
 - [ ] **Step 6: Link it from the key screen**
