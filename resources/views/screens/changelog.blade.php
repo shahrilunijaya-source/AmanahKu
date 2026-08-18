@@ -31,8 +31,14 @@
                     <div style="display:flex;align-items:baseline;gap:10px;">
                         <span class="uj-stamp"@if ($tone) data-tone="{{ $tone }}" @endif style="flex-shrink:0;"
                               x-text="$store.ui.lang==='en' ? @js($tagLabel[$entry['tag']]['en']) : @js($tagLabel[$entry['tag']]['ms'])">{{ $tagLabel[$entry['tag']]['en'] }}</span>
-                        <span style="font-size:13.5px;color:var(--ink);line-height:1.5;"
-                              x-text="$store.ui.lang==='en' ? @js($entry['text']) : @js($entry['text_ms'])">{{ $entry['text'] }}</span>
+                        <span style="font-size:13.5px;color:var(--ink);line-height:1.5;">
+                            <span x-text="$store.ui.lang==='en' ? @js($entry['text']) : @js($entry['text_ms'])">{{ $entry['text'] }}</span>
+                            @if ($entry['link'])
+                                {{-- Optional per-entry link: a release note that names a screen can open it. --}}
+                                <a href="{{ $entry['link'] }}" style="display:inline-block;margin-left:6px;font-size:12.5px;font-weight:600;color:var(--red);text-decoration:none;white-space:nowrap;"
+                                   x-text="$store.ui.lang==='en' ? @js($entry['link_text'].' →') : @js($entry['link_text_ms'].' →')">{{ $entry['link_text'] }} &rarr;</a>
+                            @endif
+                        </span>
                     </div>
                 @endforeach
             </div>
@@ -66,8 +72,14 @@
                         <div style="display:flex;align-items:baseline;gap:10px;">
                             <span class="uj-stamp"@if ($tone) data-tone="{{ $tone }}" @endif style="flex-shrink:0;"
                                   x-text="$store.ui.lang==='en' ? @js($tagLabel[$entry['tag']]['en']) : @js($tagLabel[$entry['tag']]['ms'])">{{ $tagLabel[$entry['tag']]['en'] }}</span>
-                            <span style="font-size:13.5px;color:var(--ink);line-height:1.5;"
-                                  x-text="$store.ui.lang==='en' ? @js($entry['text']) : @js($entry['text_ms'])">{{ $entry['text'] }}</span>
+                            <span style="font-size:13.5px;color:var(--ink);line-height:1.5;">
+                                <span x-text="$store.ui.lang==='en' ? @js($entry['text']) : @js($entry['text_ms'])">{{ $entry['text'] }}</span>
+                                @if ($entry['link'])
+                                    {{-- Optional per-entry link: a release note that names a screen can open it. --}}
+                                    <a href="{{ $entry['link'] }}" style="display:inline-block;margin-left:6px;font-size:12.5px;font-weight:600;color:var(--red);text-decoration:none;white-space:nowrap;"
+                                       x-text="$store.ui.lang==='en' ? @js($entry['link_text'].' →') : @js($entry['link_text_ms'].' →')">{{ $entry['link_text'] }} &rarr;</a>
+                                @endif
+                            </span>
                         </div>
                     @endforeach
                 </div>

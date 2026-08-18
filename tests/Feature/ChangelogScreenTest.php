@@ -74,6 +74,43 @@ class ChangelogScreenTest extends TestCase
         );
     }
 
+    public function test_an_entry_can_carry_a_link_and_it_renders_as_an_anchor(): void
+    {
+        $linked = collect(Changelog::releases())
+            ->flatMap(fn (array $release): array => $release['entries'])
+            ->filter(fn (array $entry): bool => $entry['link'] !== null);
+
+        $this->assertNotEmpty($linked, 'No changelog entry carries a link, so this test guards nothing.');
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/changelog');
+
+        $response->assertOk();
+
+        foreach ($linked as $entry) {
+            // The href, not merely the URL as text — a bare URL in the copy would satisfy
+            // a looser assertion while leaving the reader nothing to click.
+            $response->assertSee('href="'.$entry['link'].'"', escape: false);
+            $response->assertSee($entry['link_text'], escape: false);
+        }
+    }
+
+    public function test_an_entry_without_a_link_carries_no_anchor_markup(): void
+    {
+        // Most entries have no link. The optional field must default to null rather than
+        // rendering an empty or placeholder anchor.
+        $unlinked = collect(Changelog::releases())
+            ->flatMap(fn (array $release): array => $release['entries'])
+            ->filter(fn (array $entry): bool => $entry['link'] === null);
+
+        $this->assertNotEmpty($unlinked);
+
+        foreach ($unlinked as $entry) {
+            $this->assertNull($entry['link']);
+        }
+    }
+
     public function test_the_sidebar_footer_links_to_the_changelog_from_any_screen(): void
     {
         $response = $this->actingAs($this->user)
