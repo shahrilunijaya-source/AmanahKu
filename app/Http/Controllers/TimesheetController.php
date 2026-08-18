@@ -615,6 +615,7 @@ class TimesheetController extends Controller
                     ]);
 
                     $lines[] = [
+                        'day' => $e->entry_date->format('D j M'),
                         'label' => implode(' · ', $labelParts),
                         'note' => $e->description,
                         'days' => round((float) $e->percentage / 100, 2),
