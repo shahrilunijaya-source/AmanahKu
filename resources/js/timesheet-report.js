@@ -92,6 +92,26 @@ export function breadcrumb(sel, lens, currentSliceRow, personRow, fromSliceRow, 
     return [];
 }
 
+/**
+ * Weekday -> one of the app's existing accent tokens, so entry-line day labels
+ * are scannable at a glance instead of all reading as the same muted grey.
+ * Friday reuses Monday's colour — only four accents exist in the palette and
+ * they're not adjacent in the list, so the repeat doesn't read as a mix-up.
+ */
+const DAY_COLORS = {
+    Mon: 'var(--info)',
+    Tue: 'var(--success-ink)',
+    Wed: 'var(--amber-ink)',
+    Thu: 'var(--red)',
+    Fri: 'var(--info)',
+};
+
+/** dayColor('Mon 6 Jul') -> 'var(--info)'; unknown/weekend prefixes get no colour. */
+export function dayColor(dayLabel) {
+    if (!dayLabel) { return ''; }
+    return DAY_COLORS[dayLabel.slice(0, 3)] || '';
+}
+
 /** "8 people · 35.5 md · RM 19,800.60" (or the BM equivalent) for a slice's share line. */
 export function formatSliceSubline(slice, isEn) {
     if (!slice) { return ''; }
@@ -241,6 +261,9 @@ export function registerTimesheetReport(Alpine) {
         },
         formatMissingWeeks(p) {
             return formatMissingWeeks(p, this.$store.ui.lang === 'en');
+        },
+        dayColor(day) {
+            return dayColor(day);
         },
     }));
 }

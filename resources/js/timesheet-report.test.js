@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks } from './timesheet-report';
+import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks, dayColor } from './timesheet-report';
 
 test('backTarget pops person-with-slice to its slice', () => {
     expect(backTarget({ view: 'person', key: '42', from: '3' })).toEqual({ view: 'slice', key: '3', from: null });
@@ -124,4 +124,19 @@ test('formatMissingWeeks: multiple weeks joined with "and"/"dan", plural verb', 
 test('formatMissingWeeks: no missing weeks or no person is blank', () => {
     expect(formatMissingWeeks({ missingWeeks: [] }, true)).toBe('');
     expect(formatMissingWeeks(null, true)).toBe('');
+});
+
+test('dayColor maps each weekday prefix to a distinct accent, Friday repeats Monday', () => {
+    expect(dayColor('Mon 6 Jul')).toBe('var(--info)');
+    expect(dayColor('Tue 7 Jul')).toBe('var(--success-ink)');
+    expect(dayColor('Wed 8 Jul')).toBe('var(--amber-ink)');
+    expect(dayColor('Thu 9 Jul')).toBe('var(--red)');
+    expect(dayColor('Fri 10 Jul')).toBe('var(--info)');
+});
+
+test('dayColor is blank for weekends and empty input', () => {
+    expect(dayColor('Sat 11 Jul')).toBe('');
+    expect(dayColor('Sun 12 Jul')).toBe('');
+    expect(dayColor(null)).toBe('');
+    expect(dayColor('')).toBe('');
 });
