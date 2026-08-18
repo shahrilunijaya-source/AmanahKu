@@ -15,6 +15,12 @@
  * re-appends the leave portion itself.
  */
 export function registerTimesheetCapture(Alpine) {
+    // Shared with the outer tab-bar scope (a sibling Alpine root) so it can hide itself
+    // while the pre-submit review is open — Alpine scope chaining only flows parent to
+    // child, so a plain component property on timesheetCapture can't cross that sibling
+    // boundary to the tab bar.
+    Alpine.store('tsReview', { open: false });
+
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
         days: cfg.days || 5,
@@ -746,15 +752,14 @@ export function registerTimesheetCapture(Alpine) {
         // own the two things a pane swap always gets wrong — where focus goes, and what the
         // back gesture does. Escape and "Back to editing" both call history.back() so every
         // closing path funnels through the one popstate listener below.
-        reviewing: false,
         openReview() {
             if (this.readonly) return;
-            this.reviewing = true;
+            this.$store.tsReview.open = true;
             history.pushState(null, '', location.href);
             this.$nextTick(() => document.getElementById('ts-review-title')?.focus());
         },
         closeReview() {
-            this.reviewing = false;
+            this.$store.tsReview.open = false;
             this.$nextTick(() => document.getElementById('ts-submit-btn')?.focus());
         },
     }));

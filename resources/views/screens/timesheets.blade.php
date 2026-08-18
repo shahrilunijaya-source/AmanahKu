@@ -78,7 +78,7 @@
     {{-- Two tabs: Record writes the week, Review reads it back. An underline bar mirroring
          the all-staff report screen. Record opens by default — the nav names this screen
          "Timesheet" and the daily job is filling it in. --}}
-    <div class="uj-tr-tabs" role="tablist">
+    <div class="uj-tr-tabs" role="tablist" x-show="!$store.tsReview.open">
         <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='record'"
             :aria-selected="tab==='record'" @click="setTab('record')">
             <span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span>
@@ -106,10 +106,10 @@
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
          })"
-         @popstate.window="if (reviewing) closeReview()"
-         @keydown.escape.window="if (reviewing) history.back()">
+         @popstate.window="if ($store.tsReview.open) closeReview()"
+         @keydown.escape.window="if ($store.tsReview.open) history.back()">
 
-        <div x-show="!reviewing">
+        <div x-show="!$store.tsReview.open">
         {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
              scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
         <div class="uj-ts-shelf" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;margin:-4px -4px 18px;">
@@ -673,7 +673,7 @@
              Not a dialog: no backdrop, no aria-modal, no focus trap. Replaces the whole
              Record pane (tab bar and old Submit button included) so there is only ever one
              submit path on screen. ---- --}}
-        <div x-show="reviewing" x-cloak
+        <div x-show="$store.tsReview.open" x-cloak
              x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
              x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from">
             <button type="button" @click="history.back()" class="uj-btn-ghost" style="height:32px;padding:0 10px;font-size:13px;margin-bottom:10px;">
