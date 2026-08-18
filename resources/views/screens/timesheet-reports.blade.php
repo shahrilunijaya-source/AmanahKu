@@ -258,36 +258,6 @@
          so the thing you drilled into doesn't have to compete with eight controls
          above it. --}}
     <div x-show="sel.view==='bars'">
-        <div class="uj-tr-shelf">
-            <div class="uj-tr-lede">
-                <span x-text="$store.ui.lang==='en' ? 'Submitted timesheets' : 'Timesheet dihantar'">Submitted timesheets</span> · <b>{{ $dateRange }}</b>
-            </div>
-            <div class="uj-tr-figrow">
-                <span class="uj-tr-fig">{{ $md($totals['days']) }}</span>
-                <span class="uj-tr-figsub">
-                    <b><span x-text="$store.ui.lang==='en' ? 'person-days recorded' : 'hari-orang direkod'">person-days recorded</span></b>@if($totals['cost'] > 0), <span x-text="$store.ui.lang==='en' ? 'worth' : 'bernilai'">worth</span> {{ $rm($totals['cost']) }} <span x-text="$store.ui.lang==='en' ? 'at charge-out rates.' : 'pada kadar caj.'">at charge-out rates.</span>@else.@endif
-                    @if ($totals['uncostedDays'] > 0)
-                        {{ $md($totals['uncostedDays']) }} md <span x-text="$store.ui.lang==='en' ? 'have no band and no cost.' : 'tiada band dan tiada kos.'">have no band dan tiada kos.</span>
-                    @endif
-                </span>
-            </div>
-            {{-- PERSON-DAYS chip dropped: it repeated the hero figure above it verbatim. --}}
-            <div class="uj-tr-chips">
-                @if ($totals['uncostedDays'] > 0)
-                    <div class="uj-tr-chip" data-t="warn">
-                        <b>{{ $md($totals['uncostedDays']) }}</b>
-                        <span x-text="$store.ui.lang==='en' ? 'UNCOSTED MD' : 'MD TANPA KOS'">UNCOSTED MD</span>
-                    </div>
-                @endif
-                @if ($totals['weeksNotIn'] > 0)
-                    <div class="uj-tr-chip" data-t="warn">
-                        <b>{{ $totals['weeksNotIn'] }}</b>
-                        <span x-text="$store.ui.lang==='en' ? 'WEEKS NOT IN' : 'MINGGU BELUM MASUK'">WEEKS NOT IN</span>
-                    </div>
-                @endif
-            </div>
-        </div>
-
         <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
             <div>
                 <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
