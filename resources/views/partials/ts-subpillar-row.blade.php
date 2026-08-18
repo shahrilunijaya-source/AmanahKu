@@ -2,7 +2,7 @@
      Shared by the initial render and the AJAX append on add. Expects $sp
      (SubPillar, with entries_count) and $canEdit. --}}
 @php $canEdit = $canEdit ?? false; @endphp
-<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hairline-soft);" x-data="{ se: false }">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hairline-soft);" x-data="{ se: false }">
     <span style="flex:1;min-width:0;font-size:13.5px;font-weight:500;color:{{ $sp->is_active ? 'var(--ink)' : 'var(--muted)' }};">{{ $sp->name }}@unless ($sp->is_active) <span style="color:var(--muted);font-size:11px;">(<span x-text="$store.ui.lang==='en' ? 'inactive' : 'tidak aktif'">inactive</span>)</span>@endunless</span>
     <span style="font-size:11.5px;font-weight:500;color:var(--muted-soft);font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
         <span style="font-weight:600;color:var(--muted);">{{ $sp->entries_count ?? 0 }}</span> <span x-text="$store.ui.lang==='en' ? 'timesheet lines' : 'baris lembaran masa'">timesheet lines</span>
