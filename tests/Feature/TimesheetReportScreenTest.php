@@ -278,8 +278,12 @@ class TimesheetReportScreenTest extends TestCase
             ->assertSee('Dev', false);
     }
 
-    public function test_a_person_with_a_draft_week_gets_the_not_here_wording(): void
+    public function test_a_person_with_a_draft_week_carries_it_in_missing_weeks(): void
     {
+        // The "is not here: no sheet was ever submitted." sentence is built client-side
+        // (formatMissingWeeks() in resources/js/timesheet-report.js, covered by
+        // resources/js/timesheet-report.test.js) from this missingWeeks array — this
+        // test is the server side of that split: the week itself must reach the payload.
         $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
         [,$emp] = $this->createEmployee('Charlie', $this->position);
 
@@ -291,7 +295,8 @@ class TimesheetReportScreenTest extends TestCase
             ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
 
         $response->assertOk()
-            ->assertSee('is not here: no sheet was ever submitted.');
+            ->assertSee('missingWeeks', false)
+            ->assertSee('Week 26', false);
     }
 
     public function test_the_rail_renders_a_panel_element(): void

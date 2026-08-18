@@ -92,6 +92,27 @@ export function breadcrumb(sel, lens, currentSliceRow, personRow, fromSliceRow, 
     return [];
 }
 
+/** "8 people · 35.5 md · RM 19,800.60" (or the BM equivalent) for a slice's share line. */
+export function formatSliceSubline(slice, isEn) {
+    if (!slice) { return ''; }
+    const memCount = slice.members ? slice.members.length : 0;
+    const pWord = isEn ? (memCount === 1 ? 'person' : 'people') : 'orang';
+    const mdVal = (Math.round((slice.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md';
+    const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal;
+}
+
+/** "Week 26 is not here: no sheet was ever submitted." (or the BM equivalent) for a person panel. */
+export function formatMissingWeeks(p, isEn) {
+    if (!p || !p.missingWeeks || p.missingWeeks.length === 0) { return ''; }
+    const mw = p.missingWeeks;
+    const names = mw.length === 1 ? mw[0] : mw.slice(0, -1).join(', ') + (isEn ? ' and ' : ' dan ') + mw[mw.length - 1];
+    const verb = mw.length === 1
+        ? (isEn ? 'is not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.')
+        : (isEn ? 'are not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.');
+    return names + ' ' + verb;
+}
+
 export function registerTimesheetReport(Alpine) {
     Alpine.data('timesheetReport', (cfg) => ({
         lens: 'category',
@@ -216,23 +237,10 @@ export function registerTimesheetReport(Alpine) {
         },
 
         formatSliceSubline(slice) {
-            if (!slice) { return ''; }
-            const memCount = slice.members ? slice.members.length : 0;
-            const isEn = this.$store.ui.lang === 'en';
-            const pWord = isEn ? (memCount === 1 ? 'person' : 'people') : 'orang';
-            const mdVal = (Math.round((slice.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md';
-            const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal;
+            return formatSliceSubline(slice, this.$store.ui.lang === 'en');
         },
         formatMissingWeeks(p) {
-            if (!p || !p.missingWeeks || p.missingWeeks.length === 0) { return ''; }
-            const mw = p.missingWeeks;
-            const isEn = this.$store.ui.lang === 'en';
-            const names = mw.length === 1 ? mw[0] : mw.slice(0, -1).join(', ') + (isEn ? ' and ' : ' dan ') + mw[mw.length - 1];
-            const verb = mw.length === 1
-                ? (isEn ? 'is not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.')
-                : (isEn ? 'are not here: no sheet was ever submitted.' : 'tiada di sini: tiada lembaran pernah dihantar.');
-            return names + ' ' + verb;
+            return formatMissingWeeks(p, this.$store.ui.lang === 'en');
         },
     }));
 }

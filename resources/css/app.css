@@ -1877,7 +1877,7 @@ select.wd-inline {
    every level. Sticky because the entry list under it can run long — losing
    the way back at the top of a long scroll was the rail's exact problem. */
 .uj-tr-crumb { position: sticky; top: 0; background: var(--card); z-index: 1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-sm); }
-.uj-tr-crumb-btn { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; font: inherit; font-size: var(--t-sm); color: var(--muted); cursor: pointer; border-radius: 6px; min-height: 28px; }
+.uj-tr-crumb-btn { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; font: inherit; font-size: var(--t-sm); color: var(--muted); cursor: pointer; border-radius: 6px; min-height: 44px; display: inline-flex; align-items: center; }
 .uj-tr-crumb-btn:hover { color: var(--ink); background: var(--hairline-soft); }
 .uj-tr-crumb-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
 .uj-tr-crumb-cur { color: var(--ink); font-weight: 600; }

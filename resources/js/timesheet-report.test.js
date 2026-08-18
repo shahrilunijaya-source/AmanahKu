@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { backTarget, selFromSearch, selToParams, breadcrumb } from './timesheet-report';
+import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks } from './timesheet-report';
 
 test('backTarget pops person-with-slice to its slice', () => {
     expect(backTarget({ view: 'person', key: '42', from: '3' })).toEqual({ view: 'slice', key: '3', from: null });
@@ -93,4 +93,35 @@ test('breadcrumb for a person opened directly from the staff lens: root, person'
 
 test('breadcrumb at bars is empty', () => {
     expect(breadcrumb({ view: 'bars', key: null, from: null }, 'category', null, null, null, true)).toEqual([]);
+});
+
+test('formatSliceSubline reads people/RM/md, singular vs plural, EN vs BM', () => {
+    const slice = { members: [{ id: 1 }], days: 5, cost: 4500 };
+    expect(formatSliceSubline(slice, true)).toBe('1 person · 5 md · RM 4,500.00');
+    expect(formatSliceSubline({ ...slice, members: [{ id: 1 }, { id: 2 }] }, true))
+        .toBe('2 people · 5 md · RM 4,500.00');
+    expect(formatSliceSubline(slice, false)).toBe('1 orang · 5 md · RM 4,500.00');
+});
+
+test('formatSliceSubline handles a missing slice', () => {
+    expect(formatSliceSubline(null, true)).toBe('');
+});
+
+test('formatMissingWeeks: one week, singular verb', () => {
+    expect(formatMissingWeeks({ missingWeeks: ['Week 26'] }, true))
+        .toBe('Week 26 is not here: no sheet was ever submitted.');
+    expect(formatMissingWeeks({ missingWeeks: ['Minggu 26'] }, false))
+        .toBe('Minggu 26 tiada di sini: tiada lembaran pernah dihantar.');
+});
+
+test('formatMissingWeeks: multiple weeks joined with "and"/"dan", plural verb', () => {
+    expect(formatMissingWeeks({ missingWeeks: ['Week 26', 'Week 27', 'Week 28'] }, true))
+        .toBe('Week 26, Week 27 and Week 28 are not here: no sheet was ever submitted.');
+    expect(formatMissingWeeks({ missingWeeks: ['Minggu 26', 'Minggu 27'] }, false))
+        .toBe('Minggu 26 dan Minggu 27 tiada di sini: tiada lembaran pernah dihantar.');
+});
+
+test('formatMissingWeeks: no missing weeks or no person is blank', () => {
+    expect(formatMissingWeeks({ missingWeeks: [] }, true)).toBe('');
+    expect(formatMissingWeeks(null, true)).toBe('');
 });
