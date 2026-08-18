@@ -119,7 +119,7 @@ class AttendanceReportSummaryTest extends TestCase
         $row = $this->bucketRow($this->getScreenData(), 'absent', $emp->id);
 
         $this->assertNotNull($row, 'One missed day must still list the person.');
-        $this->assertSame(['Tue'], $row['days']);
+        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $row['days']);
     }
 
     public function test_multiple_missed_days_are_all_named(): void
@@ -130,7 +130,11 @@ class AttendanceReportSummaryTest extends TestCase
         $row = $this->bucketRow($this->getScreenData(), 'absent', $emp->id);
 
         $this->assertNotNull($row);
-        $this->assertSame(['Fri', 'Tue'], $row['days'], 'Days are listed oldest first, matching the strip.');
+        $this->assertSame(
+            [['en' => 'Fri', 'ms' => 'Jum'], ['en' => 'Tue', 'ms' => 'Sel']],
+            $row['days'],
+            'Days are listed oldest first, matching the strip.'
+        );
     }
 
     public function test_late_days_are_named_in_the_late_bucket(): void
@@ -143,7 +147,7 @@ class AttendanceReportSummaryTest extends TestCase
 
         $late = $this->bucketRow($data, 'late', $emp->id);
         $this->assertNotNull($late);
-        $this->assertSame(['Tue'], $late['days']);
+        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $late['days']);
 
         $this->assertNull(
             $this->bucketRow($data, 'absent', $emp->id),
@@ -218,8 +222,9 @@ class AttendanceReportSummaryTest extends TestCase
         $row = $this->bucketRow($this->getScreenData(['period' => 'month']), 'absent', $emp->id);
 
         $this->assertNotNull($row);
-        $this->assertContains('1 Jul', $row['days']);
-        $this->assertNotContains('Wed', $row['days']);
+        $enDays = array_column($row['days'], 'en');
+        $this->assertContains('1 Jul', $enDays);
+        $this->assertNotContains('Wed', $enDays);
     }
 
     public function test_a_fully_present_person_is_in_neither_bucket(): void
@@ -249,12 +254,18 @@ class AttendanceReportSummaryTest extends TestCase
 
         $data = $this->getScreenData();
 
+        // Intersected against our own ids, not a raw bucket count: setUp's own $this->viewer
+        // never punches in this test either, so it lands in the 'absent' bucket too — a raw
+        // assertCount() on the whole bucket would be coupled to that incidental noise. This
+        // still catches a duplicate-entry bug, which a bare assertTrue(contains()) could not.
         $absentIds = collect($data['summary']['absent'])->pluck('id');
         $this->assertTrue($absentIds->contains($a->id));
         $this->assertTrue($absentIds->contains($b->id));
+        $this->assertCount(2, $absentIds->intersect([$a->id, $b->id]), 'Each person listed exactly once.');
 
         $lateIds = collect($data['summary']['late'])->pluck('id');
         $this->assertTrue($lateIds->contains($c->id));
+        $this->assertCount(1, $lateIds->intersect([$c->id]), 'Listed exactly once.');
     }
 
     /**
@@ -276,7 +287,7 @@ class AttendanceReportSummaryTest extends TestCase
         $row = $this->bucketRow($this->getScreenData(), 'short', $emp->id);
 
         $this->assertNotNull($row, 'A short-hours day must list the person.');
-        $this->assertSame(['Tue'], $row['days']);
+        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $row['days']);
     }
 
     /**

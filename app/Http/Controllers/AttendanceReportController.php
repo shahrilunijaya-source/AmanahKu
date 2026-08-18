@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Services\DataScope;
+use App\Support\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -37,10 +38,24 @@ class AttendanceReportController extends Controller
      * Seeing where a colleague physically stood is a step beyond reading that they
      * were off-site, so it does not inherit this screen's own gate. canSeeAll() also
      * admits an `employee`-role user who merely has a direct report on the org chart;
-     * that route keeps the badge and the typed reason but not the coordinates.
-     * Narrower-than-its-host is the same shape as REVERSE_ROLES above.
+     * that route keeps the badge and the typed reason but not the coordinates. Built
+     * from Permissions::OVERSIGHT_ROLES (the same roles canSeeAll() admits) so the two
+     * can't drift apart; 'director' is redundant here (effectiveRole() already maps it
+     * to 'management') but named explicitly anyway, matching REVERSE_ROLES above.
      */
-    private const LOCATION_ROLES = ['hr', 'manager', 'management', 'director'];
+    private const LOCATION_ROLES = [...Permissions::OVERSIGHT_ROLES, 'director'];
+
+    /**
+     * BM day and month names for the summary dialog's day pills. Carbon ships no
+     * bundled BM locale here; mirrors the hand-map MessageController::shortStamp
+     * already keeps local for the same reason (see that file's own comment).
+     *
+     * @var array<int, string>
+     */
+    private const MS_DAYS_SHORT = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+
+    /** @var array<int, string> */
+    private const MS_MONTHS_SHORT = [1 => 'Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 
     public function screenData(Request $request): array
     {
@@ -136,13 +151,22 @@ class AttendanceReportController extends Controller
         // Build roster rows
         $todayStr = $end->toDateString();
         $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets, $todayStr) {
+            // lateDates/absentDates come from the same branches that build $strip, so the
+            // summary dialog can never disagree with the roster's own cells. shortHoursDates
+            // is unconditional per day: it's a clock-OUT flag (ClockService::isShort), so a
+            // day can be short AND on-time ('o') at once — it doesn't correspond to a strip
+            // character the way late/absent do.
             $strip = '';
+            $lateDates = [];
+            $absentDates = [];
+            $shortHoursDates = [];
             foreach ($days as $dateStr) {
                 $r = $recordsMap[$emp->id][$dateStr] ?? null;
                 if ($r !== null && $this->hasAnyFlag($r, ['out_of_radius_in', 'out_of_radius_out'])) {
                     $strip .= 'x';
                 } elseif ($r !== null && $r->status === 'late') {
                     $strip .= 'l';
+                    $lateDates[] = $dateStr;
                 } elseif ($r !== null && $r->clock_in !== null) {
                     $strip .= 'o';
                 } else {
@@ -157,7 +181,18 @@ class AttendanceReportController extends Controller
                     }
                     // 'a' (absent, red) for a past day with no punch; 'p' (pending, grey) only
                     // for today, so a not-yet-clocked-in employee isn't flagged red mid-morning.
-                    $strip .= $isCoveredByLeave ? 'v' : ($dateStr === $todayStr ? 'p' : 'a');
+                    if ($isCoveredByLeave) {
+                        $strip .= 'v';
+                    } elseif ($dateStr === $todayStr) {
+                        $strip .= 'p';
+                    } else {
+                        $strip .= 'a';
+                        $absentDates[] = $dateStr;
+                    }
+                }
+
+                if ($r !== null && $this->hasAnyFlag($r, ['short_hours'])) {
+                    $shortHoursDates[] = $dateStr;
                 }
             }
 
@@ -185,33 +220,6 @@ class AttendanceReportController extends Controller
             $never = ($clocked === 0 && $leaveDays === 0);
             $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
             $onLeave = ($leaveDays > 0);
-
-            // The days behind the summary buckets. Late and absent are read off the SAME
-            // strip the row draws, so those two can never disagree with the cells beside
-            // the name. $strip, not $rowStrip: the quarter view folds days into weeks to
-            // display, but the summary still names real days.
-            //
-            // Short hours is different in kind and cannot come from the strip. It is a
-            // clock-OUT flag (ClockService::isShort — worked minutes under the site's
-            // minimum), so the day still renders green, amber or blue depending on how it
-            // began. Someone can arrive on time, leave early, and be flagged short while
-            // their cell stays green. It is therefore read from the record's own flags,
-            // and its count deliberately does not correspond to any colour on the strip.
-            $lateDates = [];
-            $absentDates = [];
-            $shortHoursDates = [];
-            foreach ($days as $i => $dateStr) {
-                if ($strip[$i] === 'l') {
-                    $lateDates[] = $dateStr;
-                } elseif ($strip[$i] === 'a') {
-                    $absentDates[] = $dateStr;
-                }
-
-                $rec = $recordsMap[$emp->id][$dateStr] ?? null;
-                if ($rec !== null && in_array('short_hours', $rec->flags ?? [], true)) {
-                    $shortHoursDates[] = $dateStr;
-                }
-            }
 
             // Fold daily strip into weekly cells for quarter period
             if ($period === 'quarter') {
@@ -320,9 +328,16 @@ class AttendanceReportController extends Controller
         // Off-site ('x') days are deliberately not counted as late. The strip resolves
         // off-site ahead of late, and the row's own `late` figure counts the same way, so
         // both numbers on this screen stay consistent with each other.
-        $dayLabel = fn (string $date): string => $period === 'week'
-            ? Carbon::parse($date)->format('D')          // Mon–Fri each appear once in a 7-day window
-            : Carbon::parse($date)->format('j M');       // 30/90 days: a weekday name would be ambiguous
+        // Each pill carries both languages, like every other string on this screen.
+        $dayLabel = function (string $date) use ($period): array {
+            $at = Carbon::parse($date);
+
+            return $period === 'week'
+                // Mon–Fri each appear once in a 7-day window.
+                ? ['en' => $at->format('D'), 'ms' => self::MS_DAYS_SHORT[$at->dayOfWeek]]
+                // 30/90 days: a weekday name would be ambiguous, so use a date instead.
+                : ['en' => $at->format('j M'), 'ms' => $at->day.' '.self::MS_MONTHS_SHORT[(int) $at->month]];
+        };
 
         $rosterRows = $roster->all();
 
@@ -409,7 +424,7 @@ class AttendanceReportController extends Controller
      *
      * @param  array<int, array{id: int, name: string, initials: string|null, color: string, lateDates: list<string>, absentDates: list<string>, shortHoursDates: list<string>}>  $roster
      * @param  'lateDates'|'absentDates'|'shortHoursDates'  $key
-     * @param  \Closure(string): string  $dayLabel
+     * @param  \Closure(string): array{en: string, ms: string}  $dayLabel
      */
     private function bucket(array $roster, string $key, \Closure $dayLabel): Collection
     {

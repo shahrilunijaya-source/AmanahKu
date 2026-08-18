@@ -372,8 +372,11 @@
                                     <span style="min-width:0;">
                                         <span class="uj-ar-sumname">{{ $p['name'] }}</span>
                                         <span class="uj-ar-sumdays">
-                                            @foreach (array_slice($p['days'], 0, $dayPillCap) as $d)
-                                                <span class="uj-ar-sumday" data-t="{{ $key }}">{{ $d }}</span>
+                                            {{-- Most recent days, not oldest: someone who's still a problem today
+                                                 matters more than what happened at the start of the window. --}}
+                                            @foreach (array_slice($p['days'], -$dayPillCap) as $d)
+                                                <span class="uj-ar-sumday" data-t="{{ $key }}"
+                                                      x-text="$store.ui.lang==='en' ? @js($d['en']) : @js($d['ms'])">{{ $d['en'] }}</span>
                                             @endforeach
                                             @if ($extraDays > 0)
                                                 <span class="uj-ar-sumday">+{{ $extraDays }}</span>

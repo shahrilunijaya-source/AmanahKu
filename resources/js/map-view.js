@@ -48,16 +48,19 @@ export function registerMapView(Alpine) {
             this._onOpen = (ev) => this.show(ev.detail || {});
             window.addEventListener('open-map-view', this._onOpen);
 
-            // Re-bind tooltips if the language toggle fires while the map is open.
+            // Re-bind tooltips if the language toggle fires while the map is open —
+            // text only, so it doesn't undo a pan/zoom the viewer already did.
             this.$watch(() => Alpine.store('ui').lang, () => {
                 if (this.open && this.map) {
-                    this.render();
+                    this.updateTooltips();
                 }
             });
         },
 
         destroy() {
             window.removeEventListener('open-map-view', this._onOpen);
+            this.map?.remove();
+            this.map = null;
         },
 
         async show({ title = '', points = [] }) {
@@ -92,12 +95,9 @@ export function registerMapView(Alpine) {
             this.markers.forEach((m) => this.map.removeLayer(m));
             this.markers = [];
 
-            const isEn = Alpine.store('ui').lang === 'en';
-
             this.points.forEach((p) => {
                 const marker = L.marker([p.lat, p.lng], { icon: pinIcon }).addTo(this.map);
-                const label = (isEn ? p.labelEn : p.labelMs) ?? p.label ?? '';
-                marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
+                marker.bindTooltip(this.labelFor(p), { permanent: true, direction: 'top', offset: [0, -10] });
                 this.markers.push(marker);
             });
 
@@ -112,6 +112,18 @@ export function registerMapView(Alpine) {
 
             // The modal was display:none until now, so Leaflet sized to 0×0.
             this.map.invalidateSize();
+        },
+
+        labelFor(p) {
+            const isEn = Alpine.store('ui').lang === 'en';
+
+            return (isEn ? p.labelEn : p.labelMs) ?? p.label ?? '';
+        },
+
+        // Language toggled while the map is open: update the existing markers'
+        // tooltip text in place, without touching the map's view.
+        updateTooltips() {
+            this.markers.forEach((marker, i) => marker.setTooltipContent(this.labelFor(this.points[i])));
         },
     }));
 }
