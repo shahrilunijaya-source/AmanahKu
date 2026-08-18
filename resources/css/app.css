@@ -1815,6 +1815,17 @@ select.wd-inline {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Read-only punch-location map (resources/views/partials/map-view.blade.php).
+   Namespaced uj-mv- ("map view"). Sibling of the uj-map-* picker, deliberately
+   not a variant of it: this one can never move a pin.
+   ═══════════════════════════════════════════════════════════════════════ */
+.uj-mv-panel { background: var(--card); border-radius: 14px; width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+.uj-mv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
+.uj-mv-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.uj-mv-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.uj-mv-canvas { height: 420px; width: 100%; background: #e8eef1; }
+
+/* ═══════════════════════════════════════════════════════════════════════
    Timesheet report (resources/views/screens/timesheet-reports.blade.php) —
    ported from the approved public/_timesheet-report-revamp.html mock.
    Namespaced uj-tr- ("timesheet report").

@@ -153,6 +153,7 @@
             @empty
                 <div style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No attendance in this period.' : 'Tiada kehadiran dalam tempoh ini.'">No attendance in this period.</span></div>
             @endforelse
+        @include('partials.map-view')
         </div>
     @else
         {{-- ── Shelf Lead Block ─────────────────────────────────────────────── --}}
