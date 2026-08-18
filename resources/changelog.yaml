@@ -6,6 +6,22 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.4"
+  date: "2026-08-18"
+  entries:
+    - tag: added
+      text: "New Projects screen under Workplace: every project in the company in one list, with how much each one is actually being used. Everyone can see it; managers, HR and management can add and edit. It replaces the old New Project screen, which could only create."
+      text_ms: "Skrin Projek baharu di bawah Tempat Kerja: setiap projek syarikat dalam satu senarai, lengkap dengan sebanyak mana ia digunakan. Semua orang boleh melihatnya; pengurus, HR dan pengurusan boleh menambah dan menyunting. Ia menggantikan skrin Projek Baharu lama yang hanya boleh mencipta."
+    - tag: improved
+      text: "Sub-pillars are now one shared list used by every project, instead of a separate copy kept under each one. Adding a project no longer means retyping Management, Meeting and Technical, and renaming one changes it everywhere at once."
+      text_ms: "Sub-tiang kini satu senarai yang dikongsi setiap projek, bukan salinan berasingan di bawah setiap satu. Menambah projek tidak lagi bermakna menaip semula Pengurusan, Mesyuarat dan Teknikal, dan menukar nama satu sub-tiang mengubahnya di semua tempat sekali gus."
+    - tag: improved
+      text: "Timesheet Setup now covers categories only. Projects and sub-pillars moved to the Projects screen, so there is one place to manage them."
+      text_ms: "Tetapan Lembaran Masa kini merangkumi kategori sahaja. Projek dan sub-tiang telah berpindah ke skrin Projek, jadi ada satu tempat sahaja untuk mengurusnya."
+    - tag: improved
+      text: "On the timesheet, a project that previously had no sub-pillars now shows the sub-pillar step like every other project. \"The whole project\" stays the first choice, so booking time against it is still one tap."
+      text_ms: "Pada lembaran masa, projek yang sebelum ini tiada sub-tiang kini memaparkan langkah sub-tiang seperti projek lain. \"Keseluruhan projek\" kekal pilihan pertama, jadi merekod masa untuknya masih satu ketukan."
+
 - version: "1.3"
   date: "2026-08-14"
   entries:
