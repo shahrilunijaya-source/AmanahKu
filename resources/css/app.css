@@ -1901,9 +1901,24 @@ select.wd-inline {
 @keyframes uj-tr-panel-in-fwd { from { opacity: 0; transform: translateX(12px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes uj-tr-panel-in-back { from { opacity: 0; transform: translateX(-12px) scale(.985); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
 
+/* One week at a time instead of stacking every week down the page — a person
+   with a full month of daily entries turned the panel into a very long
+   scroll. Reuses the panel's own forward/back slide so paging feels like the
+   same "move sideways through the data" gesture as drilling in and out. */
+.uj-tr-weeknav-hd { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 4px; }
+.uj-tr-weeknav-btn { min-width: 44px; min-height: 44px; border: 1px solid var(--shelf-line); border-radius: 9px; background: var(--card); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease), transform .04s var(--ease); }
+.uj-tr-weeknav-btn:hover:not(:disabled) { border-color: var(--muted-soft); }
+.uj-tr-weeknav-btn:active:not(:disabled) { background: var(--hairline-soft); transform: scale(0.97); }
+.uj-tr-weeknav-btn:disabled { opacity: .35; cursor: default; }
+.uj-tr-weeknav-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-tr-weeknav-pos { min-width: 5ch; text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-sm); color: var(--muted); }
+.uj-tr-wk[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
+.uj-tr-wk[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }
-  .uj-tr-panel[data-dir="fwd"], .uj-tr-panel[data-dir="back"] { animation: uj-tr-fade .2s ease-out both; }
+  .uj-tr-panel[data-dir="fwd"], .uj-tr-panel[data-dir="back"],
+  .uj-tr-wk[data-dir="fwd"], .uj-tr-wk[data-dir="back"] { animation: uj-tr-fade .2s ease-out both; }
   @keyframes uj-tr-fade { from { opacity: 0; } to { opacity: 1; } }
 }
 

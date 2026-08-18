@@ -471,7 +471,15 @@
                     {{-- x-ref must live outside this nested scope: Alpine registers a ref to
                          its nearest x-data ancestor, and focusHeading() reads $refs from the
                          OUTER component. A ref inside here would be invisible to it. --}}
-                    <div x-data="{ get p() { return personToDisplay() } }">
+                    <div x-data="{
+                            get p() { return personToDisplay() },
+                            weekIdx: 0,
+                            weekDir: 'fwd',
+                            get weeksList() { return weeks[this.p.id] || [] },
+                            get currentWeek() { return this.weeksList[this.weekIdx] || null },
+                            prevWeek() { if (this.weekIdx > 0) { this.weekDir = 'back'; this.weekIdx-- } },
+                            nextWeek() { if (this.weekIdx < this.weeksList.length - 1) { this.weekDir = 'fwd'; this.weekIdx++ } },
+                        }">
                         <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
                             <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
                             <div style="min-width:0;flex:1">
@@ -479,24 +487,35 @@
                             </div>
                         </div>
                         <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
-                        <template x-if="(weeks[p.id] || []).length === 0">
+                        <template x-if="weeksList.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
                         </template>
-                        <template x-for="wk in (weeks[p.id] || [])" :key="wk.label">
-                            <div class="uj-tr-wk">
-                                <div class="hdr">
-                                    <span x-text="wk.label + ' · ' + wk.dates"></span>
-                                    <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                        <template x-if="weeksList.length > 0">
+                            <div class="uj-tr-weeknav">
+                                <div class="uj-tr-weeknav-hd">
+                                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeksList.length"></span>
+                                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
+                                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                                 </div>
-                                <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                    <div class="uj-tr-ent">
-                                        <div>
-                                            <span x-text="line.label"></span>
-                                            <template x-if="line.note">
-                                                <span class="n" x-html="line.note"></span>
-                                            </template>
+                                <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
+                                    <div class="uj-tr-wk" :data-dir="weekDir">
+                                        <div class="hdr">
+                                            <span x-text="wk.label + ' · ' + wk.dates"></span>
+                                            <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
                                         </div>
-                                        <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
+                                            <div class="uj-tr-ent">
+                                                <div>
+                                                    <span x-text="line.label"></span>
+                                                    <template x-if="line.note">
+                                                        <span class="n" x-html="line.note"></span>
+                                                    </template>
+                                                </div>
+                                                <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
                             </div>
