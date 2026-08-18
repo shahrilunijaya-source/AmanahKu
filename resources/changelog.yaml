@@ -1,5 +1,9 @@
 # Newest release first. tag is one of: added, improved, fixed.
 # text_ms is optional — falls back to `text` when omitted.
+# A \n inside a double-quoted text renders as a line break (the screen sets
+# white-space: pre-line). Keep text and text_ms broken at the same places.
+# link/link_text/link_text_ms are optional too: they render a button beside the
+# entry, for a release note that names a screen worth opening.
 #
 # Version is semver MAJOR.MINOR, not CalVer, and tracks what actually lands on
 # gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
@@ -22,11 +26,8 @@
       text: "On the timesheet, a project that previously had no sub-pillars now shows the sub-pillar step like every other project. \"The whole project\" stays the first choice, so booking time against it is still one tap."
       text_ms: "Pada lembaran masa, projek yang sebelum ini tiada sub-tiang kini memaparkan langkah sub-tiang seperti projek lain. \"Keseluruhan projek\" kekal pilihan pertama, jadi merekod masa untuknya masih satu ketukan."
     - tag: added
-      text: "Other Unijaya systems can now be given their own key to read AmanahKu's project list, staff directory and weekly effort. Each key is limited to exactly what that system needs, belongs to the system rather than to a person, and can be cancelled at any time from the super admin console."
-      text_ms: "Sistem Unijaya yang lain kini boleh diberi kunci mereka sendiri untuk membaca senarai projek, direktori kakitangan dan usaha mingguan AmanahKu. Setiap kunci terhad kepada apa yang sistem itu perlukan sahaja, dimiliki oleh sistem itu dan bukan oleh seseorang, dan boleh dibatalkan bila-bila masa dari konsol super admin."
-    - tag: added
-      text: "A developer reference for that connection now lives at /docs/api, with sample code and a one-click copy for AI coding tools."
-      text_ms: "Rujukan pembangun untuk sambungan itu kini berada di /docs/api, lengkap dengan contoh kod dan satu klik salin untuk alat pengekodan AI."
+      text: "Other Unijaya systems can now be given their own key to read AmanahKu's project list, staff directory and weekly effort. Each key is limited to exactly what that system needs, belongs to the system rather than to a person, and can be cancelled at any time from the super admin console.\nA developer reference for that connection now lives at /docs/api, with sample code and a one-click copy for AI coding tools."
+      text_ms: "Sistem Unijaya yang lain kini boleh diberi kunci mereka sendiri untuk membaca senarai projek, direktori kakitangan dan usaha mingguan AmanahKu. Setiap kunci terhad kepada apa yang sistem itu perlukan sahaja, dimiliki oleh sistem itu dan bukan oleh seseorang, dan boleh dibatalkan bila-bila masa dari konsol super admin.\nRujukan pembangun untuk sambungan itu kini berada di /docs/api, lengkap dengan contoh kod dan satu klik salin untuk alat pengekodan AI."
       link: "/docs/api"
       link_text: "Open the API reference"
       link_text_ms: "Buka rujukan API"

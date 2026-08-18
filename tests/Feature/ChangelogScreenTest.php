@@ -111,6 +111,41 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
+    public function test_a_newline_in_an_entry_survives_to_the_page_and_is_set_to_render(): void
+    {
+        $multiline = collect(Changelog::releases())
+            ->flatMap(fn (array $release): array => $release['entries'])
+            ->filter(fn (array $entry): bool => str_contains($entry['text'], "\n"));
+
+        $this->assertNotEmpty($multiline, 'No entry uses a line break, so this test guards nothing.');
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/changelog');
+
+        $response->assertOk();
+
+        // Two halves of the same check: the newline has to reach the markup, AND the
+        // container has to be told to honour it. Either alone renders as one run-on line.
+        $response->assertSee('white-space:pre-line', escape: false);
+
+        // Decoded, because Blade escapes the apostrophes and quotes in the copy, so a
+        // raw byte match would fail for reasons that have nothing to do with newlines.
+        $rendered = html_entity_decode($response->getContent() ?: '', ENT_QUOTES);
+
+        foreach ($multiline as $entry) {
+            $this->assertStringContainsString($entry['text'], $rendered, 'The entry text, newline and all, is not in the markup.');
+
+            // English and Malay must break in the same places, or the two languages
+            // disagree about the shape of the entry.
+            $this->assertSame(
+                substr_count($entry['text'], "\n"),
+                substr_count($entry['text_ms'], "\n"),
+                'text and text_ms have a different number of line breaks.',
+            );
+        }
+    }
+
     public function test_the_sidebar_footer_links_to_the_changelog_from_any_screen(): void
     {
         $response = $this->actingAs($this->user)
