@@ -1894,7 +1894,19 @@ select.wd-inline {
 .uj-tr-wk .hdr { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-micro); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-bottom: 7px; }
 .uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0; }
 .uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; }
-.uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
+.uj-tr-ent .n { display: block; max-width: 64ch; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
+.uj-tr-ent .n :is(p, ul, ol, blockquote, h3) { margin: 0 0 4px; }
+.uj-tr-ent .n :is(p, ul, ol, blockquote, h3):last-child { margin-bottom: 0; }
+.uj-tr-ent .n h3 { font-size: var(--t-micro); font-weight: 600; color: var(--ink); }
+.uj-tr-ent .n ul, .uj-tr-ent .n ol { padding-left: 16px; }
+.uj-tr-ent .n blockquote { padding-left: 8px; border-left: 2px solid var(--hairline-soft); }
+
+/* A rich note can run to several paragraphs; clamp to a few lines by default
+   with a toggle rather than letting one entry push a whole week off screen. */
+.uj-tr-ent .n.uj-tr-note-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.uj-tr-note-toggle { display: block; margin-top: 3px; background: none; border: 0; padding: 0; font: inherit; font-size: var(--t-micro); font-weight: 600; color: var(--red); cursor: pointer; }
+.uj-tr-note-toggle:hover { text-decoration: underline; }
+.uj-tr-note-toggle:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 .uj-tr-panel[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
 .uj-tr-panel[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
