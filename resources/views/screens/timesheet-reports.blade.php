@@ -508,6 +508,7 @@
                                         <template x-for="(line, lidx) in wk.lines" :key="lidx">
                                             <div class="uj-tr-ent">
                                                 <div>
+                                                    <div class="uj-tr-ent-day" x-text="line.day"></div>
                                                     <span x-text="line.label"></span>
                                                     <template x-if="line.note">
                                                         <span class="n" x-html="line.note"></span>

@@ -1893,6 +1893,7 @@ select.wd-inline {
 .uj-tr-wk { border-top: 1px solid var(--hairline-soft); padding: 11px 0; }
 .uj-tr-wk .hdr { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-micro); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-bottom: 7px; }
 .uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0; }
+.uj-tr-ent-day { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-micro); font-weight: 600; color: var(--muted); margin-bottom: 2px; }
 .uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; }
 .uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
 
