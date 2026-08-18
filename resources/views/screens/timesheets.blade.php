@@ -105,8 +105,11 @@
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
-         })">
+         })"
+         @popstate.window="if (reviewing) closeReview()"
+         @keydown.escape.window="if (reviewing) history.back()">
 
+        <div x-show="!reviewing">
         {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
              scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
         <div class="uj-ts-shelf" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;margin:-4px -4px 18px;">
@@ -611,7 +614,7 @@
             </div>
             <div style="display:flex;gap:8px;">
                 <button type="button" @click="save(false, true)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
-                <button type="button" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
+                <button type="button" id="ts-submit-btn" @click="openReview()" :disabled="!weekComplete() || readonly || saving"
                     :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
             </div>
@@ -661,6 +664,42 @@
 
                 <div style="margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.5;">
                     <span x-text="$store.ui.lang==='en' ? 'Locked days (on leave, public holiday) are filled in for you and can\'t be edited.' : 'Hari dikunci (cuti, hari kelepasan) sudah diisi untuk anda dan tidak boleh disunting.'"></span>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        {{-- ===================== REVIEW: full-page pre-submit check =====================
+             Not a dialog: no backdrop, no aria-modal, no focus trap. Replaces the whole
+             Record pane (tab bar and old Submit button included) so there is only ever one
+             submit path on screen. ---- --}}
+        <div x-show="reviewing" x-cloak
+             x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+             x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from">
+            <button type="button" @click="history.back()" class="uj-btn-ghost" style="height:32px;padding:0 10px;font-size:13px;margin-bottom:10px;">
+                <span x-text="$store.ui.lang==='en' ? '← Back to editing' : '← Kembali sunting'">&larr; Back to editing</span>
+            </button>
+            <h2 id="ts-review-title" tabindex="-1" style="outline:none;font-size:18px;font-weight:600;margin:0 0 3px;">
+                <span x-text="$store.ui.lang==='en' ? 'Review before you submit' : 'Semak sebelum hantar'">Review before you submit</span>
+            </h2>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M Y') }} &middot; <span x-text="$store.ui.lang==='en' ? 'every working day at 100%' : 'setiap hari bekerja pada 100%'"></span></div>
+
+            <div id="ts-review-summary"></div>
+            <div id="ts-review-days"></div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid var(--hairline);flex-wrap:wrap;">
+                <div style="font-size:12px;flex:1;min-width:200px;">
+                    <span x-show="!weekComplete()" :style="{ color: overDays().length ? 'var(--error)' : 'var(--amber-ink)' }" x-text="blockingMessage()"></span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button type="button" @click="history.back()" :disabled="saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;">
+                        <span x-text="$store.ui.lang==='en' ? 'Back to editing' : 'Kembali sunting'">Back to editing</span>
+                    </button>
+                    <button type="button" id="ts-confirm-submit-btn" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
+                        :style="(!weekComplete() || readonly || saving) ? { opacity:'.5', cursor:'not-allowed' } : {}"
+                        class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;">
+                        <span x-text="saving ? ($store.ui.lang==='en' ? 'Submitting…' : 'Menghantar…') : ($store.ui.lang==='en' ? 'Confirm & submit' : 'Sahkan & hantar')">Confirm &amp; submit</span>
+                    </button>
                 </div>
             </div>
         </div>

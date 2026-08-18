@@ -741,5 +741,21 @@ export function registerTimesheetCapture(Alpine) {
 
             return this.savePromise;
         },
+        // ---- pre-submit review ---------------------------------------------
+        // A pane swap, not a dialog: no aria-modal, no focus trap. openReview()/closeReview()
+        // own the two things a pane swap always gets wrong — where focus goes, and what the
+        // back gesture does. Escape and "Back to editing" both call history.back() so every
+        // closing path funnels through the one popstate listener below.
+        reviewing: false,
+        openReview() {
+            if (this.readonly) return;
+            this.reviewing = true;
+            history.pushState(null, '', location.href);
+            this.$nextTick(() => document.getElementById('ts-review-title')?.focus());
+        },
+        closeReview() {
+            this.reviewing = false;
+            this.$nextTick(() => document.getElementById('ts-submit-btn')?.focus());
+        },
     }));
 }
