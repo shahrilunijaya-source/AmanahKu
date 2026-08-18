@@ -137,7 +137,41 @@
                             @endif
                         </span>
                     @endif
-                    @php $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]); @endphp
+                    @php
+                        $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]);
+
+                        // Only points that were actually off-site. within() returns null (never
+                        // false) when coordinates or the site geofence are missing, so an
+                        // out_of_radius_* flag already implies a usable point; the null-checks
+                        // guard hand-edited rows, not the normal path.
+                        $recFlags = $r->flags ?? [];
+                        $locPoints = [];
+                        if (in_array('out_of_radius_in', $recFlags, true) && $r->latitude !== null && $r->longitude !== null) {
+                            $locPoints[] = [
+                                'lat' => (float) $r->latitude,
+                                'lng' => (float) $r->longitude,
+                                'label' => 'Clocked in '.($r->clock_in ? Str::of($r->clock_in)->limit(5, '') : ''),
+                            ];
+                        }
+                        if (in_array('out_of_radius_out', $recFlags, true) && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
+                            $locPoints[] = [
+                                'lat' => (float) $r->clock_out_latitude,
+                                'lng' => (float) $r->clock_out_longitude,
+                                'label' => 'Clocked out '.($r->clock_out ? Str::of($r->clock_out)->limit(5, '') : ''),
+                            ];
+                        }
+                    @endphp
+                    @if ($canSeeLocation && $locPoints)
+                        <div style="grid-column:1/-1;margin-top:5px;">
+                            <button type="button" class="uj-ar-loc" x-data
+                                    @click="window.dispatchEvent(new CustomEvent('open-map-view', { detail: {
+                                        title: @js($drill->display_name.' · '.$r->date->format('D, j M')),
+                                        points: @js($locPoints)
+                                    } }))">
+                                📍 <span x-text="$store.ui.lang==='en' ? 'View location' : 'Lihat lokasi'">View location</span>
+                            </button>
+                        </div>
+                    @endif
                     @if ($notes)
                         <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:2px;">
                             @foreach ($notes as $slot => $note)

@@ -1819,6 +1819,9 @@ select.wd-inline {
    Namespaced uj-mv- ("map view"). Sibling of the uj-map-* picker, deliberately
    not a variant of it: this one can never move a pin.
    ═══════════════════════════════════════════════════════════════════════ */
+.uj-ar-loc { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); color: var(--body); font: 500 var(--t-sm) var(--font-sans); cursor: pointer; }
+.uj-ar-loc:hover { border-color: var(--muted-soft); color: var(--ink); }
+.uj-ar-loc:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .uj-mv-panel { background: var(--card); border-radius: 14px; width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
 .uj-mv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
 .uj-mv-title { font-size: 15px; font-weight: 700; color: var(--ink); }
