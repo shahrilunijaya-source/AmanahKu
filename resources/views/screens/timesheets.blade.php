@@ -769,7 +769,7 @@
                 <select class="uj-tr-weekpick" x-model.number="weekIdx"
                     :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
                     <template x-for="(w, i) in weeks" :key="i">
-                        <option :value="i" x-text="w.label + ' — ' + w.dates"></option>
+                        <option :value="i" x-text="w.label + ': ' + w.dates"></option>
                     </template>
                 </select>
                 <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
