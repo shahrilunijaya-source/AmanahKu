@@ -582,59 +582,7 @@ class TimesheetController extends Controller
         $staffWeeks = [];
         $entriesByEmployee = $entries->groupBy(fn ($e) => (int) $e->timesheet->employee_id);
         foreach ($entriesByEmployee as $empId => $empEntries) {
-            $byWeek = $empEntries->groupBy(fn (TimesheetEntry $e) => Carbon::parse($e->entry_date)->startOfWeek()->toDateString());
-            $sortedWeeks = $byWeek->sortKeys();
-
-            $weekBlocks = [];
-            foreach ($sortedWeeks as $weekStartStr => $weekEntries) {
-                $weekStart = Carbon::parse($weekStartStr);
-                $mon = $weekStart->copy();
-                $fri = $weekStart->copy()->addDays(4);
-
-                $dates = $mon->month === $fri->month
-                    ? $mon->format('j').' – '.$fri->format('j M')
-                    : $mon->format('j M').' – '.$fri->format('j M');
-
-                $sortedLines = $weekEntries->sort(function (TimesheetEntry $a, TimesheetEntry $b) {
-                    $dateCmp = $a->entry_date->toDateString() <=> $b->entry_date->toDateString();
-                    if ($dateCmp !== 0) {
-                        return $dateCmp;
-                    }
-                    $aDays = round((float) $a->percentage / 100, 2);
-                    $bDays = round((float) $b->percentage / 100, 2);
-
-                    return $bDays <=> $aDays;
-                });
-
-                $lines = [];
-                foreach ($sortedLines as $e) {
-                    $labelParts = array_filter([
-                        $e->category?->name ?: $e->project,
-                        $e->projectRef?->name,
-                        $e->subPillar?->name,
-                    ]);
-
-                    $lines[] = [
-                        'day' => $e->entry_date->format('D j M'),
-                        'label' => implode(' · ', $labelParts),
-                        'note' => $e->description,
-                        'days' => round((float) $e->percentage / 100, 2),
-                    ];
-                }
-
-                $weekDays = round($weekEntries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
-                $weekCost = round($weekEntries->sum(fn ($e) => (float) ($e->cost ?? 0)), 2);
-
-                $weekBlocks[] = [
-                    'label' => 'Week '.$weekStart->isoWeek,
-                    'dates' => $dates,
-                    'days' => $weekDays,
-                    'cost' => $weekCost,
-                    'lines' => $lines,
-                ];
-            }
-
-            $staffWeeks[$empId] = $weekBlocks;
+            $staffWeeks[$empId] = $this->buildWeekBlocks($empEntries);
         }
 
         $tsRoster = app(TimesheetCompliance::class)
@@ -707,6 +655,82 @@ class TimesheetController extends Controller
         );
 
         return back()->with('ok', "Reminded {$employee->name}.");
+    }
+
+    /**
+     * Group one person's timesheet entries into week blocks: label, date range, totals,
+     * and each day's lines. Shared by the all-staff report (reportData(), one call per
+     * employee, no $timesheetsByWeekStart — status stays null, unused there) and the
+     * personal Review tab (screenData(), one call for the signed-in employee, with
+     * $timesheetsByWeekStart so a week with a Timesheet row but zero entries yet still
+     * gets a block).
+     *
+     * @param  Collection<int, TimesheetEntry>  $entries
+     * @param  Collection<string, Timesheet>|null  $timesheetsByWeekStart  keyed by week_start date string
+     * @return array<int, array{label: string, dates: string, weekStart: string, status: ?string, days: float, cost: float, lines: array}>
+     */
+    private function buildWeekBlocks(Collection $entries, ?Collection $timesheetsByWeekStart = null): array
+    {
+        $byWeek = $entries->groupBy(fn (TimesheetEntry $e) => Carbon::parse($e->entry_date)->startOfWeek()->toDateString());
+
+        $weekStartStrs = $timesheetsByWeekStart
+            ? $byWeek->keys()->merge($timesheetsByWeekStart->keys())->unique()->sort()
+            : $byWeek->keys()->sort();
+
+        $weekBlocks = [];
+        foreach ($weekStartStrs as $weekStartStr) {
+            $weekEntries = $byWeek->get($weekStartStr, collect());
+            $weekStart = Carbon::parse($weekStartStr);
+            $mon = $weekStart->copy();
+            $fri = $weekStart->copy()->addDays(4);
+
+            $dates = $mon->month === $fri->month
+                ? $mon->format('j').' – '.$fri->format('j M')
+                : $mon->format('j M').' – '.$fri->format('j M');
+
+            $sortedLines = $weekEntries->sort(function (TimesheetEntry $a, TimesheetEntry $b) {
+                $dateCmp = $a->entry_date->toDateString() <=> $b->entry_date->toDateString();
+                if ($dateCmp !== 0) {
+                    return $dateCmp;
+                }
+                $aDays = round((float) $a->percentage / 100, 2);
+                $bDays = round((float) $b->percentage / 100, 2);
+
+                return $bDays <=> $aDays;
+            });
+
+            $lines = [];
+            foreach ($sortedLines as $e) {
+                $labelParts = array_filter([
+                    $e->category?->name ?: $e->project,
+                    $e->projectRef?->name,
+                    $e->subPillar?->name,
+                ]);
+
+                $lines[] = [
+                    'id' => $e->id,
+                    'day' => $e->entry_date->format('D j M'),
+                    'label' => implode(' · ', $labelParts),
+                    'note' => $e->description,
+                    'days' => round((float) $e->percentage / 100, 2),
+                ];
+            }
+
+            $weekDays = round($weekEntries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
+            $weekCost = round($weekEntries->sum(fn ($e) => (float) ($e->cost ?? 0)), 2);
+
+            $weekBlocks[] = [
+                'label' => 'Week '.$weekStart->isoWeek,
+                'dates' => $dates,
+                'weekStart' => $weekStartStr,
+                'status' => $timesheetsByWeekStart?->get($weekStartStr)?->status,
+                'days' => $weekDays,
+                'cost' => $weekCost,
+                'lines' => $lines,
+            ];
+        }
+
+        return $weekBlocks;
     }
 
     /**
