@@ -4,6 +4,7 @@ use App\Http\Controllers\AchievementController;
 use App\Http\Controllers\ActivationController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AssistantController;
@@ -93,6 +94,13 @@ Route::get('/login/{tenant:slug}', [AppController::class, 'brandedLogin'])->name
 // Guest-accessible; the signature is validated before the user is shown the form.
 Route::get('/activate/{user}', [ActivationController::class, 'show'])->middleware('signed')->name('activation.show');
 Route::post('/activate/{user}', [ActivationController::class, 'update'])->middleware('signed')->name('activation.update');
+
+// Public API reference for the apps that consume AmanahKu (Track, DevStage 01,
+// SupportOS). No auth on purpose: it documents shapes, not data, and public/openapi.json
+// is already served unauthenticated. Deliberately not under /api/*, where the exception
+// handler renders every error as JSON — a typo'd URL there would hand a developer a raw
+// JSON body instead of a 404 page.
+Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
 
 Route::middleware('auth')->group(function () {
     // First-sign-in password rotation for invited members (I-008). Outside the tenant

@@ -306,7 +306,7 @@
     "/payslips": {
       "get": {
         "summary": "Finalized payslips",
-        "description": "Requires the payslips:read scope. Returns only finalized payslips — draft or in-progress payroll runs never appear here, regardless of scope.",
+        "description": "Requires the payslips:read scope, which is held only by staff tokens — it cannot be granted to an application key. Returns only finalized payslips — draft or in-progress payroll runs never appear here, regardless of scope.",
         "responses": {
           "200": {
             "description": "Every finalized payslip in the key's company.",

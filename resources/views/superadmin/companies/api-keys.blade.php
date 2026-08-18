@@ -32,6 +32,7 @@
             </div>
         </div>
         <p style="font-size:13px;color:var(--muted);max-width:680px;margin:0 0 24px;">A key belongs to an application, not to a person, so nobody leaving breaks an integration. The key text is shown once when you create it and cannot be recovered afterwards — if it is lost, revoke it and create another.</p>
+        <p style="font-size:13px;color:var(--muted);max-width:680px;margin:-16px 0 24px;">The developer reference for these keys lives at <a href="{{ route('docs.api') }}" style="color:var(--red);">{{ route('docs.api') }}</a> — send it along with the key.</p>
 
         @if (session('ok'))
             <div style="background:#eaf6f1;border:1px solid #bfe3d3;color:#0f5132;border-radius:10px;padding:13px 16px;margin-bottom:18px;font-size:14px;">{{ session('ok') }}</div>

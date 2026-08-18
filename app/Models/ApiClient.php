@@ -37,6 +37,12 @@ class ApiClient extends Model implements AuthenticatableContract
      * The single source of truth: ApiController guards against these keys and the
      * super-admin screen renders its checkboxes from them.
      *
+     * `payslips:read` is deliberately absent. GET /api/v1/payslips still exists and
+     * still checks that ability, so a staff token minted ['*'] reaches it exactly as
+     * before — but no application can be issued a key carrying it. None of the apps
+     * that read this API has a reason to see anyone's pay, and a checkbox that should
+     * never be ticked is better removed than labelled.
+     *
      * @var array<string, string>
      */
     public const SCOPES = [
@@ -45,7 +51,6 @@ class ApiClient extends Model implements AuthenticatableContract
         'positions:read' => 'Position bands (no salary)',
         'effort:read' => 'Weekly timesheet effort per band (no names, no salary)',
         'leave:read' => 'Leave requests',
-        'payslips:read' => 'Finalized payslips',
     ];
 
     protected $fillable = ['tenant_id', 'name', 'created_by'];

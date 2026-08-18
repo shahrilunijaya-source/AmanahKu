@@ -124,4 +124,33 @@ class SuperAdminApiKeyTest extends TestCase
 
         $this->assertSame(1, PersonalAccessToken::count());
     }
+
+    public function test_payslips_is_not_offered_as_a_grantable_scope(): void
+    {
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.companies.api-keys', $this->tenant));
+
+        $response->assertOk();
+        $response->assertDontSee('payslips:read');
+
+        // The other five must still be offered — this test must fail if someone
+        // empties the list rather than removing one entry.
+        foreach (['projects:read', 'employees:read', 'positions:read', 'effort:read', 'leave:read'] as $scope) {
+            $response->assertSee($scope);
+        }
+    }
+
+    public function test_a_hand_crafted_request_cannot_mint_a_payslips_key(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->post(route('superadmin.companies.api-keys.store', $this->tenant), [
+                'name' => 'Sneaky',
+                'scopes' => ['payslips:read'],
+            ])
+            ->assertStatus(302)
+            ->assertSessionHasErrors('scopes.0');
+
+        $this->assertSame(0, ApiClient::count());
+        $this->assertSame(0, PersonalAccessToken::count());
+    }
 }
