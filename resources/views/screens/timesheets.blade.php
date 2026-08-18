@@ -704,7 +704,33 @@
                     </template>
                 </div>
             </div>
-            <div id="ts-review-days"></div>
+            <div id="ts-review-days" style="display:flex;flex-direction:column;gap:14px;">
+                <template x-for="d in reviewDays()" :key="d">
+                    <div style="border:1px solid var(--hairline);border-radius:12px;padding:12px 15px;">
+                        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+                            <span style="font-size:13px;font-weight:700;" x-text="dayLong(d)"></span>
+                            <span style="font-size:12.5px;font-family:var(--font-mono);font-weight:600;color:var(--success-ink,#1f8a65);" x-text="dayTotal(d) + '%'"></span>
+                        </div>
+                        <template x-if="locked[d]">
+                            <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                                <span aria-hidden="true" style="font-size:11px;color:var(--muted);margin-top:2px;">&#128274;</span>
+                                <div style="flex:1;font-size:12.5px;font-weight:600;" x-text="locked[d].label"></div>
+                                <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="lockedPct(d) + '%'"></div>
+                            </div>
+                        </template>
+                        <template x-for="(r, i) in (rows[d] || [])" :key="i">
+                            <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                                <span :style="{ background: categoryColour(r.category_id) }" style="width:8px;height:8px;border-radius:2px;margin-top:4px;flex-shrink:0;"></span>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:12.5px;font-weight:600;" x-text="rowLabel(r)"></div>
+                                    <div x-show="r.description" style="font-size:11.5px;color:var(--body);margin-top:2px;" x-text="r.description"></div>
+                                </div>
+                                <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="(parseFloat(r.percentage)||0) + '%'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
 
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid var(--hairline);flex-wrap:wrap;">
                 <div style="font-size:12px;flex:1;min-width:200px;">

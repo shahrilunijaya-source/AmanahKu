@@ -3,7 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Project;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
+use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -95,5 +100,37 @@ class TimesheetSubmitReviewTest extends TestCase
         $r->assertSee('id="ts-review-summary"', false);
         $r->assertSee('categoryTotals()', false);
         $r->assertSee('reviewDays()', false);
+    }
+
+    public function test_the_review_pane_renders_entries_and_locked_days_client_side(): void
+    {
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true,
+        ]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'AmanahKu Platform']);
+
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft',
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $category->id, 'project_id' => $project->id, 'percentage' => 100,
+            'description' => 'Weekly review mockups, tab styling',
+        ]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Awal Muharram', 'date' => '2026-06-17']);
+
+        $r = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $r->assertOk();
+        // The row's own data reaches the page — rowLabel()/dayLong() resolve it client-side,
+        // so this proves the data is there, not that Alpine has rendered it (browser-verified).
+        $r->assertSee('Weekly review mockups, tab styling', false);
+        $r->assertSee('AmanahKu Platform', false);
+        $r->assertSee('Awal Muharram', false);
+        // The day-card template itself is present.
+        $r->assertSee('x-text="rowLabel(r)"', false);
+        $r->assertSee('x-text="dayLong(d)"', false);
+        $r->assertSee('x-text="locked[d].label"', false);
     }
 }
