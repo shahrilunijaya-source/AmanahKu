@@ -46,6 +46,9 @@
     - tag: improved
       text: "The Timesheet Reports screen now opens on This week by default, so who still owes a sheet is the first thing you see."
       text_ms: "Skrin Laporan Lembaran Masa kini terbuka pada tab Minggu Ini secara lalai, supaya siapa yang masih belum menghantar lembaran menjadi perkara pertama yang dilihat."
+    - tag: added
+      text: "The Review tab is now a read-only week-by-week view of your own timesheet entries, with arrows and a dropdown to jump between weeks. Each day shows what you logged as small category and project tags, grouped together even when you logged more than one thing that day — click any entry to jump straight into editing it on the Record tab. It replaces the old cost list and time-spent breakdown, which only money roles could see."
+      text_ms: "Tab Semak kini memaparkan minggu lembaran masa anda sendiri secara baca-sahaja, dengan anak panah dan senarai lungsur untuk melompat antara minggu. Setiap hari memaparkan apa yang anda rekod sebagai tag kecil kategori dan projek, dikumpul bersama walaupun anda merekod lebih daripada satu perkara pada hari yang sama — klik mana-mana entri untuk terus menyunting di tab Rekod. Ia menggantikan senarai kos lama dan pecahan masa yang hanya boleh dilihat oleh peranan berkaitan kewangan."
 
 - version: "1.3"
   date: "2026-08-14"
