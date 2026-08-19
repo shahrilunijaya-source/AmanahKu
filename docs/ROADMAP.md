@@ -3,26 +3,12 @@
 Open work, ranked. Shipped history is in `git log`; the reasoning behind past choices is in
 [DECISIONS.md](DECISIONS.md).
 
-## Now — close the gaps prod went live with
+## Now — Milestone 2.0
 
-Production went live on **https://amanahku.unijaya.com** on 2026-07-31, on DigitalOcean,
-provisioned by the devops team, with one seeded super-admin account. The cutover happened without the checklist
-that used to sit here, so the checklist is now a list of unknowns to confirm with devops.
-None of it can be verified from a developer machine — see
-[RULES.md § Production handoff](RULES.md#production-handoff).
-
-1. **Both cron jobs.** Scheduler and queue drain. Without them, leave accrual, digests and
-   reminders stop, and invited users never receive an activation link. Highest risk of the
-   set, because it fails silently.
-2. **Mail actually delivers.** Send one real mail and read the log. `php artisan about`
-   cannot detect this.
-3. **Backups.** Nightly `mysqldump`, and `APP_KEY` stored somewhere other than the database
-   host. Losing the key makes every encrypted NRIC unrecoverable.
-4. **The security gate** in [RULES.md](RULES.md#security-gate--do-not-deploy-public-without-these).
-   Confirm `APP_DEBUG=false` first; it is the one that leaks.
-5. **Demo seeder not run on prod**, and the seeded super-admin password changed from whatever
-   it shipped with.
-6. Import real staff data, then smoke test the approval round trip with real accounts.
+1. **Dark mode.** User-toggleable, persisted per user.
+2. **MCP access.** Expose an MCP server so an AI agent can read/write Amanahku on a user's
+   behalf — e.g. fill a timesheet.
+3. **Mobile-first nav/view.** Redesign navigation and key screens mobile-first.
 
 ## Done — one history for two repos (2026-07-31)
 
