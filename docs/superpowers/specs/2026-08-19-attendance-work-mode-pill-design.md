@@ -121,9 +121,18 @@ an unchecked Home would cost nothing.
 For someone HR has already set as `wfh` or `hybrid`, the default **Office / Home** option
 already *is* their home day, resolved from their arrangement. They need no pill at all.
 
-The genuine gap that remains is the office-based employee working from home for one day, who
-still has no way to say so. That needs its own decision about who approves it. Out of scope
-here, listed below.
+The per-day question this raises was asked and settled: **the existing arrangement settings
+already cover it.** `wfh` means every day is a home day; `hybrid` carries
+`hybrid_office_days`, so HR picks which weekdays are office and the rest are home
+(app/Attendance/ScheduleResolver.php:31-33). Nobody needs a pill to say what their profile
+already says.
+
+The one case with no path is the office-based employee working from home on a single
+irregular day — hybrid repeats weekly and cannot express "this Thursday only". That is
+deliberately left alone: it happens a few times a year, the punch still succeeds, and the
+off-site flag plus the typed reason is a fair record of an exception. A per-date calendar or
+an approval flow would be a large screen for a small case. Revisit if staff complain, which
+is the honest signal that it matters.
 
 ## Design
 
@@ -355,8 +364,9 @@ error bag instead and lose the sheet.
 
 ## Out of scope
 
-- **Ad-hoc work from home for office-based staff.** Deferred — see "Why home is still not on
-  the pill". Needs a decision on who approves it, not more code.
+- **Ad-hoc work from home for office-based staff.** Considered and declined, not merely
+  deferred — see "Why home is still not on the pill". The regular cases are already covered
+  by `wfh` and `hybrid`; the irregular single day keeps its flag and its typed reason.
 - **Deleting stored home addresses and removing HR's WFH home section.** The cleaner privacy
   answer, declined here only because it is not reversible. Worth revisiting once the unfenced
   home day has run for a while.
