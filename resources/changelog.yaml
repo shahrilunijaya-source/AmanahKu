@@ -14,6 +14,12 @@
   date: "2026-08-18"
   entries:
     - tag: added
+      text: "Oversight now has its own page, listing all six of its reports — Workforce, Attendance, Leave, Timesheet, Audit Logs and Profile Test Results — in one place. Open to managers, management and HR."
+      text_ms: "Pengawasan kini mempunyai halamannya sendiri, menyenaraikan kesemua enam laporannya — Tenaga Kerja, Kehadiran, Cuti, Lembaran Masa, Log Audit dan Keputusan Ujian Profil — di satu tempat. Terbuka kepada pengurus, pengurusan dan HR."
+    - tag: improved
+      text: "Reports moved from its own item in the sidebar into Oversight, alongside the other company-wide reports it already shared an audience with, and is now labelled Workforce Reports to say what it actually covers."
+      text_ms: "Laporan berpindah daripada item berasingan dalam bar sisi ke dalam Pengawasan, bersama laporan seluruh syarikat lain yang sudah berkongsi khalayak yang sama, dan kini dilabel Laporan Tenaga Kerja untuk menunjukkan apa yang sebenarnya diliputinya."
+    - tag: added
       text: "New Projects screen under Workplace: every project in the company in one list, with how much each one is actually being used. Everyone can see it; managers, HR and management can add and edit. It replaces the old New Project screen, which could only create."
       text_ms: "Skrin Projek baharu di bawah Tempat Kerja: setiap projek syarikat dalam satu senarai, lengkap dengan sebanyak mana ia digunakan. Semua orang boleh melihatnya; pengurus, HR dan pengurusan boleh menambah dan menyunting. Ia menggantikan skrin Projek Baharu lama yang hanya boleh mencipta."
     - tag: improved

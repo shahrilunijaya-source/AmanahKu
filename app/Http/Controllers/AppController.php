@@ -177,7 +177,7 @@ class AppController extends Controller
         // manager role can reach the Audit Logs alongside the two reports. 'reports' is
         // the company-wide analytics hub (headcount, department capacity, workload
         // split) — same oversight class as its siblings, just missing from this list.
-        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results', 'reports'], true)) {
+        if (in_array($screen, ['oversight', 'attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results', 'reports'], true)) {
             abort_unless(Permissions::canSeeAll($employee, $role), 403);
         }
         // Probation tracking also covers managers (their own new hires).

@@ -34,10 +34,12 @@ trait BuildsNav
         // My Work and Learning, which is everything about their own week. The screens
         // themselves stay server-gated in AppController::screen (canSeeAll) for anyone
         // who reaches them by URL, so this is tidiness, not the access control.
+        // 'reports' used to be its own top-level id here; it is folded into oversight's
+        // children now, so hiding the 'oversight' parent already hides it too.
         if ($role === 'employee') {
             $items = array_values(array_filter(
                 $items,
-                fn ($i) => $i['section'] !== 'My Team' && ! in_array($i['id'], ['oversight', 'reports'], true),
+                fn ($i) => $i['section'] !== 'My Team' && $i['id'] !== 'oversight',
             ));
         }
 

@@ -146,17 +146,22 @@ class Amanahku
             $s('Compliance & Docs', 'Pematuhan & Dokumen', ['id' => 'compliance', 'label' => 'Compliance & Licenses', 'label_ms' => 'Pematuhan & Lesen', 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM12 8v4M12 16h.01']),
 
             // ── Insights & Support ────────────────────────────────────────────
-            $s('Insights', 'Analitik', ['id' => 'reports', 'label' => 'Reports', 'label_ms' => 'Laporan', 'icon' => 'M12 20V10M18 20V4M6 20v-4']),
             $s('Insights', 'Analitik', ['id' => 'surveys', 'label' => 'Surveys', 'label_ms' => 'Tinjauan', 'icon' => 'M3 3v18h18M8 17V9M13 17V5M18 17v-6']),
             $s('Insights', 'Analitik', ['id' => 'ideas', 'label' => 'Suggestion Box', 'label_ms' => 'Peti Cadangan', 'icon' => 'M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z']),
             $s('Insights', 'Analitik', ['id' => 'helpdesk', 'label' => 'Helpdesk', 'label_ms' => 'Helpdesk', 'icon' => 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24']),
 
             // Oversight surface for anyone who manages staff (manager / management /
-            // hr). Sits beside Reports rather than in a section of its own: five report
-            // screens did not justify their own heading. Nav-gated in
+            // hr). Sits beside Surveys/Helpdesk rather than in a section of its own: six
+            // report screens did not justify their own heading. Nav-gated in
             // BuildsNav::navModel (hidden from employees); screens server-gated in
             // AppController::screen via canSeeAll.
-            $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
+            // 'landing' => true gives the group heading its own page (screens/oversight.blade.php)
+            // instead of being a pure accordion toggle — see sidebar.blade.php's landing branch.
+            $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'landing' => true, 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
+                // Company-wide analytics (headcount, department capacity, workload split) —
+                // used to be its own top-level Insights item; folded in here since it shares
+                // the same manager/management/hr gate as every other card in this group.
+                ['id' => 'reports', 'label' => 'Workforce Reports', 'label_ms' => 'Laporan Tenaga Kerja'],
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
                 // Management/HR only: the report carries salary-derived RM cost, so it is
@@ -378,13 +383,14 @@ class Amanahku
             // Retired slug, same destination — see AppController::screen.
             'project-quick-create' => ['title' => 'Projects', 'title_ms' => 'Projek', 'sub' => 'Every project in Unijaya, and the sub-pillars they all share.', 'sub_ms' => 'Setiap projek di Unijaya, dan sub-tiang yang dikongsi semuanya.', 'crumb' => ['Workplace', 'Projects']],
             'timesheet-reports' => ['title' => 'Timesheet Reports', 'title_ms' => 'Laporan Lembaran Masa', 'sub' => 'Staff time allocation by project and by person over a period.', 'sub_ms' => 'Peruntukan masa staf mengikut projek dan mengikut individu untuk satu tempoh.', 'crumb' => ['Reports & Audit', 'Timesheet Reports']],
-            'reports' => ['title' => 'Reports', 'title_ms' => 'Laporan', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Reports']],
+            'reports' => ['title' => 'Workforce Reports', 'title_ms' => 'Laporan Tenaga Kerja', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Insights', 'Workforce Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],
             'roles' => ['title' => 'Roles & Permissions', 'title_ms' => 'Peranan & Kebenaran', 'sub' => 'Assign access roles to workspace members.', 'sub_ms' => 'Tetapkan peranan akses kepada ahli ruang kerja.', 'crumb' => ['Administration', 'Roles & Permissions']],
             'audit' => ['title' => 'Audit Logs', 'title_ms' => 'Log Audit', 'sub' => 'Recent administrative and approval activity.', 'sub_ms' => 'Aktiviti pentadbiran dan kelulusan terkini.', 'crumb' => ['Reports & Audit', 'Audit Logs']],
+            'oversight' => ['title' => 'Oversight', 'title_ms' => 'Pengawasan', 'sub' => 'Workforce, attendance, leave, timesheet and audit reports, in one place.', 'sub_ms' => 'Laporan tenaga kerja, kehadiran, cuti, lembaran masa dan audit, di satu tempat.', 'crumb' => ['Insights', 'Oversight']],
             'security' => ['title' => 'Account Security', 'title_ms' => 'Keselamatan Akaun', 'sub' => 'Two-factor authentication and sign-in protection.', 'sub_ms' => 'Pengesahan dua faktor dan perlindungan log masuk.', 'crumb' => ['Account', 'Security']],
             'soon' => ['title' => 'Module', 'title_ms' => 'Modul', 'sub' => 'This module is part of the AmanahKu platform.', 'sub_ms' => 'Modul ini sebahagian daripada platform AmanahKu.', 'crumb' => ['Module']],
         ];

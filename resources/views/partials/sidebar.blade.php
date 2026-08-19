@@ -93,12 +93,40 @@
                         <div x-data="sbFly({{ $item['expanded'] ? 'true' : 'false' }})"
                              @mouseenter="show($event)" @mouseleave="hide()" style="position:relative;">
                             @if ($item['hasChildren'])
-                                <button type="button" @click="open = !open" class="uj-nav-row" :aria-expanded="open"
-                                        @if ($item['active']) data-on @endif>
-                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                    <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                    <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
-                                </button>
+                                {{-- A 'landing' item (e.g. Oversight) gets its own page — the row is a
+                                     real link so it navigates — but the chevron has to live OUTSIDE
+                                     that link (a <button> nested inside an <a> is invalid HTML and
+                                     un-clickable in practice) so the group can still be collapsed
+                                     manually while sitting on/under its own page. It's absolutely
+                                     positioned over the row's reserved right-edge padding, so it lines
+                                     up with the inline chevron the plain-button branch below uses.
+                                     Other groups stay pure accordions with no page of their own. --}}
+                                @if ($item['landing'] ?? false)
+                                    {{-- position:relative is scoped to just this row wrapper (not the
+                                         outer per-item x-data div, which also wraps the expanded .uj-nav-kids
+                                         list below) — otherwise top:50% centers on the whole expanded
+                                         block's height instead of the header row's. --}}
+                                    <div style="position:relative;">
+                                        <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-nav-row uj-nav-row-landing"
+                                           @if ($item['active']) data-on @endif>
+                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                        </a>
+                                        <button type="button" @click="open = !open" :aria-expanded="open"
+                                                class="uj-sb-hide" aria-label="Toggle Oversight reports"
+                                                style="position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:1;background:none;border:0;padding:6px;line-height:0;cursor:pointer;color:var(--sidebar-dim);">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                                 :style="open ? 'transform:rotate(90deg)' : ''" style="transition:transform .16s cubic-bezier(.23,1,.32,1);"><path d="M9 6l6 6-6 6"></path></svg>
+                                        </button>
+                                    </div>
+                                @else
+                                    <button type="button" @click="open = !open" class="uj-nav-row" :aria-expanded="open"
+                                            @if ($item['active']) data-on @endif>
+                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                        <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                        <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                                    </button>
+                                @endif
                                 <div class="uj-nav-kids" x-show="open" x-cloak>
                                     @foreach ($item['children'] as $child)
                                         <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
@@ -118,10 +146,17 @@
                                  mounted while hovering, and only while the rail is collapsed. --}}
                             <template x-if="fly">
                                 <div class="uj-fly" x-ref="fly" data-open>
-                                    <div class="uj-fly-t">
-                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                        <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                    </div>
+                                    @if ($item['hasChildren'] && ($item['landing'] ?? false))
+                                        <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-fly-t" style="text-decoration:none;">
+                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                            <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                        </a>
+                                    @else
+                                        <div class="uj-fly-t">
+                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                            <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                        </div>
+                                    @endif
                                     @if ($item['hasChildren'])
                                         <div class="uj-nav-kids">
                                             @foreach ($item['children'] as $child)

@@ -36,7 +36,7 @@ class AllScreensRenderTest extends TestCase
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook', 'tot',
         'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
         'reports', 'surveys', 'ideas', 'messages',
-        'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup',
+        'settings', 'setup', 'staff-load', 'roles', 'audit', 'security', 'position', 'attendance-report', 'leave-setup', 'oversight',
     ];
 
     protected function setUp(): void

@@ -514,6 +514,10 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-sec { font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--sidebar-dim); padding: 0 10px 8px; display: block; text-align: left; background: none; border: 0; width: 100%; cursor: pointer; }
 .uj-nav-rule { display: none; height: 1px; background: var(--sidebar-line); margin: 10px 14px; }
 .uj-nav-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border-radius: 8px; font-size: var(--t-base); font-weight: 500; color: var(--sidebar-text); background: none; border: 0; text-align: left; text-decoration: none; cursor: pointer; margin-bottom: 1px; }
+/* Reserves room for the absolutely-positioned chevron button a 'landing' group
+   row uses instead of an inline chevron (see sidebar.blade.php) — the row is a
+   real link, so the toggle has to sit outside it. */
+.uj-nav-row-landing { padding-right: 34px; }
 .uj-nav-row > svg { flex-shrink: 0; color: var(--muted-soft); transition: color .14s ease; }
 .uj-nav-row:hover { background: rgba(255, 255, 255, .06); color: #fff; }
 .uj-nav-row:hover > svg { color: #c9c6bc; }
@@ -548,6 +552,7 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-sb-collapsed .uj-sb-brand { padding: 0; justify-content: center; }
     .uj-sb-collapsed .uj-sb-today { margin: 0 8px 4px; padding: 6px 0; gap: 2px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--sidebar-line); border-radius: 0; }
     .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; }
+    .uj-sb-collapsed .uj-nav-row-landing { padding-right: 0; }
     /* Only the in-sidebar children collapse. The flyout is a DOM descendant of the
        sidebar (it is position:fixed, not detached), so it needs to win this back. */
     .uj-sb-collapsed .uj-sidebar .uj-nav-kids { display: none; }
