@@ -39,7 +39,7 @@ class WorkItem extends Model
 
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
     }
 
     public function employee(): BelongsTo

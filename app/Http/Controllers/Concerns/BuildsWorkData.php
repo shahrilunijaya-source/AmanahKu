@@ -148,10 +148,10 @@ trait BuildsWorkData
         // One board holds every work type (assignments, tasks, adhoc). The `?type`
         // param only sets the client-side filter's starting focus — it no longer
         // splits the data across pages. Filtering happens live in the browser.
-        // A card leaves the Done column only when explicitly archived (archived_at
-        // set) — see WorkItemController::archive(). Reopening puts it back at
-        // todo, so an archived card is never stuck; the board itself just won't
-        // grow Done forever with cards nobody archived.
+        // A card leaves the Done column once archived (archived_at set) — either
+        // explicitly via WorkItemController::archive(), or automatically a day after
+        // it was marked done (ArchiveDoneWorkItems, scheduled hourly). Reopening puts
+        // it back at todo, so an archived card is never stuck.
         // A card belongs to one owner, but may also include participants — the same
         // shared card then shows on each included person's board. Load both: cards I
         // own, plus cards I'm a participant on.

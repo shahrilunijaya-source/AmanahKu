@@ -55,6 +55,7 @@ class WorkItemController extends Controller
             'project_id' => $data['project_id'] ?? null,
             'status' => $status,
             'progress' => 0,
+            'done_at' => $status === 'done' ? now() : null,
             // Place new cards at the bottom of their column.
             'sort_order' => (int) $employee->workItems()->where('status', $status)->max('sort_order') + 1,
         ]);
@@ -257,6 +258,10 @@ class WorkItemController extends Controller
         $workItem->update([
             'status' => $data['status'],
             'progress' => $data['status'] === 'done' ? 100 : $workItem->progress,
+            // Stamped only on the todo/prog/review -> done transition, not on every
+            // move or reorder — the auto-archive clock (WorkItem::archive-done) reads
+            // this, not updated_at, so reordering cards within Done doesn't reset it.
+            'done_at' => (! $wasDone && $data['status'] === 'done') ? now() : $workItem->done_at,
         ]);
 
         // Close the loop: when an assigned tac first reaches Done, tell the assigner.

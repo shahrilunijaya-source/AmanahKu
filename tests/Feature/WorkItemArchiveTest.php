@@ -89,4 +89,38 @@ class WorkItemArchiveTest extends TestCase
         $this->assertNull($item->archived_at);
         $this->assertSame('todo', $item->status);
     }
+
+    public function test_moving_a_card_to_done_stamps_done_at(): void
+    {
+        $item = $this->card(['status' => 'todo']);
+
+        $this->actingInTenant()->postJson("/app/board/{$item->id}/move", ['status' => 'done'])->assertOk();
+
+        $this->assertNotNull($item->fresh()->done_at);
+    }
+
+    public function test_reordering_within_done_does_not_reset_done_at(): void
+    {
+        $stamp = now()->subHours(20);
+        $item = $this->card(['status' => 'done', 'done_at' => $stamp]);
+
+        $this->actingInTenant()->postJson("/app/board/{$item->id}/move", [
+            'status' => 'done', 'ids' => [$item->id],
+        ])->assertOk();
+
+        $this->assertEqualsWithDelta($stamp->timestamp, $item->fresh()->done_at->timestamp, 1);
+    }
+
+    public function test_scheduled_command_archives_cards_done_over_a_day(): void
+    {
+        $old = $this->card(['status' => 'done', 'done_at' => now()->subDays(2)]);
+        $recent = $this->card(['status' => 'done', 'done_at' => now()->subHours(2)]);
+        $inProgress = $this->card(['status' => 'prog']);
+
+        $this->artisan('work:archive-done')->assertSuccessful();
+
+        $this->assertNotNull($old->fresh()->archived_at);
+        $this->assertNull($recent->fresh()->archived_at);
+        $this->assertNull($inProgress->fresh()->archived_at);
+    }
 }

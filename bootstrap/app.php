@@ -60,6 +60,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // the resignation. Idempotent, so a missed/duplicate run is safe.
         $schedule->command('staff:archive-departed')->dailyAt('00:30')
             ->withoutOverlapping()->onFailure($onFailure('staff:archive-departed'));
+        // Board hygiene: archive Done cards a full day after they were marked done.
+        // Hourly (not daily) so "a day" means close to 24h rather than up to 48h on
+        // a fixed daily tick. Idempotent: archived_at is only ever set once.
+        $schedule->command('work:archive-done')->hourly()
+            ->withoutOverlapping()->onFailure($onFailure('work:archive-done'));
         // Clock nudges: every 5 minutes across the working day. The cadence has to be
         // this short because one of the four nudges fires 5 minutes BEFORE the shift
         // boundary — a 15-minute tick would miss that window. Each bell carries its own
