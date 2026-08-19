@@ -26,16 +26,6 @@
         'other' => ['tint' => 'var(--muted)', 'bg' => 'var(--shelf)', 'icon' => 'M5 12h.01M12 12h.01M19 12h.01'],
     ];
 
-    // Shelf figures. Waiting = still in the two-step gate; approved = money that lands
-    // next payroll run; both are the numbers a claimant opens this screen to see.
-    $waiting = $myClaims->whereIn('status', ['submitted', 'verified']);
-    $waitingTotal = (float) $waiting->sum('amount');
-    $waitingCount = $waiting->count();
-    $approvedNotPaidTotal = (float) $myClaims->where('status', 'approved')->sum('amount');
-    $paidYtd = (float) $myClaims->where('status', 'paid')
-        ->filter(fn ($c) => $c->date?->year === now()->year)->sum('amount');
-    $claimsThisYear = $myClaims->filter(fn ($c) => $c->date?->year === now()->year)->count();
-
     $medicalCap = (float) ($medicalCap ?? 0);
     $medicalRemaining = max(0, $medicalCap - (float) ($medicalUsedYtd ?? 0));
 
@@ -122,46 +112,6 @@
             history.replaceState(null, '', u);
         },
     }">
-
-    {{-- One shelf: what is waiting, what is approved, and is anything on you. --}}
-    <div class="uj-lv-shelf">
-        <div class="uj-lv-shelf-top">
-            <div style="min-width:0;">
-                <div class="uj-lv-kicker" x-text="$store.ui.lang==='en' ? 'AWAITING APPROVAL' : 'MENUNGGU KELULUSAN'">AWAITING APPROVAL</div>
-                <div class="uj-lv-figrow">
-                    <span class="uj-lv-fig">{{ $money($waitingTotal) }}</span>
-                    <span class="uj-lv-figsub">
-                        {{ $waitingCount }}
-                        <span x-text="$store.ui.lang==='en' ? @js(\Illuminate\Support\Str::plural('claim', $waitingCount)) : 'tuntutan'">{{ \Illuminate\Support\Str::plural('claim', $waitingCount) }}</span>
-                        <span x-text="$store.ui.lang==='en' ? 'in the queue' : 'dalam giliran'">in the queue</span>
-                    </span>
-                </div>
-                <div class="uj-lv-where">
-                    @if ($approvedNotPaidTotal > 0)
-                        <span x-text="$store.ui.lang==='en'
-                            ? '{{ $money($approvedNotPaidTotal) }} approved · pays next payroll run'
-                            : '{{ $money($approvedNotPaidTotal) }} diluluskan · dibayar dalam gaji berikutnya'"></span>
-                    @else
-                        <span x-text="$store.ui.lang==='en' ? 'Nothing of yours is awaiting payment' : 'Tiada tuntutan anda menunggu pembayaran'"></span>
-                    @endif
-                    @if ($reviewCount > 0)
-                        <span class="uj-stamp" data-tone="red">
-                            <span x-text="$store.ui.lang==='en'
-                                ? '{{ $reviewCount }} waiting on you'
-                                : '{{ $reviewCount }} menunggu anda'"></span>
-                        </span>
-                    @endif
-                </div>
-            </div>
-        </div>
-        <div class="uj-lv-chips">
-            <div class="uj-lv-chip"><b>{{ $money($paidYtd) }}</b><span x-text="$store.ui.lang==='en' ? 'paid this year' : 'dibayar tahun ini'">paid this year</span></div>
-            <div class="uj-lv-chip"><b>{{ $claimsThisYear }}</b><span x-text="$store.ui.lang==='en' ? 'claims this year' : 'tuntutan tahun ini'">claims this year</span></div>
-            @if ($medicalCap > 0)
-                <div class="uj-lv-chip" @if ($medicalRemaining <= $medicalCap * 0.2) data-tone="amber" @endif><b>{{ $money($medicalRemaining) }}</b><span x-text="$store.ui.lang==='en' ? 'medical left' : 'baki perubatan'">medical left</span></div>
-            @endif
-        </div>
-    </div>
 
     <div class="uj-lv-tabs" role="tablist">
         <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'apply' ? '' : null"

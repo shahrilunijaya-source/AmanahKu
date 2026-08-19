@@ -1439,17 +1439,15 @@ select.wd-inline {
 
 /* ── The shelf ──
    One banner that answers "where am I, what time is it, what do I press".
-   Shared with the leave screen (.uj-lv-shelf), which opens with the same hero
-   over its balance figure — the selectors are shared rather than duplicated.
    Warm tint (--shelf) rather than white so the white chips and white ghost
    buttons read as sitting ON something. */
-.uj-at-shelf, .uj-lv-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 20px; }
-.uj-at-shelf-top, .uj-lv-shelf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.uj-at-kicker, .uj-lv-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
-.uj-at-figrow, .uj-lv-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
-.uj-at-fig, .uj-lv-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.uj-at-figsub, .uj-lv-figsub { font-size: var(--t-base); color: var(--body); }
-.uj-at-figsub b, .uj-lv-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-at-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 20px; }
+.uj-at-shelf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.uj-at-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
+.uj-at-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.uj-at-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.uj-at-figsub { font-size: var(--t-base); color: var(--body); }
+.uj-at-figsub b { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .uj-at-figrow--punched { border-radius: 10px; animation: uj-punch-pulse 1.2s cubic-bezier(.23, 1, .32, 1); }
 
 /* Where you are meant to be, and whether you are. The geofence verdict is inline
@@ -1537,12 +1535,12 @@ select.wd-inline {
 /* ── Chips ──
    The four numbers a person asks this screen for: worked this week, over baseline,
    late this month, off-site this month. */
-.uj-at-chips, .uj-lv-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-.uj-at-chip, .uj-lv-chip { background: #fff; border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
-.uj-at-chip b, .uj-lv-chip b { font: 600 18px var(--font-mono); color: var(--ink); line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.uj-at-chip span, .uj-lv-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
-.uj-at-chip[data-tone="ok"] b, .uj-lv-chip[data-tone="ok"] b { color: #14614a; }
-.uj-at-chip[data-tone="amber"] b, .uj-lv-chip[data-tone="amber"] b { color: #7a5210; }
+.uj-at-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.uj-at-chip { background: #fff; border: 1px solid var(--shelf-line); border-radius: 9px; padding: 8px 13px; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.uj-at-chip b { font: 600 18px var(--font-mono); color: var(--ink); line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.uj-at-chip span { font-size: var(--t-micro); letter-spacing: .04em; color: var(--body); font-weight: 500; }
+.uj-at-chip[data-tone="ok"] b { color: #14614a; }
+.uj-at-chip[data-tone="amber"] b { color: #7a5210; }
 
 /* ── Week reading list & disclosure rows ──
    Each day is a disclosure: row carries the facts, panel carries the plain-English
@@ -3032,9 +3030,6 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
    switched, and every section collapses back to block-flow margins. */
 .uj-lv-panel { display: flex; flex-direction: column; gap: 26px; }
 
-/* Shelf line under the figure: what is pending, and whether anything waits on you. */
-.uj-lv-where { font-size: 13px; color: var(--body); margin-top: 7px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-
 /* ── Apply: three steps, one open at a time ── */
 .uj-lv-steps { display: flex; flex-direction: column; gap: 12px; }
 .uj-lv-step { background: #fff; border: 1px solid var(--hairline); border-radius: 14px; box-shadow: 0 1px 2px rgba(38, 37, 30, .05); overflow: hidden; transition: box-shadow .22s cubic-bezier(.23, 1, .32, 1), opacity .22s cubic-bezier(.23, 1, .32, 1); }
@@ -3187,7 +3182,6 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-rw-in { padding: 0 20px 15px 64px; }
 .uj-lv-quote { font-size: var(--t-sm); color: var(--muted); font-style: italic; margin-bottom: 11px; }
 
-.uj-lv-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .uj-lv-mini { display: flex; align-items: center; gap: 11px; padding: 9px 20px; border-top: 1px solid var(--hairline-soft); }
 .uj-lv-mini:first-of-type { border-top: 0; }
 .uj-lv-mini-n { flex: 1; min-width: 0; font-size: var(--t-base); color: var(--ink); }
@@ -3229,7 +3223,6 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-empty span { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.55; max-width: 40ch; margin: 3px auto 0; }
 
 @media (max-width: 760px) {
-    .uj-lv-duo { grid-template-columns: 1fr; }
     .uj-lv-row2 { flex-direction: column; }
     .uj-lv-led-bar { display: none; }
     .uj-lv-led-n { flex-basis: 104px; }
@@ -3305,24 +3298,14 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    removed from these specific properties so the 480px overrides below can actually win —
    an inline style always outranks a media-query rule at any specificity. */
 .uj-ts-card { padding: 22px; }
-.uj-ts-shelf { padding: 20px 22px; }
-.uj-ts-shelf-figure { font: 600 46px/1 var(--font-mono); }
-.uj-ts-shelf-stat { background: var(--card, #fff); padding: 7px 12px; }
 .uj-ts-day-name { font-size: 20px; }
 .uj-ts-day-head { justify-content: space-between; }
 .uj-ts-day-nav-col { align-items: flex-start; }
 .uj-ts-day-total { flex: none; text-align: right; }
 @media (max-width: 480px) {
-    /* Card padding and the shelf's giant figure are the two biggest vertical-space eaters
-       on a phone; both shrink without losing legibility. The "every working day must reach
-       100%" sentence is dropped here specifically — the day strip + row states already say
-       the same thing, and reclaiming that line matters more on a 375px screen than restating it. */
+    /* Card padding is the biggest vertical-space eater on a phone; it shrinks without
+       losing legibility. */
     .uj-ts-card { padding: 16px; }
-    .uj-ts-shelf { padding: 14px 16px; }
-    .uj-ts-shelf-figure { font: 600 32px/1 var(--font-mono); }
-    .uj-ts-shelf-hint { display: none; }
-    .uj-ts-shelf-stats { gap: 16px; margin-top: 10px !important; }
-    .uj-ts-shelf-stat { background: none; border: none !important; padding: 0; }
     /* The day header used to force "Wednesday 5 Aug" and the day total onto the same row,
        wrapping the heading mid-word once nav arrows + total both fought it for width. Letting
        the total drop to its own full-width row (still right-aligned) fixes the wrap outright

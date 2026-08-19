@@ -12,7 +12,6 @@ use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
-use App\Models\PublicHoliday;
 use App\Models\StatutoryRate;
 use App\Models\WorkItem;
 use App\Services\DataScope;
@@ -341,10 +340,12 @@ trait BuildsWorkData
             'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             // active() owner: a since-archived person holds no live leave — drop their
             // approved requests from the team-leave widget (mirrors the approval queues).
+            // Ongoing or upcoming only — date_to >= today, soonest first — not "most
+            // recently approved", which surfaced leave that had already finished.
             'teamLeave' => LeaveRequest::with('employee')->where('status', 'approved')
+                ->where('date_to', '>=', now()->toDateString())
                 ->whereHas('employee', fn ($q) => $q->active())
-                ->latest()->take(6)->get(),
-            'holidays' => PublicHoliday::orderBy('date')->get(),
+                ->orderBy('date_from')->take(6)->get(),
         ];
     }
 

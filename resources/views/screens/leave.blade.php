@@ -8,7 +8,7 @@
     a staff member's balance cards and their application form. Now:
 
       Apply      staff — one application, asked as three questions
-      My leave   staff — balances, own requests, who else is away, holidays, reference
+      My leave   staff — balances, own requests, who else is away
       Approvals  superior/management — the two review queues
 
     Approvals is rendered only when a queue actually has rows, which is the same
@@ -43,17 +43,9 @@
         'unpaid'          => [null, '#8a8f98', '#eef0f2', 'Approved leave without pay, once your paid balance is spent.', 'Cuti tanpa gaji yang diluluskan, setelah baki bergaji anda habis.'],
     ];
 
-    // The shelf figure. Annual is the balance people open this screen for; fall back
-    // to whatever balance they do have so a tenant without an "Annual" type still
-    // gets a hero rather than an empty band.
-    $headline = $balances->first(fn ($b) => strtolower($b->leaveType?->name ?? '') === 'annual')
-        ?? $balances->first(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0);
-
     $num = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
 
     $pending = $myRequests->whereIn('status', ['submitted', 'verified']);
-    $pendingDays = (float) $pending->sum('days');
-    $takenDays = (float) $myRequests->where('status', 'approved')->sum('days');
     $reviewCount = $leaveToVerify->count() + $leaveToApprove->count();
 
     // Ledger: every type the person carries a real entitlement in, with the days
@@ -111,54 +103,6 @@
             history.replaceState(null, '', u);
         },
     }">
-
-    {{-- One shelf answering "how much leave do I have left, and is anything stuck". --}}
-    <div class="uj-lv-shelf">
-        <div class="uj-lv-shelf-top">
-            <div style="min-width:0;">
-                @if ($headline)
-                    <div class="uj-lv-kicker">{{ $headline->leaveType?->name }} <span x-text="$store.ui.lang==='en' ? 'LEAVE' : 'CUTI'">LEAVE</span></div>
-                    <div class="uj-lv-figrow">
-                        <span class="uj-lv-fig">{{ $num($headline->balance) }}</span>
-                        <span class="uj-lv-figsub">
-                            <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span>
-                            <b>{{ $num($headline->leaveType?->entitlement) }}</b>
-                            <span x-text="$store.ui.lang==='en' ? 'days left this year' : 'hari berbaki tahun ini'">days left this year</span>
-                        </span>
-                    </div>
-                @else
-                    <div class="uj-lv-kicker" x-text="$store.ui.lang==='en' ? 'LEAVE' : 'CUTI'">LEAVE</div>
-                    <div class="uj-lv-figrow">
-                        <span class="uj-lv-figsub" x-text="$store.ui.lang==='en'
-                            ? 'No leave balances are set up for you yet — ask HR to assign your entitlement.'
-                            : 'Belum ada baki cuti ditetapkan untuk anda — minta HR tetapkan kelayakan anda.'"></span>
-                    </div>
-                @endif
-                <div class="uj-lv-where">
-                    @if ($pendingDays > 0)
-                        <span x-text="$store.ui.lang==='en'
-                            ? '{{ $num($pendingDays) }} {{ $pendingDays == 1 ? 'day' : 'days' }} awaiting a decision'
-                            : '{{ $num($pendingDays) }} hari menunggu keputusan'"></span>
-                    @else
-                        <span x-text="$store.ui.lang==='en' ? 'Nothing of yours is awaiting a decision' : 'Tiada permohonan anda menunggu keputusan'"></span>
-                    @endif
-                    @if ($reviewCount > 0)
-                        <span class="uj-stamp" data-tone="red">
-                            <span x-text="$store.ui.lang==='en'
-                                ? '{{ $reviewCount }} waiting on you'
-                                : '{{ $reviewCount }} menunggu anda'"></span>
-                        </span>
-                    @endif
-                </div>
-            </div>
-        </div>
-        <div class="uj-lv-chips">
-            <div class="uj-lv-chip"><b>{{ $num($takenDays) }}</b><span x-text="$store.ui.lang==='en' ? 'days taken' : 'hari diambil'">days taken</span></div>
-            <div class="uj-lv-chip" @if ($pendingDays > 0) data-tone="amber" @endif><b>{{ $num($pendingDays) }}</b><span x-text="$store.ui.lang==='en' ? 'days pending' : 'hari menunggu'">days pending</span></div>
-            <div class="uj-lv-chip"><b>{{ $myRequests->count() }}</b><span x-text="$store.ui.lang==='en' ? 'applications' : 'permohonan'">applications</span></div>
-            <div class="uj-lv-chip"><b>{{ $teamLeave->count() }}</b><span x-text="$store.ui.lang==='en' ? 'others away' : 'orang lain bercuti'">others away</span></div>
-        </div>
-    </div>
 
     <div class="uj-lv-tabs" role="tablist">
         <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'apply' ? '' : null"
@@ -276,40 +220,20 @@
             </div>
         </div>
 
-        {{-- The partial carries its own heading, so this must not add a second one. --}}
-        @include('partials.approval-chain')
-
-        <div class="uj-lv-duo">
-            <div>
-                <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Who else is away' : 'Siapa lagi bercuti'">Who else is away</span></h3>
-                <div class="uj-card" style="padding:8px 0;">
-                    @forelse ($teamLeave as $l)
-                        <div class="uj-lv-mini">
-                            <span style="flex:0 0 30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:grid;place-items:center;font-size:var(--t-micro);font-weight:600;">{{ $l->employee?->initials }}</span>
-                            <span class="uj-lv-mini-n">{{ $l->employee?->name }}@if ($l->employee?->position)<em>{{ $l->employee->position }}</em>@endif</span>
-                            <span class="uj-lv-mini-d">{{ $l->date_from->format('j M') }}@if (! $l->date_from->isSameDay($l->date_to)) – {{ $l->date_to->format('j M') }}@endif</span>
-                        </div>
-                    @empty
-                        <div class="uj-lv-mini">
-                            <span class="uj-lv-mini-n" style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Nobody is on approved leave right now.' : 'Tiada sesiapa bercuti yang diluluskan sekarang.'"></span>
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-            <div>
-                <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Public holidays ahead' : 'Cuti umum akan datang'">Public holidays ahead</span></h3>
-                <div class="uj-card" style="padding:8px 0;">
-                    @forelse ($holidays as $h)
-                        <div class="uj-lv-mini">
-                            <span class="uj-lv-mini-n">{{ $h->name }}<em>{{ $h->state }}</em></span>
-                            <span class="uj-lv-mini-d">{{ $h->date->format('j M') }}</span>
-                        </div>
-                    @empty
-                        <div class="uj-lv-mini">
-                            <span class="uj-lv-mini-n" style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No holidays are recorded yet.' : 'Belum ada cuti umum direkodkan.'"></span>
-                        </div>
-                    @endforelse
-                </div>
+        <div>
+            <h3 class="uj-card-title" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Who else is away' : 'Siapa lagi bercuti'">Who else is away</span></h3>
+            <div class="uj-card" style="padding:8px 0;">
+                @forelse ($teamLeave as $l)
+                    <div class="uj-lv-mini">
+                        <span style="flex:0 0 30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:grid;place-items:center;font-size:var(--t-micro);font-weight:600;">{{ $l->employee?->initials }}</span>
+                        <span class="uj-lv-mini-n">{{ $l->employee?->name }}@if ($l->employee?->position)<em>{{ $l->employee->position }}</em>@endif</span>
+                        <span class="uj-lv-mini-d">{{ $l->date_from->format('j M') }}@if (! $l->date_from->isSameDay($l->date_to)) – {{ $l->date_to->format('j M') }}@endif</span>
+                    </div>
+                @empty
+                    <div class="uj-lv-mini">
+                        <span class="uj-lv-mini-n" style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Nobody is on approved leave right now.' : 'Tiada sesiapa bercuti yang diluluskan sekarang.'"></span>
+                    </div>
+                @endforelse
             </div>
         </div>
 
