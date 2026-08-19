@@ -95,17 +95,42 @@ Concretely:
 - **What survives:** the selfie, the GPS recording, the WFH working hours, and the late check.
   A home day is still timed and still evidenced. It is simply not fenced.
 
-**Stored addresses are left alone.** Existing `home_latitude` / `home_longitude` /
-`home_locked_at` values stay in the table, and HR's WFH tab
-(resources/views/screens/attendance-admin.blade.php:220-300) keeps showing and editing them.
-They stop being consulted when judging a punch, and that is the whole change — reversible by
-restoring one method. Wiping the addresses and removing the HR section is the cleaner privacy
-answer and was considered; it was declined as not reversible. Note it as a follow-up decision,
-not a gap.
+### Stored home addresses are deleted
 
-`wfh_radius_m` becomes unused. Left in place rather than migrated away, for the same
-reversibility reason. The Attendance Setup control for it is hidden, so HR is not offered a
-setting that no longer does anything.
+Confirmed explicitly. Keeping unused home coordinates on file is the worst of both outcomes:
+the app no longer acts on them, but it still holds every remote worker's home address and
+still carries the breach risk of doing so. They go, along with every control that reads or
+writes them.
+
+**This destroys real staff data on a live production database and cannot be undone.** The
+deploy that carries this migration takes a `mysqldump` first — the standing rule in
+docs/RULES.md, and it is the only copy of these coordinates that will exist afterwards. Prod
+is devops-owned, so the dump and the migration are their run, not ours.
+
+**Removal inventory** — everything that touches the home geofence, so none is left dangling:
+
+| Where | What goes |
+|-------|-----------|
+| Migration | `employees.home_latitude`, `employees.home_longitude`, `employees.home_locked_at`, `tenants.wfh_radius_m` |
+| app/Models/Employee.php:138-140 | the three casts |
+| app/Attendance/ClockService.php:40-48 | the capture-and-lock block |
+| app/Attendance/SiteSpec.php:23 | `needsHomeCapture` |
+| app/Attendance/ScheduleResolver.php:145-164 | `homeSite()` loses `$hasHome`, the coordinates and the radius; keeps the hours |
+| app/Http/Controllers/AttendanceAdminController.php:155-180 | `updateHome()`, whole method |
+| app/Http/Controllers/AttendanceAdminController.php:93, :108-113 | the `reset_home` validation rule and the block that acts on it |
+| app/Http/Controllers/AttendanceAdminController.php:138 | `wfh_radius_m` validation rule |
+| routes/web.php:188 | `attendance.admin.home` |
+| resources/views/screens/attendance-admin.blade.php:28, :89-90 | `$wfhPending` and its amber tab badge |
+| resources/views/screens/attendance-admin.blade.php:205 | the Radius (m) input on the Company WFH hours form |
+| resources/views/screens/attendance-admin.blade.php:218-300 | the whole "Registered home addresses" section and its per-staff map pickers |
+| resources/views/screens/attendance-admin.blade.php (arrangements grid) | the Home status column and its `reset_home` checkbox; `$colArr` drops a column |
+| resources/views/screens/attendance.blade.php:804 | the "home registers on this clock-in" hint |
+| tests/Feature/AttendanceAdminTest.php, tests/Feature/ClockServiceTest.php | the home-capture and home-registration cases |
+
+**What stays.** The WFH tab itself keeps its reason to exist: company WFH hours, minimum
+hours and the late grace period all live there and are all untouched. `map-picker` stays —
+branches and client sites still use it. `work_arrangement` and `hybrid_office_days` are
+untouched; HR still decides who works from home and on which weekdays.
 
 ## Why home is still not on the pill
 
@@ -286,12 +311,29 @@ resources/views/screens/attendance.blade.php:352-355.
 
 ## Data
 
-One migration, two nullable columns on `attendance_records`:
+**Two migrations**, kept separate because they are separate decisions with different risk:
+one adds the mode, one destroys the home coordinates. Splitting them means the deletion can
+be held back or rolled out on its own schedule without stalling the pill.
+
+**Migration 1 — add**, two nullable columns on `attendance_records`:
 
 ```php
 $table->string('work_mode')->nullable();             // 'office_home' | 'site_visit'
 $table->string('clock_out_work_mode')->nullable();
 ```
+
+**Migration 2 — drop**, four columns, irreversible:
+
+```php
+// employees
+$table->dropColumn(['home_latitude', 'home_longitude', 'home_locked_at']);
+// tenants
+$table->dropColumn('wfh_radius_m');
+```
+
+`down()` on the second can recreate the columns but never the values. Say so in the migration
+itself rather than implying a working rollback. See "Stored home addresses are deleted" for
+the backup requirement.
 
 Nullable and paired in/out, matching the shape the table already uses throughout
 (`latitude`/`clock_out_latitude`, `photo_path`/`clock_out_photo_path`,
@@ -343,6 +385,8 @@ error bag instead and lose the sheet.
 | Site visit — the sheet | Camera and destination box appear together in one sheet; one submit |
 | Home day, punch far from the registered address | No off-site flag, no reason demanded, `in_radius` null |
 | Home day, employee with no home coordinates on file | Punches normally; nothing is captured or locked |
+| Attendance Setup, WFH tab | Company hours, min hours and grace still save; no home section, no radius, no pending badge |
+| Staff arrangements grid | Saves without the Home status column; hybrid weekday picker unaffected |
 | Home day, clocking in late | `late` flag still fires on the WFH hours |
 | Site visit, no GPS fix | Still `no_location` flag, still needs a reason |
 | Site visit, **late** | `late` flag still written, one reason covers both gates |
@@ -367,9 +411,8 @@ error bag instead and lose the sheet.
 - **Ad-hoc work from home for office-based staff.** Considered and declined, not merely
   deferred — see "Why home is still not on the pill". The regular cases are already covered
   by `wfh` and `hybrid`; the irregular single day keeps its flag and its typed reason.
-- **Deleting stored home addresses and removing HR's WFH home section.** The cleaner privacy
-  answer, declined here only because it is not reversible. Worth revisiting once the unfenced
-  home day has run for a while.
+- **Backfilling `work_mode` on historic records.** Old rows read as Office / Home. Nothing is
+  rewritten.
 - **Approval or pre-declaration.** No manager sign-off, no declaring tomorrow's site visit in
   advance. Declared at the punch, full stop.
 - **Which customer, from a list.** The destination is free text. A customer register exists
