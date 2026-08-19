@@ -32,9 +32,11 @@ of their day before punching; the punch itself is unchanged.
 
 | Question | Decision |
 |----------|----------|
-| How many options? | **Two.** Not office/home/site-visit as three. Office vs home is already resolved from the employee's arrangement and must not become a staff choice — see "Why home is not an option". |
+| How many options? | **Two.** Not office/home/site-visit as three. Office vs home is already resolved from the employee's arrangement and must not become a staff choice — see "Why home is still not on the pill". |
 | Default? | **Office / Home.** Zero extra taps for the ordinary day. |
 | What does Site visit cost? | **A typed destination, required.** Reuses the existing justification field with a different label. |
+| Where is the destination asked? | **Inside the punch sheet**, next to the camera. Not an inline box that springs open when the pill is tapped. |
+| Is home still geofenced? | **No.** The home fence and the first-punch home capture come out — see "The home geofence goes away". |
 | Does it remove the off-site flag? | **Yes, for that punch only.** Office/Home mode keeps every check exactly as today. |
 | Does it change working hours? | **No.** Late is still late; min-hours unchanged. |
 | Does it exempt the selfie or GPS? | **No.** Both still mandatory, both modes. |
@@ -69,18 +71,58 @@ about. The destination text is the price, and it is not optional.
 The docblock gains a short note pointing at this spec, so the next reader sees the nuance
 rather than a contradiction.
 
-## Why home is not an option
+## The home geofence goes away
 
-The pill deliberately does **not** offer "Home" as a separate choice.
+Working from home is currently fenced to a registered home address: the first home-day punch
+captures the employee's coordinates and locks them (`needsHomeCapture` → `home_locked_at`,
+app/Attendance/ClockService.php:40-48), and every later punch is measured against them with a
+company-wide radius (`wfh_radius_m`, app/Attendance/ScheduleResolver.php:160).
 
-`ClockService::clockIn` registers and permanently locks an employee's home coordinates on
-their first home-day punch when none are on file (`needsHomeCapture` → `home_locked_at`,
-app/Attendance/ClockService.php:41-48). If an office-arrangement employee could declare
-"Home", their first such punch — from a café, a relative's house, anywhere — would become
-their locked home address for good.
+It is removed. The company's actual WFH rule is *be on time and do the work* — where the
+laptop physically sits is not something the company acts on. Measuring it costs a stored home
+address for every remote worker, which is the most sensitive location the app holds, in
+exchange for proving only that someone is in the right building.
 
-Ad-hoc work-from-home is a real gap, but it is a different feature with a different cost
-(who approves it, does it consume anything, what happens to the locked home). Out of scope
+Concretely:
+
+- `homeSite()` stops returning coordinates, so a home day has no geofence at all.
+  `within()` already returns `null` for a fence-less site (app/Attendance/ClockService.php:207)
+  and `out_of_radius_*` is only written on an explicit `false`, so **a home punch can never be
+  flagged off-site**. No new branch is needed for this; the existing null path handles it.
+- The capture-and-lock block in `clockIn` is deleted, along with `SiteSpec::needsHomeCapture`
+  and the *"home registers on this clock-in"* hint on the attendance screen
+  (resources/views/screens/attendance.blade.php:804).
+- **What survives:** the selfie, the GPS recording, the WFH working hours, and the late check.
+  A home day is still timed and still evidenced. It is simply not fenced.
+
+**Stored addresses are left alone.** Existing `home_latitude` / `home_longitude` /
+`home_locked_at` values stay in the table, and HR's WFH tab
+(resources/views/screens/attendance-admin.blade.php:220-300) keeps showing and editing them.
+They stop being consulted when judging a punch, and that is the whole change — reversible by
+restoring one method. Wiping the addresses and removing the HR section is the cleaner privacy
+answer and was considered; it was declined as not reversible. Note it as a follow-up decision,
+not a gap.
+
+`wfh_radius_m` becomes unused. Left in place rather than migrated away, for the same
+reversibility reason. The Attendance Setup control for it is hidden, so HR is not offered a
+setting that no longer does anything.
+
+## Why home is still not on the pill
+
+With the fence gone, the old objection to a "Home" option (a café becoming someone's locked
+home address forever) no longer exists. The pill stays at two options for a different reason.
+
+**HR decides who may work from home, not staff.** `work_arrangement` is set on the employee
+profile, and a Home pill open to everyone would let any office-based employee declare an
+unfenced day and never be location-checked again — which is the one hole this design must not
+open. Site visit is safe to leave open precisely because it still costs a typed destination;
+an unchecked Home would cost nothing.
+
+For someone HR has already set as `wfh` or `hybrid`, the default **Office / Home** option
+already *is* their home day, resolved from their arrangement. They need no pill at all.
+
+The genuine gap that remains is the office-based employee working from home for one day, who
+still has no way to say so. That needs its own decision about who approves it. Out of scope
 here, listed below.
 
 ## Design
@@ -91,15 +133,21 @@ Rendered in the clock shelf above the punch button, bilingual like everything el
 screen. Bound to Alpine state, mirrored onto a hidden `work_mode` form input alongside the
 existing hidden `action` input (resources/views/screens/attendance.blade.php:757).
 
-Picking **Site visit** opens the existing reason box immediately (not on submit), relabelled:
+Picking **Site visit** changes nothing on the screen by itself. The employee taps **Clock in**
+as normal, and the punch sheet that already opens for the selfie carries the destination box
+with it:
 
-| Mode | Label EN | Label BM |
-|------|----------|----------|
-| Office / Home | Reason | Sebab |
-| Site visit | Where are you going? | Ke mana anda pergi? |
+| Mode | Sheet asks for | Label EN | Label BM |
+|------|----------------|----------|----------|
+| Office / Home, ordinary punch | Selfie only | — | — |
+| Office / Home, off-site or late | Selfie + reason | Reason | Sebab |
+| Site visit | Selfie + destination | Where are you going? | Ke mana anda pergi? |
 
-The box is already there, already 500 chars, already flows to the same column. Nothing new
-is built for it; only the label and the trigger change.
+That third row is the second row with different words. The sheet already renders a camera and
+a text box together and already submits both in one action
+(resources/views/screens/attendance.blade.php:657, `sheetReasonNeed`) — the site visit case
+sets the same two flags the off-site case sets, and supplies its own copy. One tap to the
+pill, one tap to clock in, one sheet. No inline box springing open under the pill.
 
 ### Clock-out
 
@@ -283,6 +331,10 @@ error bag instead and lose the sheet.
 | Site visit, outside fence, destination blank | `needs_justification` with the "say where you are going" message |
 | Site visit, outside fence, destination whitespace only | Refused — `filled()` already trims |
 | Site visit, no selfie | `needs_photo`, unchanged |
+| Site visit — the sheet | Camera and destination box appear together in one sheet; one submit |
+| Home day, punch far from the registered address | No off-site flag, no reason demanded, `in_radius` null |
+| Home day, employee with no home coordinates on file | Punches normally; nothing is captured or locked |
+| Home day, clocking in late | `late` flag still fires on the WFH hours |
 | Site visit, no GPS fix | Still `no_location` flag, still needs a reason |
 | Site visit, **late** | `late` flag still written, one reason covers both gates |
 | Site visit, GPS inside a fence | Clocks in, `in_radius=true`, mode and text recorded, no contradiction |
@@ -303,8 +355,11 @@ error bag instead and lose the sheet.
 
 ## Out of scope
 
-- **Ad-hoc work from home.** The real second half of the original idea, deliberately deferred
-  — see "Why home is not an option". Needs its own decision on the home-lock.
+- **Ad-hoc work from home for office-based staff.** Deferred — see "Why home is still not on
+  the pill". Needs a decision on who approves it, not more code.
+- **Deleting stored home addresses and removing HR's WFH home section.** The cleaner privacy
+  answer, declined here only because it is not reversible. Worth revisiting once the unfenced
+  home day has run for a while.
 - **Approval or pre-declaration.** No manager sign-off, no declaring tomorrow's site visit in
   advance. Declared at the punch, full stop.
 - **Which customer, from a list.** The destination is free text. A customer register exists
