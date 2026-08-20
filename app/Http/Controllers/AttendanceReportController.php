@@ -16,7 +16,6 @@ use App\Support\Permissions;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 /**
  * Read-only attendance ledger for management / HR: one row per active employee
@@ -111,10 +110,17 @@ class AttendanceReportController extends Controller
         $scoped = app(LedgerBuilder::class)
             ->build($employees, $records, $leaveRequests, $workingDays, $today);
 
-        $rows = $this->sort(LedgerTotals::applyLens($scoped, $lens), $sort);
-
         $canSeeLocation = (bool) $request->user()?->isSuperAdmin()
             || $this->hasTenantRole($request, self::LOCATION_ROLES);
+
+        // Coordinates never reach a viewer who is not allowed to see them, rather than
+        // being rendered and hidden. Seeing where a colleague physically stood is a step
+        // beyond reading that they were off-site.
+        if (! $canSeeLocation) {
+            $scoped = $scoped->map(fn (array $row) => ['points' => [], 'hasPoint' => false] + $row);
+        }
+
+        $rows = $this->sort(LedgerTotals::applyLens($scoped, $lens), $sort);
 
         return [
             'gran' => $period->gran,
@@ -138,7 +144,7 @@ class AttendanceReportController extends Controller
             'counts' => LedgerTotals::counts($scoped),
             'totals' => LedgerTotals::of($scoped) + ['caption' => $this->caption($period)],
 
-            'person' => $this->person($request, $scoped, $records, $visibleIds, $canSeeLocation),
+            'person' => $this->person($request, $scoped, $records, $visibleIds),
             'canReversePunch' => (bool) $request->user()?->isSuperAdmin()
                 || $this->hasTenantRole($request, self::REVERSE_ROLES),
             'canSeeLocation' => $canSeeLocation,
@@ -194,7 +200,6 @@ class AttendanceReportController extends Controller
         Collection $scoped,
         Collection $records,
         ?array $visibleIds,
-        bool $canSeeLocation,
     ): ?array {
         if (! $request->filled('emp')) {
             return null;
@@ -217,7 +222,7 @@ class AttendanceReportController extends Controller
         // the drawer just needs the parts a one-line row has no room for.
         $days = $scoped->where('employeeId', $id)
             ->sortByDesc('date')
-            ->map(function (array $row) use ($byDate, $canSeeLocation): array {
+            ->map(function (array $row) use ($byDate): array {
                 $r = $byDate->get($row['date']);
 
                 return $row + [
@@ -225,7 +230,6 @@ class AttendanceReportController extends Controller
                     'noteOut' => $r?->clock_out_justification,
                     'photoIn' => $r?->photo_url,
                     'photoOut' => $r?->clock_out_photo_url,
-                    'points' => $canSeeLocation && $r !== null ? $this->points($r) : [],
                 ];
             })
             ->values();
@@ -244,45 +248,5 @@ class AttendanceReportController extends Controller
             'days' => $days,
             'openDay' => $openDay,
         ];
-    }
-
-    /**
-     * The map points for one record, in the shape partials/map-view.blade.php consumes.
-     *
-     * Only punches that were actually off-site or a declared site visit. within()
-     * returns null (never false) when coordinates or the site geofence are missing, so
-     * an out_of_radius_* flag already implies a usable point; the null-checks guard
-     * hand-edited rows, not the normal path.
-     *
-     * @return list<array{lat: float, lng: float, labelEn: string, labelMs: string}>
-     */
-    private function points(AttendanceRecord $r): array
-    {
-        $flags = $r->flags ?? [];
-        $points = [];
-
-        if ((in_array('out_of_radius_in', $flags, true) || $r->work_mode === 'site_visit')
-            && $r->latitude !== null && $r->longitude !== null) {
-            $at = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '';
-            $points[] = [
-                'lat' => (float) $r->latitude,
-                'lng' => (float) $r->longitude,
-                'labelEn' => 'Clocked in '.$at,
-                'labelMs' => 'Clock in '.$at,
-            ];
-        }
-
-        if ((in_array('out_of_radius_out', $flags, true) || $r->clock_out_work_mode === 'site_visit')
-            && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
-            $at = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '';
-            $points[] = [
-                'lat' => (float) $r->clock_out_latitude,
-                'lng' => (float) $r->clock_out_longitude,
-                'labelEn' => 'Clocked out '.$at,
-                'labelMs' => 'Clock out '.$at,
-            ];
-        }
-
-        return $points;
     }
 }

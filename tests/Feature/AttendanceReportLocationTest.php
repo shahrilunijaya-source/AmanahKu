@@ -190,7 +190,9 @@ class AttendanceReportLocationTest extends TestCase
         $this->openDrillAs('employee', $subject)
             ->assertOk()
             ->assertSee('Off Site Staff', false)
-            ->assertSee('Off-site in', false)
+            // The ledger has one Off-site chip per row rather than a per-slot badge:
+            // the row is the day, and both punches belong to it.
+            ->assertSee('Off-site', false)
             ->assertDontSee('open-map-view', false)
             ->assertDontSee('101.717', false);
     }

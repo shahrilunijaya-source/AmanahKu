@@ -31,6 +31,9 @@ final class LedgerBuilder
         'short_hours' => 'short',
         'early_out' => 'early',
         'no_location' => 'noloc',
+        // An HR-typed clock-out is not a punch. It has to be visible on the row, or
+        // the ledger shows a time nobody actually recorded and says nothing about it.
+        'amended' => 'amended',
     ];
 
     /**
@@ -99,6 +102,7 @@ final class LedgerBuilder
             'flags' => [],
             'leaveType' => null,
             'recordId' => $r?->id,
+            'points' => [],
             'hasPoint' => false,
         ];
 
@@ -126,13 +130,16 @@ final class LedgerBuilder
             default => 'ontime',
         };
 
+        $points = $this->points($r);
+
         return array_merge($base, [
             'in' => $this->hhmm($r->clock_in),
             'out' => $r->clock_out !== null ? $this->hhmm($r->clock_out) : null,
             'hours' => $r->clock_out !== null && $minutes > 0 ? round($minutes / 60, 2) : null,
             'status' => $status,
             'flags' => $this->flags($r),
-            'hasPoint' => $this->hasPoint($r),
+            'points' => $points,
+            'hasPoint' => $points !== [],
         ]);
     }
 
@@ -159,18 +166,42 @@ final class LedgerBuilder
     }
 
     /**
-     * within() returns null (never false) when coordinates or the geofence are
-     * missing, so an out_of_radius flag already implies a usable point. The
-     * null-check guards hand-edited rows, not the normal path.
+     * The map points for one record, in the shape partials/map-view.blade.php consumes.
+     *
+     * Only punches that were actually off-site or a declared site visit. within()
+     * returns null (never false) when coordinates or the site geofence are missing, so
+     * an out_of_radius_* flag already implies a usable point; the null-checks guard
+     * hand-edited rows, not the normal path.
+     *
+     * @return list<array{lat: float, lng: float, labelEn: string, labelMs: string}>
      */
-    private function hasPoint(AttendanceRecord $r): bool
+    private function points(AttendanceRecord $r): array
     {
-        $inPoint = ($this->flagged($r, 'out_of_radius_in') || $r->work_mode === 'site_visit')
-            && $r->latitude !== null && $r->longitude !== null;
-        $outPoint = ($this->flagged($r, 'out_of_radius_out') || $r->clock_out_work_mode === 'site_visit')
-            && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null;
+        $points = [];
 
-        return $inPoint || $outPoint;
+        if (($this->flagged($r, 'out_of_radius_in') || $r->work_mode === 'site_visit')
+            && $r->latitude !== null && $r->longitude !== null) {
+            $at = $this->hhmm((string) $r->clock_in);
+            $points[] = [
+                'lat' => (float) $r->latitude,
+                'lng' => (float) $r->longitude,
+                'labelEn' => 'Clocked in '.$at,
+                'labelMs' => 'Clock in '.$at,
+            ];
+        }
+
+        if (($this->flagged($r, 'out_of_radius_out') || $r->clock_out_work_mode === 'site_visit')
+            && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
+            $at = $r->clock_out !== null ? $this->hhmm($r->clock_out) : '';
+            $points[] = [
+                'lat' => (float) $r->clock_out_latitude,
+                'lng' => (float) $r->clock_out_longitude,
+                'labelEn' => 'Clocked out '.$at,
+                'labelMs' => 'Clock out '.$at,
+            ];
+        }
+
+        return $points;
     }
 
     private function flagged(AttendanceRecord $r, string $flag): bool

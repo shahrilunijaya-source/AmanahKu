@@ -1723,18 +1723,21 @@ select.wd-inline {
 .uj-ar-export{margin-left:auto}
 
 /* ── filter bar ─────────────────────────────────────────────────────────── */
+/* Every control on this screen is a link, so the screen filters, steps and sorts
+   with JavaScript off. None of them is prose, so none of them is underlined. */
+.uj-ar-seg a,.uj-ar-month .nav,.uj-ar-chip,.uj-ar-fix,.uj-ar-person,.uj-ar-export{text-decoration:none}
 .uj-ar-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 14px}
 
 .uj-ar-month{
   display:inline-flex;align-items:center;background:var(--card);
   border:1px solid var(--hairline);border-radius:9px;height:38px;overflow:hidden;
 }
-.uj-ar-month button{
+.uj-ar-month .nav,.uj-ar-month button{
   width:34px;height:100%;border:0;background:none;cursor:pointer;color:var(--muted);
   display:grid;place-items:center;transition:background .14s var(--ease),color .14s var(--ease);
 }
-.uj-ar-month button:hover:not(:disabled){background:var(--hairline-soft);color:var(--ink)}
-.uj-ar-month button:disabled{color:#c9c7bf;cursor:default}
+.uj-ar-month .nav:not([data-off]):hover,.uj-ar-month button:hover:not(:disabled){background:var(--hairline-soft);color:var(--ink)}
+.uj-ar-month .nav[data-off],.uj-ar-month button:disabled{color:#c9c7bf;cursor:default}
 .uj-ar-month .lbl{
   padding:0 4px;min-width:112px;text-align:center;
   font-size:var(--t-sm);font-weight:600;color:var(--ink);
@@ -1771,13 +1774,13 @@ select.wd-inline {
 .uj-ar-sortwrap{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
 .uj-ar-sortwrap>span{font-size:var(--t-micro);letter-spacing:.03em;color:var(--muted);font-weight:500}
 .uj-ar-seg{display:inline-flex;background:var(--hairline-soft);border-radius:9px;padding:3px;gap:2px}
-.uj-ar-seg button{
+.uj-ar-seg a,.uj-ar-seg button{
   border:0;background:none;padding:6px 11px;border-radius:7px;cursor:pointer;
   font-size:var(--t-sm);font-weight:500;color:var(--muted);white-space:nowrap;
   transition:color .14s var(--ease),background .14s var(--ease);
 }
-.uj-ar-seg button:hover{color:var(--ink)}
-.uj-ar-seg button[data-on]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(31,30,26,.07)}
+.uj-ar-seg a:hover,.uj-ar-seg button:hover{color:var(--ink)}
+.uj-ar-seg a[data-on],.uj-ar-seg button[data-on]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(31,30,26,.07)}
 
 /* ── ledger table ───────────────────────────────────────────────────────── */
 .uj-ar-tbl{
@@ -2117,7 +2120,11 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 }
 .uj-ar-pop-alt:hover{color:var(--red)}
 
-/* ── mobile filter sheet ────────────────────────────────────────────────── */
+/* ── mobile filter sheet ──────────────────────────────────────────────────
+   The mock had a second copy of every control inside a bottom sheet. Here the
+   filter form is rendered once and the sheet is a presentation of that same
+   element, so the bar and the sheet can never disagree about what is selected.
+   Dropped from the mock: drag-to-dismiss. Tap the scrim or Show results. */
 .uj-ar-scrim{
   position:fixed;inset:0;z-index:100;background:rgba(31,30,26,.32);
   backdrop-filter:blur(2px);
@@ -2142,7 +2149,7 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-ar-sheet .uj-ar-sel,.uj-ar-sheet .uj-ar-search{width:100%;max-width:none;height:44px}
 .uj-ar-sheet .uj-ar-search input{height:44px}
 .uj-ar-sheet .uj-ar-seg{width:100%}
-.uj-ar-sheet .uj-ar-seg button{flex:1}
+.uj-ar-sheet .uj-ar-seg a,.uj-ar-sheet .uj-ar-seg button{flex:1}
 .uj-ar-sheet .done{width:100%;height:46px;justify-content:center;margin-top:4px}
 
 .uj-ar-mobile-only{display:none}
@@ -2166,8 +2173,31 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
   .uj-ar-chip{flex-shrink:0;scroll-snap-align:start}
   .uj-ar-export{margin-left:0;flex:1 1 100%;justify-content:center;height:42px}
 
-  .uj-ar-filter{gap:8px}
-  .uj-ar-sortwrap{margin-left:0}
+  /* The filter form IS the sheet on a phone — same element, same state, no second
+     copy of the controls to fall out of sync. */
+  .uj-ar-filter{
+    display:none;
+    position:fixed;left:0;right:0;bottom:0;z-index:101;
+    margin:0;gap:14px;flex-direction:column;align-items:stretch;
+    background:var(--card);border-radius:16px 16px 0 0;
+    padding:8px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:82vh;overflow-y:auto;
+    box-shadow:0 -12px 44px rgba(31,30,26,.16);
+  }
+  .uj-ar-filter[data-open]{display:flex}
+  .uj-ar-filter .uj-ar-sel,
+  .uj-ar-filter .uj-ar-search,
+  .uj-ar-filter .uj-ar-seg,
+  .uj-ar-filter .uj-ar-month{width:100%;max-width:none}
+  .uj-ar-filter .uj-ar-seg a{flex:1;text-align:center}
+  .uj-ar-filter .uj-ar-month .lbl{flex:1}
+  .uj-ar-filter .fld{display:flex;flex-direction:column;gap:8px}
+  .uj-ar-filter .fld>label{
+    font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .uj-ar-filter .done{width:100%;height:46px;justify-content:center}
+  .uj-ar-sortwrap{margin-left:0;flex-direction:column;align-items:stretch;gap:8px}
 
   .uj-ar-tbl{border-radius:12px}
   .uj-ar-scroll{max-height:none}

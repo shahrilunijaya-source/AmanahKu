@@ -151,6 +151,26 @@ class AttendanceLedgerRowsTest extends TestCase
 
         $this->assertContains('off', $row['flags']);
         $this->assertTrue($row['hasPoint']);
+        $this->assertSame(
+            [['lat' => 3.1368, 'lng' => 101.6546, 'labelEn' => 'Clocked in 09:00', 'labelMs' => 'Clock in 09:00']],
+            $row['points'],
+            'the row carries the point, because the off-site chip IS the map control'
+        );
+    }
+
+    public function test_an_hr_typed_clock_out_is_marked_on_the_row(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id,
+            'date' => '2026-08-18', 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
+            'status' => 'on_time', 'worked_minutes' => 540, 'flags' => ['amended'],
+        ]);
+
+        $this->assertContains(
+            'amended',
+            $this->build()->firstWhere('date', '2026-08-18')['flags'],
+            'a typed time is not a punch and the ledger must say so'
+        );
     }
 
     public function test_an_off_site_flag_without_coordinates_offers_no_map(): void
