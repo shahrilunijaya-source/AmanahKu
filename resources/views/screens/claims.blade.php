@@ -149,6 +149,23 @@
 
     {{-- ── My claims ── --}}
     <div role="tabpanel" x-show="tab === 'mine'" x-cloak class="uj-lv-panel">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
+                <div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Waiting on approval' : 'Menunggu kelulusan'">Waiting on approval</div>
+                <div class="uj-stat-value" style="color:var(--amber);">{{ $money($waitingTotal) }}</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
+                    {{ $waitingCount }} <span x-text="$store.ui.lang==='en' ? @js(\Illuminate\Support\Str::plural('claim', $waitingCount)) : 'tuntutan'">{{ \Illuminate\Support\Str::plural('claim', $waitingCount) }}</span>
+                </div>
+            </div>
+            <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
+                <div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Approved, not yet paid' : 'Diluluskan, belum dibayar'">Approved, not yet paid</div>
+                <div class="uj-stat-value" style="color:var(--success);">{{ $money($approvedNotPaidTotal) }}</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
+                    <span x-text="$store.ui.lang==='en' ? 'pays out next payroll run' : 'dibayar dalam gaji berikutnya'">pays out next payroll run</span>
+                </div>
+            </div>
+        </div>
+
         <div>
             <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Your year' : 'Tahun anda'">Your year</span></h3>
             <p style="font-size:var(--t-sm);color:var(--muted);margin:0 0 12px;">

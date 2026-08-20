@@ -147,25 +147,52 @@
                     </span>
                 @endif
                 <span class="div"></span>
-                <label class="custom nav" for="uj-ar-from" @if($gran === 'custom') data-on @endif>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    <span x-text="$store.ui.lang==='en' ? 'Custom' : 'Tersuai'">Custom</span>
-                </label>
-            </div>
-        </div>
+                {{-- Two date boxes are the rare filter, and parked permanently in the bar
+                     they read as loudly as Day/Week/Month. The popover is the approved
+                     shape: the button says what it opens, the panel anchors to it, and
+                     Escape or a click outside puts it away. --}}
+                {{-- click.outside sits on the WRAPPER, not the panel: on the panel it
+                     counts the button as outside, so it closes a moment before the
+                     button's own handler reopens it and the toggle never shuts. --}}
+                <span class="uj-ar-customwrap" x-data="{ range: false }"
+                      @keydown.escape="range = false" @click.outside="range = false">
+                    <button type="button" class="custom nav" @click="range = ! range"
+                            :aria-expanded="range" aria-haspopup="dialog"
+                            @if($gran === 'custom') data-on @endif>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span x-text="$store.ui.lang==='en' ? 'Custom' : 'Tersuai'">Custom</span>
+                    </button>
 
-        {{-- The custom range is a second GET form so its own dates do not have to be
-             threaded through every link above. Native date inputs, no picker library. --}}
-        <div class="fld uj-ar-range">
-            <input type="date" id="uj-ar-from" form="uj-ar-range-form" name="from" value="{{ $from }}"
-                   max="{{ now()->toDateString() }}" class="uj-ar-sel"
-                   :aria-label="$store.ui.lang==='en' ? 'From' : 'Dari'">
-            <span aria-hidden="true">–</span>
-            <input type="date" form="uj-ar-range-form" name="to" value="{{ $to }}"
-                   max="{{ now()->toDateString() }}" class="uj-ar-sel"
-                   :aria-label="$store.ui.lang==='en' ? 'To' : 'Hingga'">
-            <button type="submit" form="uj-ar-range-form" class="uj-ar-btn"
-                    x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</button>
+                    <div class="uj-ar-pop" role="dialog" aria-modal="false" aria-labelledby="uj-ar-rangetitle"
+                         x-show="range" x-cloak x-transition.opacity.duration.160ms>
+                        <h4 id="uj-ar-rangetitle"
+                            x-text="$store.ui.lang==='en' ? 'Custom range' : 'Julat tersuai'">Custom range</h4>
+                        <p x-text="$store.ui.lang==='en'
+                            ? 'Pick any two dates. Overrides the month above.'
+                            : 'Pilih dua tarikh. Menggantikan bulan di atas.'">Pick any two dates. Overrides the month above.</p>
+                        <div class="rng">
+                            <span>
+                                <label for="uj-ar-from" x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</label>
+                                {{-- form=: these belong to the range form below, not to the
+                                     filter form they sit inside. Nested forms are invalid. --}}
+                                <input type="date" id="uj-ar-from" form="uj-ar-range-form" name="from"
+                                       value="{{ $from }}" max="{{ now()->toDateString() }}">
+                            </span>
+                            <span>
+                                <label for="uj-ar-to" x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</label>
+                                <input type="date" id="uj-ar-to" form="uj-ar-range-form" name="to"
+                                       value="{{ $to }}" max="{{ now()->toDateString() }}">
+                            </span>
+                        </div>
+                        <div class="acts">
+                            <button type="button" class="uj-ar-btn" @click="range = false"
+                                    x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                            <button type="submit" form="uj-ar-range-form" class="uj-ar-btn uj-ar-btn-primary"
+                                    x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</button>
+                        </div>
+                    </div>
+                </span>
+            </div>
         </div>
 
         <div class="fld">

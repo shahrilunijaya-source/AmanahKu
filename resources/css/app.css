@@ -1998,9 +1998,33 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-ar-amend input[type="time"]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
 .uj-ar-amend .uj-ar-btn{height:34px}
 /* The custom-range pair sits in the filter bar, beside the month stepper. */
-.uj-ar-range{display:inline-flex;align-items:center;gap:6px}
-.uj-ar-range input[type="date"]{width:auto;padding:0 10px;background-image:none;cursor:text}
-.uj-ar-range>span{color:var(--muted-soft)}
+/* ── custom-range popover ───────────────────────────────────────────────────
+   Ported from the mock. position:absolute against its own wrapper rather than
+   the mock's fixed-plus-JS-anchoring: there is nothing to measure, so nothing
+   to get wrong on a scroll or a resize. */
+.uj-ar-customwrap{position:relative;display:inline-flex;align-items:center;height:100%}
+.uj-ar-pop{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:120;width:262px;
+  background:var(--card);border:1px solid var(--hairline);border-radius:12px;
+  box-shadow:0 5px 14px rgba(31,30,26,.13);padding:14px;
+  text-align:left;
+}
+.uj-ar-pop h4{margin:0 0 3px;font-size:var(--t-base);font-weight:600;color:var(--ink)}
+.uj-ar-pop p{margin:0 0 12px;font-size:var(--t-micro);color:var(--muted);line-height:1.45}
+.uj-ar-pop .rng{display:flex;gap:9px}
+.uj-ar-pop .rng span{flex:1;min-width:0}
+.uj-ar-pop .rng label{
+  display:block;font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px;
+}
+.uj-ar-pop .rng input[type="date"]{
+  width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:9px;
+  background:var(--card);color:var(--ink);font-family:var(--font-mono);font-size:var(--t-sm);outline:none;
+  transition:border-color .14s var(--ease),box-shadow .14s var(--ease);
+}
+.uj-ar-pop .rng input[type="date"]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.uj-ar-pop .acts{display:flex;gap:8px;margin-top:12px}
+.uj-ar-pop .acts .uj-ar-btn{flex:1;height:34px;justify-content:center}
 .uj-ar-day-acts .danger{color:var(--red-active);border-color:color-mix(in srgb,var(--error) 30%,#fff)}
 .uj-ar-day-acts .danger:hover{background:var(--red-tint);border-color:var(--red-active)}
 
@@ -2070,6 +2094,9 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
      that pushes the table below the fold on every load. Export goes full width
      under it, where a thumb can reach it. */
   .uj-ar-lensrow{gap:9px}
+  .uj-ar-pop{
+    position:fixed;left:16px;right:16px;bottom:16px;top:auto;width:auto;
+  }
   .uj-ar-filterbtn{flex:1 1 100%;justify-content:center;height:42px;order:-1}
   .uj-ar-chips{
     flex:1 1 100%;overflow-x:auto;scroll-snap-type:x proximity;

@@ -217,4 +217,25 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertStringNotContainsString('uj-ar-head', $html);
         $this->assertSame(1, substr_count($html, '<h1'), 'one heading on the page, not two');
     }
+
+    public function test_the_custom_range_lives_in_a_popover(): void
+    {
+        // Two date boxes parked permanently in the filter bar read as loudly as
+        // Day/Week/Month, and Custom is the rare choice. Approved shape is a panel.
+        $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()
+            ->assertSee('uj-ar-pop', false)
+            ->assertSee('uj-ar-customwrap', false)
+            ->assertDontSee('uj-ar-range"', false);
+    }
+
+    public function test_a_custom_range_filters_to_those_dates(): void
+    {
+        $response = $this->actAsHr()
+            ->get('/app/attendance-report?gran=custom&from=2026-07-13&to=2026-07-14');
+
+        $response->assertOk();
+        $this->assertSame('custom', $response->viewData('gran'));
+        $this->assertSame(['2026-07-13', '2026-07-14'], $response->viewData('workingDays'));
+    }
 }

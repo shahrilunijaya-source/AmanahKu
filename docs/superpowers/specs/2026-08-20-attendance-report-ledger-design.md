@@ -276,9 +276,14 @@ width none of 435 names truncate.
 
 Three deliberate departures, all mechanically verified in the browser:
 
-- **The custom range is two inline date inputs**, not the mock's popover. Native
-  `<input type="date">`, no picker library, and the filter bar works with
-  JavaScript off. The popover's CSS is deleted rather than left unused.
+- **The custom-range popover is anchored with CSS, not JavaScript.** Same panel
+  and same copy as the mock; `position:absolute` against its own wrapper rather
+  than the mock's `position:fixed` plus a measuring `anchor()` call, so there is
+  nothing to recompute on a scroll or a resize. Under 760px it pins to the
+  bottom of the screen, as the mock did, because the filter sheet it sits inside
+  scrolls and would otherwise clip it. Native `<input type="date">`, no picker
+  library. The dates belong to a separate `<form>` reached by `form=`, since the
+  panel sits inside the filter form and nested forms are invalid.
 - **The mobile filter sheet is the filter form itself**, presented as a sheet
   under 760px, rather than a second copy of every control. One element, one
   state, so the bar and the sheet cannot disagree about what is selected.
