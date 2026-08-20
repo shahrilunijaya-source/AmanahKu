@@ -212,4 +212,49 @@ class AttendanceClockEndpointTest extends TestCase
             ->assertSee('Slow down a moment')
             ->assertSee('Retrying faster will not help');
     }
+
+    public function test_a_declared_site_visit_reaches_the_record(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'work_mode' => 'site_visit',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Customer ABC, Shah Alam',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ]);
+
+        $record = $this->employee->attendanceRecords()->first();
+        $this->assertNotNull($record);
+        $this->assertSame('site_visit', $record->work_mode);
+    }
+
+    public function test_a_junk_work_mode_is_rejected(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'work_mode' => 'holiday',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Anywhere',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertSessionHasErrors('work_mode');
+
+        $this->assertNull($this->employee->attendanceRecords()->first());
+    }
+
+    public function test_a_punch_with_no_work_mode_field_still_works(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Bad GPS today',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ]);
+
+        $record = $this->employee->attendanceRecords()->first();
+        $this->assertNotNull($record);
+        $this->assertSame('office_home', $record->work_mode);
+    }
 }

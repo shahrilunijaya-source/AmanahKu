@@ -55,6 +55,7 @@ class AttendanceController extends Controller
         $lat = isset($validated['latitude']) ? (float) $validated['latitude'] : null;
         $lng = isset($validated['longitude']) ? (float) $validated['longitude'] : null;
         $justification = $validated['justification'] ?? null;
+        $workMode = $validated['work_mode'] ?? 'office_home';
         $now = Carbon::now();
 
         // Selfie — captured on either clock-in (arrival proof) or clock-out
@@ -66,9 +67,9 @@ class AttendanceController extends Controller
             : null;
 
         if ($validated['action'] === 'in') {
-            $result = $this->clock->clockIn($employee, $lat, $lng, $justification, $photoPath, $now);
+            $result = $this->clock->clockIn($employee, $lat, $lng, $justification, $photoPath, $now, $workMode);
         } else {
-            $result = $this->clock->clockOut($employee, $lat, $lng, $justification, $photoPath, $now);
+            $result = $this->clock->clockOut($employee, $lat, $lng, $justification, $photoPath, $now, $workMode);
         }
 
         // A refused punch never reaches a record, so the selfie it carried would sit on the
@@ -134,6 +135,10 @@ class AttendanceController extends Controller
     {
         return $request->validate([
             'action' => ['required', 'in:in,out'],
+            // The mode the employee declared before punching. Nullable so an older cached
+            // page, or any client that omits the field, still punches — read as office_home,
+            // which is exactly the behaviour that existed before the pill.
+            'work_mode' => ['nullable', 'in:office_home,site_visit'],
             // GPS is expected but not mandatory. Devices that cannot produce a fix at all
             // (a desk machine with no GPS chip and no usable network lookup) would otherwise
             // be locked out of clocking for good. ClockService charges a coordinate-less
