@@ -36,7 +36,8 @@
     @endphp
 
     <div x-data="{ shot: null }">
-        <a class="uj-ar-scrim" href="{{ $closeUrl }}" aria-hidden="true" tabindex="-1"></a>
+        <a class="uj-ar-scrim" href="{{ $closeUrl }}" aria-hidden="true" tabindex="-1"
+           @click.prevent="closePerson($el.href)"></a>
 
         <aside class="uj-ar-drawer" role="dialog" aria-modal="true" aria-labelledby="uj-ar-dr-name"
                @keydown.escape.window="shot ? shot = null : $refs.close?.click()">
@@ -47,6 +48,7 @@
                     <span class="uj-ar-dr-role">{{ $person['dept'] ?? '—' }}</span>
                 </span>
                 <a class="uj-ar-dr-close" href="{{ $closeUrl }}" x-ref="close"
+                   @click.prevent="closePerson($el.href)"
                    :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </a>

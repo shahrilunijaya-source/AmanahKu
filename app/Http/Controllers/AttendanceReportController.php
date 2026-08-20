@@ -16,6 +16,7 @@ use App\Support\Permissions;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\View\View;
 
 /**
  * Read-only attendance ledger for management / HR: one row per active employee
@@ -50,6 +51,18 @@ class AttendanceReportController extends Controller
         'day' => ['en' => 'Today', 'ms' => 'Hari ini'],
         'custom' => ['en' => 'Selected range', 'ms' => 'Julat dipilih'],
     ];
+
+    public function canSeeLocation(Request $request): bool
+    {
+        return (bool) $request->user()?->isSuperAdmin()
+            || $this->hasTenantRole($request, self::LOCATION_ROLES);
+    }
+
+    public function canReversePunch(Request $request): bool
+    {
+        return (bool) $request->user()?->isSuperAdmin()
+            || $this->hasTenantRole($request, self::REVERSE_ROLES);
+    }
 
     /** @return array<string, mixed> */
     public function screenData(Request $request): array
@@ -110,8 +123,7 @@ class AttendanceReportController extends Controller
         $scoped = app(LedgerBuilder::class)
             ->build($employees, $records, $leaveRequests, $workingDays, $today);
 
-        $canSeeLocation = (bool) $request->user()?->isSuperAdmin()
-            || $this->hasTenantRole($request, self::LOCATION_ROLES);
+        $canSeeLocation = $this->canSeeLocation($request);
 
         // Coordinates never reach a viewer who is not allowed to see them, rather than
         // being rendered and hidden. Seeing where a colleague physically stood is a step
@@ -145,9 +157,8 @@ class AttendanceReportController extends Controller
             'counts' => LedgerTotals::counts($scoped),
             'totals' => LedgerTotals::of($scoped) + ['caption' => $this->caption($period)],
 
-            'person' => $this->person($request, $scoped, $records, $visibleIds),
-            'canReversePunch' => (bool) $request->user()?->isSuperAdmin()
-                || $this->hasTenantRole($request, self::REVERSE_ROLES),
+            'person' => $this->person($request, $period, $visibleIds),
+            'canReversePunch' => $this->canReversePunch($request),
             'canSeeLocation' => $canSeeLocation,
         ];
     }
@@ -176,6 +187,45 @@ class AttendanceReportController extends Controller
         }
 
         return $labels;
+    }
+
+    /**
+     * The person drawer on its own, as an HTML fragment.
+     *
+     * Opening a drawer used to mean re-rendering the whole screen: 435 rows and ~1400
+     * Alpine bindings rebuilt to show one person's fifteen days, which took the best
+     * part of a second. The table behind the drawer never changes, so it is left alone
+     * and only this comes over the wire.
+     *
+     * The screen still renders the drawer server-side for a direct hit on ?emp=, so the
+     * deep link, the Fix button and a page reload all keep working without JavaScript.
+     */
+    public function drawer(Request $request, int $employee): View
+    {
+        abort_unless(
+            (bool) $request->user()?->isSuperAdmin()
+                || Permissions::canSeeAll(
+                    $request->attributes->get('employee'),
+                    (string) $request->attributes->get('tenantRole'),
+                ),
+            403
+        );
+
+        $period = ReportPeriod::fromRequest($request->query(), CarbonImmutable::now()->startOfDay());
+        $visibleIds = app(DataScope::class)->visibleEmployeeIds(
+            $request->attributes->get('tenantScope', 'company'),
+            $request->attributes->get('employee'),
+        );
+
+        $person = $this->personDetail($request, $employee, $period, $visibleIds);
+        abort_if($person === null, 404);
+
+        return view('partials.attendance-report.person-drawer', [
+            'person' => $person,
+            'label' => ['en' => $period->label('en'), 'ms' => $period->label('ms')],
+            'canReversePunch' => $this->canReversePunch($request),
+            'canSeeLocation' => $this->canSeeLocation($request),
+        ]);
     }
 
     /**
@@ -220,33 +270,77 @@ class AttendanceReportController extends Controller
      * The drawer's payload. Returns null when ?emp= is absent, archived, or outside
      * the viewer's data scope — a crafted id must not open somebody else's month.
      *
-     * @param  Collection<int, array<string, mixed>>  $scoped
-     * @param  Collection<int, AttendanceRecord>  $records
      * @param  list<int>|null  $visibleIds
      * @return array<string, mixed>|null
      */
-    private function person(
-        Request $request,
-        Collection $scoped,
-        Collection $records,
-        ?array $visibleIds,
-    ): ?array {
+    private function person(Request $request, ReportPeriod $period, ?array $visibleIds): ?array
+    {
         if (! $request->filled('emp')) {
             return null;
         }
 
-        $id = (int) $request->query('emp');
+        return $this->personDetail($request, (int) $request->query('emp'), $period, $visibleIds);
+    }
+
+    /**
+     * One person's period, built from scratch rather than sliced out of the screen's
+     * rows. That is what lets the drawer be served on its own: opening it used to
+     * re-render all 435 rows behind it, and Alpine then re-initialised every binding
+     * on rows that had not changed.
+     *
+     * Deliberately NOT filtered by department or name search. Those narrow the table;
+     * they have no business emptying a person's own month when you open them. The data
+     * scope still applies — that one is a permission, not a filter.
+     *
+     * @param  list<int>|null  $visibleIds
+     * @return array<string, mixed>|null
+     */
+    public function personDetail(Request $request, int $id, ReportPeriod $period, ?array $visibleIds): ?array
+    {
         if ($visibleIds !== null && ! in_array($id, $visibleIds, true)) {
             return null;
         }
 
         // active() so a crafted ?emp=<archived> can't open an archived person's detail.
+        // Route-model binding resolves across every tenant (SubstituteBindings runs before
+        // ResolveTenant), so this lookup goes through the tenant-scoped model instead.
         $employee = Employee::active()->with('department:id,name')->find($id);
         if ($employee === null) {
             return null;
         }
 
-        $byDate = $records->where('employee_id', $id)->keyBy(fn ($r) => $r->date->toDateString());
+        $from = $period->from->toDateString();
+        $dayAfter = $period->to->addDay()->toDateString();
+
+        $records = AttendanceRecord::query()
+            ->where('employee_id', $id)
+            ->where('date', '>=', $from)
+            ->where('date', '<', $dayAfter)
+            ->orderBy('date')
+            ->get();
+
+        $leaveRequests = LeaveRequest::query()
+            ->where('status', 'approved')
+            ->where('employee_id', $id)
+            ->where('date_from', '<', $dayAfter)
+            ->where('date_to', '>=', $from)
+            ->with('leaveType:id,name')
+            ->get();
+
+        $workingDays = $period->workingDays(
+            $records->map(fn ($r) => $r->date->toDateString())->unique()->values()->all()
+        );
+
+        $scoped = app(LedgerBuilder::class)->build(
+            collect([$employee]), $records, $leaveRequests, $workingDays,
+            CarbonImmutable::now()->startOfDay(),
+        );
+
+        if (! $this->canSeeLocation($request)) {
+            $scoped = $scoped->map(fn (array $row) => ['points' => [], 'hasPoint' => false, 'site' => null] + $row);
+        }
+
+        $byDate = $records->keyBy(fn ($r) => $r->date->toDateString());
 
         // The table row is the shape everything else on this screen already agrees on;
         // the drawer just needs the parts a one-line row has no room for.

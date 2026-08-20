@@ -211,4 +211,87 @@ class AttendanceReportDrawerTest extends TestCase
             ->assertOk()
             ->assertDontSee('uj-ar-drawer', false);
     }
+
+    // --- The drawer as a standalone fragment --------------------------------
+
+    private function fragment(string $query = ''): TestResponse
+    {
+        return $this->actAsHr()
+            ->get('/app/attendance-report/person/'.$this->subject->id.'?gran=week'.$query);
+    }
+
+    public function test_the_fragment_route_returns_the_drawer_and_nothing_else(): void
+    {
+        // Opening a drawer used to re-render all 435 rows behind it. Only the drawer
+        // travels now, so this must not be a whole page.
+        $this->recordFor('2026-07-14');
+
+        $html = $this->fragment()->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-ar-drawer', $html);
+        $this->assertStringContainsString('Punched Staff', $html);
+        $this->assertStringNotContainsString('<html', $html);
+        $this->assertStringNotContainsString('uj-ar-row', $html, 'the table must not come with it');
+        $this->assertStringNotContainsString('uj-ar-sum', $html);
+    }
+
+    public function test_the_fragment_honours_a_fix_deep_link(): void
+    {
+        $this->recordFor('2026-07-14', ['clock_out' => null, 'worked_minutes' => null]);
+
+        $this->assertSame(1, substr_count($this->fragment('&day=2026-07-14')->getContent(), 'open: true'));
+        $this->assertStringNotContainsString('open: true', $this->fragment()->getContent());
+    }
+
+    public function test_a_plain_employee_cannot_fetch_the_fragment(): void
+    {
+        $staff = User::create([
+            'name' => 'Staff', 'email' => 'staff@example.com', 'password' => Hash::make('password'),
+        ]);
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $staff->id,
+            'name' => 'Staff Person', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($staff)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance-report/person/'.$this->subject->id)
+            ->assertForbidden();
+    }
+
+    public function test_the_fragment_refuses_somebody_outside_the_viewers_scope(): void
+    {
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Not Yours',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->mock(DataScope::class, function ($mock) {
+            $mock->shouldReceive('visibleEmployeeIds')->andReturn([$this->subject->id]);
+        });
+
+        $this->actAsHr()->get('/app/attendance-report/person/'.$other->id)->assertNotFound();
+    }
+
+    public function test_the_fragment_refuses_an_archived_person(): void
+    {
+        $gone = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Left The Company',
+            'status' => 'resigned', 'workload' => 'green', 'archived_at' => now(),
+        ]);
+
+        $this->actAsHr()->get('/app/attendance-report/person/'.$gone->id)->assertNotFound();
+    }
+
+    public function test_a_department_filter_does_not_empty_a_persons_own_month(): void
+    {
+        // dept and q narrow the TABLE. Opening somebody must still show their days,
+        // filter or no filter — the drawer builds its own rows rather than slicing
+        // the filtered set.
+        $this->recordFor('2026-07-14');
+
+        $this->fragment('&dept=Finance&q=nobody')
+            ->assertOk()
+            ->assertSee('Punched Staff');
+    }
 }

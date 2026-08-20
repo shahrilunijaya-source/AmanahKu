@@ -73,6 +73,82 @@
         offset: {{ $offset }},
         sort: @js($sort),
         stepLabels: @js($stepLabels),
+        drawer: '',
+        loadingPerson: null,
+        /* The server-rendered drawer is for the first paint only. The moment this
+           component opens, closes or syncs one, it owns the drawer — otherwise
+           closing a fetched drawer would reveal the server's own, still showing
+           whoever the URL named when the page loaded. */
+        tookOver: false,
+
+        init() {
+            /* Back and forward move between drawer states, so the drawer has to
+               follow the URL rather than only the clicks. partial-nav ignores these
+               entries — they carry no partialNav flag — so it will not rebuild the
+               table underneath. */
+            this.onPop = () => this.syncDrawer();
+            window.addEventListener('popstate', this.onPop);
+        },
+
+        destroy() {
+            window.removeEventListener('popstate', this.onPop);
+        },
+
+        /* The table behind the drawer does not change when you open one, so it is
+           left alone and only the drawer comes over the wire. pushState keeps the
+           URL honest, so a refresh, a share or Back all still land where they say. */
+        async openPerson(href) {
+            const url = new URL(href, location.origin);
+            const id = url.searchParams.get('emp');
+
+            this.loadingPerson = id;
+            this.tookOver = true;
+            const ok = await this.fetchDrawer(url);
+            this.loadingPerson = null;
+
+            if (ok) {
+                history.pushState({ ledgerDrawer: true }, '', href);
+            } else {
+                window.location.assign(href);   // offline, blocked, or refused: let the browser do it
+            }
+        },
+
+        closePerson(url) {
+            this.tookOver = true;
+            this.drawer = '';
+            history.pushState({ ledgerDrawer: false }, '', url);
+        },
+
+        /** Bring the drawer into line with whatever the URL currently says. */
+        async syncDrawer() {
+            this.tookOver = true;
+            const url = new URL(location.href);
+            if (! url.searchParams.get('emp')) {
+                this.drawer = '';
+                return;
+            }
+            await this.fetchDrawer(url);
+        },
+
+        /** @returns {Promise<boolean>} false when the caller should fall back to a real navigation. */
+        async fetchDrawer(url) {
+            const id = url.searchParams.get('emp');
+            const query = new URLSearchParams(url.search);
+            query.delete('emp');
+
+            try {
+                const res = await fetch(
+                    `/app/attendance-report/person/${id}?${query}`,
+                    { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+                );
+                if (! res.ok) return false;
+                this.drawer = await res.text();
+
+                return true;
+            } catch {
+                return false;
+            }
+        },
         get periodLabel() {
             const set = this.stepLabels[this.gran];
             const at = set && set[this.offset];
@@ -352,7 +428,9 @@
                             x-text="$store.ui.lang==='en' ? @js($dowEn) : @js($dowMs)">{{ $dowEn }}</em>
                     </span>
                     <span class="c-who uj-ar-who">
-                        <a href="{{ $personUrl }}" class="uj-ar-person">
+                        <a href="{{ $personUrl }}" class="uj-ar-person"
+                           @click.prevent="openPerson($el.href)"
+                           :aria-busy="loadingPerson === '{{ $row['employeeId'] }}'">
                             <span class="uj-ar-av" style="background:{{ $row['color'] }}">{{ $row['initials'] }}</span>
                             {{-- title: the column ellipsises long names, and two people
                                  truncated to the same string is exactly the confusion this
@@ -408,6 +486,7 @@
                              path and the considered path land on the same screen. --}}
                         @if ($row['status'] === 'miss' && $canReversePunch)
                             <a class="uj-ar-fix" href="{{ $personUrl.'&day='.$row['date'] }}"
+                               @click.prevent="openPerson($el.href)"
                                x-text="$store.ui.lang==='en' ? 'Fix' : 'Betulkan'">Fix</a>
                         @endif
                     </span>
@@ -425,8 +504,21 @@
             @endforelse
         </div>
     </div>
+
+    {{-- Both drawers live inside this x-data, not beside it: their close controls call
+         closePerson(), and the host below needs `drawer` in scope. Each is
+         position:fixed, so nesting costs nothing in layout. --}}
+
+    {{-- Server-rendered for a direct ?emp= hit, a reload, or JavaScript being off.
+         Steps aside as soon as a fetched one exists, so landing on ?emp= and then
+         clicking somebody else does not leave two drawers stacked. --}}
+    <div x-show="! drawer && ! tookOver">
+        @include('partials.attendance-report.person-drawer')
+    </div>
+
+    {{-- The host for one fetched in place. Alpine initialises what x-html injects. --}}
+    <div x-html="drawer"></div>
 </div>
 
-@include('partials.attendance-report.person-drawer')
 @include('partials.map-view')
 @endsection

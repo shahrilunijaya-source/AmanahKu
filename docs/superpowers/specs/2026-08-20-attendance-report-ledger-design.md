@@ -192,6 +192,21 @@ so coordinates are never rendered-then-hidden. `amended` marks an HR-typed
 clock-out (see the amend endpoint below): it has no selfie and no coordinates,
 so the ledger says so rather than letting it pass for a punch.
 
+**The drawer is fetched, not re-rendered.** Opening one used to navigate, which
+rebuilt all 435 rows and every Alpine binding on them to show one person's
+fifteen days — about 850ms of work on a table that had not changed. The person
+link now fetches `GET /app/attendance-report/person/{employee}`, which returns
+the drawer partial alone (~146ms), and `pushState` keeps the URL honest so a
+reload, a share and Back all still work. The screen still renders the drawer
+server-side for a direct `?emp=` hit, so the deep link, the Fix button and a
+JavaScript-free browser all keep working; the client takes ownership of the
+drawer the moment it opens, closes or syncs one.
+
+Because the fragment must stand alone, `personDetail()` builds that person's
+rows itself rather than slicing the screen's. It applies the data scope, which
+is a permission, but deliberately not `dept` or `q`, which are table filters and
+have no business emptying a person's own month.
+
 `PersonDetail` is `['id','name','initials','color','dept','days','openDay']`.
 `days` is that person's ledger rows, newest first, each additionally carrying
 `noteIn`, `noteOut` (the existing `clock_in_justification` /

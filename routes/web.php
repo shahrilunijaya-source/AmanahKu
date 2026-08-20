@@ -10,6 +10,7 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AttendanceAdminController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\CaseController;
@@ -477,6 +478,9 @@ Route::middleware('auth')->group(function () {
         // The attendance ledger as a file. Must stay above /app/{screen?} or the
         // catch-all reads "attendance-report/export" as a screen name and serves HTML.
         Route::get('/app/attendance-report/export', [AttendanceReportExportController::class, 'download'])->name('attendance.report.export');
+        // The person drawer as a fragment, so opening one does not rebuild the table.
+        Route::get('/app/attendance-report/person/{employee}', [AttendanceReportController::class, 'drawer'])
+            ->whereNumber('employee')->name('attendance.report.person');
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
