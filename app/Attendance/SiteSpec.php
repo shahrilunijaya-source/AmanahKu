@@ -20,7 +20,6 @@ final class SiteSpec
         public readonly ?string $workStart,  // 'H:i' or null when not configured
         public readonly ?string $workEnd,
         public readonly ?float $minHours,
-        public readonly bool $needsHomeCapture = false, // home day but no home coords registered yet
     ) {}
 
     /** True when this site has coordinates to geofence against. */

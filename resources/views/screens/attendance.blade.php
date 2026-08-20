@@ -830,7 +830,6 @@
                             <span x-text="$store.ui.lang==='en' ? @js($sType[0]) : @js($sType[1])">{{ $sType[0] }}</span>
                             · {{ $site->label }}
                             @if ($site->workStart && $site->workEnd) · {{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}–{{ \Illuminate\Support\Str::of($site->workEnd)->limit(5, '') }}@endif
-                            @if ($site->needsHomeCapture) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'home registers on this clock-in' : 'rumah didaftar pada clock in ini'">home registers on this clock-in</span>@endif
                         </span>
 
                         {{-- Shown even when the assigned site has no geofence: the fix may

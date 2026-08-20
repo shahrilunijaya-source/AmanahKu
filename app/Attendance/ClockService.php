@@ -32,19 +32,9 @@ class ClockService
         $assigned = $this->resolver->resolve($employee, $now);
 
         // Clock against whichever configured location the staff member is actually standing
-        // in. Runs before home capture, so someone on a home day who walks into the office
-        // is matched to the office instead of registering the office as their home.
+        // in. A home day is never fenced (homeSite() carries no coordinates), so this only
+        // matters for office / client sites.
         $site = $this->resolver->matchActualSite($employee, $assigned, $lat, $lng);
-
-        // First home / hybrid-home clock-in registers the home location and locks it.
-        if ($site === $assigned && $site->type === 'home' && $site->needsHomeCapture && $lat !== null && $lng !== null) {
-            $employee->update([
-                'home_latitude' => $lat,
-                'home_longitude' => $lng,
-                'home_locked_at' => $now,
-            ]);
-            $site = $this->resolver->resolve($employee, $now);
-        }
 
         $inRadius = $this->within($site, $lat, $lng);
 
