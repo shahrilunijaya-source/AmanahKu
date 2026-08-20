@@ -177,19 +177,30 @@ must not quietly reverse one.
     'in'=>?'08:52', 'out'=>?'17:35',
     'hours'=>?float,                                  // 8.72, null when no clock-out
     'status'=>'ontime'|'late'|'miss'|'absent'|'leave'|'half'|'pending',
-    'flags'=>list<string>,                            // off, visit, short, early, noloc
+    'flags'=>list<string>,                            // off, visit, short, early, noloc, amended
     'leaveType'=>?string,
     'recordId'=>?int,                                 // null on a synthesized no-punch row
-    'hasPoint'=>bool,                                 // off-site/visit with usable coordinates
+    'points'=>list<array{lat,lng,labelEn,labelMs}>,   // stripped when !canSeeLocation
+    'hasPoint'=>bool,                                 // shorthand for points !== []
 ]
 ```
+
+The row carries `points` rather than only advertising them, because decision 9
+puts the map on the off-site chip and the chip is on the row. `LedgerBuilder`
+owns that shape; the controller strips it for a viewer without `canSeeLocation`
+so coordinates are never rendered-then-hidden. `amended` marks an HR-typed
+clock-out (see the amend endpoint below): it has no selfie and no coordinates,
+so the ledger says so rather than letting it pass for a punch.
 
 `PersonDetail` is `['id','name','initials','color','dept','days','openDay']`.
 `days` is that person's ledger rows, newest first, each additionally carrying
 `noteIn`, `noteOut` (the existing `clock_in_justification` /
-`clock_out_justification`), `photoIn`, `photoOut` (signed URLs for `photo_path` /
-`clock_out_photo_path`), and `points` (the same shape
-`partials/map-view.blade.php` already consumes). `openDay` is a `Y-m-d` from
+`clock_out_justification`) and `photoIn`, `photoOut` — the model's existing
+`photo_url` / `clock_out_photo_url` accessors, which route through the
+auth-gated `attendance.photo` endpoint. No signed storage URL and no
+`temporaryUrl()` is involved; the selfies are on the private `local` disk and
+that accessor is already how every other screen reaches
+them. `openDay` is a `Y-m-d` from
 `?day=`, validated to be one of `days`, which arrives pre-expanded — that is how
 the ledger's one-click `Fix` and a plain click on the person land on the same
 screen instead of forking into two write paths.
@@ -212,6 +223,15 @@ without a clock-out. The totals' `hours` sums `worked_minutes` only.
 
 **Half day** is a worked span under 5 hours. **Short hours** is the existing
 `short_hours` flag from `ClockService`.
+
+**Amending a clock-out.** Nothing in the app could *set* a clock-out before this
+change: `ClockService` is the employee clocking themselves and `reversePunch`
+only clears one. `POST /app/attendance-admin/records/{record}/clock-out`
+(`attendance.admin.records.amend`) fills the hole, gated to the same
+`['hr','director']` + super-admin as reversing. It refuses a record that already
+has a clock-out — reverse that first, so there is exactly one way to overwrite a
+real punch and it leaves two audit entries. Reversing also clears the `amended`
+mark, because the typed time it described is gone.
 
 **Missing out** is `clock_in !== null && clock_out === null` on a date **before
 today** — a person still mid-shift today is not broken.
@@ -241,6 +261,30 @@ Every string ships EN and MS, matching the rest of the screen. The strings are
 in the mockup's `T` map and are the approved wording. Malay runs roughly 15%
 longer and is the case that breaks layouts — it is a required check, not a
 nicety.
+
+## Measure
+
+The screen opts into the app's existing wide cap (`$wideScreens` in
+`layouts/app.blade.php` → `.uj-main--wide`, 1280px), not the roster's focused
+920px. Eight dense columns never fitted 920, and the mock was drawn at 1280.
+The staff column takes most of the free space: real names here run to
+"Muhammad Faris Akmal Bin …", and a payroll screen that truncates two of them to
+the same string has stopped doing its job. At the project's 1600px reference
+width none of 435 names truncate.
+
+## Built differently from the mock
+
+Three deliberate departures, all mechanically verified in the browser:
+
+- **The custom range is two inline date inputs**, not the mock's popover. Native
+  `<input type="date">`, no picker library, and the filter bar works with
+  JavaScript off. The popover's CSS is deleted rather than left unused.
+- **The mobile filter sheet is the filter form itself**, presented as a sheet
+  under 760px, rather than a second copy of every control. One element, one
+  state, so the bar and the sheet cannot disagree about what is selected.
+  Dropped with it: drag-to-dismiss. Tap the scrim, press Escape, or Show results.
+- **The mock's own fake map is gone.** The row chip and the drawer both dispatch
+  `open-map-view` to the existing `partials/map-view.blade.php`.
 
 ## Out of scope
 
