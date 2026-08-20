@@ -46,6 +46,10 @@ class ScheduleResolver
      * The matched site contributes only its geofence and label. Working hours stay those
      * of the employee's own arrangement, so visiting a client on an 08:30 shift does not
      * make a 09:00 office worker late.
+     *
+     * The work-mode pill does not weaken this: it declares *intent* ("today is a customer
+     * visit"), never a site. The GPS is still measured against the same resolved site in both
+     * modes — see docs/superpowers/specs/2026-08-19-attendance-work-mode-pill-design.md.
      */
     public function matchActualSite(Employee $employee, SiteSpec $assigned, ?float $lat, ?float $lng): SiteSpec
     {

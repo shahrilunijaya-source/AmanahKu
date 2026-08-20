@@ -542,4 +542,157 @@ class ClockServiceTest extends TestCase
         $this->assertSame('PJ HQ', $record->location);
         $this->assertSame('standard', $record->type);
     }
+
+    // --- Declared site visits -------------------------------------------------
+
+    public function test_a_declared_site_visit_off_site_is_recorded_not_flagged(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.20, 101.60, 'Customer ABC, Shah Alam', 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('site_visit', $record->work_mode);
+        $this->assertContains('site_visit_in', $record->flags);
+        $this->assertNotContains('out_of_radius_in', $record->flags);
+        // The fence result stays truthful even though it is no longer an accusation.
+        $this->assertFalse($record->in_radius);
+        $this->assertSame('Customer ABC, Shah Alam', $record->clock_in_justification);
+    }
+
+    public function test_a_site_visit_with_no_destination_is_refused(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.20, 101.60, null, 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('needs_justification', $res['status']);
+        $this->assertStringContainsString('where you are going', $res['message']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
+    }
+
+    public function test_a_site_visit_destination_of_only_whitespace_is_refused(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.20, 101.60, '   ', 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('needs_justification', $res['status']);
+    }
+
+    public function test_a_site_visit_still_needs_a_selfie(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.20, 101.60, 'Customer ABC', null, $now, 'site_visit'
+        );
+
+        $this->assertSame('needs_photo', $res['status']);
+    }
+
+    public function test_a_late_site_visit_is_still_late(): void
+    {
+        $now = Carbon::parse('2026-07-02 10:30:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.20, 101.60, 'Customer ABC', 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('late', $record->status);
+        $this->assertContains('late', $record->flags);
+        $this->assertContains('site_visit_in', $record->flags);
+    }
+
+    public function test_a_site_visit_declared_inside_the_fence_is_allowed(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn(
+            $this->employee, 3.1001, 101.6001, 'Leaving for Customer ABC', 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertTrue($record->in_radius);
+        $this->assertSame('site_visit', $record->work_mode);
+        $this->assertContains('site_visit_in', $record->flags);
+    }
+
+    public function test_a_site_visit_clock_out_inherits_the_mode_without_asking_again(): void
+    {
+        $in = Carbon::parse('2026-07-02 08:55:00');
+        $out = Carbon::parse('2026-07-02 18:05:00');
+        $service = $this->service($this->office());
+
+        $service->clockIn($this->employee, 3.20, 101.60, 'Customer ABC', 'attendance-photos/a.jpg', $in, 'site_visit');
+        $res = $service->clockOut($this->employee, 3.20, 101.60, null, 'attendance-photos/b.jpg', $out, 'site_visit');
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($in)->first();
+        $this->assertSame('site_visit', $record->clock_out_work_mode);
+        $this->assertContains('site_visit_out', $record->flags);
+        $this->assertNotContains('out_of_radius_out', $record->flags);
+    }
+
+    public function test_a_clock_out_mode_never_overwrites_the_clock_in_mode(): void
+    {
+        $in = Carbon::parse('2026-07-02 08:55:00');
+        $out = Carbon::parse('2026-07-02 18:05:00');
+        $service = $this->service($this->office());
+
+        $service->clockIn($this->employee, 3.1001, 101.6001, null, 'attendance-photos/a.jpg', $in);
+        $service->clockOut($this->employee, 3.20, 101.60, 'Ended at Customer ABC', 'attendance-photos/b.jpg', $out, 'site_visit');
+
+        $record = $this->employee->attendanceRecords()->onDate($in)->first();
+        $this->assertSame('office_home', $record->work_mode);
+        $this->assertSame('site_visit', $record->clock_out_work_mode);
+        $this->assertContains('site_visit_out', $record->flags);
+        $this->assertNotContains('site_visit_in', $record->flags);
+    }
+
+    public function test_switching_to_site_visit_at_clock_out_needs_a_destination(): void
+    {
+        $in = Carbon::parse('2026-07-02 08:55:00');
+        $out = Carbon::parse('2026-07-02 18:05:00');
+        $service = $this->service($this->office());
+
+        // Clocked in normally, at the office, on time.
+        $service->clockIn($this->employee, 3.1001, 101.6001, null, 'attendance-photos/a.jpg', $in);
+        $res = $service->clockOut($this->employee, 3.20, 101.60, null, 'attendance-photos/b.jpg', $out, 'site_visit');
+
+        $this->assertSame('needs_justification', $res['status']);
+        $this->assertStringContainsString('where you were', $res['message']);
+    }
+
+    public function test_a_site_visit_clock_out_before_the_shift_ends_is_still_early(): void
+    {
+        $in = Carbon::parse('2026-07-02 08:55:00');
+        $out = Carbon::parse('2026-07-02 15:00:00');
+        $service = $this->service($this->office());
+
+        $service->clockIn($this->employee, 3.20, 101.60, 'Customer ABC', 'attendance-photos/a.jpg', $in, 'site_visit');
+        $res = $service->clockOut($this->employee, 3.20, 101.60, null, 'attendance-photos/b.jpg', $out, 'site_visit');
+
+        $this->assertSame('needs_justification', $res['status']);
+    }
+
+    public function test_office_home_mode_is_unchanged_when_the_parameter_is_omitted(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($this->office())->clockIn($this->employee, 3.20, 101.60, null, null, $now);
+
+        $this->assertSame('needs_justification', $res['status']);
+        $this->assertNull($this->employee->attendanceRecords()->onDate($now)->first());
+    }
 }
