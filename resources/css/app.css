@@ -1797,10 +1797,7 @@ select.wd-inline {
 
 .uj-ar-cols{
   display:grid;
-  /* Staff takes the lion's share of the free space: real names here run to
-     "Muhammad Faris Akmal Bin ...", and a payroll screen that truncates two
-     Muhammads to the same string has stopped being a payroll screen. */
-  grid-template-columns:104px minmax(180px,2.4fr) 62px 96px 72px 104px minmax(116px,1fr) 76px;
+  grid-template-columns:104px minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
   gap:12px;align-items:center;padding:0 18px;
 }
 .uj-ar-thead{
@@ -1821,7 +1818,7 @@ select.wd-inline {
 /* Single day: the date is in the period control above, not repeated per row. */
 .uj-ar-ledger[data-gran="day"] .c-date{display:none}
 .uj-ar-ledger[data-gran="day"] .uj-ar-cols{
-  grid-template-columns:minmax(180px,2.4fr) 62px 96px 72px 104px minmax(116px,1fr) 76px;
+  grid-template-columns:minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
 }
 
 .uj-ar-row{
@@ -1833,7 +1830,10 @@ select.wd-inline {
      the intrinsic size to keep the scrollbar honest; find-in-page and anchor links
      still reach inside. Browsers without it just lay everything out, as before. */
   content-visibility:auto;
-  contain-intrinsic-size:auto 56px;
+  /* The CONTENT box, not the row: 56px min-height less 18px padding and the 1px
+     rule. Handing it the row height instead padded every row to 75px — the whole
+     table read looser than the mock for no reason. */
+  contain-intrinsic-size:auto 37px;
 }
 .uj-ar-row:last-child{border-bottom:0}
 @media (hover:hover) and (pointer:fine){
@@ -1850,6 +1850,10 @@ select.wd-inline {
 .uj-ar-date em{display:block;font-style:normal;font-size:var(--t-micro);color:var(--muted);font-family:var(--font-mono)}
 
 .uj-ar-who{display:flex;align-items:center;gap:10px;min-width:0}
+/* The row wraps the avatar and the name in a link so the whole person opens the
+   drawer. Without this the link is a block, the avatar stacks above the name and
+   the row grows from the mock's 56px to 75px. */
+.uj-ar-person{display:flex;align-items:center;gap:10px;min-width:0;color:inherit}
 .uj-ar-av{
   width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;
   font-size:var(--t-micro);font-weight:600;color:#fff;letter-spacing:.02em;
@@ -2215,8 +2219,9 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
   .uj-ar-row{
     min-height:0;
     /* The card layout is far taller than a desktop line, and a wrong estimate makes
-       the scrollbar jump the first time you reach unrendered rows. */
-    contain-intrinsic-size:auto 140px;
+       the scrollbar jump the first time you reach unrendered rows. Content box
+       again: the card is ~140px less its 24px of padding. */
+    contain-intrinsic-size:auto 116px;
   }
   .uj-ar-cols .c-date{grid-area:date;margin-bottom:2px}
   .uj-ar-date em{display:inline;margin-left:5px}

@@ -205,6 +205,17 @@ honest and Back re-syncs both the body and the drawer from it.
 
 The guide sits outside the swapped region so it keeps its open/closed state.
 
+**Fidelity is checked by diffing computed styles against the mock**, not by
+reading CSS. Open `public/_attendance-report-ledger.html` and the real screen at
+the same viewport, snapshot `getComputedStyle` for the same elements on both,
+and compare. Three breaks that reading the stylesheet had missed turned up that
+way: the row's link wrapper was not a flex container, so the avatar stacked
+above the name and every row was 75px instead of 56px; `contain-intrinsic-size`
+had been given the row height rather than the content box, padding every row out
+again; and the column proportions had been widened off-mock. Differences that
+remain are data (a different avatar colour, a different status stamp) rather
+than style.
+
 **Rows carry `content-visibility: auto`.** A month of a full company is ~435
 rows, and laying every one of them out cost 215ms — more than fetching them did.
 The browser now skips the ones nobody can see; `contain-intrinsic-size` keeps the
