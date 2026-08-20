@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -163,7 +164,10 @@ class AttendanceAdminController extends Controller
             }
 
             $flags = array_values(array_diff($record->flags ?? [], [
-                'out_of_radius_out', 'early_out', 'short_hours',
+                // 'amended' marks an HR-typed clock-out. Reversing removes the typed
+                // time, so the mark must go with it or the record keeps claiming a
+                // fabricated punch that is no longer there.
+                'out_of_radius_out', 'early_out', 'short_hours', 'amended',
                 // 'no_location' only ever meant the clock-OUT had no fix when the clock-IN
                 // did — a clock-in with no fix carries the same flag and must keep it.
                 ...($record->latitude !== null ? ['no_location'] : []),
@@ -196,6 +200,66 @@ class AttendanceAdminController extends Controller
         AuditLog::record('Reversed clock-in', $name);
 
         return back()->with('ok', 'Clock-in reversed. '.$name.' can clock in again.');
+    }
+
+    /**
+     * Fill in a clock-out somebody forgot. Only ever fills a HOLE: a record that
+     * already has a clock-out must be reversed first, so there is exactly one way to
+     * overwrite a real punch and it leaves two audit entries rather than one.
+     *
+     * The typed time carries no selfie and no coordinates, so it is not a punch and is
+     * marked `amended`. Location-derived flags are deliberately NOT recomputed —
+     * inventing an out_of_radius verdict for a time nobody stood anywhere to record
+     * would be a fabricated fact in an audit trail.
+     */
+    public function amendClockOut(Request $request, AttendanceRecord $record): RedirectResponse
+    {
+        $this->authorizeReverse($request);
+        $this->assertTenant($record->tenant_id);
+
+        abort_if($record->clock_in === null, 422);
+        abort_if($record->clock_out !== null, 422);
+
+        $validated = $request->validate([
+            'time' => ['required', 'date_format:H:i'],
+        ]);
+
+        $date = $record->date->toDateString();
+        $in = CarbonImmutable::parse($date.' '.$record->clock_in);
+        $out = CarbonImmutable::parse($date.' '.$validated['time']);
+
+        if ($out->lte($in)) {
+            return back()->withErrors([
+                'time' => 'The clock-out must be after the '.$in->format('H:i').' clock-in.',
+            ]);
+        }
+
+        $minutes = (int) $in->diffInMinutes($out);
+        $expected = (float) ($record->expected_min_hours ?? 8);
+
+        $flags = $record->flags ?? [];
+        if (! in_array('amended', $flags, true)) {
+            $flags[] = 'amended';
+        }
+        if ($minutes < $expected * 60 && ! in_array('short_hours', $flags, true)) {
+            $flags[] = 'short_hours';
+        }
+
+        $record->update([
+            'clock_out' => $out->format('H:i:s'),
+            'worked_minutes' => $minutes,
+            'flags' => $flags,
+        ]);
+
+        $employee = $record->employee;
+
+        AuditLog::record(
+            'Amended clock-out',
+            ($employee->name ?? 'Unknown employee')
+                .' · '.$record->date->format('j M').' · set to '.$out->format('H:i')
+        );
+
+        return back()->with('ok', 'Clock-out set to '.$out->format('H:i').'.');
     }
 
     /** @return array<string,mixed> */

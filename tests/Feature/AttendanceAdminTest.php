@@ -351,4 +351,109 @@ class AttendanceAdminTest extends TestCase
 
         $this->assertNotNull($record->fresh()->clock_out);
     }
+
+    // --- Amend a missing clock-out ------------------------------------------
+
+    /** A record with a clock-in and the clock-out somebody forgot. */
+    private function openRecord(): AttendanceRecord
+    {
+        return $this->punchedRecord($this->staff('office'), withClockOut: false);
+    }
+
+    public function test_hr_can_set_a_missing_clock_out(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->openRecord();
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '18:00'])
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $record->refresh();
+
+        $this->assertSame('18:00', substr((string) $record->clock_out, 0, 5));
+        $this->assertSame(540, $record->worked_minutes);
+        $this->assertContains('amended', $record->flags ?? [], 'a typed time is not a punch');
+    }
+
+    public function test_a_short_amended_day_picks_up_the_short_hours_flag(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->openRecord();
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '12:00']);
+
+        $this->assertContains('short_hours', $record->refresh()->flags ?? []);
+    }
+
+    public function test_a_clock_out_before_the_clock_in_is_rejected(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->openRecord();
+
+        $this->from('/app/attendance-report')
+            ->post(route('attendance.admin.records.amend', $record), ['time' => '08:00'])
+            ->assertSessionHasErrors('time');
+
+        $this->assertNull($record->refresh()->clock_out);
+    }
+
+    public function test_a_record_that_already_has_a_clock_out_is_refused(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->punchedRecord($this->staff('office'), withClockOut: true);
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '19:00'])
+            ->assertStatus(422);
+
+        $this->assertSame('18:00', substr((string) $record->refresh()->clock_out, 0, 5),
+            'reverse the clock-out first; this endpoint only fills a hole');
+    }
+
+    public function test_a_manager_cannot_amend_a_clock_out(): void
+    {
+        $this->actingAsRole('manager');
+        $record = $this->openRecord();
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '18:00'])
+            ->assertForbidden();
+
+        $this->assertNull($record->refresh()->clock_out);
+    }
+
+    public function test_hr_cannot_amend_a_clock_out_for_another_tenants_staff(): void
+    {
+        $other = Tenant::create(['slug' => 'other3', 'name' => 'Other3', 'initials' => 'O3']);
+        $record = $this->punchedRecord($this->staff('office', $other->id), withClockOut: false);
+
+        $this->actingAsRole('hr')
+            ->post(route('attendance.admin.records.amend', $record), ['time' => '18:00'])
+            ->assertForbidden();
+
+        $this->assertNull($record->fresh()->clock_out);
+    }
+
+    public function test_the_amendment_is_recorded_in_the_audit_trail(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->openRecord();
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '18:00']);
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Amended clock-out']);
+    }
+
+    public function test_reversing_an_amended_clock_out_drops_the_amended_mark(): void
+    {
+        $this->actingAsRole('hr');
+        $record = $this->openRecord();
+
+        $this->post(route('attendance.admin.records.amend', $record), ['time' => '18:00']);
+        $this->post(route('attendance.admin.records.reverse', $record));
+
+        $record->refresh();
+
+        $this->assertNull($record->clock_out);
+        $this->assertNotContains('amended', $record->flags ?? [],
+            'the typed time is gone, so the mark that described it must go too');
+    }
 }
