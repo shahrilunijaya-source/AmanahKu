@@ -289,4 +289,35 @@ class AttendanceReportScreenTest extends TestCase
         $response->assertOk();
         $response->assertDontSee('attendance-admin/records/', false);
     }
+
+    public function test_a_site_visit_row_reads_as_a_visit_and_still_offers_the_map(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->hrEmployee->id,
+            // A day inside the window but short of its exact end boundary — see punchedEmployee()
+            // above: the window's upper edge is unreliable with SQLite's raw string date storage.
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'in_radius' => false,
+            'work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'flags' => ['site_visit_in'],
+        ]);
+
+        $html = $this->actAsHr()
+            ->get('/app/attendance-report?'.http_build_query(['emp' => $this->hrEmployee->id]))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('Site visit', $html);
+        $this->assertStringContainsString('Customer ABC, Shah Alam', $html);
+        $this->assertStringNotContainsString('Off-site in', $html);
+        // The map is exactly the thing a manager wants on a declared visit. open-map-view only
+        // renders when the widened gate actually admitted the site-visit point into $locPoints.
+        $this->assertStringContainsString('open-map-view', $html);
+        $this->assertStringContainsString('3.2', $html);
+    }
 }

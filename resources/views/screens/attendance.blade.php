@@ -9,6 +9,8 @@
         'late' => ['Late', 'Lewat'],
         'out_of_radius_in' => ['Off-site clock-in', 'Clock in luar lokasi'],
         'out_of_radius_out' => ['Off-site clock-out', 'Clock out luar lokasi'],
+        'site_visit_in' => ['Site visit', 'Lawatan tapak'],
+        'site_visit_out' => ['Site visit out', 'Lawatan tapak (keluar)'],
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
         'no_location' => ['No location', 'Tiada lokasi'],

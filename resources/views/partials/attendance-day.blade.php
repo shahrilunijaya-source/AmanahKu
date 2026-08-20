@@ -57,7 +57,14 @@
 
     // in_radius and out_radius are true when inside the geofence, false when outside, and null when no geofence was checked.
     $hasRadiusFlag = is_array($flags) && (in_array('out_of_radius_in', $flags) || in_array('out_of_radius_out', $flags));
-    if ($hasRadiusFlag || $r->in_radius === false || $r->out_radius === false) {
+    // A declared site visit still records in_radius === false when it lands outside the fence
+    // (that part stays true), but the story is "went where they said they would", not a breach,
+    // so this branch runs before the radius check below and takes it over.
+    if ($r->work_mode === 'site_visit' || $r->clock_out_work_mode === 'site_visit') {
+        $dest = $r->clock_in_justification ?: $r->clock_out_justification;
+        $whereEn = 'Site visit'.($dest ? ": {$dest}." : '.');
+        $whereMs = 'Lawatan tapak'.($dest ? ": {$dest}." : '.');
+    } elseif ($hasRadiusFlag || $r->in_radius === false || $r->out_radius === false) {
         $whereEn = 'Clock landed outside the expected geofence' . ($r->location ? " ({$r->location})." : '.');
         $whereMs = 'Clock berada di luar geofence yang ditetapkan' . ($r->location ? " ({$r->location})." : '.');
     } elseif ($r->in_radius === true && $r->out_radius === true) {
