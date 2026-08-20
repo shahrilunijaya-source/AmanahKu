@@ -307,7 +307,10 @@
                     <span class="c-who uj-ar-who">
                         <a href="{{ $personUrl }}" class="uj-ar-person">
                             <span class="uj-ar-av" style="background:{{ $row['color'] }}">{{ $row['initials'] }}</span>
-                            <span class="nm"><b>{{ $row['name'] }}</b><span>{{ $row['dept'] ?? '—' }}</span></span>
+                            {{-- title: the column ellipsises long names, and two people
+                                 truncated to the same string is exactly the confusion this
+                                 screen exists to prevent. --}}
+                            <span class="nm"><b title="{{ $row['name'] }}">{{ $row['name'] }}</b><span>{{ $row['dept'] ?? '—' }}</span></span>
                         </a>
                     </span>
                     <span class="c-in uj-ar-t uj-ar-num" @if(! $row['in']) data-nil @endif>{{ $row['in'] ?? '—' }}</span>

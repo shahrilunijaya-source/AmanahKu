@@ -199,4 +199,12 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertStringContainsString('lens=miss', $html, 'the lens chips are links');
         $this->assertStringContainsString('sort=person', $html, 'the sort segment is a link');
     }
+
+    public function test_the_ledger_gets_the_wide_measure(): void
+    {
+        // Eight dense columns do not fit the 920px focused measure the roster used.
+        $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()
+            ->assertSee('uj-main--wide', false);
+    }
 }
