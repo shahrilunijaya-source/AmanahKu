@@ -1828,6 +1828,12 @@ select.wd-inline {
   min-height:56px;padding-top:9px;padding-bottom:9px;
   border-bottom:1px solid var(--hairline-soft);
   transition:background .12s var(--ease);
+  /* A month of a full company is ~435 rows, and laying every one of them out cost
+     more than fetching them did. The browser skips the ones nobody can see and uses
+     the intrinsic size to keep the scrollbar honest; find-in-page and anchor links
+     still reach inside. Browsers without it just lay everything out, as before. */
+  content-visibility:auto;
+  contain-intrinsic-size:auto 56px;
 }
 .uj-ar-row:last-child{border-bottom:0}
 @media (hover:hover) and (pointer:fine){
@@ -2189,7 +2195,12 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
   }
   .uj-ar-ledger[data-gran="day"] .c-who{margin-bottom:7px;align-self:center}
   .uj-ar-ledger[data-gran="day"] .c-status{align-self:center}
-  .uj-ar-row{min-height:0}
+  .uj-ar-row{
+    min-height:0;
+    /* The card layout is far taller than a desktop line, and a wrong estimate makes
+       the scrollbar jump the first time you reach unrendered rows. */
+    contain-intrinsic-size:auto 140px;
+  }
   .uj-ar-cols .c-date{grid-area:date;margin-bottom:2px}
   .uj-ar-date em{display:inline;margin-left:5px}
   .uj-ar-cols .c-who{grid-area:who;margin-bottom:5px}

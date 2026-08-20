@@ -190,6 +190,28 @@ class AttendanceReportController extends Controller
     }
 
     /**
+     * The ledger's own body — controls, chips, totals and rows — as a fragment.
+     *
+     * A filter change alters nothing outside it, yet re-rendering the screen shipped
+     * the sidebar, header and app shell along with it: 220KB and a rebuild of the whole
+     * page to swap nine table rows. The screen still renders this inline, so a direct
+     * hit, a reload and a JavaScript-free browser are unaffected.
+     */
+    public function body(Request $request): View
+    {
+        abort_unless(
+            (bool) $request->user()?->isSuperAdmin()
+                || Permissions::canSeeAll(
+                    $request->attributes->get('employee'),
+                    (string) $request->attributes->get('tenantRole'),
+                ),
+            403
+        );
+
+        return view('partials.attendance-report.ledger-body', $this->screenData($request));
+    }
+
+    /**
      * The person drawer on its own, as an HTML fragment.
      *
      * Opening a drawer used to mean re-rendering the whole screen: 435 rows and ~1400

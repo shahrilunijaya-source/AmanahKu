@@ -192,6 +192,29 @@ so coordinates are never rendered-then-hidden. `amended` marks an HR-typed
 clock-out (see the amend endpoint below): it has no selfie and no coordinates,
 so the ledger says so rather than letting it pass for a punch.
 
+**Nothing on this screen re-renders the page.** Every filter is a link or a GET
+form, which is what makes the screen work with JavaScript off. Followed
+wholesale, though, each one re-rendered the sidebar, the header and the whole
+app shell to change some table rows — 229KB and ~260ms to show nine of them. A
+delegated handler on the ledger intercepts them and swaps only
+`partials/attendance-report/ledger-body.blade.php`, fetched from
+`GET /app/attendance-report/body`. Anything that already handled its own click
+has set `defaultPrevented` by the time it bubbles, so the person link, Fix, the
+drawer close and the export link are all left alone. `pushState` keeps the URL
+honest and Back re-syncs both the body and the drawer from it.
+
+The guide sits outside the swapped region so it keeps its open/closed state.
+
+**Rows carry `content-visibility: auto`.** A month of a full company is ~435
+rows, and laying every one of them out cost 215ms — more than fetching them did.
+The browser now skips the ones nobody can see; `contain-intrinsic-size` keeps the
+scrollbar honest (measured drift: 1%), and a browser without support lays
+everything out as before.
+
+Measured, 29 staff over a calendar month: filtering to the exceptions 649ms →
+223ms, switching back to all 435 rows 732ms → 445ms, opening a person 850ms →
+80ms.
+
 **The drawer is fetched, not re-rendered.** Opening one used to navigate, which
 rebuilt all 435 rows and every Alpine binding on them to show one person's
 fifteen days — about 850ms of work on a table that had not changed. The person

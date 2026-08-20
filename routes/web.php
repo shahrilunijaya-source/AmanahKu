@@ -478,6 +478,8 @@ Route::middleware('auth')->group(function () {
         // The attendance ledger as a file. Must stay above /app/{screen?} or the
         // catch-all reads "attendance-report/export" as a screen name and serves HTML.
         Route::get('/app/attendance-report/export', [AttendanceReportExportController::class, 'download'])->name('attendance.report.export');
+        // The ledger body as a fragment, so a filter change does not rebuild the page.
+        Route::get('/app/attendance-report/body', [AttendanceReportController::class, 'body'])->name('attendance.report.body');
         // The person drawer as a fragment, so opening one does not rebuild the table.
         Route::get('/app/attendance-report/person/{employee}', [AttendanceReportController::class, 'drawer'])
             ->whereNumber('employee')->name('attendance.report.person');

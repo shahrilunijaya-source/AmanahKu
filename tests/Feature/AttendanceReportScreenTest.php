@@ -271,4 +271,57 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertArrayHasKey(-12, $labels['week'], 'a year of reach in every granularity');
         $this->assertArrayHasKey('day', $labels);
     }
+
+    // --- The ledger body as a fragment ---------------------------------------
+
+    public function test_the_body_route_returns_the_ledger_without_the_app_shell(): void
+    {
+        // Changing a filter used to re-render the sidebar, the header and the whole
+        // app shell to swap some table rows. Only this travels now.
+        $html = $this->actAsHr()->get('/app/attendance-report/body?gran=week')
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-ar-chips', $html);
+        $this->assertStringContainsString('uj-ar-sum', $html);
+        $this->assertStringContainsString('uj-ar-tbl', $html);
+        $this->assertStringNotContainsString('<html', $html);
+        $this->assertStringNotContainsString('uj-sb-nav', $html, 'no sidebar');
+        $this->assertStringNotContainsString('uj-guide', $html, 'the guide keeps its own open state');
+    }
+
+    public function test_the_body_fragment_and_the_screen_agree(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '09:00:00', 'clock_out' => null,
+            'status' => 'on_time', 'flags' => [],
+        ]);
+
+        $fragment = $this->actAsHr()->get('/app/attendance-report/body?gran=week&lens=miss')
+            ->assertOk()->getContent();
+        $screen = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=miss')
+            ->assertOk()->getContent();
+
+        // A fragment that disagrees with the page it replaces is worse than no fragment.
+        $this->assertSame(
+            substr_count($screen, 'uj-ar-cols uj-ar-row'),
+            substr_count($fragment, 'uj-ar-cols uj-ar-row')
+        );
+    }
+
+    public function test_a_plain_employee_cannot_fetch_the_body(): void
+    {
+        $staff = User::create([
+            'name' => 'Staff', 'email' => 'staff2@example.com', 'password' => Hash::make('password'),
+        ]);
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $staff->id,
+            'name' => 'Staff Person', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($staff)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance-report/body')
+            ->assertForbidden();
+    }
 }
