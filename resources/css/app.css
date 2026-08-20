@@ -37,7 +37,15 @@
        rules, this one carries warn *words* (chips, counts, tags). */
     --amber-ink: #7a5210;
     --error: #cf2d56;
+    /* Text-safe error, same reasoning as --success-ink and --amber-ink: --error
+       carries fills and rules, this one carries error *words*. */
+    --error-ink: #a01840;
     --info: #3a6ea5;
+    /* Approved leave. Its own hue on purpose: leave is not a problem, and giving it
+       amber or red would paint a granted absence as a fault. --leave fills, the ink
+       carries the word. */
+    --leave: #c3d5e6;
+    --leave-ink: #2b537c;
     --shelf: #ece9e1;
     --shelf-line: #ddd9cf;
 
@@ -68,6 +76,9 @@
     /* The one easing curve the app moves on. Every screen already writes it out
        inline; this is the same curve, named, so blocks can reference it. */
     --ease: cubic-bezier(.23, 1, .32, 1);
+    /* Panels that slide in from an edge. Slower out of the gate and flatter at the
+       end than --ease, so a drawer reads as arriving rather than as snapping. */
+    --ease-drawer: cubic-bezier(.32, .72, 0, 1);
 }
 
 * { box-sizing: border-box; }
@@ -1648,168 +1659,599 @@ select.wd-inline {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Attendance report roster (resources/views/screens/attendance-report.blade.php) —
-   ported from the approved public/_attendance-report-revamp.html mock.
+   Attendance report ledger (resources/views/screens/attendance-report.blade.php)
+   — ported from the approved public/_attendance-report-ledger.html mock.
    Namespaced uj-ar- ("attendance report").
+
+   Two changes from the mock: every .ar- class is .uj-ar-, and the phone rules
+   are a viewport media query rather than a container query. The mock previewed
+   a 390px frame inside a desktop window and needed @container for that; the
+   real screen IS the viewport.
    ═══════════════════════════════════════════════════════════════════════ */
-
-/* ── Centred single-task column ──
-   The desktop reference width is 1920 (~1600px content area), so max-width
-   920px keeps the screen focused and centred, matching .uj-at-wrap. */
-.uj-ar-shelf { background: var(--shelf); border: 1px solid var(--shelf-line); border-radius: 14px; padding: 24px 26px 22px; }
-.uj-ar-kicker { font-size: var(--t-micro); letter-spacing: .19em; text-transform: uppercase; color: var(--body); font-weight: 600; }
-.uj-ar-fig { font: 600 54px/1 var(--font-mono); color: var(--ink); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.uj-ar-figrow { display: flex; align-items: baseline; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
-.uj-ar-figsub { font-size: var(--t-base); color: var(--body); max-width: 36ch; line-height: 1.5; }
-.uj-ar-figsub b { font-weight: 600; color: var(--ink); }
-.uj-ar-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
-.uj-ar-pills { display: inline-flex; background: var(--card); border: 1px solid var(--shelf-line); border-radius: 10px; padding: 3px; gap: 2px; }
-.uj-ar-pill { padding: 7px 13px; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--muted); background: none; border: 0; cursor: pointer; white-space: nowrap; text-decoration: none; transition: color .14s cubic-bezier(.23, 1, .32, 1), background .14s cubic-bezier(.23, 1, .32, 1); }
-.uj-ar-pill:hover { color: var(--ink); }
-.uj-ar-pill[data-on], .uj-ar-pill.uj-ar-on { background: var(--shelf); color: var(--ink); font-weight: 600; }
-.uj-ar-sel { padding: 8px 12px; border: 1px solid var(--shelf-line); border-radius: 10px; font: inherit; font-size: var(--t-sm); color: var(--ink); background: var(--card); outline: none; cursor: pointer; }
-.uj-ar-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
-.uj-ar-range { font-size: var(--t-sm); color: var(--muted); margin-left: auto; font-family: var(--font-mono); }
-
-.uj-ar-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: var(--t-micro); font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: .02em; }
-/* .ar-name and .ar-sub are display:block. As inline spans, a short name and its
-   department share a line while a long one wraps, and the list loses its baseline grid. */
-.uj-ar-name { display: block; font-size: var(--t-base); color: var(--ink); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.uj-ar-sub { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.uj-ar-sect { margin-top: 34px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.uj-ar-sect-left { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.uj-ar-sect h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
-.uj-ar-sect .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
-/* ── "View summary" trigger + dialog ──
-   The roster answers "how is each person doing"; the dialog answers the question a
-   manager actually opens this screen with — "who do I need to talk to, and about
-   which day". Both read the same strip, so the two can't disagree. */
-.uj-ar-sumbtn {
-  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px;
-  border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); color: var(--body);
-  font: 500 var(--t-sm) var(--font-sans); cursor: pointer;
+/* ── head ───────────────────────────────────────────────────────────────── */
+.uj-ar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.uj-ar-head h1{
+  font:500 var(--t-xl)/1.25 var(--font-sans);letter-spacing:-.025em;
+  color:var(--ink);margin:0;text-wrap:balance;
 }
-.uj-ar-sumbtn:hover { border-color: var(--muted-soft); color: var(--ink); }
-.uj-ar-sumbtn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-ar-head p{margin:5px 0 0;font-size:var(--t-sm);color:var(--muted)}
+.uj-ar-head p .m{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 
-.uj-ar-sumhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--hairline); flex-shrink: 0; }
-.uj-ar-sumhead h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
-.uj-ar-sumhead p { margin: 3px 0 0; font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.uj-ar-sumclose { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
-.uj-ar-sumclose:hover { background: var(--hairline-soft); color: var(--ink); }
+.uj-ar-btn{
+  display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;
+  border-radius:9px;border:1px solid var(--hairline);background:var(--card);
+  color:var(--ink);font-size:var(--t-sm);font-weight:500;cursor:pointer;white-space:nowrap;
+  transition:border-color .14s var(--ease),background .14s var(--ease),transform .14s var(--ease);
+}
+.uj-ar-btn:hover{border-color:var(--muted-soft)}
+.uj-ar-btn:active{transform:scale(.97)}
+.uj-ar-btn svg{flex-shrink:0;color:var(--muted)}
+.uj-ar-btn-primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.uj-ar-btn-primary svg{color:#fff}
+.uj-ar-btn-primary:hover{background:var(--red-active);border-color:var(--red-active)}
 
-/* Three tiles: no punch, clocked in late, short hours — each backed by a real
-   per-day source. Note "clocked out late" is deliberately absent: nothing records
-   it, and the flags that do exist for the end of a day are early_out and
-   short_hours (leaving early / working too few hours), which are the opposite
-   concern. auto-fit rather than a fixed 3 so a fourth tile would wrap instead of
-   crushing the numbers to an unreadable width. */
-.uj-ar-sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--hairline); flex-shrink: 0; }
-.uj-ar-sumtile { background: var(--card); padding: 16px 16px 14px; text-align: center; border: 0; font: inherit; cursor: pointer; box-shadow: inset 0 -2px 0 0 transparent; }
-.uj-ar-sumtile:hover { background: var(--canvas); }
-.uj-ar-sumtile:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
-.uj-ar-sumtile.uj-ar-sumon { background: var(--canvas); }
-.uj-ar-sumtile.uj-ar-sumon[data-t="absent"] { box-shadow: inset 0 -2px 0 0 var(--error); }
-.uj-ar-sumtile.uj-ar-sumon[data-t="late"] { box-shadow: inset 0 -2px 0 0 var(--amber-ink); }
-.uj-ar-sumtile.uj-ar-sumon[data-t="short"] { box-shadow: inset 0 -2px 0 0 var(--info); }
-.uj-ar-sumnum { display: block; font: 600 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
-.uj-ar-sumnum[data-t="absent"] { color: var(--error); }
-.uj-ar-sumnum[data-t="late"] { color: var(--amber-ink); }
-.uj-ar-sumnum[data-t="short"] { color: var(--info); }
-.uj-ar-sumlbl { display: block; margin-top: 6px; font-size: var(--t-micro); color: var(--muted); line-height: 1.4; }
+/* ── lens row ───────────────────────────────────────────────────────────────
+   Which rows you are looking at. Built as a segmented control on a neutral
+   track — the same shape this screen already uses for Sort and Day/Week/Month —
+   so it reads as "pick one" on sight rather than as a row of statistics. */
+.uj-ar-lensrow{display:flex;align-items:center;gap:12px;margin:0 0 12px;flex-wrap:wrap}
+.uj-ar-chips{
+  display:inline-flex;background:var(--hairline-soft);
+  border-radius:10px;padding:3px;gap:2px;max-width:100%;
+}
+.uj-ar-chip{
+  display:inline-flex;align-items:baseline;gap:7px;
+  padding:7px 12px;border-radius:8px;cursor:pointer;border:0;background:none;
+  transition:background .14s var(--ease),color .14s var(--ease),transform .14s var(--ease);
+}
+.uj-ar-chip:hover:not([data-on]){background:rgba(255,255,255,.62)}
+.uj-ar-chip:active{transform:scale(.97)}
+.uj-ar-chip[data-on]{background:var(--card);box-shadow:0 1px 2px rgba(31,30,26,.07)}
+.uj-ar-chip b{
+  font:600 var(--t-base)/1 var(--font-mono);font-variant-numeric:tabular-nums;
+  color:var(--muted);transition:color .14s var(--ease);
+}
+.uj-ar-chip span{font-size:var(--t-sm);font-weight:500;color:var(--body);white-space:nowrap}
+.uj-ar-chip[data-on] b{color:var(--ink)}
+.uj-ar-chip[data-on] span{color:var(--ink);font-weight:600}
+.uj-ar-chip[data-t="miss"][data-on] b{color:var(--error-ink)}
+.uj-ar-chip[data-t="absent"][data-on] b{color:var(--error-ink)}
+.uj-ar-chip[data-t="late"][data-on] b{color:var(--amber-ink)}
+.uj-ar-chip[data-t="short"][data-on] b{color:var(--info)}
+/* Export sits on the table's own row, not up in the page header, so the thing
+   it exports is the thing directly beneath it. */
+.uj-ar-export{margin-left:auto}
 
-.uj-ar-sumnames { padding: 14px 18px 10px; overflow-y: auto; }
-.uj-ar-sumnameshead { font-size: var(--t-micro); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.uj-ar-sumchip { display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 9px; text-decoration: none; color: inherit; }
-.uj-ar-sumchip:hover { background: var(--canvas); }
-.uj-ar-sumname { display: block; font-size: var(--t-sm); color: var(--ink); font-weight: 500; line-height: 1.35; }
-/* The day is the point: on a week view "late once on Tuesday" and "late every day"
-   are different conversations that a bare headcount hides. */
-.uj-ar-sumdays { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
-.uj-ar-sumday { font: 600 10px/1 var(--font-mono); padding: 3px 6px; border-radius: 5px; background: var(--hairline-soft); color: var(--body); }
-.uj-ar-sumday[data-t="absent"] { background: var(--red-tint); color: var(--red-active); }
-.uj-ar-sumday[data-t="late"] { background: color-mix(in srgb, var(--amber) 16%, var(--card)); color: var(--amber-ink); }
-.uj-ar-sumday[data-t="short"] { background: color-mix(in srgb, var(--info) 14%, var(--card)); color: var(--info); }
-.uj-ar-sumempty { padding: 18px 6px 22px; text-align: center; font-size: var(--t-sm); color: var(--muted); }
+/* ── filter bar ─────────────────────────────────────────────────────────── */
+.uj-ar-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 14px}
 
-.uj-ar-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
-.uj-ar-tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.uj-ar-tag[data-t="ok"] { background: #e7f4ee; color: var(--success-ink); }
-.uj-ar-tag[data-t="late"] { background: #faf1e2; color: #7a5210; }
-.uj-ar-tag[data-t="out"] { background: #fdecf1; color: #a01840; }
-.uj-ar-tag[data-t="leave"] { background: #e9f0f7; color: #2b537c; }
-.uj-ar-tag[data-t="none"] { background: var(--hairline-soft); color: var(--muted); }
+.uj-ar-month{
+  display:inline-flex;align-items:center;background:var(--card);
+  border:1px solid var(--hairline);border-radius:9px;height:38px;overflow:hidden;
+}
+.uj-ar-month button{
+  width:34px;height:100%;border:0;background:none;cursor:pointer;color:var(--muted);
+  display:grid;place-items:center;transition:background .14s var(--ease),color .14s var(--ease);
+}
+.uj-ar-month button:hover:not(:disabled){background:var(--hairline-soft);color:var(--ink)}
+.uj-ar-month button:disabled{color:#c9c7bf;cursor:default}
+.uj-ar-month .lbl{
+  padding:0 4px;min-width:112px;text-align:center;
+  font-size:var(--t-sm);font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+.uj-ar-month .div{width:1px;height:20px;background:var(--hairline)}
+.uj-ar-month .custom{
+  width:auto;padding:0 11px;font-size:var(--t-sm);font-weight:500;gap:6px;
+  display:inline-flex;align-items:center;
+}
+.uj-ar-month .custom[data-on]{background:var(--shelf);color:var(--ink)}
 
-/* ── the day strip: one cell per working day ── */
-.uj-ar-strip { display: flex; gap: 3px; align-items: center; }
-.uj-ar-cell { width: 10px; height: 22px; border-radius: 2px; flex-shrink: 0; }
-.uj-ar-cell[data-s="o"] { background: var(--success); }
-.uj-ar-cell[data-s="l"] { background: var(--amber); }
-.uj-ar-cell[data-s="x"] { background: var(--info); }
-.uj-ar-cell[data-s="v"] { background: #c3d5e6; }
-.uj-ar-cell[data-s="a"] { background: var(--error); }
-/* The day cell for a missing day is filled, not an outline. At 10px an outline-only
-   cell disappears, and a row of 22 of them reads as blank space, which is the exact
-   thing this screen exists to make visible. */
-.uj-ar-cell[data-s="p"] { background: #dedbd2; }
-.uj-ar-cell[data-today] { box-shadow: inset 0 0 0 1px var(--ink); }
-.uj-ar-anim .uj-ar-cell { animation: uj-ar-in .34s cubic-bezier(.23, 1, .32, 1) both; }
-@keyframes uj-ar-in { from { opacity: 0; transform: translateY(4px) scaleY(.5); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .uj-ar-anim .uj-ar-cell { animation: none; } }
+.uj-ar-sel,.uj-ar-search input{
+  height:38px;border:1px solid var(--hairline);border-radius:9px;
+  background:var(--card);color:var(--ink);font-size:var(--t-sm);outline:none;
+  transition:border-color .14s var(--ease),box-shadow .14s var(--ease);
+}
+.uj-ar-sel{padding:0 30px 0 12px;cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f6c61' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;}
+.uj-ar-search{position:relative;flex:1 1 190px;min-width:0;max-width:280px}
+.uj-ar-search input{width:100%;padding:0 12px 0 34px}
+.uj-ar-search input::placeholder{color:var(--muted)}
+.uj-ar-search input:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.uj-ar-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted-soft);pointer-events:none}
+.uj-ar-search .clr{
+  position:absolute;right:7px;top:50%;transform:translateY(-50%);
+  width:22px;height:22px;border:0;border-radius:6px;background:none;cursor:pointer;
+  color:var(--muted);display:none;place-items:center;
+}
+.uj-ar-search[data-has] .clr{display:grid}
+.uj-ar-search .clr:hover{background:var(--hairline-soft);color:var(--ink)}
 
-.uj-ar-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--t-micro); color: var(--muted); margin-top: 14px; }
-.uj-ar-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.uj-ar-legend b { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.uj-ar-sortwrap{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
+.uj-ar-sortwrap>span{font-size:var(--t-micro);letter-spacing:.03em;color:var(--muted);font-weight:500}
+.uj-ar-seg{display:inline-flex;background:var(--hairline-soft);border-radius:9px;padding:3px;gap:2px}
+.uj-ar-seg button{
+  border:0;background:none;padding:6px 11px;border-radius:7px;cursor:pointer;
+  font-size:var(--t-sm);font-weight:500;color:var(--muted);white-space:nowrap;
+  transition:color .14s var(--ease),background .14s var(--ease);
+}
+.uj-ar-seg button:hover{color:var(--ink)}
+.uj-ar-seg button[data-on]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(31,30,26,.07)}
 
-/* ── Coverage bar & key ── */
-.uj-ar-cov { display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin-top: 20px; background: var(--shelf-line); }
-.uj-ar-cov i { display: block; height: 100%; }
-.uj-ar-covkey { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: var(--t-sm); color: var(--body); }
-.uj-ar-covkey span { display: inline-flex; align-items: center; gap: 6px; }
-.uj-ar-covkey b { width: 8px; height: 8px; border-radius: 2px; }
+/* ── ledger table ───────────────────────────────────────────────────────── */
+.uj-ar-tbl{
+  background:var(--card);border:1px solid var(--hairline);
+  border-top-color:var(--shelf-line);border-radius:0 0 12px 12px;overflow:hidden;
+}
+.uj-ar-scroll{max-height:min(62vh,720px);overflow-y:auto;overscroll-behavior:contain}
 
-/* ── Roster rows ── */
-.uj-ar-list { margin-top: 12px; }
-.uj-ar-r { border-top: 1px solid #e2ded4; }
-.uj-ar-r:first-child { border-top: 0; }
-/* Floor of 200px prevents track collapse: a bare 1fr resolved to 0px at 64 cells and wrapped the name one word per line */
-.uj-ar-rbtn { width: 100%; display: grid; grid-template-columns: minmax(200px, 1fr) auto 56px; align-items: center; gap: 20px; padding: 14px 8px; background: none; border: 0; text-align: left; cursor: pointer; border-radius: 10px; font: inherit; text-decoration: none; color: inherit; transition: background .14s cubic-bezier(.23, 1, .32, 1); }
-.uj-ar-rbtn:hover { background: #f1efe8; }
-.uj-ar-rbtn:active { background: #eceae2; transition-duration: .04s; }
-.uj-ar-who { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 auto; }
-.uj-ar-who > span { min-width: 0; }
-.uj-ar-pct { font: 600 var(--t-lg) var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 56px; letter-spacing: -.02em; }
-.uj-ar-pct[data-p="hi"] { color: var(--success-ink); }
-.uj-ar-pct[data-p="mid"] { color: #7a5210; }
-.uj-ar-pct[data-p="lo"] { color: #a01840; }
-.uj-ar-pct[data-p="none"] { color: var(--muted-soft); }
-.uj-ar-pct em { display: block; font: 400 var(--t-micro)/1.5 var(--font-sans); color: var(--muted); font-style: normal; letter-spacing: 0; }
-.uj-ar-flag { font-size: var(--t-sm); color: #a01840; font-weight: 500; margin-top: 3px; }
-.uj-ar-flag[data-t="leave"] { color: #2b537c; }
+.uj-ar-cols{
+  display:grid;
+  grid-template-columns:104px minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
+  gap:12px;align-items:center;padding:0 18px;
+}
+.uj-ar-thead{
+  position:sticky;top:0;z-index:3;background:var(--card);
+  border-bottom:1px solid var(--hairline);
+  height:38px;
+  font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);
+}
+/* Scroll edge effect instead of relying on the border alone: content dissolves
+   under the sticky head rather than sliding out from a hard rule. */
+.uj-ar-thead::after{
+  content:"";position:absolute;left:0;right:0;top:100%;height:14px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(255,255,255,.92),rgba(255,255,255,0));
+}
+.uj-ar-num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 
-@media (max-width: 640px) {
-  .uj-ar-shelf { padding: 20px 18px 18px; border-radius: 13px; }
-  .uj-ar-fig { font-size: 42px; }
-  .uj-ar-figsub { font-size: var(--t-sm); }
-  .uj-ar-range { margin-left: 0; width: 100%; }
-  .uj-ar-rbtn { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 13px 6px; }
-  .uj-ar-rbtn .uj-ar-strip { grid-column: 1 / -1; order: 3; }
-  .uj-ar-cell { width: 9px; height: 19px; }
+/* Single day: the date is in the period control above, not repeated per row. */
+.uj-ar-ledger[data-gran="day"] .c-date{display:none}
+.uj-ar-ledger[data-gran="day"] .uj-ar-cols{
+  grid-template-columns:minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
 }
 
-/* ── Drill-down branch ── */
-.uj-ar-drow { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, .8fr) minmax(0, .7fr) minmax(0, .7fr) minmax(0, .7fr) minmax(0, .9fr); align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--hairline-soft); text-decoration: none; transition: background .12s ease; }
-.uj-ar-drow:hover { background: var(--canvas); }
-.uj-ar-dhead { font-size: var(--t-micro); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-.uj-ar-num { font-size: var(--t-sm); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
-.uj-ar-av { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
-@media (max-width: 720px) {
-  .uj-ar-drow { grid-template-columns: minmax(0, 1.4fr) minmax(0, .7fr) minmax(0, .7fr) minmax(0, .9fr); }
-  .uj-ar-hide-sm { display: none; }
+.uj-ar-row{
+  min-height:56px;padding-top:9px;padding-bottom:9px;
+  border-bottom:1px solid var(--hairline-soft);
+  transition:background .12s var(--ease);
 }
+.uj-ar-row:last-child{border-bottom:0}
+@media (hover:hover) and (pointer:fine){
+  .uj-ar-row:hover{background:var(--canvas)}
+}
+/* Missing clock-out is the one thing this screen exists to catch, so it gets a
+   tinted field as well as a stamped word — never colour alone. */
+.uj-ar-row[data-alert]{background:color-mix(in srgb,var(--error) 4%,#fff)}
+@media (hover:hover) and (pointer:fine){
+  .uj-ar-row[data-alert]:hover{background:color-mix(in srgb,var(--error) 7%,#fff)}
+}
+
+.uj-ar-date{font-size:var(--t-sm);color:var(--ink);font-weight:500;line-height:1.3}
+.uj-ar-date em{display:block;font-style:normal;font-size:var(--t-micro);color:var(--muted);font-family:var(--font-mono)}
+
+.uj-ar-who{display:flex;align-items:center;gap:10px;min-width:0}
+.uj-ar-av{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;
+  font-size:var(--t-micro);font-weight:600;color:#fff;letter-spacing:.02em;
+}
+.uj-ar-who .nm{min-width:0}
+.uj-ar-who .nm b{
+  display:block;font-size:var(--t-base);font-weight:500;color:var(--ink);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.uj-ar-who .nm span{
+  display:block;font-size:var(--t-micro);color:var(--muted);line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.uj-ar-t{font-size:var(--t-sm);color:var(--ink);font-weight:500}
+.uj-ar-t[data-nil]{color:var(--muted);font-weight:400}
+.uj-ar-hrs{font-size:var(--t-sm);color:var(--ink);font-weight:500}
+.uj-ar-hrs[data-nil]{color:var(--muted);font-weight:400}
+.uj-ar-hrs[data-short]{color:var(--info)}
+
+.uj-ar-stamp{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:6px;
+  font-size:10.5px;font-weight:600;letter-spacing:.05em;white-space:nowrap;
+  background:var(--hairline-soft);color:var(--muted);
+}
+.uj-ar-stamp i{width:5px;height:5px;border-radius:999px;background:currentColor;flex-shrink:0}
+.uj-ar-stamp[data-t="ontime"]{background:color-mix(in srgb,var(--success) 11%,#fff);color:var(--success-ink)}
+.uj-ar-stamp[data-t="late"]{background:color-mix(in srgb,var(--amber) 15%,#fff);color:var(--amber-ink)}
+.uj-ar-stamp[data-t="absent"]{background:var(--red-tint);color:var(--error-ink)}
+.uj-ar-stamp[data-t="leave"]{background:color-mix(in srgb,var(--leave) 34%,#fff);color:var(--leave-ink)}
+.uj-ar-stamp[data-t="half"]{background:color-mix(in srgb,var(--info) 9%,#fff);color:var(--info)}
+.uj-ar-stamp[data-t="miss"]{background:var(--red-tint);color:var(--error-ink)}
+
+.uj-ar-flags{display:flex;gap:4px;flex-wrap:wrap}
+.uj-ar-flag{
+  padding:2px 7px;border-radius:999px;font-size:10px;font-weight:600;white-space:nowrap;
+  background:var(--hairline-soft);color:var(--muted);
+  border:1px solid transparent;
+}
+.uj-ar-flag[data-t="off"]{background:color-mix(in srgb,var(--info) 9%,#fff);color:var(--info);border-color:color-mix(in srgb,var(--info) 24%,#fff)}
+.uj-ar-flag[data-t="visit"]{background:color-mix(in srgb,var(--info) 9%,#fff);color:var(--info);border-color:color-mix(in srgb,var(--info) 24%,#fff)}
+.uj-ar-flag[data-t="short"]{background:color-mix(in srgb,var(--info) 9%,#fff);color:var(--info);border-color:color-mix(in srgb,var(--info) 24%,#fff)}
+.uj-ar-flag[data-t="early"]{background:color-mix(in srgb,var(--amber) 13%,#fff);color:var(--amber-ink);border-color:color-mix(in srgb,var(--amber) 30%,#fff)}
+.uj-ar-flag[data-t="leave"]{background:color-mix(in srgb,var(--leave) 30%,#fff);color:var(--leave-ink);border-color:color-mix(in srgb,var(--leave) 62%,#fff)}
+.uj-ar-flag[data-t="noloc"]{background:var(--red-tint);color:var(--error-ink);border-color:color-mix(in srgb,var(--error) 22%,#fff)}
+
+/* A mapped chip is a button, so it says so: pin icon, pointer, hover fill. */
+button.uj-ar-flag{
+  display:inline-flex;align-items:center;gap:4px;cursor:pointer;font:inherit;
+  font-size:10px;font-weight:600;line-height:1.4;
+  transition:background .14s var(--ease),transform .14s var(--ease);
+}
+button.uj-ar-flag:hover{background:color-mix(in srgb,var(--info) 20%,#fff)}
+button.uj-ar-flag:active{transform:scale(.96)}
+button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
+
+/* ── person detail drawer ───────────────────────────────────────────────────
+   A drawer, not a page. The ledger stays behind it with its period, filter and
+   scroll position intact, so checking one person does not cost you the view you
+   built to find them. */
+.uj-ar-drawer{
+  position:fixed;top:0;right:0;bottom:0;z-index:115;
+  width:min(468px,100vw);display:flex;flex-direction:column;
+  background:var(--canvas);border-left:1px solid var(--hairline);
+  box-shadow:-14px 0 44px rgba(31,30,26,.12);
+  transition:transform .25s var(--ease-drawer);
+}
+.uj-ar-drawer[hidden]{display:none}
+.uj-ar-drawer[data-enter]{transform:translateX(100%)}
+
+.uj-ar-dr-head{
+  display:flex;align-items:center;gap:12px;padding:16px 18px;
+  background:var(--card);border-bottom:1px solid var(--hairline);flex-shrink:0;
+}
+.uj-ar-dr-head .uj-ar-av{width:40px;height:40px;border-radius:11px;font-size:var(--t-sm)}
+.uj-ar-dr-name{display:block;font-size:var(--t-lg);font-weight:600;color:var(--ink);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.uj-ar-dr-role{display:block;font-size:var(--t-sm);color:var(--muted);line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.uj-ar-dr-close{
+  width:32px;height:32px;border-radius:8px;border:0;background:none;color:var(--muted);
+  cursor:pointer;display:grid;place-items:center;flex-shrink:0;
+  transition:background .14s var(--ease),color .14s var(--ease);
+}
+.uj-ar-dr-close:hover{background:var(--hairline-soft);color:var(--ink)}
+
+.uj-ar-dr-sum{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px 8px;
+  padding:15px 18px;background:var(--shelf);border-bottom:1px solid var(--shelf-line);flex-shrink:0;
+}
+.uj-ar-dr-sum .cap{
+  grid-column:1/-1;font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--body);
+}
+.uj-ar-dr-sum .s{display:flex;flex-direction:column;gap:2px}
+.uj-ar-dr-sum .s b{font:600 var(--t-lg)/1.1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.uj-ar-dr-sum .s span{font-size:var(--t-micro);color:var(--body)}
+.uj-ar-dr-sum .s[data-t="bad"] b{color:var(--error-ink)}
+.uj-ar-dr-sum .s[data-t="warn"] b{color:var(--amber-ink)}
+
+.uj-ar-dr-days{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 14px 28px}
+
+/* The disclosure row this app uses everywhere: a full-width button that opens a
+   panel below it by animating grid-template-rows, so nothing is measured and
+   nothing jumps. */
+.uj-ar-day{background:var(--card);border:1px solid var(--hairline);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.uj-ar-day-btn{
+  display:grid;grid-template-columns:1fr auto auto 16px;align-items:center;gap:10px;
+  width:100%;padding:11px 13px;border:0;background:none;cursor:pointer;text-align:left;
+  transition:background .12s var(--ease);
+}
+.uj-ar-day-btn:hover{background:var(--canvas)}
+.uj-ar-day-btn .d{min-width:0}
+.uj-ar-day-btn .d b{display:block;font-size:var(--t-sm);font-weight:600;color:var(--ink);line-height:1.3}
+.uj-ar-day-btn .d i{
+  display:block;font-style:normal;font-family:var(--font-mono);font-size:var(--t-micro);
+  font-variant-numeric:tabular-nums;color:var(--muted);margin-top:2px;
+}
+.uj-ar-day-btn .hh{font:600 var(--t-sm)/1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.uj-ar-day-btn .hh[data-nil]{color:var(--muted);font-weight:400}
+.uj-ar-day-btn .cv{color:var(--muted-soft);transition:transform .18s var(--ease)}
+.uj-ar-day[data-open] .uj-ar-day-btn .cv{transform:rotate(90deg)}
+.uj-ar-day[data-open]{border-color:var(--muted-soft)}
+
+.uj-ar-day-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s var(--ease)}
+.uj-ar-day[data-open] .uj-ar-day-panel{grid-template-rows:1fr}
+.uj-ar-day-panel>.in{overflow:hidden;min-height:0}
+.uj-ar-day-body{padding:2px 13px 13px;border-top:1px solid var(--hairline-soft)}
+
+.uj-ar-shots{display:flex;gap:10px;margin:12px 0 0}
+.uj-ar-shot{border:0;background:none;padding:0;cursor:pointer;text-align:left;flex:0 0 auto}
+.uj-ar-shot .fr{
+  width:66px;height:66px;border-radius:9px;overflow:hidden;display:block;
+  border:1px solid var(--hairline);
+  transition:border-color .14s var(--ease),transform .14s var(--ease);
+}
+.uj-ar-shot:hover .fr{border-color:var(--muted-soft)}
+.uj-ar-shot:active .fr{transform:scale(.97)}
+.uj-ar-shot .fr svg{width:100%;height:100%;display:block}
+.uj-ar-shot em{
+  display:block;font-style:normal;margin-top:4px;
+  font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+}
+.uj-ar-shot em span{font-family:var(--font-mono);letter-spacing:0;font-weight:600;color:var(--body)}
+
+.uj-ar-note{display:flex;gap:9px;margin-top:11px;font-size:var(--t-sm);line-height:1.5;color:var(--body)}
+.uj-ar-note b{
+  flex-shrink:0;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);padding-top:3px;width:38px;
+}
+.uj-ar-note-empty{margin-top:11px;font-size:var(--t-sm);color:var(--muted);font-style:italic}
+
+.uj-ar-day-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--hairline-soft)}
+.uj-ar-day-acts .uj-ar-btn{height:32px;padding:0 12px;font-size:var(--t-micro)}
+.uj-ar-day-acts .danger{color:var(--red-active);border-color:color-mix(in srgb,var(--error) 30%,#fff)}
+.uj-ar-day-acts .danger:hover{background:var(--red-tint);border-color:var(--red-active)}
+
+.uj-ar-dr-empty{padding:34px 16px;text-align:center;font-size:var(--t-sm);color:var(--muted)}
+
+/* Enlarged selfie */
+.uj-ar-lightbox{
+  position:fixed;inset:0;z-index:140;display:grid;place-items:center;padding:24px;
+  background:rgba(31,30,26,.62);backdrop-filter:blur(3px);
+  transition:opacity .2s var(--ease);
+}
+.uj-ar-lightbox[hidden]{display:none}
+.uj-ar-lightbox[data-enter]{opacity:0}
+.uj-ar-lightbox figure{margin:0;max-width:340px;width:100%}
+.uj-ar-lightbox .fr{border-radius:14px;overflow:hidden;background:var(--card);display:block}
+.uj-ar-lightbox .fr svg{width:100%;height:auto;display:block}
+.uj-ar-lightbox figcaption{margin-top:11px;text-align:center;font-size:var(--t-sm);color:#fff}
+.uj-ar-lightbox figcaption span{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── punch location ─────────────────────────────────────────────────────── */
+.uj-ar-map{
+  position:fixed;z-index:110;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(560px,calc(100vw - 32px));max-height:min(84vh,720px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--card);border-radius:16px;
+  box-shadow:0 24px 70px rgba(31,30,26,.30);
+  transition:opacity .25s var(--ease-drawer),transform .25s var(--ease-drawer);
+}
+.uj-ar-map[hidden]{display:none}
+.uj-ar-map[data-enter]{opacity:0;transform:translate(-50%,-50%) scale(.97)}
+.uj-ar-map-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;
+}
+.uj-ar-map-title{font-size:var(--t-lg);font-weight:600;color:var(--ink);line-height:1.3}
+.uj-ar-map-sub{font-size:var(--t-sm);color:var(--muted);margin-top:2px}
+.uj-ar-map-canvas{background:var(--canvas);flex:1;min-height:0;display:grid;place-items:center;padding:10px}
+.uj-ar-map-canvas svg{width:100%;height:auto;max-height:340px;display:block}
+.uj-ar-map-foot{
+  padding:13px 18px;border-top:1px solid var(--hairline);flex-shrink:0;
+  display:flex;gap:22px;flex-wrap:wrap;align-items:baseline;
+}
+.uj-ar-map-foot .mf{display:flex;flex-direction:column;gap:2px}
+.uj-ar-map-foot .mf b{font:600 var(--t-sm)/1.3 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.uj-ar-map-foot .mf span{font-size:var(--t-micro);color:var(--body)}
+.uj-ar-map-foot .mf[data-t="far"] b{color:var(--error-ink)}
+
+.uj-ar-fix{
+  height:28px;padding:0 10px;border-radius:7px;
+  border:1px solid color-mix(in srgb,var(--error) 32%,#fff);
+  background:var(--card);color:var(--error-ink);
+  font-size:var(--t-micro);font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:background .14s var(--ease),transform .14s var(--ease);
+}
+.uj-ar-fix:hover{background:var(--red-tint)}
+.uj-ar-fix:active{transform:scale(.97)}
+
+.uj-ar-empty{padding:56px 24px;text-align:center}
+.uj-ar-empty svg{color:var(--shelf-line);margin-bottom:12px}
+.uj-ar-empty b{display:block;font-size:var(--t-lg);font-weight:600;color:var(--ink);margin-bottom:5px}
+.uj-ar-empty p{margin:0 auto;max-width:38ch;font-size:var(--t-sm);color:var(--muted);line-height:1.55}
+.uj-ar-empty button{margin-top:16px}
+
+/* ── summary footer ─────────────────────────────────────────────────────── */
+/* Totals sit above the rows and fuse to the table, so the answer to "what am I
+   looking at" arrives before the 476 lines rather than after them. */
+.uj-ar-sum{
+  background:var(--shelf);border:1px solid var(--shelf-line);border-bottom:0;
+  border-radius:12px 12px 0 0;
+  padding:14px 18px;display:flex;align-items:center;gap:26px;flex-wrap:wrap;
+}
+.uj-ar-sum .cap{
+  font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--body);
+}
+.uj-ar-sum .stat{display:flex;flex-direction:column;gap:2px}
+.uj-ar-sum .stat b{
+  font:600 var(--t-lg)/1.1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink);
+}
+.uj-ar-sum .stat span{font-size:var(--t-micro);color:var(--body);letter-spacing:.02em}
+.uj-ar-sum .stat[data-t="absent"] b{color:var(--error-ink)}
+.uj-ar-sum .stat[data-t="late"] b{color:var(--amber-ink)}
+.uj-ar-sum .hours{margin-left:auto;text-align:right}
+.uj-ar-sum .hours b{font-size:var(--t-xl)}
+.uj-ar-sum .lv{
+  flex-basis:100%;display:flex;gap:16px;flex-wrap:wrap;
+  padding-top:11px;margin-top:1px;border-top:1px solid var(--shelf-line);
+  font-size:var(--t-micro);color:var(--body);
+}
+.uj-ar-sum .lv span{display:inline-flex;align-items:baseline;gap:5px}
+.uj-ar-sum .lv i{font-style:normal;font-family:var(--font-mono);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ── fix popover ────────────────────────────────────────────────────────── */
+.uj-ar-pop{
+  position:fixed;z-index:120;width:262px;
+  background:var(--card);border:1px solid var(--hairline);border-radius:12px;
+  box-shadow:0 5px 14px rgba(31,30,26,.13);padding:14px;
+  transform-origin:var(--pop-origin,top right);
+  transition:opacity .16s var(--ease),transform .16s var(--ease);
+}
+.uj-ar-pop[hidden]{display:none}
+.uj-ar-pop[data-enter]{opacity:0;transform:scale(.96)}
+.uj-ar-pop h4{margin:0 0 3px;font-size:var(--t-base);font-weight:600;color:var(--ink)}
+.uj-ar-pop p{margin:0 0 12px;font-size:var(--t-micro);color:var(--muted);line-height:1.45}
+.uj-ar-pop label{display:block;font-size:var(--t-sm);font-weight:600;color:var(--ink);margin-bottom:6px}
+.uj-ar-pop input[type=time]{
+  width:100%;height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:9px;
+  background:var(--card);color:var(--ink);font-family:var(--font-mono);font-size:var(--t-base);outline:none;
+  transition:border-color .14s var(--ease),box-shadow .14s var(--ease);
+}
+.uj-ar-pop input[type=time]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.uj-ar-pop .rng{display:flex;gap:9px}
+.uj-ar-pop .rng span{flex:1;min-width:0}
+.uj-ar-pop .rng input[type=date]{
+  width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:9px;
+  background:var(--card);color:var(--ink);font-family:var(--font-mono);font-size:var(--t-sm);outline:none;
+  transition:border-color .14s var(--ease),box-shadow .14s var(--ease);
+}
+.uj-ar-pop .rng input[type=date]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.uj-ar-pop .rng label{font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.uj-ar-pop .acts{display:flex;gap:8px;margin-top:12px}
+.uj-ar-pop .acts .uj-ar-btn{flex:1;height:34px;justify-content:center}
+/* The other honest answer to a missing clock-out: void the punch entirely. */
+.uj-ar-pop-alt{
+  display:block;width:100%;margin-top:10px;padding-top:10px;
+  border:0;border-top:1px solid var(--hairline-soft);background:none;cursor:pointer;
+  font-size:var(--t-micro);font-weight:600;color:var(--red-active);text-align:center;
+  transition:color .14s var(--ease);
+}
+.uj-ar-pop-alt:hover{color:var(--red)}
+
+/* ── mobile filter sheet ────────────────────────────────────────────────── */
+.uj-ar-scrim{
+  position:fixed;inset:0;z-index:100;background:rgba(31,30,26,.32);
+  backdrop-filter:blur(2px);
+  transition:opacity .25s var(--ease-drawer);
+}
+.uj-ar-scrim[hidden]{display:none}
+.uj-ar-scrim[data-enter]{opacity:0}
+.uj-ar-sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:101;
+  background:var(--card);border-radius:16px 16px 0 0;
+  padding:8px 18px calc(20px + env(safe-area-inset-bottom));
+  max-height:82vh;overflow-y:auto;
+  box-shadow:0 -12px 44px rgba(31,30,26,.16);
+  transition:transform .25s var(--ease-drawer);
+}
+.uj-ar-sheet[hidden]{display:none}
+.uj-ar-sheet[data-enter]{transform:translateY(100%)}
+.uj-ar-grab{width:34px;height:4px;border-radius:999px;background:var(--shelf-line);margin:0 auto 14px}
+.uj-ar-sheet h3{margin:0 0 16px;font-size:var(--t-lg);font-weight:600;color:var(--ink)}
+.uj-ar-sheet .fld{margin-bottom:16px}
+.uj-ar-sheet .fld>label{display:block;font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.uj-ar-sheet .uj-ar-sel,.uj-ar-sheet .uj-ar-search{width:100%;max-width:none;height:44px}
+.uj-ar-sheet .uj-ar-search input{height:44px}
+.uj-ar-sheet .uj-ar-seg{width:100%}
+.uj-ar-sheet .uj-ar-seg button{flex:1}
+.uj-ar-sheet .done{width:100%;height:46px;justify-content:center;margin-top:4px}
+
+.uj-ar-mobile-only{display:none}
+
+/* ── phone ──────────────────────────────────────────────────────────────── */
+@media (max-width:760px){
+  .uj-ar-mobile-only{display:inline-flex}
+  .uj-ar-desktop-only{display:none !important}
+
+  .uj-ar-head{align-items:flex-start}
+  .uj-ar-head h1{font-size:20px}
+  /* The lens track scrolls sideways rather than wrapping into a three-line block
+     that pushes the table below the fold on every load. Export goes full width
+     under it, where a thumb can reach it. */
+  .uj-ar-lensrow{gap:9px}
+  .uj-ar-chips{
+    flex:1 1 100%;overflow-x:auto;scroll-snap-type:x proximity;
+    scrollbar-width:none;
+  }
+  .uj-ar-chips::-webkit-scrollbar{display:none}
+  .uj-ar-chip{flex-shrink:0;scroll-snap-align:start}
+  .uj-ar-export{margin-left:0;flex:1 1 100%;justify-content:center;height:42px}
+
+  .uj-ar-filter{gap:8px}
+  .uj-ar-sortwrap{margin-left:0}
+
+  .uj-ar-tbl{border-radius:12px}
+  .uj-ar-scroll{max-height:none}
+  .uj-ar-thead{display:none}
+
+  /* 8 numeric columns at 390px would either scroll sideways or crush to three
+     characters. The row restructures into a card instead of shrinking. */
+  .uj-ar-cols{
+    grid-template-columns:auto auto 1fr;
+    gap:3px 10px;padding:12px 15px;
+    grid-template-areas:
+      "date  date  status"
+      "who   who   who"
+      "tin   tout  hours"
+      "flags flags flags"
+      "fix   fix   fix";
+  }
+  .uj-ar-ledger[data-gran="day"] .uj-ar-cols{
+    grid-template-columns:auto auto 1fr;
+    grid-template-areas:
+      "who   who   status"
+      "tin   tout  hours"
+      "flags flags flags"
+      "fix   fix   fix";
+  }
+  .uj-ar-ledger[data-gran="day"] .c-who{margin-bottom:7px;align-self:center}
+  .uj-ar-ledger[data-gran="day"] .c-status{align-self:center}
+  .uj-ar-row{min-height:0}
+  .uj-ar-cols .c-date{grid-area:date;margin-bottom:2px}
+  .uj-ar-date em{display:inline;margin-left:5px}
+  .uj-ar-cols .c-who{grid-area:who;margin-bottom:5px}
+  .uj-ar-cols .c-status{grid-area:status;text-align:right;justify-self:end}
+  .uj-ar-cols .c-in{grid-area:tin;text-align:left;position:relative;padding-right:16px}
+  .uj-ar-cols .c-in::after{
+    content:"→";position:absolute;right:2px;color:var(--muted-soft);font-family:var(--font-sans);
+  }
+  .uj-ar-cols .c-out{grid-area:tout;text-align:left}
+  .uj-ar-cols .c-hours{grid-area:hours;text-align:right}
+  .uj-ar-cols .c-flags{grid-area:flags}
+  .uj-ar-cols .c-flags:not(:empty){margin-top:6px}
+  .uj-ar-cols .c-fix{grid-area:fix;justify-self:stretch}
+  .uj-ar-cols .c-fix:not(:empty){margin-top:8px}
+  .uj-ar-fix{width:100%;height:34px}
+
+  /* Flex-wrapping six stats at 356px leaves a ragged, unreadable block. A fixed
+     three-column grid puts every figure on a shared baseline and column edge,
+     and the hours total — the number payroll actually needs — leads instead of
+     trailing off the end of a wrapped row. */
+  .uj-ar-sum{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:15px 10px;align-items:start;padding:15px;
+  }
+  .uj-ar-sum .cap{grid-column:1/-1;order:-2}
+  .uj-ar-sum .hours{
+    grid-column:1/-1;order:-1;text-align:left;margin-left:0;
+    display:flex;align-items:baseline;gap:9px;
+    padding-bottom:14px;border-bottom:1px solid var(--shelf-line);
+  }
+  .uj-ar-sum .hours b{font-size:26px}
+  .uj-ar-sum .lv{grid-column:1/-1;margin-top:0}
+
+  /* The overlays are position:fixed at body level. At 390px they size to the
+     screen rather than to the desktop panel widths set above. */
+  .uj-ar-pop{
+    left:calc(50% - 179px);right:auto;width:358px;
+    bottom:16px;top:auto;transform-origin:bottom center;
+  }
+  .uj-ar-map{width:358px}
+  .uj-ar-drawer{width:100%;max-width:390px;left:auto;right:0}
+  .uj-ar-lightbox figure{max-width:290px}
+  /* Four stat columns crush at 390px; two rows of two read cleanly. */
+  .uj-ar-dr-sum{grid-template-columns:repeat(2,1fr);gap:13px 10px}
+  /* The day row's four parts stack into two lines rather than four squeezed columns. */
+  .uj-ar-day-btn{grid-template-columns:1fr auto 14px;gap:6px 8px}
+  .uj-ar-day-btn .hh{grid-row:1;grid-column:2;justify-self:end}
+  .uj-ar-day-btn .uj-ar-stamp{grid-row:2;grid-column:1;justify-self:start}
+  .uj-ar-day-btn .cv{grid-row:1;grid-column:3}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .uj-ar-sheet[data-enter]{transform:none;opacity:0}
+  .uj-ar-sheet{transition:opacity .2s ease}
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════
    Read-only punch-location map (resources/views/partials/map-view.blade.php).
