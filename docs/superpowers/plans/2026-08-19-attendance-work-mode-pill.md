@@ -854,12 +854,53 @@ seeding with a call that opens the sheet in reason mode when `serverJustify` is 
 Verify by hand: submit an off-site punch with no reason, and confirm the sheet reopens carrying both
 the previous text and the red validation message added in Task 4 Step 4.
 
-- [ ] **Step 6: Run the tests**
+- [ ] **Step 6: Update the screen's guide copy, which now describes a box that is gone**
+
+The `@include('partials.guide', …)` block at the top of the file still tells staff to "Add a remark
+if there is something your manager should know about the day. It is optional." That box was deleted
+in Task 4, and nothing says the pill exists. Replace the `en` and `ms` `body` and `steps` with these
+exact values. Leave the `title` and `who` keys untouched.
+
+`en.body`:
+
+```
+Pick your working mode, then clock in when you start and clock out when you finish. A selfie is required every time and the camera opens on its own. Your GPS is checked against where you are meant to be that day, which is your office, your client site, or your home. On a site visit you say where you are going instead, and there is no off-site flag. Clocking in late or out early still needs a reason.
+```
+
+`en.steps`, in order:
+
+```php
+            'The banner shows where you are expected today and your hours.',
+            'Pick your working mode first. Leave it on "Office / Home" for an ordinary day, or tap "Site visit" if you are going to a customer.',
+            'Tap "Clock in" and allow location. The camera opens to take your selfie, which is required for every clock in and clock out, no exceptions.',
+            'On a site visit the same window asks where you are going. Say the place, for example "Customer ABC, Shah Alam".',
+            'If you are late, off-site, or your device cannot find your location, that window asks for a reason instead. Your manager sees it with the punch.',
+            'Clock out when you finish, with another selfie. Leaving before your end time needs a reason too.',
+```
+
+`ms.body`:
+
+```
+Pilih mod kerja anda, kemudian clock in bila mula dan clock out bila habis. Selfie diperlukan setiap kali dan kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu, iaitu pejabat, lokasi klien, atau rumah. Untuk lawatan tapak anda nyatakan ke mana anda pergi, dan tiada tanda luar lokasi. Clock in lewat atau clock out awal tetap perlu sebab.
+```
+
+`ms.steps`, in order:
+
+```php
+            'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
+            'Pilih mod kerja anda dahulu. Biarkan pada "Pejabat / Rumah" untuk hari biasa, atau tekan "Lawatan tapak" jika anda ke tempat pelanggan.',
+            'Tekan "Clock in" dan benarkan lokasi. Kamera terbuka untuk ambil selfie anda, yang diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
+            'Untuk lawatan tapak, tetingkap yang sama bertanya ke mana anda pergi. Nyatakan tempatnya, contohnya "Customer ABC, Shah Alam".',
+            'Jika anda lewat, di luar lokasi, atau peranti anda tidak dapat mencari lokasi, tetingkap itu meminta sebab. Pengurus anda melihatnya bersama rekod.',
+            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat perlu sebab juga.',
+```
+
+- [ ] **Step 7: Run the tests**
 
 Run: `lerd artisan test --compact tests/Feature/AttendanceScreenTest.php`
 Expected: PASS.
 
-- [ ] **Step 7: Build and verify in the browser**
+- [ ] **Step 8: Build and verify in the browser**
 
 ```bash
 lerd artisan view:cache
@@ -869,7 +910,7 @@ bun run build
 Pick Site visit, tap Clock in, and confirm the sheet says "Site visit" with the destination box, and
 never the words "off-site" or "flagged". Switch the language toggle and confirm the BM copy.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add resources/views/screens/attendance.blade.php tests/Feature/AttendanceScreenTest.php public/build
