@@ -543,6 +543,29 @@ class ClockServiceTest extends TestCase
         $this->assertSame('Customer ABC, Shah Alam', $record->clock_in_justification);
     }
 
+    public function test_a_site_visit_with_no_gps_fix_still_costs_a_reason_and_the_no_location_flag(): void
+    {
+        $now = Carbon::parse('2026-07-02 08:55:00');
+        $svc = $this->service($this->office());
+
+        $this->assertSame(
+            'needs_justification',
+            $svc->clockIn($this->employee, null, null, null, null, $now, 'site_visit')['status']
+        );
+
+        $res = $svc->clockIn(
+            $this->employee, null, null, 'Customer ABC, Shah Alam', 'attendance-photos/a.jpg', $now, 'site_visit'
+        );
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('site_visit', $record->work_mode);
+        $this->assertNull($record->in_radius);
+        $this->assertContains('site_visit_in', $record->flags);
+        $this->assertContains('no_location', $record->flags);
+        $this->assertSame('Customer ABC, Shah Alam', $record->clock_in_justification);
+    }
+
     public function test_a_site_visit_with_no_destination_is_refused(): void
     {
         $now = Carbon::parse('2026-07-02 08:55:00');

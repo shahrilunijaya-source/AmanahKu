@@ -118,6 +118,10 @@
               // day declared a site visit this morning is still declared at clock-out, and
               // still switchable for someone who ended up somewhere else.
               workMode: @js(old('work_mode', $today?->work_mode === 'site_visit' && ! $co ? 'site_visit' : 'office_home')),
+              // Whether the open record already declared a site visit at clock-in — mirrors
+              // ClockService::clockOut()'s $newlyDeclared. Only a mode that was NOT already
+              // declared this morning owes a destination again at clock-out.
+              declaredIn: {{ $today?->work_mode === 'site_visit' ? 'true' : 'false' }},
               reason: @js(old('justification', '')),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
@@ -152,8 +156,11 @@
                   // The server refused the last punch for a missing reason (needs_justification).
                   // The drawer that used to reopen for this is gone, the sheet is now the only
                   // place a reason lives, so it has to reopen itself or the refusal is invisible.
+                  // The flash does not say which gate fired (off-site, late, early, short
+                  // hours…), so guessing 'off_site' here was confidently wrong for the other
+                  // three — the neutral 'reason_needed' heading is honest about what is known.
                   if (this.serverJustify) {
-                      this.openPunchSheet(null, null, true, this.workMode === 'site_visit' ? 'site_visit' : 'off_site');
+                      this.openPunchSheet(null, null, true, this.workMode === 'site_visit' ? 'site_visit' : 'reason_needed');
                   }
                   this.tick();
                   setInterval(() => this.tick(), 1000);
@@ -296,12 +303,18 @@
                   // reason is still only for off-site, unlocatable, late-in or early-out — in
                   // that priority, matching the order ClockService itself checks them in.
                   // A declared site visit owes a destination, and outranks 'off_site' because
-                  // the fence is no longer what is being asked about. It does NOT outrank
-                  // 'no_location', which mirrors ClockService's own gate order: an unlocatable
-                  // punch is reported as unlocatable whatever the employee declared.
+                  // the fence is no longer what is being asked about (ClockService skips the
+                  // off-site gate entirely whenever workMode is site_visit). It does NOT
+                  // outrank 'no_location', which mirrors ClockService's own gate order: an
+                  // unlocatable punch is reported as unlocatable whatever the employee
+                  // declared. A clock-out that already declared the visit this morning
+                  // (declaredIn) owes nothing new — mirrors $newlyDeclared in
+                  // ClockService::clockOut(), which only a clock-in or a mode switch pays.
                   let reasonKind = noFix
                       ? 'no_location'
-                      : (this.workMode === 'site_visit' ? 'site_visit' : (offSite ? 'off_site' : null));
+                      : (this.workMode === 'site_visit'
+                          ? ((this.action === 'in' || ! this.declaredIn) ? 'site_visit' : null)
+                          : (offSite ? 'off_site' : null));
                   if (! reasonKind && this.action === 'out' && this.earlyNow()) { reasonKind = 'early'; }
                   if (! reasonKind && this.action === 'in' && this.lateNow()) { reasonKind = 'late'; }
                   const needReason = reasonKind !== null;
@@ -530,6 +543,9 @@
                       late: 'Late clock in',
                       early: 'Early clock out',
                       site_visit: 'Site visit',
+                      // The refusal flash does not say which gate fired, so this heading stays
+                      // neutral rather than guessing — see openPunchSheet's caller in init().
+                      reason_needed: 'Reason needed',
                   };
                   const ms = {
                       off_site: out ? 'Clock out luar lokasi' : 'Clock in luar lokasi',
@@ -537,6 +553,7 @@
                       late: 'Clock in lewat',
                       early: 'Clock out awal',
                       site_visit: 'Lawatan tapak',
+                      reason_needed: 'Sebab diperlukan',
                   };
                   const fallback = lang === 'en'
                       ? (out ? 'Clock out selfie' : 'Clock in selfie')
@@ -545,36 +562,46 @@
               },
               /** Why a reason is needed too — shown only when sheetReasonNeed is true. */
               sheetWhy(lang) {
+                  const out = this.action === 'out';
                   const en = {
                       off_site: 'You appear to be outside the expected location, so this punch needs a reason and a selfie. Your manager sees it flagged.',
                       no_location: 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.',
                       late: 'You are clocking in after your shift started, so this punch needs a reason. Your manager sees it flagged.',
                       early: 'You are clocking out before your shift ends, so this punch needs a reason. Your manager sees it flagged.',
-                      site_visit: 'Tell your manager where you are going. Your selfie and location are still recorded.',
+                      site_visit: out
+                          ? 'Tell your manager where you were. Your selfie and location are still recorded.'
+                          : 'Tell your manager where you are going. Your selfie and location are still recorded.',
+                      reason_needed: 'This punch needs a reason and a selfie before it can be sent. Your manager sees it flagged.',
                   };
                   const ms = {
                       off_site: 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       no_location: 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       late: 'Anda clock in selepas shift bermula, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
                       early: 'Anda clock out sebelum shift tamat, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
-                      site_visit: 'Beritahu pengurus anda ke mana anda pergi. Selfie dan lokasi anda tetap direkodkan.',
+                      site_visit: out
+                          ? 'Beritahu pengurus anda di mana anda berada tadi. Selfie dan lokasi anda tetap direkodkan.'
+                          : 'Beritahu pengurus anda ke mana anda pergi. Selfie dan lokasi anda tetap direkodkan.',
+                      reason_needed: 'Rekod ini perlu sebab dan selfie sebelum boleh dihantar. Pengurus anda nampak ia ditanda.',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
               sheetReasonLabel(lang) {
+                  const out = this.action === 'out';
                   const en = {
                       off_site: 'Why are you outside the expected location?',
                       no_location: 'Why are you clocking without location?',
                       late: 'Why are you clocking in late?',
                       early: 'Why are you clocking out early?',
-                      site_visit: 'Where are you going?',
+                      site_visit: out ? 'Where were you?' : 'Where are you going?',
+                      reason_needed: 'What is the reason?',
                   };
                   const ms = {
                       off_site: 'Kenapa anda di luar lokasi yang dijangka?',
                       no_location: 'Kenapa anda clock tanpa lokasi?',
                       late: 'Kenapa anda clock in lewat?',
                       early: 'Kenapa anda clock out awal?',
-                      site_visit: 'Ke mana anda pergi?',
+                      site_visit: out ? 'Di mana anda tadi?' : 'Ke mana anda pergi?',
+                      reason_needed: 'Apakah sebabnya?',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -585,6 +612,7 @@
                       late: 'e.g. Traffic jam on the way in',
                       early: 'e.g. Site visit ended early',
                       site_visit: 'e.g. Customer ABC, Shah Alam',
+                      reason_needed: 'e.g. Client meeting ran late',
                   };
                   const ms = {
                       off_site: 'cth. Mesyuarat klien di HQ, diluluskan pengurus',
@@ -592,6 +620,7 @@
                       late: 'cth. Kesesakan jalan raya',
                       early: 'cth. Lawatan tapak tamat awal',
                       site_visit: 'cth. Customer ABC, Shah Alam',
+                      reason_needed: 'cth. Mesyuarat klien lambat tamat',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -679,9 +708,23 @@
                   this.capture(() => this.sendSheet());
               },
               sendSheet() {
-                  this.submitting = true;
                   const fix = this.sheetFix ?? { lat: null, lng: null };
+                  // Read before closeCam(), which blanks sheetReasonKind on its way out — read
+                  // after, this would always see null and never recognise the deliberate
+                  // no-location punch below.
+                  const reasonKind = this.sheetReasonKind;
                   this.closeCam();
+                  // A sheet reopened after a server refusal carries no fix of its own. Only a
+                  // deliberate no-location punch may post without coordinates; anything else
+                  // has to go and get one, or a punch sent back merely for a reason comes back
+                  // stamped no_location with its real GPS thrown away. submit() sets
+                  // `submitting` itself and guards on it being false, so it is not set here
+                  // first — doing so would make submit()'s own guard silently no-op it.
+                  if (fix.lat === null && reasonKind !== 'no_location') {
+                      this.submit();
+                      return;
+                  }
+                  this.submitting = true;
                   this.proceed(fix.lat, fix.lng);
               },
               capture(after = null) {

@@ -15,7 +15,7 @@ use Carbon\CarbonInterface;
  * their work arrangement:
  *   - office  → their branch geofence + office hours
  *   - client  → their assigned client site (resident engineers) + the client's hours
- *   - wfh     → their registered home + company hours
+ *   - wfh     → no geofence, company-wide WFH hours
  *   - hybrid  → branch on configured office weekdays, home on the rest
  */
 class ScheduleResolver

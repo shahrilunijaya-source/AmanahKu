@@ -320,4 +320,31 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertStringContainsString('open-map-view', $html);
         $this->assertStringContainsString('3.2', $html);
     }
+
+    public function test_a_site_visit_with_no_coordinates_shows_the_badge_and_destination_but_no_map(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14',
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'latitude' => null,
+            'longitude' => null,
+            'in_radius' => null,
+            'work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'flags' => ['site_visit_in', 'no_location'],
+        ]);
+
+        $html = $this->actAsHr()
+            ->get('/app/attendance-report?'.http_build_query(['emp' => $this->hrEmployee->id]))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('Site visit', $html);
+        $this->assertStringContainsString('Customer ABC, Shah Alam', $html);
+        // No coordinates means no usable point for the map — the gate in the blade checks
+        // $r->latitude !== null before adding to $locPoints, so the control must not render.
+        $this->assertStringNotContainsString('open-map-view', $html);
+    }
 }

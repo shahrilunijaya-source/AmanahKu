@@ -11,9 +11,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Clock-in / clock-out business rules: geofence checks against the expected site,
- * punctuality (late / early / short hours), home auto-registration, and justification
- * enforcement for out-of-radius or early exits. A selfie is mandatory for every punch.
- * Persists the attendance record.
+ * punctuality (late / early / short hours), and justification enforcement for
+ * out-of-radius or early exits. A selfie is mandatory for every punch. Persists the
+ * attendance record.
  */
 class ClockService
 {
