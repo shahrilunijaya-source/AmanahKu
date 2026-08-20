@@ -37,12 +37,6 @@ parameters:
 			path: app/Attendance/ScheduleResolver.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>wfh_radius_m" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Attendance/ScheduleResolver.php
-
-		-
 			message: '#^Cannot call method isSameMonth\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
