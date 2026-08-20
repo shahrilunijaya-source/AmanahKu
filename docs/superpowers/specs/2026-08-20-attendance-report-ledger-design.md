@@ -299,7 +299,18 @@ Three deliberate departures, all mechanically verified in the browser:
   the date maths stays in `ReportPeriod` rather than being reimplemented in
   Alpine in one language.
 - **The mock's own fake map is gone.** The row chip and the drawer both dispatch
-  `open-map-view` to the existing `partials/map-view.blade.php`.
+  `open-map-view` to the existing `partials/map-view.blade.php` — real OSM tiles
+  instead of the mock's drawn SVG. That partial gains the mock's readout under
+  the map: the coordinates of each punch, how far each is from the site the
+  person was expected at, and that site's geofence radius, with a distance
+  outside the fence marked. Every figure is computed server-side — the browser
+  is never asked to work out a distance somebody may later have to explain — and
+  all of it is stripped for a viewer without `canSeeLocation`, since a distance
+  is the coordinates one step removed.
+
+  `LedgerBuilder` resolves the assigned site through `ScheduleResolver` only for
+  rows that carry a point, memoised per employee and weekday. Nine off-site
+  punches must not cost seven hundred site lookups.
 
 ## Out of scope
 

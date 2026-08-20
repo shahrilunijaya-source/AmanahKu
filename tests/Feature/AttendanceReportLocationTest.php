@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\AttendanceReportController;
 use App\Models\AttendanceRecord;
+use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -232,5 +233,57 @@ class AttendanceReportLocationTest extends TestCase
             ->assertSee('Off Site Staff', false)
             ->assertDontSee('open-map-view', false)
             ->assertDontSee('101.7', false);
+    }
+
+    /** @return array<string, mixed> The subject's row for the off-site day. */
+    private function offSiteDay(Employee $subject, string $role): ?array
+    {
+        $person = $this->openDrillAs($role, $subject)->assertOk()->viewData('person');
+
+        return $person === null ? null : $person['days']->firstWhere('date', '2026-07-14');
+    }
+
+    private function fencedBranch(): Branch
+    {
+        return Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Head Office', 'state' => 'WP',
+            'latitude' => 3.1390, 'longitude' => 101.6869, 'radius_m' => 150,
+        ]);
+    }
+
+    public function test_the_map_carries_the_distance_and_the_fence_it_cleared(): void
+    {
+        // A pin alone says "somewhere near here". Whether that is a problem depends on
+        // how far it is and how wide the fence was, so both travel with the point.
+        $subject = $this->subject();
+        $subject->update(['branch_id' => $this->fencedBranch()->id, 'work_arrangement' => 'office']);
+        $this->offSiteRecord($subject);
+
+        $day = $this->offSiteDay($subject, 'hr');
+
+        $this->assertSame(['name' => 'Head Office', 'radiusM' => 150, 'hasGeofence' => true], $day['site']);
+        // ~4.3km east-north-east of the office. Delta rather than an exact figure:
+        // the claim is that it is measured and far outside the fence, not haversine's
+        // last metre.
+        $this->assertEqualsWithDelta(4300, $day['points'][0]['awayM'], 200);
+        $this->assertGreaterThan($day['site']['radiusM'], $day['points'][0]['awayM']);
+    }
+
+    public function test_a_viewer_without_the_role_gets_no_distance_either(): void
+    {
+        // The distance and the site are derived from the coordinates, so handing them
+        // over would leak the location this viewer may not see, one step removed.
+        $subject = $this->subject();
+        $subject->update([
+            'branch_id' => $this->fencedBranch()->id,
+            'work_arrangement' => 'office',
+            'reports_to_id' => $this->viewer->id,
+        ]);
+        $this->offSiteRecord($subject);
+
+        $day = $this->offSiteDay($subject, 'employee');
+
+        $this->assertSame([], $day['points']);
+        $this->assertNull($day['site']);
     }
 }

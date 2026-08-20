@@ -127,7 +127,8 @@
                                     <button type="button" class="uj-ar-btn" x-data
                                             @click="window.dispatchEvent(new CustomEvent('open-map-view', { detail: {
                                                 title: @js($person['name'].' · '.$at->format('D, j M')),
-                                                points: @js($day['points'])
+                                                points: @js($day['points']),
+                                                site: @js($day['site'])
                                             } }))">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
                                         <span x-text="$store.ui.lang==='en' ? 'View location' : 'Lihat lokasi'">View location</span>

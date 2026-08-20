@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Attendance\LedgerBuilder;
 use App\Models\AttendanceRecord;
+use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -152,10 +153,47 @@ class AttendanceLedgerRowsTest extends TestCase
         $this->assertContains('off', $row['flags']);
         $this->assertTrue($row['hasPoint']);
         $this->assertSame(
-            [['lat' => 3.1368, 'lng' => 101.6546, 'labelEn' => 'Clocked in 09:00', 'labelMs' => 'Clock in 09:00']],
+            [[
+                'lat' => 3.1368, 'lng' => 101.6546,
+                'labelEn' => 'Clocked in 09:00', 'labelMs' => 'Clock in 09:00',
+                // No branch geofence in this fixture, so there is nothing to measure
+                // against and no distance is invented.
+                'awayM' => null,
+            ]],
             $row['points'],
             'the row carries the point, because the off-site chip IS the map control'
         );
+    }
+
+    public function test_an_off_site_punch_measures_how_far_it_was_from_the_geofence(): void
+    {
+        $branch = Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'HQ', 'state' => 'WP',
+            'latitude' => 3.1390, 'longitude' => 101.6869, 'radius_m' => 200,
+        ]);
+        $this->alice->update(['branch_id' => $branch->id, 'work_arrangement' => 'office']);
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id,
+            'date' => '2026-08-18', 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
+            'status' => 'on_time', 'worked_minutes' => 540,
+            'flags' => ['out_of_radius_in'], 'latitude' => 3.1368, 'longitude' => 101.6546,
+        ]);
+
+        $row = $this->build()->firstWhere('date', '2026-08-18');
+
+        // ~3.6km west of HQ. The exact figure is haversine's; assert the order of
+        // magnitude and that it is well outside the 200m fence.
+        $this->assertGreaterThan($row['site']['radiusM'], $row['points'][0]['awayM']);
+        $this->assertEqualsWithDelta(3620, $row['points'][0]['awayM'], 120);
+        $this->assertSame(['name' => 'HQ', 'radiusM' => 200, 'hasGeofence' => true], $row['site']);
+    }
+
+    public function test_a_row_with_no_point_resolves_no_site(): void
+    {
+        // Resolving a site costs a query. Nine off-site punches must not make the
+        // builder resolve one for all 700-odd rows.
+        $this->assertNull($this->build()->firstWhere('date', '2026-08-17')['site']);
     }
 
     public function test_an_hr_typed_clock_out_is_marked_on_the_row(): void

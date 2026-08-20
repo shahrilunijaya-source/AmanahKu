@@ -117,7 +117,7 @@ class AttendanceReportController extends Controller
         // being rendered and hidden. Seeing where a colleague physically stood is a step
         // beyond reading that they were off-site.
         if (! $canSeeLocation) {
-            $scoped = $scoped->map(fn (array $row) => ['points' => [], 'hasPoint' => false] + $row);
+            $scoped = $scoped->map(fn (array $row) => ['points' => [], 'hasPoint' => false, 'site' => null] + $row);
         }
 
         $rows = $this->sort(LedgerTotals::applyLens($scoped, $lens), $sort);

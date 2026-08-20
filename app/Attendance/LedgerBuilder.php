@@ -7,6 +7,7 @@ namespace App\Attendance;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Support\Geo;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -21,6 +22,17 @@ use Illuminate\Support\Str;
  */
 final class LedgerBuilder
 {
+    public function __construct(private readonly ScheduleResolver $schedule) {}
+
+    /**
+     * Assigned site per employee-and-weekday, so an off-site punch can say what it was
+     * off-site FROM. Memoised because resolve() queries the branch or client site, and
+     * a hybrid employee's answer changes with the weekday but nothing else.
+     *
+     * @var array<string, SiteSpec>
+     */
+    private array $siteCache = [];
+
     /** A worked span under this reads as a half day rather than a short full day. */
     private const HALF_DAY_MINUTES = 300;
 
@@ -104,6 +116,7 @@ final class LedgerBuilder
             'recordId' => $r?->id,
             'points' => [],
             'hasPoint' => false,
+            'site' => null,
         ];
 
         if ($r === null || $r->clock_in === null) {
@@ -130,7 +143,7 @@ final class LedgerBuilder
             default => 'ontime',
         };
 
-        $points = $this->points($r);
+        $points = $this->points($r, $emp, $date);
 
         return array_merge($base, [
             'in' => $this->hhmm($r->clock_in),
@@ -140,6 +153,9 @@ final class LedgerBuilder
             'flags' => $this->flags($r),
             'points' => $points,
             'hasPoint' => $points !== [],
+            // Only resolved when there is a point to measure — an off-site punch is rare,
+            // and resolving a site for all 700-odd rows to answer nine of them is waste.
+            'site' => $points === [] ? null : $this->site($emp, $date),
         ]);
     }
 
@@ -173,9 +189,9 @@ final class LedgerBuilder
      * an out_of_radius_* flag already implies a usable point; the null-checks guard
      * hand-edited rows, not the normal path.
      *
-     * @return list<array{lat: float, lng: float, labelEn: string, labelMs: string}>
+     * @return list<array{lat: float, lng: float, labelEn: string, labelMs: string, awayM: int|null}>
      */
-    private function points(AttendanceRecord $r): array
+    private function points(AttendanceRecord $r, Employee $emp, string $date): array
     {
         $points = [];
 
@@ -187,6 +203,7 @@ final class LedgerBuilder
                 'lng' => (float) $r->longitude,
                 'labelEn' => 'Clocked in '.$at,
                 'labelMs' => 'Clock in '.$at,
+                'awayM' => $this->awayFrom($emp, $date, (float) $r->latitude, (float) $r->longitude),
             ];
         }
 
@@ -198,10 +215,51 @@ final class LedgerBuilder
                 'lng' => (float) $r->clock_out_longitude,
                 'labelEn' => 'Clocked out '.$at,
                 'labelMs' => 'Clock out '.$at,
+                'awayM' => $this->awayFrom($emp, $date, (float) $r->clock_out_latitude, (float) $r->clock_out_longitude),
             ];
         }
 
         return $points;
+    }
+
+    /**
+     * The site this person was expected to clock from, as name and geofence radius —
+     * what an off-site distance is measured against.
+     *
+     * @return array{name: string, radiusM: int, hasGeofence: bool}
+     */
+    private function site(Employee $emp, string $date): array
+    {
+        $spec = $this->resolveSite($emp, $date);
+
+        return ['name' => $spec->label, 'radiusM' => $spec->radiusM, 'hasGeofence' => $spec->hasGeofence()];
+    }
+
+    private function resolveSite(Employee $emp, string $date): SiteSpec
+    {
+        $at = CarbonImmutable::parse($date);
+        // A hybrid employee's site changes with the weekday and nothing else, so that
+        // is the whole cache key.
+        $key = $emp->id.':'.$at->isoWeekday();
+
+        return $this->siteCache[$key] ??= $this->schedule->resolve($emp, $at);
+    }
+
+    /**
+     * Metres between a punch and the site it should have come from, or null when that
+     * site has no geofence to measure against. A work-from-home day has no coordinates,
+     * and a distance invented from nothing would be a fabricated number in a record
+     * somebody may be asked to explain.
+     */
+    private function awayFrom(Employee $emp, string $date, float $lat, float $lng): ?int
+    {
+        $spec = $this->resolveSite($emp, $date);
+
+        if (! $spec->hasGeofence()) {
+            return null;
+        }
+
+        return (int) round(Geo::distanceMeters($lat, $lng, (float) $spec->latitude, (float) $spec->longitude));
     }
 
     private function flagged(AttendanceRecord $r, string $flag): bool

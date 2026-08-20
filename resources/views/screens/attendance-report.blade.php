@@ -391,7 +391,8 @@
                                 <button type="button" class="uj-ar-flag" data-t="{{ $flag }}" x-data
                                         @click="window.dispatchEvent(new CustomEvent('open-map-view', { detail: {
                                             title: @js($row['name'].' · '.$dateEn),
-                                            points: @js($row['points'])
+                                            points: @js($row['points']),
+                                            site: @js($row['site'])
                                         } }))">
                                     <span x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>

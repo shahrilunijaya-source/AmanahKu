@@ -29,7 +29,16 @@ async function loadLeaflet() {
  * punched, so read-only is structural rather than a setting that can be flipped.
  *
  * A row opens it by firing a window `open-map-view` event:
- *   detail: { title: 'Ravi Kumar · Tue, 12 Aug', points: [{ lat, lng, labelEn, labelMs }] }
+ *   detail: {
+ *     title: 'Ravi Kumar · Tue, 12 Aug',
+ *     points: [{ lat, lng, labelEn, labelMs, awayM }],
+ *     site: { name, radiusM, hasGeofence },   // optional
+ *   }
+ *
+ * `awayM` and `site` drive the readout under the map: where the punch was, how far
+ * that is from the site the person was expected at, and the fence it cleared. All
+ * three are computed server-side — the browser is never asked to work out a distance
+ * somebody may later have to explain.
  *
  * Point labels carry both languages rather than one baked string, since the
  * tooltip is genuine user-facing text and must follow the EN/BM toggle like
@@ -41,6 +50,7 @@ export function registerMapView(Alpine) {
         open: false,
         title: '',
         points: [],
+        site: null,
         map: null,
         markers: [],
 
@@ -63,11 +73,12 @@ export function registerMapView(Alpine) {
             this.map = null;
         },
 
-        async show({ title = '', points = [] }) {
+        async show({ title = '', points = [], site = null }) {
             if (!points.length) return;
 
             this.title = title;
             this.points = points;
+            this.site = site;
             await loadLeaflet();
             this.open = true;
             this.$nextTick(() => this.render());
@@ -112,6 +123,16 @@ export function registerMapView(Alpine) {
 
             // The modal was display:none until now, so Leaflet sized to 0×0.
             this.map.invalidateSize();
+        },
+
+        /** 5 decimal places is about a metre — past that the GPS fix is not that good. */
+        coords(p) {
+            return `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+        },
+
+        /** True when this punch cleared the fence, so the figure can be marked. */
+        beyondFence(p) {
+            return this.site?.radiusM != null && p.awayM != null && p.awayM > this.site.radiusM;
         },
 
         labelFor(p) {
