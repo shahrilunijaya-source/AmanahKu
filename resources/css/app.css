@@ -1725,8 +1725,15 @@ select.wd-inline {
 
 .uj-ar-month{
   display:inline-flex;align-items:center;background:var(--card);
-  border:1px solid var(--hairline);border-radius:9px;height:38px;overflow:hidden;
+  border:1px solid var(--hairline);border-radius:9px;height:38px;
 }
+/* NOT overflow:hidden. The pill only clipped to round its end children's square
+   corners, and it clipped the custom-range popover along with them — a 204px
+   panel inside a 38px box, laid out correctly and painted nowhere. Round the two
+   ends directly instead, and the panel can leave. */
+.uj-ar-month > :first-child{border-radius:8px 0 0 8px}
+.uj-ar-month > :last-child,
+.uj-ar-month .custom{border-radius:0 8px 8px 0}
 .uj-ar-month .nav,.uj-ar-month button{
   width:34px;height:100%;border:0;background:none;cursor:pointer;color:var(--muted);
   display:grid;place-items:center;transition:background .14s var(--ease),color .14s var(--ease);
