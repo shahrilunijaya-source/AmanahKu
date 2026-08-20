@@ -4,442 +4,285 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Attendance\LedgerBuilder;
+use App\Attendance\LedgerTotals;
+use App\Attendance\ReportPeriod;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Services\DataScope;
 use App\Support\Permissions;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
- * Read-only attendance analytics for management / HR: roster view of active staff.
+ * Read-only attendance ledger for management / HR: one row per active employee
+ * per working day, whether they clocked or not.
  */
 class AttendanceReportController extends Controller
 {
-    /** Selectable periods → [days back, trend granularity]. */
-    private const PERIODS = [
-        'week' => 7,
-        'month' => 30,
-        'quarter' => 90,
-    ];
-
     /**
-     * Reversing a punch from the drill-down is a step above the rest of this (already
-     * management/HR-gated) report: 'management' is left out on purpose — only HR, a
-     * director (board tier), or a super-admin observer may undo one. Mirrors
-     * AttendanceAdminController::REVERSE_ROLES, which owns the actual reversePunch() action.
+     * Reversing a punch is a step above the rest of this (already management/HR-gated)
+     * report: 'management' is left out on purpose — only HR, a director (board tier), or
+     * a super-admin observer may undo one. Mirrors AttendanceAdminController::REVERSE_ROLES,
+     * which owns the actual reversePunch() action.
      */
     private const REVERSE_ROLES = ['hr', 'director'];
 
     /**
      * Seeing where a colleague physically stood is a step beyond reading that they
-     * were off-site, so it does not inherit this screen's own gate. canSeeAll() also
-     * admits an `employee`-role user who merely has a direct report on the org chart;
-     * that route keeps the badge and the typed reason but not the coordinates. Built
-     * from Permissions::OVERSIGHT_ROLES (the same roles canSeeAll() admits) so the two
-     * can't drift apart; 'director' is redundant here (effectiveRole() already maps it
-     * to 'management') but named explicitly anyway, matching REVERSE_ROLES above.
+     * were off-site, so it does not inherit this screen's own gate. Built from
+     * Permissions::OVERSIGHT_ROLES so the two can't drift apart; 'director' is
+     * redundant (effectiveRole() maps it to 'management') but named anyway, matching
+     * REVERSE_ROLES above.
      */
     private const LOCATION_ROLES = [...Permissions::OVERSIGHT_ROLES, 'director'];
 
-    /**
-     * BM day and month names for the summary dialog's day pills. Carbon ships no
-     * bundled BM locale here; mirrors the hand-map MessageController::shortStamp
-     * already keeps local for the same reason (see that file's own comment).
-     *
-     * @var array<int, string>
-     */
-    private const MS_DAYS_SHORT = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+    /** The exception chips above the table. Anything else means "show everything". */
+    private const LENSES = ['miss', 'absent', 'short', 'late'];
 
-    /** @var array<int, string> */
-    private const MS_MONTHS_SHORT = [1 => 'Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+    /** The caption the totals block wears, keyed by ReportPeriod::captionKey(). */
+    private const CAPTIONS = [
+        'month' => ['en' => 'Month to date', 'ms' => 'Bulan setakat ini'],
+        'week' => ['en' => 'This week', 'ms' => 'Minggu ini'],
+        'day' => ['en' => 'Today', 'ms' => 'Hari ini'],
+        'custom' => ['en' => 'Selected range', 'ms' => 'Julat dipilih'],
+    ];
 
+    /** @return array<string, mixed> */
     public function screenData(Request $request): array
     {
-        $period = array_key_exists($request->query('period'), self::PERIODS) ? $request->query('period') : 'week';
-        $daysBack = self::PERIODS[$period];
-        $end = now()->startOfDay();
-        $start = $end->copy()->subDays($daysBack - 1);
+        $today = CarbonImmutable::now()->startOfDay();
+        $period = ReportPeriod::fromRequest($request->query(), $today);
 
         $dept = $request->query('dept') ?: null;
-        $empId = $request->filled('emp') ? (int) $request->query('emp') : null;
+        $q = trim((string) $request->query('q', ''));
+        $sort = $request->query('sort') === 'person' ? 'person' : 'date';
+        $lens = in_array($request->query('lens'), self::LENSES, true) ? $request->query('lens') : null;
 
-        // Data scope: a branch/department-restricted manager only sees their own slice
-        // of the company's attendance (AK-AUTHZ-01). null = 'company' scope, no limit.
+        // A branch/department-restricted manager only sees their own slice (AK-AUTHZ-01).
+        // null = 'company' scope, no limit.
         $scope = $request->attributes->get('tenantScope', 'company');
         $self = $request->attributes->get('employee');
         $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $self);
 
-        // A drill-through to a staff member outside the viewer's scope is refused.
-        if ($empId !== null && $visibleIds !== null && ! in_array($empId, $visibleIds, true)) {
-            $empId = null;
-        }
-
-        // Active employee set for the roster.
+        // active() only clears the archive, so 'resigned' still needs excluding by hand.
         $employees = Employee::active()
-            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
-            ->when($dept, fn ($q) => $q->whereHas('department', fn ($d) => $d->where('name', $dept)))
+            ->when($visibleIds !== null, fn ($b) => $b->whereIn('id', $visibleIds))
+            ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
+            ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))
             ->where('status', '!=', 'resigned')
             ->with(['department:id,name'])
             ->get();
 
+        $employeeIds = $employees->pluck('id')->all();
+        $from = $period->from->toDateString();
+        $to = $period->to->toDateString();
+
+        // Half-open upper bound, never `<= $to`: sqlite stores a date cast with a
+        // 00:00:00 time part, so '2026-07-14 00:00:00' sorts AFTER '2026-07-14' and a
+        // plain BETWEEN silently drops every record on the window's last day. Same
+        // reasoning as AttendanceRecord::scopeOnDate().
+        $dayAfter = $period->to->addDay()->toDateString();
+
         // Tenant scope is automatic (BelongsToTenant).
         $records = AttendanceRecord::query()
-            ->with(['employee:id,name,initials,avatar_color,department_id,branch_id', 'employee.department:id,name', 'employee.branch:id,name'])
-            ->whereHas('employee', fn ($q) => $q->active())
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->when($visibleIds !== null, fn ($q) => $q->whereIn('employee_id', $visibleIds))
-            ->when($dept, fn ($q) => $q->whereHas('employee.department', fn ($d) => $d->where('name', $dept)))
+            ->whereIn('employee_id', $employeeIds)
+            ->where('date', '>=', $from)
+            ->where('date', '<', $dayAfter)
             ->orderBy('date')
-            ->get()
-            ->filter(fn ($r) => $r->employee !== null) // orphan guard
-            ->values();
+            ->get();
 
-        // Approved leave requests for the window.
         $leaveRequests = LeaveRequest::query()
             ->where('status', 'approved')
-            ->where('date_from', '<=', $end->toDateString())
-            ->where('date_to', '>=', $start->toDateString())
-            ->when($visibleIds !== null, fn ($q) => $q->whereIn('employee_id', $visibleIds))
-            ->get(['employee_id', 'date_from', 'date_to']);
+            ->whereIn('employee_id', $employeeIds)
+            ->where('date_from', '<', $dayAfter)
+            ->where('date_to', '>=', $from)
+            ->with('leaveType:id,name')
+            ->get();
 
-        // Build working-day list: Mon-Fri plus any date in window on which any visible employee has a record.
-        $recordDates = $records->pluck('date')
-            ->map(fn ($d) => is_string($d) ? $d : Carbon::parse($d)->toDateString())
-            ->unique()
-            ->toArray();
+        $workingDays = $period->workingDays(
+            $records->map(fn ($r) => $r->date->toDateString())->unique()->values()->all()
+        );
 
-        $days = [];
-        $cursor = $start->copy();
-        while ($cursor->lte($end)) {
-            $dateStr = $cursor->toDateString();
-            if ($cursor->isWeekday() || in_array($dateStr, $recordDates, true)) {
-                $days[] = $dateStr;
-            }
-            $cursor->addDay();
-        }
+        $scoped = app(LedgerBuilder::class)
+            ->build($employees, $records, $leaveRequests, $workingDays, $today);
 
-        // Determine strip unit and cell labels for day vs week mode
-        $stripUnit = $period === 'quarter' ? 'week' : 'day';
-        $weekBuckets = [];
-        if ($period === 'quarter') {
-            foreach ($days as $idx => $dateStr) {
-                $wStart = Carbon::parse($dateStr)->startOfWeek(Carbon::MONDAY)->toDateString();
-                $weekBuckets[$wStart][] = $idx;
-            }
-            $cells = array_keys($weekBuckets);
-        } else {
-            $cells = $days;
-        }
+        $rows = $this->sort(LedgerTotals::applyLens($scoped, $lens), $sort);
 
-        // Map records and leave requests for O(1) lookup
-        $recordsMap = [];
-        foreach ($records as $r) {
-            $recordsMap[$r->employee_id][$r->date->toDateString()] = $r;
-        }
-
-        $leaveMap = [];
-        foreach ($leaveRequests as $l) {
-            $dFrom = $l->date_from->toDateString();
-            $dTo = $l->date_to->toDateString();
-            $leaveMap[$l->employee_id][] = ['from' => $dFrom, 'to' => $dTo];
-        }
-
-        // Build roster rows
-        $todayStr = $end->toDateString();
-        $rosterUnsorted = $employees->map(function (Employee $emp) use ($days, $recordsMap, $leaveMap, $period, $weekBuckets, $todayStr) {
-            // lateDates/absentDates come from the same branches that build $strip, so the
-            // summary dialog can never disagree with the roster's own cells. shortHoursDates
-            // is unconditional per day: it's a clock-OUT flag (ClockService::isShort), so a
-            // day can be short AND on-time ('o') at once — it doesn't correspond to a strip
-            // character the way late/absent do.
-            $strip = '';
-            $lateDates = [];
-            $absentDates = [];
-            $shortHoursDates = [];
-            foreach ($days as $dateStr) {
-                $r = $recordsMap[$emp->id][$dateStr] ?? null;
-                if ($r !== null && $this->hasAnyFlag($r, ['out_of_radius_in', 'out_of_radius_out'])) {
-                    $strip .= 'x';
-                } elseif ($r !== null && $r->status === 'late') {
-                    $strip .= 'l';
-                    $lateDates[] = $dateStr;
-                } elseif ($r !== null && $r->clock_in !== null) {
-                    $strip .= 'o';
-                } else {
-                    $isCoveredByLeave = false;
-                    if (isset($leaveMap[$emp->id])) {
-                        foreach ($leaveMap[$emp->id] as $l) {
-                            if ($dateStr >= $l['from'] && $dateStr <= $l['to']) {
-                                $isCoveredByLeave = true;
-                                break;
-                            }
-                        }
-                    }
-                    // 'a' (absent, red) for a past day with no punch; 'p' (pending, grey) only
-                    // for today, so a not-yet-clocked-in employee isn't flagged red mid-morning.
-                    if ($isCoveredByLeave) {
-                        $strip .= 'v';
-                    } elseif ($dateStr === $todayStr) {
-                        $strip .= 'p';
-                    } else {
-                        $strip .= 'a';
-                        $absentDates[] = $dateStr;
-                    }
-                }
-
-                if ($r !== null && $this->hasAnyFlag($r, ['short_hours'])) {
-                    $shortHoursDates[] = $dateStr;
-                }
-            }
-
-            $onTime = substr_count($strip, 'o');
-            $late = substr_count($strip, 'l');
-            $offsite = substr_count($strip, 'x');
-            $clocked = $onTime + $late + $offsite;
-            $leaveDays = substr_count($strip, 'v');
-
-            $denom = $clocked;
-            $pct = $denom > 0 ? (int) round(($onTime + $offsite) / $denom * 100) : null;
-
-            $lastSeen = null;
-            $gapDays = null;
-            $daysCount = count($days);
-            for ($i = $daysCount - 1; $i >= 0; $i--) {
-                $c = $strip[$i];
-                if ($c !== 'a' && $c !== 'p' && $c !== 'v') {
-                    $lastSeen = $days[$i];
-                    $gapDays = ($daysCount - 1) - $i;
-                    break;
-                }
-            }
-
-            $never = ($clocked === 0 && $leaveDays === 0);
-            $stopped = ($clocked > 0 && preg_match('/[ap]{5,}$/', $strip) === 1);
-            $onLeave = ($leaveDays > 0);
-
-            // Fold daily strip into weekly cells for quarter period
-            if ($period === 'quarter') {
-                $todayIndex = $daysCount - 1;
-                $displayStrip = '';
-                foreach ($weekBuckets as $dayIndices) {
-                    $wOnTime = 0;
-                    $wLate = 0;
-                    $wOffsite = 0;
-                    $wLeave = 0;
-                    foreach ($dayIndices as $idx) {
-                        $c = $strip[$idx];
-                        if ($c === 'o') {
-                            $wOnTime++;
-                        } elseif ($c === 'l') {
-                            $wLate++;
-                        } elseif ($c === 'x') {
-                            $wOffsite++;
-                        } elseif ($c === 'v') {
-                            $wLeave++;
-                        }
-                    }
-                    $wClocked = $wOnTime + $wLate + $wOffsite;
-                    if ($wClocked > 0) {
-                        $wPct = (int) round(($wOnTime + $wOffsite) / $wClocked * 100);
-                        $displayStrip .= $wPct >= 90 ? 'o' : ($wPct >= 75 ? 'l' : 'x');
-                    } elseif ($wLeave > 0) {
-                        $displayStrip .= 'v';
-                    } else {
-                        // This week's bucket includes today and nobody in it has clocked yet →
-                        // pending (grey), not absent (red); every other empty week is past due.
-                        $displayStrip .= in_array($todayIndex, $dayIndices, true) ? 'p' : 'a';
-                    }
-                }
-                $rowStrip = $displayStrip;
-            } else {
-                $rowStrip = $strip;
-            }
-
-            return [
-                'id' => $emp->id,
-                'name' => $emp->display_name,
-                'initials' => $emp->initials,
-                'color' => $emp->avatar_color,
-                'dept' => $emp->department?->name,
-                'strip' => $rowStrip,
-                'clocked' => $clocked,
-                'onTime' => $onTime,
-                'late' => $late,
-                'offsite' => $offsite,
-                'leaveDays' => $leaveDays,
-                'pct' => $pct,
-                'lastSeen' => $lastSeen,
-                'gapDays' => $gapDays,
-                'never' => $never,
-                'stopped' => $stopped,
-                'onLeave' => $onLeave,
-                'lateDates' => $lateDates,
-                'absentDates' => $absentDates,
-                'shortHoursDates' => $shortHoursDates,
-            ];
-        });
-
-        // Sort roster
-        $roster = $rosterUnsorted->sort(function (array $a, array $b): int {
-            // Approved leave is not a problem, so a person whose whole absence is
-            // explained by leave sorts below everyone, not above the worst
-            // attender. Someone who took two days' leave and worked the rest is an
-            // ordinary row and sorts on punctuality like anyone else.
-            $tier = fn (array $r): int => $r['never'] ? 0
-                : ($r['stopped'] ? 1 : (($r['onLeave'] && $r['clocked'] === 0) ? 3 : 2));
-
-            $tierA = $tier($a);
-            $tierB = $tier($b);
-
-            if ($tierA !== $tierB) {
-                return $tierA <=> $tierB;
-            }
-
-            $pctA = $a['pct'];
-            $pctB = $b['pct'];
-
-            if ($pctA !== $pctB) {
-                if ($pctA === null) {
-                    return 1;
-                }
-                if ($pctB === null) {
-                    return -1;
-                }
-
-                return $pctA <=> $pctB;
-            }
-
-            if ($a['late'] !== $b['late']) {
-                return $b['late'] <=> $a['late'];
-            }
-
-            return $a['id'] <=> $b['id'];
-        })->values();
-
-        // ── Summary buckets (the "View summary" dialog) ──
-        // A person is listed from their FIRST offending day: no hidden threshold, so the
-        // names here are exactly the amber / red cells visible on the roster. A rule like
-        // "2+ days" would quietly drop someone whose red cell is right there on screen.
-        //
-        // Off-site ('x') days are deliberately not counted as late. The strip resolves
-        // off-site ahead of late, and the row's own `late` figure counts the same way, so
-        // both numbers on this screen stay consistent with each other.
-        // Each pill carries both languages, like every other string on this screen.
-        $dayLabel = function (string $date) use ($period): array {
-            $at = Carbon::parse($date);
-
-            return $period === 'week'
-                // Mon–Fri each appear once in a 7-day window.
-                ? ['en' => $at->format('D'), 'ms' => self::MS_DAYS_SHORT[$at->dayOfWeek]]
-                // 30/90 days: a weekday name would be ambiguous, so use a date instead.
-                : ['en' => $at->format('j M'), 'ms' => $at->day.' '.self::MS_MONTHS_SHORT[(int) $at->month]];
-        };
-
-        $rosterRows = $roster->all();
-
-        $summary = [
-            'absent' => $this->bucket($rosterRows, 'absentDates', $dayLabel),
-            'late' => $this->bucket($rosterRows, 'lateDates', $dayLabel),
-            'short' => $this->bucket($rosterRows, 'shortHoursDates', $dayLabel),
-        ];
-
-        // Totals
-        $headcount = $roster->count();
-        $reported = $roster->where('clocked', '>', 0)->count();
-        $onLeaveCount = $roster->where('onLeave', true)->count();
-        $neverCount = $roster->where('never', true)->count();
-        $stoppedCount = $roster->where('stopped', true)->count();
-
-        $bucketClocking = $roster->filter(fn ($r) => $r['clocked'] > 0 && ! $r['stopped'])->count();
-        $bucketStopped = $roster->filter(fn ($r) => $r['clocked'] > 0 && $r['stopped'])->count();
-        $bucketOnLeave = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] > 0)->count();
-        $bucketNever = $roster->filter(fn ($r) => $r['clocked'] === 0 && $r['leaveDays'] === 0)->count();
-
-        $clockedDaysSum = (int) $roster->sum('clocked');
-        $lateDaysSum = (int) $roster->sum('late');
-        $totalsPct = $clockedDaysSum > 0 ? (int) round(($clockedDaysSum - $lateDaysSum) / $clockedDaysSum * 100) : 0;
-
-        $totals = [
-            'headcount' => $headcount,
-            'reported' => $reported,
-            'onLeave' => $onLeaveCount,
-            'never' => $neverCount,
-            'stopped' => $stoppedCount,
-            'bucketClocking' => $bucketClocking,
-            'bucketStopped' => $bucketStopped,
-            'bucketOnLeave' => $bucketOnLeave,
-            'bucketNever' => $bucketNever,
-            'clockedDays' => $clockedDaysSum,
-            'lateDays' => $lateDaysSum,
-            'pct' => $totalsPct,
-        ];
-
-        $drill = $empId ? $records->firstWhere('employee_id', $empId)?->employee : null;
-        if ($empId && ! $drill) {
-            // active() so a crafted ?emp=<archived> can't open an archived person's detail.
-            $drill = Employee::active()->with(['department:id,name', 'branch:id,name'])->find($empId);
-        }
-        $drillRecords = $empId
-            ? $records->where('employee_id', $empId)->sortByDesc('date')->values()
-            : collect();
+        $canSeeLocation = (bool) $request->user()?->isSuperAdmin()
+            || $this->hasTenantRole($request, self::LOCATION_ROLES);
 
         return [
-            'period' => $period,
-            'periods' => array_keys(self::PERIODS),
-            'rangeLabel' => $start->format('j M').' – '.$end->format('j M Y'),
+            'gran' => $period->gran,
+            'from' => $from,
+            'to' => $to,
+            'label' => ['en' => $period->label('en'), 'ms' => $period->label('ms')],
+            'rangeLabel' => ['en' => $period->rangeLabel('en'), 'ms' => $period->rangeLabel('ms')],
+            'captionKey' => $period->captionKey(),
+            'canPrev' => $period->canPrev,
+            'canNext' => $period->canNext,
+            'offset' => $period->offset,
+            'workingDays' => $workingDays,
+
             'dept' => $dept,
             'departments' => Department::orderBy('name')->pluck('name'),
-            'days' => $days,
-            'stripUnit' => $stripUnit,
-            'cells' => $cells,
-            'roster' => $roster,
-            'summary' => $summary,
-            'totals' => $totals,
-            'drill' => $drill,
-            'drillRecords' => $drillRecords,
-            'canReversePunch' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::REVERSE_ROLES),
-            'canSeeLocation' => (bool) $request->user()?->isSuperAdmin() || $this->hasTenantRole($request, self::LOCATION_ROLES),
-        ];
-    }
+            'q' => $q,
+            'sort' => $sort,
+            'lens' => $lens,
 
-    /** @param list<string> $flags */
-    private function hasAnyFlag(AttendanceRecord $r, array $flags): bool
-    {
-        return count(array_intersect($flags, $r->flags ?? [])) > 0;
+            'rows' => $rows,
+            'counts' => LedgerTotals::counts($scoped),
+            'totals' => LedgerTotals::of($scoped) + ['caption' => $this->caption($period)],
+
+            'person' => $this->person($request, $scoped, $records, $visibleIds, $canSeeLocation),
+            'canReversePunch' => (bool) $request->user()?->isSuperAdmin()
+                || $this->hasTenantRole($request, self::REVERSE_ROLES),
+            'canSeeLocation' => $canSeeLocation,
+        ];
     }
 
     /**
-     * The filter/sort run on a plain array rather than a typed Collection: Collection's
-     * TValue is invariant, and this row shape is wide enough (20 keys) that Larastan's
-     * template resolution rejects an identically-printed shape at each of the three call
-     * sites — a known class of false positive (see the phpstan.org covariance write-up
-     * linked in the CI failure). The Blade view calls ->count() on the result, so the
-     * return value still needs to be a Collection; leaving its @return generic
-     * undeclared (rather than spelling out the array shape again) is what keeps that
-     * same invariance check from firing a second time on the way out.
+     * The caption names the period it actually totals. A past week or day gets its
+     * own dates rather than "This week", which would be a lie about which week.
      *
-     * @param  array<int, array{id: int, name: string, initials: string|null, color: string, lateDates: list<string>, absentDates: list<string>, shortHoursDates: list<string>}>  $roster
-     * @param  'lateDates'|'absentDates'|'shortHoursDates'  $key
-     * @param  \Closure(string): array{en: string, ms: string}  $dayLabel
+     * @return array{en: string, ms: string}
      */
-    private function bucket(array $roster, string $key, \Closure $dayLabel): Collection
+    private function caption(ReportPeriod $period): array
     {
-        $rows = array_values(array_filter($roster, fn (array $r) => $r[$key] !== []));
+        $key = $period->captionKey();
 
-        // Worst first, matching the roster's own ordering. PHP sorts are stable, so ties
-        // keep the roster's sequence rather than reshuffling.
-        usort($rows, fn (array $a, array $b) => count($b[$key]) <=> count($a[$key]));
+        if (isset(self::CAPTIONS[$key])) {
+            return self::CAPTIONS[$key];
+        }
 
-        return collect($rows)->map(fn (array $r) => [
-            'id' => $r['id'],
-            'name' => $r['name'],
-            'initials' => $r['initials'],
-            'color' => $r['color'],
-            'days' => array_map($dayLabel, $r[$key]),
-        ]);
+        return $key === 'dayPast'
+            ? ['en' => $period->label('en'), 'ms' => $period->label('ms')]
+            : ['en' => 'Week '.$period->label('en'), 'ms' => 'Minggu '.$period->label('ms')];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function sort(Collection $rows, string $sort): Collection
+    {
+        return $rows->sort(function (array $a, array $b) use ($sort): int {
+            if ($sort === 'person') {
+                return [$a['name'], $a['date']] <=> [$b['name'], $b['date']];
+            }
+
+            // Newest first, then alphabetical inside the day.
+            return [$b['date'], $a['name']] <=> [$a['date'], $b['name']];
+        })->values();
+    }
+
+    /**
+     * The drawer's payload. Returns null when ?emp= is absent, archived, or outside
+     * the viewer's data scope — a crafted id must not open somebody else's month.
+     *
+     * @param  Collection<int, array<string, mixed>>  $scoped
+     * @param  Collection<int, AttendanceRecord>  $records
+     * @param  list<int>|null  $visibleIds
+     * @return array<string, mixed>|null
+     */
+    private function person(
+        Request $request,
+        Collection $scoped,
+        Collection $records,
+        ?array $visibleIds,
+        bool $canSeeLocation,
+    ): ?array {
+        if (! $request->filled('emp')) {
+            return null;
+        }
+
+        $id = (int) $request->query('emp');
+        if ($visibleIds !== null && ! in_array($id, $visibleIds, true)) {
+            return null;
+        }
+
+        // active() so a crafted ?emp=<archived> can't open an archived person's detail.
+        $employee = Employee::active()->with('department:id,name')->find($id);
+        if ($employee === null) {
+            return null;
+        }
+
+        $byDate = $records->where('employee_id', $id)->keyBy(fn ($r) => $r->date->toDateString());
+
+        // The table row is the shape everything else on this screen already agrees on;
+        // the drawer just needs the parts a one-line row has no room for.
+        $days = $scoped->where('employeeId', $id)
+            ->sortByDesc('date')
+            ->map(function (array $row) use ($byDate, $canSeeLocation): array {
+                $r = $byDate->get($row['date']);
+
+                return $row + [
+                    'noteIn' => $r?->clock_in_justification,
+                    'noteOut' => $r?->clock_out_justification,
+                    'photoIn' => $r?->photo_url,
+                    'photoOut' => $r?->clock_out_photo_url,
+                    'points' => $canSeeLocation && $r !== null ? $this->points($r) : [],
+                ];
+            })
+            ->values();
+
+        // ?day= deep-links a single day open, so the Fix button on a ledger row and
+        // a plain click on the person both land on the same screen.
+        $openDay = $request->query('day');
+        $openDay = is_string($openDay) && $days->contains('date', $openDay) ? $openDay : null;
+
+        return [
+            'id' => $employee->id,
+            'name' => $employee->display_name,
+            'initials' => $employee->initials,
+            'color' => $employee->avatar_color,
+            'dept' => $employee->department?->name,
+            'days' => $days,
+            'openDay' => $openDay,
+        ];
+    }
+
+    /**
+     * The map points for one record, in the shape partials/map-view.blade.php consumes.
+     *
+     * Only punches that were actually off-site or a declared site visit. within()
+     * returns null (never false) when coordinates or the site geofence are missing, so
+     * an out_of_radius_* flag already implies a usable point; the null-checks guard
+     * hand-edited rows, not the normal path.
+     *
+     * @return list<array{lat: float, lng: float, labelEn: string, labelMs: string}>
+     */
+    private function points(AttendanceRecord $r): array
+    {
+        $flags = $r->flags ?? [];
+        $points = [];
+
+        if ((in_array('out_of_radius_in', $flags, true) || $r->work_mode === 'site_visit')
+            && $r->latitude !== null && $r->longitude !== null) {
+            $at = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '';
+            $points[] = [
+                'lat' => (float) $r->latitude,
+                'lng' => (float) $r->longitude,
+                'labelEn' => 'Clocked in '.$at,
+                'labelMs' => 'Clock in '.$at,
+            ];
+        }
+
+        if ((in_array('out_of_radius_out', $flags, true) || $r->clock_out_work_mode === 'site_visit')
+            && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
+            $at = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '';
+            $points[] = [
+                'lat' => (float) $r->clock_out_latitude,
+                'lng' => (float) $r->clock_out_longitude,
+                'labelEn' => 'Clocked out '.$at,
+                'labelMs' => 'Clock out '.$at,
+            ];
+        }
+
+        return $points;
     }
 }

@@ -18,12 +18,12 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * The "View summary" dialog on the attendance report: who was absent / late, and on
- * which day.
+ * The exception chips above the ledger: how many rows are a missing clock-out, a
+ * no-punch, a short day or a late arrival.
  *
- * Frozen at Wed 15 Jul 2026, so the default 'week' window (7 days back, inclusive)
- * spans Thu 9 Jul – Wed 15 Jul. Sat 11 and Sun 12 drop out as weekend, leaving five
- * working days: Thu, Fri, Mon, Tue, Wed(today).
+ * Frozen at Wed 15 Jul 2026, so 'week' spans Mon 13 – Wed 15 Jul. A test that cares
+ * about one specific day uses a one-day custom range instead, so an unrelated
+ * unclocked weekday elsewhere in the window cannot move the number under test.
  */
 class AttendanceReportSummaryTest extends TestCase
 {
@@ -61,269 +61,158 @@ class AttendanceReportSummaryTest extends TestCase
         ]);
     }
 
-    private function getScreenData(array $queryParams = []): array
+    /**
+     * @param  array<string, string>  $query
+     * @return array<string, mixed>
+     */
+    private function screenData(array $query = []): array
     {
-        $request = Request::create('/app/attendance-report', 'GET', $queryParams);
+        $request = Request::create('/app/attendance-report', 'GET', $query);
         $request->attributes->set('tenantScope', 'company');
+        $request->attributes->set('tenantRole', 'hr');
         $request->attributes->set('employee', $this->viewer);
 
         return app(AttendanceReportController::class)->screenData($request);
     }
 
-    private function staff(string $name): Employee
+    /**
+     * @param  array<string, string>  $query
+     * @return array<string, int>
+     */
+    private function counts(array $query = []): array
     {
-        return Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => $name,
-            'status' => 'active',
-            'workload' => 'green',
+        return $this->screenData($query)['counts'];
+    }
+
+    /** A window of exactly one day, so nothing else in the week can move the count. */
+    private function onlyDay(string $date): array
+    {
+        return ['gran' => 'custom', 'from' => $date, 'to' => $date];
+    }
+
+    /** @param list<string> $flags */
+    private function record(string $date, string $in, ?string $out, string $status = 'on_time', ?int $minutes = 480, array $flags = []): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->viewer->id,
+            'date' => $date, 'clock_in' => $in, 'clock_out' => $out,
+            'status' => $status, 'worked_minutes' => $out === null ? null : $minutes,
+            'flags' => $flags,
         ]);
     }
 
-    private function punch(Employee $emp, string $date, string $status = 'on_time', array $attributes = []): void
+    public function test_a_missed_day_is_counted_in_the_no_punch_lens(): void
     {
-        AttendanceRecord::create(array_merge([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $emp->id,
-            'date' => $date,
-            'status' => $status,
-            'clock_in' => $status === 'late' ? '09:30:00' : '08:00:00',
-        ], $attributes));
+        // No threshold: one unclocked past day is one no-punch row, no more and no less.
+        $this->assertSame(1, $this->counts($this->onlyDay('2026-07-14'))['absent']);
     }
 
-    /** Clock in on every working day of the window except the ones named. */
-    private function punchAllExcept(Employee $emp, array $skip, string $status = 'on_time'): void
+    public function test_multiple_missed_days_are_all_counted(): void
     {
-        foreach (['2026-07-09', '2026-07-10', '2026-07-13', '2026-07-14'] as $date) {
-            if (! in_array($date, $skip, true)) {
-                $this->punch($emp, $date, $status);
-            }
-        }
+        // Mon 13 and Tue 14 are past and unclocked; Wed 15 is today and still pending.
+        $this->assertSame(2, $this->counts(['gran' => 'week'])['absent']);
     }
 
-    private function bucketRow(array $data, string $bucket, int $employeeId): ?array
+    public function test_late_days_are_counted_in_the_late_lens(): void
     {
-        return collect($data['summary'][$bucket])->firstWhere('id', $employeeId);
+        $this->record('2026-07-14', '09:41:00', '18:00:00', status: 'late');
+
+        $this->assertSame(1, $this->counts(['gran' => 'week'])['late']);
     }
 
-    /**
-     * The rule that decides the whole feature: there is no "2+ days" threshold. One
-     * missed day puts you on the list, named with the single day you missed — so the
-     * dialog always agrees with the red cells already visible on the roster.
-     */
-    public function test_a_single_missed_day_still_lists_the_person_with_that_day(): void
+    public function test_today_without_a_punch_is_not_counted_as_absent(): void
     {
-        $emp = $this->staff('One Day Missed');
-        $this->punchAllExcept($emp, ['2026-07-14']); // Tue missing
-
-        $row = $this->bucketRow($this->getScreenData(), 'absent', $emp->id);
-
-        $this->assertNotNull($row, 'One missed day must still list the person.');
-        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $row['days']);
+        // 'pending', not 'absent' — nobody is absent for a day that has not ended.
+        $this->assertSame(0, $this->counts(['gran' => 'day'])['absent']);
     }
 
-    public function test_multiple_missed_days_are_all_named(): void
+    public function test_approved_leave_is_not_counted_as_absent(): void
     {
-        $emp = $this->staff('Two Days Missed');
-        $this->punchAllExcept($emp, ['2026-07-10', '2026-07-14']); // Fri + Tue
-
-        $row = $this->bucketRow($this->getScreenData(), 'absent', $emp->id);
-
-        $this->assertNotNull($row);
-        $this->assertSame(
-            [['en' => 'Fri', 'ms' => 'Jum'], ['en' => 'Tue', 'ms' => 'Sel']],
-            $row['days'],
-            'Days are listed oldest first, matching the strip.'
-        );
-    }
-
-    public function test_late_days_are_named_in_the_late_bucket(): void
-    {
-        $emp = $this->staff('Late Once');
-        $this->punchAllExcept($emp, ['2026-07-14']);
-        $this->punch($emp, '2026-07-14', 'late');
-
-        $data = $this->getScreenData();
-
-        $late = $this->bucketRow($data, 'late', $emp->id);
-        $this->assertNotNull($late);
-        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $late['days']);
-
-        $this->assertNull(
-            $this->bucketRow($data, 'absent', $emp->id),
-            'Clocking in late is not an absence — they were there.'
-        );
-    }
-
-    /**
-     * Today is still in progress. Someone who has not clocked in by mid-morning is
-     * 'pending' on the strip, not absent, and must not be named in the dialog either.
-     */
-    public function test_today_without_a_punch_is_not_reported_as_absent(): void
-    {
-        $emp = $this->staff('Not In Yet Today');
-        $this->punchAllExcept($emp, []); // every past working day covered; today (Wed) left open
-
-        $this->assertNull($this->bucketRow($this->getScreenData(), 'absent', $emp->id));
-    }
-
-    public function test_approved_leave_is_not_reported_as_absent(): void
-    {
-        $leaveType = LeaveType::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Annual Leave',
-            'entitlement' => 14,
+        $type = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Annual Leave', 'entitlement' => 14,
         ]);
-
-        $emp = $this->staff('On Leave');
-        $this->punchAllExcept($emp, ['2026-07-14']);
-
         LeaveRequest::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $emp->id,
-            'leave_type_id' => $leaveType->id,
-            'date_from' => '2026-07-14',
-            'date_to' => '2026-07-14',
-            'days' => 1,
-            'status' => 'approved',
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->viewer->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-07-13',
+            'date_to' => '2026-07-15', 'days' => 3, 'status' => 'approved',
         ]);
 
-        $this->assertNull($this->bucketRow($this->getScreenData(), 'absent', $emp->id));
+        $this->assertSame(0, $this->counts(['gran' => 'week'])['absent']);
     }
 
-    /**
-     * The strip resolves off-site ahead of late, and the roster row's own `late` count
-     * follows that same precedence. The dialog must not use a different rule, or the
-     * two numbers on one screen would contradict each other.
-     */
     public function test_an_off_site_day_is_not_counted_as_late(): void
     {
-        $emp = $this->staff('Off Site');
-        $this->punchAllExcept($emp, ['2026-07-14']);
-        $this->punch($emp, '2026-07-14', 'late', ['flags' => ['late', 'out_of_radius_in']]);
+        $this->record('2026-07-14', '08:50:00', '18:00:00', flags: ['out_of_radius_in']);
 
-        $data = $this->getScreenData();
-
-        $this->assertNull($this->bucketRow($data, 'late', $emp->id));
-
-        $rosterRow = collect($data['roster'])->firstWhere('id', $emp->id);
-        $this->assertSame(0, $rosterRow['late'], 'Dialog and roster must agree on what "late" means.');
+        $this->assertSame(0, $this->counts($this->onlyDay('2026-07-14'))['late']);
     }
 
-    /**
-     * A weekday name only reads unambiguously inside a 7-day window. Over 30 or 90 days
-     * "Tue" could be any of a dozen Tuesdays, so the label becomes a date.
-     */
-    public function test_longer_periods_label_days_as_dates_not_weekday_names(): void
+    public function test_the_caption_names_the_period_it_totals(): void
     {
-        $emp = $this->staff('Missed Long Ago');
-        $this->punch($emp, '2026-07-13');
-
-        $row = $this->bucketRow($this->getScreenData(['period' => 'month']), 'absent', $emp->id);
-
-        $this->assertNotNull($row);
-        $enDays = array_column($row['days'], 'en');
-        $this->assertContains('1 Jul', $enDays);
-        $this->assertNotContains('Wed', $enDays);
+        // A block labelled "this week" over a past week's figures is worse than no label.
+        $this->assertSame(
+            'This week',
+            $this->screenData(['gran' => 'week'])['totals']['caption']['en']
+        );
+        $this->assertSame(
+            'Week 6 – 10 Jul',
+            $this->screenData(['gran' => 'week', 'offset' => '-1'])['totals']['caption']['en']
+        );
     }
 
-    public function test_a_fully_present_person_is_in_neither_bucket(): void
+    public function test_a_fully_present_person_is_in_no_lens(): void
     {
-        $emp = $this->staff('Perfect Attendance');
-        $this->punchAllExcept($emp, []);
-        $this->punch($emp, '2026-07-15');
+        $this->record('2026-07-13', '08:50:00', '18:00:00');
+        $this->record('2026-07-14', '08:50:00', '18:00:00');
 
-        $data = $this->getScreenData();
+        $counts = $this->counts(['gran' => 'week']);
 
-        $this->assertNull($this->bucketRow($data, 'absent', $emp->id));
-        $this->assertNull($this->bucketRow($data, 'late', $emp->id));
+        $this->assertSame(0, $counts['absent']);
+        $this->assertSame(0, $counts['late']);
+        $this->assertSame(0, $counts['short']);
+        $this->assertSame(0, $counts['miss']);
     }
 
-    /** The headline number on each tile is just the size of its list. */
-    public function test_tile_counts_equal_the_number_of_people_listed(): void
+    public function test_lens_counts_equal_the_rows_that_lens_returns(): void
     {
-        $a = $this->staff('Absent A');
-        $this->punchAllExcept($a, ['2026-07-14']);
+        $this->record('2026-07-14', '09:41:00', '18:00:00', status: 'late');
 
-        $b = $this->staff('Absent B');
-        $this->punchAllExcept($b, ['2026-07-09']);
+        $counts = $this->counts(['gran' => 'week']);
+        $rows = $this->screenData(['gran' => 'week', 'lens' => 'late'])['rows'];
 
-        $c = $this->staff('Late C');
-        $this->punchAllExcept($c, ['2026-07-13']);
-        $this->punch($c, '2026-07-13', 'late');
-
-        $data = $this->getScreenData();
-
-        // Intersected against our own ids, not a raw bucket count: setUp's own $this->viewer
-        // never punches in this test either, so it lands in the 'absent' bucket too — a raw
-        // assertCount() on the whole bucket would be coupled to that incidental noise. This
-        // still catches a duplicate-entry bug, which a bare assertTrue(contains()) could not.
-        $absentIds = collect($data['summary']['absent'])->pluck('id');
-        $this->assertTrue($absentIds->contains($a->id));
-        $this->assertTrue($absentIds->contains($b->id));
-        $this->assertCount(2, $absentIds->intersect([$a->id, $b->id]), 'Each person listed exactly once.');
-
-        $lateIds = collect($data['summary']['late'])->pluck('id');
-        $this->assertTrue($lateIds->contains($c->id));
-        $this->assertCount(1, $lateIds->intersect([$c->id]), 'Listed exactly once.');
+        $this->assertSame($counts['late'], $rows->count(),
+            'a chip that says 1 and a table that shows 3 is a bug the user sees');
     }
 
-    /**
-     * Short hours is a clock-OUT flag, not a strip state — ClockService raises it when
-     * worked minutes fall under the site's minimum. It therefore has to be read from the
-     * record's own flags rather than the day strip, which is what the other two buckets use.
-     */
-    public function test_short_hours_days_are_named_in_the_short_bucket(): void
+    public function test_short_hours_days_are_counted_in_the_short_lens(): void
     {
-        $emp = $this->staff('Left Early');
-        $this->punchAllExcept($emp, ['2026-07-14']);
-        $this->punch($emp, '2026-07-14', 'on_time', [
-            'clock_out' => '13:00:00',
-            'worked_minutes' => 240,
-            'expected_min_hours' => 8,
-            'flags' => ['short_hours'],
-        ]);
+        $this->record('2026-07-14', '09:00:00', '13:00:00', minutes: 240, flags: ['short_hours']);
 
-        $row = $this->bucketRow($this->getScreenData(), 'short', $emp->id);
-
-        $this->assertNotNull($row, 'A short-hours day must list the person.');
-        $this->assertSame([['en' => 'Tue', 'ms' => 'Sel']], $row['days']);
+        $this->assertSame(1, $this->counts(['gran' => 'week'])['short']);
     }
 
-    /**
-     * The distinguishing property of this bucket: the person arrived on time, so their
-     * cell stays green and no strip character marks the day. Only the flag carries it —
-     * a strip-derived bucket would miss them entirely.
-     */
-    public function test_a_short_day_that_started_on_time_is_not_late_or_absent(): void
+    public function test_a_short_day_that_started_on_time_is_neither_late_nor_absent(): void
     {
-        $emp = $this->staff('On Time But Short');
-        $this->punchAllExcept($emp, ['2026-07-13']);
-        $this->punch($emp, '2026-07-13', 'on_time', [
-            'clock_out' => '12:30:00',
-            'worked_minutes' => 210,
-            'expected_min_hours' => 8,
-            'flags' => ['short_hours'],
-        ]);
+        $this->record('2026-07-14', '08:50:00', '13:00:00', minutes: 250, flags: ['short_hours']);
 
-        $data = $this->getScreenData();
+        $counts = $this->counts($this->onlyDay('2026-07-14'));
 
-        $this->assertNotNull($this->bucketRow($data, 'short', $emp->id));
-        $this->assertNull($this->bucketRow($data, 'late', $emp->id), 'They clocked in on time.');
-        $this->assertNull($this->bucketRow($data, 'absent', $emp->id), 'They were present.');
+        $this->assertSame(1, $counts['short']);
+        $this->assertSame(0, $counts['late']);
+        $this->assertSame(0, $counts['absent']);
     }
 
-    public function test_a_full_length_day_is_not_reported_as_short(): void
+    public function test_a_full_length_day_is_not_counted_as_short(): void
     {
-        $emp = $this->staff('Full Day');
-        $this->punchAllExcept($emp, ['2026-07-14']);
-        $this->punch($emp, '2026-07-14', 'on_time', [
-            'clock_out' => '18:05:00',
-            'worked_minutes' => 605,
-            'expected_min_hours' => 8,
-            'flags' => [],
-        ]);
+        $this->record('2026-07-14', '09:00:00', '18:00:00', minutes: 540);
 
-        $this->assertNull($this->bucketRow($this->getScreenData(), 'short', $emp->id));
+        $this->assertSame(0, $this->counts(['gran' => 'week'])['short']);
+    }
+
+    public function test_a_missing_clock_out_is_counted_in_the_missing_lens(): void
+    {
+        $this->record('2026-07-14', '09:00:00', null);
+
+        $this->assertSame(1, $this->counts(['gran' => 'week'])['miss']);
     }
 }

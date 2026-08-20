@@ -13,6 +13,9 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $date
+ * @property list<string>|null $flags
+ * @property-read string|null $photo_url
+ * @property-read string|null $clock_out_photo_url
  */
 class AttendanceRecord extends Model
 {
