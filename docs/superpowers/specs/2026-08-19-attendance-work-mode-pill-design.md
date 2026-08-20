@@ -256,6 +256,56 @@ declared site visit is exactly the punch a manager most wants to plot, so both g
 to `out_of_radius_* OR site_visit_*`. The null-coordinate guards already on those lines stay
 — a `site_visit` punch with no fix plots nothing, same as today.
 
+### The inline remark drawer is deleted
+
+The clock shelf currently carries a collapsible remark drawer under the punch button
+(resources/views/screens/attendance.blade.php:840-866): a toggle button, a labelled
+`justification` textarea, and a "Take a selfie" button tucked inside it.
+
+All of it goes. The sheet already renders its own reason box and its own camera, both bound
+to the same `reason` state, and the sheet opens on **every** punch because the selfie is
+mandatory. The drawer is a second copy of a form the employee is about to be shown anyway.
+
+The agreed behaviour, in full:
+
+| Punch | Sheet shows |
+|-------|-------------|
+| On time, inside the fence | Camera only |
+| Late | Camera + reason |
+| Site visit | Camera + destination |
+| No location, or off-site on an Office/Home day | Camera + reason |
+
+**Optional remarks go away with it.** There is deliberately no place to type a note on an
+ordinary punch. `clock_in_justification` / `clock_out_justification` keep working; they simply
+only ever hold a reason the system asked for. Nothing changes in the report, which already
+renders whatever is there.
+
+**The one thing that must not be missed:** `name="justification"` lives on the *drawer's*
+textarea. The sheet's textarea (`#attendance-sheet-reason`) is `x-model` only and posts
+nothing. Delete the drawer without moving that attribute and every typed reason is silently
+dropped on submit — the server then refuses the punch for a missing reason the employee can
+see themselves typing. The sheet sits inside the same `<form>`
+(resources/views/screens/attendance.blade.php:76-980), so the attribute moves onto the sheet
+textarea and nothing else is needed. A hidden mirror input is not required and should not be
+added.
+
+**Also removed with the drawer**, all of it dead once the markup goes: the `data-notebtn`
+toggle (:818), `noteOpen`, `toggleNote()`, the `$watch('isReq')` that collapses it, `isReq()`
+itself (:207) and its red per-case label strings (:843-850, EN + BM), and the voluntary
+"Take a selfie" ghost button (:864). The `.uj-at-note` and `.uj-at-selfie` styles go with
+them. Grep each name before deleting; `isReq` in particular is referenced in four places and
+must have no consumer left.
+
+**Two paths must be re-pointed at the sheet, not dropped:**
+
+1. **Server-side re-entry.** A refused punch flashes `attendance_justify` and fills the error
+   bag, which today opens the drawer via `serverJustify` and the `noteOpen` initialiser
+   (:114, :136). It must open the **sheet** instead, with the reason box shown and the typed
+   text restored from `old('justification')` (:115, unchanged).
+2. **The validation message.** `@error('justification')` (:857) renders inside the drawer.
+   It moves into the sheet, under the reason box. Losing it would leave a punch refused with
+   no visible explanation.
+
 ### Every surface that renders the accusation
 
 The off-site verdict is written in five places, not one. All five must learn the new mode or
@@ -263,8 +313,10 @@ the pill removes a red badge in the report while the same accusation survives ev
 else. Enumerated so none is missed:
 
 **1. The punch sheet — the loudest one.** The screen pre-computes `offSite` locally before
-submitting (resources/views/screens/attendance.blade.php:286) and gates the sheet on it via
-`isReq()` (:207). The sheet then reads *"Off-site clock in"* (`sheetTitle`, :518) over
+submitting (resources/views/screens/attendance.blade.php:286) and raises `sheetReasonNeed`
+from it. (`isReq()` at :207 reads the same conditions but only ever drove the drawer's red
+label, so it is deleted rather than updated — see "The inline remark drawer is deleted".) The
+sheet then reads *"Off-site clock in"* (`sheetTitle`, :518) over
 *"You appear to be outside the expected location… Your manager sees it flagged"* (`sheetBody`,
 :539 EN / :545 BM), and prompts *"Why are you clocking in from off-site?"* (:555 / :561).
 
@@ -403,6 +455,10 @@ error bag instead and lose the sheet.
 | Badge tapped after moving | Re-reads location and repaints the distance |
 | Badge under Site visit mode | Distance shown, no "Off-site" verdict, informational colour |
 | Punch sheet under Site visit | Never says "off-site" or "flagged", EN or BM; asks for the destination |
+| On-time punch inside the fence | Sheet shows the camera only; no reason box anywhere on the screen |
+| Typed reason actually arrives | Reason typed in the sheet reaches `clock_in_justification` — guards the moved `name` attribute |
+| Punch refused for a missing reason | Sheet reopens with the box shown, previous text restored, validation message visible |
+| Late punch | Sheet asks for a reason; no separate drawer to find |
 | Employee's own attendance screen, site visit record | Reads "Site visit", not a raw `site_visit_in` string |
 | Day partial, site visit outside the fence | Row is not red; sentence reads "Site visit — …", not "outside the expected geofence" |
 
