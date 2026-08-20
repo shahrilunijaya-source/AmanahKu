@@ -73,7 +73,7 @@
 </style>
 
 <div class="uj-at-wrap">
-    <form method="post" action="{{ route('attendance.clock') }}" enctype="multipart/form-data" class="uj-at-shelf"
+    <form id="attendance-clock-form" method="post" action="{{ route('attendance.clock') }}" enctype="multipart/form-data" class="uj-at-shelf"
           x-ref="form"
           x-data="{
               submitting: false,
@@ -913,7 +913,11 @@
 
                     <div x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-reason">
                         <label for="attendance-sheet-reason" x-text="sheetReasonLabel($store.ui.lang)">Why are you clocking without location?</label>
-                        <textarea id="attendance-sheet-reason" name="justification" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
+                        {{-- x-teleport moves this whole dialog to <body>, outside the <form> in the
+                             DOM tree. Without the explicit `form` attribute below, native form
+                             submission silently drops this field and every reason-required punch
+                             (off-site, no-location, late, early, site visit) bounces forever. --}}
+                        <textarea id="attendance-sheet-reason" name="justification" form="attendance-clock-form" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
                                   aria-required="true" :placeholder="sheetReasonPlaceholder($store.ui.lang)"></textarea>
                         @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
                     </div>

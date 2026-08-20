@@ -613,4 +613,21 @@ class AttendanceScreenTest extends TestCase
             'sheetTitle, sheetBody, sheetReasonLabel and sheetReasonPlaceholder each need a site_visit case in both language maps'
         );
     }
+
+    /**
+     * x-teleport moves the sheet (and its reason textarea) out of the <form> element and into
+     * <body>, which strips native form association from any control inside it. The browser
+     * silently drops the field from submission, so a typed reason never reaches the server no
+     * matter how it looks in the DOM. The `form` attribute is the fix: it re-associates a
+     * control with a form elsewhere in the document by id, regardless of DOM position.
+     */
+    public function test_the_teleported_reason_box_stays_associated_with_the_clock_form(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="attendance-clock-form"', $html);
+        $this->assertStringContainsString('form="attendance-clock-form"', $html);
+    }
 }
