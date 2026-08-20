@@ -637,14 +637,12 @@ In `resources/views/screens/attendance.blade.php`, inside the `x-data` object (n
               workMode: @js(old('work_mode', $today?->work_mode === 'site_visit' && ! $co ? 'site_visit' : 'office_home')),
 ```
 
-**Known limitation, deliberate.** `$today` is built as `$records->first(fn ($r) => $r->date->isToday())`
-(app/Http/Controllers/Concerns/BuildsWorkData.php:84), so on a shift that crosses midnight the open
-record is dated *yesterday* and `$today` is null after 00:00. The pill then seeds back to Office /
-Home mid-shift. This is not a new fault and must not be fixed here: `$ci`, `$co` and the hidden
-`action` input are all seeded from the same `$today`, so the whole shelf already mis-reads an
-overnight shift after midnight (it offers "Clock in" to someone who is mid-shift). Making the pill
-alone smarter would leave it disagreeing with the button beside it. The overnight lookup is being
-tracked separately.
+**Why `$today` is the right source.** `BuildsWorkData::workData()` resolves `today` by preferring
+the still-open punch bounded to yesterday-or-today, exactly as `ClockService::clockOut()` looks it
+up, and only falling back to the on-date record. So on a shift that crosses midnight the pill
+inherits the declared mode along with `$ci`, `$co` and the hidden `action` input, all of which read
+from the same value. Do not add a separate lookup for the pill — it would be the one thing on the
+shelf disagreeing with the button beside it.
 
 Beside the existing hidden `action` input (line 757), add:
 
@@ -1134,6 +1132,14 @@ just told the employee was fine. Add a site-visit branch **before** that check:
 
 Do **not** add `site_visit_*` to `$redFlags` on line 8. A declared visit no longer carries an
 `out_of_radius_*` flag, so the row already stops going red on its own, which is correct.
+
+Two other `out_of_radius_*` readers are also correct as they stand, and must be left alone:
+
+- `$offSiteThisMonth` in `app/Http/Controllers/Concerns/BuildsWorkData.php` counts off-site punches
+  for the month. A declared site visit is not an off-site punch, so it correctly stops being
+  counted. Do not add the new flags to that filter.
+- `$hasRadiusFlag` in the day partial (line 59) keeps its existing meaning; the site-visit branch
+  added above runs before it and takes precedence.
 
 - [ ] **Step 6: Run the tests**
 
