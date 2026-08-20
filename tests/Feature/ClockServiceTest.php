@@ -506,6 +506,23 @@ class ClockServiceTest extends TestCase
         $this->assertSame('needs_justification', $res['status']);
     }
 
+    public function test_a_home_day_at_the_office_is_matched_to_the_office(): void
+    {
+        Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'PJ HQ',
+            'latitude' => 3.1073, 'longitude' => 101.6067, 'radius_m' => 200,
+        ]);
+        $home = new SiteSpec('home', 'Work from home', null, null, 200, '09:00', '18:00', 8.0);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($home)->clockIn($this->employee, 3.1074, 101.6068, null, 'attendance-photos/a.jpg', $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('PJ HQ', $record->location);
+        $this->assertSame('standard', $record->type);
+    }
+
     // --- Declared site visits -------------------------------------------------
 
     public function test_a_declared_site_visit_off_site_is_recorded_not_flagged(): void
