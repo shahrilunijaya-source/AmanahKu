@@ -266,13 +266,15 @@ class AttendanceAdminTest extends TestCase
         Storage::disk('local')->assertMissing('attendance-photos/out.jpg');
     }
 
-    public function test_hr_reverses_a_site_visit_clock_out_and_clears_the_mode_and_flag(): void
+    public function test_hr_reverses_a_site_visit_clock_out_and_clears_the_mode(): void
     {
         $this->actingAsRole('hr');
         $e = $this->staff('office');
+        // Seeded the way ClockService actually writes a site visit now: clock_out_work_mode
+        // carries it, and no flag is written at all.
         $record = $this->punchedRecord($e, withClockOut: true, extra: [
             'clock_out_work_mode' => 'site_visit',
-            'flags' => ['site_visit_out'],
+            'flags' => [],
         ]);
 
         $this->post("/app/attendance-admin/records/{$record->id}/reverse")
@@ -281,10 +283,8 @@ class AttendanceAdminTest extends TestCase
         $record->refresh();
         $this->assertNull($record->clock_out);
         // Left behind, the day partial keeps taking the site-visit branch on a null
-        // clock-out, and a later ordinary clock-out lets the stale flag survive
-        // array_unique — see Finding 3 of the 2026-08-19 final review.
+        // clock-out — see Finding 3 of the 2026-08-19 final review.
         $this->assertNull($record->clock_out_work_mode);
-        $this->assertNotContains('site_visit_out', $record->flags ?? []);
     }
 
     public function test_hr_reverses_a_clock_in_and_deletes_the_record(): void

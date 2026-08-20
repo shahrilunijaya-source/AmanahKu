@@ -536,8 +536,7 @@ class ClockServiceTest extends TestCase
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertSame('site_visit', $record->work_mode);
-        $this->assertContains('site_visit_in', $record->flags);
-        $this->assertNotContains('out_of_radius_in', $record->flags);
+        $this->assertSame([], $record->flags ?? []);
         // The fence result stays truthful even though it is no longer an accusation.
         $this->assertFalse($record->in_radius);
         $this->assertSame('Customer ABC, Shah Alam', $record->clock_in_justification);
@@ -561,8 +560,7 @@ class ClockServiceTest extends TestCase
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertSame('site_visit', $record->work_mode);
         $this->assertNull($record->in_radius);
-        $this->assertContains('site_visit_in', $record->flags);
-        $this->assertContains('no_location', $record->flags);
+        $this->assertSame(['no_location'], $record->flags);
         $this->assertSame('Customer ABC, Shah Alam', $record->clock_in_justification);
     }
 
@@ -612,8 +610,8 @@ class ClockServiceTest extends TestCase
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertSame('late', $record->status);
-        $this->assertContains('late', $record->flags);
-        $this->assertContains('site_visit_in', $record->flags);
+        $this->assertSame('site_visit', $record->work_mode);
+        $this->assertSame(['late'], $record->flags);
     }
 
     public function test_a_site_visit_declared_inside_the_fence_is_allowed(): void
@@ -628,7 +626,7 @@ class ClockServiceTest extends TestCase
         $record = $this->employee->attendanceRecords()->onDate($now)->first();
         $this->assertTrue($record->in_radius);
         $this->assertSame('site_visit', $record->work_mode);
-        $this->assertContains('site_visit_in', $record->flags);
+        $this->assertSame([], $record->flags ?? []);
     }
 
     public function test_a_site_visit_clock_out_inherits_the_mode_without_asking_again(): void
@@ -643,8 +641,7 @@ class ClockServiceTest extends TestCase
         $this->assertSame('ok', $res['status']);
         $record = $this->employee->attendanceRecords()->onDate($in)->first();
         $this->assertSame('site_visit', $record->clock_out_work_mode);
-        $this->assertContains('site_visit_out', $record->flags);
-        $this->assertNotContains('out_of_radius_out', $record->flags);
+        $this->assertSame([], $record->flags ?? []);
     }
 
     public function test_a_clock_out_mode_never_overwrites_the_clock_in_mode(): void
@@ -659,8 +656,7 @@ class ClockServiceTest extends TestCase
         $record = $this->employee->attendanceRecords()->onDate($in)->first();
         $this->assertSame('office_home', $record->work_mode);
         $this->assertSame('site_visit', $record->clock_out_work_mode);
-        $this->assertContains('site_visit_out', $record->flags);
-        $this->assertNotContains('site_visit_in', $record->flags);
+        $this->assertSame([], $record->flags ?? []);
     }
 
     public function test_switching_to_site_visit_at_clock_out_needs_a_destination(): void

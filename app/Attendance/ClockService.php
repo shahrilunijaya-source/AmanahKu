@@ -91,9 +91,11 @@ class ClockService
         if ($late) {
             $flags[] = 'late';
         }
-        if ($siteVisit) {
-            $flags[] = 'site_visit_in';
-        } elseif ($inRadius === false) {
+        // A declared site visit writes no flag of its own: work_mode records it, and `flags`
+        // is the anomaly list, where an entry turns the day amber and counts toward "N flags".
+        // It still suppresses out_of_radius_in — in_radius keeps the honest fence result, but
+        // being outside a fence you said you would be outside of is not a finding.
+        if (! $siteVisit && $inRadius === false) {
             $flags[] = 'out_of_radius_in';
         }
         if ($lat === null || $lng === null) {
@@ -182,9 +184,9 @@ class ClockService
         }
 
         $flags = $record->flags ?? [];
-        if ($siteVisit) {
-            $flags[] = 'site_visit_out';
-        } elseif ($outRadius === false) {
+        // Same suppression as clock-in: a declared site visit writes no flag of its own,
+        // it only keeps out_of_radius_out from being written.
+        if (! $siteVisit && $outRadius === false) {
             $flags[] = 'out_of_radius_out';
         }
         if ($early) {

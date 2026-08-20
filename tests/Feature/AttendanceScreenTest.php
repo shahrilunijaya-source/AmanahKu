@@ -341,7 +341,6 @@ class AttendanceScreenTest extends TestCase
             'clock_in_justification' => 'Customer ABC, Shah Alam',
             'clock_out_justification' => 'left early, traffic',
             'in_radius' => false,
-            'flags' => ['site_visit_in'],
         ]);
 
         $response = $this->actingAs($this->user)
@@ -698,10 +697,14 @@ class AttendanceScreenTest extends TestCase
     }
 
     /**
-     * site_visit_in flag must render its translated English label 'Site visit' on the row
-     * pill, never the raw flag key. The map lookup must succeed so the fallback is never used.
+     * A declared site visit no longer writes a flag of its own: work_mode carries it, and
+     * `flags` stays empty on a clean day. So a clean, on-time, declared site visit must read
+     * as an ordinary good day, exactly like a normal on-time punch, with no flag pill and no
+     * flag list, while still showing its own "Site visit: …" sentence lower in the row. The
+     * raw keys this used to write must appear nowhere on the page, since nothing writes them
+     * any more.
      */
-    public function test_site_visit_in_flag_shows_english_label_on_single_flag_row_pill(): void
+    public function test_a_clean_site_visit_day_reads_as_an_ordinary_good_day(): void
     {
         AttendanceRecord::create([
             'tenant_id' => $this->tenant->id,
@@ -710,7 +713,10 @@ class AttendanceScreenTest extends TestCase
             'status' => 'on_time',
             'clock_in' => '09:00:00',
             'clock_out' => '18:00:00',
-            'flags' => ['site_visit_in'],
+            'work_mode' => 'site_visit',
+            'clock_out_work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'flags' => [],
         ]);
 
         $response = $this->actingAs($this->user)
@@ -718,72 +724,17 @@ class AttendanceScreenTest extends TestCase
             ->get('/app/attendance');
 
         $response->assertOk();
-        $response->assertSee('Site visit');
-        $response->assertSee('Lawatan tapak');
+        // Ordinary good day: the status pill, not a flag count.
+        $response->assertSee('On time');
+        $response->assertSee('Tepat masa');
+        $response->assertDontSee('1 flags');
+        $response->assertDontSee('2 flags');
+        // No flags means the expanded panel falls back to the plain day description, not a flag list.
+        $response->assertSee('A clean day. Both punches recorded on time and inside expected schedule.');
+        // The destination sentence still comes from work_mode, unaffected by there being no flag.
+        $response->assertSee('Site visit: Customer ABC, Shah Alam.');
+        // Nothing writes these keys any more.
         $response->assertDontSee('site_visit_in');
-    }
-
-    /**
-     * The clock-out half of the pair. It has its own entry in $flagLabel and its own
-     * wording, so a map that carries site_visit_in alone would still print a raw key
-     * to anyone who declared their visit on the way out instead of on the way in.
-     */
-    public function test_site_visit_out_flag_shows_its_translated_label(): void
-    {
-        AttendanceRecord::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $this->employee->id,
-            'date' => now()->toDateString(),
-            'status' => 'on_time',
-            'clock_in' => '09:00:00',
-            'clock_out' => '18:00:00',
-            'flags' => ['site_visit_out'],
-        ]);
-
-        $response = $this->actingAs($this->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/attendance');
-
-        $response->assertOk();
-        $response->assertSee('Site visit out');
-        $response->assertSee('Lawatan tapak (keluar)');
         $response->assertDontSee('site_visit_out');
-    }
-
-    /**
-     * site_visit_in flag must render its translated labels (English and Malay) in the
-     * expanded flags list, not the raw flag key. The Malay label is rendered inside an
-     * Alpine x-text attribute via @js(), which JSON-encodes the string. A multi-flag
-     * record like ['site_visit_in', 'no_location'] shows both expanded with their English
-     * and Malay translations. (no_location legitimately appears in the punch sheet JavaScript,
-     * so only assert that site_visit_in does not appear, as it should only be in the flag map.)
-     */
-    public function test_site_visit_in_and_no_location_flags_show_translated_labels_in_expanded_list(): void
-    {
-        AttendanceRecord::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $this->employee->id,
-            'date' => now()->toDateString(),
-            'status' => 'on_time',
-            'clock_in' => '09:00:00',
-            'clock_out' => '18:00:00',
-            'flags' => ['site_visit_in', 'no_location'],
-        ]);
-
-        $response = $this->actingAs($this->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/attendance');
-
-        $response->assertOk();
-        // Row pill counts both flags
-        $response->assertSee('2 flags');
-        // Expanded list shows English labels
-        $response->assertSee('Site visit');
-        $response->assertSee('No location');
-        // Expanded list shows Malay labels (rendered in x-text via @js())
-        $response->assertSee('Lawatan tapak');
-        $response->assertSee('Tiada lokasi');
-        // Raw site_visit_in key must not appear (only in flag map, not in punch sheet logic)
-        $response->assertDontSee('site_visit_in');
     }
 }

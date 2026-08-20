@@ -305,7 +305,6 @@ class AttendanceReportScreenTest extends TestCase
             'in_radius' => false,
             'work_mode' => 'site_visit',
             'clock_in_justification' => 'Customer ABC, Shah Alam',
-            'flags' => ['site_visit_in'],
         ]);
 
         $html = $this->actAsHr()
@@ -334,7 +333,7 @@ class AttendanceReportScreenTest extends TestCase
             'in_radius' => null,
             'work_mode' => 'site_visit',
             'clock_in_justification' => 'Customer ABC, Shah Alam',
-            'flags' => ['site_visit_in', 'no_location'],
+            'flags' => ['no_location'],
         ]);
 
         $html = $this->actAsHr()

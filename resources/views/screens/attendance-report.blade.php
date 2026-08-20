@@ -9,8 +9,6 @@
         'late' => ['Late', 'Lewat'],
         'out_of_radius_in' => ['Off-site in', 'Clock in luar'],
         'out_of_radius_out' => ['Off-site out', 'Clock out luar'],
-        'site_visit_in' => ['Site visit', 'Lawatan tapak'],
-        'site_visit_out' => ['Site visit out', 'Lawatan tapak (keluar)'],
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
         'no_location' => ['No location', 'Tiada lokasi'],
@@ -115,15 +113,18 @@
                         <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
                     </span>
                     <span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+                        {{-- A declared site visit is itinerary, not a violation, so it gets its own
+                             chip in the same informational blue this screen already uses for "Off-site"
+                             in the legend, instead of living in the flags list. --}}
+                        @if ($r->work_mode === 'site_visit')
+                            <span style="font-size:9px;font-weight:600;color:var(--info);background:color-mix(in srgb, var(--info) 12%, #fff);padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? 'Site visit' : 'Lawatan tapak'">Site visit</span>
+                        @endif
+                        @if ($r->clock_out_work_mode === 'site_visit')
+                            <span style="font-size:9px;font-weight:600;color:var(--info);background:color-mix(in srgb, var(--info) 12%, #fff);padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? 'Site visit out' : 'Lawatan tapak (keluar)'">Site visit out</span>
+                        @endif
                         @foreach (array_diff($r->flags ?? [], ['late']) as $f)
-                            @php
-                                $fl = $flagLabel[$f] ?? [$f, $f];
-                                // A declared site visit is itinerary, not a violation, so it borrows
-                                // the same informational blue this screen already uses for "Off-site"
-                                // in the legend, instead of the red reserved for real flags.
-                                $isVisit = str_starts_with($f, 'site_visit');
-                            @endphp
-                            <span style="font-size:9px;font-weight:600;color:{{ $isVisit ? 'var(--info)' : 'var(--error)' }};background:{{ $isVisit ? 'color-mix(in srgb, var(--info) 12%, #fff)' : 'var(--red-tint,rgba(214,35,43,.1))' }};padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
+                            @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
+                            <span style="font-size:9px;font-weight:600;color:var(--error);background:var(--red-tint,rgba(214,35,43,.1));padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
                         @endforeach
                     </span>
                     @if ($canReversePunch)
@@ -154,7 +155,7 @@
                         // guard hand-edited rows, not the normal path.
                         $recFlags = $r->flags ?? [];
                         $locPoints = [];
-                        if ((in_array('out_of_radius_in', $recFlags, true) || in_array('site_visit_in', $recFlags, true))
+                        if ((in_array('out_of_radius_in', $recFlags, true) || $r->work_mode === 'site_visit')
                             && $r->latitude !== null && $r->longitude !== null) {
                             $inTime = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '';
                             $locPoints[] = [
@@ -164,7 +165,7 @@
                                 'labelMs' => 'Clock in '.$inTime,
                             ];
                         }
-                        if ((in_array('out_of_radius_out', $recFlags, true) || in_array('site_visit_out', $recFlags, true))
+                        if ((in_array('out_of_radius_out', $recFlags, true) || $r->clock_out_work_mode === 'site_visit')
                             && $r->clock_out_latitude !== null && $r->clock_out_longitude !== null) {
                             $outTime = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '';
                             $locPoints[] = [

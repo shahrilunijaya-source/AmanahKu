@@ -163,7 +163,7 @@ class AttendanceAdminController extends Controller
             }
 
             $flags = array_values(array_diff($record->flags ?? [], [
-                'out_of_radius_out', 'early_out', 'short_hours', 'site_visit_out',
+                'out_of_radius_out', 'early_out', 'short_hours',
                 // 'no_location' only ever meant the clock-OUT had no fix when the clock-IN
                 // did — a clock-in with no fix carries the same flag and must keep it.
                 ...($record->latitude !== null ? ['no_location'] : []),
