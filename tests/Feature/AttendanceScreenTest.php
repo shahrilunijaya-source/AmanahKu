@@ -329,6 +329,61 @@ class AttendanceScreenTest extends TestCase
         $response->assertDontSee('outside the expected geofence');
     }
 
+    public function test_site_visit_sentence_names_the_declared_destination(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'clock_out_justification' => 'left early, traffic',
+            'in_radius' => false,
+            'flags' => ['site_visit_in'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit: Customer ABC, Shah Alam.');
+        $response->assertDontSee('outside the expected geofence');
+    }
+
+    /**
+     * A day that starts as a normal (possibly late) office clock-in and ends as a
+     * declared site visit carries two remarks. clock_in_justification belongs to
+     * the clock-in reason, not the destination, so the sentence must name the
+     * clock-out remark, never fall back to whichever one happens to be non-empty.
+     */
+    public function test_site_visit_sentence_on_clock_out_names_the_clock_out_destination_not_the_clock_in_remark(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '09:30:00',
+            'clock_out' => '18:00:00',
+            'work_mode' => 'office_home',
+            'clock_in_justification' => 'delayed due to traffic',
+            'clock_out_work_mode' => 'site_visit',
+            'clock_out_justification' => 'Client X, KL',
+            'flags' => ['late'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit: Client X, KL.');
+        $response->assertDontSee('Site visit: delayed due to traffic.');
+    }
+
     public function test_earlier_days_does_not_link_to_the_staff_report(): void
     {
         AttendanceRecord::create([
