@@ -292,7 +292,7 @@ Append these to `tests/Feature/ClockServiceTest.php`, immediately before the clo
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `lerd artisan test --compact --filter='site_visit|declared_site' tests/Feature/ClockServiceTest.php`
+Run: `lerd artisan test --compact --filter='site_visit|declared_site|never_overwrites' tests/Feature/ClockServiceTest.php`
 Expected: FAIL. The first failures are `Too few arguments` / unknown named argument, because `clockIn()` does not take a seventh parameter yet.
 
 - [ ] **Step 3: Add the mode parameter and the site-visit gates to clockIn**
@@ -400,7 +400,7 @@ Add one entry to `$updates`, directly after `'out_radius' => $outRadius,`:
 - [ ] **Step 5: Run the new tests**
 
 Run: `lerd artisan test --compact --filter='site_visit|declared_site|office_home_mode' tests/Feature/ClockServiceTest.php`
-Expected: PASS, all ten.
+Expected: PASS, all eleven.
 
 - [ ] **Step 6: Run the whole ClockService suite to prove nothing regressed**
 
