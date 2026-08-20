@@ -1165,9 +1165,12 @@ just told the employee was fine. Add a site-visit branch **before** that check:
 
 ```php
     if ($r->work_mode === 'site_visit' || $r->clock_out_work_mode === 'site_visit') {
-        $dest = $r->clock_in_justification ?: $r->clock_out_justification;
-        $whereEn = 'Site visit'.($dest ? " — {$dest}." : '.');
-        $whereMs = 'Lawatan tapak'.($dest ? " — {$dest}." : '.');
+        // Keyed off which punch actually declared the visit, not a blind fallback: a late
+        // clock-in carries its own remark, and `?:` would show that tardiness excuse as the
+        // destination of a visit declared later at clock-out.
+        $dest = $r->work_mode === 'site_visit' ? $r->clock_in_justification : $r->clock_out_justification;
+        $whereEn = 'Site visit'.($dest ? ": {$dest}." : '.');
+        $whereMs = 'Lawatan tapak'.($dest ? ": {$dest}." : '.');
     } elseif ($hasRadiusFlag || $r->in_radius === false || $r->out_radius === false) {
 ```
 
