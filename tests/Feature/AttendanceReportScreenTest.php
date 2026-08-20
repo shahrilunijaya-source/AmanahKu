@@ -324,4 +324,18 @@ class AttendanceReportScreenTest extends TestCase
             ->get('/app/attendance-report/body')
             ->assertForbidden();
     }
+
+    public function test_a_lens_that_matches_nothing_explains_itself(): void
+    {
+        // Reachable in one click — pick an exception nobody has — so it must not be
+        // a bare blank panel.
+        $response = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=short');
+
+        $response->assertOk()
+            ->assertSee('uj-ar-empty', false)
+            ->assertSee('Nothing matches')
+            ->assertSee('Clear filters');
+
+        $this->assertSame(0, $response->viewData('rows')->count());
+    }
 }
