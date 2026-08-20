@@ -1485,26 +1485,12 @@ select.wd-inline {
 .uj-at-go:disabled { background: #fff; border: 1px solid var(--shelf-line); color: var(--muted); cursor: default; transform: none; display: inline-flex; align-items: center; gap: 8px; }
 .uj-at-go:disabled svg { color: var(--success); }
 
-/* ── The remark box ──
-   Collapsed to a button until it has something to say. Two jobs, one box: optional
-   note normally, REQUIRED reason when off-site or early. It opens itself in that case.
-   On .uj-at-note: the 16px gap rides on the label's padding-top, INSIDE the
-   clipped grid child. Padding on the clipped <div> itself survives a 0fr row and
-   leaves a permanent 16px ghost. Only grid-template-rows is transitioned;
-   animating margin here thrashes layout for the same visual result. */
-.uj-at-note { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s cubic-bezier(.23, 1, .32, 1); }
-.uj-at-note[data-open] { grid-template-rows: 1fr; }
-.uj-at-note > div { overflow: hidden; }
-.uj-at-note label { display: block; padding-top: 16px; font-size: var(--t-sm); font-weight: 500; color: var(--ink); margin-bottom: 6px; }
-.uj-at-note[data-req] label { color: var(--red-active); }
-/* --muted-soft, not --shelf-line: a control's own boundary must clear 3:1 (WCAG 1.4.11)
-   and --shelf-line is 1.2:1 against the shelf these controls sit on. --shelf-line still draws the dividers, which are
-   exempt because they identify nothing. Same reason on .uj-at-ghost below. */
-.uj-at-note textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--muted); border-radius: 10px; font-size: 13.5px; color: var(--ink); background: #fff; outline: none; resize: vertical; min-height: 66px; line-height: 1.55; transition: border-color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
-.uj-at-note textarea::placeholder { color: var(--muted-soft); }
-.uj-at-note textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
-.uj-at-note[data-req] textarea { border-color: var(--red); }
-.uj-at-selfie { margin-top: 10px; }
+/* ── Work-mode pill ──
+   Declared before the punch, not gated on anything. Replaces the old inline remark
+   drawer, which the punch sheet already duplicated (camera + reason together). */
+.uj-at-mode { display: inline-flex; padding: 3px; margin-bottom: 12px; background: var(--hairline-soft); border-radius: 10px; gap: 3px; }
+.uj-at-mode button { height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-at-mode button[data-on] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .06); }
 
 /* ── Punch sheet ──
    The off-grid clock-in, whole, in one surface: preview, reason, send. */
@@ -1617,7 +1603,7 @@ select.wd-inline {
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  .uj-at-panel, .uj-at-note { transition: none; }
+  .uj-at-panel { transition: none; }
   .uj-at-panel p, .uj-at-flags { transition: opacity .12s linear; filter: none; }
   .uj-at-chev { transition: color .14s linear; }
   .uj-at-fence[data-f="wait"] i { animation: none; }
@@ -1647,7 +1633,6 @@ select.wd-inline {
   .uj-at-shelf { padding: 18px; }
   .uj-at-fig { font-size: 46px; margin-top: 8px; }
   .uj-at-acts .uj-at-go { display: none; }
-  .uj-at-acts [data-notebtn] { width: 100%; height: 44px; min-height: 44px; margin-top: 6px; justify-content: center; font-size: var(--t-sm); }
   .uj-at-row { padding: 14px 6px; min-height: 44px; }
   .uj-at-rowmid .uj-at-status { display: inline-block; margin-top: 6px; }
   .uj-at-rowend .uj-at-status { display: none; }

@@ -112,6 +112,10 @@
               // point, so the message changes.
               timeoutStreak: 0,
               serverJustify: {{ (session('attendance_justify') || $errors->has('justification')) ? 'true' : 'false' }},
+              // Declared before the punch, posted with it. Seeded from the open record so a
+              // day declared a site visit this morning is still declared at clock-out, and
+              // still switchable for someone who ended up somewhere else.
+              workMode: @js(old('work_mode', $today?->work_mode === 'site_visit' && ! $co ? 'site_visit' : 'office_home')),
               reason: @js(old('justification', '')),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
@@ -137,7 +141,6 @@
               matchedLabel: '',
               fenceStatus: 'wait',
               fenceDistM: null,
-              noteOpen: {{ (session('attendance_justify') || $errors->has('justification') || old('justification', '')) ? 'true' : 'false' }},
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
               init() {
@@ -176,11 +179,6 @@
                   } else {
                       this.fenceStatus = 'none';
                   }
-                  this.$watch('isReq', (val) => {
-                      if (!val && !this.reason.trim()) {
-                          this.noteOpen = false;
-                      }
-                  });
               },
               tick() {
                   const d = new Date();
@@ -194,31 +192,6 @@
                       const h = Math.floor(worked / 60);
                       const m = worked % 60;
                       this.elapsedWorked = h + 'h ' + String(m).padStart(2, '0') + 'm';
-                  }
-              },
-              /**
-               * Gated on `attempted`, not just fenceStatus: without it, an off-site employee
-               * saw a red 'reason required' the instant the screen loaded, before they had
-               * tapped anything — an accusation for standing where the app expects them to be
-               * later, not for anything they had done. The passive amber fence chip already
-               * tells them they're off-site; this only turns red once they act on it.
-               * Leaving early is NOT raised here: earlyNow() is true for the whole shift, so
-               * it painted a red 'reason required' across the screen from the clock-in until
-               * the end of the day. proceed() raises it on the clock-out attempt instead,
-               * which is the only moment it means anything.
-               */
-              get isReq() {
-                  return (this.attempted && this.siteLat !== null && this.fenceStatus === 'out')
-                      || this.serverJustify;
-              },
-              toggleNote() {
-                  if (this.isReq) {
-                      this.$refs.reason?.focus();
-                      return;
-                  }
-                  this.noteOpen = !this.noteOpen;
-                  if (this.noteOpen) {
-                      this.$nextTick(() => this.$refs.reason?.focus());
                   }
               },
               fenceText(lang) {
@@ -759,6 +732,7 @@
           @submit.prevent="noLoc ? submitWithoutLocation() : submit()">
         @csrf
         <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />{{-- mirrored by `action` in x-data --}}
+        <input type="hidden" name="work_mode" :value="workMode" />
         <input type="hidden" name="latitude" x-ref="lat" />
         <input type="hidden" name="longitude" x-ref="lng" />
         {{-- No `capture="user"`: that attribute makes the phone open its full-screen camera app,
@@ -768,6 +742,18 @@
         <input type="file" id="attendance-photo" name="photo" accept="image/*" x-ref="photo"
                style="display:none;"
                @change="attachFile($event.target.files[0])" />
+
+        {{-- Declared before the punch: the ordinary day needs no tap, a customer visit needs
+             one. Not a site picker — the GPS is still measured against the same place either
+             way, and the declaration costs a typed destination in the sheet. --}}
+        <div class="uj-at-mode" role="group" :aria-label="$store.ui.lang==='en' ? 'Working mode' : 'Mod kerja'">
+            <button type="button" :data-on="workMode === 'office_home'" @click="workMode = 'office_home'"
+                    :aria-pressed="workMode === 'office_home' ? 'true' : 'false'"
+                    x-text="$store.ui.lang==='en' ? 'Office / Home' : 'Pejabat / Rumah'">Office / Home</button>
+            <button type="button" :data-on="workMode === 'site_visit'" @click="workMode = 'site_visit'"
+                    :aria-pressed="workMode === 'site_visit' ? 'true' : 'false'"
+                    x-text="$store.ui.lang==='en' ? 'Site visit' : 'Lawatan tapak'">Site visit</button>
+        </div>
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -819,9 +805,6 @@
             </div>
 
             <div class="uj-at-acts">
-                <button type="button" class="uj-at-ghost" data-notebtn :data-on="(noteOpen || isReq) ? true : false" @click="toggleNote()">
-                    <span x-text="$store.ui.lang==='en' ? 'Add a remark' : 'Tambah catatan'">Add a remark</span>
-                </button>
                 <button type="submit" class="uj-at-go" @if ($co) disabled @else :disabled="submitting" @endif>
                     @if ($co)
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
@@ -838,39 +821,6 @@
                         </template>
                     @endif
                 </button>
-            </div>
-        </div>
-
-        <div class="uj-at-note" :data-open="(noteOpen || isReq) ? true : false" :data-req="isReq ? true : false">
-            <div>
-                <label for="attendance-remarks" data-note-lbl>
-                    <span x-show="!isReq" x-text="$store.ui.lang==='en' ? 'Remarks — optional, your manager sees this with the punch' : 'Catatan — pilihan, pengurus anda melihat ini bersama rekod'">Remarks — optional, your manager sees this with the punch</span>
-                    <span x-show="isReq" x-cloak style="color:var(--red-active);"
-                          x-text="(siteLat !== null && fenceStatus === 'out')
-                              ? ($store.ui.lang==='en' ? 'Reason required — you appear to be outside the expected location' : 'Sebab diperlukan — anda kelihatan di luar lokasi yang dijangka')
-                              : ((action === 'out' && earlyNow())
-                                  ? ($store.ui.lang==='en' ? 'Reason required — you are clocking out before your shift ends' : 'Sebab diperlukan — anda clock out sebelum shift tamat')
-                                  : ((action === 'in' && lateNow())
-                                      ? ($store.ui.lang==='en' ? 'Reason required — you are clocking in after your shift started' : 'Sebab diperlukan — anda clock in selepas shift bermula')
-                                      : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah')))">Reason required — see details below</span>
-                </label>
-                <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
-                          :placeholder="isReq
-                              ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
-                              : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"></textarea>
-                @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
-
-                {{-- The selfie lives here rather than beside the punch button. proceed() opens
-                     the camera itself on every punch anyway, so a permanent button on the
-                     resting screen bought nothing and cost a third of the action row. Inside the
-                     drawer it stays available to anyone who wants to attach one before tapping
-                     "Clock in" or "Clock out", so the sheet has nothing left to ask for. --}}
-                <div class="uj-at-selfie">
-                    <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</span>
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -943,8 +893,9 @@
 
                     <div x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-reason">
                         <label for="attendance-sheet-reason" x-text="sheetReasonLabel($store.ui.lang)">Why are you clocking without location?</label>
-                        <textarea id="attendance-sheet-reason" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
+                        <textarea id="attendance-sheet-reason" name="justification" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
                                   aria-required="true" :placeholder="sheetReasonPlaceholder($store.ui.lang)"></textarea>
+                        @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="uj-at-sheet-acts">

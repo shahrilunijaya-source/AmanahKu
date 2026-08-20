@@ -549,4 +549,48 @@ class AttendanceScreenTest extends TestCase
         $response->assertSee("'Clock out' : 'Clock-out'", false);
         $response->assertDontSee("'not clocked in' : 'belum masuk'", false);
     }
+
+    public function test_the_screen_offers_the_work_mode_pill(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-at-mode', $html);
+        $this->assertStringContainsString('name="work_mode"', $html);
+        $this->assertStringContainsString('Site visit', $html);
+        $this->assertStringContainsString('Lawatan tapak', $html);
+    }
+
+    public function test_the_inline_remark_drawer_is_gone(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('data-notebtn', $html);
+        $this->assertStringNotContainsString('uj-at-note', $html);
+        $this->assertStringNotContainsString('attendance-remarks', $html);
+    }
+
+    /**
+     * The reason box that posts must be exactly one box. Two would mean the drawer survived;
+     * zero would mean the name attribute was deleted along with the drawer, and every typed
+     * reason would vanish on submit while the screen still looked correct.
+     */
+    public function test_a_reason_typed_in_the_sheet_reaches_the_server(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'name="justification"'));
+        $this->assertStringContainsString('attendance-sheet-reason', $html);
+
+        // And the attribute is on the sheet's textarea, not somewhere else on the page.
+        $this->assertMatchesRegularExpression(
+            '/id="attendance-sheet-reason"[^>]*name="justification"|name="justification"[^>]*id="attendance-sheet-reason"/',
+            $html
+        );
+    }
 }
