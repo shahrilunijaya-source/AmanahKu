@@ -1255,11 +1255,36 @@ Append to `tests/Feature/ClockServiceTest.php`:
 
 - [ ] **Step 2: Delete the two obsolete home tests**
 
-Delete `test_first_home_clock_in_registers_and_locks_the_home_location` and
-`test_a_home_day_at_the_office_does_not_register_the_office_as_home` from
-`tests/Feature/ClockServiceTest.php`. Both assert the capture-and-lock behaviour the spec removes,
-so they cannot be updated, only removed. This deletion is sanctioned by the spec's removal
+Delete `test_first_home_clock_in_registers_and_locks_the_home_location` from
+`tests/Feature/ClockServiceTest.php`. It asserts only the capture-and-lock behaviour the spec
+removes, so it cannot be updated, only removed. This deletion is sanctioned by the spec's removal
 inventory and is the only one permitted in this file.
+
+`test_a_home_day_at_the_office_does_not_register_the_office_as_home` asserts **two** things: that no
+home location got registered (obsolete), and that a home-day punch made from inside a real
+configured branch is still matched to that branch (still live, and the only test that covers it).
+`matchActualSite()` skips its "already at assigned site" shortcut whenever `hasGeofence()` is false,
+and a home-type assigned site is the only thing that reaches that path. So do not delete it —
+**rewrite it** keeping the live half:
+
+```php
+    public function test_a_home_day_at_the_office_is_matched_to_the_office(): void
+    {
+        Branch::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'PJ HQ',
+            'latitude' => 3.1073, 'longitude' => 101.6067, 'radius_m' => 200,
+        ]);
+        $home = new SiteSpec('home', 'Work from home', null, null, 200, '09:00', '18:00', 8.0);
+        $now = Carbon::parse('2026-07-02 08:55:00');
+
+        $res = $this->service($home)->clockIn($this->employee, 3.1074, 101.6068, null, 'attendance-photos/a.jpg', $now);
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate($now)->first();
+        $this->assertSame('PJ HQ', $record->location);
+        $this->assertSame('standard', $record->type);
+    }
+```
 
 - [ ] **Step 3: Run to verify the new tests fail**
 
