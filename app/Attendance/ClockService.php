@@ -130,17 +130,9 @@ class ClockService
      */
     public function clockOut(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now): array
     {
-        // Not onDate($now): a shift that crosses midnight (clock in 23:00, out 01:30) has
-        // its open record dated *yesterday*, so looking up "today" found nothing and told
-        // an employee mid-shift they had never clocked in. Look for the still-open punch
-        // instead, bounded to yesterday-or-today so a genuinely forgotten clock-out from
-        // days ago doesn't get attributed to whatever the employee is doing right now.
-        $record = $employee->attendanceRecords()
-            ->whereNotNull('clock_in')
-            ->whereNull('clock_out')
-            ->where('date', '>=', $now->copy()->subDay()->toDateString())
-            ->orderByDesc('date')
-            ->first();
+        // Not onDate($now): a shift that crosses midnight has its open record dated
+        // *yesterday*. See AttendanceRecord::scopeOpenPunch() for the full reasoning.
+        $record = $employee->attendanceRecords()->openPunch($now)->first();
         if (! $record) {
             return ['status' => 'noop', 'message' => 'You have not clocked in yet today.'];
         }

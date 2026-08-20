@@ -521,4 +521,32 @@ class AttendanceScreenTest extends TestCase
         $response->assertSee('name="action" value="out"', false);
         $response->assertSee('clockInWasYesterday: true', false);
     }
+
+    /**
+     * The sidebar quick-action dock reads the same overnight punch wrong: its record is
+     * dated *yesterday*, so an "on today" lookup showed "not clocked in" and offered
+     * "Clock in" to someone mid-shift. Same yesterday-or-today bound as the shelf.
+     */
+    public function test_quick_action_dock_shows_the_open_overnight_punch_after_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-16 01:30:00'));
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '23:00:00',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('<span class="uj-sb-clock">23:00</span>', false);
+        $response->assertSee("'clocked in' : 'sudah masuk'", false);
+        $response->assertSee("'Clock out' : 'Clock-out'", false);
+        $response->assertDontSee("'not clocked in' : 'belum masuk'", false);
+    }
 }
