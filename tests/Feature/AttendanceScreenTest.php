@@ -719,7 +719,35 @@ class AttendanceScreenTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Site visit');
+        $response->assertSee('Lawatan tapak');
         $response->assertDontSee('site_visit_in');
+    }
+
+    /**
+     * The clock-out half of the pair. It has its own entry in $flagLabel and its own
+     * wording, so a map that carries site_visit_in alone would still print a raw key
+     * to anyone who declared their visit on the way out instead of on the way in.
+     */
+    public function test_site_visit_out_flag_shows_its_translated_label(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'flags' => ['site_visit_out'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit out');
+        $response->assertSee('Lawatan tapak (keluar)');
+        $response->assertDontSee('site_visit_out');
     }
 
     /**
