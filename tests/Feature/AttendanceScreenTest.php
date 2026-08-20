@@ -593,4 +593,24 @@ class AttendanceScreenTest extends TestCase
             $html
         );
     }
+
+    public function test_the_sheet_carries_site_visit_copy_in_both_languages(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        // The site_visit branch exists in each of the sheet's four copy methods.
+        $this->assertStringContainsString('Where are you going?', $html);
+        $this->assertStringContainsString('Ke mana anda pergi?', $html);
+        $this->assertStringContainsString('Tell your manager where you are going', $html);
+        // Every sibling reason kind (off_site, no_location, late, early) appears twice per
+        // method too, once in the `en` map and once in the `ms` map, so 4 methods land on 8,
+        // not 4; confirmed against the existing `off_site:` count in the same file.
+        $this->assertSame(
+            8,
+            substr_count($html, 'site_visit:'),
+            'sheetTitle, sheetBody, sheetReasonLabel and sheetReasonPlaceholder each need a site_visit case in both language maps'
+        );
+    }
 }

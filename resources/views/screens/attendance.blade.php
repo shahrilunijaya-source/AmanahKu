@@ -42,28 +42,28 @@
     'key'   => 'attendance',
     'en'  => [
         'title' => 'Attendance',
-        'body'  => 'Clock in when you start and clock out when you finish — a selfie is required every time, the camera opens on its own. Your GPS is checked against where you are meant to be that day — your office, your client site, or your home. If you are outside that location, you can still clock but must give a reason. Clocking out early or off-site is also flagged.',
+        'body'  => 'Pick your working mode, then clock in when you start and clock out when you finish. A selfie is required every time and the camera opens on its own. Your GPS is checked against where you are meant to be that day, which is your office, your client site, or your home. On a site visit you say where you are going instead, and there is no off-site flag. Clocking in late or out early still needs a reason.',
         'who'   => 'Everyone clocks their own time',
         'steps' => [
             'The banner shows where you are expected today and your hours.',
-            'Tap "Clock in" and allow location — the camera opens to take your selfie. A selfie is required for every clock in and clock out, no exceptions.',
-            'If your device genuinely cannot find your location, the screen offers to clock without it — that punch also needs a typed reason, and is flagged for your manager.',
-            'Add a remark if there is something your manager should know about the day. It is optional.',
-            'If you are outside the location, or you clock in late or out early, that same box turns into a required reason — say why (e.g. client meeting).',
-            'Clock out when you finish, with another selfie. Leaving before your end time or off-site needs a reason too.',
+            'Pick your working mode first. Leave it on "Office / Home" for an ordinary day, or tap "Site visit" if you are going to a customer.',
+            'Tap "Clock in" and allow location. The camera opens to take your selfie, which is required for every clock in and clock out, no exceptions.',
+            'On a site visit the same window asks where you are going. Say the place, for example "Customer ABC, Shah Alam".',
+            'If you are late, off-site, or your device cannot find your location, that window asks for a reason instead. Your manager sees it with the punch.',
+            'Clock out when you finish, with another selfie. Leaving before your end time needs a reason too.',
         ],
     ],
     'ms'  => [
         'title' => 'Kehadiran',
-        'body'  => 'Clock in bila mula dan clock out bila habis — selfie diperlukan setiap kali, kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu — pejabat, lokasi klien, atau rumah. Jika anda di luar lokasi itu, anda masih boleh clock tetapi perlu beri sebab. Clock out awal atau di luar lokasi juga ditanda.',
+        'body'  => 'Pilih mod kerja anda, kemudian clock in bila mula dan clock out bila habis. Selfie diperlukan setiap kali dan kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu, iaitu pejabat, lokasi klien, atau rumah. Untuk lawatan tapak anda nyatakan ke mana anda pergi, dan tiada tanda luar lokasi. Clock in lewat atau clock out awal tetap perlu sebab.',
         'who'   => 'Semua orang rekod masa sendiri',
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
-            'Tekan "Clock in" dan benarkan lokasi — kamera terbuka untuk ambil selfie anda. Selfie diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
-            'Jika peranti anda benar-benar tidak dapat mencari lokasi, skrin menawarkan clock tanpa lokasi — rekod itu juga perlu sebab ditaip, dan ditanda untuk pengurus anda.',
-            'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
-            'Jika anda di luar lokasi, atau clock in lewat / clock out awal, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
-            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
+            'Pilih mod kerja anda dahulu. Biarkan pada "Pejabat / Rumah" untuk hari biasa, atau tekan "Lawatan tapak" jika anda ke tempat pelanggan.',
+            'Tekan "Clock in" dan benarkan lokasi. Kamera terbuka untuk ambil selfie anda, yang diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
+            'Untuk lawatan tapak, tetingkap yang sama bertanya ke mana anda pergi. Nyatakan tempatnya, contohnya "Customer ABC, Shah Alam".',
+            'Jika anda lewat, di luar lokasi, atau peranti anda tidak dapat mencari lokasi, tetingkap itu meminta sebab. Pengurus anda melihatnya bersama rekod.',
+            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat perlu sebab juga.',
         ],
     ],
 ])
@@ -146,6 +146,12 @@
               init() {
                   if (this.justPunched) {
                       setTimeout(() => { this.justPunched = false; }, 1800);
+                  }
+                  // The server refused the last punch for a missing reason (needs_justification).
+                  // The drawer that used to reopen for this is gone, the sheet is now the only
+                  // place a reason lives, so it has to reopen itself or the refusal is invisible.
+                  if (this.serverJustify) {
+                      this.openPunchSheet(null, null, true, this.workMode === 'site_visit' ? 'site_visit' : 'off_site');
                   }
                   this.tick();
                   setInterval(() => this.tick(), 1000);
@@ -270,7 +276,13 @@
                   // A selfie is mandatory for every punch — mirrors ClockService. A typed
                   // reason is still only for off-site, unlocatable, late-in or early-out — in
                   // that priority, matching the order ClockService itself checks them in.
-                  let reasonKind = noFix ? 'no_location' : (offSite ? 'off_site' : null);
+                  // A declared site visit owes a destination, and outranks 'off_site' because
+                  // the fence is no longer what is being asked about. It does NOT outrank
+                  // 'no_location', which mirrors ClockService's own gate order: an unlocatable
+                  // punch is reported as unlocatable whatever the employee declared.
+                  let reasonKind = noFix
+                      ? 'no_location'
+                      : (this.workMode === 'site_visit' ? 'site_visit' : (offSite ? 'off_site' : null));
                   if (! reasonKind && this.action === 'out' && this.earlyNow()) { reasonKind = 'early'; }
                   if (! reasonKind && this.action === 'in' && this.lateNow()) { reasonKind = 'late'; }
                   const needReason = reasonKind !== null;
@@ -498,12 +510,14 @@
                       no_location: out ? 'Clock out without location' : 'Clock in without location',
                       late: 'Late clock in',
                       early: 'Early clock out',
+                      site_visit: 'Site visit',
                   };
                   const ms = {
                       off_site: out ? 'Clock out luar lokasi' : 'Clock in luar lokasi',
                       no_location: out ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi',
                       late: 'Clock in lewat',
                       early: 'Clock out awal',
+                      site_visit: 'Lawatan tapak',
                   };
                   const fallback = lang === 'en'
                       ? (out ? 'Clock out selfie' : 'Clock in selfie')
@@ -517,12 +531,14 @@
                       no_location: 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.',
                       late: 'You are clocking in after your shift started, so this punch needs a reason. Your manager sees it flagged.',
                       early: 'You are clocking out before your shift ends, so this punch needs a reason. Your manager sees it flagged.',
+                      site_visit: 'Tell your manager where you are going. Your selfie and location are still recorded.',
                   };
                   const ms = {
                       off_site: 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       no_location: 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       late: 'Anda clock in selepas shift bermula, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
                       early: 'Anda clock out sebelum shift tamat, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
+                      site_visit: 'Beritahu pengurus anda ke mana anda pergi. Selfie dan lokasi anda tetap direkodkan.',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -532,12 +548,14 @@
                       no_location: 'Why are you clocking without location?',
                       late: 'Why are you clocking in late?',
                       early: 'Why are you clocking out early?',
+                      site_visit: 'Where are you going?',
                   };
                   const ms = {
                       off_site: 'Kenapa anda di luar lokasi yang dijangka?',
                       no_location: 'Kenapa anda clock tanpa lokasi?',
                       late: 'Kenapa anda clock in lewat?',
                       early: 'Kenapa anda clock out awal?',
+                      site_visit: 'Ke mana anda pergi?',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -547,12 +565,14 @@
                       no_location: 'e.g. Office wifi has no location on this desktop',
                       late: 'e.g. Traffic jam on the way in',
                       early: 'e.g. Site visit ended early',
+                      site_visit: 'e.g. Customer ABC, Shah Alam',
                   };
                   const ms = {
                       off_site: 'cth. Mesyuarat klien di HQ, diluluskan pengurus',
                       no_location: 'cth. Wifi pejabat tiada lokasi pada komputer ini',
                       late: 'cth. Kesesakan jalan raya',
                       early: 'cth. Lawatan tapak tamat awal',
+                      site_visit: 'cth. Customer ABC, Shah Alam',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
