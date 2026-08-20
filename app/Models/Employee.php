@@ -135,9 +135,6 @@ class Employee extends Model
             'personality' => 'array',
             'leave_balance' => 'float',
             'salary' => 'decimal:2',
-            'home_latitude' => 'decimal:7',
-            'home_longitude' => 'decimal:7',
-            'home_locked_at' => 'datetime',
             'hybrid_office_days' => 'array',
             'archived_at' => 'datetime',
         ];
