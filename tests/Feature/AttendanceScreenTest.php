@@ -493,4 +493,32 @@ class AttendanceScreenTest extends TestCase
 
         $response->assertSee('justPunched: false', false);
     }
+
+    /**
+     * A shift clocked in at 23:00 leaves its open record dated *yesterday*, so the shelf's
+     * "today" lookup found nothing after midnight and offered "Clock in" to someone who was
+     * mid-shift — which posted action=in and opened a second record for the same shift.
+     * Same rationale, and the same yesterday-or-today bound, as ClockService::clockOut().
+     */
+    public function test_shelf_shows_the_open_overnight_punch_after_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-16 01:30:00'));
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '23:00:00',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('in since <b>23:00</b>', false);
+        $response->assertSee('name="action" value="out"', false);
+        $response->assertSee('clockInWasYesterday: true', false);
+    }
 }

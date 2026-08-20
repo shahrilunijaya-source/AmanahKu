@@ -120,6 +120,10 @@
               graceMin: {{ $lateGraceMinutes ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
+              {{-- The open punch of an overnight shift is dated yesterday, so its clock-in
+                   time is *later* in the day than the current wall clock. Without this the
+                   elapsed ticker read 0h 00m for the whole night. --}}
+              clockInWasYesterday: {{ $today && ! $today->clock_out && ! $today->date->isToday() ? 'true' : 'false' }},
               // One-shot: true only on the reload right after a successful punch, driving the
               // pulse on the status card / dock button. Cleared in init() so it never re-fires
               // on a later plain refresh.
@@ -186,7 +190,7 @@
                   if (this.clockInTime) {
                       const p = this.clockInTime.split(':');
                       const inMins = Number(p[0]) * 60 + Number(p[1]);
-                      const worked = Math.max(0, nowMins - inMins);
+                      const worked = Math.max(0, nowMins - inMins + (this.clockInWasYesterday ? 1440 : 0));
                       const h = Math.floor(worked / 60);
                       const m = worked % 60;
                       this.elapsedWorked = h + 'h ' + String(m).padStart(2, '0') + 'm';

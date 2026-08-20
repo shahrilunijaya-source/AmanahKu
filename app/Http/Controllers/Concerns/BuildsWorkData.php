@@ -81,7 +81,15 @@ trait BuildsWorkData
 
         return [
             'records' => $records,
-            'today' => $records->first(fn ($r) => $r->date->isToday()),
+            // Not just isToday(): a shift that crosses midnight (in 23:00, out 01:30) has its
+            // open record dated *yesterday*, so after midnight the shelf found nothing and told
+            // an employee mid-shift they had never clocked in — and posted action=in, opening a
+            // second record for the same shift. Prefer the still-open punch, bounded to
+            // yesterday-or-today, exactly as ClockService::clockOut() looks it up.
+            'today' => $records->first(fn ($r) => $r->clock_in !== null
+                && $r->clock_out === null
+                && $r->date->toDateString() >= now()->subDay()->toDateString())
+                ?? $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
             // Every geofenced location in the tenant, so the attendance screen's live chip
             // can name the site the staff member is standing in — the same match the server
