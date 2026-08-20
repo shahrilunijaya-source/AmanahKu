@@ -696,4 +696,66 @@ class AttendanceScreenTest extends TestCase
         $this->assertStringContainsString('Location not found', $html);
         $this->assertStringContainsString('Lokasi tidak dijumpai', $html);
     }
+
+    /**
+     * site_visit_in flag must render its translated English label 'Site visit' on the row
+     * pill, never the raw flag key. The map lookup must succeed so the fallback is never used.
+     */
+    public function test_site_visit_in_flag_shows_english_label_on_single_flag_row_pill(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'flags' => ['site_visit_in'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit');
+        $response->assertDontSee('site_visit_in');
+    }
+
+    /**
+     * site_visit_in flag must render its translated labels (English and Malay) in the
+     * expanded flags list, not the raw flag key. The Malay label is rendered inside an
+     * Alpine x-text attribute via @js(), which JSON-encodes the string. A multi-flag
+     * record like ['site_visit_in', 'no_location'] shows both expanded with their English
+     * and Malay translations. (no_location legitimately appears in the punch sheet JavaScript,
+     * so only assert that site_visit_in does not appear, as it should only be in the flag map.)
+     */
+    public function test_site_visit_in_and_no_location_flags_show_translated_labels_in_expanded_list(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'flags' => ['site_visit_in', 'no_location'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        // Row pill counts both flags
+        $response->assertSee('2 flags');
+        // Expanded list shows English labels
+        $response->assertSee('Site visit');
+        $response->assertSee('No location');
+        // Expanded list shows Malay labels (rendered in x-text via @js())
+        $response->assertSee('Lawatan tapak');
+        $response->assertSee('Tiada lokasi');
+        // Raw site_visit_in key must not appear (only in flag map, not in punch sheet logic)
+        $response->assertDontSee('site_visit_in');
+    }
 }
