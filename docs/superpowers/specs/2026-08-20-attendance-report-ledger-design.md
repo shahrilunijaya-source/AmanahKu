@@ -288,6 +288,16 @@ Three deliberate departures, all mechanically verified in the browser:
   under 760px, rather than a second copy of every control. One element, one
   state, so the bar and the sheet cannot disagree about what is selected.
   Dropped with it: drag-to-dismiss. Tap the scrim, press Escape, or Show results.
+
+  **Inside the sheet a control stages rather than navigates.** Every control on
+  this screen is a plain link, which on desktop is exactly right — one tap, one
+  result. On a phone that closed the sheet after every single choice, so setting
+  three filters meant opening it three times. While the sheet is open the same
+  links write to local state instead, and Show results submits the form once.
+  The period label follows the staged offset using `stepLabels`, a year of
+  server-rendered labels per granularity, so the staged step is never stale and
+  the date maths stays in `ReportPeriod` rather than being reimplemented in
+  Alpine in one language.
 - **The mock's own fake map is gone.** The row chip and the drawer both dispatch
   `open-map-view` to the existing `partials/map-view.blade.php`.
 

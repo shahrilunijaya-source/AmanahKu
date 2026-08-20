@@ -129,6 +129,7 @@ class AttendanceReportController extends Controller
             'label' => ['en' => $period->label('en'), 'ms' => $period->label('ms')],
             'rangeLabel' => ['en' => $period->rangeLabel('en'), 'ms' => $period->rangeLabel('ms')],
             'captionKey' => $period->captionKey(),
+            'stepLabels' => $this->stepLabels($today),
             'canPrev' => $period->canPrev,
             'canNext' => $period->canNext,
             'offset' => $period->offset,
@@ -152,6 +153,32 @@ class AttendanceReportController extends Controller
     }
 
     /**
+     * Every period label the phone's filter sheet can step to, keyed by granularity
+     * and offset.
+     *
+     * The sheet stages a choice instead of navigating on every tap, so the label has
+     * to move before the page does. Rather than reimplement the date maths in Alpine
+     * — where it would drift from ReportPeriod and speak only one language — the
+     * server hands over the labels it would have rendered anyway. A year back is
+     * plenty of reach for a screen whose job is this month's payroll.
+     *
+     * @return array<string, array<int, array{en: string, ms: string}>>
+     */
+    private function stepLabels(CarbonImmutable $today): array
+    {
+        $labels = [];
+
+        foreach (['day', 'week', 'month'] as $gran) {
+            for ($offset = 0; $offset >= -12; $offset--) {
+                $at = ReportPeriod::fromRequest(['gran' => $gran, 'offset' => $offset], $today);
+                $labels[$gran][$offset] = ['en' => $at->label('en'), 'ms' => $at->label('ms')];
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
      * The caption names the period it actually totals. A past week or day gets its
      * own dates rather than "This week", which would be a lie about which week.
      *
@@ -165,9 +192,12 @@ class AttendanceReportController extends Controller
             return self::CAPTIONS[$key];
         }
 
-        return $key === 'dayPast'
-            ? ['en' => $period->label('en'), 'ms' => $period->label('ms')]
-            : ['en' => 'Week '.$period->label('en'), 'ms' => 'Minggu '.$period->label('ms')];
+        // Only a past WEEK needs naming: its label is a bare "10 – 14 Aug", which does
+        // not say week anywhere. A past month already reads "June 2026" and a past day
+        // "Thu, 20 Aug", so prefixing those produced captions like "Week June 2026".
+        return $key === 'weekPast'
+            ? ['en' => 'Week '.$period->label('en'), 'ms' => 'Minggu '.$period->label('ms')]
+            : ['en' => $period->label('en'), 'ms' => $period->label('ms')];
     }
 
     /**

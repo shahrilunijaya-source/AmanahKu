@@ -238,4 +238,37 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertSame('custom', $response->viewData('gran'));
         $this->assertSame(['2026-07-13', '2026-07-14'], $response->viewData('workingDays'));
     }
+
+    public function test_the_phone_sheet_stages_its_filters_behind_show_results(): void
+    {
+        // Tapping a filter used to navigate immediately, which closed the sheet under
+        // you after every single choice. The sheet now holds the whole form and one
+        // submit applies the lot.
+        $html = $this->actAsHr()->get('/app/attendance-report?gran=week&sort=person')
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('type="submit"', $html);
+        $this->assertStringContainsString('Show results', $html);
+        $this->assertStringNotContainsString('onchange="this.form.submit()"', $html,
+            'the department select must not auto-submit while the sheet is open');
+
+        // The form carries the current state, so submitting it without touching
+        // anything lands on the same screen.
+        $this->assertStringContainsString('name="gran" value="week"', $html);
+        $this->assertStringContainsString('name="sort" value="person"', $html);
+    }
+
+    public function test_the_sheet_gets_every_period_label_it_can_step_to(): void
+    {
+        // The staged stepper has to move the label before the page moves. The server
+        // hands over the labels rather than letting Alpine redo the date maths.
+        $labels = $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()->viewData('stepLabels');
+
+        $this->assertSame('July 2026', $labels['month'][0]['en']);
+        $this->assertSame('June 2026', $labels['month'][-1]['en']);
+        $this->assertSame('Jun 2026', $labels['month'][-1]['ms']);
+        $this->assertArrayHasKey(-12, $labels['week'], 'a year of reach in every granularity');
+        $this->assertArrayHasKey('day', $labels);
+    }
 }

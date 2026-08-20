@@ -158,6 +158,17 @@ class AttendanceReportSummaryTest extends TestCase
             'Week 6 – 10 Jul',
             $this->screenData(['gran' => 'week', 'offset' => '-1'])['totals']['caption']['en']
         );
+
+        // Only a past week needs the word: its label is a bare "6 – 10 Jul". A past
+        // month already names itself, and prefixing it read "Week June 2026".
+        $this->assertSame(
+            'June 2026',
+            $this->screenData(['gran' => 'month', 'offset' => '-1'])['totals']['caption']['en']
+        );
+        $this->assertSame(
+            'Tue, 14 Jul',
+            $this->screenData(['gran' => 'day', 'offset' => '-1'])['totals']['caption']['en']
+        );
     }
 
     public function test_a_fully_present_person_is_in_no_lens(): void

@@ -63,7 +63,22 @@
 @endphp
 
 @section('screen')
-<div class="uj-ar-ledger" data-gran="{{ $gran }}" x-data="{ filters: false }">
+{{-- `staged` holds what the phone's filter sheet has been set to but not yet
+     applied. On desktop the sheet never opens, `filters` stays false, and every
+     control behaves as the plain link it is. --}}
+<div class="uj-ar-ledger" data-gran="{{ $gran }}"
+     x-data="{
+        filters: false,
+        gran: @js($gran),
+        offset: {{ $offset }},
+        sort: @js($sort),
+        stepLabels: @js($stepLabels),
+        get periodLabel() {
+            const set = this.stepLabels[this.gran];
+            const at = set && set[this.offset];
+            return at ? at[$store.ui.lang] : null;
+        },
+     }">
 
     @include('partials.guide', [
         'key' => 'attendance-report',
@@ -94,20 +109,25 @@
     ])
 
     {{-- The scrim only exists at phone width, where the filter block is a sheet. --}}
-    <div class="uj-ar-scrim uj-ar-mobile-only" x-show="filters" x-cloak @click="filters = false"></div>
+    <div class="uj-ar-scrim uj-ar-mobile-only" x-show="filters" x-cloak
+         x-transition.opacity.duration.280ms @click="filters = false"></div>
 
     <form method="get" action="{{ route('app.screen', 'attendance-report') }}"
           class="uj-ar-filter" :data-open="filters || null" @keydown.escape.window="filters = false">
+        <span class="uj-ar-grab uj-ar-mobile-only" aria-hidden="true"></span>
+        <h3 class="uj-ar-mobile-only" x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</h3>
         {{-- The link controls carry their own state; these hidden fields keep it when the
              department or the name search submits this form instead. --}}
-        <input type="hidden" name="gran" value="{{ $gran }}">
-        @if ($gran === 'custom')
-            <input type="hidden" name="from" value="{{ $from }}">
-            <input type="hidden" name="to" value="{{ $to }}">
-        @else
-            <input type="hidden" name="offset" value="{{ $offset }}">
-        @endif
-        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="gran" value="{{ $gran }}" :value="gran">
+        <input type="hidden" name="offset" value="{{ $offset }}" :value="offset"
+               @if($gran === 'custom') disabled @endif :disabled="gran === 'custom'">
+        {{-- A custom range survives a dept or name change, but not a switch to
+             Day/Week/Month — disabled fields are not submitted. --}}
+        <input type="hidden" name="from" value="{{ $from }}"
+               @if($gran !== 'custom') disabled @endif :disabled="gran !== 'custom'">
+        <input type="hidden" name="to" value="{{ $to }}"
+               @if($gran !== 'custom') disabled @endif :disabled="gran !== 'custom'">
+        <input type="hidden" name="sort" value="{{ $sort }}" :value="sort">
         @if ($lens)
             <input type="hidden" name="lens" value="{{ $lens }}">
         @endif
@@ -120,6 +140,8 @@
                 @foreach ($grans as $key => $granLabel)
                     <a href="{{ $url(['gran' => $key, 'offset' => 0, 'from' => null, 'to' => null]) }}"
                        @if($gran === $key) data-on @endif
+                       :data-on="gran === @js($key) ? '' : null"
+                       @click="if (filters) { $event.preventDefault(); gran = @js($key); offset = 0 }"
                        x-text="$store.ui.lang==='en' ? @js($granLabel[0]) : @js($granLabel[1])">{{ $granLabel[0] }}</a>
                 @endforeach
             </div>
@@ -127,6 +149,7 @@
             <div class="uj-ar-month">
                 @if ($canPrev)
                     <a class="nav" href="{{ $url(['offset' => $offset - 1]) }}"
+                       @click="if (filters) { $event.preventDefault(); if (offset > -12) offset-- }"
                        :aria-label="$store.ui.lang==='en' ? 'Previous period' : 'Tempoh sebelum'">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                     </a>
@@ -135,9 +158,13 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                     </span>
                 @endif
-                <span class="lbl" x-text="$store.ui.lang==='en' ? @js($label['en']) : @js($label['ms'])">{{ $label['en'] }}</span>
+                {{-- periodLabel comes from the server's own labels for every offset the
+                     sheet can reach, so a staged step never shows a stale month and the
+                     date maths lives in exactly one place. --}}
+                <span class="lbl" x-text="periodLabel ?? ($store.ui.lang==='en' ? @js($label['en']) : @js($label['ms']))">{{ $label['en'] }}</span>
                 @if ($canNext)
                     <a class="nav" href="{{ $url(['offset' => $offset + 1]) }}"
+                       @click="if (filters) { $event.preventDefault(); if (offset < 0) offset++ }"
                        :aria-label="$store.ui.lang==='en' ? 'Next period' : 'Tempoh seterusnya'">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                     </a>
@@ -197,7 +224,7 @@
 
         <div class="fld">
             <label class="uj-ar-mobile-only" x-text="$store.ui.lang==='en' ? 'Department' : 'Jabatan'">Department</label>
-            <select name="dept" class="uj-ar-sel" onchange="this.form.submit()">
+            <select name="dept" class="uj-ar-sel" @change="if (! filters) $el.form.submit()">
                 <option value="" x-text="$store.ui.lang==='en' ? 'All departments' : 'Semua jabatan'">All departments</option>
                 @foreach ($departments as $name)
                     <option value="{{ $name }}" @selected($dept === $name)>{{ $name }}</option>
@@ -227,12 +254,14 @@
             <div class="uj-ar-seg">
                 @foreach ($sorts as $key => $lbl)
                     <a href="{{ $url(['sort' => $key]) }}" @if($sort === $key) data-on @endif
+                       :data-on="sort === @js($key) ? '' : null"
+                       @click="if (filters) { $event.preventDefault(); sort = @js($key) }"
                        x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</a>
                 @endforeach
             </div>
         </div>
 
-        <button type="button" class="uj-ar-btn uj-ar-btn-primary done uj-ar-mobile-only" @click="filters = false"
+        <button type="submit" class="uj-ar-btn uj-ar-btn-primary done uj-ar-mobile-only"
                 x-text="$store.ui.lang==='en' ? 'Show results' : 'Tunjuk hasil'">Show results</button>
     </form>
 
