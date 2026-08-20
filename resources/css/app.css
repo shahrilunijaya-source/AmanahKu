@@ -1723,6 +1723,10 @@ select.wd-inline {
 .uj-ar-seg a,.uj-ar-month .nav,.uj-ar-chip,.uj-ar-fix,.uj-ar-person,.uj-ar-export{text-decoration:none}
 .uj-ar-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 14px}
 
+/* Every rule below is scoped to the pill's OWN children (> or .custom), never to
+   any button inside it. The custom-range popover lives in here, and a plain
+   descendant selector flattened its Cancel and Apply into 34px borderless icon
+   slots — same specificity trap, one level down from the overflow one. */
 .uj-ar-month{
   display:inline-flex;align-items:center;background:var(--card);
   border:1px solid var(--hairline);border-radius:9px;height:38px;
@@ -1734,12 +1738,12 @@ select.wd-inline {
 .uj-ar-month > :first-child{border-radius:8px 0 0 8px}
 .uj-ar-month > :last-child,
 .uj-ar-month .custom{border-radius:0 8px 8px 0}
-.uj-ar-month .nav,.uj-ar-month button{
+.uj-ar-month>.nav,.uj-ar-month>button,.uj-ar-month .custom{
   width:34px;height:100%;border:0;background:none;cursor:pointer;color:var(--muted);
   display:grid;place-items:center;transition:background .14s var(--ease),color .14s var(--ease);
 }
-.uj-ar-month .nav:not([data-off]):hover,.uj-ar-month button:hover:not(:disabled){background:var(--hairline-soft);color:var(--ink)}
-.uj-ar-month .nav[data-off],.uj-ar-month button:disabled{color:#c9c7bf;cursor:default}
+.uj-ar-month>.nav:not([data-off]):hover,.uj-ar-month>button:hover:not(:disabled),.uj-ar-month .custom:hover{background:var(--hairline-soft);color:var(--ink)}
+.uj-ar-month>.nav[data-off],.uj-ar-month>button:disabled{color:#c9c7bf;cursor:default}
 .uj-ar-month .lbl{
   padding:0 4px;min-width:112px;text-align:center;
   font-size:var(--t-sm);font-weight:600;color:var(--ink);
