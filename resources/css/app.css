@@ -1458,6 +1458,9 @@ select.wd-inline {
 .uj-at-fence[data-f="in"] { background: #e7f4ee; color: #14614a; }
 .uj-at-fence[data-f="out"] { background: #faf1e2; color: #7a5210; }
 .uj-at-fence[data-f="wait"] { background: var(--hairline-soft); color: var(--muted); }
+.uj-at-fence[data-f="fail"] { background: var(--hairline-soft); color: var(--muted); }
+.uj-at-fence[data-f="info"] { background: #eaf1fb; color: #1d4d8f; }
+.uj-at-fence { border: 0; cursor: pointer; font-family: inherit; }
 /* On .uj-at-fence[data-f="wait"] i: this pulse is a transient loading state
    that stops once the geolocation call resolves, not a decorative infinite animation. */
 .uj-at-fence[data-f="wait"] i { animation: uj-at-ping 1.4s ease-in-out infinite; }

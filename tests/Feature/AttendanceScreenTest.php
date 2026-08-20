@@ -630,4 +630,15 @@ class AttendanceScreenTest extends TestCase
         $this->assertStringContainsString('id="attendance-clock-form"', $html);
         $this->assertStringContainsString('form="attendance-clock-form"', $html);
     }
+
+    public function test_the_location_badge_is_tappable_and_has_a_failure_state(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('recheckFence()', $html);
+        $this->assertStringContainsString('Location not found', $html);
+        $this->assertStringContainsString('Lokasi tidak dijumpai', $html);
+    }
 }

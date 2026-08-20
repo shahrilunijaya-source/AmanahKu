@@ -158,33 +158,43 @@
                   if (!window.isSecureContext) {
                       // Warn on load: on an insecure origin no punch can ever succeed.
                       this.geoFail('insecure');
-                  } else if (navigator.geolocation) {
-                      this.bestFix(
-                          (pos) => {
-                              const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
-                              if (m) {
-                                  this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
-                                  this.fenceDistM = Math.round(m.d);
-                                  this.fenceStatus = 'in';
-                              } else if (this.siteLat !== null) {
-                                  this.matchedLabel = '';
-                                  this.fenceDistM = Math.round(this.distTo(pos.coords.latitude, pos.coords.longitude, this.siteLat, this.siteLng));
-                                  this.fenceStatus = 'out';
-                              } else {
-                                  this.fenceStatus = 'none';
-                              }
-                          },
-                          (kind, err) => {
-                              // Warn on load rather than letting the staff discover it on tap.
-                              if (kind === 'denied') { this.geoFail('denied', err); }
-                              this.fenceStatus = 'none';
-                          },
-                          true,
-                          12000
-                      );
                   } else {
-                      this.fenceStatus = 'none';
+                      this.recheckFence();
                   }
+              },
+              /**
+               * The badge reads once on load, so a page opened in the car still says off-site
+               * after walking in. Tapping re-runs the same acquisition — no new geolocation
+               * code, and no second button beside the punch, which is what produced the
+               * “I clocked in twice” confusion.
+               */
+              recheckFence() {
+                  if (!window.isSecureContext || !navigator.geolocation) { this.fenceStatus = 'none'; return; }
+                  this.fenceStatus = 'wait';
+                  this.bestFix(
+                      (pos) => {
+                          const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
+                          if (m) {
+                              this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
+                              this.fenceDistM = Math.round(m.d);
+                              this.fenceStatus = 'in';
+                          } else if (this.siteLat !== null) {
+                              this.matchedLabel = '';
+                              this.fenceDistM = Math.round(this.distTo(pos.coords.latitude, pos.coords.longitude, this.siteLat, this.siteLng));
+                              this.fenceStatus = 'out';
+                          } else {
+                              this.fenceStatus = 'none';
+                          }
+                      },
+                      (kind, err) => {
+                          if (kind === 'denied') { this.geoFail('denied', err); this.fenceStatus = 'none'; return; }
+                          // A slow or unavailable lookup used to leave the badge blank with no
+                          // message at all. Say so, and offer the retry.
+                          this.fenceStatus = 'fail';
+                      },
+                      true,
+                      12000
+                  );
               },
               tick() {
                   const d = new Date();
@@ -201,6 +211,9 @@
                   }
               },
               fenceText(lang) {
+                  if (this.fenceStatus === 'fail') {
+                      return lang === 'en' ? 'Location not found, tap to check' : 'Lokasi tidak dijumpai, tekan untuk semak';
+                  }
                   if (this.fenceStatus === 'wait') {
                       return lang === 'en' ? 'checking location…' : 'menyemak lokasi…';
                   }
@@ -216,6 +229,10 @@
                       return lang === 'en' ? ('You are inside · ' + dStr) : ('Anda di dalam · ' + dStr);
                   }
                   if (this.fenceStatus === 'out') {
+                      if (this.workMode === 'site_visit') {
+                          const dStr = this.fenceDistM < 1000 ? this.fenceDistM + 'm' : (this.fenceDistM / 1000).toFixed(1) + ' km';
+                          return lang === 'en' ? (dStr + ' from ' + this.assignedLabel) : (dStr + ' dari ' + this.assignedLabel);
+                      }
                       const dStr = this.fenceDistM < 1000
                           ? this.fenceDistM + 'm away'
                           : (this.fenceDistM / 1000).toFixed(1) + ' km away';
@@ -816,10 +833,12 @@
 
                         {{-- Shown even when the assigned site has no geofence: the fix may
                              still land inside another configured branch or client site. --}}
-                        <span class="uj-at-fence" x-show="fenceStatus !== 'none' && fenceStatus !== 'wait'" :data-f="fenceStatus" x-cloak>
+                        <button type="button" class="uj-at-fence" @click="recheckFence()"
+                                x-show="fenceStatus !== 'none' && fenceStatus !== 'wait'"
+                                :data-f="workMode === 'site_visit' && fenceStatus === 'out' ? 'info' : fenceStatus" x-cloak>
                             <i></i>
                             <span x-text="fenceText($store.ui.lang)"></span>
-                        </span>
+                        </button>
                     </div>
                 @endif
             </div>
