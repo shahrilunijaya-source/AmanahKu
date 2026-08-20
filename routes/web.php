@@ -10,6 +10,7 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AttendanceAdminController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceReportExportController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
@@ -473,6 +474,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/employees/import-template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
         Route::get('/app/position/import-template', [PositionController::class, 'importTemplate'])->name('position.import.template');
         Route::get('/app/reports/export/employees', [ReportController::class, 'exportEmployees'])->name('reports.export.employees');
+        // The attendance ledger as a file. Must stay above /app/{screen?} or the
+        // catch-all reads "attendance-report/export" as a screen name and serves HTML.
+        Route::get('/app/attendance-report/export', [AttendanceReportExportController::class, 'download'])->name('attendance.report.export');
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
