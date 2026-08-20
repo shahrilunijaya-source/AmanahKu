@@ -35,6 +35,14 @@
         ->groupBy('type')->map(fn ($g) => (float) $g->sum('amount'));
     $settledTotal = (float) $settledByType->sum();
 
+    // Two money tiles: still moving through the two-step gate (submitted or verified),
+    // and approved but not yet paid — kept apart from `paid` since that's the thing an
+    // employee actually wants to know: when does the money arrive.
+    $waitingClaims = $myClaims->whereIn('status', ['submitted', 'verified']);
+    $waitingTotal = (float) $waitingClaims->sum('amount');
+    $waitingCount = $waitingClaims->count();
+    $approvedNotPaidTotal = (float) $myClaims->where('status', 'approved')->sum('amount');
+
     $isApprover = $isApprover ?? false;
     $privileged = $privileged ?? false;
 

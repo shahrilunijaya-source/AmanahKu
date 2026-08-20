@@ -207,4 +207,14 @@ class AttendanceReportScreenTest extends TestCase
             ->assertOk()
             ->assertSee('uj-main--wide', false);
     }
+
+    public function test_the_screen_does_not_repeat_the_shell_title(): void
+    {
+        // The app shell renders "Attendance Reports" and its description above
+        // <main>. A second heading under it said the same thing twice.
+        $html = $this->actAsHr()->get('/app/attendance-report')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('uj-ar-head', $html);
+        $this->assertSame(1, substr_count($html, '<h1'), 'one heading on the page, not two');
+    }
 }

@@ -1668,15 +1668,10 @@ select.wd-inline {
    a 390px frame inside a desktop window and needed @container for that; the
    real screen IS the viewport.
    ═══════════════════════════════════════════════════════════════════════ */
-/* ── head ───────────────────────────────────────────────────────────────── */
-.uj-ar-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
-.uj-ar-head h1{
-  font:500 var(--t-xl)/1.25 var(--font-sans);letter-spacing:-.025em;
-  color:var(--ink);margin:0;text-wrap:balance;
-}
-.uj-ar-head p{margin:5px 0 0;font-size:var(--t-sm);color:var(--muted)}
-.uj-ar-head p .m{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-
+/* ── buttons ───────────────────────────────────────────────────────────────
+   No .uj-ar-head: the app shell already renders this screen's title, its
+   description and the guide toggle above <main>. A second heading underneath
+   was the same sentence twice. */
 .uj-ar-btn{
   display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;
   border-radius:9px;border:1px solid var(--hairline);background:var(--card);
@@ -2075,6 +2070,7 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
      that pushes the table below the fold on every load. Export goes full width
      under it, where a thumb can reach it. */
   .uj-ar-lensrow{gap:9px}
+  .uj-ar-filterbtn{flex:1 1 100%;justify-content:center;height:42px;order:-1}
   .uj-ar-chips{
     flex:1 1 100%;overflow-x:auto;scroll-snap-type:x proximity;
     scrollbar-width:none;

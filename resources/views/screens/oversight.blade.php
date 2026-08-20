@@ -16,7 +16,7 @@
 @php
     $cards = [
         ['screen' => 'reports', 'en' => ['title' => 'Workforce Reports', 'sub' => 'Headcount, department capacity and workload split.'], 'ms' => ['title' => 'Laporan Tenaga Kerja', 'sub' => 'Bilangan staf, kapasiti jabatan dan taburan beban kerja.']],
-        ['screen' => 'attendance-report', 'en' => ['title' => 'Attendance Reports', 'sub' => 'Every active employee, clocked in or not.'], 'ms' => ['title' => 'Laporan Kehadiran', 'sub' => 'Setiap pekerja aktif, clock in atau tidak.']],
+        ['screen' => 'attendance-report', 'en' => ['title' => 'Attendance Reports', 'sub' => 'One row per person per working day.'], 'ms' => ['title' => 'Laporan Kehadiran', 'sub' => 'Satu baris bagi setiap pekerja setiap hari bekerja.']],
         ['screen' => 'leave-report', 'en' => ['title' => 'Leave Reports', 'sub' => 'Leave taken by type and by person.'], 'ms' => ['title' => 'Laporan Cuti', 'sub' => 'Cuti diambil mengikut jenis dan individu.']],
         ['screen' => 'timesheet-reports', 'roles' => ['management', 'hr'], 'en' => ['title' => 'Timesheet Reports', 'sub' => 'Hours and cost by project and by person.'], 'ms' => ['title' => 'Laporan Lembaran Masa', 'sub' => 'Jam dan kos mengikut projek dan individu.']],
         ['screen' => 'audit', 'en' => ['title' => 'Audit Logs', 'sub' => 'Recent administrative and approval activity.'], 'ms' => ['title' => 'Log Audit', 'sub' => 'Aktiviti pentadbiran dan kelulusan terkini.']],

@@ -93,22 +93,6 @@
         ],
     ])
 
-    <div class="uj-ar-head">
-        <div>
-            <h1 x-text="$store.ui.lang==='en' ? 'Attendance' : 'Kehadiran'">Attendance</h1>
-            <p>
-                <span x-text="$store.ui.lang==='en'
-                    ? 'Every clock-in and clock-out, day by day.'
-                    : 'Setiap clock in dan clock out, hari demi hari.'">Every clock-in and clock-out, day by day.</span>
-                <span class="m" x-text="$store.ui.lang==='en' ? @js($rangeLabel['en']) : @js($rangeLabel['ms'])">{{ $rangeLabel['en'] }}</span>
-            </p>
-        </div>
-        <button type="button" class="uj-ar-btn uj-ar-mobile-only" @click="filters = true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
-            <span x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</span>
-        </button>
-    </div>
-
     {{-- The scrim only exists at phone width, where the filter block is a sheet. --}}
     <div class="uj-ar-scrim uj-ar-mobile-only" x-show="filters" x-cloak @click="filters = false"></div>
 
@@ -235,6 +219,13 @@
     <div class="uj-ar-lensrow">
         {{-- A segmented control, not a row of numbers: as bare figures on the canvas
              nobody realised these were clickable. --}}
+        {{-- Opens the filter form as a sheet. Sits with the chips because it is the
+             other half of "which rows am I looking at", and the screen has no
+             heading of its own to hang it off. --}}
+        <button type="button" class="uj-ar-btn uj-ar-mobile-only uj-ar-filterbtn" @click="filters = true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+            <span x-text="$store.ui.lang==='en' ? 'Filters' : 'Penapis'">Filters</span>
+        </button>
         <div class="uj-ar-chips" role="group"
              :aria-label="$store.ui.lang==='en' ? 'Filter rows' : 'Tapis baris'">
             @foreach (['all', 'miss', 'absent', 'short', 'late'] as $key)
