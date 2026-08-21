@@ -13,6 +13,30 @@
 - version: "1.5"
   date: "2026-08-21"
   entries:
+    - tag: improved
+      text: "The Attendance Report has been rebuilt as a ledger: one line per person per day, so a whole team's week reads top to bottom without opening anything. Pick a day, a week, a month, or set your own dates. The counts at the top — days clocked, hours, late, and days needing a fix — follow whatever department or name you filter by."
+      text_ms: "Laporan Kehadiran telah dibina semula sebagai lejar: satu baris bagi setiap orang bagi setiap hari, jadi seminggu penuh satu pasukan boleh dibaca dari atas ke bawah tanpa membuka apa-apa. Pilih hari, minggu, bulan, atau tetapkan tarikh anda sendiri. Kiraan di bahagian atas — hari direkod, jam, lewat, dan hari yang perlu dibetulkan — mengikut jabatan atau nama yang anda tapis."
+      link: "/app/attendance-report"
+      link_text: "Open the Attendance Report"
+      link_text_ms: "Buka Laporan Kehadiran"
+    - tag: added
+      text: "The buttons above the table — late, missing clock out, off site, and the rest — narrow the list to just those days without moving the totals. The totals answer \"how did the team do\", the buttons answer \"show me the ones I need to look at\", and the two no longer fight each other."
+      text_ms: "Butang di atas jadual — lewat, tiada clock out, di luar lokasi, dan selebihnya — menyempitkan senarai kepada hari-hari itu sahaja tanpa mengubah jumlah keseluruhan. Jumlah menjawab \"bagaimana prestasi pasukan\", butang pula menjawab \"tunjukkan yang saya perlu lihat\", dan kedua-duanya tidak lagi bertindih."
+    - tag: added
+      text: "Click anyone on the report to open their own panel: every day in the period, the selfie taken at the punch, whatever reason they typed, and the map point. Everything you need to decide sits in one place instead of being spread across the row."
+      text_ms: "Klik sesiapa sahaja dalam laporan untuk membuka panel mereka sendiri: setiap hari dalam tempoh itu, selfie yang diambil semasa merekod, sebarang sebab yang ditaip, dan titik peta. Segala yang anda perlukan untuk membuat keputusan berada di satu tempat, bukan bertaburan pada baris."
+    - tag: added
+      text: "HR can now type in a missing clock out straight from that panel, instead of the day sitting broken until someone edits the record by hand. A time added this way is marked as typed in, not punched, so the record still says what really happened."
+      text_ms: "HR kini boleh menaip clock out yang tertinggal terus dari panel itu, tanpa perlu membiarkan hari itu rosak sehingga seseorang menyunting rekod secara manual. Masa yang ditambah begini ditanda sebagai ditaip, bukan direkod, supaya rekod tetap menceritakan apa yang benar-benar berlaku."
+    - tag: added
+      text: "An off site punch now shows the map with its exact latitude and longitude underneath, and how far it was from the office it should have been at. A number to check, not just a pin to squint at."
+      text_ms: "Rekod di luar lokasi kini memaparkan peta bersama latitud dan longitud tepatnya di bawah, serta sejauh mana ia dari pejabat yang sepatutnya. Satu angka untuk disemak, bukan sekadar pin untuk diteliti."
+    - tag: added
+      text: "Download the report as a spreadsheet, exactly as it appears on screen — same period, same filters, same rows."
+      text_ms: "Muat turun laporan sebagai hamparan, tepat seperti yang dipaparkan pada skrin — tempoh sama, tapisan sama, baris sama."
+    - tag: improved
+      text: "Changing a filter or opening someone no longer rebuilds the whole page. Only the part that changed is fetched, so the report keeps up even with several hundred rows on screen."
+      text_ms: "Menukar tapisan atau membuka seseorang tidak lagi membina semula keseluruhan halaman. Hanya bahagian yang berubah diambil, jadi laporan kekal pantas walaupun beratus baris dipaparkan."
     - tag: added
       text: "Attendance now starts with your working mode. A two-way switch above the clock sits on \"Office / Home\" by default, so an ordinary day still takes one tap. Pick \"Site visit\" when you are heading to a customer and the punch window asks where you are going, for example \"Customer ABC, Shah Alam\". That destination is saved with the punch and shown to your manager."
       text_ms: "Kehadiran kini bermula dengan mod kerja anda. Suis dua pilihan di atas jam berada pada \"Pejabat / Rumah\" secara lalai, jadi hari biasa masih satu ketukan sahaja. Pilih \"Lawatan tapak\" apabila anda ke tempat pelanggan dan tetingkap rekod akan bertanya ke mana anda pergi, contohnya \"Customer ABC, Shah Alam\". Destinasi itu disimpan bersama rekod dan dipaparkan kepada pengurus anda."
