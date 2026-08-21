@@ -127,7 +127,11 @@ unit-tests:
   <<: *php
   stage: test
   script:
-    - php -m | grep -q pcov || { echo "FATAL: no coverage driver — the coverage floor would silently not apply"; exit 1; }
+    - |
+      if ! php -m | grep -q pcov; then
+        echo "FATAL: no coverage driver — the coverage floor would silently not apply"
+        exit 1
+      fi
     - php artisan test --coverage --min=80
   coverage: '/^\s*Total:\s*(\d+\.\d+)\s*%/'
 
