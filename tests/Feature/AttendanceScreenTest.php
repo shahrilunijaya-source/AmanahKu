@@ -644,6 +644,43 @@ class AttendanceScreenTest extends TestCase
         );
     }
 
+    public function test_the_fence_badge_carries_its_own_queued_coachmark(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('amanahku-coach-attendance-fence-badge', $html);
+        $this->assertStringContainsString('New: tap to re-check your location', $html);
+        $this->assertStringContainsString('Baharu: tekan untuk semak semula lokasi', $html);
+
+        // Queued behind the work-mode bubble: two bubbles open at once overlap, because
+        // both float over the content instead of taking space in it.
+        $this->assertMatchesRegularExpression(
+            '/amanahku-coach-attendance-fence-badge.{0,400}amanahku-coach-attendance-work-mode/s',
+            $html,
+            'The fence coachmark must gate itself on the work-mode key being dismissed.'
+        );
+
+        // The bubble hangs off the row's left edge so it always fits a phone screen, which
+        // on a wide row leaves the badge far to the right — the tail is slid across to it
+        // at runtime instead of sitting at its default offset.
+        $this->assertStringContainsString('placeTail()', $html);
+        $this->assertStringContainsString("querySelector('.uj-at-fence')", $html);
+
+        // Web fonts land after the first paint and shove the badge sideways without
+        // resizing it or anything being observed, which is why this was wrong on a first
+        // visit and right on every refresh. Losing this line brings that back.
+        $this->assertStringContainsString('document.fonts?.ready', $html);
+
+        // The tail points up at the badge, so the marker has to sit in the same row.
+        $this->assertGreaterThan(
+            strpos($html, 'uj-at-where'),
+            strpos($html, 'amanahku-coach-attendance-fence-badge'),
+            'The fence coachmark must live inside the row that holds the badge.'
+        );
+    }
+
     public function test_the_inline_remark_drawer_is_gone(): void
     {
         $html = $this->actingAs($this->user)

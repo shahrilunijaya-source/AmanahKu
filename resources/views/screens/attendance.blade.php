@@ -144,6 +144,14 @@
               assignedLabel: @js($site?->label ?? ''),
               matchedLabel: '',
               fenceStatus: 'wait',
+              // True only while a *tapped* re-check is in flight. The badge hides itself on the
+              // first load's 'wait' (nothing to re-check yet), but a tap must keep it on screen
+              // — a badge that vanishes on press reads as a broken button, not as work happening.
+              rechecking: false,
+              // Why the last fix failed: 'denied' (permission) or 'unavailable' (allowed, but no
+              // fix came back). The two need different words — one is a setting the staff can
+              // change, the other is a lookup that may simply work on the next tap.
+              fenceFail: '',
               fenceDistM: null,
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
@@ -177,9 +185,13 @@
                */
               recheckFence() {
                   if (!window.isSecureContext || !navigator.geolocation) { this.fenceStatus = 'none'; return; }
+                  if (this.rechecking) { return; }
+                  this.rechecking = true;
                   this.fenceStatus = 'wait';
                   this.bestFix(
                       (pos) => {
+                          this.rechecking = false;
+                          this.fenceFail = '';
                           const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
                           if (m) {
                               this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
@@ -194,9 +206,16 @@
                           }
                       },
                       (kind, err) => {
-                          if (kind === 'denied') { this.geoFail('denied', err); this.fenceStatus = 'none'; return; }
+                          this.rechecking = false;
+                          // A refusal used to hide the badge outright, which left the only
+                          // re-check button on the screen unreachable exactly when it was
+                          // needed — allow location in the browser, and nothing could ask
+                          // again short of a reload. The badge stays and stays tappable; the
+                          // full instructions still open underneath via geoFail.
+                          if (kind === 'denied') { this.geoFail('denied', err); }
                           // A slow or unavailable lookup used to leave the badge blank with no
                           // message at all. Say so, and offer the retry.
+                          this.fenceFail = kind === 'denied' ? 'denied' : 'unavailable';
                           this.fenceStatus = 'fail';
                       },
                       true,
@@ -219,10 +238,14 @@
               },
               fenceText(lang) {
                   if (this.fenceStatus === 'fail') {
-                      return lang === 'en' ? 'Location not found, tap to check' : 'Lokasi tidak dijumpai, tekan untuk semak';
+                      if (this.fenceFail === 'denied') {
+                          return lang === 'en' ? 'Location blocked, tap to retry' : 'Lokasi disekat, tekan untuk cuba lagi';
+                      }
+                      return lang === 'en' ? 'Location not found, tap to retry' : 'Lokasi tidak dijumpai, tekan untuk cuba lagi';
                   }
                   if (this.fenceStatus === 'wait') {
-                      return lang === 'en' ? 'checking location…' : 'menyemak lokasi…';
+                      // No ellipsis: the animated dots beside this text are the ellipsis.
+                      return lang === 'en' ? 'checking location' : 'menyemak lokasi';
                   }
                   if (this.fenceStatus === 'in') {
                       const dStr = this.fenceDistM < 1000
@@ -890,12 +913,37 @@
                         {{-- Shown even when the assigned site has no geofence: the fix may
                              still land inside another configured branch or client site. --}}
                         <button type="button" class="uj-at-fence" @click="recheckFence()"
-                                x-show="fenceStatus !== 'none' && fenceStatus !== 'wait'"
+                                :aria-busy="rechecking"
+                                x-show="fenceStatus !== 'none' && (fenceStatus !== 'wait' || rechecking)"
                                 :data-f="workMode === 'site_visit' && fenceStatus === 'out' ? 'info' : fenceStatus" x-cloak>
                             <i></i>
                             <span x-text="fenceText($store.ui.lang)"></span>
+                            {{-- The ellipsis of "checking location", animated. aria-hidden:
+                                 aria-busy on the button already says the same thing, and a
+                                 screen reader announcing three bullets says nothing. --}}
+                            <span class="uj-at-dots" x-show="fenceStatus === 'wait'" aria-hidden="true"><i></i><i></i><i></i></span>
                         </button>
                     </div>
+
+                    {{-- Outside the row on purpose. Inside it the marker rides along with the
+                         flex wrap, and on a phone the badge drops to its own line while the
+                         marker stays on the one above — tail pointing at nothing, bubble
+                         hanging off the right edge of the screen. Anchored to the row instead,
+                         it always fits and always points at the row the badge lives in. --}}
+                    @include('partials.coachmark', [
+                        'key' => 'attendance-fence-badge',
+                        'after' => 'attendance-work-mode',
+                        'anchor' => '.uj-at-fence',
+                        'en'  => [
+                            'title' => 'New: tap to re-check your location',
+                            'body'  => 'This badge says whether you are inside your workplace. It reads your location once when the screen opens, so if you opened Amanahku on the way in it can still say off site after you arrive. Tap it once you are at your desk and it looks again.',
+                        ],
+                        'ms'  => [
+                            'title' => 'Baharu: tekan untuk semak semula lokasi',
+                            'body'  => 'Lencana ini menunjukkan sama ada anda berada di tempat kerja. Ia membaca lokasi sekali sahaja ketika skrin dibuka, jadi jika anda membuka Amanahku dalam perjalanan ia mungkin masih kata di luar lokasi selepas anda sampai. Tekan sekali anda di meja dan ia akan semak semula.',
+                        ],
+                    ])
+
                 @endif
             </div>
 

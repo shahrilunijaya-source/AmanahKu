@@ -1472,10 +1472,24 @@ select.wd-inline {
 .uj-at-fence[data-f="fail"] { background: var(--hairline-soft); color: var(--muted); }
 .uj-at-fence[data-f="info"] { background: #eaf1fb; color: #1d4d8f; }
 .uj-at-fence { border: 0; cursor: pointer; font-family: inherit; }
-/* On .uj-at-fence[data-f="wait"] i: this pulse is a transient loading state
-   that stops once the geolocation call resolves, not a decorative infinite animation. */
-.uj-at-fence[data-f="wait"] i { animation: uj-at-ping 1.4s ease-in-out infinite; }
-@keyframes uj-at-ping { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+/* The three trailing dots are the ellipsis of "checking location", animated. They are a
+   transient loading state that stops once the geolocation call resolves, not a decorative
+   infinite animation — and they are the only thing moving, so the pill's leading status dot
+   holds steady beside them rather than pulsing along. */
+.uj-at-dots { display: inline-flex; align-items: center; gap: 2px; margin-left: -2px; }
+.uj-at-dots i { width: 3px; height: 3px; opacity: .3; animation: uj-at-dot 1.05s ease-in-out infinite; }
+.uj-at-dots i:nth-child(2) { animation-delay: .14s; }
+.uj-at-dots i:nth-child(3) { animation-delay: .28s; }
+@keyframes uj-at-dot { 0%, 70%, 100% { opacity: .3; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-1px); } }
+/* The badge is a button, so it owes the press the same instant answer any button does —
+   and the colour has to travel between states rather than cut, or a re-check that lands on
+   the same answer looks like nothing happened at all. */
+.uj-at-fence { transition: background-color 200ms var(--ease), color 200ms var(--ease), transform 160ms var(--ease); }
+.uj-at-fence:active { transform: scale(.97); }
+/* The label reads dimmer while the check runs and comes up to full weight with the answer,
+   so the pill settles rather than simply swapping one string for another. */
+.uj-at-fence span { transition: opacity 180ms var(--ease); }
+.uj-at-fence[data-f="wait"] > span { opacity: .65; }
 
 /* One-shot ring on a successful clock punch, replacing the toast as the confirmation
    for this screen — see .uj-at-figrow--punched / .uj-at-dock-go--punched below. */
@@ -1620,7 +1634,9 @@ select.wd-inline {
   .uj-at-panel { transition: none; }
   .uj-at-panel p, .uj-at-flags { transition: opacity .12s linear; filter: none; }
   .uj-at-chev { transition: color .14s linear; }
-  .uj-at-fence[data-f="wait"] i { animation: none; }
+  .uj-at-dots i { animation: none; opacity: .55; }
+  .uj-at-fence { transition: background-color 200ms var(--ease), color 200ms var(--ease); }
+  .uj-at-fence:active,
   .uj-at-go:active, .uj-at-ghost:active,
   .uj-at-dock-go:active { transform: none; }
   .uj-at-figrow--punched, .uj-at-dock-go--punched { animation: none; }
@@ -2516,12 +2532,13 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 }
 /* The tail, pointing up at the control above. Two stacked triangles: the outer
    one is the border, the inner one sits 1px lower and paints over it in the fill
-   colour. */
+   colour. --coach-tail slides it across to a control that does not sit at the
+   start of its row (set by the $anchor option); 22px is the plain case. */
 .uj-coach-bubble::before,
 .uj-coach-bubble::after {
     content: '';
     position: absolute;
-    left: 22px;
+    left: calc(var(--coach-tail, 22px) - 7px);
     width: 0;
     height: 0;
     border-left: 7px solid transparent;
