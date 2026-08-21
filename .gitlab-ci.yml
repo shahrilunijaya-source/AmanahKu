@@ -132,7 +132,9 @@ unit-tests:
         echo "FATAL: no coverage driver — the coverage floor would silently not apply"
         exit 1
       fi
-    - php artisan test --coverage --min=80
+    # pcov scans the whole project by default, vendor included, which OOMs the
+    # shared runner and kills the run with exit 255 right after the suite passes.
+    - php -d pcov.directory=app -d memory_limit=-1 artisan test --coverage --min=80
   coverage: '/^\s*Total:\s*(\d+\.\d+)\s*%/'
 
 # The staging host builds nothing: it serves the public/build committed to the
