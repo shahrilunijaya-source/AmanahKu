@@ -213,7 +213,7 @@ deploy-staging:
   before_script:
     - |
       set -eu
-      apk add --no-cache openssh-client curl bash
+      apk add --no-cache openssh-client curl bash git
       for v in AMANAHKU_STAGING_SSH_KEY AMANAHKU_STAGING_HOST AMANAHKU_STAGING_USER AMANAHKU_STAGING_PORT AMANAHKU_STAGING_PATH; do
         eval "val=\${$v:-}"
         test -n "$val" || { echo "FATAL: CI variable $v is not set"; exit 1; }
@@ -226,6 +226,21 @@ deploy-staging:
     - |
       set -eu
       SSH="ssh -i $AMANAHKU_STAGING_SSH_KEY -p $AMANAHKU_STAGING_PORT $AMANAHKU_STAGING_USER@$AMANAHKU_STAGING_HOST"
+
+      # The server's origin is GitHub, which GitLab push-mirrors to. The mirror fires
+      # on push but lands a moment later, so without this wait the server would pull
+      # the previous commit and the job would call that a successful deploy.
+      echo "waiting for $CI_COMMIT_SHA to reach GitHub"
+      i=0
+      while [ "$(git ls-remote https://github.com/shahrilunijaya-source/AmanahKu.git refs/heads/staging | cut -f1)" != "$CI_COMMIT_SHA" ]; do
+        i=$((i + 1))
+        if [ "$i" -gt 30 ]; then
+          echo "FATAL: the mirror has not pushed $CI_COMMIT_SHA to GitHub after 5 minutes"
+          exit 1
+        fi
+        sleep 10
+      done
+      echo "GitHub has it"
 
       # Remembered before the pull, so the rollback below has somewhere to go back to.
       PREV_SHA="$($SSH "cd '$AMANAHKU_STAGING_PATH' && git rev-parse HEAD")"
