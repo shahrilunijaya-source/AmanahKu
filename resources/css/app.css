@@ -2493,6 +2493,72 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   COACHMARK — .uj-coach-*
+   A one-time bubble that points at the control directly above it. Sits in
+   normal flow, so it moves with its anchor instead of drifting off it.
+   ══════════════════════════════════════════════════════════════════════════ */
+.uj-coach { margin: -6px 0 14px; max-width: 340px; }
+
+.uj-coach-bubble {
+    position: relative;
+    background: var(--card, #fff);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 12px 13px 13px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / .07);
+}
+/* The tail. Two stacked triangles: the outer one is the border, the inner one
+   sits 1px lower and paints over it in the fill colour. */
+.uj-coach-bubble::before,
+.uj-coach-bubble::after {
+    content: '';
+    position: absolute;
+    left: 22px;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+}
+.uj-coach-bubble::before { top: -7px; border-bottom: 7px solid var(--hairline); }
+.uj-coach-bubble::after { top: -6px; border-bottom: 7px solid var(--card, #fff); }
+
+.uj-coach-head { display: flex; align-items: center; gap: 7px; }
+.uj-coach-dot { display: inline-flex; color: var(--red, #b4342b); flex: none; }
+.uj-coach-title { font-size: var(--t-sm); font-weight: 600; color: var(--ink); flex: 1; min-width: 0; }
+.uj-coach-x {
+    flex: none;
+    background: none;
+    border: 0;
+    padding: 0 2px;
+    line-height: 1;
+    font-size: var(--t-lg);
+    color: var(--muted);
+    cursor: pointer;
+}
+.uj-coach-x:hover { color: var(--ink); }
+
+.uj-coach-body { margin: 6px 0 0; font-size: var(--t-sm); color: var(--body); line-height: 1.55; }
+
+.uj-coach-ok {
+    margin-top: 10px;
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    color: var(--red, #b4342b);
+    cursor: pointer;
+}
+
+.uj-coach-in { transition: opacity .22s ease, transform .22s cubic-bezier(.23, 1, .32, 1); }
+.uj-coach-in-start { opacity: 0; transform: translateY(-4px); }
+.uj-coach-in-end { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .uj-coach-in { transition: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    SCREEN GUIDE MODAL & STRIP — .uj-guide-*
    Namespaced uj-guide- ("screen guide card"). Rebuilt card styling, design
    system type ramp, accessible modal backdrop, and entrance motion.

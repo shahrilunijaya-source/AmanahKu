@@ -835,6 +835,19 @@
                     x-text="$store.ui.lang==='en' ? 'Site visit' : 'Lawatan tapak'">Site visit</button>
         </div>
 
+        {{-- First visit only. Explains the switch above it, then never returns. --}}
+        @include('partials.coachmark', [
+            'key' => 'attendance-work-mode',
+            'en'  => [
+                'title' => 'New: pick your working mode',
+                'body'  => 'Leave this on "Office / Home" for an ordinary day at your desk or working from home. Tap "Site visit" when you are going to a customer, and the clock in window will ask where you are heading. A declared site visit is not counted as being off site.',
+            ],
+            'ms'  => [
+                'title' => 'Baharu: pilih mod kerja anda',
+                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa di meja anda atau bekerja dari rumah. Tekan "Lawatan tapak" apabila anda ke tempat pelanggan, dan tetingkap clock in akan bertanya ke mana anda menuju. Lawatan tapak yang diisytiharkan tidak dikira sebagai berada di luar lokasi.',
+            ],
+        ])
+
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
                 <div class="uj-at-figrow" :class="{ 'uj-at-figrow--punched': justPunched }">

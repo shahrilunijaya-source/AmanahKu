@@ -616,6 +616,34 @@ class AttendanceScreenTest extends TestCase
         $this->assertStringContainsString('Lawatan tapak', $html);
     }
 
+    public function test_the_work_mode_pill_carries_a_first_visit_coachmark(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        // Shown by default, remembered as closed under its own key. The key is part of
+        // the contract: change it and everybody sees the bubble again.
+        $this->assertStringContainsString('uj-coach-bubble', $html);
+        $this->assertStringContainsString('amanahku-coach-attendance-work-mode', $html);
+
+        // Bilingual, like every other piece of guidance on this screen.
+        $this->assertStringContainsString('New: pick your working mode', $html);
+        $this->assertStringContainsString('Baharu: pilih mod kerja anda', $html);
+
+        // It sits inside the clock form, so a bare button would submit a punch.
+        $this->assertStringNotContainsString('<button class="uj-coach-ok"', $html);
+        $this->assertStringContainsString('<button type="button" class="uj-coach-ok"', $html);
+
+        // The bubble explains the pill, so it has to come after it in the markup or the
+        // tail points at nothing.
+        $this->assertGreaterThan(
+            strpos($html, 'uj-at-mode'),
+            strpos($html, 'uj-coach-bubble'),
+            'The coachmark must follow the control it points at.'
+        );
+    }
+
     public function test_the_inline_remark_drawer_is_gone(): void
     {
         $html = $this->actingAs($this->user)

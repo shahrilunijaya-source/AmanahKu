@@ -10,6 +10,28 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.5"
+  date: "2026-08-21"
+  entries:
+    - tag: added
+      text: "Attendance now starts with your working mode. A two-way switch above the clock sits on \"Office / Home\" by default, so an ordinary day still takes one tap. Pick \"Site visit\" when you are heading to a customer and the punch window asks where you are going, for example \"Customer ABC, Shah Alam\". That destination is saved with the punch and shown to your manager."
+      text_ms: "Kehadiran kini bermula dengan mod kerja anda. Suis dua pilihan di atas jam berada pada \"Pejabat / Rumah\" secara lalai, jadi hari biasa masih satu ketukan sahaja. Pilih \"Lawatan tapak\" apabila anda ke tempat pelanggan dan tetingkap rekod akan bertanya ke mana anda pergi, contohnya \"Customer ABC, Shah Alam\". Destinasi itu disimpan bersama rekod dan dipaparkan kepada pengurus anda."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
+    - tag: improved
+      text: "A declared site visit no longer counts as being off site. Your GPS is still recorded exactly as it reads, and it still shows on your manager's map, but the day is no longer marked amber for being outside a fence you already said you would be outside of. Late clock ins and early clock outs are unchanged and still need a reason."
+      text_ms: "Lawatan tapak yang telah diisytiharkan tidak lagi dikira sebagai berada di luar lokasi. GPS anda tetap direkod tepat seperti bacaannya, dan tetap dipaparkan pada peta pengurus anda, cuma hari itu tidak lagi ditanda kuning kerana berada di luar kawasan yang anda sendiri sudah beritahu. Clock in lewat dan clock out awal tidak berubah dan tetap perlu sebab."
+    - tag: improved
+      text: "Working from home no longer needs a registered home address. Staff can clock in from wherever they are that day, as long as they are on time, and the punch location is simply recorded. The stored home coordinates have been deleted and the screen HR used to register them is gone."
+      text_ms: "Bekerja dari rumah tidak lagi memerlukan alamat rumah yang didaftarkan. Kakitangan boleh clock in dari mana sahaja mereka berada pada hari itu, asalkan tepat pada masanya, dan lokasi rekod hanya disimpan sebagai catatan. Koordinat rumah yang tersimpan telah dipadam dan skrin yang digunakan HR untuk mendaftarkannya telah ditiadakan."
+    - tag: improved
+      text: "The separate remark box under the clock has been removed. Everything the app needs from you now appears in the same window as the selfie: the destination on a site visit, or a reason when you are late, off site, or your device cannot find your location. One place, one time, instead of two boxes asking the same thing."
+      text_ms: "Kotak catatan berasingan di bawah jam telah ditiadakan. Segala yang diperlukan aplikasi daripada anda kini muncul dalam tetingkap yang sama dengan selfie: destinasi untuk lawatan tapak, atau sebab apabila anda lewat, di luar lokasi, atau peranti anda tidak dapat mencari lokasi. Satu tempat, satu kali, bukan dua kotak bertanya perkara sama."
+    - tag: added
+      text: "First time on the Attendance screen you get a short bubble beside the new switch explaining what the two modes mean. Close it and it stays closed. The full walkthrough is always there under \"What is this screen for?\" at the top."
+      text_ms: "Kali pertama anda ke skrin Kehadiran, satu gelembung ringkas muncul di sebelah suis baharu itu untuk menerangkan maksud kedua-dua mod. Tutup ia dan ia kekal tertutup. Panduan penuh sentiasa ada di bawah \"Apa fungsi skrin ini?\" di bahagian atas."
+
 - version: "1.4"
   date: "2026-08-18"
   entries:
