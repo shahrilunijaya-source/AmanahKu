@@ -294,6 +294,7 @@ class Employee extends Model
         return $this->hasMany(WorkItem::class);
     }
 
+    /** @return HasMany<AttendanceRecord, $this> */
     public function attendanceRecords(): HasMany
     {
         return $this->hasMany(AttendanceRecord::class);

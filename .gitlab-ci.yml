@@ -103,7 +103,7 @@ deploy-uat:
       curl -sSLf -o /usr/local/bin/install-php-extensions \
         https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
       chmod +x /usr/local/bin/install-php-extensions
-      install-php-extensions mbstring pdo_sqlite sqlite3 bcmath intl gd zip >/dev/null
+      install-php-extensions mbstring pdo_sqlite sqlite3 bcmath intl gd zip pcov >/dev/null
       curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
       composer install --no-interaction --prefer-dist --no-progress
       cp .env.example .env
@@ -127,7 +127,7 @@ unit-tests:
   <<: *php
   stage: test
   script:
-    - install-php-extensions pcov >/dev/null
+    - php -m | grep -q pcov || { echo "FATAL: no coverage driver — the coverage floor would silently not apply"; exit 1; }
     - php artisan test --coverage --min=80
   coverage: '/^\s*Total:\s*(\d+\.\d+)\s*%/'
 
