@@ -587,6 +587,43 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-fly-t > svg { color: var(--red); flex-shrink: 0; }
 .uj-fly .uj-nav-kids { margin: 2px 0 0; padding-left: 9px; border-left-color: #3d3931; }
 
+/* ── Section panel ──────────────────────────────────────────────────────────
+   The desktop sidebar lists sections; a section's screens open here, laid out in
+   columns so eleven of them (My Work) read as a menu rather than a scroll. Width
+   is content-driven and capped, and the column count steps down on a short screen
+   so the panel never has to scroll itself. */
+.uj-fly-grid { min-width: 268px; max-width: 460px; padding: 9px; }
+.uj-fly-h { font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--sidebar-dim); padding: 3px 9px 8px; }
+.uj-fly-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px 6px; }
+.uj-fly-lnk { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; font-size: var(--t-sm); font-weight: 500; color: var(--sidebar-text); text-decoration: none; min-width: 0; }
+.uj-fly-lnk > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uj-fly-lnk > svg { flex-shrink: 0; color: var(--muted-soft); transition: color .14s ease; }
+.uj-fly-lnk:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+.uj-fly-lnk:hover > svg { color: #c9c6bc; }
+.uj-fly-lnk[data-on] { background: rgba(255, 255, 255, .1); color: #fff; }
+.uj-fly-lnk[data-on] > svg { color: var(--red); }
+/* A group's cell: same row, plus a chevron saying there is a panel behind it. */
+.uj-fly-grp { width: 100%; background: none; border: 0; text-align: left; cursor: pointer; font-family: inherit; }
+.uj-fly-grp > span { flex: 1; }
+.uj-fly-chev { flex-shrink: 0; color: var(--sidebar-dim); }
+/* The group's own panel, one step right of the section grid. Single column: a
+   group holds a handful of screens, not eleven. Its rows repeat the group's icon
+   at a dimmer weight — same family, one level down. */
+.uj-fly-sub .uj-fly-lnk > svg { color: var(--sidebar-dim); }
+.uj-fly-sub { position: absolute; min-width: 208px; max-width: 250px; padding: 9px; display: flex; flex-direction: column; }
+@media (max-width: 1100px) {
+    .uj-fly-cols { grid-template-columns: minmax(0, 1fr); }
+    .uj-fly-grid { max-width: 260px; }
+}
+
+/* Only one of the two nav bodies is ever shown: sections on the desktop sidebar,
+   the old tree in the mobile drawer, where there is no hover to open a panel. */
+.uj-nav-secs { display: none; }
+@media (min-width: 901px) {
+    .uj-nav-secs { display: block; }
+    .uj-nav-tree { display: none; }
+}
+
 /* ── Responsive shell (mobile off-canvas nav) ── */
 .uj-nav-toggle { display: none; }
 .uj-nav-backdrop { display: none; }

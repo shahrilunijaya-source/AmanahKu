@@ -197,6 +197,29 @@ class Amanahku
     }
 
     /**
+     * One icon per sidebar section, keyed by the English section name used in
+     * nav(). The desktop sidebar is a column of section rows now — the screens
+     * themselves live in the hover panel — so a section needs a glyph of its own;
+     * items already carry theirs. Falls back to a plain dot for a section added to
+     * nav() without a matching entry here, so the row still renders.
+     */
+    public static function sectionIcon(string $section): string
+    {
+        return [
+            'Overview' => 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+            'My Work' => 'M20 7h-3V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2M9 5h6v2H9z',
+            'My Team' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75',
+            'Insights' => 'M3 3v18h18M7 15l4-4 3 3 5-6',
+            'Workplace' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01',
+            'Pay & Benefits' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8',
+            'Talent & Growth' => 'M12 3l9 5-9 5-9-5zM5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5',
+            'Learning' => 'M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22zM8 7h8M8 11h5',
+            'Compliance & Docs' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4',
+            'Administration' => 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+        ][$section] ?? 'M12 12h.01';
+    }
+
+    /**
      * Persona definitions for the dashboard view switcher. Labelled by the SCOPE
      * each view covers rather than by the job title behind it, because that is the
      * question the tabs answer: whose week am I looking at?

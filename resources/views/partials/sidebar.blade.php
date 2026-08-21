@@ -75,6 +75,115 @@
     @endif
 
     <nav class="uj-sb-nav">
+        {{-- ── Desktop nav — one row per SECTION, nothing nested on show. ──────────
+             The tree used to sit here in full: every section header, every screen,
+             every child. It ran to eighteen-odd rows and it made the sidebar the
+             tallest thing on the page. Now the sidebar is a column of sections and
+             the screens inside one live in a panel that opens beside it on hover
+             (or on click, which is the keyboard/screen-reader route in). Same at
+             both widths — Ctrl+B still swaps the 248px column for the 64px rail,
+             but it no longer changes what is nested where.
+
+             A section holding a single leaf (Overview → Dashboard) skips the panel
+             and links straight through: a hover panel to reveal one row is a step
+             that buys nothing. --}}
+        <div class="uj-nav-secs">
+            @foreach (collect($nav)->groupBy('section') as $section => $items)
+                @php
+                    $sectionMs = $items->first()['section_ms'] ?? $section;
+                    $secIcon = \App\Support\Amanahku::sectionIcon($section);
+                    // The section lights up when the current screen is anywhere inside it,
+                    // parent or child — that is the only "you are here" left once the tree
+                    // stops rendering its rows.
+                    $secOn = $items->contains(fn ($i) => $i['active'] || collect($i['children'] ?? [])->contains(fn ($c) => $c['active'] ?? false));
+                    $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
+                @endphp
+                @if ($solo)
+                    @php $only = $items->first(); @endphp
+                    <a href="{{ route('app.screen', ['screen' => $only['id']]) }}" class="uj-nav-row"
+                       @if ($secOn) data-on @endif
+                       :title="sbCollapsed ? ($store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])) : null">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
+                        <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])">{{ $only['label'] }}</span>
+                    </a>
+                @else
+                    <div x-data="sbSec" @mouseenter="show($event)" @mouseleave="hide()"
+                         @keydown.escape="close()" @click.outside="close()" style="position:relative;">
+                        <button type="button" class="uj-nav-row" @click="toggle($event)"
+                                :aria-expanded="fly ? 'true' : 'false'" @if ($secOn) data-on @endif>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
+                            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
+                            <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                        </button>
+
+                        {{-- The panel. position:fixed because the nav scrolls, so an absolute
+                             one would be clipped by it; mounted only while open. --}}
+                        <template x-if="fly">
+                            <div class="uj-fly uj-fly-grid" x-ref="fly" data-open>
+                                <div class="uj-fly-h" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</div>
+                                {{-- A group (Oversight, Offboarding) keeps ONE cell here and opens
+                                     its own panel to the right on hover — its screens are not loose
+                                     entries in the section grid. Two hovers deep is the whole depth
+                                     of the nav; nothing nests below this. --}}
+                                <div class="uj-fly-cols">
+                                    @foreach ($items as $item)
+                                        @if ($item['hasChildren'])
+                                            <div x-data="sbSub" @mouseenter="openSub($event)" @mouseleave="closeSub()" style="position:relative;">
+                                                @php
+                                                    $groupOn = $item['active'] || collect($item['children'])->contains(fn ($c) => $c['active'] ?? false);
+                                                @endphp
+                                                @if ($item['landing'] ?? false)
+                                                    <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-fly-lnk uj-fly-grp"
+                                                       @if ($groupOn) data-on @endif>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                        <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                                        <svg class="uj-fly-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                                                    </a>
+                                                @else
+                                                    {{-- No page of its own, so the cell is only a door to the
+                                                         sub-panel: a button, and click opens it for the keyboard. --}}
+                                                    <button type="button" class="uj-fly-lnk uj-fly-grp" @click="openSub($event)"
+                                                            :aria-expanded="sub ? 'true' : 'false'" @if ($groupOn) data-on @endif>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                        <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                                        <svg class="uj-fly-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                                                    </button>
+                                                @endif
+
+                                                <template x-if="sub">
+                                                    <div class="uj-fly uj-fly-sub" x-ref="sub" data-open>
+                                                        <div class="uj-fly-h" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</div>
+                                                        @foreach ($item['children'] as $child)
+                                                            <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
+                                                               class="uj-fly-lnk" @if ($child['active']) data-on @endif>
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                                <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
+                                                            </a>
+                                                        @endforeach
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        @else
+                                            <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-fly-lnk"
+                                               @if ($item['active']) data-on @endif>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                            </a>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                @endif
+            @endforeach
+        </div>
+
+        {{-- ── Mobile drawer — still the full tree. ────────────────────────────────
+             Below 900px the sidebar is a full-width off-canvas drawer and there is
+             no hover to open a panel with, so the old accordion stays exactly as it
+             was. Only one of the two blocks is ever displayed (see app.css). --}}
+        <div class="uj-nav-tree">
         {{-- Group the flat nav into labelled, collapsible sections. groupBy keeps
              first-seen order, and Amanahku::nav() emits items contiguously per
              section, so section order is preserved. Sections start OPEN: the tree is
@@ -173,6 +282,7 @@
                 </div>
             </div>
         @endforeach
+        </div>
     </nav>
 
     <div class="uj-sb-foot">
