@@ -76,3 +76,188 @@ deploy-uat:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
+
+# =============================================================================
+# Real checks (AK-CI-02). The included ci-templates jobs are placeholders that
+# echo a sentence and pass, so a "green pipeline" proved nothing. These override
+# `lint`, `unit-tests` and `build` with the checks that already gate GitHub
+# Actions, which is what makes the SupportOS auto-merge below meaningful.
+#
+# Not ported from the GitHub workflow: the MySQL-parity run. SQLite covers the
+# suite here; parity still runs on GitHub for pushes to main/staging.
+# =============================================================================
+.php: &php
+  image: php:8.3-cli
+  variables:
+    COMPOSER_ALLOW_SUPERUSER: "1"
+  cache:
+    key:
+      files:
+        - composer.lock
+    paths:
+      - vendor/
+  before_script:
+    - |
+      set -eu
+      apt-get update -qq && apt-get install -yqq --no-install-recommends git unzip curl >/dev/null
+      curl -sSLf -o /usr/local/bin/install-php-extensions \
+        https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+      chmod +x /usr/local/bin/install-php-extensions
+      install-php-extensions mbstring pdo_sqlite sqlite3 bcmath intl gd zip >/dev/null
+      curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+      composer install --no-interaction --prefer-dist --no-progress
+      cp .env.example .env
+      php artisan key:generate
+
+lint:
+  <<: *php
+  stage: lint
+  script:
+    - vendor/bin/pint --test
+    - composer audit --no-interaction
+
+static-analysis:
+  <<: *php
+  stage: test
+  script:
+    - composer require --dev "larastan/larastan:^3.0" --no-interaction --no-progress
+    - composer analyse
+
+unit-tests:
+  <<: *php
+  stage: test
+  script:
+    - install-php-extensions pcov >/dev/null
+    - php artisan test --coverage --min=80
+  coverage: '/^\s*Total:\s*(\d+\.\d+)\s*%/'
+
+# The staging host builds nothing: it serves the public/build committed to the
+# repo, so a Blade or CSS change with no rebuild ships the previous stylesheet
+# and fails silently. view:cache first — Tailwind scans the compiled Blade cache,
+# so compiling every view is what makes the rebuild deterministic.
+build:
+  <<: *php
+  stage: build
+  script:
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - php artisan view:cache
+    - bun install
+    - bun run build
+    - |
+      if [ -n "$(git status --porcelain -- 'public/build/assets/*.css')" ]; then
+        echo "Committed CSS does not match the sources. Run 'php artisan view:cache && bun run build' and commit public/build."
+        git status --porcelain -- 'public/build/assets/*.css'
+        exit 1
+      fi
+      echo "Committed CSS matches a clean rebuild."
+
+# =============================================================================
+# SupportOS auto-fix (AK-CI-03).
+#
+# SupportOS pushes a fix as supportos/<severity>/<ticket>-<slug>, e.g.
+# supportos/low/AK-412-null-payslip, with GitLab's own push options doing the
+# merge request and the merge:
+#
+#   git push origin supportos/low/AK-412-null-payslip \
+#     -o merge_request.create \
+#     -o merge_request.target=staging \
+#     -o merge_request.merge_when_pipeline_succeeds
+#
+# The pipeline is the gate: the jobs above must pass, and the severity job below
+# fails anything above `low`, which blocks the merge and leaves the MR for a
+# human. Nothing here can reach main or production.
+# =============================================================================
+supportos-severity:
+  stage: lint
+  image: alpine:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^supportos\//'
+  script:
+    - |
+      set -eu
+      SEVERITY="$(printf '%s' "$CI_COMMIT_BRANCH" | cut -d/ -f2)"
+      echo "branch: $CI_COMMIT_BRANCH  severity: $SEVERITY"
+      case "$SEVERITY" in
+        low) echo "low severity — may merge itself once the pipeline is green" ;;
+        medium|high|critical)
+          echo "FATAL: severity '$SEVERITY' is above the auto-merge threshold; a human merges this one"
+          exit 1 ;;
+        *) echo "FATAL: branch must be supportos/<severity>/<ticket>-<slug>, got '$CI_COMMIT_BRANCH'"; exit 1 ;;
+      esac
+
+# =============================================================================
+# Staging deploy — Hostinger shared hosting, a different host from production,
+# so it does NOT use the .ssh_deploy anchor above (that one's ALLOWED_ROOT is
+# the DigitalOcean production path and it has no port handling).
+#
+# Automatic on `staging`, unlike the manual production jobs: staging is the test
+# target, and the whole point of the SupportOS loop is that nobody clicks.
+# =============================================================================
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: staging
+    url: https://amanahku-staging.myappsonline.net
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+  variables:
+    SMOKE_URL: https://amanahku-staging.myappsonline.net/login
+  before_script:
+    - |
+      set -eu
+      apk add --no-cache openssh-client curl bash
+      for v in AMANAHKU_STAGING_SSH_KEY AMANAHKU_STAGING_HOST AMANAHKU_STAGING_USER AMANAHKU_STAGING_PORT AMANAHKU_STAGING_PATH; do
+        eval "val=\${$v:-}"
+        test -n "$val" || { echo "FATAL: CI variable $v is not set"; exit 1; }
+      done
+      # File-type variable — GitLab writes it to a temp file and hands us the path.
+      chmod 600 "$AMANAHKU_STAGING_SSH_KEY"
+      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      ssh-keyscan -p "$AMANAHKU_STAGING_PORT" -H "$AMANAHKU_STAGING_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+  script:
+    - |
+      set -eu
+      SSH="ssh -i $AMANAHKU_STAGING_SSH_KEY -p $AMANAHKU_STAGING_PORT $AMANAHKU_STAGING_USER@$AMANAHKU_STAGING_HOST"
+
+      # Remembered before the pull, so the rollback below has somewhere to go back to.
+      PREV_SHA="$($SSH "cd '$AMANAHKU_STAGING_PATH' && git rev-parse HEAD")"
+      echo "staging is currently at $PREV_SHA"
+
+      # Refuse anything that is not the staging checkout: a wrong DEPLOY_PATH would
+      # run deploy.sh against another site on the same shared-hosting account.
+      deploy() {
+        $SSH "
+          set -eu
+          cd '$AMANAHKU_STAGING_PATH'
+          test \"\$(git rev-parse --abbrev-ref HEAD)\" = staging || { echo 'FATAL: target checkout is not on the staging branch'; exit 1; }
+          grep -q '^APP_ENV=staging' .env || { echo 'FATAL: target .env is not APP_ENV=staging'; exit 1; }
+          $1
+          bash deploy.sh
+        "
+      }
+
+      # deploy.sh can exit 0 and still leave a white screen (a bad view cache, a
+      # missing binding). Ask the running site, not the deploy script.
+      smoke() {
+        for i in 1 2 3 4 5; do
+          code="$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$SMOKE_URL" || true)"
+          echo "smoke attempt $i: HTTP $code"
+          [ "$code" = 200 ] && return 0
+          sleep 10
+        done
+        return 1
+      }
+
+      if deploy "git pull origin staging" && smoke; then
+        echo "staging deployed and answering"
+        exit 0
+      fi
+
+      # reset --hard leaves untracked files (the server-only .env backups) alone, and
+      # deploy.sh runs again so composer/migrations/caches match the restored code.
+      echo "deploy failed — rolling staging back to $PREV_SHA"
+      deploy "git reset --hard $PREV_SHA"
+      smoke || echo "WARNING: staging is still not answering after the rollback — needs a human"
+      exit 1
