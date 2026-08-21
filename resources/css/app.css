@@ -2066,7 +2066,10 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-ar-fix:active{transform:scale(.97)}
 
 .uj-ar-empty{padding:56px 24px;text-align:center}
-.uj-ar-empty svg{color:var(--shelf-line);margin-bottom:12px}
+/* margin-inline:auto, not just text-align on the parent: Tailwind's preflight
+   makes every svg display:block, so the mock's centred icon sat hard left here.
+   The mock has no preflight, which is why reading its CSS did not show this. */
+.uj-ar-empty svg{color:var(--shelf-line);margin:0 auto 12px}
 .uj-ar-empty b{display:block;font-size:var(--t-lg);font-weight:600;color:var(--ink);margin-bottom:5px}
 .uj-ar-empty p{margin:0 auto;max-width:38ch;font-size:var(--t-sm);color:var(--muted);line-height:1.55}
 .uj-ar-empty .uj-ar-btn{margin-top:16px}
