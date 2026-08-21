@@ -635,12 +635,12 @@ class AttendanceScreenTest extends TestCase
         $this->assertStringNotContainsString('<button class="uj-coach-ok"', $html);
         $this->assertStringContainsString('<button type="button" class="uj-coach-ok"', $html);
 
-        // The bubble explains the pill, so it has to come after it in the markup or the
-        // tail points at nothing.
-        $this->assertGreaterThan(
+        // The bubble explains the pill and its tail points down, so it has to come
+        // before it in the markup or the tail points at nothing.
+        $this->assertLessThan(
             strpos($html, 'uj-at-mode'),
             strpos($html, 'uj-coach-bubble'),
-            'The coachmark must follow the control it points at.'
+            'The coachmark must sit above the control it points at.'
         );
     }
 

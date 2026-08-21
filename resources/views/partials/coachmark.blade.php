@@ -6,8 +6,8 @@
     only opens when asked. A coachmark opens itself, says one thing about one
     control, and never comes back once closed.
 
-    Place it directly after the element it talks about; the bubble's tail points
-    up at whatever sits above it. Nothing is positioned absolutely, so it cannot
+    Place it directly before the element it talks about; the bubble's tail points
+    down at whatever sits below it. Nothing is positioned absolutely, so it cannot
     drift away from its anchor when the layout moves.
 
     Dismissal is per key in localStorage (`amanahku-coach-<key>`), matching the

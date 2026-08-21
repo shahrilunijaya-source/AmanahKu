@@ -823,6 +823,19 @@
                style="display:none;"
                @change="attachFile($event.target.files[0])" />
 
+        {{-- First visit only. Explains the switch below it, then never returns. --}}
+        @include('partials.coachmark', [
+            'key' => 'attendance-work-mode',
+            'en'  => [
+                'title' => 'New: pick your working mode',
+                'body'  => 'Leave this on "Office / Home" for an ordinary day at your desk or working from home. Tap "Site visit" when you are going to a customer, and the clock in window will ask where you are heading. A declared site visit is not counted as being off site.',
+            ],
+            'ms'  => [
+                'title' => 'Baharu: pilih mod kerja anda',
+                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa di meja anda atau bekerja dari rumah. Tekan "Lawatan tapak" apabila anda ke tempat pelanggan, dan tetingkap clock in akan bertanya ke mana anda menuju. Lawatan tapak yang diisytiharkan tidak dikira sebagai berada di luar lokasi.',
+            ],
+        ])
+
         {{-- Declared before the punch: the ordinary day needs no tap, a customer visit needs
              one. Not a site picker — the GPS is still measured against the same place either
              way, and the declaration costs a typed destination in the sheet. --}}
@@ -835,18 +848,6 @@
                     x-text="$store.ui.lang==='en' ? 'Site visit' : 'Lawatan tapak'">Site visit</button>
         </div>
 
-        {{-- First visit only. Explains the switch above it, then never returns. --}}
-        @include('partials.coachmark', [
-            'key' => 'attendance-work-mode',
-            'en'  => [
-                'title' => 'New: pick your working mode',
-                'body'  => 'Leave this on "Office / Home" for an ordinary day at your desk or working from home. Tap "Site visit" when you are going to a customer, and the clock in window will ask where you are heading. A declared site visit is not counted as being off site.',
-            ],
-            'ms'  => [
-                'title' => 'Baharu: pilih mod kerja anda',
-                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa di meja anda atau bekerja dari rumah. Tekan "Lawatan tapak" apabila anda ke tempat pelanggan, dan tetingkap clock in akan bertanya ke mana anda menuju. Lawatan tapak yang diisytiharkan tidak dikira sebagai berada di luar lokasi.',
-            ],
-        ])
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">

@@ -2494,10 +2494,10 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 
 /* ══════════════════════════════════════════════════════════════════════════
    COACHMARK — .uj-coach-*
-   A one-time bubble that points at the control directly above it. Sits in
+   A one-time bubble that points at the control directly below it. Sits in
    normal flow, so it moves with its anchor instead of drifting off it.
    ══════════════════════════════════════════════════════════════════════════ */
-.uj-coach { margin: -6px 0 14px; max-width: 340px; }
+.uj-coach { margin: 0 0 12px; max-width: 340px; }
 
 .uj-coach-bubble {
     position: relative;
@@ -2507,8 +2507,9 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
     padding: 12px 13px 13px;
     box-shadow: 0 6px 18px rgb(0 0 0 / .07);
 }
-/* The tail. Two stacked triangles: the outer one is the border, the inner one
-   sits 1px lower and paints over it in the fill colour. */
+/* The tail, pointing down at the control below. Two stacked triangles: the outer
+   one is the border, the inner one sits 1px higher and paints over it in the fill
+   colour. */
 .uj-coach-bubble::before,
 .uj-coach-bubble::after {
     content: '';
@@ -2519,8 +2520,8 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
     border-left: 7px solid transparent;
     border-right: 7px solid transparent;
 }
-.uj-coach-bubble::before { top: -7px; border-bottom: 7px solid var(--hairline); }
-.uj-coach-bubble::after { top: -6px; border-bottom: 7px solid var(--card, #fff); }
+.uj-coach-bubble::before { bottom: -7px; border-top: 7px solid var(--hairline); }
+.uj-coach-bubble::after { bottom: -6px; border-top: 7px solid var(--card, #fff); }
 
 .uj-coach-head { display: flex; align-items: center; gap: 7px; }
 .uj-coach-dot { display: inline-flex; color: var(--red, #b4342b); flex: none; }
@@ -2551,7 +2552,7 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 }
 
 .uj-coach-in { transition: opacity .22s ease, transform .22s cubic-bezier(.23, 1, .32, 1); }
-.uj-coach-in-start { opacity: 0; transform: translateY(-4px); }
+.uj-coach-in-start { opacity: 0; transform: translateY(4px); }
 .uj-coach-in-end { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
