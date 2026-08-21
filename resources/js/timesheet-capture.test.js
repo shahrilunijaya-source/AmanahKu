@@ -112,3 +112,9 @@ test('init() ignores editEntryId on a readonly (submitted) week — nothing to a
     expect(() => c.init()).not.toThrow();
     expect(c.picker.open).toBe(false);
 });
+
+test('categoryColour() uses the colour the server sent, and greys out a category it has none for', () => {
+    const c = makeComponent({ categories: [{ id: 9, name: 'Sales', name_ms: 'Jualan', requires_project: true, colour: '#8a4bdb' }, { id: 8, name: 'Odd', name_ms: 'Odd' }] });
+    expect(c.categoryColour(9)).toBe('#8a4bdb');
+    expect(c.categoryColour(8)).toBe('var(--muted-soft)');
+});

@@ -25,6 +25,44 @@ class TimesheetCategory extends Model
      */
     public const PROJECT_LINKABLE = ['Development', 'Maintenance', 'InHouse Project', 'Sales'];
 
+    /**
+     * One colour per project-linkable category, so a category reads the same
+     * everywhere it appears — the dot in the timesheet picker and the pill on
+     * the Projects register. Hexes are dark enough to sit as text on their own
+     * tinted pill, which the raw fill vars (--amber, --success) are not.
+     *
+     * @var array<string, string>
+     */
+    public const COLOURS = [
+        'Development' => 'var(--info)',
+        'Maintenance' => 'var(--amber-ink)',
+        'InHouse Project' => 'var(--success-ink)',
+        'Sales' => '#8a4bdb',
+    ];
+
+    /**
+     * This category's colour. Named categories get their own; everything else
+     * falls into a group, so a tenant that adds "Client Marketing" still gets a
+     * sensible colour instead of the grey fallback.
+     */
+    public function colour(): string
+    {
+        if (isset(self::COLOURS[$this->name])) {
+            return self::COLOURS[$this->name];
+        }
+        if (preg_match('/leave|holiday/i', $this->name)) {
+            return 'var(--success)';
+        }
+        if (preg_match('/marketing/i', $this->name)) {
+            return 'var(--amber)';
+        }
+        if (preg_match('/account|admin/i', $this->name)) {
+            return 'var(--error)';
+        }
+
+        return $this->requires_project ? 'var(--info)' : 'var(--muted-soft)';
+    }
+
     protected function casts(): array
     {
         return [

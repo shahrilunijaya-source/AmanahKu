@@ -775,6 +775,7 @@ class TimesheetController extends Controller
                 'name' => $c->name,
                 'name_ms' => $c->name_ms ?: $c->name,
                 'requires_project' => (bool) $c->requires_project,
+                'colour' => $c->colour(),
             ])
             ->reject(fn (array $c) => $leaveModuleOn && in_array($c['name'], ['On Leave', 'Public Holiday'], true))
             ->values();

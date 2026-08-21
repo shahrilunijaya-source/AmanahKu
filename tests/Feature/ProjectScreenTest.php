@@ -283,6 +283,23 @@ class ProjectScreenTest extends TestCase
             ->assertDontSee('Retired Category');
     }
 
+    public function test_the_register_offers_a_category_filter_chip_per_project_category_and_colours_the_row_pills(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+        $project->categories()->sync([$dev->id, $sales->id]);
+
+        $html = $this->actingAsRole('employee')->get('/app/projects')->assertOk()->getContent();
+
+        // One toggle chip per category, and each category's own colour on the row pill —
+        // Sales no longer shares Development's blue now that both are project categories.
+        $this->assertSame(2, substr_count($html, 'data-cat-chip'));
+        $this->assertStringContainsString('cats.includes('.$dev->id.')', $html);
+        $this->assertStringContainsString('color:var(--info);">Development', $html);
+        $this->assertStringContainsString('color:#8a4bdb;">Sales', $html);
+    }
+
     public function test_everyone_sees_the_projects_nav_link(): void
     {
         $this->actingAsRole('employee')

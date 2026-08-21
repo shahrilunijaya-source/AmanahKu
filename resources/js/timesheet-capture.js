@@ -276,25 +276,14 @@ export function registerTimesheetCapture(Alpine) {
         rowColour(i) {
             return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][i % 4];
         },
-        // A category's colour in the picker — grouped by what the category actually is, not
-        // by its position in the list (index-based cycling repeats every 4 slots, so past the
-        // 4th category two unrelated categories share a dot with no way to tell them apart).
-        // Matched against the canonical `name`, not the localised label, so the group a
-        // category falls into doesn't change with the viewer's language. Deliberately a
-        // SEPARATE palette lookup from rowColour(): that one distinguishes lines within a
-        // single day and must stay index-based (four fixed slots for up to four lines).
-        categoryColourGroups: [
-            { test: (c) => c.requires_project, colour: 'var(--info)' }, // Development, Maintenance, InHouse Project, CI
-            { test: (c) => /leave/i.test(c.name), colour: 'var(--success)' }, // Medical Leave, On Leave
-            { test: (c) => /sales|marketing/i.test(c.name), colour: 'var(--amber)' }, // Sales, Marketing
-            { test: (c) => /account|admin/i.test(c.name), colour: 'var(--error)' }, // Account and Finance, Administration, HR and Admin
-        ],
+        // A category's colour in the picker. Comes straight from the server
+        // (TimesheetCategory::colour()) so the same category reads the same here and
+        // on the Projects register — one list of colours, not two that drift apart.
+        // Deliberately NOT rowColour(): that one distinguishes lines within a single
+        // day and must stay index-based (four fixed slots for up to four lines).
         categoryColour(categoryId) {
             const cat = this.categories.find((c) => String(c.id) === String(categoryId));
-            if (!cat) {
-                return 'var(--muted-soft)';
-            }
-            return this.categoryColourGroups.find((g) => g.test(cat))?.colour || 'var(--muted-soft)';
+            return (cat && cat.colour) || 'var(--muted-soft)';
         },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
