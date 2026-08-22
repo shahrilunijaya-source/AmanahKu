@@ -51,7 +51,13 @@ Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH ali
 
 **Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host (DigitalOcean, not Hostinger — the shared-hosting limits below are staging's, not prod's) and releases from GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote). You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
 
-Release order: commit on `dev` → `git push origin dev:staging` → deploy staging → **test** → PR `staging` into `main`, merge, `git push gitlab main`. No PR is needed to reach staging; the PR comes after staging passes, and it's `staging` (not `dev`) that gets PR'd, so `main` only ever holds the exact commit that was actually tested, not whatever `dev` has moved on to since. Staging is the gate — once it passes, merging to GitHub `main` and pushing that same `main` to GitLab are one continuous release step, no separate pause between them. The two repos have shared one history since 2026-07-31, so that push is a plain fast-forward; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away.
+**GitLab is where you push. GitHub is a copy.** Since 2026-08-22 a GitLab push mirror sends `main`, `dev` and `staging` to GitHub within a few minutes of every change (Settings → Repository → Mirroring repositories). Push to GitHub directly and that branch diverges: the mirror keeps divergent refs rather than forcing over them, so it just stops updating and reports an error on the mirror row. `git config remote.pushDefault gitlab` makes the safe thing the default. Unprotected branches — feature branches, `supportos/*` — are not mirrored and live only where you push them.
+
+Release order: commit on `dev` → `git push gitlab dev:staging` → the pipeline deploys staging by itself → **test** → MR `staging` into `main` **on GitLab**, merge there, and the mirror carries `main` to GitHub. No MR is needed to reach staging; the MR comes after staging passes, and it's `staging` (not `dev`) that gets MR'd, so `main` only ever holds the exact commit that was actually tested, not whatever `dev` has moved on to since. Merging `main` on GitHub instead is what diverges the two repos now that the mirror runs GitLab → GitHub. The two repos have shared one history since 2026-07-31; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away.
+
+Staging deploys itself. Pushing `staging` runs the GitLab pipeline in `.gitlab-ci.yml`: lint, phpstan, the suite with an 80% coverage floor, committed-asset freshness, then `deploy-staging` — which waits for the mirror to reach GitHub (the server's `origin` is GitHub), SSHes in, pulls, runs `deploy.sh`, and loads the login page. A failed deploy or a staging that stops answering is rolled back to the previous commit on the server automatically. The manual SSH commands below are the fallback for when the pipeline itself is broken.
+
+SupportOS (the Unijaya OS helpdesk agent) uses that same path unattended. It pushes a fix as `supportos/<severity>/<ticket>-<slug>` with GitLab push options that open the MR and merge it when the pipeline succeeds; the `supportos-severity` job fails anything above `low`, so those stop at a green MR for a human. Verified end to end on 2026-08-22. Nothing in that loop can reach `main` or production.
 
 Assets built locally, `public/build` committed; host builds nothing.
 
@@ -59,11 +65,12 @@ Assets built locally, `public/build` committed; host builds nothing.
 lerd artisan view:cache                          # REQUIRED: makes the Tailwind scan complete
 bun run build                                    # rebuild assets if JS/CSS/Blade changed
 git add public/build && git commit ...           # commit assets alongside the change
-git push origin dev:staging                      # no PR — staging tracks the staging branch
+git push gitlab dev:staging                      # no MR — the pipeline takes it from here
+
+# Fallback only, when the pipeline itself is broken:
 ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git status -sb'   # LOOK FIRST (read-only)
 ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git pull origin staging && bash deploy.sh'
-# staging passed? merge PR staging → main, then push gitlab right away, same sitting:
-git push gitlab main
+# staging passed? merge the staging → main MR on GitLab; the mirror carries it to GitHub.
 ```
 
 The four that lose data: never run `key:generate` on a host that already has data; never run `git clean` on the server; take a `mysqldump` before a deploy that migrates; run `view:cache` before `bun run build`. The reasoning behind each, the security gate, the mandatory hPanel cron jobs, the mail configuration and the rollback path are all in **[docs/RULES.md](docs/RULES.md#part-2--operational-rules)**. Read it before any release; do not restate it here, a second copy is how the last one rotted.
