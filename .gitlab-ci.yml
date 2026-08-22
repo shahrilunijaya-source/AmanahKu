@@ -170,6 +170,9 @@ build:
 #     -o merge_request.target=staging \
 #     -o merge_request.merge_when_pipeline_succeeds
 #
+# Verified end to end on 2026-08-22: a medium branch is refused by the severity
+# job and left for a human, a low branch merges itself and deploys staging.
+#
 # The pipeline is the gate: the jobs above must pass, and the severity job below
 # fails anything above `low`, which blocks the merge and leaves the MR for a
 # human. Nothing here can reach main or production.
