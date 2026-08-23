@@ -17,21 +17,26 @@
     <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
 </head>
 <body>
-@php $embed = $embed ?? false; @endphp
-<div x-data="{ ai: false, nav: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
+@php
+    $embed = $embed ?? false;
+    // Notices that hang off the header rather than scrolling with the page.
+    $hasPins = ! $embed && (session('reset_password') || ($qaTsOverdue ?? false));
+@endphp
+<div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
         toggleSb() {
-            if (window.innerWidth <= 900) { this.nav = !this.nav; return; }
             this.sbCollapsed = !this.sbCollapsed;
             localStorage.setItem('amanahku-sb-collapsed', this.sbCollapsed ? '1' : '0');
         } }"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="sbCollapsed ? 'uj-sb-collapsed' : ''"
-     style="{{ $embed ? 'background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
+     {{-- No bottom dock inside an embedded panel, so nothing there should reserve
+          room for one (see --uj-dock-h in app.css). --}}
+     style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
 
     @unless ($embed)
         @include('partials.sidebar')
-        <div class="uj-nav-backdrop" x-show="nav" x-cloak @click="nav = false"></div>
+        @include('partials.mobile-dock')
     @endunless
 
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;position:relative;' }}">
@@ -46,6 +51,77 @@
         <div class="uj-hd-fade" style="backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);"></div>
         @endunless
 
+        {{-- ── Pinned band ────────────────────────────────────────────────────
+             Two notices sit here instead of in the scrolling head stack, because
+             losing either one off-screen costs real work: a one-time password is
+             shown ONCE (scroll past it, refresh, and HR has to reset the account
+             again), and an overdue timesheet is a deadline you are already late for.
+
+             Nothing else pins. The profile nudge and the two opt-in prompts have no
+             deadline and are dismissible, so pinning them would only nag.
+
+             A sibling of <main>, not a child of it: that makes the band exactly as
+             wide as the header (inside <main> it stopped at the scrollbar) and it
+             never scrolls at all, so no sticky is involved. It takes flow space, so
+             <main> simply gets the room that is left — hence .uj-main--pinned below,
+             which drops the header clearance <main> would otherwise carry.
+
+             Each notice renders as a .uj-pin-bar: edge to edge, square corners, part
+             of the chrome rather than a card floating in the page. --}}
+        @if ($hasPins)
+            <div class="uj-head-pins">
+            {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
+                 Shown once, copyable; never persisted or logged. --}}
+            @if (session('reset_password'))
+                @php $rp = session('reset_password'); @endphp
+                <div x-data="{ show: true, copied: false, pw: @js($rp['password']) }" x-show="show"
+                     class="uj-pin-bar" style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;">
+                    <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:var(--t-base);margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'One-time password for {{ $rp['name'] }}' : 'Kata laluan sekali guna untuk {{ $rp['name'] }}'"></span></div>
+                            <p style="font-size:var(--t-micro);margin:0 0 9px;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'Shown once — copy it now and give it to them. They must set their own password on next sign-in.' : 'Dipaparkan sekali sahaja — salin sekarang dan berikan kepada mereka. Mereka mesti menetapkan kata laluan sendiri semasa log masuk seterusnya.'"></span></p>
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                <code style="font-family:var(--font-mono);font-size:var(--t-base);font-weight:600;background:#fff;border:1px solid #e0a94a;border-radius:7px;padding:7px 11px;letter-spacing:0.5px;user-select:all;">{{ $rp['password'] }}</code>
+                                <button type="button" @click="navigator.clipboard.writeText(pw); copied = true; setTimeout(() => copied = false, 2000)"
+                                        class="uj-btn-ghost" style="height:34px;font-size:var(--t-sm);padding:0 12px;">
+                                    <span x-show="!copied" x-text="$store.ui.lang==='en' ? 'Copy' : 'Salin'">Copy</span>
+                                    <span x-show="copied" x-cloak x-text="$store.ui.lang==='en' ? 'Copied' : 'Disalin'"></span>
+                                </button>
+                            </div>
+                            {{-- Whether the reset link also went out by email. HR needs this to
+                                 know if relaying the password by hand is actually necessary. --}}
+                            @if (($rp['mail'] ?? null) === 'sent')
+                                <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was also emailed to {{ $rp['email'] ?? '' }}, so they can set their own password without this.' : 'Pautan tetapan semula juga dihantar ke {{ $rp['email'] ?? '' }}, jadi mereka boleh menetapkan kata laluan sendiri tanpa ini.'"></span></p>
+                            @elseif (($rp['mail'] ?? null) === 'throttled')
+                                <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was emailed recently, so another was not sent. Give them the password above.' : 'Pautan tetapan semula baru sahaja dihantar, jadi tiada yang baharu dihantar. Berikan kata laluan di atas kepada mereka.'"></span></p>
+                            @elseif (($rp['mail'] ?? null) === 'failed')
+                                <p style="font-size:var(--t-micro);margin:9px 0 0;color:#a8501a;font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'The reset email could not be sent. You must give them the password above.' : 'E-mel tetapan semula tidak dapat dihantar. Anda mesti berikan kata laluan di atas kepada mereka.'"></span></p>
+                            @endif
+                        </div>
+                        <button @click="show = false" style="color:#7a5314;font-size:var(--t-lg);flex-shrink:0;">×</button>
+                    </div>
+            @endif
+            @if (($qaTsOverdue ?? false))
+                <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
+                     class="uj-alert uj-pin-bar" data-tone="error" role="alert">
+                    <span class="uj-alert-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+                    </span>
+                    <span class="uj-alert-msg" x-text="$store.ui.lang==='en'
+                        ? 'Your timesheet for this week is overdue. Fill every working day to 100%.'
+                        : 'Timesheet anda untuk minggu ini sudah lewat. Isi setiap hari bekerja ke 100%.'">Your timesheet for this week is overdue. Fill every working day to 100%.</span>
+                    <a href="{{ route('app.screen', 'timesheets') }}" class="uj-alert-action" x-text="$store.ui.lang==='en' ? 'Update now' : 'Kemas kini'">Update now</a>
+                    <button type="button" class="uj-alert-close" @click="show = false"
+                            :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+            @endif
+            </div>
+        @endif
+
+
         {{-- Scrollable body. The page title block lives INSIDE it now: it used to be
              a fixed white band between two other white bands, and it says nothing
              worth keeping on screen once you have started reading. --}}
@@ -58,7 +134,7 @@
                 'messages', 'orgchart', 'board'];
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
-        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+        <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $hasPins ? 'uj-main--pinned' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
                      siblings of <main>. The header is position:absolute, so it takes no flow
@@ -72,55 +148,6 @@
                 @endunless
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
-                {{-- One-time password reveal after an HR password reset (MemberController::resetPassword).
-                     Shown once, copyable; never persisted or logged. --}}
-                @if (session('reset_password'))
-                    @php $rp = session('reset_password'); @endphp
-                    <div x-data="{ show: true, copied: false, pw: @js($rp['password']) }" x-show="show"
-                         style="background:#fff8ec;border:1px solid #e0a94a;color:#7a5314;border-radius:10px;padding:14px 16px;">
-                        <div style="display:flex;align-items:flex-start;gap:10px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                            <div style="flex:1;min-width:0;">
-                                <div style="font-weight:600;font-size:var(--t-base);margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'One-time password for {{ $rp['name'] }}' : 'Kata laluan sekali guna untuk {{ $rp['name'] }}'"></span></div>
-                                <p style="font-size:var(--t-micro);margin:0 0 9px;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'Shown once — copy it now and give it to them. They must set their own password on next sign-in.' : 'Dipaparkan sekali sahaja — salin sekarang dan berikan kepada mereka. Mereka mesti menetapkan kata laluan sendiri semasa log masuk seterusnya.'"></span></p>
-                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                    <code style="font-family:var(--font-mono);font-size:var(--t-base);font-weight:600;background:#fff;border:1px solid #e0a94a;border-radius:7px;padding:7px 11px;letter-spacing:0.5px;user-select:all;">{{ $rp['password'] }}</code>
-                                    <button type="button" @click="navigator.clipboard.writeText(pw); copied = true; setTimeout(() => copied = false, 2000)"
-                                            class="uj-btn-ghost" style="height:34px;font-size:var(--t-sm);padding:0 12px;">
-                                        <span x-show="!copied" x-text="$store.ui.lang==='en' ? 'Copy' : 'Salin'">Copy</span>
-                                        <span x-show="copied" x-cloak x-text="$store.ui.lang==='en' ? 'Copied' : 'Disalin'"></span>
-                                    </button>
-                                </div>
-                                {{-- Whether the reset link also went out by email. HR needs this to
-                                     know if relaying the password by hand is actually necessary. --}}
-                                @if (($rp['mail'] ?? null) === 'sent')
-                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was also emailed to {{ $rp['email'] ?? '' }}, so they can set their own password without this.' : 'Pautan tetapan semula juga dihantar ke {{ $rp['email'] ?? '' }}, jadi mereka boleh menetapkan kata laluan sendiri tanpa ini.'"></span></p>
-                                @elseif (($rp['mail'] ?? null) === 'throttled')
-                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#8a6a2e;"><span x-text="$store.ui.lang==='en' ? 'A reset link was emailed recently, so another was not sent. Give them the password above.' : 'Pautan tetapan semula baru sahaja dihantar, jadi tiada yang baharu dihantar. Berikan kata laluan di atas kepada mereka.'"></span></p>
-                                @elseif (($rp['mail'] ?? null) === 'failed')
-                                    <p style="font-size:var(--t-micro);margin:9px 0 0;color:#a8501a;font-weight:600;"><span x-text="$store.ui.lang==='en' ? 'The reset email could not be sent. You must give them the password above.' : 'E-mel tetapan semula tidak dapat dihantar. Anda mesti berikan kata laluan di atas kepada mereka.'"></span></p>
-                                @endif
-                            </div>
-                            <button @click="show = false" style="color:#7a5314;font-size:var(--t-lg);flex-shrink:0;">×</button>
-                        </div>
-                    </div>
-                @endif
-                @if (($qaTsOverdue ?? false))
-                    <div x-data="{ show: true }" x-show="show" x-transition.opacity.duration.150ms
-                         class="uj-alert" data-tone="error" role="alert">
-                        <span class="uj-alert-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-                        </span>
-                        <span class="uj-alert-msg" x-text="$store.ui.lang==='en'
-                            ? 'Your timesheet for this week is overdue. Fill every working day to 100%.'
-                            : 'Timesheet anda untuk minggu ini sudah lewat. Isi setiap hari bekerja ke 100%.'">Your timesheet for this week is overdue. Fill every working day to 100%.</span>
-                        <a href="{{ route('app.screen', 'timesheets') }}" class="uj-alert-action" x-text="$store.ui.lang==='en' ? 'Update now' : 'Kemas kini'">Update now</a>
-                        <button type="button" class="uj-alert-close" @click="show = false"
-                                :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
-                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                        </button>
-                    </div>
-                @endif
                 @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
                     <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" x-cloak class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>

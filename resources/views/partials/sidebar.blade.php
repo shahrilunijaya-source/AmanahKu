@@ -1,4 +1,4 @@
-<aside class="uj-sidebar" :class="nav ? 'uj-sidebar-open' : ''">
+<aside class="uj-sidebar">
     <div class="uj-sb-brand">
         <a href="{{ route('app.screen', 'dash') }}" style="display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0;">
             <div style="width:26px;height:26px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:var(--t-base);flex-shrink:0;">A</div>
@@ -79,16 +79,13 @@
          than 248px and the bubble is 340px. $side puts it to the right of the column
          rather than under a row, where it would cover the five rows it is telling
          people to hover — and to the right is where the section panel opens anyway.
-         Wrapped in .uj-nav-secs, the same class the section rows carry, so it appears
-         only where the thing it describes does and stays out of the mobile drawer,
-         which still renders the old tree.
 
          Dashboard only. The sidebar renders on every screen, and some screens carry
          their own coachmark — Attendance has two — so shown everywhere this one lands
          on top of them. Dashboard is where you arrive after signing in and it has no
          bubble of its own, so that is where this one waits. --}}
     @if ((request()->route('screen') ?? 'dash') === 'dash')
-    <div class="uj-nav-secs">
+    <div>
         @include('partials.coachmark', [
             'key' => 'sidebar-sections',
             'side' => true,
@@ -105,19 +102,23 @@
     @endif
 
     <nav class="uj-sb-nav">
-        {{-- ── Desktop nav — one row per SECTION, nothing nested on show. ──────────
+        {{-- ── One row per SECTION, nothing nested on show. ──────────────────────
              The tree used to sit here in full: every section header, every screen,
              every child. It ran to eighteen-odd rows and it made the sidebar the
              tallest thing on the page. Now the sidebar is a column of sections and
              the screens inside one live in a panel that opens beside it on hover
-             (or on click, which is the keyboard/screen-reader route in). Same at
-             both widths — Ctrl+B still swaps the 248px column for the 64px rail,
-             but it no longer changes what is nested where.
+             (or on click, which is the keyboard/screen-reader route in). Ctrl+B
+             still swaps the 248px column for the 64px rail, but it no longer
+             changes what is nested where.
+
+             This sidebar is desktop-only — below 900px it does not render and the
+             bottom dock takes over — so there is no second, hover-less copy of the
+             nav to keep in step any more.
 
              A section holding a single leaf (Overview → Dashboard) skips the panel
              and links straight through: a hover panel to reveal one row is a step
              that buys nothing. --}}
-        <div class="uj-nav-secs">
+        <div>
             @foreach (collect($nav)->groupBy('section') as $section => $items)
                 @php
                     $sectionMs = $items->first()['section_ms'] ?? $section;
@@ -207,111 +208,6 @@
                     </div>
                 @endif
             @endforeach
-        </div>
-
-        {{-- ── Mobile drawer — still the full tree. ────────────────────────────────
-             Below 900px the sidebar is a full-width off-canvas drawer and there is
-             no hover to open a panel with, so the old accordion stays exactly as it
-             was. Only one of the two blocks is ever displayed (see app.css). --}}
-        <div class="uj-nav-tree">
-        {{-- Group the flat nav into labelled, collapsible sections. groupBy keeps
-             first-seen order, and Amanahku::nav() emits items contiguously per
-             section, so section order is preserved. Sections start OPEN: the tree is
-             about eighteen rows now, so hiding all but the active section cost more
-             in orientation than it saved in height. The headings still collapse. --}}
-        @foreach (collect($nav)->groupBy('section') as $section => $items)
-            @php $sectionMs = $items->first()['section_ms'] ?? $section; @endphp
-            <div x-data="{ sec: true }" class="uj-nav-grp">
-                <button @click="sec = !sec" type="button" class="uj-nav-sec"
-                        x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</button>
-                <div class="uj-nav-rule"></div>
-                {{-- In rail mode there are no section headers to collapse, so the rows
-                     always show; `sec` only governs the expanded sidebar. --}}
-                <div x-show="sec || sbCollapsed" x-cloak>
-                    @foreach ($items as $item)
-                        <div x-data="sbFly({{ $item['expanded'] ? 'true' : 'false' }})"
-                             @mouseenter="show($event)" @mouseleave="hide()" style="position:relative;">
-                            @if ($item['hasChildren'])
-                                {{-- A 'landing' item (e.g. Oversight) gets its own page — the row is a
-                                     real link so it navigates — but the chevron has to live OUTSIDE
-                                     that link (a <button> nested inside an <a> is invalid HTML and
-                                     un-clickable in practice) so the group can still be collapsed
-                                     manually while sitting on/under its own page. It's absolutely
-                                     positioned over the row's reserved right-edge padding, so it lines
-                                     up with the inline chevron the plain-button branch below uses.
-                                     Other groups stay pure accordions with no page of their own. --}}
-                                @if ($item['landing'] ?? false)
-                                    {{-- position:relative is scoped to just this row wrapper (not the
-                                         outer per-item x-data div, which also wraps the expanded .uj-nav-kids
-                                         list below) — otherwise top:50% centers on the whole expanded
-                                         block's height instead of the header row's. --}}
-                                    <div style="position:relative;">
-                                        <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-nav-row uj-nav-row-landing"
-                                           @if ($item['active']) data-on @endif>
-                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                            <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                        </a>
-                                        <button type="button" @click="open = !open" :aria-expanded="open"
-                                                class="uj-sb-hide" aria-label="Toggle Oversight reports"
-                                                style="position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:1;background:none;border:0;padding:6px;line-height:0;cursor:pointer;color:var(--sidebar-dim);">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-                                                 :style="open ? 'transform:rotate(90deg)' : ''" style="transition:transform .16s cubic-bezier(.23,1,.32,1);"><path d="M9 6l6 6-6 6"></path></svg>
-                                        </button>
-                                    </div>
-                                @else
-                                    <button type="button" @click="open = !open" class="uj-nav-row" :aria-expanded="open"
-                                            @if ($item['active']) data-on @endif>
-                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                        <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                        <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
-                                    </button>
-                                @endif
-                                <div class="uj-nav-kids" x-show="open" x-cloak>
-                                    @foreach ($item['children'] as $child)
-                                        <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
-                                           class="uj-nav-kid" @if ($child['active']) data-on @endif
-                                           x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
-                                    @endforeach
-                                </div>
-                            @else
-                                <a href="{{ route('app.screen', ['screen' => $item['id']]) }}"
-                                   class="uj-nav-row" @if ($item['active']) data-on @endif>
-                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                    <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                </a>
-                            @endif
-
-                            {{-- Rail flyout: the same row again, opened beside the icon. Only
-                                 mounted while hovering, and only while the rail is collapsed. --}}
-                            <template x-if="fly">
-                                <div class="uj-fly" x-ref="fly" data-open>
-                                    @if ($item['hasChildren'] && ($item['landing'] ?? false))
-                                        <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-fly-t" style="text-decoration:none;">
-                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                            <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                        </a>
-                                    @else
-                                        <div class="uj-fly-t">
-                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
-                                            <span style="flex:1;" x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
-                                        </div>
-                                    @endif
-                                    @if ($item['hasChildren'])
-                                        <div class="uj-nav-kids">
-                                            @foreach ($item['children'] as $child)
-                                                <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
-                                                   class="uj-nav-kid" @if ($child['active']) data-on @endif
-                                                   x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</a>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                </div>
-                            </template>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endforeach
         </div>
     </nav>
 
