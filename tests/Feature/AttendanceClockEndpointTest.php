@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceAttempt;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -256,6 +257,58 @@ class AttendanceClockEndpointTest extends TestCase
         $record = $this->employee->attendanceRecords()->first();
         $this->assertNotNull($record);
         $this->assertSame('office_home', $record->work_mode);
+    }
+
+    /**
+     * A selfie over the host's own upload_max_filesize never reaches a validation rule
+     * with its size intact: PHP throws the bytes away and hands Laravel a dead upload, so
+     * `max:4096` cannot see it and every such punch used to be refused with "The photo
+     * failed to upload." — no size, no limit, nothing the staff member could act on. This
+     * is the most likely reason a punch fails on a phone, so the message has to name the
+     * real ceiling, which is the smaller of the two ini limits and belongs to the host.
+     */
+    public function test_a_selfie_php_refused_is_told_it_was_too_large(): void
+    {
+        $refusedByPhp = new UploadedFile(
+            UploadedFile::fake()->image('selfie.jpg')->getPathname(),
+            'selfie.jpg',
+            'image/jpeg',
+            UPLOAD_ERR_INI_SIZE,
+            true,
+        );
+
+        $response = $this->punch(['action' => 'in', 'photo' => $refusedByPhp]);
+
+        $response->assertSessionHasErrors('photo');
+        $message = session('errors')->first('photo');
+        $this->assertStringContainsString('too large', $message);
+        $this->assertStringContainsString('MB is the limit', $message);
+        $this->assertStringNotContainsString('failed to upload', $message);
+
+        // The punch is refused outright — a dead upload is not a punch with no selfie.
+        $this->assertNull($this->employee->attendanceRecords()->first());
+    }
+
+    /**
+     * The same refusal has to be readable afterwards on the attendance-attempts screen,
+     * which is the only place "why could this person not clock in" is answerable without
+     * asking them.
+     */
+    public function test_a_selfie_php_refused_is_recorded_as_an_attempt(): void
+    {
+        $this->punch(['action' => 'in', 'photo' => new UploadedFile(
+            UploadedFile::fake()->image('selfie.jpg')->getPathname(),
+            'selfie.jpg',
+            'image/jpeg',
+            UPLOAD_ERR_INI_SIZE,
+            true,
+        )]);
+
+        $attempt = AttendanceAttempt::query()->latest('id')->first();
+
+        $this->assertNotNull($attempt);
+        $this->assertSame('invalid', $attempt->outcome);
+        $this->assertStringContainsString('too large', (string) $attempt->message);
     }
 
     /**

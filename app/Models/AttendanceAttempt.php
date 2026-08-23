@@ -59,10 +59,13 @@ class AttendanceAttempt extends Model
                 'message' => $message === null ? null : mb_substr($message, 0, 500),
                 'has_location' => $hasLocation,
                 'has_photo' => $photo !== null,
-                // getSize() on a file PHP refused to store returns false, so a failed
-                // upload records null rather than 0 — "no size" and "empty file" are
-                // different findings.
-                'photo_bytes' => $photo && is_int($size = $photo->getSize()) ? $size : null,
+                // isValid() first, and it is not belt-and-braces. A file PHP refused
+                // (over upload_max_filesize) has no temp file behind it, and getSize()
+                // does not return false there — it THROWS on the failed stat, which the
+                // catch below then swallowed along with the whole row. That silently lost
+                // the one case this table was built to explain. Null rather than 0:
+                // "no size" and "empty file" are different findings.
+                'photo_bytes' => $photo && $photo->isValid() && is_int($size = $photo->getSize()) ? $size : null,
                 'content_length' => (int) Request::server('CONTENT_LENGTH') ?: null,
                 'user_agent' => mb_substr((string) Request::userAgent(), 0, 512),
                 'ip' => Request::ip(),

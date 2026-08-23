@@ -10,6 +10,7 @@ use App\Models\AttendanceRecord;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -147,9 +148,38 @@ class AttendanceController extends Controller
             // carries no evidence at all.
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            // 4MB is the app's own ceiling. It is NOT the one that usually bites: PHP
+            // refuses an upload over the host's upload_max_filesize before any rule here
+            // runs (production is set to 2M), and a file it refused arrives as an invalid
+            // upload with its size thrown away. Lowering this number would not catch that
+            // — the `uploaded` message below is what speaks to it.
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'justification' => ['nullable', 'string', 'max:500'],
+        ], [
+            // Laravel says "The photo failed to upload." for every upload PHP refused,
+            // which is true and useless: it names no size, no limit and no next step, and
+            // it reads like a network blip rather than a photo that was too big. This is
+            // the single most likely reason a punch fails on a phone, so say the number
+            // and say what to do instead.
+            'photo.uploaded' => 'That selfie was too large for the server to accept ('
+                .self::uploadCeilingMb().'MB is the limit). Take it again with the in-app '
+                .'camera, which shrinks the picture, rather than attaching one from your gallery.',
         ]);
+    }
+
+    /**
+     * The largest upload this host will physically accept, in whole megabytes.
+     *
+     * Symfony reads BOTH ini limits (upload_max_filesize and post_max_size, either of
+     * which can be the smaller) and parses their shorthand — "2M" is not 2 to an (int)
+     * cast. Read at call time, never cached: this is a host setting, and on production it
+     * belongs to whoever owns the server rather than to this repo.
+     */
+    private static function uploadCeilingMb(): string
+    {
+        $bytes = UploadedFile::getMaxFilesize();
+
+        return (string) round($bytes / 1048576, $bytes < 1048576 ? 1 : 0);
     }
 
     /**
