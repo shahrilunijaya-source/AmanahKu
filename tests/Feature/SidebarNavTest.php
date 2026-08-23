@@ -13,11 +13,10 @@ use Tests\TestCase;
 
 /**
  * The desktop sidebar's shape: a column of SECTIONS, with the screens inside one
- * reachable only from the panel that opens beside the row. The old tree — every
- * section header and every screen rendered inline — still ships for the mobile
- * drawer, where there is no hover to open a panel with, so both blocks live in the
- * blade and CSS shows exactly one of them. That is easy to undo by accident: drop
- * the panel and the desktop nav quietly loses every link but the section rows.
+ * reachable only from the panel that opens beside the row. That is easy to undo by
+ * accident: drop the panel and the nav quietly loses every link but the section
+ * rows. The sidebar is desktop-only — below 900px it does not render and the bottom
+ * dock takes over, see MobileDockTest.
  */
 class SidebarNavTest extends TestCase
 {
@@ -34,17 +33,15 @@ class SidebarNavTest extends TestCase
         return $user;
     }
 
-    /** The desktop nav block, sliced off before the mobile tree starts. */
+    /** The sidebar's nav column. */
     private function desktopNav(): string
     {
         $html = $this->get('/app/dash')->assertOk()->getContent();
 
-        $start = strpos($html, 'class="uj-nav-secs"');
-        $end = strpos($html, 'class="uj-nav-tree"');
+        $start = strpos($html, 'class="uj-sb-nav"');
+        $this->assertNotFalse($start, 'The sidebar nav column (.uj-sb-nav) is gone.');
 
-        $this->assertNotFalse($start, 'The desktop section nav (.uj-nav-secs) is gone from the sidebar.');
-        $this->assertNotFalse($end, 'The mobile tree (.uj-nav-tree) is gone — the drawer has no nav below 900px.');
-        $this->assertLessThan($end, $start);
+        $end = strpos($html, '</nav>', $start);
 
         return substr($html, $start, $end - $start);
     }

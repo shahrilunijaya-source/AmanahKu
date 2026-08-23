@@ -521,14 +521,7 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-sb-nav { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 10px 14px; }
 .uj-sb-nav::-webkit-scrollbar { width: 8px; }
 .uj-sb-nav::-webkit-scrollbar-thumb { background: #3a3730; border: 2px solid transparent; }
-.uj-nav-grp { margin-bottom: 14px; }
-.uj-nav-sec { font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--sidebar-dim); padding: 0 10px 8px; display: block; text-align: left; background: none; border: 0; width: 100%; cursor: pointer; }
-.uj-nav-rule { display: none; height: 1px; background: var(--sidebar-line); margin: 10px 14px; }
 .uj-nav-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border-radius: 8px; font-size: var(--t-base); font-weight: 500; color: var(--sidebar-text); background: none; border: 0; text-align: left; text-decoration: none; cursor: pointer; margin-bottom: 1px; }
-/* Reserves room for the absolutely-positioned chevron button a 'landing' group
-   row uses instead of an inline chevron (see sidebar.blade.php) — the row is a
-   real link, so the toggle has to sit outside it. */
-.uj-nav-row-landing { padding-right: 34px; }
 .uj-nav-row > svg { flex-shrink: 0; color: var(--muted-soft); transition: color .14s ease; }
 .uj-nav-row:hover { background: rgba(255, 255, 255, .06); color: #fff; }
 .uj-nav-row:hover > svg { color: #c9c6bc; }
@@ -540,11 +533,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-chev { flex-shrink: 0; color: var(--sidebar-dim); transition: transform .16s cubic-bezier(.23, 1, .32, 1); }
 .uj-nav-row[aria-expanded="true"] .uj-nav-chev { transform: rotate(90deg); }
 .uj-nav-pill { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; color: var(--sidebar-dim); background: rgba(255, 255, 255, .08); border-radius: 9999px; padding: 1px 7px; flex-shrink: 0; }
-/* Children hang off a rule so nesting reads at a glance in a long group. */
-.uj-nav-kids { margin: 1px 0 6px 21px; padding-left: 11px; border-left: 1px solid var(--sidebar-line); }
-.uj-nav-kid { display: block; padding: 6px 10px; border-radius: 7px; font-size: var(--t-sm); font-weight: 500; color: var(--sidebar-dim); text-decoration: none; }
-.uj-nav-kid:hover { background: rgba(255, 255, 255, .06); color: #fff; }
-.uj-nav-kid[data-on] { background: var(--sidebar-soft); color: #fff; }
 
 .uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .uj-sb-ws { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin-top: 8px; border-radius: 9px; text-decoration: none; }
@@ -563,19 +551,11 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-sb-collapsed .uj-sb-brand { padding: 0; justify-content: center; }
     .uj-sb-collapsed .uj-sb-today { margin: 0 8px 4px; padding: 6px 0; gap: 2px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--sidebar-line); border-radius: 0; }
     .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; }
-    .uj-sb-collapsed .uj-nav-row-landing { padding-right: 0; }
-    /* Only the in-sidebar children collapse. The flyout is a DOM descendant of the
-       sidebar (it is position:fixed, not detached), so it needs to win this back. */
-    .uj-sb-collapsed .uj-sidebar .uj-nav-kids { display: none; }
-    .uj-sb-collapsed .uj-sidebar .uj-fly .uj-nav-kids { display: block; }
-    .uj-sb-collapsed .uj-nav-sec { display: none; }
-    .uj-sb-collapsed .uj-nav-rule { display: block; }
-    .uj-sb-collapsed .uj-nav-grp { margin-bottom: 2px; }
     .uj-sb-collapsed .uj-sb-foot { padding: 10px 8px; }
     .uj-sb-collapsed .uj-sb-ws { justify-content: center; padding: 9px 0; gap: 0; }
     .uj-sb-collapsed .uj-feedback-btn { justify-content: center; padding: 9px 0 !important; gap: 0 !important; }
     .uj-sb-collapsed .uj-rail-only { display: flex; }
-    .uj-sb-collapsed .uj-nav-toggle { display: inline-flex; }
+    .uj-sb-collapsed .uj-nav-toggle.uj-hd-ib { display: inline-flex; }
 }
 
 /* Rail flyout: hovering a rail icon opens that row in full, with its children.
@@ -583,9 +563,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
    panel over the light content area already reads as separate. */
 .uj-fly { position: fixed; z-index: 90; min-width: 200px; max-width: 268px; background: var(--sidebar-soft); border-radius: 11px; box-shadow: 0 6px 16px rgba(0, 0, 0, .42); padding: 6px; opacity: 0; transform: translateX(-6px); pointer-events: none; transition: opacity .13s cubic-bezier(.23, 1, .32, 1), transform .13s cubic-bezier(.23, 1, .32, 1); }
 .uj-fly[data-open] { opacity: 1; transform: translateX(0); pointer-events: auto; }
-.uj-fly-t { display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 13px; font-weight: 600; color: #fff; }
-.uj-fly-t > svg { color: var(--red); flex-shrink: 0; }
-.uj-fly .uj-nav-kids { margin: 2px 0 0; padding-left: 9px; border-left-color: #3d3931; }
 
 /* ── Section panel ──────────────────────────────────────────────────────────
    The desktop sidebar lists sections; a section's screens open here, laid out in
@@ -616,25 +593,97 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-fly-grid { max-width: 260px; }
 }
 
-/* Only one of the two nav bodies is ever shown: sections on the desktop sidebar,
-   the old tree in the mobile drawer, where there is no hover to open a panel. */
-.uj-nav-secs { display: none; }
-@media (min-width: 901px) {
-    .uj-nav-secs { display: block; }
-    .uj-nav-tree { display: none; }
-}
+/* ── Responsive shell ──
+   Below 900px the sidebar does not render at all: the bottom dock and its More
+   grid are the whole navigation there. It used to slide in as an off-canvas
+   drawer carrying a second copy of the nav (a collapsible tree), which is gone
+   with it — one nav body, one place to change it.
 
-/* ── Responsive shell (mobile off-canvas nav) ── */
-.uj-nav-toggle { display: none; }
-.uj-nav-backdrop { display: none; }
+   The header hamburger only expands the collapsed desktop rail now. Two classes
+   on the rule because the button also carries .uj-hd-ib, which sets display:flex
+   further down the file and would otherwise win. */
+.uj-nav-toggle.uj-hd-ib, .uj-nav-toggle { display: none; }
 @media (max-width: 900px) {
-    .uj-sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 60; transform: translateX(-100%); transition: transform .22s ease; }
-    .uj-sidebar.uj-sidebar-open { transform: translateX(0); box-shadow: 8px 0 44px rgba(31, 30, 26, .28); }
-    .uj-nav-toggle { display: inline-flex; }
-    .uj-nav-backdrop { display: block; position: fixed; inset: 0; background: rgba(31, 30, 26, .32); z-index: 55; }
-    .uj-main { padding: 0 16px 44px !important; }
+    .uj-sidebar { display: none; }
+    /* Bottom padding clears the dock (its rail plus the phone's home indicator). */
+    .uj-main { padding: 0 16px calc(12px + var(--uj-dock-h)) !important; }
     .uj-header { padding: 0 14px !important; gap: 10px !important; }
 }
+
+/* ── Mobile bottom dock ──
+   The way into navigation on a phone: four screens on the thumb rail plus More,
+   which opens a full-screen grid of the rest (.uj-dockmore below). The hamburger
+   and its off-canvas drawer are gone below 900px — the hamburger survives above
+   it as the rail's expand button, see .uj-sb-collapsed .uj-nav-toggle.
+
+   z-index 50 sits under the nav backdrop (55) and the drawer (60), which the
+   desktop rail still uses: anything that opens over the whole page dims the dock
+   along with it rather than leaving it floating on top. */
+.uj-dock { display: none; }
+/* Height of the dock, for anything else that pins itself to the bottom of a phone
+   screen (attendance's action dock). Zero above the breakpoint, where no dock renders. */
+:root { --uj-dock-h: 0px; }
+@media (max-width: 900px) {
+    :root { --uj-dock-h: calc(61px + env(safe-area-inset-bottom)); }
+    .uj-dock {
+        display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+        background: color-mix(in srgb, var(--card) 88%, transparent);
+        border-top: 1px solid var(--hairline);
+        box-shadow: 0 -1px 14px rgba(31, 30, 26, .06);
+    }
+    .uj-dock-tab {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        min-height: 48px; padding: 4px 2px; border: 0; border-radius: 10px;
+        background: none; font-family: inherit; font-size: var(--t-micro); font-weight: 500;
+        color: var(--muted); text-decoration: none; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .uj-dock-tab > span {
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
+    }
+    .uj-dock-tab > svg { color: var(--muted-soft); }
+    .uj-dock-tab:active { background: var(--shelf); }
+    .uj-dock-tab[data-on] { color: var(--red); font-weight: 600; }
+    .uj-dock-tab[data-on] > svg { color: var(--red); }
+
+    /* The More grid: every screen this person can reach, as thumb-sized tiles.
+       Stops at the top of the dock (bottom: var(--uj-dock-h)) so the tab that
+       opened it is still there to close it. z-index 51 — one above the dock,
+       below the drawer and every modal. */
+    .uj-dockmore {
+        position: fixed; inset: 0 0 var(--uj-dock-h); z-index: 51;
+        overflow-y: auto; -webkit-overflow-scrolling: touch;
+        background: var(--canvas);
+    }
+    .uj-dockmore-sheet { padding: 14px 14px 20px; }
+    .uj-dockmore-sec {
+        margin: 14px 2px 8px; font-size: var(--t-micro); font-weight: 700;
+        letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    }
+    .uj-dockmore-sheet > .uj-dockmore-sec:first-child { margin-top: 2px; }
+    .uj-dockmore-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .uj-dockmore-tile {
+        display: flex; align-items: center; gap: 11px; min-height: 62px;
+        padding: 12px 13px; border-radius: 14px;
+        background: var(--card); border: 1px solid var(--hairline);
+        font-size: var(--t-base); font-weight: 500; line-height: 1.25;
+        color: var(--ink); text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .uj-dockmore-tile:active { background: var(--hairline-soft); }
+    .uj-dockmore-ico {
+        flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--shelf); color: var(--muted);
+    }
+    .uj-dockmore-tile[data-on] { border-color: var(--red); color: var(--red); font-weight: 600; }
+    .uj-dockmore-tile[data-on] .uj-dockmore-ico { background: var(--red-tint); color: var(--red); }
+}
+/* The blur is inline on the element, not here: Lightning CSS (Tailwind v4)
+   rewrites a `backdrop-filter` in this file to the -webkit- prefix alone and drops
+   the standard property. Same reason as .uj-hd-fade in layouts/app.blade.php. */
 
 /* ── Dashboard two-column split (employee / manager / management personas) ──
    Replaces per-branch inline `flex:2/1;min-width:Npx`, which reflowed at whatever
@@ -732,8 +781,47 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
    produces no gap, so the heading rises into its place with no residue and no JavaScript.
    Do not reintroduce per-banner margins — they would survive as dead space the moment a
    banner is conditionally rendered but hidden. */
-.uj-head-stack { display: flex; flex-direction: column; gap: 16px; padding-top: 78px; }
-.uj-head-stack--embed { padding-top: 0; gap: 12px; }
+/* Header clearance sits on whichever block comes first — the pins when they render,
+   the stack when they do not (hence :first-child, no blade conditional). It is NOT on
+   <main>: sticky `top` is measured from the scroll container's content box in Chrome
+   and its padding box elsewhere, and a padded <main> makes those two disagree by the
+   width of the padding. With no padding on the container they coincide. */
+.uj-head-stack { display: flex; flex-direction: column; gap: 16px; }
+.uj-main > .uj-head-stack:first-child { padding-top: 78px; }
+.uj-head-stack--embed { padding-top: 0 !important; gap: 12px; }
+
+/* ── Pinned band ──
+   The two notices that must not scroll out of reach (see layouts/app.blade.php).
+   A sibling of <main>, so it spans exactly what the header spans and never scrolls:
+   it is not sticky, it simply sits between the header and the scroll area and takes
+   its own room, which is why the page can never slide over or under it.
+
+   `margin-top` clears the header, which is 56px tall and absolutely positioned, so it
+   contributes no flow space of its own. */
+.uj-head-pins {
+    position: relative; z-index: 18;
+    display: flow-root;
+    margin-top: 56px;
+    background: var(--canvas);
+}
+
+/* Each notice inside it is a bar, not a card: edge to edge, square corners, side and
+   top borders off, one hairline underneath to part it from the next bar (or from the
+   page). The card shape belongs to notices that sit IN the page — these ones are part
+   of the chrome, like the header above them. Overrides both .uj-alert's own geometry
+   and the reveal's inline one, hence the specificity. */
+.uj-head-pins .uj-pin-bar {
+    margin: 0;
+    border-radius: 0;
+    border-width: 0 0 1px;
+    padding: 11px 28px;
+}
+@media (max-width: 900px) {
+    .uj-head-pins .uj-pin-bar { padding-inline: 16px; }
+}
+/* The band took the header clearance, so the scroll area below it must not repeat it —
+   it only needs the breathing room any page top wants. */
+.uj-main--pinned > .uj-head-stack:first-child { padding-top: 24px; }
 
 /* Shared page measure. Every screen — its header (h1 + guide text) AND its body —
    sits in one centred column, so screens read consistently instead of some
@@ -1683,8 +1771,8 @@ select.wd-inline {
 @media (max-width: 640px) {
   .uj-at-dock {
     display: flex; gap: 9px;
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    position: fixed; left: 0; right: 0; bottom: var(--uj-dock-h); z-index: 40;
+    padding: 12px 14px;
     background: var(--card); border-top: 1px solid var(--hairline);
   }
   .uj-at-dock-go {
@@ -1696,7 +1784,7 @@ select.wd-inline {
   .uj-at-dock-go:disabled { background: #fff; border: 1px solid var(--hairline); color: var(--muted); transform: none; cursor: default; }
   .uj-at-dock-go--punched { animation: uj-punch-pulse 1.2s cubic-bezier(.23, 1, .32, 1); }
 
-  .uj-at-wrap { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .uj-at-wrap { padding-bottom: calc(84px + var(--uj-dock-h)); }
   .uj-at-shelf { padding: 18px; }
   .uj-at-fig { font-size: 46px; margin-top: 8px; }
   .uj-at-acts .uj-at-go { display: none; }

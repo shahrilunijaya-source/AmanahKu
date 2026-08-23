@@ -17,7 +17,7 @@
  */
 
 const MAIN = 'main.uj-main';
-const NAV_LINKS = '.uj-sb-nav a[href], .uj-sb-today a[href]';
+const NAV_LINKS = '.uj-sb-nav a[href], .uj-sb-today a[href], .uj-dock a[href], .uj-dockmore a[href]';
 
 let controller = null;
 // The URL currently rendered into <main>. Tracked separately from window.location so a
@@ -121,8 +121,14 @@ async function go(url, { push = true } = {}) {
     if (push) { history.pushState({ partialNav: true }, '', url); }
     main.scrollTop = 0;
 
-    // Mobile: the nav drawer covers the screen it just changed.
-    if (window.innerWidth <= 900) { document.querySelector('.uj-nav-backdrop')?.click(); }
+    // Mobile: the dock's More grid covers the screen it just changed. Its own
+    // `@click` closes it too, but a partial nav can also start from a link inside a
+    // screen, and Alpine's state is the only thing that knows the grid is open.
+    if (window.innerWidth <= 900) {
+        const grid = document.querySelector('.uj-dockmore')?.parentElement;
+        const state = grid && window.Alpine ? window.Alpine.$data(grid) : null;
+        if (state) { state.more = false; }
+    }
 }
 
 export function registerPartialNav() {
