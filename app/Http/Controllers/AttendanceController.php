@@ -158,12 +158,15 @@ class AttendanceController extends Controller
         ], [
             // Laravel says "The photo failed to upload." for every upload PHP refused,
             // which is true and useless: it names no size, no limit and no next step, and
-            // it reads like a network blip rather than a photo that was too big. This is
-            // the single most likely reason a punch fails on a phone, so say the number
-            // and say what to do instead.
-            'photo.uploaded' => 'That selfie was too large for the server to accept ('
-                .self::uploadCeilingMb().'MB is the limit). Take it again with the in-app '
-                .'camera, which shrinks the picture, rather than attaching one from your gallery.',
+            // it reads like a network blip rather than a photo that was too big. Size is
+            // much the most likely cause on a phone, so lead with it — but hedged, because
+            // this key also fires for an upload cut off mid-send, and stating the wrong
+            // cause with confidence is worse than the vague message it replaces. Retaking
+            // through the in-app camera is the right move either way.
+            'photo.uploaded' => 'That selfie did not make it to the server, usually because '
+                .'it was too large ('.self::uploadCeilingMb().'MB is the limit). Take it again '
+                .'with the in-app camera, which shrinks the picture, rather than attaching one '
+                .'from your gallery.',
         ]);
     }
 
