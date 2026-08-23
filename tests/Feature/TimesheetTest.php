@@ -550,7 +550,7 @@ class TimesheetTest extends TestCase
 
     public function test_an_entry_older_than_the_backfill_window_is_rejected(): void
     {
-        Carbon::setTestNow('2026-07-22 09:00:00'); // five weeks after the target week
+        Carbon::setTestNow('2026-08-05 09:00:00'); // seven weeks after the target week, past the six-week window
 
         $this->actingInTenant()->post('/app/timesheets', [
             'week_start' => '2026-06-15',

@@ -55,8 +55,11 @@ class TimesheetController extends Controller
      * 100%, so the week could never be submitted. An unbounded window is not either, because
      * it lets somebody backfill months the night before an audit.
      *
+     * Six weeks, widened from three: three left no room for a fortnight of sick leave or a
+     * stretch of travel, and a week that falls out of the window cannot be recovered — there
+     * is no per-week override for HR to grant.
      */
-    private const BACKFILL_WEEKS = 3;
+    private const BACKFILL_WEEKS = 6;
 
     /**
      * Build the timesheets screen data. Tenant scope is automatic via BelongsToTenant.
@@ -996,7 +999,10 @@ class TimesheetController extends Controller
 
             if ($date->lessThan($earliest)) {
                 throw ValidationException::withMessages([
-                    "entries.$i.entry_date" => $date->format('D, j M').' is too far back to edit. Ask HR to reopen it.',
+                    // No per-week override exists, so the message must not promise one: it
+                    // used to read "Ask HR to reopen it", which sent staff to HR for a
+                    // button nobody has. recall() only un-submits a week already submitted.
+                    "entries.$i.entry_date" => $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.',
                 ]);
             }
         }
