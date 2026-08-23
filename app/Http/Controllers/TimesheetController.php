@@ -896,12 +896,22 @@ class TimesheetController extends Controller
      */
     private function assertNoBlankLines(array $entries): void
     {
+        // Every offending day, not the first. Throwing inside the loop made a week with
+        // three bad days cost three round trips: fix one, submit, be told about the next.
+        $days = [];
         foreach ($entries as $e) {
             if ((float) $e['percentage'] <= 0) {
-                throw ValidationException::withMessages([
-                    'submit' => Carbon::parse($e['entry_date'])->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
-                ]);
+                $days[Carbon::parse($e['entry_date'])->toDateString()] = true;
             }
+        }
+
+        if ($days !== []) {
+            throw ValidationException::withMessages([
+                'submit' => array_map(
+                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
+                    array_keys($days),
+                ),
+            ]);
         }
     }
 
@@ -915,21 +925,30 @@ class TimesheetController extends Controller
     private function assertNoDuplicateLines(array $entries): void
     {
         $seen = [];
+        $days = [];
         foreach ($entries as $e) {
+            $date = Carbon::parse($e['entry_date'])->toDateString();
             $key = implode('|', [
-                Carbon::parse($e['entry_date'])->toDateString(),
+                $date,
                 $e['category_id'],
                 $e['project_id'] ?? '',
                 $e['sub_pillar_id'] ?? '',
             ]);
 
             if (isset($seen[$key])) {
-                throw ValidationException::withMessages([
-                    'entries' => Carbon::parse($e['entry_date'])->format('D, j M').' has the same work listed twice — put it on one line instead.',
-                ]);
+                $days[$date] = true;
             }
 
             $seen[$key] = true;
+        }
+
+        if ($days !== []) {
+            throw ValidationException::withMessages([
+                'entries' => array_map(
+                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has the same work listed twice — put it on one line instead.',
+                    array_keys($days),
+                ),
+            ]);
         }
     }
 
@@ -962,6 +981,7 @@ class TimesheetController extends Controller
             $byDay[$e['entry_date']] = ($byDay[$e['entry_date']] ?? 0) + (float) $e['percentage'];
         }
 
+        $messages = [];
         foreach ($byDay as $date => $total) {
             // The TOT Saturday is a half day, so it is full at 50%; every other day at 100%.
             $capacity = DayCapacity::for($date);
@@ -969,10 +989,12 @@ class TimesheetController extends Controller
             if (abs($total - $capacity) >= 0.01) {
                 $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
                 $want = rtrim(rtrim(number_format($capacity, 2), '0'), '.');
-                throw ValidationException::withMessages([
-                    'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.',
-                ]);
+                $messages[] = Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.';
             }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['submit' => $messages]);
         }
     }
 
@@ -988,23 +1010,27 @@ class TimesheetController extends Controller
         $today = Carbon::now()->startOfDay();
         $earliest = Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS);
 
+        // Keyed by row index — that is what points at the offending line — and gathered
+        // rather than thrown at the first one, so a week that reaches back too far is
+        // reported in full instead of one day per attempt.
+        $messages = [];
         foreach ($entries as $i => $e) {
             $date = Carbon::parse($e['entry_date'])->startOfDay();
 
             if ($date->greaterThan($today)) {
-                throw ValidationException::withMessages([
-                    "entries.$i.entry_date" => $date->format('D, j M').' has not happened yet.',
-                ]);
+                $messages["entries.$i.entry_date"] = $date->format('D, j M').' has not happened yet.';
             }
 
             if ($date->lessThan($earliest)) {
-                throw ValidationException::withMessages([
-                    // No per-week override exists, so the message must not promise one: it
-                    // used to read "Ask HR to reopen it", which sent staff to HR for a
-                    // button nobody has. recall() only un-submits a week already submitted.
-                    "entries.$i.entry_date" => $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.',
-                ]);
+                // No per-week override exists, so the message must not promise one: it
+                // used to read "Ask HR to reopen it", which sent staff to HR for a
+                // button nobody has. recall() only un-submits a week already submitted.
+                $messages["entries.$i.entry_date"] = $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.';
             }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
         }
     }
 

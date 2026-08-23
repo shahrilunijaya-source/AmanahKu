@@ -166,6 +166,33 @@ class TimesheetTest extends TestCase
         $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->where('status', 'submitted')->first());
     }
 
+    /**
+     * Every day that does not add up, in one refusal. The check used to throw inside its
+     * loop, so a week with three short days cost three submits to find out about all
+     * three — fix one, be told about the next, repeat.
+     */
+    public function test_store_with_submit_now_names_every_incomplete_day_at_once(): void
+    {
+        $response = $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => 1,
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 60],
+                ['entry_date' => '2026-06-16', 'category_id' => $this->category->id, 'percentage' => 40],
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('submit');
+        $messages = session('errors')->get('submit');
+
+        $this->assertCount(2, $messages);
+        $this->assertStringContainsString('Mon, 15 Jun', $messages[0]);
+        $this->assertStringContainsString('Tue, 16 Jun', $messages[1]);
+        // The day that was fine is not named.
+        $this->assertStringNotContainsString('17 Jun', implode(' ', $messages));
+    }
+
     public function test_store_with_submit_now_submits_when_every_day_is_100(): void
     {
         $this->actingInTenant()->post('/app/timesheets', [

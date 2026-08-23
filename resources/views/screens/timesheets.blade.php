@@ -592,7 +592,7 @@
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
             </div>
         </div>
-        <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
+        <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);white-space:pre-line;" x-text="error"></div>
 
         {{-- ---- Date sheet: jump to any day in the week, or to another week ---- --}}
         <div x-show="sheetOpen" x-cloak @click.self="sheetOpen = false"
@@ -720,7 +720,7 @@
                     </button>
                 </div>
             </div>
-            <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
+            <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);white-space:pre-line;" x-text="error"></div>
         </div>
     </div>
     </div>

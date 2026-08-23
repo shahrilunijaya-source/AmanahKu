@@ -175,3 +175,57 @@ test('weekEndsOn moves to the TOT Saturday and stays on Friday otherwise', () =>
     expect(makeComponent({ weekStart: TOT_WEEK }).weekEndsOn()).toBe('2026-08-01');
     expect(makeComponent({ weekStart: PLAIN_WEEK }).weekEndsOn()).toBe('2026-08-07');
 });
+
+// --- explainRefusal(): a refused save has to say which day it is about ------
+// Laravel keys its own field errors `entries.<index>.<field>`, which names a position in
+// the flattened array this save sent and nothing a person looking at a week grid can use.
+
+test('explainRefusal() resolves a framework field error back to its day', () => {
+    const c = makeComponent({ days: 5 });
+    const entries = [
+        { entry_date: THURSDAY, category_id: 1, percentage: 50 },
+        { entry_date: SATURDAY, category_id: 1, percentage: 50 },
+    ];
+    const body = { errors: { 'entries.1.project_id': ['The selected project is invalid.'] } };
+
+    expect(c.explainRefusal(body, entries)).toBe('Saturday 8 Aug: The selected project is invalid.');
+});
+
+test('explainRefusal() does not name the day twice when the server already named it', () => {
+    const c = makeComponent({ days: 5 });
+    const entries = [{ entry_date: THURSDAY, category_id: 1, percentage: 50 }];
+    // Carbon's 'D, j M' — English regardless of the reader's language, and not the same
+    // string as dayLong(), which is why matching on dayLong() alone is not enough.
+    const body = { errors: { 'entries.0.entry_date': ['Thu, 6 Aug has not happened yet.'] } };
+
+    expect(c.explainRefusal(body, entries)).toBe('Thu, 6 Aug has not happened yet.');
+});
+
+test('explainRefusal() reports every offending day, not just the first', () => {
+    const c = makeComponent({ days: 5 });
+    const body = {
+        errors: {
+            submit: [
+                'Thu, 6 Aug totals 80% — that day must add up to 100% before submitting.',
+                'Fri, 7 Aug totals 50% — that day must add up to 100% before submitting.',
+            ],
+        },
+    };
+
+    expect(c.explainRefusal(body, []).split('\n')).toHaveLength(2);
+});
+
+test('explainRefusal() keeps the reason from a refusal that carries no error bag', () => {
+    const c = makeComponent({ days: 5 });
+    // abort() responses are shaped {message} with no `errors` — the reason used to be
+    // dropped on the floor and replaced with a flat "Could not save."
+    const body = { message: 'This week has already been submitted and cannot be edited.' };
+
+    expect(c.explainRefusal(body, [])).toBe('This week has already been submitted and cannot be edited.');
+});
+
+test('explainRefusal() still falls back when the server said nothing useful', () => {
+    const c = makeComponent({ days: 5 });
+
+    expect(c.explainRefusal({}, [])).toBe('Could not save.');
+});

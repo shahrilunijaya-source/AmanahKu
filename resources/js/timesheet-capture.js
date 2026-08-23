@@ -774,7 +774,7 @@ export function registerTimesheetCapture(Alpine) {
                     });
                     const body = await res.json();
                     if (!res.ok) {
-                        this.error = Object.values(body.errors || {}).flat()[0] || 'Could not save.';
+                        this.error = this.explainRefusal(body, entries);
                         if (announce) this.$store.toast.error(this.error);
                         return;
                     }
@@ -795,6 +795,50 @@ export function registerTimesheetCapture(Alpine) {
 
             return this.savePromise;
         },
+        /**
+         * Turn a refused save into something that names the day it is about.
+         *
+         * Three things used to go missing here. Laravel's own field errors are keyed
+         * `entries.7.percentage`, and row 7 of a flattened list means nothing to someone
+         * looking at a week grid — the index is resolved back to its date. A refusal
+         * raised with abort() carries `message` and no `errors` bag at all, so the real
+         * reason (empty week, already submitted) was replaced by a flat "Could not save."
+         * And only the first message was ever read, so a week with three bad days was
+         * fixed and resubmitted three times to be told about them one at a time.
+         */
+        /**
+         * Carbon's 'D, j M' — how every server-side timesheet message opens. Assembled
+         * rather than asked of toLocaleDateString, which drops the comma under en-GB and
+         * would then never match the string it exists to recognise.
+         */
+        dayShortEn(iso) {
+            const dt = new Date(iso + 'T00:00:00Z');
+            const rest = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+            return `${this.weekdayNames.short.en[dt.getUTCDay()]}, ${rest}`;
+        },
+
+        explainRefusal(body, entries) {
+            const lines = [];
+            for (const [key, messages] of Object.entries(body.errors || {})) {
+                // `entries.<index>.<field>` — the index is a position in the array THIS
+                // save sent, so the date is already in hand and needs no server round trip.
+                const at = key.match(/^entries\.(\d+)\./);
+                const iso = at ? entries[Number(at[1])]?.entry_date : null;
+                for (const message of [].concat(messages)) {
+                    // A message the server already opened with the day must not be given a
+                    // second one. Its checks format the date with Carbon's 'D, j M', which
+                    // is always English regardless of the reader's language, so matching on
+                    // dayLong() alone would miss it and print the day twice in two tongues.
+                    const alreadyNamed = iso && (message.startsWith(this.dayLong(iso)) || message.startsWith(this.dayShortEn(iso)));
+                    lines.push(iso && !alreadyNamed ? `${this.dayLong(iso)}: ${message}` : message);
+                }
+            }
+            if (!lines.length && body.message) lines.push(body.message);
+
+            return [...new Set(lines)].join('\n') || 'Could not save.';
+        },
+
         // ---- pre-submit review ---------------------------------------------
         // A pane swap, not a dialog: no aria-modal, no focus trap. openReview()/closeReview()
         // own the two things a pane swap always gets wrong — where focus goes, and what the
