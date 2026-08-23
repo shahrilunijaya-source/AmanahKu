@@ -89,6 +89,34 @@ final class WeekReconciler
     }
 
     /**
+     * Push a public-holiday change into every stored week that covers the date, so a week
+     * saved BEFORE HR gazetted the day (a sudden "cuti peristiwa" is announced days ahead
+     * at best) gains its Public Holiday rows — or loses them again when the holiday is
+     * removed — without waiting for each staffer to re-save. Returns how many stored weeks
+     * were reconciled (for the caller's audit trail).
+     *
+     * Unlike reconcileForLeave this spans the whole roster: a holiday is company-wide.
+     * Assumes the holiday row is already created (or already deleted) on the current DB
+     * connection, so LockedDays::forWeek sees the new state.
+     */
+    public function reconcileForHolidayDate(CarbonInterface|string $date): int
+    {
+        $week = CarbonImmutable::parse($date)->startOfWeek();
+        $reconciled = 0;
+
+        // forWeek() is the sargable (week_start >= day AND < day+1) scope, so it survives
+        // the sqlite "00:00:00" date-cast suffix that a plain equality would miss. The
+        // query inherits the active tenant scope from the Timesheet model.
+        foreach (Timesheet::forWeek($week)->get() as $timesheet) {
+            if ($this->reconcile($timesheet)) {
+                $reconciled++;
+            }
+        }
+
+        return $reconciled;
+    }
+
+    /**
      * Rebuild one stored week's entries against the current locked days and persist it.
      * Returns true when the week was reconciled, false when it was skipped.
      *

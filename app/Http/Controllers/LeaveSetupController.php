@@ -11,6 +11,8 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PublicHoliday;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\WeekReconciler;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -218,7 +220,14 @@ class LeaveSetupController extends Controller
         $data['state'] = ($data['state'] ?? null) ?: null;
 
         $holiday = PublicHoliday::create($data + ['tenant_id' => app(CurrentTenant::class)->id()]);
-        AuditLog::record('Added public holiday', $holiday->name.' '.$holiday->date->toDateString());
+
+        // Holiday->timesheet is otherwise pull-based: LockedDays only materialises the
+        // "Public Holiday" row when a week is displayed or saved. A gazetted holiday lands
+        // at short notice, so weeks already saved for that week would silently disagree
+        // with it until each staffer re-saved. Push it into them here instead.
+        $reconciled = app(WeekReconciler::class)->reconcileForHolidayDate($holiday->date);
+
+        AuditLog::record('Added public holiday', $holiday->name.' '.$holiday->date->toDateString().' · '.$reconciled.' timesheet weeks reconciled');
 
         return back()->with('ok', $holiday->name.' added.');
     }
@@ -229,8 +238,15 @@ class LeaveSetupController extends Controller
         abort_unless($holiday->tenant_id === app(CurrentTenant::class)->id(), 403);
 
         $name = $holiday->name;
+        $date = $holiday->date;
         $holiday->delete();
-        AuditLog::record('Removed public holiday', $name);
+
+        // Mirror of storeHoliday: with the row gone, reconciling strips the generated
+        // "Public Holiday" rows back out of stored weeks, so a holiday entered by mistake
+        // does not leave every timesheet locked at 100% on a normal working day.
+        $reconciled = app(WeekReconciler::class)->reconcileForHolidayDate($date);
+
+        AuditLog::record('Removed public holiday', $name.' · '.$reconciled.' timesheet weeks reconciled');
 
         return back()->with('ok', $name.' removed.');
     }
@@ -266,6 +282,7 @@ class LeaveSetupController extends Controller
             ['Christmas Day', '2026-12-25'],
         ];
 
+        $addedDates = [];
         $have = PublicHoliday::get(['name', 'date'])
             ->map(fn ($h) => strtolower($h->name).'|'.$h->date->toDateString())->flip();
         $added = 0;
@@ -275,7 +292,17 @@ class LeaveSetupController extends Controller
                 continue;
             }
             PublicHoliday::create(['tenant_id' => $tid, 'name' => $name, 'date' => $date]);
+            $addedDates[] = $date;
             $added++;
+        }
+
+        // Same back-fill as storeHoliday, one pass per affected week: two holidays in the
+        // same week (Raya, CNY) would otherwise rebuild that week twice for no gain.
+        $reconciler = app(WeekReconciler::class);
+        $weeks = collect($addedDates)->map(fn (string $d) => CarbonImmutable::parse($d)->startOfWeek()->toDateString())->unique();
+
+        foreach ($weeks as $week) {
+            $reconciler->reconcileForHolidayDate($week);
         }
 
         AuditLog::record('Loaded standard public holidays', $added.' added');
