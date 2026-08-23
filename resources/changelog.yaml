@@ -10,9 +10,61 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.5"
+  date: "2026-08-21"
+  entries:
+    - tag: improved
+      text: "The Attendance Report has been rebuilt as a ledger: one line per person per day, so a whole team's week reads top to bottom without opening anything. Pick a day, a week, a month, or set your own dates. The counts at the top — days clocked, hours, late, and days needing a fix — follow whatever department or name you filter by."
+      text_ms: "Laporan Kehadiran telah dibina semula sebagai lejar: satu baris bagi setiap orang bagi setiap hari, jadi seminggu penuh satu pasukan boleh dibaca dari atas ke bawah tanpa membuka apa-apa. Pilih hari, minggu, bulan, atau tetapkan tarikh anda sendiri. Kiraan di bahagian atas — hari direkod, jam, lewat, dan hari yang perlu dibetulkan — mengikut jabatan atau nama yang anda tapis."
+      link: "/app/attendance-report"
+      link_text: "Open the Attendance Report"
+      link_text_ms: "Buka Laporan Kehadiran"
+    - tag: added
+      text: "The buttons above the table — late, missing clock out, off site, and the rest — narrow the list to just those days without moving the totals. The totals answer \"how did the team do\", the buttons answer \"show me the ones I need to look at\", and the two no longer fight each other."
+      text_ms: "Butang di atas jadual — lewat, tiada clock out, di luar lokasi, dan selebihnya — menyempitkan senarai kepada hari-hari itu sahaja tanpa mengubah jumlah keseluruhan. Jumlah menjawab \"bagaimana prestasi pasukan\", butang pula menjawab \"tunjukkan yang saya perlu lihat\", dan kedua-duanya tidak lagi bertindih."
+    - tag: added
+      text: "Click anyone on the report to open their own panel: every day in the period, the selfie taken at the punch, whatever reason they typed, and the map point. Everything you need to decide sits in one place instead of being spread across the row."
+      text_ms: "Klik sesiapa sahaja dalam laporan untuk membuka panel mereka sendiri: setiap hari dalam tempoh itu, selfie yang diambil semasa merekod, sebarang sebab yang ditaip, dan titik peta. Segala yang anda perlukan untuk membuat keputusan berada di satu tempat, bukan bertaburan pada baris."
+    - tag: added
+      text: "HR can now type in a missing clock out straight from that panel, instead of the day sitting broken until someone edits the record by hand. A time added this way is marked as typed in, not punched, so the record still says what really happened."
+      text_ms: "HR kini boleh menaip clock out yang tertinggal terus dari panel itu, tanpa perlu membiarkan hari itu rosak sehingga seseorang menyunting rekod secara manual. Masa yang ditambah begini ditanda sebagai ditaip, bukan direkod, supaya rekod tetap menceritakan apa yang benar-benar berlaku."
+    - tag: added
+      text: "An off site punch now shows the map with its exact latitude and longitude underneath, and how far it was from the office it should have been at. A number to check, not just a pin to squint at."
+      text_ms: "Rekod di luar lokasi kini memaparkan peta bersama latitud dan longitud tepatnya di bawah, serta sejauh mana ia dari pejabat yang sepatutnya. Satu angka untuk disemak, bukan sekadar pin untuk diteliti."
+    - tag: added
+      text: "Download the report as a spreadsheet, exactly as it appears on screen — same period, same filters, same rows."
+      text_ms: "Muat turun laporan sebagai hamparan, tepat seperti yang dipaparkan pada skrin — tempoh sama, tapisan sama, baris sama."
+    - tag: improved
+      text: "Changing a filter or opening someone no longer rebuilds the whole page. Only the part that changed is fetched, so the report keeps up even with several hundred rows on screen."
+      text_ms: "Menukar tapisan atau membuka seseorang tidak lagi membina semula keseluruhan halaman. Hanya bahagian yang berubah diambil, jadi laporan kekal pantas walaupun beratus baris dipaparkan."
+    - tag: added
+      text: "Attendance now starts with your working mode. A two-way switch above the clock sits on \"Office / Home\" by default, so an ordinary day still takes one tap. Pick \"Site visit\" when you are heading to a customer and the punch window asks where you are going, for example \"Customer ABC, Shah Alam\". That destination is saved with the punch and shown to your manager."
+      text_ms: "Kehadiran kini bermula dengan mod kerja anda. Suis dua pilihan di atas jam berada pada \"Pejabat / Rumah\" secara lalai, jadi hari biasa masih satu ketukan sahaja. Pilih \"Lawatan tapak\" apabila anda ke tempat pelanggan dan tetingkap rekod akan bertanya ke mana anda pergi, contohnya \"Customer ABC, Shah Alam\". Destinasi itu disimpan bersama rekod dan dipaparkan kepada pengurus anda."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
+    - tag: improved
+      text: "A declared site visit no longer counts as being off site. Your GPS is still recorded exactly as it reads, and it still shows on your manager's map, but the day is no longer marked amber for being outside a fence you already said you would be outside of. Late clock ins and early clock outs are unchanged and still need a reason."
+      text_ms: "Lawatan tapak yang telah diisytiharkan tidak lagi dikira sebagai berada di luar lokasi. GPS anda tetap direkod tepat seperti bacaannya, dan tetap dipaparkan pada peta pengurus anda, cuma hari itu tidak lagi ditanda kuning kerana berada di luar kawasan yang anda sendiri sudah beritahu. Clock in lewat dan clock out awal tidak berubah dan tetap perlu sebab."
+    - tag: improved
+      text: "Working from home no longer needs a registered home address. Staff can clock in from wherever they are that day, as long as they are on time, and the punch location is simply recorded. The stored home coordinates have been deleted and the screen HR used to register them is gone."
+      text_ms: "Bekerja dari rumah tidak lagi memerlukan alamat rumah yang didaftarkan. Kakitangan boleh clock in dari mana sahaja mereka berada pada hari itu, asalkan tepat pada masanya, dan lokasi rekod hanya disimpan sebagai catatan. Koordinat rumah yang tersimpan telah dipadam dan skrin yang digunakan HR untuk mendaftarkannya telah ditiadakan."
+    - tag: improved
+      text: "The separate remark box under the clock has been removed. Everything the app needs from you now appears in the same window as the selfie: the destination on a site visit, or a reason when you are late, off site, or your device cannot find your location. One place, one time, instead of two boxes asking the same thing."
+      text_ms: "Kotak catatan berasingan di bawah jam telah ditiadakan. Segala yang diperlukan aplikasi daripada anda kini muncul dalam tetingkap yang sama dengan selfie: destinasi untuk lawatan tapak, atau sebab apabila anda lewat, di luar lokasi, atau peranti anda tidak dapat mencari lokasi. Satu tempat, satu kali, bukan dua kotak bertanya perkara sama."
+    - tag: added
+      text: "First time on the Attendance screen you get a short bubble beside the new switch explaining what the two modes mean. Close it and it stays closed. The full walkthrough is always there under \"What is this screen for?\" at the top."
+      text_ms: "Kali pertama anda ke skrin Kehadiran, satu gelembung ringkas muncul di sebelah suis baharu itu untuk menerangkan maksud kedua-dua mod. Tutup ia dan ia kekal tertutup. Panduan penuh sentiasa ada di bawah \"Apa fungsi skrin ini?\" di bahagian atas."
+
 - version: "1.4"
   date: "2026-08-18"
   entries:
+    - tag: added
+      text: "Oversight now has its own page, listing all six of its reports — Workforce, Attendance, Leave, Timesheet, Audit Logs and Profile Test Results — in one place. Open to managers, management and HR."
+      text_ms: "Pengawasan kini mempunyai halamannya sendiri, menyenaraikan kesemua enam laporannya — Tenaga Kerja, Kehadiran, Cuti, Lembaran Masa, Log Audit dan Keputusan Ujian Profil — di satu tempat. Terbuka kepada pengurus, pengurusan dan HR."
+    - tag: improved
+      text: "Reports moved from its own item in the sidebar into Oversight, alongside the other company-wide reports it already shared an audience with, and is now labelled Workforce Reports to say what it actually covers."
+      text_ms: "Laporan berpindah daripada item berasingan dalam bar sisi ke dalam Pengawasan, bersama laporan seluruh syarikat lain yang sudah berkongsi khalayak yang sama, dan kini dilabel Laporan Tenaga Kerja untuk menunjukkan apa yang sebenarnya diliputinya."
     - tag: added
       text: "New Projects screen under Workplace: every project in the company in one list, with how much each one is actually being used. Everyone can see it; managers, HR and management can add and edit. It replaces the old New Project screen, which could only create."
       text_ms: "Skrin Projek baharu di bawah Tempat Kerja: setiap projek syarikat dalam satu senarai, lengkap dengan sebanyak mana ia digunakan. Semua orang boleh melihatnya; pengurus, HR dan pengurusan boleh menambah dan menyunting. Ia menggantikan skrin Projek Baharu lama yang hanya boleh mencipta."
@@ -40,6 +92,15 @@
     - tag: fixed
       text: "Adding a note on the timesheet screen no longer breaks with an error after an app update. It now reloads once automatically to pick up the latest version."
       text_ms: "Menambah nota pada skrin lembaran masa tidak lagi rosak dengan ralat selepas kemas kini aplikasi. Ia kini memuat semula sekali secara automatik untuk mendapatkan versi terkini."
+    - tag: improved
+      text: "\"Where time went\" now opens the category, project or person you click on as a full page instead of a small side panel, with a trail at the top to get back. A person's month of entries now pages one week at a time instead of one long scroll, and each entry line is labelled with its day."
+      text_ms: "\"Ke mana masa pergi\" kini membuka kategori, projek atau individu yang anda klik sebagai halaman penuh, bukan lagi panel kecil di tepi, dengan penanda jejak di atas untuk kembali. Rekod sebulan seorang individu kini dipaparkan seminggu pada satu masa, bukan skrol panjang, dan setiap baris rekod dilabel dengan harinya."
+    - tag: improved
+      text: "The Timesheet Reports screen now opens on This week by default, so who still owes a sheet is the first thing you see."
+      text_ms: "Skrin Laporan Lembaran Masa kini terbuka pada tab Minggu Ini secara lalai, supaya siapa yang masih belum menghantar lembaran menjadi perkara pertama yang dilihat."
+    - tag: added
+      text: "The Review tab is now a read-only week-by-week view of your own timesheet entries, with arrows and a dropdown to jump between weeks. Each day shows what you logged as small category and project tags, grouped together even when you logged more than one thing that day — click any entry to jump straight into editing it on the Record tab. It replaces the old cost list and time-spent breakdown, which only money roles could see."
+      text_ms: "Tab Semak kini memaparkan minggu lembaran masa anda sendiri secara baca-sahaja, dengan anak panah dan senarai lungsur untuk melompat antara minggu. Setiap hari memaparkan apa yang anda rekod sebagai tag kecil kategori dan projek, dikumpul bersama walaupun anda merekod lebih daripada satu perkara pada hari yang sama — klik mana-mana entri untuk terus menyunting di tab Rekod. Ia menggantikan senarai kos lama dan pecahan masa yang hanya boleh dilihat oleh peranan berkaitan kewangan."
 
 - version: "1.3"
   date: "2026-08-14"

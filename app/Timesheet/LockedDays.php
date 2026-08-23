@@ -13,14 +13,17 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * Which weekdays of a timesheet week are already accounted for by a fact HR owns:
+ * Which working days of a timesheet week are already accounted for by a fact HR owns:
  * an approved leave request, or a public holiday.
  *
- * A fully locked day is filled to 100% and the employee cannot log work against it.
+ * A fully locked day is filled to that day's capacity (100%, or 50% on the first Saturday
+ * of the month — Unijaya's TOT half day, see DayCapacity) and the employee cannot log work
+ * against it.
  * A half-day leave locks only 50%: the "On Leave" row covers half the day and the
  * staffer still fills the remaining half with real work, so that day must reach 100%
  * from the leave half plus their own entries. Each locked day therefore carries a
- * `percentage` (100 or 50) and, for a half day, a `period` ('am' | 'pm'). Read-only:
+ * `percentage` (the day's capacity, or half of it for a half-day leave) and, for a half
+ * day, a `period` ('am' | 'pm'). Read-only:
  * this class never writes. Callers persist the rows it returns.
  */
 final class LockedDays
@@ -33,12 +36,12 @@ final class LockedDays
      *                                             brief's CarbonInterface-only signature) because
      *                                             CarbonImmutable::parse() already normalizes either,
      *                                             and this is a strictly backward-compatible superset.
-     * @return array<string, array{label: string, source: string, percentage: float, period: ?string}> keyed by ISO date, Mon–Fri only
+     * @return array<string, array{label: string, source: string, percentage: float, period: ?string}> keyed by ISO date, working days only
      */
     public function forWeek(Employee $employee, CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
-        $end = $start->addDays(4);
+        $end = $start->addDays(5);
 
         // whereDate() (not whereBetween) because the 'date' column's stored value is not
         // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
@@ -60,13 +63,12 @@ final class LockedDays
 
         $locked = [];
 
-        for ($i = 0; $i < 5; $i++) {
-            $day = $start->addDays($i);
+        foreach ($this->workingDays($start) as $day) {
             $iso = $day->toDateString();
 
             if ($holiday = $holidays->get($iso)) {
                 // A holiday outranks leave: nobody burns annual leave on a public holiday.
-                $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => 100.0, 'period' => null];
+                $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => DayCapacity::for($day), 'period' => null];
 
                 continue;
             }
@@ -76,7 +78,7 @@ final class LockedDays
             );
 
             if ($covering) {
-                $locked[$iso] = $this->leaveEntry($covering);
+                $locked[$iso] = $this->leaveEntry($covering, $day);
             }
         }
 
@@ -98,7 +100,7 @@ final class LockedDays
     public function forWeekMany(Collection $employees, CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
-        $end = $start->addDays(4);
+        $end = $start->addDays(5);
 
         // whereDate() (not whereBetween) because the 'date' column's stored value is not
         // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
@@ -125,12 +127,11 @@ final class LockedDays
             $leave = $leaveByEmployee->get($employee->id) ?? collect();
             $locked = [];
 
-            for ($i = 0; $i < 5; $i++) {
-                $day = $start->addDays($i);
+            foreach ($this->workingDays($start) as $day) {
                 $iso = $day->toDateString();
 
                 if ($holiday = $holidays->get($iso)) {
-                    $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => 100.0, 'period' => null];
+                    $locked[$iso] = ['label' => $holiday->name, 'source' => 'holiday', 'percentage' => DayCapacity::for($day), 'period' => null];
 
                     continue;
                 }
@@ -140,7 +141,7 @@ final class LockedDays
                 );
 
                 if ($covering) {
-                    $locked[$iso] = $this->leaveEntry($covering);
+                    $locked[$iso] = $this->leaveEntry($covering, $day);
                 }
             }
 
@@ -151,17 +152,42 @@ final class LockedDays
     }
 
     /**
-     * Shape one covering leave request as a locked-day array. A half-day request locks
-     * only 50% (the staffer fills the rest); a whole-day request locks the full day.
+     * The days of the week a staffer can log against: Mon–Fri, plus the first Saturday of
+     * the month (the TOT half day). Ordinary Saturdays and Sunday are not locked here —
+     * nothing generates rows for a day the week does not ask them to fill.
+     *
+     * @return array<int, CarbonImmutable>
+     */
+    private function workingDays(CarbonImmutable $weekStart): array
+    {
+        $days = [];
+
+        for ($i = 0; $i < 6; $i++) {
+            $day = $weekStart->addDays($i);
+
+            if ($i < 5 || DayCapacity::isFirstSaturday($day)) {
+                $days[] = $day;
+            }
+        }
+
+        return $days;
+    }
+
+    /**
+     * Shape one covering leave request as a locked-day array. A half-day request locks half
+     * the day's capacity (the staffer fills the rest); a whole-day request locks all of it.
+     * On the TOT Saturday capacity is 50%, so a whole day there locks 50 and a half day 25.
      *
      * @return array{label: string, source: string, percentage: float, period: ?string}
      */
-    private function leaveEntry(LeaveRequest $leave): array
+    private function leaveEntry(LeaveRequest $leave, CarbonImmutable $day): array
     {
+        $capacity = DayCapacity::for($day);
+
         return [
             'label' => $leave->leaveType?->name ?: 'Leave',
             'source' => 'leave',
-            'percentage' => $leave->isHalfDay() ? 50.0 : 100.0,
+            'percentage' => $leave->isHalfDay() ? $capacity / 2 : $capacity,
             'period' => $leave->half_day_period,
         ];
     }
@@ -200,8 +226,9 @@ final class LockedDays
                 continue;
             }
 
-            // 100 for a holiday or whole-day leave, 50 for a half day. Hours track the
-            // percentage so manday RM costing (hours * rate) stays correct for a half day.
+            // The day's full capacity for a holiday or whole-day leave, half of it for a
+            // half day. Hours track the percentage so manday RM costing (hours * rate)
+            // stays correct for a half day and for the TOT Saturday.
             $percentage = (float) $day['percentage'];
             $periodSuffix = ['am' => ' (morning)', 'pm' => ' (afternoon)'][$day['period']] ?? '';
 

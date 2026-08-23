@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { isPartialLink } from './partial-nav';
+import { isPartialLink, shouldRefetchOnPopstate } from './partial-nav';
 
 const ORIGIN = 'http://localhost:9100';
 
@@ -49,4 +49,17 @@ test('respects a handler that already claimed the click', () => {
 
 test('ignores a click that hit no link', () => {
     expect(isPartialLink(click(), null, ORIGIN)).toBeFalsy();
+});
+
+test('refetches on a real partial-nav back/forward to a different URL', () => {
+    expect(shouldRefetchOnPopstate({ partialNav: true }, '/app/dash', '/app/board')).toBe(true);
+});
+
+test('skips the refetch when the URL did not actually change (e.g. a same-page pushState some other component made just to give Back something to pop)', () => {
+    expect(shouldRefetchOnPopstate({ partialNav: true }, '/app/timesheets', '/app/timesheets')).toBe(false);
+});
+
+test('skips history states partial-nav never stamped', () => {
+    expect(shouldRefetchOnPopstate(null, '/app/dash', '/app/board')).toBe(false);
+    expect(shouldRefetchOnPopstate({}, '/app/dash', '/app/board')).toBe(false);
 });

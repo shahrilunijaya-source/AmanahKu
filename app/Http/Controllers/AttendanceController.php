@@ -10,6 +10,7 @@ use App\Models\AttendanceRecord;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +56,7 @@ class AttendanceController extends Controller
         $lat = isset($validated['latitude']) ? (float) $validated['latitude'] : null;
         $lng = isset($validated['longitude']) ? (float) $validated['longitude'] : null;
         $justification = $validated['justification'] ?? null;
+        $workMode = $validated['work_mode'] ?? 'office_home';
         $now = Carbon::now();
 
         // Selfie — captured on either clock-in (arrival proof) or clock-out
@@ -66,9 +68,9 @@ class AttendanceController extends Controller
             : null;
 
         if ($validated['action'] === 'in') {
-            $result = $this->clock->clockIn($employee, $lat, $lng, $justification, $photoPath, $now);
+            $result = $this->clock->clockIn($employee, $lat, $lng, $justification, $photoPath, $now, $workMode);
         } else {
-            $result = $this->clock->clockOut($employee, $lat, $lng, $justification, $photoPath, $now);
+            $result = $this->clock->clockOut($employee, $lat, $lng, $justification, $photoPath, $now, $workMode);
         }
 
         // A refused punch never reaches a record, so the selfie it carried would sit on the
@@ -134,6 +136,10 @@ class AttendanceController extends Controller
     {
         return $request->validate([
             'action' => ['required', 'in:in,out'],
+            // The mode the employee declared before punching. Nullable so an older cached
+            // page, or any client that omits the field, still punches — read as office_home,
+            // which is exactly the behaviour that existed before the pill.
+            'work_mode' => ['nullable', 'in:office_home,site_visit'],
             // GPS is expected but not mandatory. Devices that cannot produce a fix at all
             // (a desk machine with no GPS chip and no usable network lookup) would otherwise
             // be locked out of clocking for good. ClockService charges a coordinate-less
@@ -142,9 +148,41 @@ class AttendanceController extends Controller
             // carries no evidence at all.
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            // 4MB is the app's own ceiling. It is NOT the one that usually bites: PHP
+            // refuses an upload over the host's upload_max_filesize before any rule here
+            // runs (production is set to 2M), and a file it refused arrives as an invalid
+            // upload with its size thrown away. Lowering this number would not catch that
+            // — the `uploaded` message below is what speaks to it.
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'justification' => ['nullable', 'string', 'max:500'],
+        ], [
+            // Laravel says "The photo failed to upload." for every upload PHP refused,
+            // which is true and useless: it names no size, no limit and no next step, and
+            // it reads like a network blip rather than a photo that was too big. Size is
+            // much the most likely cause on a phone, so lead with it — but hedged, because
+            // this key also fires for an upload cut off mid-send, and stating the wrong
+            // cause with confidence is worse than the vague message it replaces. Retaking
+            // through the in-app camera is the right move either way.
+            'photo.uploaded' => 'That selfie did not make it to the server, usually because '
+                .'it was too large ('.self::uploadCeilingMb().'MB is the limit). Take it again '
+                .'with the in-app camera, which shrinks the picture, rather than attaching one '
+                .'from your gallery.',
         ]);
+    }
+
+    /**
+     * The largest upload this host will physically accept, in whole megabytes.
+     *
+     * Symfony reads BOTH ini limits (upload_max_filesize and post_max_size, either of
+     * which can be the smaller) and parses their shorthand — "2M" is not 2 to an (int)
+     * cast. Read at call time, never cached: this is a host setting, and on production it
+     * belongs to whoever owns the server rather than to this repo.
+     */
+    private static function uploadCeilingMb(): string
+    {
+        $bytes = UploadedFile::getMaxFilesize();
+
+        return (string) round($bytes / 1048576, $bytes < 1048576 ? 1 : 0);
     }
 
     /**

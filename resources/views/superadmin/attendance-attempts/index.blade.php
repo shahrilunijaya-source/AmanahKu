@@ -44,8 +44,11 @@
         <div style="background:var(--hairline-soft);border:1px solid var(--hairline,#e6e6ec);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:13.5px;color:var(--ink);line-height:1.7;">
             This host allows <strong style="font-family:'JetBrains Mono',monospace;">upload_max_filesize={{ $uploadMax }}</strong>
             and <strong style="font-family:'JetBrains Mono',monospace;">post_max_size={{ $postMax }}</strong>.
-            The selfie rule in the app is 4MB. If either number here is smaller, a phone photo is refused before the app sees it —
-            those attempts land in <a href="{{ route('superadmin.errors.index') }}" style="color:var(--red);font-weight:600;">Errors</a>, not in this list.
+            The selfie rule in the app is 4MB. Whichever of these two is smaller is the one that really applies, and the two
+            fail in different places: a body over <code>post_max_size</code> is refused before Laravel runs at all and lands in
+            <a href="{{ route('superadmin.errors.index') }}" style="color:var(--red);font-weight:600;">Errors</a>, while a file
+            over <code>upload_max_filesize</code> reaches validation as a dead upload and lands here as
+            <strong>invalid</strong>, saying the selfie was too large.
         </div>
 
         <div style="background:var(--surface,#fff);border:1px solid var(--hairline,#e6e6ec);border-radius:14px;overflow-x:auto;">

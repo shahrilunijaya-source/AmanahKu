@@ -146,6 +146,27 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
+    public function test_the_newest_release_announces_the_attendance_working_mode(): void
+    {
+        $newest = Changelog::releases()[0];
+
+        $this->assertSame('1.5', $newest['version']);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/changelog');
+
+        $response->assertOk();
+        $response->assertSee('Attendance now starts with your working mode', false);
+        $response->assertSee('Site visit', false);
+
+        // Every entry in the release must carry its own Malay copy. A missing text_ms
+        // silently falls back to English, which reads as a translation gap in the UI.
+        foreach ($newest['entries'] as $entry) {
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.5 entry has no Malay copy of its own.');
+        }
+    }
+
     public function test_the_sidebar_footer_links_to_the_changelog_from_any_screen(): void
     {
         $response = $this->actingAs($this->user)

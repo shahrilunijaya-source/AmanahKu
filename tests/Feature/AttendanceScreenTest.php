@@ -329,6 +329,60 @@ class AttendanceScreenTest extends TestCase
         $response->assertDontSee('outside the expected geofence');
     }
 
+    public function test_site_visit_sentence_names_the_declared_destination(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'clock_out_justification' => 'left early, traffic',
+            'in_radius' => false,
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit: Customer ABC, Shah Alam.');
+        $response->assertDontSee('outside the expected geofence');
+    }
+
+    /**
+     * A day that starts as a normal (possibly late) office clock-in and ends as a
+     * declared site visit carries two remarks. clock_in_justification belongs to
+     * the clock-in reason, not the destination, so the sentence must name the
+     * clock-out remark, never fall back to whichever one happens to be non-empty.
+     */
+    public function test_site_visit_sentence_on_clock_out_names_the_clock_out_destination_not_the_clock_in_remark(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '09:30:00',
+            'clock_out' => '18:00:00',
+            'work_mode' => 'office_home',
+            'clock_in_justification' => 'delayed due to traffic',
+            'clock_out_work_mode' => 'site_visit',
+            'clock_out_justification' => 'Client X, KL',
+            'flags' => ['late'],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('Site visit: Client X, KL.');
+        $response->assertDontSee('Site visit: delayed due to traffic.');
+    }
+
     public function test_earlier_days_does_not_link_to_the_staff_report(): void
     {
         AttendanceRecord::create([
@@ -492,5 +546,260 @@ class AttendanceScreenTest extends TestCase
             ->get('/app/attendance');
 
         $response->assertSee('justPunched: false', false);
+    }
+
+    /**
+     * A shift clocked in at 23:00 leaves its open record dated *yesterday*, so the shelf's
+     * "today" lookup found nothing after midnight and offered "Clock in" to someone who was
+     * mid-shift — which posted action=in and opened a second record for the same shift.
+     * Same rationale, and the same yesterday-or-today bound, as ClockService::clockOut().
+     */
+    public function test_shelf_shows_the_open_overnight_punch_after_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-16 01:30:00'));
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '23:00:00',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('in since <b>23:00</b>', false);
+        $response->assertSee('name="action" value="out"', false);
+        $response->assertSee('clockInWasYesterday: true', false);
+    }
+
+    /**
+     * The sidebar quick-action dock reads the same overnight punch wrong: its record is
+     * dated *yesterday*, so an "on today" lookup showed "not clocked in" and offered
+     * "Clock in" to someone mid-shift. Same yesterday-or-today bound as the shelf.
+     */
+    public function test_quick_action_dock_shows_the_open_overnight_punch_after_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-16 01:30:00'));
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '23:00:00',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee('<span class="uj-sb-clock">23:00</span>', false);
+        $response->assertSee("'clocked in' : 'sudah masuk'", false);
+        $response->assertSee("'Clock out' : 'Clock-out'", false);
+        $response->assertDontSee("'not clocked in' : 'belum masuk'", false);
+    }
+
+    public function test_the_screen_offers_the_work_mode_pill(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-at-mode', $html);
+        $this->assertStringContainsString('name="work_mode"', $html);
+        $this->assertStringContainsString('Site visit', $html);
+        $this->assertStringContainsString('Lawatan tapak', $html);
+    }
+
+    public function test_the_work_mode_pill_carries_a_first_visit_coachmark(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        // Shown by default, remembered as closed under its own key. The key is part of
+        // the contract: change it and everybody sees the bubble again.
+        $this->assertStringContainsString('uj-coach-bubble', $html);
+        $this->assertStringContainsString('amanahku-coach-attendance-work-mode', $html);
+
+        // Bilingual, like every other piece of guidance on this screen.
+        $this->assertStringContainsString('New: pick your working mode', $html);
+        $this->assertStringContainsString('Baharu: pilih mod kerja anda', $html);
+
+        // It sits inside the clock form, so a bare button would submit a punch.
+        $this->assertStringNotContainsString('<button class="uj-coach-ok"', $html);
+        $this->assertStringContainsString('<button type="button" class="uj-coach-ok"', $html);
+
+        // The bubble hangs off the pill and its tail points up, so it has to come
+        // after it in the markup or the tail points at nothing.
+        $this->assertGreaterThan(
+            strpos($html, 'uj-at-mode'),
+            strpos($html, 'uj-coach-bubble'),
+            'The coachmark must follow the control it points at.'
+        );
+    }
+
+    public function test_the_fence_badge_carries_its_own_queued_coachmark(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('amanahku-coach-attendance-fence-badge', $html);
+        $this->assertStringContainsString('New: tap to re-check your location', $html);
+        $this->assertStringContainsString('Baharu: tekan untuk semak semula lokasi', $html);
+
+        // Queued behind the work-mode bubble: two bubbles open at once overlap, because
+        // both float over the content instead of taking space in it.
+        $this->assertMatchesRegularExpression(
+            '/amanahku-coach-attendance-fence-badge.{0,400}amanahku-coach-attendance-work-mode/s',
+            $html,
+            'The fence coachmark must gate itself on the work-mode key being dismissed.'
+        );
+
+        // The bubble hangs off the row's left edge so it always fits a phone screen, which
+        // on a wide row leaves the badge far to the right — the tail is slid across to it
+        // at runtime instead of sitting at its default offset.
+        $this->assertStringContainsString('placeTail()', $html);
+        $this->assertStringContainsString("querySelector('.uj-at-fence')", $html);
+
+        // Web fonts land after the first paint and shove the badge sideways without
+        // resizing it or anything being observed, which is why this was wrong on a first
+        // visit and right on every refresh. Losing this line brings that back.
+        $this->assertStringContainsString('document.fonts?.ready', $html);
+
+        // The tail points up at the badge, so the marker has to sit in the same row.
+        $this->assertGreaterThan(
+            strpos($html, 'uj-at-where'),
+            strpos($html, 'amanahku-coach-attendance-fence-badge'),
+            'The fence coachmark must live inside the row that holds the badge.'
+        );
+    }
+
+    public function test_the_inline_remark_drawer_is_gone(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('data-notebtn', $html);
+        $this->assertStringNotContainsString('uj-at-note', $html);
+        $this->assertStringNotContainsString('attendance-remarks', $html);
+    }
+
+    /**
+     * The reason box that posts must be exactly one box. Two would mean the drawer survived;
+     * zero would mean the name attribute was deleted along with the drawer, and every typed
+     * reason would vanish on submit while the screen still looked correct.
+     */
+    public function test_a_reason_typed_in_the_sheet_reaches_the_server(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'name="justification"'));
+        $this->assertStringContainsString('attendance-sheet-reason', $html);
+
+        // And the attribute is on the sheet's textarea, not somewhere else on the page.
+        $this->assertMatchesRegularExpression(
+            '/id="attendance-sheet-reason"[^>]*name="justification"|name="justification"[^>]*id="attendance-sheet-reason"/',
+            $html
+        );
+    }
+
+    public function test_the_sheet_carries_site_visit_copy_in_both_languages(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        // The site_visit branch exists in each of the sheet's four copy methods.
+        $this->assertStringContainsString('Where are you going?', $html);
+        $this->assertStringContainsString('Ke mana anda pergi?', $html);
+        $this->assertStringContainsString('Tell your manager where you are going', $html);
+        // Every sibling reason kind (off_site, no_location, late, early) appears twice per
+        // method too, once in the `en` map and once in the `ms` map, so 4 methods land on 8,
+        // not 4; confirmed against the existing `off_site:` count in the same file.
+        $this->assertSame(
+            8,
+            substr_count($html, 'site_visit:'),
+            'sheetTitle, sheetBody, sheetReasonLabel and sheetReasonPlaceholder each need a site_visit case in both language maps'
+        );
+    }
+
+    /**
+     * x-teleport moves the sheet (and its reason textarea) out of the <form> element and into
+     * <body>, which strips native form association from any control inside it. The browser
+     * silently drops the field from submission, so a typed reason never reaches the server no
+     * matter how it looks in the DOM. The `form` attribute is the fix: it re-associates a
+     * control with a form elsewhere in the document by id, regardless of DOM position.
+     */
+    public function test_the_teleported_reason_box_stays_associated_with_the_clock_form(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="attendance-clock-form"', $html);
+        $this->assertStringContainsString('form="attendance-clock-form"', $html);
+    }
+
+    public function test_the_location_badge_is_tappable_and_has_a_failure_state(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')->assertOk()->getContent();
+
+        $this->assertStringContainsString('recheckFence()', $html);
+        $this->assertStringContainsString('Location not found', $html);
+        $this->assertStringContainsString('Lokasi tidak dijumpai', $html);
+    }
+
+    /**
+     * A declared site visit no longer writes a flag of its own: work_mode carries it, and
+     * `flags` stays empty on a clean day. So a clean, on-time, declared site visit must read
+     * as an ordinary good day, exactly like a normal on-time punch, with no flag pill and no
+     * flag list, while still showing its own "Site visit: …" sentence lower in the row. The
+     * raw keys this used to write must appear nowhere on the page, since nothing writes them
+     * any more.
+     */
+    public function test_a_clean_site_visit_day_reads_as_an_ordinary_good_day(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'status' => 'on_time',
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:00:00',
+            'work_mode' => 'site_visit',
+            'clock_out_work_mode' => 'site_visit',
+            'clock_in_justification' => 'Customer ABC, Shah Alam',
+            'flags' => [],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        // Ordinary good day: the status pill, not a flag count.
+        $response->assertSee('On time');
+        $response->assertSee('Tepat masa');
+        $response->assertDontSee('1 flags');
+        $response->assertDontSee('2 flags');
+        // No flags means the expanded panel falls back to the plain day description, not a flag list.
+        $response->assertSee('A clean day. Both punches recorded on time and inside expected schedule.');
+        // The destination sentence still comes from work_mode, unaffected by there being no flag.
+        $response->assertSee('Site visit: Customer ABC, Shah Alam.');
+        // Nothing writes these keys any more.
+        $response->assertDontSee('site_visit_in');
+        $response->assertDontSee('site_visit_out');
     }
 }

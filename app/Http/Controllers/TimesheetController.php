@@ -20,6 +20,7 @@ use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\DayCapacity;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekReconciler;
@@ -53,8 +54,12 @@ class TimesheetController extends Controller
      * Blocking past days outright is not an option: a forgotten Monday could never reach
      * 100%, so the week could never be submitted. An unbounded window is not either, because
      * it lets somebody backfill months the night before an audit.
+     *
+     * Six weeks, widened from three: three left no room for a fortnight of sick leave or a
+     * stretch of travel, and a week that falls out of the window cannot be recovered — there
+     * is no per-week override for HR to grant.
      */
-    private const BACKFILL_WEEKS = 3;
+    private const BACKFILL_WEEKS = 6;
 
     /**
      * Build the timesheets screen data. Tenant scope is automatic via BelongsToTenant.
@@ -99,10 +104,11 @@ class TimesheetController extends Controller
             }
         }
 
-        // Personal time breakdown (person-days, never RM) for the signed-in staff: where
-        // their own recorded time went, by category and by project, over a chosen period.
-        [$pbFrom, $pbTo] = $this->periodFromRequest($request);
-        $myBreakdown = $employee ? $this->personalBreakdown($employee, $pbFrom, $pbTo) : null;
+        // Week-by-week view of the signed-in staff's own entries (Review tab): every
+        // week they have a Timesheet row for, draft or submitted, entries grouped by
+        // day. No date bound — one person's data, small by construction.
+        $myTimesheetsByWeekStart = $myTimesheets->keyBy(fn (Timesheet $t) => $t->week_start->toDateString());
+        $myWeeks = $employee ? $this->buildWeekBlocks($myTimesheets->flatMap->entries, $myTimesheetsByWeekStart) : [];
 
         // The timesheet (if any) for the selected capture week, and its grid prefill.
         $weekTimesheet = $employee
@@ -117,6 +123,7 @@ class TimesheetController extends Controller
                 }
 
                 $existingGrid[$e->entry_date->toDateString()][] = [
+                    'id' => $e->id,
                     'category_id' => $e->category_id,
                     'project_id' => $e->project_id,
                     'sub_pillar_id' => $e->sub_pillar_id,
@@ -170,10 +177,8 @@ class TimesheetController extends Controller
             'timesheetCosts' => $timesheetCosts,
             // Prompt HR to assign a band when the signed-in money-role user has none.
             'positionMissing' => $canSeeCost && $employee && ! $employee->position_id,
-            // Personal time breakdown (days only) + its period.
-            'myBreakdown' => $myBreakdown,
-            'breakdownFrom' => $pbFrom->toDateString(),
-            'breakdownTo' => $pbTo->toDateString(),
+            // Week-by-week view of the signed-in staff's own entries (Review tab).
+            'myWeeks' => $myWeeks,
             // Capture grid inputs.
             'tsCategories' => $this->categoryOptions(),
             'tsProjects' => $this->projectOptions(),
@@ -229,9 +234,10 @@ class TimesheetController extends Controller
         $userEntries = array_filter(
             $data['entries'],
             function (array $e) use ($locked) {
-                $day = $locked[Carbon::parse($e['entry_date'])->toDateString()] ?? null;
+                $date = Carbon::parse($e['entry_date']);
+                $day = $locked[$date->toDateString()] ?? null;
 
-                return $day === null || $day['percentage'] < 100;
+                return $day === null || $day['percentage'] < DayCapacity::for($date);
             }
         );
 
@@ -582,58 +588,7 @@ class TimesheetController extends Controller
         $staffWeeks = [];
         $entriesByEmployee = $entries->groupBy(fn ($e) => (int) $e->timesheet->employee_id);
         foreach ($entriesByEmployee as $empId => $empEntries) {
-            $byWeek = $empEntries->groupBy(fn (TimesheetEntry $e) => Carbon::parse($e->entry_date)->startOfWeek()->toDateString());
-            $sortedWeeks = $byWeek->sortKeys();
-
-            $weekBlocks = [];
-            foreach ($sortedWeeks as $weekStartStr => $weekEntries) {
-                $weekStart = Carbon::parse($weekStartStr);
-                $mon = $weekStart->copy();
-                $fri = $weekStart->copy()->addDays(4);
-
-                $dates = $mon->month === $fri->month
-                    ? $mon->format('j').' – '.$fri->format('j M')
-                    : $mon->format('j M').' – '.$fri->format('j M');
-
-                $sortedLines = $weekEntries->sort(function (TimesheetEntry $a, TimesheetEntry $b) {
-                    $dateCmp = $a->entry_date->toDateString() <=> $b->entry_date->toDateString();
-                    if ($dateCmp !== 0) {
-                        return $dateCmp;
-                    }
-                    $aDays = round((float) $a->percentage / 100, 2);
-                    $bDays = round((float) $b->percentage / 100, 2);
-
-                    return $bDays <=> $aDays;
-                });
-
-                $lines = [];
-                foreach ($sortedLines as $e) {
-                    $labelParts = array_filter([
-                        $e->category?->name ?: $e->project,
-                        $e->projectRef?->name,
-                        $e->subPillar?->name,
-                    ]);
-
-                    $lines[] = [
-                        'label' => implode(' · ', $labelParts),
-                        'note' => $e->description,
-                        'days' => round((float) $e->percentage / 100, 2),
-                    ];
-                }
-
-                $weekDays = round($weekEntries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
-                $weekCost = round($weekEntries->sum(fn ($e) => (float) ($e->cost ?? 0)), 2);
-
-                $weekBlocks[] = [
-                    'label' => 'Week '.$weekStart->isoWeek,
-                    'dates' => $dates,
-                    'days' => $weekDays,
-                    'cost' => $weekCost,
-                    'lines' => $lines,
-                ];
-            }
-
-            $staffWeeks[$empId] = $weekBlocks;
+            $staffWeeks[$empId] = $this->buildWeekBlocks($empEntries);
         }
 
         $tsRoster = app(TimesheetCompliance::class)
@@ -709,41 +664,81 @@ class TimesheetController extends Controller
     }
 
     /**
-     * One employee's own recorded time (person-days, never RM) over a period, grouped by
-     * category (Study, Leave, …) and by project. Submitted weeks only — this is what
-     * staff see about themselves, without any salary-derived figures.
+     * Group one person's timesheet entries into week blocks: label, date range, totals,
+     * and each day's lines. Shared by the all-staff report (reportData(), one call per
+     * employee, no $timesheetsByWeekStart — status stays null, unused there) and the
+     * personal Review tab (screenData(), one call for the signed-in employee, with
+     * $timesheetsByWeekStart so a week with a Timesheet row but zero entries yet still
+     * gets a block).
      *
-     * @return array<string, mixed>
+     * @param  Collection<int, TimesheetEntry>  $entries
+     * @param  Collection<string, Timesheet>|null  $timesheetsByWeekStart  keyed by week_start date string
+     * @return array<int, array{label: string, dates: string, weekStart: string, status: ?string, days: float, cost: float, lines: array}>
      */
-    private function personalBreakdown(Employee $employee, Carbon $from, Carbon $to): array
+    private function buildWeekBlocks(Collection $entries, ?Collection $timesheetsByWeekStart = null): array
     {
-        $entries = TimesheetEntry::with(['category', 'projectRef'])
-            ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id)->where('status', 'submitted'))
-            ->get();
+        $byWeek = $entries->groupBy(fn (TimesheetEntry $e) => Carbon::parse($e->entry_date)->startOfWeek()->toDateString());
 
-        $total = round($entries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
-        $slice = fn (Collection $rows, string $label) => [
-            'label' => $label,
-            'days' => round($rows->sum(fn ($e) => (float) $e->percentage) / 100, 2),
-            'pct' => $total > 0 ? (int) round($rows->sum(fn ($e) => (float) $e->percentage) / 100 / $total * 100) : 0,
-        ];
+        $weekStartStrs = $timesheetsByWeekStart
+            ? $byWeek->keys()->merge($timesheetsByWeekStart->keys())->unique()->sort()
+            : $byWeek->keys()->sort();
 
-        $byCategory = $entries->groupBy(fn ($e) => $e->category?->name ?? 'Uncategorised')
-            ->map(fn (Collection $rows, string $label) => $slice($rows, $label))
-            ->values()->sortByDesc('days')->values()->all();
+        $weekBlocks = [];
+        foreach ($weekStartStrs as $weekStartStr) {
+            $weekEntries = $byWeek->get($weekStartStr, collect());
+            $weekStart = Carbon::parse($weekStartStr);
+            $mon = $weekStart->copy();
+            $fri = $weekStart->copy()->addDays(4);
 
-        $byProject = $entries->filter(fn ($e) => $e->projectRef)
-            ->groupBy(fn ($e) => $e->projectRef->name)
-            ->map(fn (Collection $rows, string $label) => $slice($rows, $label))
-            ->values()->sortByDesc('days')->values()->all();
+            $dates = $mon->month === $fri->month
+                ? $mon->format('j').' – '.$fri->format('j M')
+                : $mon->format('j M').' – '.$fri->format('j M');
 
-        return [
-            'totalDays' => $total,
-            'byCategory' => $byCategory,
-            'byProject' => $byProject,
-            'empty' => $entries->isEmpty(),
-        ];
+            $sortedLines = $weekEntries->sort(function (TimesheetEntry $a, TimesheetEntry $b) {
+                $dateCmp = $a->entry_date->toDateString() <=> $b->entry_date->toDateString();
+                if ($dateCmp !== 0) {
+                    return $dateCmp;
+                }
+                $aDays = round((float) $a->percentage / 100, 2);
+                $bDays = round((float) $b->percentage / 100, 2);
+
+                return $bDays <=> $aDays;
+            });
+
+            $lines = [];
+            foreach ($sortedLines as $e) {
+                $category = $e->category?->name ?: $e->project;
+                $project = implode(' · ', array_filter([$e->projectRef?->name, $e->subPillar?->name]));
+
+                $lines[] = [
+                    'id' => $e->id,
+                    'day' => $e->entry_date->format('D j M'),
+                    // label: pre-joined "category · project · sub-pillar" for the all-staff
+                    // report's single-line rows. category/project: the same parts kept
+                    // separate, for the Review tab's two-pill rows.
+                    'label' => implode(' · ', array_filter([$category, $project])),
+                    'category' => $category ?: null,
+                    'project' => $project ?: null,
+                    'note' => $e->description,
+                    'days' => round((float) $e->percentage / 100, 2),
+                ];
+            }
+
+            $weekDays = round($weekEntries->sum(fn ($e) => (float) $e->percentage) / 100, 2);
+            $weekCost = round($weekEntries->sum(fn ($e) => (float) ($e->cost ?? 0)), 2);
+
+            $weekBlocks[] = [
+                'label' => 'Week '.$weekStart->isoWeek,
+                'dates' => $dates,
+                'weekStart' => $weekStartStr,
+                'status' => $timesheetsByWeekStart?->get($weekStartStr)?->status,
+                'days' => $weekDays,
+                'cost' => $weekCost,
+                'lines' => $lines,
+            ];
+        }
+
+        return $weekBlocks;
     }
 
     /**
@@ -786,6 +781,7 @@ class TimesheetController extends Controller
                 'name' => $c->name,
                 'name_ms' => $c->name_ms ?: $c->name,
                 'requires_project' => (bool) $c->requires_project,
+                'colour' => $c->colour(),
             ])
             ->reject(fn (array $c) => $leaveModuleOn && in_array($c['name'], ['On Leave', 'Public Holiday'], true))
             ->values();
@@ -852,10 +848,16 @@ class TimesheetController extends Controller
         $projects = Project::whereIn('id', collect($raw)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
 
         $out = [];
+        // Gathered, not thrown at the first bad row: five lines missing a project are one
+        // refusal naming five days, rather than five saves each naming one. A row that
+        // fails is skipped, and $out is discarded by the throw below anyway.
+        $problems = [];
         foreach ($raw as $i => $e) {
             $category = $categories->get($e['category_id']);
             if (! $category) {
-                throw ValidationException::withMessages(["entries.$i.category_id" => 'Unknown category.']);
+                $problems["entries.$i.category_id"] = 'Unknown category.';
+
+                continue;
             }
 
             $projectId = $e['project_id'] ?? null;
@@ -863,7 +865,9 @@ class TimesheetController extends Controller
 
             if ($category->requires_project) {
                 if (! $projectId || ! $projects->has($projectId)) {
-                    throw ValidationException::withMessages(["entries.$i.project_id" => 'Choose a project for '.$category->name.'.']);
+                    $problems["entries.$i.project_id"] = 'Choose a project for '.$category->name.'.';
+
+                    continue;
                 }
             } else {
                 // Standalone categories never carry a project or sub-pillar.
@@ -888,6 +892,10 @@ class TimesheetController extends Controller
             ];
         }
 
+        if ($problems !== []) {
+            throw ValidationException::withMessages($problems);
+        }
+
         return $out;
     }
 
@@ -900,12 +908,22 @@ class TimesheetController extends Controller
      */
     private function assertNoBlankLines(array $entries): void
     {
+        // Every offending day, not the first. Throwing inside the loop made a week with
+        // three bad days cost three round trips: fix one, submit, be told about the next.
+        $days = [];
         foreach ($entries as $e) {
             if ((float) $e['percentage'] <= 0) {
-                throw ValidationException::withMessages([
-                    'submit' => Carbon::parse($e['entry_date'])->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
-                ]);
+                $days[Carbon::parse($e['entry_date'])->toDateString()] = true;
             }
+        }
+
+        if ($days !== []) {
+            throw ValidationException::withMessages([
+                'submit' => array_map(
+                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
+                    array_keys($days),
+                ),
+            ]);
         }
     }
 
@@ -919,21 +937,30 @@ class TimesheetController extends Controller
     private function assertNoDuplicateLines(array $entries): void
     {
         $seen = [];
+        $days = [];
         foreach ($entries as $e) {
+            $date = Carbon::parse($e['entry_date'])->toDateString();
             $key = implode('|', [
-                Carbon::parse($e['entry_date'])->toDateString(),
+                $date,
                 $e['category_id'],
                 $e['project_id'] ?? '',
                 $e['sub_pillar_id'] ?? '',
             ]);
 
             if (isset($seen[$key])) {
-                throw ValidationException::withMessages([
-                    'entries' => Carbon::parse($e['entry_date'])->format('D, j M').' has the same work listed twice — put it on one line instead.',
-                ]);
+                $days[$date] = true;
             }
 
             $seen[$key] = true;
+        }
+
+        if ($days !== []) {
+            throw ValidationException::withMessages([
+                'entries' => array_map(
+                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has the same work listed twice — put it on one line instead.',
+                    array_keys($days),
+                ),
+            ]);
         }
     }
 
@@ -966,13 +993,20 @@ class TimesheetController extends Controller
             $byDay[$e['entry_date']] = ($byDay[$e['entry_date']] ?? 0) + (float) $e['percentage'];
         }
 
+        $messages = [];
         foreach ($byDay as $date => $total) {
-            if (abs($total - 100) >= 0.01) {
+            // The TOT Saturday is a half day, so it is full at 50%; every other day at 100%.
+            $capacity = DayCapacity::for($date);
+
+            if (abs($total - $capacity) >= 0.01) {
                 $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
-                throw ValidationException::withMessages([
-                    'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — each day must add up to 100% before submitting.',
-                ]);
+                $want = rtrim(rtrim(number_format($capacity, 2), '0'), '.');
+                $messages[] = Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.';
             }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['submit' => $messages]);
         }
     }
 
@@ -988,20 +1022,27 @@ class TimesheetController extends Controller
         $today = Carbon::now()->startOfDay();
         $earliest = Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS);
 
+        // Keyed by row index — that is what points at the offending line — and gathered
+        // rather than thrown at the first one, so a week that reaches back too far is
+        // reported in full instead of one day per attempt.
+        $messages = [];
         foreach ($entries as $i => $e) {
             $date = Carbon::parse($e['entry_date'])->startOfDay();
 
             if ($date->greaterThan($today)) {
-                throw ValidationException::withMessages([
-                    "entries.$i.entry_date" => $date->format('D, j M').' has not happened yet.',
-                ]);
+                $messages["entries.$i.entry_date"] = $date->format('D, j M').' has not happened yet.';
             }
 
             if ($date->lessThan($earliest)) {
-                throw ValidationException::withMessages([
-                    "entries.$i.entry_date" => $date->format('D, j M').' is too far back to edit. Ask HR to reopen it.',
-                ]);
+                // No per-week override exists, so the message must not promise one: it
+                // used to read "Ask HR to reopen it", which sent staff to HR for a
+                // button nobody has. recall() only un-submits a week already submitted.
+                $messages["entries.$i.entry_date"] = $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.';
             }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
         }
     }
 

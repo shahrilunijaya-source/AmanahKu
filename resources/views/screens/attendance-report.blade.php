@@ -1,331 +1,210 @@
 @extends('layouts.app')
 
-@php
-    use Illuminate\Support\Str;
-    use Illuminate\Support\Carbon;
-
-    // Flag badge labels (EN / MS) — mirrors the staff-facing attendance screen.
-    $flagLabel = [
-        'late' => ['Late', 'Lewat'],
-        'out_of_radius_in' => ['Off-site in', 'Clock in luar'],
-        'out_of_radius_out' => ['Off-site out', 'Clock out luar'],
-        'early_out' => ['Left early', 'Balik awal'],
-        'short_hours' => ['Short hours', 'Jam kurang'],
-        'no_location' => ['No location', 'Tiada lokasi'],
-    ];
-    $stColor = ['on_time' => 'var(--success)', 'late' => 'var(--amber)', 'pending' => 'var(--muted)'];
-    $stLabel = ['on_time' => ['On time', 'Tepat masa'], 'late' => ['Late', 'Lewat'], 'pending' => ['Pending', 'Menunggu']];
-
-    $periodLabel = [
-        'week' => ['This week', 'Minggu ini'],
-        'month' => ['Last 30 days', '30 hari lepas'],
-        'quarter' => ['Last 90 days', '90 hari lepas'],
-    ];
-    $baseUrl = route('app.screen', 'attendance-report').'?period='.$period.($dept ? '&dept='.urlencode($dept) : '');
-
-    // Calculations for Roster shelf & coverage bar
-    $neverStaff = $roster->where('never', true);
-    $stoppedStaff = $roster->where('stopped', true);
-    $neverNames = $neverStaff->pluck('name')->values();
-    $stoppedFirst = $stoppedStaff->first();
-
-    $hc = max($totals['headcount'], 1);
-    $wActive = number_format($totals['bucketClocking'] / $hc * 100, 1).'%';
-    $wStopped = number_format($totals['bucketStopped'] / $hc * 100, 1).'%';
-    $wLeave = number_format($totals['bucketOnLeave'] / $hc * 100, 1).'%';
-    $wNever = number_format($totals['bucketNever'] / $hc * 100, 1).'%';
-@endphp
-
 @section('screen')
-<div class="uj-ar-wrap">
-    {{-- Reciprocal of the "see all staff" icon on the personal attendance screen --}}
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-        <a href="{{ route('app.screen', 'attendance') }}" class="uj-btn-ghost" style="font-size:12px;padding:7px 12px;text-decoration:none;">
-            <span x-text="$store.ui.lang==='en' ? '← My attendance' : '← Kehadiran saya'">← My attendance</span>
-        </a>
-    </div>
+{{-- `staged` holds what the phone's filter sheet has been set to but not yet
+     applied. On desktop the sheet never opens, `filters` stays false, and every
+     control behaves as the plain link it is. --}}
+<div class="uj-ar-ledger" data-gran="{{ $gran }}"
+     x-data="{
+        filters: false,
+        gran: @js($gran),
+        offset: {{ $offset }},
+        sort: @js($sort),
+        stepLabels: @js($stepLabels),
+        drawer: '',
+        loadingPerson: null,
+        busy: false,
+        /* The server-rendered drawer is for the first paint only. The moment this
+           component opens, closes or syncs one, it owns the drawer — otherwise
+           closing a fetched drawer would reveal the server's own, still showing
+           whoever the URL named when the page loaded. */
+        tookOver: false,
+
+        init() {
+            /* Back and forward move between filter and drawer states, so both follow
+               the URL rather than only the clicks. partial-nav ignores these entries —
+               they carry no partialNav flag — so it will not rebuild the page. */
+            this.onPop = () => { this.reloadBody(location.href); this.syncDrawer() };
+            window.addEventListener('popstate', this.onPop);
+        },
+
+        /* Every filter on this screen is a link or a GET form, which is what makes the
+           screen work without JavaScript. With JavaScript, following one wholesale
+           re-rendered the sidebar, the header and the app shell to change some table
+           rows. This intercepts them and swaps only the ledger's own body.
+
+           Anything that already handled its own click — a person link, Fix, a drawer
+           close — has set defaultPrevented by the time this bubbles, so it is left
+           alone. So is the export link, which must reach the browser to download. */
+        onNavigate(event) {
+            if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+
+            const link = event.target.closest?.('a[href]');
+            if (! link || link.hasAttribute('data-full-nav') || link.target) return;
+            if (link.origin !== location.origin) return;
+            if (! link.pathname.endsWith('/app/attendance-report')) return;
+
+            event.preventDefault();
+            this.go(link.href);
+        },
+
+        onFilterSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const query = new URLSearchParams(new FormData(form));
+            this.filters = false;
+            this.go(`${form.action}?${query}`);
+        },
+
+        async go(href) {
+            if (await this.reloadBody(href)) {
+                history.pushState({ ledgerBody: true }, '', href);
+            } else {
+                window.location.assign(href);
+            }
+        },
+
+        /** @returns {Promise<boolean>} false when the caller should fall back to a real navigation. */
+        async reloadBody(href) {
+            const url = new URL(href, location.origin);
+            this.busy = true;
+            try {
+                const res = await fetch(
+                    `/app/attendance-report/body${url.search}`,
+                    { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+                );
+                if (! res.ok) return false;
+                this.$refs.body.innerHTML = await res.text();
+                // The staged sheet state belongs to the URL, not to the old markup.
+                this.gran = url.searchParams.get('gran') ?? 'month';
+                this.offset = Number(url.searchParams.get('offset') ?? 0);
+                this.sort = url.searchParams.get('sort') ?? 'date';
+                this.$refs.body.scrollIntoView({ block: 'nearest' });
+
+                return true;
+            } catch {
+                return false;
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        destroy() {
+            window.removeEventListener('popstate', this.onPop);
+        },
+
+        /* The table behind the drawer does not change when you open one, so it is
+           left alone and only the drawer comes over the wire. pushState keeps the
+           URL honest, so a refresh, a share or Back all still land where they say. */
+        async openPerson(href) {
+            const url = new URL(href, location.origin);
+            const id = url.searchParams.get('emp');
+
+            this.loadingPerson = id;
+            this.tookOver = true;
+            const ok = await this.fetchDrawer(url);
+            this.loadingPerson = null;
+
+            if (ok) {
+                history.pushState({ ledgerDrawer: true }, '', href);
+            } else {
+                window.location.assign(href);   // offline, blocked, or refused: let the browser do it
+            }
+        },
+
+        closePerson(url) {
+            this.tookOver = true;
+            this.drawer = '';
+            history.pushState({ ledgerDrawer: false }, '', url);
+        },
+
+        /** Bring the drawer into line with whatever the URL currently says. */
+        async syncDrawer() {
+            this.tookOver = true;
+            const url = new URL(location.href);
+            if (! url.searchParams.get('emp')) {
+                this.drawer = '';
+                return;
+            }
+            await this.fetchDrawer(url);
+        },
+
+        /** @returns {Promise<boolean>} false when the caller should fall back to a real navigation. */
+        async fetchDrawer(url) {
+            const id = url.searchParams.get('emp');
+            const query = new URLSearchParams(url.search);
+            query.delete('emp');
+
+            try {
+                const res = await fetch(
+                    `/app/attendance-report/person/${id}?${query}`,
+                    { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+                );
+                if (! res.ok) return false;
+                this.drawer = await res.text();
+
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        get periodLabel() {
+            const set = this.stepLabels[this.gran];
+            const at = set && set[this.offset];
+            return at ? at[$store.ui.lang] : null;
+        },
+     }"
+     @click="onNavigate($event)"
+     @submit="onFilterSubmit($event)"
+     :aria-busy="busy || null">
 
     @include('partials.guide', [
         'key' => 'attendance-report',
         'en' => [
             'title' => 'Attendance Reports',
-            'body'  => 'One row for every active employee, whether they clocked in or not. The strip beside each name is their attendance day by day, so a pattern shows up where a single percentage would hide it. People who never clocked, and people who stopped, sort to the top.',
+            'body'  => 'One row for every active employee on every working day, whether they clocked in or not. Someone who never clocked still fills the period with rows saying No punch, so nothing hides by simply being absent from the data. The totals above the table count the period you picked; the chips beside them only change which rows you are looking at.',
             'who'   => 'Management and HR only',
             'steps' => [
-                'Pick a period, and a department if you want one. Ninety days shows one cell per week instead of one per day.',
-                'The block at the top counts who is clocking, who stopped, who is on approved leave, and who never clocked at all. The four add up to your headcount.',
-                'Read a strip left to right: green on time, amber late, blue off-site, pale blue approved leave, red no punch, grey pending today.',
-                'Click any row to see that person day by day.',
+                'Pick Day, Week or Month, and step back with the arrows. Custom takes any two dates.',
+                'Narrow by department or by name. Those move the totals, because they change whose period this is.',
+                'Click a chip to pull just the broken rows to the front. The totals stay put — they still describe the whole period.',
+                'A missing clock-out is tinted red. Fix opens that person on that day so you can type the time in.',
+                'Export downloads exactly what the table is showing, as a file Excel opens.',
             ],
         ],
         'ms' => [
             'title' => 'Laporan Kehadiran',
-            'body'  => 'Satu baris untuk setiap pekerja aktif, sama ada mereka clock in atau tidak. Jalur di sebelah nama menunjukkan kehadiran hari demi hari, jadi corak dapat dilihat walaupun satu peratusan sahaja akan menyembunyikannya. Mereka yang tidak pernah clock in, dan mereka yang berhenti, disusun di atas.',
+            'body'  => 'Satu baris untuk setiap pekerja aktif pada setiap hari bekerja, sama ada mereka clock in atau tidak. Sesiapa yang tidak pernah clock in tetap memenuhi tempoh dengan baris Tiada clock in, jadi tiada siapa hilang hanya kerana tiada data. Jumlah di atas jadual mengira tempoh yang anda pilih; cip di sebelahnya hanya menukar baris yang anda lihat.',
             'who'   => 'Pengurusan dan HR sahaja',
             'steps' => [
-                'Pilih tempoh, dan jabatan jika perlu. 90 hari menunjukkan satu petak bagi setiap minggu, bukan setiap hari.',
-                'Blok di atas mengira siapa yang clock in, siapa yang berhenti, siapa yang bercuti diluluskan, dan siapa yang tidak pernah clock in. Empat-empat berjumlah bilangan staf anda.',
-                'Baca jalur dari kiri ke kanan: hijau tepat masa, kuning lewat, biru luar lokasi, biru pudar cuti diluluskan, merah tiada clock in, kelabu menunggu hari ini.',
-                'Klik mana-mana baris untuk lihat hari demi hari.',
+                'Pilih Hari, Minggu atau Bulan, dan undur dengan anak panah. Tersuai menerima mana-mana dua tarikh.',
+                'Tapis ikut jabatan atau nama. Kedua-duanya menggerakkan jumlah, kerana ia menukar tempoh siapa yang dilihat.',
+                'Klik satu cip untuk membawa baris bermasalah ke hadapan. Jumlah tidak berubah — ia masih menerangkan seluruh tempoh.',
+                'Clock out yang tiada diwarnakan merah. Betulkan membuka orang itu pada hari itu supaya masa boleh ditaip.',
+                'Eksport memuat turun tepat apa yang jadual tunjukkan, sebagai fail yang Excel boleh buka.',
             ],
         ],
     ])
 
-    @if ($drill)
-        {{-- ── Single-staff drill-down (UNTOUCHED) ────────────────────────── --}}
-        <div class="uj-card">
-            <div class="uj-card-head" style="display:flex;align-items:center;gap:12px;">
-                <div class="uj-ar-av" style="background:{{ $drill->avatar_color }};">{{ $drill->initials }}</div>
-                <div style="min-width:0;">
-                    <h3 class="uj-card-title" style="margin:0;">{{ $drill->display_name }}</h3>
-                    <div style="font-size:11.5px;color:var(--muted);">{{ trim(($drill->position ?? '').' · '.($drill->department?->name ?? ''), ' ·') }}</div>
-                </div>
-                <a href="{{ $baseUrl }}" class="uj-btn-ghost" style="margin-left:auto;font-size:12px;padding:7px 12px;text-decoration:none;">
-                    <span x-text="$store.ui.lang==='en' ? '← All staff' : '← Semua staf'">← All staff</span>
-                </a>
-            </div>
+    {{-- Swapped in place on every filter change; see reloadBody() above. --}}
+    <div x-ref="body">
+        @include('partials.attendance-report.ledger-body')
+    </div>
 
-            <div class="uj-ar-drow uj-ar-dhead" style="background:none;{{ $canReversePunch ? 'grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,1fr);' : '' }}">
-                <span x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</span>
-                <span style="text-align:right;">In</span>
-                <span style="text-align:right;" class="uj-ar-hide-sm">Out</span>
-                <span style="text-align:right;" class="uj-ar-hide-sm"><span x-text="$store.ui.lang==='en' ? 'Worked' : 'Bekerja'">Worked</span></span>
-                <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></span>
-                <span style="text-align:right;"><span x-text="$store.ui.lang==='en' ? 'Flags' : 'Tanda'">Flags</span></span>
-                @if ($canReversePunch)
-                    <span style="text-align:right;"></span>
-                @endif
-            </div>
-            @forelse ($drillRecords as $r)
-                @php
-                    $rin = $r->clock_in ? Str::of($r->clock_in)->limit(5, '') : '—';
-                    $rout = $r->clock_out ? Str::of($r->clock_out)->limit(5, '') : '—';
-                    $wm = (int) ($r->worked_minutes ?? 0);
-                    $worked = $wm > 0 ? intdiv($wm, 60).'h'.($wm % 60 ? ($wm % 60).'m' : '') : '—';
-                    $sl = $stLabel[$r->status] ?? [$r->status, $r->status];
-                @endphp
-                <div class="uj-ar-drow" style="cursor:default;{{ $canReversePunch ? 'grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,1fr);' : '' }}">
-                    <span style="font-size:13px;color:var(--ink);font-weight:500;">{{ $r->date->format('D, j M') }}</span>
-                    <span class="uj-ar-num">{{ $rin }}</span>
-                    <span class="uj-ar-num uj-ar-hide-sm">{{ $rout }}</span>
-                    <span class="uj-ar-num uj-ar-hide-sm" style="font-weight:500;color:var(--muted);">{{ $worked }}</span>
-                    <span style="text-align:right;font-size:12px;font-weight:600;color:{{ $stColor[$r->status] ?? 'var(--muted)' }};">
-                        <span x-text="$store.ui.lang==='en' ? @js($sl[0]) : @js($sl[1])">{{ $sl[0] }}</span>
-                    </span>
-                    <span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-                        @foreach (array_diff($r->flags ?? [], ['late']) as $f)
-                            @php $fl = $flagLabel[$f] ?? [$f, $f]; @endphp
-                            <span style="font-size:9px;font-weight:600;color:var(--error);background:var(--red-tint,rgba(214,35,43,.1));padding:2px 5px;border-radius:9999px;white-space:nowrap;" x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</span>
-                        @endforeach
-                    </span>
-                    @if ($canReversePunch)
-                        <span style="text-align:right;">
-                            @if ($r->clock_in)
-                                @php
-                                    $confirmMsg = $r->clock_out
-                                        ? "Reverse {$drill->display_name}'s clock-out on {$r->date->format('j M')}? They will be able to clock out again."
-                                        : "Reverse {$drill->display_name}'s clock-in on {$r->date->format('j M')}? They will be able to clock in again, and this record will be deleted.";
-                                    $revLabel = $r->clock_out ? ['Reverse out', 'Batal keluar'] : ['Reverse in', 'Batal masuk'];
-                                @endphp
-                                <form method="post" action="{{ route('attendance.admin.records.reverse', $r) }}"
-                                      onsubmit="return confirm(@js($confirmMsg))">
-                                    @csrf
-                                    <button type="submit" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11.5px;color:var(--red-active);border-color:var(--red-active);">
-                                        <span x-text="$store.ui.lang==='en' ? @js($revLabel[0]) : @js($revLabel[1])">{{ $revLabel[0] }}</span>
-                                    </button>
-                                </form>
-                            @endif
-                        </span>
-                    @endif
-                    @php $notes = array_filter(['in' => $r->clock_in_justification, 'out' => $r->clock_out_justification]); @endphp
-                    @if ($notes)
-                        <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:2px;">
-                            @foreach ($notes as $slot => $note)
-                                <div style="display:flex;gap:7px;font-size:11.5px;line-height:1.45;color:var(--body);">
-                                    <span style="flex-shrink:0;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:2px;"
-                                          x-text="$store.ui.lang==='en' ? @js($slot === 'in' ? 'In' : 'Out') : @js($slot === 'in' ? 'Masuk' : 'Keluar')">{{ $slot === 'in' ? 'In' : 'Out' }}</span>
-                                    <span>{{ $note }}</span>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            @empty
-                <div style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No attendance in this period.' : 'Tiada kehadiran dalam tempoh ini.'">No attendance in this period.</span></div>
-            @endforelse
-        </div>
-    @else
-        {{-- ── Shelf Lead Block ─────────────────────────────────────────────── --}}
-        <div class="uj-ar-shelf">
-            <div class="uj-ar-kicker">
-                <span x-text="$store.ui.lang==='en' ? 'Attendance · ' + @js($rangeLabel) : 'Kehadiran · ' + @js($rangeLabel)">Attendance · {{ $rangeLabel }}</span>
-            </div>
-            <div class="uj-ar-figrow">
-                <span class="uj-ar-fig">{{ $totals['reported'] }}<span style="color:var(--muted-soft)">/{{ $totals['headcount'] }}</span></span>
-                <span class="uj-ar-figsub">
-                    @php
-                        $formatNeverNames = function (\Illuminate\Support\Collection $names, string $lang): string {
-                            $count = $names->count();
-                            if ($count === 0) {
-                                return $lang === 'en' ? '0 staff never clocked in' : '0 staf tidak pernah clock in';
-                            }
-                            if ($count === 1) {
-                                $list = $names[0];
-                            } elseif ($count === 2) {
-                                $and = $lang === 'en' ? ' and ' : ' dan ';
-                                $list = $names[0] . $and . $names[1];
-                            } elseif ($count === 3) {
-                                $and = $lang === 'en' ? ' and ' : ' dan ';
-                                $list = $names[0] . ', ' . $names[1] . $and . $names[2];
-                            } else {
-                                $others = $count - 3;
-                                $and = $lang === 'en' ? " and {$others} others" : " dan {$others} lagi";
-                                $list = $names[0] . ', ' . $names[1] . ', ' . $names[2] . $and;
-                            }
+    {{-- Both drawers live inside this x-data, not beside it: their close controls call
+         closePerson(), and the host below needs `drawer` in scope. Each is
+         position:fixed, so nesting costs nothing in layout. --}}
 
-                            $suffix = $lang === 'en' ? ' never clocked in' : ' tidak pernah clock in';
-                            return $list . $suffix;
-                        };
+    {{-- Server-rendered for a direct ?emp= hit, a reload, or JavaScript being off.
+         Steps aside as soon as a fetched one exists, so landing on ?emp= and then
+         clicking somebody else does not leave two drawers stacked. --}}
+    <div x-show="! drawer && ! tookOver">
+        @include('partials.attendance-report.person-drawer')
+    </div>
 
-                        $neverTextEn = $formatNeverNames($neverNames, 'en');
-                        $neverTextMs = $formatNeverNames($neverNames, 'ms');
-                        $stoppedTextEn = $stoppedFirst ? $stoppedFirst['name'].' stopped '.$stoppedFirst['gapDays'].' days ago.' : '';
-                        $stoppedTextMs = $stoppedFirst ? $stoppedFirst['name'].' terhenti '.$stoppedFirst['gapDays'].' hari lepas.' : '';
-                    @endphp
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'staff clocked in at least once. '
-                        : 'staf clock in sekurang-kurangnya sekali. '">staff clocked in at least once. </span>
-                    <b><span x-text="$store.ui.lang==='en' ? @js($neverTextEn) : @js($neverTextMs)">{{ $neverTextEn }}</span></b>
-                    <span x-text="$store.ui.lang==='en' ? ' and hold no approved leave.' : ' dan tiada cuti diluluskan.'"> and hold no approved leave.</span>
-                    @if ($stoppedFirst)
-                        <span x-text="$store.ui.lang==='en' ? ' ' : ' '"> </span>
-                        <b><span x-text="$store.ui.lang==='en' ? @js($stoppedTextEn) : @js($stoppedTextMs)">{{ $stoppedTextEn }}</span></b>
-                    @endif
-                </span>
-            </div>
-
-            <div class="uj-ar-cov">
-                <i style="background:var(--success);width:{{ $wActive }};"></i>
-                <i style="background:var(--amber);width:{{ $wStopped }};"></i>
-                <i style="background:#c3d5e6;width:{{ $wLeave }};"></i>
-                <i style="background:var(--error);width:{{ $wNever }};"></i>
-            </div>
-
-            <div class="uj-ar-covkey">
-                <span><b style="background:var(--success);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketClocking'] }} clocking' : '{{ $totals['bucketClocking'] }} aktif clocking'">{{ $totals['bucketClocking'] }} clocking</span></span>
-                <span><b style="background:var(--amber);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketStopped'] }} stopped' : '{{ $totals['bucketStopped'] }} terhenti'">{{ $totals['bucketStopped'] }} stopped</span></span>
-                <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketOnLeave'] }} on leave' : '{{ $totals['bucketOnLeave'] }} bercuti'">{{ $totals['bucketOnLeave'] }} on leave</span></span>
-                <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? '{{ $totals['bucketNever'] }} never clocked' : '{{ $totals['bucketNever'] }} tidak pernah clock'">{{ $totals['bucketNever'] }} never clocked</span></span>
-            </div>
-        </div>
-
-        {{-- ── Filter bar ────────────────────────────────────────────────────── --}}
-        <div class="uj-ar-filter">
-            <div class="uj-ar-pills">
-                @foreach ($periods as $p)
-                    <a href="{{ route('app.screen', 'attendance-report').'?period='.$p.($dept ? '&dept='.urlencode($dept) : '') }}"
-                       class="uj-ar-pill {{ $p === $period ? 'uj-ar-on' : '' }}"
-                       {!! $p === $period ? 'data-on' : '' !!}>
-                        <span x-text="$store.ui.lang==='en' ? @js($periodLabel[$p][0]) : @js($periodLabel[$p][1])">{{ $periodLabel[$p][0] }}</span>
-                    </a>
-                @endforeach
-            </div>
-
-            <form method="get" action="{{ route('app.screen', 'attendance-report') }}" style="display:inline-flex;align-items:center;gap:8px;">
-                <input type="hidden" name="period" value="{{ $period }}" />
-                <select name="dept" onchange="this.form.submit()" class="uj-ar-sel">
-                    <option value="" {{ $dept ? '' : 'selected' }} x-text="$store.ui.lang==='en' ? 'All departments' : 'Semua jabatan'">All departments</option>
-                    @foreach ($departments as $d)
-                        <option value="{{ $d }}" {{ $dept === $d ? 'selected' : '' }}>{{ $d }}</option>
-                    @endforeach
-                </select>
-            </form>
-
-            <span class="uj-ar-range">{{ $rangeLabel }}</span>
-        </div>
-
-        {{-- ── Section header & Legend ───────────────────────────────────────── --}}
-        <div class="uj-ar-sect">
-            <h2><span x-text="$store.ui.lang==='en' ? 'Everyone' : 'Semua staf'">Everyone</span></h2>
-            <span class="sum"><span x-text="$store.ui.lang==='en' ? @js(count($days) . ' working days · needs attention first') : @js(count($days) . ' hari bekerja · perlu perhatian dahulu')">{{ count($days) }} working days · needs attention first</span></span>
-        </div>
-
-        <div class="uj-ar-legend">
-            <span><b style="background:var(--success);"></b><span x-text="$store.ui.lang==='en' ? 'On time' : 'Tepat masa'">On time</span></span>
-            <span><b style="background:var(--amber);"></b><span x-text="$store.ui.lang==='en' ? 'Late' : 'Lewat'">Late</span></span>
-            <span><b style="background:var(--info);"></b><span x-text="$store.ui.lang==='en' ? 'Off-site' : 'Luar lokasi'">Off-site</span></span>
-            <span><b style="background:#c3d5e6;"></b><span x-text="$store.ui.lang==='en' ? 'Approved leave' : 'Cuti diluluskan'">Approved leave</span></span>
-            <span><b style="background:var(--error);"></b><span x-text="$store.ui.lang==='en' ? 'No punch' : 'Tiada clock in'">No punch</span></span>
-            <span><b style="background:#dedbd2;"></b><span x-text="$store.ui.lang==='en' ? 'Pending today' : 'Menunggu hari ini'">Pending today</span></span>
-        </div>
-        @if ($stripUnit === 'week')
-            <div style="font-size:var(--t-micro);color:var(--muted);margin-top:6px;">
-                <span x-text="$store.ui.lang==='en' ? 'Each cell represents 1 week.' : 'Setiap petak mewakili 1 minggu.'">Each cell represents 1 week.</span>
-            </div>
-        @endif
-
-        {{-- ── Roster List ──────────────────────────────────────────────────── --}}
-        <div class="uj-ar-list">
-            @foreach ($roster as $p)
-                @php
-                    $pTone = $p['pct'] === null ? 'none' : ($p['pct'] >= 90 ? 'hi' : ($p['pct'] >= 75 ? 'mid' : 'lo'));
-                    $lastSeenFormatted = $p['lastSeen'] ? Carbon::parse($p['lastSeen'])->format('j M') : '';
-                    $daysCount = count($days);
-                    $cellsCount = count($cells);
-                    $stripChars = str_split($p['strip']);
-                @endphp
-                <div class="uj-ar-r">
-                    <a href="{{ $baseUrl.'&emp='.$p['id'] }}" class="uj-ar-rbtn">
-                        <span style="min-width:0">
-                            <span class="uj-ar-who">
-                                <span class="uj-ar-av" style="background:{{ $p['color'] }};">{{ $p['initials'] }}</span>
-                                <span style="min-width:0">
-                                    <span class="uj-ar-name">{{ $p['name'] }}</span>
-                                    <span class="uj-ar-sub">{{ $p['dept'] ?? '—' }}</span>
-                                </span>
-                            </span>
-                            @if ($p['never'])
-                                <div class="uj-ar-flag">
-                                    <span x-text="$store.ui.lang==='en' ? 'No record in {{ $daysCount }} days. No leave on file.' : 'Tiada rekod dalam {{ $daysCount }} hari. Tiada cuti didaftarkan.'">No record in {{ $daysCount }} days. No leave on file.</span>
-                                </div>
-                            @elseif ($p['stopped'])
-                                <div class="uj-ar-flag">
-                                    <span x-text="$store.ui.lang==='en' ? @js('Stopped clocking. Last punch '.$lastSeenFormatted.', '.$p['gapDays'].' days ago.') : @js('Terhenti clock in. Clock in terakhir '.$lastSeenFormatted.', '.$p['gapDays'].' hari lepas.')">Stopped clocking. Last punch {{ $lastSeenFormatted }}, {{ $p['gapDays'] }} days ago.</span>
-                                </div>
-                            @elseif ($p['onLeave'])
-                                <div class="uj-ar-flag" data-t="leave">
-                                    <span x-text="$store.ui.lang==='en' ? 'Approved leave' : 'Cuti diluluskan'">Approved leave</span>
-                                </div>
-                            @elseif ($p['offsite'] > 0)
-                                <div class="uj-ar-flag">
-                                    <span x-text="$store.ui.lang==='en' ? @js($p['offsite'].' punch'.($p['offsite'] === 1 ? '' : 'es').' landed off-site.') : @js($p['offsite'].' clock in di luar lokasi.')">{{ $p['offsite'] }} punch{{ $p['offsite'] === 1 ? '' : 'es' }} landed off-site.</span>
-                                </div>
-                            @endif
-                        </span>
-
-                        <span class="uj-ar-strip" role="img" aria-label="{{ $p['clocked'] }} of {{ $daysCount }} working days clocked, {{ $p['late'] }} late">
-                            @foreach ($cells as $k => $cell)
-                                @php
-                                    $c = $stripChars[$k] ?? '-';
-                                    $cellDateFormatted = Carbon::parse($cell)->format('j M');
-                                    $cellTitleEn = $stripUnit === 'week' ? "Week of {$cellDateFormatted}" : $cellDateFormatted;
-                                    $cellTitleMs = $stripUnit === 'week' ? "Minggu {$cellDateFormatted}" : $cellDateFormatted;
-                                @endphp
-                                <span class="uj-ar-cell" data-s="{{ $c }}" {!! $k === $cellsCount - 1 ? 'data-today' : '' !!}
-                                      title="{{ $cellTitleEn }}" aria-label="{{ $cellTitleEn }}"
-                                      x-bind:title="$store.ui.lang==='en' ? @js($cellTitleEn) : @js($cellTitleMs)"
-                                      x-bind:aria-label="$store.ui.lang==='en' ? @js($cellTitleEn) : @js($cellTitleMs)"></span>
-                            @endforeach
-                        </span>
-
-                        <span class="uj-ar-pct" data-p="{{ $pTone }}">
-                            {{ $p['pct'] === null ? '—' : $p['pct'].'%' }}
-                            <em>{{ $p['clocked'] }}/{{ $daysCount }} <span x-text="$store.ui.lang==='en' ? 'days' : 'hari'">days</span></em>
-                        </span>
-                    </a>
-                </div>
-            @endforeach
-        </div>
-    @endif
+    {{-- The host for one fetched in place. Alpine initialises what x-html injects. --}}
+    <div x-html="drawer"></div>
 </div>
+
+@include('partials.map-view')
 @endsection

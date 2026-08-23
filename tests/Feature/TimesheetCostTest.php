@@ -101,11 +101,12 @@ class TimesheetCostTest extends TestCase
         return $user;
     }
 
-    public function test_money_role_sees_rm_on_their_own_timesheet(): void
+    public function test_money_role_no_longer_sees_rm_on_their_own_timesheet(): void
     {
-        // The timesheets screen shows RM for the viewer's OWN weeks when they are a money
-        // role (management/HR). Cross-employee cost lives in the report, not here.
-        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('hr'))->assertOk()->assertSee('RM 900.00');
+        // The Review tab's "My weeks" RM list was removed (2026-08-18): it's now a
+        // read-only weekly entry view for every role, with no cost figures at all —
+        // money-role cost lives only in the all-staff timesheet-reports screen now.
+        $this->viewTimesheetsAs($this->actorWithOwnCostedWeek('hr'))->assertOk()->assertDontSee('RM 900.00');
     }
 
     public function test_manager_does_not_see_rm_on_their_own_timesheet(): void
@@ -132,7 +133,9 @@ class TimesheetCostTest extends TestCase
 
     public function test_hr_report_shows_total_rm_cost(): void
     {
-        $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('RM 900.00');
+        // Formatted "RM 900.00" is client-rendered (Alpine x-text) since the totals shelf
+        // was dropped; assert the server-rendered payload it reads from instead.
+        $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_manager_cannot_open_the_all_staff_report(): void
@@ -144,7 +147,7 @@ class TimesheetCostTest extends TestCase
 
     public function test_management_report_shows_cost(): void
     {
-        $this->viewReportAs($this->actor('management'))->assertOk()->assertSee('RM 900.00');
+        $this->viewReportAs($this->actor('management'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_director_report_shows_cost(): void
@@ -152,7 +155,7 @@ class TimesheetCostTest extends TestCase
         // 'director' is a management super-set (Permissions::effectiveRole), so it must pass
         // both the screen gate and the money gate — the money gate used the raw role string
         // before, which let a director in and then showed them a report with no RM in it.
-        $this->viewReportAs($this->actor('director'))->assertOk()->assertSee('RM 900.00');
+        $this->viewReportAs($this->actor('director'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
     public function test_plain_employee_cannot_open_the_timesheet_report(): void

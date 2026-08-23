@@ -19,13 +19,11 @@
     $segWrap = 'display:flex;flex-wrap:wrap;gap:18px 28px;';
     $seg = 'display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;';
     $segDiv = 'border-left:1px solid var(--hairline-soft);padding-left:28px;';
-    $colArr = 'minmax(190px,1fr) 150px 226px 128px auto';
+    $colArr = 'minmax(190px,1fr) 150px 226px auto';
 
     // Tab switcher (segmented control) — mirrors Position & Manday Rates.
     $tabBtn = 'border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;transition:color .15s,background .15s,box-shadow .15s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;';
     $tabBadge = 'font-size:11px;font-weight:600;background:var(--canvas);border:1px solid var(--hairline);border-radius:20px;padding:1px 8px;color:var(--muted);';
-    $wfhStaff = $staff->whereIn('work_arrangement', ['wfh', 'hybrid']);
-    $wfhPending = $wfhStaff->filter(fn ($e) => $e->home_latitude === null)->count();
 @endphp
 
 @section('screen')
@@ -39,7 +37,6 @@
             'Set each branch geofence: tap "Pick on map", click the exact office spot, then set the radius and hours.',
             'Add client sites for resident engineers, with the client\'s own hours.',
             'Assign every employee an arrangement. Client staff pick a site; hybrid staff pick their office days.',
-            'Register each work-from-home staff\'s address on the map — or leave it to capture automatically on their first work-from-home clock-in.',
         ],
     ],
     'ms'  => [
@@ -50,7 +47,6 @@
             'Tetapkan geofence cawangan: tekan "Pilih di peta", klik lokasi tepat pejabat, kemudian tetapkan radius dan waktu.',
             'Tambah lokasi klien untuk jurutera residen, dengan waktu kerja klien.',
             'Berikan setiap pekerja satu susunan. Staf klien pilih lokasi; staf hibrid pilih hari pejabat.',
-            'Daftar alamat setiap staf kerja-dari-rumah di peta — atau biarkan ia direkod automatik pada clock in kerja-dari-rumah pertama mereka.',
         ],
     ],
 ])
@@ -86,11 +82,6 @@
     <button type="button" @click="tab='wfh'" style="{{ $tabBtn }}"
         :style="tab==='wfh' ? { background:'#fff', color:'var(--ink)', fontWeight:'600', boxShadow:'0 1px 2px rgba(0,0,0,.07)' } : { background:'transparent', color:'var(--muted)', fontWeight:'500' }">
         <span x-text="$store.ui.lang==='en' ? 'Work from home' : 'Kerja dari rumah'">Work from home</span>
-        @if ($wfhPending > 0)
-            <span style="font-size:11px;font-weight:600;background:color-mix(in oklch, var(--amber) 16%, #fff);border:1px solid color-mix(in oklch, var(--amber) 35%, var(--hairline));border-radius:20px;padding:1px 8px;color:var(--ink);">{{ $wfhPending }}</span>
-        @elseif ($wfhStaff->count() > 0)
-            <span style="font-size:11px;font-weight:600;color:var(--success);">✓</span>
-        @endif
     </button>
     <button type="button" @click="tab='arr'" style="{{ $tabBtn }}"
         :style="tab==='arr' ? { background:'#fff', color:'var(--ink)', fontWeight:'600', boxShadow:'0 1px 2px rgba(0,0,0,.07)' } : { background:'transparent', color:'var(--muted)', fontWeight:'500' }">
@@ -202,44 +193,9 @@
             <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</span></label><input name="wfh_work_start" type="time" value="{{ $hhmm($wfhPolicy?->wfh_work_start) }}" style="{{ $fs }}width:120px;" /></div>
             <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'End' : 'Tamat'">End</span></label><input name="wfh_work_end" type="time" value="{{ $hhmm($wfhPolicy?->wfh_work_end) }}" style="{{ $fs }}width:120px;" /></div>
             <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Min hrs' : 'Jam min'">Min hrs</span></label><input name="wfh_min_hours" type="number" step="0.5" min="0" max="24" value="{{ $wfhPolicy?->wfh_min_hours }}" style="{{ $fs }}width:90px;{{ $mono }}" /></div>
-            <div><label style="{{ $lbl }}">Radius (m)</label><input name="wfh_radius_m" type="number" min="20" max="5000" value="{{ $wfhPolicy?->wfh_radius_m }}" placeholder="200" style="{{ $fs }}width:100px;{{ $mono }}" /></div>
             <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
         </form>
     </div>
-
-    <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Registered home addresses' : 'Alamat rumah berdaftar'">Registered home addresses</span>
-    @if ($wfhStaff->isEmpty())
-        <p style="font-size:13px;color:var(--muted);margin-top:8px;" x-text="$store.ui.lang==='en' ? 'No staff on work-from-home or hybrid arrangements yet. Assign an arrangement below first.' : 'Belum ada staf dengan susunan kerja-dari-rumah atau hibrid. Berikan susunan di bawah dahulu.'">No staff on work-from-home or hybrid arrangements yet. Assign an arrangement below first.</p>
-    @else
-    <div style="margin-top:10px;">
-        @foreach ($wfhStaff as $e)
-            <form method="post" action="{{ route('attendance.admin.home', $e) }}" style="{{ $panel }}">
-                @csrf
-                <div style="{{ $panelHead }}">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="font-size:14px;font-weight:700;color:var(--ink);">{{ $e->name }}</span>
-                        @php $arrPair = $arrangements[$e->work_arrangement] ?? $arrangements['wfh']; @endphp
-                        <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);border-radius:20px;padding:2px 9px;" x-text="$store.ui.lang==='en' ? @js($arrPair[0]) : @js($arrPair[1])">{{ $arrPair[0] }}</span>
-                        @if ($e->home_latitude !== null)
-                            <span style="font-size:11px;font-weight:600;color:var(--success);" x-text="$store.ui.lang==='en' ? '● Registered' : '● Berdaftar'">● Registered</span>
-                        @else
-                            <span style="font-size:11px;font-weight:600;color:var(--muted);" x-text="$store.ui.lang==='en' ? '○ Not set' : '○ Belum ditetapkan'">○ Not set</span>
-                        @endif
-                    </div>
-                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
-                </div>
-                <div>
-                    <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Home location' : 'Lokasi rumah'">Home location</span>
-                    <div style="{{ $seg }}">
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Latitude' : 'Latitud'">Latitude</span></label><input id="lat-home-{{ $e->id }}" name="home_latitude" value="{{ $e->home_latitude }}" required style="{{ $fs }}width:130px;{{ $mono }}" /></div>
-                        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Longitude' : 'Longitud'">Longitude</span></label><input id="lng-home-{{ $e->id }}" name="home_longitude" value="{{ $e->home_longitude }}" required style="{{ $fs }}width:130px;{{ $mono }}" /></div>
-                        <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-home-{{ $e->id }}', lngId: 'lng-home-{{ $e->id }}', title: @js($e->name.' — home'), submit: true } }))" class="uj-btn-ghost" style="height:38px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en' ? 'Pick on map & save' : 'Pilih di peta & simpan'">Pick on map &amp; save</span></button>
-                    </div>
-                </div>
-            </form>
-        @endforeach
-    </div>
-    @endif
 </div>
 
 </div>{{-- /tab wfh --}}
@@ -252,7 +208,7 @@
     <div style="overflow-x:auto;">
         <div style="min-width:840px;">
             <div style="display:grid;grid-template-columns:{{ $colArr }};gap:12px;align-items:end;padding:0 0 10px;border-bottom:1px solid var(--hairline);">
-                <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Staff' : 'Staf'">Staff</span><span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Arrangement' : 'Susunan'">Arrangement</span><span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Site / office days' : 'Lokasi / hari pejabat'">Site / office days</span><span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Home' : 'Rumah'">Home</span><span></span>
+                <span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Staff' : 'Staf'">Staff</span><span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Arrangement' : 'Susunan'">Arrangement</span><span style="{{ $th }}" x-text="$store.ui.lang==='en' ? 'Site / office days' : 'Lokasi / hari pejabat'">Site / office days</span><span></span>
             </div>
             <div style="max-height:560px;overflow-y:auto;">
                 @foreach ($staff as $e)
@@ -283,15 +239,6 @@
                                     </label>
                                 @endforeach
                             </div>
-                        </div>
-
-                        {{-- Home status --}}
-                        <div>
-                            @if ($e->home_latitude !== null)
-                                <label style="font-size:11.5px;color:var(--body);display:flex;align-items:center;gap:5px;"><input type="checkbox" name="reset_home" value="1" /> <span style="color:var(--success);" x-text="$store.ui.lang==='en' ? 'Registered' : 'Berdaftar'">Registered</span> · <span x-text="$store.ui.lang==='en' ? 'reset' : 'set semula'">reset</span></label>
-                            @else
-                                <span style="font-size:11.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Not set' : 'Belum ditetapkan'">Not set</span>
-                            @endif
                         </div>
 
                         <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>

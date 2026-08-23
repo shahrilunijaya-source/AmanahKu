@@ -56,6 +56,48 @@ class LockedDaysTest extends TestCase
         $this->assertSame('Awal Muharram', $locked['2026-07-22']['label']);
     }
 
+    /**
+     * The first Saturday of the month is Unijaya's TOT half day, so it is a working day the
+     * lock covers — at 50%, which is the whole of that day's capacity.
+     */
+    public function test_a_holiday_on_the_tot_saturday_locks_it_at_fifty_percent(): void
+    {
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Cuti Peristiwa', 'date' => '2026-08-01']);
+
+        $locked = $this->svc->forWeek($this->employee, '2026-07-27');
+
+        $this->assertSame(['2026-08-01'], array_keys($locked));
+        $this->assertSame('holiday', $locked['2026-08-01']['source']);
+        $this->assertEqualsWithDelta(50.0, $locked['2026-08-01']['percentage'], 0.001);
+    }
+
+    /** An ordinary Saturday is not a day the week asks anyone to fill, so nothing locks it. */
+    public function test_a_holiday_on_an_ordinary_saturday_locks_nothing(): void
+    {
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Some Day', 'date' => '2026-07-25']);
+
+        $this->assertSame([], $this->svc->forWeek($this->employee, '2026-07-20'));
+    }
+
+    /** Whole-day leave on the TOT Saturday takes all 50%; a half day there takes 25%. */
+    public function test_leave_on_the_tot_saturday_scales_to_the_half_day(): void
+    {
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'leave_type_id' => $type->id, 'date_from' => '2026-08-01', 'date_to' => '2026-08-01',
+            'days' => 1, 'status' => 'approved',
+        ]);
+
+        $locked = $this->svc->forWeek($this->employee, '2026-07-27');
+        $this->assertEqualsWithDelta(50.0, $locked['2026-08-01']['percentage'], 0.001);
+
+        $leave->update(['half_day_period' => 'am', 'days' => 0.5]);
+
+        $locked = $this->svc->forWeek($this->employee, '2026-07-27');
+        $this->assertEqualsWithDelta(25.0, $locked['2026-08-01']['percentage'], 0.001);
+    }
+
     public function test_approved_leave_locks_every_weekday_it_covers(): void
     {
         $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);

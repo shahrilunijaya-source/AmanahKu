@@ -27,7 +27,7 @@ class ReportsAuditAccessTest extends TestCase
      * it carries salary-derived RM cost, so it is management/HR only and has its own cases
      * below.
      */
-    private const SCREENS = ['attendance-report', 'audit'];
+    private const SCREENS = ['attendance-report', 'audit', 'oversight', 'reports'];
 
     private Tenant $tenant;
 

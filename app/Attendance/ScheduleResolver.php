@@ -15,7 +15,7 @@ use Carbon\CarbonInterface;
  * their work arrangement:
  *   - office  → their branch geofence + office hours
  *   - client  → their assigned client site (resident engineers) + the client's hours
- *   - wfh     → their registered home + company hours
+ *   - wfh     → no geofence, company-wide WFH hours
  *   - hybrid  → branch on configured office weekdays, home on the rest
  */
 class ScheduleResolver
@@ -46,6 +46,10 @@ class ScheduleResolver
      * The matched site contributes only its geofence and label. Working hours stay those
      * of the employee's own arrangement, so visiting a client on an 08:30 shift does not
      * make a 09:00 office worker late.
+     *
+     * The work-mode pill does not weaken this: it declares *intent* ("today is a customer
+     * visit"), never a site. The GPS is still measured against the same resolved site in both
+     * modes — see docs/superpowers/specs/2026-08-19-attendance-work-mode-pill-design.md.
      */
     public function matchActualSite(Employee $employee, SiteSpec $assigned, ?float $lat, ?float $lng): SiteSpec
     {
@@ -140,10 +144,17 @@ class ScheduleResolver
         );
     }
 
+    /**
+     * A home day is timed but not fenced. The company rule is be on time and do the work,
+     * so where the laptop physically sits is not something the company acts on, and
+     * measuring it cost a stored home address for every remote worker in exchange for
+     * proving only that they were in the right building.
+     *
+     * No coordinates means within() returns null, and out_of_radius_* is only written on an
+     * explicit false — so a home punch can never be flagged off-site.
+     */
     private function homeSite(Employee $employee): SiteSpec
     {
-        $hasHome = $employee->home_latitude !== null && $employee->home_longitude !== null;
-
         // Company rule: every WFH day follows the single company-wide WFH hours set on the
         // Attendance Setup screen (tenant.wfh_*) — never the staff's own branch. Falls back
         // to the staff's branch only when the company hours haven't been set yet.
@@ -155,13 +166,12 @@ class ScheduleResolver
         return new SiteSpec(
             type: 'home',
             label: 'Work from home',
-            latitude: $hasHome ? (float) $employee->home_latitude : null,
-            longitude: $hasHome ? (float) $employee->home_longitude : null,
-            radiusM: (int) ($t?->wfh_radius_m ?? 200),
+            latitude: null,
+            longitude: null,
+            radiusM: 0,
             workStart: $this->hhmm($t?->wfh_work_start) ?? $this->hhmm($b?->work_start),
             workEnd: $this->hhmm($t?->wfh_work_end) ?? $this->hhmm($b?->work_end),
             minHours: $minHours !== null ? (float) $minHours : null,
-            needsHomeCapture: ! $hasHome,
         );
     }
 

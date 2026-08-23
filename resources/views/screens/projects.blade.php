@@ -30,7 +30,7 @@
      ts-project-row.blade.php) so a row appended later by the AJAX add script joins
      the same list through the same path as the initial render — one source of truth,
      no separately-computed index that a later add could fall out of sync with. --}}
-<div x-data="{ q: '', showOff: false, items: [] }">
+<div x-data="{ q: '', showOff: false, cats: [], items: [] }">
     <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px;">
         <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Projects' : 'Projek'">Projects</span></h2>
         {{-- Plain text, never Alpine-bound: the AJAX add script increments this node. --}}
@@ -44,6 +44,31 @@
             <input type="checkbox" x-model="showOff" />
             <span x-text="$store.ui.lang==='en' ? 'Show inactive' : 'Tunjuk tidak aktif'">Show inactive</span>
         </label>
+    </div>
+
+    {{-- Category chips. Nothing picked = no filter at all (the common case), rather
+         than every chip pre-selected and a project vanishing the moment one is tapped
+         off. Each chip carries the category's own colour, the same one its pill wears
+         on the rows below. --}}
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;">
+        @foreach ($projectCategories as $cat)
+            <button type="button" data-cat-chip
+                    @click="cats.includes({{ $cat->id }}) ? cats = cats.filter(c => c !== {{ $cat->id }}) : cats.push({{ $cat->id }})"
+                    :aria-pressed="cats.includes({{ $cat->id }})"
+                    class="uj-pill"
+                    {{-- Every declaration lives in the binding: Alpine rewrites the whole
+                         style attribute, so anything left in a static one is wiped on the
+                         first toggle. --}}
+                    :style="'cursor:pointer;border:1px solid ' + (cats.includes({{ $cat->id }})
+                        ? 'color-mix(in srgb, {{ $cat->colour() }} 35%, transparent);background:color-mix(in srgb, {{ $cat->colour() }} 15%, var(--card));color:{{ $cat->colour() }};'
+                        : 'var(--hairline);background:var(--canvas);color:var(--muted);')">
+                <span style="width:6px;height:6px;border-radius:50%;background:{{ $cat->colour() }};display:inline-block;margin-right:6px;"></span>{{ $cat->name }}
+            </button>
+        @endforeach
+        <button type="button" x-show="cats.length" x-cloak @click="cats = []"
+                style="background:none;border:0;cursor:pointer;font-size:12px;color:var(--muted);text-decoration:underline;">
+            <span x-text="$store.ui.lang==='en' ? 'Clear' : 'Kosongkan'">Clear</span>
+        </button>
     </div>
 
     @if ($canEdit)
@@ -70,7 +95,7 @@
     </div>
 
     {{-- Shown only when a search or the inactive filter hides everything. --}}
-    <div x-show="items.length && ! items.some(i => (showOff || i.active) && i.hay.includes(q.toLowerCase()))" x-cloak
+    <div x-show="items.length && ! items.some(i => (showOff || i.active) && i.hay.includes(q.toLowerCase()) && (! cats.length || i.cats.some(c => cats.includes(c))))" x-cloak
          class="uj-card" style="padding:24px;text-align:center;font-size:13px;color:var(--muted);">
         <span x-text="$store.ui.lang==='en' ? 'Nothing to show with these filters.' : 'Tiada apa-apa untuk dipaparkan dengan tapisan ini.'">Nothing to show with these filters.</span>
     </div>

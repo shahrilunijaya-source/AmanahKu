@@ -33,6 +33,15 @@ class Permissions
     public const FINAL_APPROVAL_ROLES = ['management', 'director', 'hr'];
 
     /**
+     * Roles that oversee company-wide attendance/tasks/timesheets without needing an
+     * org-chart direct report: a plain 'manager' (an immediate superior by definition),
+     * management, and HR. Backs canSeeAll()'s role branch below and
+     * AttendanceReportController::LOCATION_ROLES, kept in one place so the two access
+     * checks can't quietly drift apart.
+     */
+    public const OVERSIGHT_ROLES = ['manager', 'management', 'hr'];
+
+    /**
      * Collapse a stored role to the role whose permission set / gates it inherits. Director
      * is management for every access decision; every other role maps to itself. This is the
      * single hinge that lets `director` exist without touching the ~30 `['management', …]`
@@ -141,7 +150,7 @@ class Permissions
         // effectiveRole() collapses 'director' → 'management' so a board-tier director
         // (a strict management super-set) reaches every oversight screen without a
         // direct report of their own — same single hinge hasTenantRole() relies on.
-        if (in_array(self::effectiveRole($role), ['manager', 'management', 'hr'], true)) {
+        if (in_array(self::effectiveRole($role), self::OVERSIGHT_ROLES, true)) {
             return true;
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Timesheet\DayCapacity;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -82,6 +83,6 @@ class Timesheet extends Model
     {
         $saturday = Carbon::parse($weekStart)->addDays(5);
 
-        return $saturday->day <= 7 ? $saturday : Carbon::parse($weekStart)->addDays(4);
+        return DayCapacity::isFirstSaturday($saturday) ? $saturday : Carbon::parse($weekStart)->addDays(4);
     }
 }

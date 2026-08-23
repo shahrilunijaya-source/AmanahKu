@@ -12,7 +12,6 @@ use App\Models\LeaveType;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
-use App\Models\PublicHoliday;
 use App\Models\StatutoryRate;
 use App\Models\WorkItem;
 use App\Services\DataScope;
@@ -82,7 +81,15 @@ trait BuildsWorkData
 
         return [
             'records' => $records,
-            'today' => $records->first(fn ($r) => $r->date->isToday()),
+            // Not just isToday(): a shift that crosses midnight (in 23:00, out 01:30) has its
+            // open record dated *yesterday*, so after midnight the shelf found nothing and told
+            // an employee mid-shift they had never clocked in — and posted action=in, opening a
+            // second record for the same shift. Prefer the still-open punch, bounded to
+            // yesterday-or-today, exactly as ClockService::clockOut() looks it up.
+            'today' => $records->first(fn ($r) => $r->clock_in !== null
+                && $r->clock_out === null
+                && $r->date->toDateString() >= now()->subDay()->toDateString())
+                ?? $records->first(fn ($r) => $r->date->isToday()),
             'site' => $employee ? app(ScheduleResolver::class)->resolve($employee, now()) : null,
             // Every geofenced location in the tenant, so the attendance screen's live chip
             // can name the site the staff member is standing in — the same match the server
@@ -149,10 +156,10 @@ trait BuildsWorkData
         // One board holds every work type (assignments, tasks, adhoc). The `?type`
         // param only sets the client-side filter's starting focus — it no longer
         // splits the data across pages. Filtering happens live in the browser.
-        // A card leaves the Done column only when explicitly archived (archived_at
-        // set) — see WorkItemController::archive(). Reopening puts it back at
-        // todo, so an archived card is never stuck; the board itself just won't
-        // grow Done forever with cards nobody archived.
+        // A card leaves the Done column once archived (archived_at set) — either
+        // explicitly via WorkItemController::archive(), or automatically a day after
+        // it was marked done (ArchiveDoneWorkItems, scheduled hourly). Reopening puts
+        // it back at todo, so an archived card is never stuck.
         // A card belongs to one owner, but may also include participants — the same
         // shared card then shows on each included person's board. Load both: cards I
         // own, plus cards I'm a participant on.
@@ -341,10 +348,12 @@ trait BuildsWorkData
             'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             // active() owner: a since-archived person holds no live leave — drop their
             // approved requests from the team-leave widget (mirrors the approval queues).
+            // Ongoing or upcoming only — date_to >= today, soonest first — not "most
+            // recently approved", which surfaced leave that had already finished.
             'teamLeave' => LeaveRequest::with('employee')->where('status', 'approved')
+                ->where('date_to', '>=', now()->toDateString())
                 ->whereHas('employee', fn ($q) => $q->active())
-                ->latest()->take(6)->get(),
-            'holidays' => PublicHoliday::orderBy('date')->get(),
+                ->orderBy('date_from')->take(6)->get(),
         ];
     }
 

@@ -376,6 +376,9 @@
         </div>
     </div>
 
+    {{-- The partial carries its own heading, so this must not add a second one. --}}
+    @include('partials.approval-chain')
+
     {{-- The whole request as one sentence, and the only place it can be sent from. --}}
     <div class="uj-lv-commit">
         <span class="uj-lv-commit-t">

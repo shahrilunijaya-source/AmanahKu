@@ -1,0 +1,142 @@
+import { test, expect } from 'bun:test';
+import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks, dayColor } from './timesheet-report';
+
+test('backTarget pops person-with-slice to its slice', () => {
+    expect(backTarget({ view: 'person', key: '42', from: '3' })).toEqual({ view: 'slice', key: '3', from: null });
+});
+
+test('backTarget pops person-without-slice to bars', () => {
+    expect(backTarget({ view: 'person', key: '42', from: null })).toEqual({ view: 'bars', key: null, from: null });
+});
+
+test('backTarget pops slice to bars', () => {
+    expect(backTarget({ view: 'slice', key: '3', from: null })).toEqual({ view: 'bars', key: null, from: null });
+});
+
+test('selFromSearch reads bars when view is absent', () => {
+    const result = selFromSearch(new URLSearchParams(''), 'category', () => [{ id: 3 }]);
+    expect(result).toEqual({ lens: 'category', sel: { view: 'bars', key: null, from: null }, stale: false });
+});
+
+test('selFromSearch reads a slice whose id exists', () => {
+    const rows = [{ id: 3 }, { id: 4 }];
+    const result = selFromSearch(new URLSearchParams('view=slice&lens=category&id=3'), 'category', () => rows);
+    expect(result).toEqual({ lens: 'category', sel: { view: 'slice', key: '3', from: null }, stale: false });
+});
+
+test('selFromSearch reads a person with a from slice (pid= query key, not from=)', () => {
+    const rows = [{ id: 42 }];
+    const result = selFromSearch(new URLSearchParams('view=person&lens=category&id=42&pid=3'), 'category', () => rows);
+    expect(result).toEqual({ lens: 'category', sel: { view: 'person', key: '42', from: '3' }, stale: false });
+});
+
+test('selFromSearch falls back to bars and flags stale when the id is gone', () => {
+    const result = selFromSearch(new URLSearchParams('view=slice&lens=category&id=99'), 'category', () => [{ id: 3 }]);
+    expect(result).toEqual({ lens: 'category', sel: { view: 'bars', key: null, from: null }, stale: true });
+});
+
+test('selFromSearch ignores a slice view for the staff lens (no member-list step there)', () => {
+    const result = selFromSearch(new URLSearchParams('view=slice&lens=staff&id=42'), 'staff', () => [{ id: 42 }]);
+    expect(result).toEqual({ lens: 'staff', sel: { view: 'bars', key: null, from: null }, stale: false });
+});
+
+test('selToParams clears every param at bars', () => {
+    expect(selToParams({ view: 'bars', key: null, from: null }, 'category'))
+        .toEqual({ view: null, lens: null, id: null, pid: null });
+});
+
+test('selToParams carries lens and id for a slice', () => {
+    expect(selToParams({ view: 'slice', key: '3', from: null }, 'category'))
+        .toEqual({ view: 'slice', lens: 'category', id: '3', pid: null });
+});
+
+test('selToParams carries pid only for a person opened from a slice (not the from= query key)', () => {
+    expect(selToParams({ view: 'person', key: '42', from: '3' }, 'category'))
+        .toEqual({ view: 'person', lens: 'category', id: '42', pid: '3' });
+    expect(selToParams({ view: 'person', key: '42', from: null }, 'staff'))
+        .toEqual({ view: 'person', lens: 'staff', id: '42', pid: null });
+});
+
+test('breadcrumb for a slice: root + current slice, only root clickable', () => {
+    const crumbs = breadcrumb(
+        { view: 'slice', key: '3', from: null }, 'category',
+        { id: 3, label: 'Maintenance' }, null, null, true
+    );
+    expect(crumbs).toEqual([
+        { label: 'All categories', target: 'bars' },
+        { label: 'Maintenance', target: null },
+    ]);
+});
+
+test('breadcrumb for a person opened from a slice: root, slice, person', () => {
+    const crumbs = breadcrumb(
+        { view: 'person', key: '42', from: '3' }, 'category',
+        null, { id: 42, name: 'Ahmad Kussairi' }, { id: 3, label: 'Maintenance' }, true
+    );
+    expect(crumbs).toEqual([
+        { label: 'All categories', target: 'bars' },
+        { label: 'Maintenance', target: 'slice' },
+        { label: 'Ahmad Kussairi', target: null },
+    ]);
+});
+
+test('breadcrumb for a person opened directly from the staff lens: root, person', () => {
+    const crumbs = breadcrumb(
+        { view: 'person', key: '42', from: null }, 'staff',
+        null, { id: 42, name: 'Ahmad Kussairi' }, null, false
+    );
+    expect(crumbs).toEqual([
+        { label: 'Semua individu', target: 'bars' },
+        { label: 'Ahmad Kussairi', target: null },
+    ]);
+});
+
+test('breadcrumb at bars is empty', () => {
+    expect(breadcrumb({ view: 'bars', key: null, from: null }, 'category', null, null, null, true)).toEqual([]);
+});
+
+test('formatSliceSubline reads people/RM/md, singular vs plural, EN vs BM', () => {
+    const slice = { members: [{ id: 1 }], days: 5, cost: 4500 };
+    expect(formatSliceSubline(slice, true)).toBe('1 person · 5 md · RM 4,500.00');
+    expect(formatSliceSubline({ ...slice, members: [{ id: 1 }, { id: 2 }] }, true))
+        .toBe('2 people · 5 md · RM 4,500.00');
+    expect(formatSliceSubline(slice, false)).toBe('1 orang · 5 md · RM 4,500.00');
+});
+
+test('formatSliceSubline handles a missing slice', () => {
+    expect(formatSliceSubline(null, true)).toBe('');
+});
+
+test('formatMissingWeeks: one week, singular verb', () => {
+    expect(formatMissingWeeks({ missingWeeks: ['Week 26'] }, true))
+        .toBe('Week 26 is not here: no sheet was ever submitted.');
+    expect(formatMissingWeeks({ missingWeeks: ['Minggu 26'] }, false))
+        .toBe('Minggu 26 tiada di sini: tiada lembaran pernah dihantar.');
+});
+
+test('formatMissingWeeks: multiple weeks joined with "and"/"dan", plural verb', () => {
+    expect(formatMissingWeeks({ missingWeeks: ['Week 26', 'Week 27', 'Week 28'] }, true))
+        .toBe('Week 26, Week 27 and Week 28 are not here: no sheet was ever submitted.');
+    expect(formatMissingWeeks({ missingWeeks: ['Minggu 26', 'Minggu 27'] }, false))
+        .toBe('Minggu 26 dan Minggu 27 tiada di sini: tiada lembaran pernah dihantar.');
+});
+
+test('formatMissingWeeks: no missing weeks or no person is blank', () => {
+    expect(formatMissingWeeks({ missingWeeks: [] }, true)).toBe('');
+    expect(formatMissingWeeks(null, true)).toBe('');
+});
+
+test('dayColor maps each weekday prefix to a distinct accent, Friday repeats Monday', () => {
+    expect(dayColor('Mon 6 Jul')).toBe('var(--info)');
+    expect(dayColor('Tue 7 Jul')).toBe('var(--success-ink)');
+    expect(dayColor('Wed 8 Jul')).toBe('var(--amber-ink)');
+    expect(dayColor('Thu 9 Jul')).toBe('var(--red)');
+    expect(dayColor('Fri 10 Jul')).toBe('var(--info)');
+});
+
+test('dayColor is blank for weekends and empty input', () => {
+    expect(dayColor('Sat 11 Jul')).toBe('');
+    expect(dayColor('Sun 12 Jul')).toBe('');
+    expect(dayColor(null)).toBe('');
+    expect(dayColor('')).toBe('');
+});

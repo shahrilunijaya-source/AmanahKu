@@ -4,14 +4,16 @@
 @php
     $canEdit = $canEdit ?? false;
     $hay = mb_strtolower(trim($project->name.' '.$project->code));
+    $catIds = $project->categories->pluck('id')->all();
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
      x-data="{ edit: false }"
      {{-- Registers this row in the parent's `items` index (search/empty-state banner)
           on both the initial render and an AJAX-appended row (Alpine.initTree runs
           x-init same as first paint) — no separate server-built index to fall stale. --}}
-     x-init="items.push({ hay: @js($hay), active: @js($project->is_active) })"
-     x-show="(showOff || @js($project->is_active)) && @js($hay).includes(q.toLowerCase())">
+     x-init="items.push({ hay: @js($hay), active: @js($project->is_active), cats: @js($catIds) })"
+     x-show="(showOff || @js($project->is_active)) && @js($hay).includes(q.toLowerCase())
+             && (! cats.length || @js($catIds).some(c => cats.includes(c)))">
     <div style="display:flex;gap:13px;align-items:center;">
         @if ($project->code)
             <span style="width:36px;height:36px;border-radius:9px;background:var(--canvas);border:1px solid var(--hairline);color:var(--muted);font-size:11px;font-weight:600;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $project->code }}</span>
@@ -23,7 +25,7 @@
                     <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span></span>
                 @endunless
                 @foreach ($project->categories as $cat)
-                    <span class="uj-pill" style="background:var(--canvas);color:var(--muted);">{{ $cat->name }}</span>
+                    <span class="uj-pill" style="background:color-mix(in srgb, {{ $cat->colour() }} 13%, var(--card));color:{{ $cat->colour() }};">{{ $cat->name }}</span>
                 @endforeach
                 <span style="font-size:11.5px;font-weight:500;color:var(--muted-soft);font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
                     @if ($project->entries_count || $project->work_items_count)

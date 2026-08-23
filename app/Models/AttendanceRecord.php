@@ -13,6 +13,9 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $date
+ * @property list<string>|null $flags
+ * @property-read string|null $photo_url
+ * @property-read string|null $clock_out_photo_url
  */
 class AttendanceRecord extends Model
 {
@@ -32,6 +35,21 @@ class AttendanceRecord extends Model
 
         return $query->where('date', '>=', $d->toDateString())
             ->where('date', '<', $d->addDay()->toDateString());
+    }
+
+    /**
+     * The still-open punch: clocked in, not yet out. Bounded to yesterday-or-today
+     * because a shift that crosses midnight (in 23:00, out 01:30) has its open record
+     * dated *yesterday*, so an onDate() lookup finds nothing after 00:00 and tells an
+     * employee mid-shift they never clocked in — while a genuinely forgotten clock-out
+     * from days ago must not be attributed to whatever they are doing right now.
+     */
+    public function scopeOpenPunch(Builder $query, CarbonInterface $now): Builder
+    {
+        return $query->whereNotNull('clock_in')
+            ->whereNull('clock_out')
+            ->where('date', '>=', CarbonImmutable::parse($now)->subDay()->toDateString())
+            ->orderByDesc('date');
     }
 
     protected function casts(): array

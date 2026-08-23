@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceAttempt;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -211,5 +212,124 @@ class AttendanceClockEndpointTest extends TestCase
             ->assertStatus(429)
             ->assertSee('Slow down a moment')
             ->assertSee('Retrying faster will not help');
+    }
+
+    public function test_a_declared_site_visit_reaches_the_record(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'work_mode' => 'site_visit',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Customer ABC, Shah Alam',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ]);
+
+        $record = $this->employee->attendanceRecords()->first();
+        $this->assertNotNull($record);
+        $this->assertSame('site_visit', $record->work_mode);
+    }
+
+    public function test_a_junk_work_mode_is_rejected(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'work_mode' => 'holiday',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Anywhere',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertSessionHasErrors('work_mode');
+
+        $this->assertNull($this->employee->attendanceRecords()->first());
+    }
+
+    public function test_a_punch_with_no_work_mode_field_still_works(): void
+    {
+        $this->punch([
+            'action' => 'in',
+            'latitude' => 3.20,
+            'longitude' => 101.60,
+            'justification' => 'Bad GPS today',
+            'photo' => UploadedFile::fake()->image('selfie.jpg'),
+        ]);
+
+        $record = $this->employee->attendanceRecords()->first();
+        $this->assertNotNull($record);
+        $this->assertSame('office_home', $record->work_mode);
+    }
+
+    /**
+     * A selfie over the host's own upload_max_filesize never reaches a validation rule
+     * with its size intact: PHP throws the bytes away and hands Laravel a dead upload, so
+     * `max:4096` cannot see it and every such punch used to be refused with "The photo
+     * failed to upload." — no size, no limit, nothing the staff member could act on. This
+     * is the most likely reason a punch fails on a phone, so the message has to name the
+     * real ceiling, which is the smaller of the two ini limits and belongs to the host.
+     */
+    public function test_a_selfie_php_refused_is_told_it_was_too_large(): void
+    {
+        $refusedByPhp = new UploadedFile(
+            UploadedFile::fake()->image('selfie.jpg')->getPathname(),
+            'selfie.jpg',
+            'image/jpeg',
+            UPLOAD_ERR_INI_SIZE,
+            true,
+        );
+
+        $response = $this->punch(['action' => 'in', 'photo' => $refusedByPhp]);
+
+        $response->assertSessionHasErrors('photo');
+        $message = session('errors')->first('photo');
+        $this->assertStringContainsString('too large', $message);
+        $this->assertStringContainsString('MB is the limit', $message);
+        $this->assertStringNotContainsString('failed to upload', $message);
+
+        // The punch is refused outright — a dead upload is not a punch with no selfie.
+        $this->assertNull($this->employee->attendanceRecords()->first());
+    }
+
+    /**
+     * The same refusal has to be readable afterwards on the attendance-attempts screen,
+     * which is the only place "why could this person not clock in" is answerable without
+     * asking them.
+     */
+    public function test_a_selfie_php_refused_is_recorded_as_an_attempt(): void
+    {
+        $this->punch(['action' => 'in', 'photo' => new UploadedFile(
+            UploadedFile::fake()->image('selfie.jpg')->getPathname(),
+            'selfie.jpg',
+            'image/jpeg',
+            UPLOAD_ERR_INI_SIZE,
+            true,
+        )]);
+
+        $attempt = AttendanceAttempt::query()->latest('id')->first();
+
+        $this->assertNotNull($attempt);
+        $this->assertSame('invalid', $attempt->outcome);
+        $this->assertStringContainsString('too large', (string) $attempt->message);
+    }
+
+    /**
+     * An authenticated request is rate-limited on sha1(user id) alone — the route is not
+     * part of the key. Every bare `throttle:` in routes/web.php therefore drew on ONE
+     * counter per person, and the header pollers that run on every app page emptied it:
+     * staff were refused clock-ins for background traffic they never made. Each throttle
+     * now names its own bucket, and this is the test that the naming survives.
+     */
+    public function test_polling_a_badge_route_does_not_spend_the_clock_rate_limit(): void
+    {
+        // One more than the clock's own cap of 20. Shared bucket, and the punch below is
+        // refused before it reaches the controller.
+        for ($i = 0; $i < 21; $i++) {
+            $this->actingAs($this->user)
+                ->withSession(['current_tenant' => $this->tenant->id])
+                ->get('/app/notifications/summary')
+                ->assertStatus(200);
+        }
+
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')])
+            ->assertSessionHas('clock_ok');
     }
 }

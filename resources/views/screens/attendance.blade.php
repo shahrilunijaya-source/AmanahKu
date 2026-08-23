@@ -42,28 +42,28 @@
     'key'   => 'attendance',
     'en'  => [
         'title' => 'Attendance',
-        'body'  => 'Clock in when you start and clock out when you finish — a selfie is required every time, the camera opens on its own. Your GPS is checked against where you are meant to be that day — your office, your client site, or your home. If you are outside that location, you can still clock but must give a reason. Clocking out early or off-site is also flagged.',
+        'body'  => 'Pick your working mode, then clock in when you start and clock out when you finish. A selfie is required every time and the camera opens on its own. Your GPS is checked against where you are meant to be that day, which is your office, your client site, or your home. On a site visit you say where you are going instead, and there is no off-site flag. Clocking in late or out early still needs a reason.',
         'who'   => 'Everyone clocks their own time',
         'steps' => [
             'The banner shows where you are expected today and your hours.',
-            'Tap "Clock in" and allow location — the camera opens to take your selfie. A selfie is required for every clock in and clock out, no exceptions.',
-            'If your device genuinely cannot find your location, the screen offers to clock without it — that punch also needs a typed reason, and is flagged for your manager.',
-            'Add a remark if there is something your manager should know about the day. It is optional.',
-            'If you are outside the location, or you clock in late or out early, that same box turns into a required reason — say why (e.g. client meeting).',
-            'Clock out when you finish, with another selfie. Leaving before your end time or off-site needs a reason too.',
+            'Pick your working mode first. Leave it on "Office / Home" for an ordinary day, or tap "Site visit" if you are going to a customer.',
+            'Tap "Clock in" and allow location. The camera opens to take your selfie, which is required for every clock in and clock out, no exceptions.',
+            'On a site visit the same window asks where you are going. Say the place, for example "Customer ABC, Shah Alam".',
+            'If you are late, off-site, or your device cannot find your location, that window asks for a reason instead. Your manager sees it with the punch.',
+            'Clock out when you finish, with another selfie. Leaving before your end time needs a reason too.',
         ],
     ],
     'ms'  => [
         'title' => 'Kehadiran',
-        'body'  => 'Clock in bila mula dan clock out bila habis — selfie diperlukan setiap kali, kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu — pejabat, lokasi klien, atau rumah. Jika anda di luar lokasi itu, anda masih boleh clock tetapi perlu beri sebab. Clock out awal atau di luar lokasi juga ditanda.',
+        'body'  => 'Pilih mod kerja anda, kemudian clock in bila mula dan clock out bila habis. Selfie diperlukan setiap kali dan kamera terbuka sendiri. GPS anda disemak dengan tempat anda sepatutnya berada hari itu, iaitu pejabat, lokasi klien, atau rumah. Untuk lawatan tapak anda nyatakan ke mana anda pergi, dan tiada tanda luar lokasi. Clock in lewat atau clock out awal tetap perlu sebab.',
         'who'   => 'Semua orang rekod masa sendiri',
         'steps' => [
             'Sepanduk menunjukkan di mana anda sepatutnya hari ini dan waktu kerja anda.',
-            'Tekan "Clock in" dan benarkan lokasi — kamera terbuka untuk ambil selfie anda. Selfie diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
-            'Jika peranti anda benar-benar tidak dapat mencari lokasi, skrin menawarkan clock tanpa lokasi — rekod itu juga perlu sebab ditaip, dan ditanda untuk pengurus anda.',
-            'Tambah catatan jika ada perkara yang pengurus anda perlu tahu tentang hari itu. Ia pilihan.',
-            'Jika anda di luar lokasi, atau clock in lewat / clock out awal, kotak yang sama menjadi sebab wajib — nyatakan kenapa (cth. mesyuarat klien).',
-            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat atau di luar lokasi perlu sebab juga.',
+            'Pilih mod kerja anda dahulu. Biarkan pada "Pejabat / Rumah" untuk hari biasa, atau tekan "Lawatan tapak" jika anda ke tempat pelanggan.',
+            'Tekan "Clock in" dan benarkan lokasi. Kamera terbuka untuk ambil selfie anda, yang diperlukan untuk setiap clock in dan clock out, tiada pengecualian.',
+            'Untuk lawatan tapak, tetingkap yang sama bertanya ke mana anda pergi. Nyatakan tempatnya, contohnya "Customer ABC, Shah Alam".',
+            'Jika anda lewat, di luar lokasi, atau peranti anda tidak dapat mencari lokasi, tetingkap itu meminta sebab. Pengurus anda melihatnya bersama rekod.',
+            'Clock out bila habis, dengan satu lagi selfie. Balik sebelum waktu tamat perlu sebab juga.',
         ],
     ],
 ])
@@ -73,7 +73,7 @@
 </style>
 
 <div class="uj-at-wrap">
-    <form method="post" action="{{ route('attendance.clock') }}" enctype="multipart/form-data" class="uj-at-shelf"
+    <form id="attendance-clock-form" method="post" action="{{ route('attendance.clock') }}" enctype="multipart/form-data" class="uj-at-shelf"
           x-ref="form"
           x-data="{
               submitting: false,
@@ -112,6 +112,14 @@
               // point, so the message changes.
               timeoutStreak: 0,
               serverJustify: {{ (session('attendance_justify') || $errors->has('justification')) ? 'true' : 'false' }},
+              // Declared before the punch, posted with it. Seeded from the open record so a
+              // day declared a site visit this morning is still declared at clock-out, and
+              // still switchable for someone who ended up somewhere else.
+              workMode: @js(old('work_mode', $today?->work_mode === 'site_visit' && ! $co ? 'site_visit' : 'office_home')),
+              // Whether the open record already declared a site visit at clock-in — mirrors
+              // ClockService::clockOut()'s $newlyDeclared. Only a mode that was NOT already
+              // declared this morning owes a destination again at clock-out.
+              declaredIn: {{ $today?->work_mode === 'site_visit' ? 'true' : 'false' }},
               reason: @js(old('justification', '')),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
@@ -120,6 +128,10 @@
               graceMin: {{ $lateGraceMinutes ?? 0 }},
               expectedEnd: '{{ $site?->workEnd ?? '' }}',
               clockInTime: '{{ $ci ?? '' }}',
+              {{-- The open punch of an overnight shift is dated yesterday, so its clock-in
+                   time is *later* in the day than the current wall clock. Without this the
+                   elapsed ticker read 0h 00m for the whole night. --}}
+              clockInWasYesterday: {{ $today && ! $today->clock_out && ! $today->date->isToday() ? 'true' : 'false' }},
               // One-shot: true only on the reload right after a successful punch, driving the
               // pulse on the status card / dock button. Cleared in init() so it never re-fires
               // on a later plain refresh.
@@ -132,51 +144,83 @@
               assignedLabel: @js($site?->label ?? ''),
               matchedLabel: '',
               fenceStatus: 'wait',
+              // True only while a *tapped* re-check is in flight. The badge hides itself on the
+              // first load's 'wait' (nothing to re-check yet), but a tap must keep it on screen
+              // — a badge that vanishes on press reads as a broken button, not as work happening.
+              rechecking: false,
+              // Why the last fix failed: 'denied' (permission) or 'unavailable' (allowed, but no
+              // fix came back). The two need different words — one is a setting the staff can
+              // change, the other is a lookup that may simply work on the next tap.
+              fenceFail: '',
               fenceDistM: null,
-              noteOpen: {{ (session('attendance_justify') || $errors->has('justification') || old('justification', '')) ? 'true' : 'false' }},
               wallTime: @js(now()->format('H:i')),
               elapsedWorked: '',
               init() {
                   if (this.justPunched) {
                       setTimeout(() => { this.justPunched = false; }, 1800);
                   }
+                  // The server refused the last punch for a missing reason (needs_justification).
+                  // The drawer that used to reopen for this is gone, the sheet is now the only
+                  // place a reason lives, so it has to reopen itself or the refusal is invisible.
+                  // The flash does not say which gate fired (off-site, late, early, short
+                  // hours…), so guessing 'off_site' here was confidently wrong for the other
+                  // three — the neutral 'reason_needed' heading is honest about what is known.
+                  if (this.serverJustify) {
+                      this.openPunchSheet(null, null, true, this.workMode === 'site_visit' ? 'site_visit' : 'reason_needed');
+                  }
                   this.tick();
                   setInterval(() => this.tick(), 1000);
                   if (!window.isSecureContext) {
                       // Warn on load: on an insecure origin no punch can ever succeed.
                       this.geoFail('insecure');
-                  } else if (navigator.geolocation) {
-                      this.bestFix(
-                          (pos) => {
-                              const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
-                              if (m) {
-                                  this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
-                                  this.fenceDistM = Math.round(m.d);
-                                  this.fenceStatus = 'in';
-                              } else if (this.siteLat !== null) {
-                                  this.matchedLabel = '';
-                                  this.fenceDistM = Math.round(this.distTo(pos.coords.latitude, pos.coords.longitude, this.siteLat, this.siteLng));
-                                  this.fenceStatus = 'out';
-                              } else {
-                                  this.fenceStatus = 'none';
-                              }
-                          },
-                          (kind, err) => {
-                              // Warn on load rather than letting the staff discover it on tap.
-                              if (kind === 'denied') { this.geoFail('denied', err); }
-                              this.fenceStatus = 'none';
-                          },
-                          true,
-                          12000
-                      );
                   } else {
-                      this.fenceStatus = 'none';
+                      this.recheckFence();
                   }
-                  this.$watch('isReq', (val) => {
-                      if (!val && !this.reason.trim()) {
-                          this.noteOpen = false;
-                      }
-                  });
+              },
+              /**
+               * The badge reads once on load, so a page opened in the car still says off-site
+               * after walking in. Tapping re-runs the same acquisition — no new geolocation
+               * code, and no second button beside the punch, which is what produced the
+               * “I clocked in twice” confusion.
+               */
+              recheckFence() {
+                  if (!window.isSecureContext || !navigator.geolocation) { this.fenceStatus = 'none'; return; }
+                  if (this.rechecking) { return; }
+                  this.rechecking = true;
+                  this.fenceStatus = 'wait';
+                  this.bestFix(
+                      (pos) => {
+                          this.rechecking = false;
+                          this.fenceFail = '';
+                          const m = this.matchSite(pos.coords.latitude, pos.coords.longitude);
+                          if (m) {
+                              this.matchedLabel = m.label === this.assignedLabel ? '' : m.label;
+                              this.fenceDistM = Math.round(m.d);
+                              this.fenceStatus = 'in';
+                          } else if (this.siteLat !== null) {
+                              this.matchedLabel = '';
+                              this.fenceDistM = Math.round(this.distTo(pos.coords.latitude, pos.coords.longitude, this.siteLat, this.siteLng));
+                              this.fenceStatus = 'out';
+                          } else {
+                              this.fenceStatus = 'none';
+                          }
+                      },
+                      (kind, err) => {
+                          this.rechecking = false;
+                          // A refusal used to hide the badge outright, which left the only
+                          // re-check button on the screen unreachable exactly when it was
+                          // needed — allow location in the browser, and nothing could ask
+                          // again short of a reload. The badge stays and stays tappable; the
+                          // full instructions still open underneath via geoFail.
+                          if (kind === 'denied') { this.geoFail('denied', err); }
+                          // A slow or unavailable lookup used to leave the badge blank with no
+                          // message at all. Say so, and offer the retry.
+                          this.fenceFail = kind === 'denied' ? 'denied' : 'unavailable';
+                          this.fenceStatus = 'fail';
+                      },
+                      true,
+                      12000
+                  );
               },
               tick() {
                   const d = new Date();
@@ -186,40 +230,22 @@
                   if (this.clockInTime) {
                       const p = this.clockInTime.split(':');
                       const inMins = Number(p[0]) * 60 + Number(p[1]);
-                      const worked = Math.max(0, nowMins - inMins);
+                      const worked = Math.max(0, nowMins - inMins + (this.clockInWasYesterday ? 1440 : 0));
                       const h = Math.floor(worked / 60);
                       const m = worked % 60;
                       this.elapsedWorked = h + 'h ' + String(m).padStart(2, '0') + 'm';
                   }
               },
-              /**
-               * Gated on `attempted`, not just fenceStatus: without it, an off-site employee
-               * saw a red 'reason required' the instant the screen loaded, before they had
-               * tapped anything — an accusation for standing where the app expects them to be
-               * later, not for anything they had done. The passive amber fence chip already
-               * tells them they're off-site; this only turns red once they act on it.
-               * Leaving early is NOT raised here: earlyNow() is true for the whole shift, so
-               * it painted a red 'reason required' across the screen from the clock-in until
-               * the end of the day. proceed() raises it on the clock-out attempt instead,
-               * which is the only moment it means anything.
-               */
-              get isReq() {
-                  return (this.attempted && this.siteLat !== null && this.fenceStatus === 'out')
-                      || this.serverJustify;
-              },
-              toggleNote() {
-                  if (this.isReq) {
-                      this.$refs.reason?.focus();
-                      return;
-                  }
-                  this.noteOpen = !this.noteOpen;
-                  if (this.noteOpen) {
-                      this.$nextTick(() => this.$refs.reason?.focus());
-                  }
-              },
               fenceText(lang) {
+                  if (this.fenceStatus === 'fail') {
+                      if (this.fenceFail === 'denied') {
+                          return lang === 'en' ? 'Location blocked, tap to retry' : 'Lokasi disekat, tekan untuk cuba lagi';
+                      }
+                      return lang === 'en' ? 'Location not found, tap to retry' : 'Lokasi tidak dijumpai, tekan untuk cuba lagi';
+                  }
                   if (this.fenceStatus === 'wait') {
-                      return lang === 'en' ? 'checking location…' : 'menyemak lokasi…';
+                      // No ellipsis: the animated dots beside this text are the ellipsis.
+                      return lang === 'en' ? 'checking location' : 'menyemak lokasi';
                   }
                   if (this.fenceStatus === 'in') {
                       const dStr = this.fenceDistM < 1000
@@ -233,6 +259,10 @@
                       return lang === 'en' ? ('You are inside · ' + dStr) : ('Anda di dalam · ' + dStr);
                   }
                   if (this.fenceStatus === 'out') {
+                      if (this.workMode === 'site_visit') {
+                          const dStr = this.fenceDistM < 1000 ? this.fenceDistM + 'm' : (this.fenceDistM / 1000).toFixed(1) + ' km';
+                          return lang === 'en' ? (dStr + ' from ' + this.assignedLabel) : (dStr + ' dari ' + this.assignedLabel);
+                      }
                       const dStr = this.fenceDistM < 1000
                           ? this.fenceDistM + 'm away'
                           : (this.fenceDistM / 1000).toFixed(1) + ' km away';
@@ -293,7 +323,19 @@
                   // A selfie is mandatory for every punch — mirrors ClockService. A typed
                   // reason is still only for off-site, unlocatable, late-in or early-out — in
                   // that priority, matching the order ClockService itself checks them in.
-                  let reasonKind = noFix ? 'no_location' : (offSite ? 'off_site' : null);
+                  // A declared site visit owes a destination, and outranks 'off_site' because
+                  // the fence is no longer what is being asked about (ClockService skips the
+                  // off-site gate entirely whenever workMode is site_visit). It does NOT
+                  // outrank 'no_location', which mirrors ClockService's own gate order: an
+                  // unlocatable punch is reported as unlocatable whatever the employee
+                  // declared. A clock-out that already declared the visit this morning
+                  // (declaredIn) owes nothing new — mirrors $newlyDeclared in
+                  // ClockService::clockOut(), which only a clock-in or a mode switch pays.
+                  let reasonKind = noFix
+                      ? 'no_location'
+                      : (this.workMode === 'site_visit'
+                          ? ((this.action === 'in' || ! this.declaredIn) ? 'site_visit' : null)
+                          : (offSite ? 'off_site' : null));
                   if (! reasonKind && this.action === 'out' && this.earlyNow()) { reasonKind = 'early'; }
                   if (! reasonKind && this.action === 'in' && this.lateNow()) { reasonKind = 'late'; }
                   const needReason = reasonKind !== null;
@@ -521,12 +563,18 @@
                       no_location: out ? 'Clock out without location' : 'Clock in without location',
                       late: 'Late clock in',
                       early: 'Early clock out',
+                      site_visit: 'Site visit',
+                      // The refusal flash does not say which gate fired, so this heading stays
+                      // neutral rather than guessing — see openPunchSheet's caller in init().
+                      reason_needed: 'Reason needed',
                   };
                   const ms = {
                       off_site: out ? 'Clock out luar lokasi' : 'Clock in luar lokasi',
                       no_location: out ? 'Clock out tanpa lokasi' : 'Clock in tanpa lokasi',
                       late: 'Clock in lewat',
                       early: 'Clock out awal',
+                      site_visit: 'Lawatan tapak',
+                      reason_needed: 'Sebab diperlukan',
                   };
                   const fallback = lang === 'en'
                       ? (out ? 'Clock out selfie' : 'Clock in selfie')
@@ -535,32 +583,46 @@
               },
               /** Why a reason is needed too — shown only when sheetReasonNeed is true. */
               sheetWhy(lang) {
+                  const out = this.action === 'out';
                   const en = {
                       off_site: 'You appear to be outside the expected location, so this punch needs a reason and a selfie. Your manager sees it flagged.',
                       no_location: 'This punch carries no location, so it needs a reason and a selfie. Your manager sees it flagged.',
                       late: 'You are clocking in after your shift started, so this punch needs a reason. Your manager sees it flagged.',
                       early: 'You are clocking out before your shift ends, so this punch needs a reason. Your manager sees it flagged.',
+                      site_visit: out
+                          ? 'Tell your manager where you were. Your selfie and location are still recorded.'
+                          : 'Tell your manager where you are going. Your selfie and location are still recorded.',
+                      reason_needed: 'This punch needs a reason and a selfie before it can be sent. Your manager sees it flagged.',
                   };
                   const ms = {
                       off_site: 'Anda kelihatan di luar lokasi yang dijangka, jadi rekod ini perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       no_location: 'Rekod ini tiada lokasi, jadi ia perlu sebab dan selfie. Pengurus anda nampak ia ditanda.',
                       late: 'Anda clock in selepas shift bermula, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
                       early: 'Anda clock out sebelum shift tamat, jadi rekod ini perlu sebab. Pengurus anda nampak ia ditanda.',
+                      site_visit: out
+                          ? 'Beritahu pengurus anda di mana anda berada tadi. Selfie dan lokasi anda tetap direkodkan.'
+                          : 'Beritahu pengurus anda ke mana anda pergi. Selfie dan lokasi anda tetap direkodkan.',
+                      reason_needed: 'Rekod ini perlu sebab dan selfie sebelum boleh dihantar. Pengurus anda nampak ia ditanda.',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
               sheetReasonLabel(lang) {
+                  const out = this.action === 'out';
                   const en = {
                       off_site: 'Why are you outside the expected location?',
                       no_location: 'Why are you clocking without location?',
                       late: 'Why are you clocking in late?',
                       early: 'Why are you clocking out early?',
+                      site_visit: out ? 'Where were you?' : 'Where are you going?',
+                      reason_needed: 'What is the reason?',
                   };
                   const ms = {
                       off_site: 'Kenapa anda di luar lokasi yang dijangka?',
                       no_location: 'Kenapa anda clock tanpa lokasi?',
                       late: 'Kenapa anda clock in lewat?',
                       early: 'Kenapa anda clock out awal?',
+                      site_visit: out ? 'Di mana anda tadi?' : 'Ke mana anda pergi?',
+                      reason_needed: 'Apakah sebabnya?',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -570,12 +632,16 @@
                       no_location: 'e.g. Office wifi has no location on this desktop',
                       late: 'e.g. Traffic jam on the way in',
                       early: 'e.g. Site visit ended early',
+                      site_visit: 'e.g. Customer ABC, Shah Alam',
+                      reason_needed: 'e.g. Client meeting ran late',
                   };
                   const ms = {
                       off_site: 'cth. Mesyuarat klien di HQ, diluluskan pengurus',
                       no_location: 'cth. Wifi pejabat tiada lokasi pada komputer ini',
                       late: 'cth. Kesesakan jalan raya',
                       early: 'cth. Lawatan tapak tamat awal',
+                      site_visit: 'cth. Customer ABC, Shah Alam',
+                      reason_needed: 'cth. Mesyuarat klien lambat tamat',
                   };
                   return (lang === 'en' ? en : ms)[this.sheetReasonKind] ?? '';
               },
@@ -663,9 +729,23 @@
                   this.capture(() => this.sendSheet());
               },
               sendSheet() {
-                  this.submitting = true;
                   const fix = this.sheetFix ?? { lat: null, lng: null };
+                  // Read before closeCam(), which blanks sheetReasonKind on its way out — read
+                  // after, this would always see null and never recognise the deliberate
+                  // no-location punch below.
+                  const reasonKind = this.sheetReasonKind;
                   this.closeCam();
+                  // A sheet reopened after a server refusal carries no fix of its own. Only a
+                  // deliberate no-location punch may post without coordinates; anything else
+                  // has to go and get one, or a punch sent back merely for a reason comes back
+                  // stamped no_location with its real GPS thrown away. submit() sets
+                  // `submitting` itself and guards on it being false, so it is not set here
+                  // first — doing so would make submit()'s own guard silently no-op it.
+                  if (fix.lat === null && reasonKind !== 'no_location') {
+                      this.submit();
+                      return;
+                  }
+                  this.submitting = true;
                   this.proceed(fix.lat, fix.lng);
               },
               capture(after = null) {
@@ -755,6 +835,7 @@
           @submit.prevent="noLoc ? submitWithoutLocation() : submit()">
         @csrf
         <input type="hidden" name="action" value="{{ $ci && !$co ? 'out' : 'in' }}" />{{-- mirrored by `action` in x-data --}}
+        <input type="hidden" name="work_mode" :value="workMode" />
         <input type="hidden" name="latitude" x-ref="lat" />
         <input type="hidden" name="longitude" x-ref="lng" />
         {{-- No `capture="user"`: that attribute makes the phone open its full-screen camera app,
@@ -764,6 +845,32 @@
         <input type="file" id="attendance-photo" name="photo" accept="image/*" x-ref="photo"
                style="display:none;"
                @change="attachFile($event.target.files[0])" />
+
+        {{-- Declared before the punch: the ordinary day needs no tap, a customer visit needs
+             one. Not a site picker — the GPS is still measured against the same place either
+             way, and the declaration costs a typed destination in the sheet. --}}
+        <div class="uj-at-mode" role="group" :aria-label="$store.ui.lang==='en' ? 'Working mode' : 'Mod kerja'">
+            <button type="button" :data-on="workMode === 'office_home'" @click="workMode = 'office_home'"
+                    :aria-pressed="workMode === 'office_home' ? 'true' : 'false'"
+                    x-text="$store.ui.lang==='en' ? 'Office / Home' : 'Pejabat / Rumah'">Office / Home</button>
+            <button type="button" :data-on="workMode === 'site_visit'" @click="workMode = 'site_visit'"
+                    :aria-pressed="workMode === 'site_visit' ? 'true' : 'false'"
+                    x-text="$store.ui.lang==='en' ? 'Site visit' : 'Lawatan tapak'">Site visit</button>
+        </div>
+
+        {{-- First visit only. Explains the switch above it, then never returns. --}}
+        @include('partials.coachmark', [
+            'key' => 'attendance-work-mode',
+            'en'  => [
+                'title' => 'New: pick your working mode',
+                'body'  => 'Leave this on "Office / Home" for an ordinary day, and tap "Site visit" when you are going to a customer.',
+            ],
+            'ms'  => [
+                'title' => 'Baharu: pilih mod kerja anda',
+                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa, dan tekan "Lawatan tapak" apabila anda ke tempat pelanggan.',
+            ],
+        ])
+
 
         <div class="uj-at-shelf-top">
             <div style="min-width:0;">
@@ -801,23 +908,46 @@
                             <span x-text="$store.ui.lang==='en' ? @js($sType[0]) : @js($sType[1])">{{ $sType[0] }}</span>
                             · {{ $site->label }}
                             @if ($site->workStart && $site->workEnd) · {{ \Illuminate\Support\Str::of($site->workStart)->limit(5, '') }}–{{ \Illuminate\Support\Str::of($site->workEnd)->limit(5, '') }}@endif
-                            @if ($site->needsHomeCapture) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'home registers on this clock-in' : 'rumah didaftar pada clock in ini'">home registers on this clock-in</span>@endif
                         </span>
 
                         {{-- Shown even when the assigned site has no geofence: the fix may
                              still land inside another configured branch or client site. --}}
-                        <span class="uj-at-fence" x-show="fenceStatus !== 'none' && fenceStatus !== 'wait'" :data-f="fenceStatus" x-cloak>
+                        <button type="button" class="uj-at-fence" @click="recheckFence()"
+                                :aria-busy="rechecking"
+                                x-show="fenceStatus !== 'none' && (fenceStatus !== 'wait' || rechecking)"
+                                :data-f="workMode === 'site_visit' && fenceStatus === 'out' ? 'info' : fenceStatus" x-cloak>
                             <i></i>
                             <span x-text="fenceText($store.ui.lang)"></span>
-                        </span>
+                            {{-- The ellipsis of "checking location", animated. aria-hidden:
+                                 aria-busy on the button already says the same thing, and a
+                                 screen reader announcing three bullets says nothing. --}}
+                            <span class="uj-at-dots" x-show="fenceStatus === 'wait'" aria-hidden="true"><i></i><i></i><i></i></span>
+                        </button>
                     </div>
+
+                    {{-- Outside the row on purpose. Inside it the marker rides along with the
+                         flex wrap, and on a phone the badge drops to its own line while the
+                         marker stays on the one above — tail pointing at nothing, bubble
+                         hanging off the right edge of the screen. Anchored to the row instead,
+                         it always fits and always points at the row the badge lives in. --}}
+                    @include('partials.coachmark', [
+                        'key' => 'attendance-fence-badge',
+                        'after' => 'attendance-work-mode',
+                        'anchor' => '.uj-at-fence',
+                        'en'  => [
+                            'title' => 'New: tap to re-check your location',
+                            'body'  => 'This badge reads your location once when the screen opens, so tap it when you get to your desk and it looks again.',
+                        ],
+                        'ms'  => [
+                            'title' => 'Baharu: tekan untuk semak semula lokasi',
+                            'body'  => 'Lencana ini membaca lokasi sekali sahaja ketika skrin dibuka, jadi tekan bila anda sampai di meja dan ia akan semak semula.',
+                        ],
+                    ])
+
                 @endif
             </div>
 
             <div class="uj-at-acts">
-                <button type="button" class="uj-at-ghost" data-notebtn :data-on="(noteOpen || isReq) ? true : false" @click="toggleNote()">
-                    <span x-text="$store.ui.lang==='en' ? 'Add a remark' : 'Tambah catatan'">Add a remark</span>
-                </button>
                 <button type="submit" class="uj-at-go" @if ($co) disabled @else :disabled="submitting" @endif>
                     @if ($co)
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
@@ -834,39 +964,6 @@
                         </template>
                     @endif
                 </button>
-            </div>
-        </div>
-
-        <div class="uj-at-note" :data-open="(noteOpen || isReq) ? true : false" :data-req="isReq ? true : false">
-            <div>
-                <label for="attendance-remarks" data-note-lbl>
-                    <span x-show="!isReq" x-text="$store.ui.lang==='en' ? 'Remarks — optional, your manager sees this with the punch' : 'Catatan — pilihan, pengurus anda melihat ini bersama rekod'">Remarks — optional, your manager sees this with the punch</span>
-                    <span x-show="isReq" x-cloak style="color:var(--red-active);"
-                          x-text="(siteLat !== null && fenceStatus === 'out')
-                              ? ($store.ui.lang==='en' ? 'Reason required — you appear to be outside the expected location' : 'Sebab diperlukan — anda kelihatan di luar lokasi yang dijangka')
-                              : ((action === 'out' && earlyNow())
-                                  ? ($store.ui.lang==='en' ? 'Reason required — you are clocking out before your shift ends' : 'Sebab diperlukan — anda clock out sebelum shift tamat')
-                                  : ((action === 'in' && lateNow())
-                                      ? ($store.ui.lang==='en' ? 'Reason required — you are clocking in after your shift started' : 'Sebab diperlukan — anda clock in selepas shift bermula')
-                                      : ($store.ui.lang==='en' ? 'Reason required — see details below' : 'Sebab diperlukan — lihat butiran di bawah')))">Reason required — see details below</span>
-                </label>
-                <textarea name="justification" id="attendance-remarks" x-ref="reason" x-model="reason" rows="2" maxlength="500"
-                          :placeholder="isReq
-                              ? ($store.ui.lang==='en' ? 'e.g. Client meeting at HQ, approved by manager' : 'cth. Mesyuarat klien di HQ, diluluskan pengurus')
-                              : ($store.ui.lang==='en' ? 'Anything your manager should know about today' : 'Apa-apa yang pengurus anda perlu tahu tentang hari ini')"></textarea>
-                @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
-
-                {{-- The selfie lives here rather than beside the punch button. proceed() opens
-                     the camera itself on every punch anyway, so a permanent button on the
-                     resting screen bought nothing and cost a third of the action row. Inside the
-                     drawer it stays available to anyone who wants to attach one before tapping
-                     "Clock in" or "Clock out", so the sheet has nothing left to ask for. --}}
-                <div class="uj-at-selfie">
-                    <button type="button" class="uj-at-ghost" data-selfie :data-on="photoUrl ? true : false" @click="triggerSelfie()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        <span x-text="photoUrl ? ($store.ui.lang==='en' ? 'Selfie attached' : 'Selfie dilampirkan') : ($store.ui.lang==='en' ? 'Take a selfie' : 'Ambil selfie')">Take a selfie</span>
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -939,8 +1036,13 @@
 
                     <div x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-reason">
                         <label for="attendance-sheet-reason" x-text="sheetReasonLabel($store.ui.lang)">Why are you clocking without location?</label>
-                        <textarea id="attendance-sheet-reason" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
+                        {{-- x-teleport moves this whole dialog to <body>, outside the <form> in the
+                             DOM tree. Without the explicit `form` attribute below, native form
+                             submission silently drops this field and every reason-required punch
+                             (off-site, no-location, late, early, site visit) bounces forever. --}}
+                        <textarea id="attendance-sheet-reason" name="justification" form="attendance-clock-form" x-ref="sheetReason" x-model="reason" rows="2" maxlength="500"
                                   aria-required="true" :placeholder="sheetReasonPlaceholder($store.ui.lang)"></textarea>
+                        @error('justification')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="uj-at-sheet-acts">

@@ -166,6 +166,56 @@ class TimesheetTest extends TestCase
         $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->where('status', 'submitted')->first());
     }
 
+    /**
+     * Every day that does not add up, in one refusal. The check used to throw inside its
+     * loop, so a week with three short days cost three submits to find out about all
+     * three — fix one, be told about the next, repeat.
+     */
+    public function test_store_with_submit_now_names_every_incomplete_day_at_once(): void
+    {
+        $response = $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'submit_now' => 1,
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 60],
+                ['entry_date' => '2026-06-16', 'category_id' => $this->category->id, 'percentage' => 40],
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 100],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('submit');
+        $messages = session('errors')->get('submit');
+
+        $this->assertCount(2, $messages);
+        $this->assertStringContainsString('Mon, 15 Jun', $messages[0]);
+        $this->assertStringContainsString('Tue, 16 Jun', $messages[1]);
+        // The day that was fine is not named.
+        $this->assertStringNotContainsString('17 Jun', implode(' ', $messages));
+    }
+
+    /**
+     * Same again for the rows themselves: two days each missing the project their category
+     * demands are one refusal naming both, not one save each.
+     */
+    public function test_store_names_every_row_missing_its_project_at_once(): void
+    {
+        $needsProject = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Delivery',
+            'requires_project' => true,
+        ]);
+
+        $response = $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $needsProject->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-16', 'category_id' => $needsProject->id, 'percentage' => 100],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['entries.0.project_id', 'entries.1.project_id']);
+    }
+
     public function test_store_with_submit_now_submits_when_every_day_is_100(): void
     {
         $this->actingInTenant()->post('/app/timesheets', [
@@ -550,7 +600,7 @@ class TimesheetTest extends TestCase
 
     public function test_an_entry_older_than_the_backfill_window_is_rejected(): void
     {
-        Carbon::setTestNow('2026-07-22 09:00:00'); // five weeks after the target week
+        Carbon::setTestNow('2026-08-05 09:00:00'); // seven weeks after the target week, past the six-week window
 
         $this->actingInTenant()->post('/app/timesheets', [
             'week_start' => '2026-06-15',

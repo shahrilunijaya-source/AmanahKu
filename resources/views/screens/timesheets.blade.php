@@ -8,12 +8,6 @@
         'rejected' => 'var(--error)',
     ];
 
-    // Manday costing — visible to money roles only (manager/management/HR), set by TimesheetController.
-    $canSeeCost = $canSeeCost ?? false;
-    $timesheetCosts = $timesheetCosts ?? [];
-    $rm = fn ($id) => array_key_exists($id, $timesheetCosts) && $timesheetCosts[$id] !== null
-        ? 'RM '.number_format($timesheetCosts[$id], 2) : null;
-
     $weekStatus = $weekStatus ?? null;
     $weekLocked = $weekStatus && $weekStatus !== 'draft';
 
@@ -78,7 +72,7 @@
     {{-- Two tabs: Record writes the week, Review reads it back. An underline bar mirroring
          the all-staff report screen. Record opens by default — the nav names this screen
          "Timesheet" and the daily job is filling it in. --}}
-    <div class="uj-tr-tabs" role="tablist">
+    <div class="uj-tr-tabs" role="tablist" x-show="!$store.tsReview.open">
         <button type="button" class="uj-tr-tab" role="tab" :data-on="tab==='record'"
             :aria-selected="tab==='record'" @click="setTab('record')">
             <span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span>
@@ -94,7 +88,6 @@
     <div class="uj-card uj-ts-card" style="width:100%;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
-            days: 5,
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),
@@ -105,31 +98,12 @@
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
-         })">
+            editEntryId: @js(request()->query('edit')),
+         })"
+         @popstate.window="if ($store.tsReview.open) closeReview()"
+         @keydown.escape.window="if ($store.tsReview.open) history.back()">
 
-        {{-- ---- Week shelf: live week-percent allocated, read straight from the capture
-             scope so it moves as the day is edited. Locked days count as 100%. ---- --}}
-        <div class="uj-ts-shelf" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;margin:-4px -4px 18px;">
-            <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
-                <span class="uj-ts-shelf-figure" style="color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;"
-                    x-text="Math.round(dayDates().filter(d=>!isOffDay(d)).reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, dayDates().filter(d=>!isOffDay(d)).length*100) * 100) + '%'">0%</span>
-                <span style="font-size:13.5px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'">of the week allocated</span>
-            </div>
-            <div class="uj-ts-shelf-hint" style="font-size:12.5px;color:var(--muted);margin-top:7px;" x-text="$store.ui.lang==='en' ? 'Every working day must reach 100% before the week can be submitted.' : 'Setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.'">Every working day must reach 100% before the week can be submitted.</div>
-            <div class="uj-ts-shelf-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-                <div class="uj-ts-shelf-stat" style="border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;display:flex;align-items:baseline;gap:7px;">
-                    <b style="font:600 17px/1 var(--font-mono);color:var(--success-ink,#1f8a65);"
-                       x-text="dayDates().filter(d=>!isOffDay(d) && ['done','locked'].includes(dayState(d))).length"></b>
-                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'days at 100%' : 'hari pada 100%'">days at 100%</span>
-                </div>
-                <div class="uj-ts-shelf-stat" style="border:1px solid var(--shelf-line,#ddd9cf);border-radius:9px;display:flex;align-items:baseline;gap:7px;">
-                    <b style="font:600 17px/1 var(--font-mono);color:var(--amber-ink,#c08532);"
-                       x-text="dayDates().filter(d=>!isOffDay(d) && !['done','locked'].includes(dayState(d))).length"></b>
-                    <span style="font-size:11px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'left to fill' : 'lagi untuk diisi'">left to fill</span>
-                </div>
-            </div>
-        </div>
-
+        <div x-show="!$store.tsReview.open">
         {{-- ---- Today header: the date opens the jump sheet; total + progress on the right ---- --}}
         <div class="uj-ts-day-head" style="display:flex;align-items:flex-start;gap:12px;">
             <div class="uj-ts-day-nav-col" style="display:flex;flex-direction:column;min-width:0;">
@@ -163,7 +137,7 @@
                         : hasBlankRows(selected) ? 'var(--amber-ink)'
                         : dayState(selected) === 'done' ? 'var(--success-ink)' : 'var(--muted)' }"
                     x-text="dayState(selected) === 'over'
-                        ? ($store.ui.lang==='en' ? 'over by ' : 'lebih ') + Math.round((dayTotal(selected) - 100) * 100) / 100 + '%'
+                        ? ($store.ui.lang==='en' ? 'over by ' : 'lebih ') + Math.round((dayTotal(selected) - capacityFor(selected)) * 100) / 100 + '%'
                         : hasBlankRows(selected)
                             ? ($store.ui.lang==='en' ? 'a line has no percentage' : 'satu baris tiada peratus')
                             : dayState(selected) === 'done'
@@ -180,12 +154,12 @@
             </template>
             <template x-if="!isFullyLocked(selected) && lockedPct(selected) > 0">
                 <div style="height:100%;background:var(--muted);"
-                    :style="{ width: (lockedPct(selected) / Math.max(100, dayTotal(selected)) * 100) + '%' }"></div>
+                    :style="{ width: (lockedPct(selected) / Math.max(capacityFor(selected), dayTotal(selected)) * 100) + '%' }"></div>
             </template>
             <template x-for="(r, i) in (isFullyLocked(selected) ? [] : (rows[selected] || []))" :key="i">
                 <div style="height:100%;transition:width .3s var(--ease);"
                     :style="{
-                        width: ((parseFloat(r.percentage) || 0) / Math.max(100, dayTotal(selected)) * 100) + '%',
+                        width: ((parseFloat(r.percentage) || 0) / Math.max(capacityFor(selected), dayTotal(selected)) * 100) + '%',
                         background: dayState(selected) === 'over' ? 'var(--error)' : rowColour(i),
                     }"></div>
             </template>
@@ -219,7 +193,7 @@
                         <div style="font-size:11px;color:var(--muted);"
                             x-text="$store.ui.lang==='en' ? 'Nothing to do here.' : 'Tiada apa-apa untuk dibuat.'"></div>
                     </div>
-                    <span style="font-family:var(--font-mono);font-size:13px;">100%</span>
+                    <span style="font-family:var(--font-mono);font-size:13px;" x-text="capacityFor(selected) + '%'">100%</span>
                 </div>
             </template>
 
@@ -587,8 +561,10 @@
                     </button>
                 </template>
             </div>
-            <button type="button" @click="days = (days === 5 ? 7 : 5)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
-                <span x-text="days === 5 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
+            {{-- Base is 6 on a first-Saturday week (the TOT half day is shown by default),
+                 5 otherwise; the toggle reaches Sunday and back. --}}
+            <button type="button" @click="days = (days === 7 ? baseDays() : 7)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
+                <span x-text="days !== 7 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
             </button>
         </div>
         <div style="display:flex;gap:14px;align-items:center;margin-top:11px;font-size:11px;color:var(--muted);flex-wrap:wrap;">
@@ -611,12 +587,12 @@
             </div>
             <div style="display:flex;gap:8px;">
                 <button type="button" @click="save(false, true)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
-                <button type="button" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
+                <button type="button" id="ts-submit-btn" @click="openReview()" :disabled="!weekComplete() || readonly || saving"
                     :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
             </div>
         </div>
-        <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);" x-text="error"></div>
+        <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);white-space:pre-line;" x-text="error"></div>
 
         {{-- ---- Date sheet: jump to any day in the week, or to another week ---- --}}
         <div x-show="sheetOpen" x-cloak @click.self="sheetOpen = false"
@@ -664,99 +640,167 @@
                 </div>
             </div>
         </div>
+        </div>
+
+        {{-- ===================== REVIEW: full-page pre-submit check =====================
+             Not a dialog: no backdrop, no aria-modal, no focus trap. Replaces the whole
+             Record pane (tab bar and old Submit button included) so there is only ever one
+             submit path on screen. ---- --}}
+        <div x-show="$store.tsReview.open" x-cloak
+             x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+             x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from">
+            <button type="button" @click="history.back()" class="uj-btn-ghost" style="height:32px;padding:0 10px;font-size:13px;margin-bottom:10px;">
+                <span x-text="$store.ui.lang==='en' ? '← Back to editing' : '← Kembali sunting'">&larr; Back to editing</span>
+            </button>
+            <h2 id="ts-review-title" tabindex="-1" style="outline:none;font-size:18px;font-weight:600;margin:0 0 3px;">
+                <span x-text="$store.ui.lang==='en' ? 'Review before you submit' : 'Semak sebelum hantar'">Review before you submit</span>
+            </h2>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M Y') }} &middot; <span x-text="$store.ui.lang==='en' ? 'every working day filled' : 'setiap hari bekerja penuh'"></span></div>
+
+            <div id="ts-review-summary" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:16px;margin-bottom:20px;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
+                    <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);"
+                        x-text="Math.round(reviewDays().reduce((s,d)=>s+Math.min(dayTotal(d),capacityFor(d)),0) / Math.max(1, reviewDays().reduce((s,d)=>s+capacityFor(d),0)) * 100) + '%'">0%</span>
+                    <span style="font-size:12px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'"></span>
+                </div>
+                <div aria-hidden="true" style="display:flex;height:9px;border-radius:999px;overflow:hidden;gap:2px;margin-bottom:10px;">
+                    <template x-for="b in categoryTotals()" :key="b.key">
+                        <div :style="{ width: b.pct + '%', background: b.colour }"></div>
+                    </template>
+                </div>
+                <div style="display:flex;gap:14px;flex-wrap:wrap;">
+                    <template x-for="b in categoryTotals()" :key="b.key">
+                        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--body);">
+                            <span style="width:8px;height:8px;border-radius:2px;flex-shrink:0;" :style="{ background: b.colour }"></span>
+                            <span x-text="b.label + ' · ' + b.pct + '%'"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div id="ts-review-days" style="display:flex;flex-direction:column;gap:14px;">
+                <template x-for="d in reviewDays()" :key="d">
+                    <div style="border:1px solid var(--hairline);border-radius:12px;padding:12px 15px;">
+                        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+                            <span style="font-size:13px;font-weight:700;" x-text="dayLong(d)"></span>
+                            <span style="font-size:12.5px;font-family:var(--font-mono);font-weight:600;color:var(--success-ink,#1f8a65);" x-text="dayTotal(d) + '%'"></span>
+                        </div>
+                        <template x-if="locked[d]">
+                            <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                                <span aria-hidden="true" style="font-size:11px;color:var(--muted);margin-top:2px;">&#128274;</span>
+                                <div style="flex:1;font-size:12.5px;font-weight:600;" x-text="locked[d].label"></div>
+                                <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="lockedPct(d) + '%'"></div>
+                            </div>
+                        </template>
+                        <template x-for="(r, i) in (isFullyLocked(d) ? [] : (rows[d] || []))" :key="i">
+                            <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
+                                <span :style="{ background: categoryColour(r.category_id) }" style="width:8px;height:8px;border-radius:2px;margin-top:4px;flex-shrink:0;"></span>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:12.5px;font-weight:600;" x-text="rowLabel(r)"></div>
+                                    <div x-show="r.description" style="font-size:11.5px;color:var(--body);margin-top:2px;" x-text="r.description"></div>
+                                </div>
+                                <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="(parseFloat(r.percentage)||0) + '%'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid var(--hairline);flex-wrap:wrap;">
+                <div style="font-size:12px;flex:1;min-width:200px;">
+                    <span x-show="!weekComplete()" :style="{ color: overDays().length ? 'var(--error)' : 'var(--amber-ink)' }" x-text="blockingMessage()"></span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button type="button" @click="history.back()" :disabled="saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;">
+                        <span x-text="$store.ui.lang==='en' ? 'Back to editing' : 'Kembali sunting'">Back to editing</span>
+                    </button>
+                    <button type="button" id="ts-confirm-submit-btn" @click="save(true)" :disabled="!weekComplete() || readonly || saving"
+                        :style="(!weekComplete() || readonly || saving) ? { opacity:'.5', cursor:'not-allowed' } : {}"
+                        class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;">
+                        <span x-text="saving ? ($store.ui.lang==='en' ? 'Submitting…' : 'Menghantar…') : ($store.ui.lang==='en' ? 'Confirm & submit' : 'Sahkan & hantar')">Confirm &amp; submit</span>
+                    </button>
+                </div>
+            </div>
+            <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);white-space:pre-line;" x-text="error"></div>
+        </div>
     </div>
     </div>
 
-    <div x-show="tab==='review'" x-cloak role="tabpanel">
-    @if ($canSeeCost && $myTimesheets->isNotEmpty())
-    {{-- ===================== REFERENCE PANEL: My weeks (RM, money roles only) ===================== --}}
-    {{-- Read-only — editing and submitting a week both live on the Record tab now, this
-         is only where a money role can see what their own weeks cost. --}}
-    <div class="uj-card" style="margin-bottom:16px;">
-        <div style="padding:14px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
-            <span x-text="$store.ui.lang==='en' ? 'My weeks' : 'Minggu saya'">My weeks</span>
-        </div>
-        <div>
-        @foreach ($myTimesheets as $t)
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--hairline-soft);">
-                <div style="min-width:0;">
-                    <div style="font-size:13px;color:var(--ink);">{{ $t->week_label ?: $t->week_start->format('j M Y') }}</div>
-                    <div style="font-size:11px;font-weight:600;color:{{ $sc[$t->status] }};">{{ ucfirst($t->status) }}</div>
+    <div x-show="tab==='review'" x-cloak role="tabpanel"
+         x-data="timesheetReview({
+            baseUrl: @js(route('app.screen', ['screen' => 'timesheets'])),
+            weeks: @js($myWeeks),
+         })">
+        <template x-if="weeks.length === 0">
+            <div class="uj-tr-panel">
+                <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No weeks yet.' : 'Belum ada minggu.'"></div>
+            </div>
+        </template>
+        <template x-if="weeks.length > 0">
+            <div class="uj-tr-panel">
+                <div class="uj-tr-weeknav-hd">
+                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeks.length"></span>
+                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeks.length - 1"
+                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                 </div>
-                @if ($rm($t->id))
-                    <div style="font-size:12px;font-family:var(--font-mono);color:var(--success);flex-shrink:0;">{{ $rm($t->id) }}</div>
-                @endif
-            </div>
-        @endforeach
-        </div>
-    </div>
-    @endif
-    {{-- ===================== REFERENCE PANEL: My time spent ===================== --}}
-    <div class="uj-card">
-        {{-- Section: My time spent (personal, person-days only — never RM) --}}
-        @if (! empty($myBreakdown))
-            @php $totalMd = rtrim(rtrim(number_format($myBreakdown['totalDays'], 2), '0'), '.'); @endphp
-            <div style="padding:16px 20px 4px;font-size:13px;font-weight:600;color:var(--ink);">
-                <span x-text="$store.ui.lang==='en' ? 'My time spent' : 'Masa saya'">My time spent</span>
-            </div>
-            <div style="padding:16px 22px 20px;">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
-                    <div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Where your recorded time went — by category and project. Submitted weeks only.' : 'Ke mana masa anda direkod — mengikut kategori dan projek. Minggu dihantar sahaja.'"></span></div>
-            </div>
-            <form method="get" action="{{ route('app.screen', 'timesheets') }}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-                <input type="hidden" name="week" value="{{ $weekStart }}" />
-                <div>
-                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
-                    <input type="date" name="from" value="{{ $breakdownFrom }}" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
-                </div>
-                <div>
-                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
-                    <input type="date" name="to" value="{{ $breakdownTo }}" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
-                </div>
-                <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
-            </form>
-        </div>
-
-        @if ($myBreakdown['empty'])
-            <div style="padding:22px;text-align:center;font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No recorded time in this period. Submit a week to see your breakdown.' : 'Tiada masa direkod dalam tempoh ini. Hantar satu minggu untuk melihat pecahan anda.'"></span></div>
-        @else
-            <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">
-                <span style="font-family:var(--font-mono);color:var(--ink);font-weight:600;">{{ $totalMd }}</span>
-                <span x-text="$store.ui.lang==='en' ? 'person-days total' : 'hari-orang jumlah'">person-days total</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px;">
-                <div>
-                    <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:11px;"><span x-text="$store.ui.lang==='en' ? 'By category' : 'Mengikut kategori'">By category</span></div>
-                    @foreach ($myBreakdown['byCategory'] as $row)
-                        <div style="margin-bottom:9px;">
-                            <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $row['label'] }}</span>
-                                <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">{{ rtrim(rtrim(number_format($row['days'], 2), '0'), '.') }} md · {{ $row['pct'] }}%</span>
-                            </div>
-                            <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;"><div style="height:100%;width:{{ $row['pct'] }}%;background:var(--info);border-radius:9999px;"></div></div>
+                <select class="uj-tr-weekpick" x-model.number="weekIdx"
+                    :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
+                    <template x-for="(w, i) in weeks" :key="i">
+                        <option :value="i" x-text="w.label + ': ' + w.dates"></option>
+                    </template>
+                </select>
+                <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
+                    <div class="uj-tr-wk" :data-dir="weekDir">
+                        <div class="hdr">
+                            <span x-text="wk.label + ' · ' + wk.dates"></span>
+                            <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"
+                                x-text="wk.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar') : ($store.ui.lang==='en' ? 'Draft' : 'Draf')"></span>
                         </div>
-                    @endforeach
-                </div>
-                <div>
-                    <div style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:11px;"><span x-text="$store.ui.lang==='en' ? 'By project' : 'Mengikut projek'">By project</span></div>
-                    @forelse ($myBreakdown['byProject'] as $row)
-                        <div style="margin-bottom:9px;">
-                            <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink);margin-bottom:3px;">
-                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $row['label'] }}</span>
-                                <span style="font-family:var(--font-mono);color:var(--muted);flex-shrink:0;">{{ rtrim(rtrim(number_format($row['days'], 2), '0'), '.') }} md · {{ $row['pct'] }}%</span>
+                        <template x-if="wk.lines.length === 0">
+                            <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
+                        </template>
+                        {{-- One heading per day, however many entries fall on it (backend
+                             `lines` is a flat array shared with the all-staff report —
+                             daysInWeek() groups it client-side, Review-only). A single <a>
+                             per entry — x-for needs one root element per iteration. Lines
+                             with no id (system-generated: leave/holiday) get entryUrl()
+                             === null, so :href binds to nothing and the tag renders as a
+                             plain, non-interactive anchor: no href, no underline needed,
+                             not in tab order, not clickable. --}}
+                        <template x-for="grp in daysInWeek(wk)" :key="grp.day">
+                            <div class="uj-tr-day-grp">
+                                <div class="uj-tr-ent-day" :style="'color:' + dayColor(grp.day)" x-text="grp.day"></div>
+                                <template x-for="(line, lidx) in grp.lines" :key="lidx">
+                                    {{-- `.uj-tr-ent` is a flex row (align-items: stretch by
+                                         default) — the pills must sit inside their own block
+                                         wrapper, not as direct flex children, or they stretch
+                                         to the note's full height instead of staying pill-sized. --}}
+                                    <a class="uj-tr-ent" :href="entryUrl(line)">
+                                        <div>
+                                            <template x-if="line.category">
+                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
+                                            </template>
+                                            <template x-if="line.project">
+                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
+                                            </template>
+                                            <template x-if="line.note">
+                                                <span class="n" x-html="line.note"></span>
+                                            </template>
+                                        </div>
+                                    </a>
+                                </template>
                             </div>
-                            <div style="height:7px;border-radius:9999px;background:var(--canvas);overflow:hidden;"><div style="height:100%;width:{{ $row['pct'] }}%;background:var(--success);border-radius:9999px;"></div></div>
-                        </div>
-                    @empty
-                        <div style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No project-linked time in this period.' : 'Tiada masa berkaitan projek dalam tempoh ini.'">No project-linked time.</span></div>
-                    @endforelse
-                </div>
+                        </template>
+                        <template x-if="wk.status === 'submitted'">
+                            <div class="uj-tr-note" x-text="$store.ui.lang==='en'
+                                ? 'This week is submitted. Click an entry to open it on the Record tab — reopen it there to make changes.'
+                                : 'Minggu ini telah dihantar. Ketik satu entri untuk membukanya di tab Rekod — buka semula di sana untuk membuat perubahan.'"></div>
+                        </template>
+                    </div>
+                </template>
             </div>
-        @endif
-    </div>
-@endif
-    </div>
+        </template>
     </div>{{-- /tab=review panel --}}
 </div>{{-- /tab root --}}
 @endsection

@@ -177,7 +177,7 @@ class AppController extends Controller
         // manager role can reach the Audit Logs alongside the two reports. 'reports' is
         // the company-wide analytics hub (headcount, department capacity, workload
         // split) — same oversight class as its siblings, just missing from this list.
-        if (in_array($screen, ['attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results', 'reports'], true)) {
+        if (in_array($screen, ['oversight', 'attendance-report', 'timesheet-reports', 'leave-report', 'audit', 'team-board', 'profile-test-results', 'reports'], true)) {
             abort_unless(Permissions::canSeeAll($employee, $role), 403);
         }
         // Probation tracking also covers managers (their own new hires).
@@ -298,7 +298,12 @@ class AppController extends Controller
         }
 
         $tenant = app(CurrentTenant::class)->get();
-        $today = $employee->attendanceRecords()->onDate(now())->first();
+        // Prefer the still-open punch over today's record: an overnight shift's open
+        // record is dated yesterday, so an onDate() lookup showed "not clocked in" and
+        // offered "Clock in" to someone mid-shift. Falls back to today's row so a
+        // normally closed day still reports its in/out times.
+        $today = $employee->attendanceRecords()->openPunch(now())->first()
+            ?? $employee->attendanceRecords()->onDate(now())->first();
 
         // This week's allocated % for today, surfaced as the timesheet tile's progress.
         $tsEnabled = app(FeatureManager::class)->screenAllowed($tenant, 'timesheets');

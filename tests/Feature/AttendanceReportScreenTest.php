@@ -72,221 +72,270 @@ class AttendanceReportScreenTest extends TestCase
 
     public function test_an_employee_with_no_records_is_named_on_the_screen(): void
     {
-        $noRecordEmp = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Unclocked Staff Member',
-            'status' => 'active',
-            'workload' => 'green',
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Never Clocked',
+            'status' => 'active', 'workload' => 'green',
         ]);
 
-        $response = $this->actAsHr()->get('/app/attendance-report');
+        $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()
+            ->assertSee('Never Clocked');
+    }
 
+    public function test_each_working_day_produces_a_row(): void
+    {
+        $response = $this->actAsHr()->get('/app/attendance-report?gran=week');
         $response->assertOk();
-        $response->assertSee('Unclocked Staff Member');
-        $response->assertSee('emp='.$noRecordEmp->id);
+
+        $this->assertSame(
+            count($response->viewData('workingDays')),
+            substr_count($response->getContent(), 'uj-ar-cols uj-ar-row'),
+            'one row per working day for the single employee'
+        );
     }
 
     public function test_approved_leave_reads_as_leave_not_absence(): void
     {
-        $leaveEmp = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'On Leave Employee',
-            'status' => 'active',
-            'workload' => 'green',
-        ]);
-
         LeaveRequest::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $leaveEmp->id,
-            'leave_type_id' => $this->leaveType->id,
-            'date_from' => '2026-07-01',
-            'date_to' => '2026-07-31',
-            'days' => 22,
-            'status' => 'approved',
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'leave_type_id' => $this->leaveType->id, 'date_from' => '2026-07-14',
+            'date_to' => '2026-07-14', 'days' => 1, 'status' => 'approved',
         ]);
 
-        $response = $this->actAsHr()->get('/app/attendance-report');
-
-        $response->assertOk();
-        $content = $response->getContent();
-
-        $response->assertSee('Approved leave');
-
-        $this->assertStringContainsString('On Leave Employee', $content);
-        $rowHtml = strstr($content, 'On Leave Employee');
-        $rowHtml = substr($rowHtml, 0, strpos($rowHtml, '</a>') ?: strlen($rowHtml));
-
-        $this->assertStringContainsString('Approved leave', $rowHtml);
-        $this->assertStringNotContainsString('No record in', $rowHtml);
+        $this->actAsHr()->get('/app/attendance-report?gran=week')
+            ->assertOk()
+            ->assertSee('On leave')
+            ->assertSee('Annual Leave');
     }
 
-    public function test_every_row_renders_one_cell_per_working_day(): void
+    public function test_a_missing_clock_out_row_is_flagged_and_offers_a_fix(): void
     {
-        $emp1 = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Employee Alpha',
-            'status' => 'active',
-            'workload' => 'green',
-        ]);
-
-        $emp2 = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Employee Beta',
-            'status' => 'active',
-            'workload' => 'green',
-        ]);
-
         AttendanceRecord::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $emp1->id,
-            'date' => '2026-07-01',
-            'status' => 'on_time',
-            'clock_in' => '08:00:00',
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '09:00:00', 'clock_out' => null,
+            'status' => 'on_time', 'flags' => [],
         ]);
 
-        $response = $this->actAsHr()->get('/app/attendance-report');
-        $response->assertOk();
+        $this->actAsHr()->get('/app/attendance-report?gran=week&lens=miss')
+            ->assertOk()
+            ->assertSee('data-alert', false)
+            ->assertSee('Missing')
+            ->assertSee('day=2026-07-14', false);
+    }
 
-        $days = $response->viewData('days');
-        $expectedCellCount = count($days) * 3;
+    public function test_the_totals_row_reports_hours(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
+            'status' => 'on_time', 'worked_minutes' => 540, 'flags' => [],
+        ]);
 
-        $content = $response->getContent();
-        $actualCellCount = substr_count($content, 'class="uj-ar-cell"');
+        $this->actAsHr()->get('/app/attendance-report?gran=week')
+            ->assertOk()
+            ->assertSee('9.0')
+            ->assertSee('total hours');
+    }
 
-        $this->assertSame($expectedCellCount, $actualCellCount);
+    public function test_a_lens_narrows_the_rows_while_the_totals_hold_still(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '09:00:00', 'clock_out' => null,
+            'status' => 'on_time', 'flags' => [],
+        ]);
+
+        $plain = $this->actAsHr()->get('/app/attendance-report?gran=week');
+        $lensed = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=miss');
+
+        $this->assertGreaterThan(
+            substr_count($lensed->getContent(), 'uj-ar-cols uj-ar-row'),
+            substr_count($plain->getContent(), 'uj-ar-cols uj-ar-row')
+        );
+        $this->assertSame($plain->viewData('totals'), $lensed->viewData('totals'));
+    }
+
+    public function test_on_a_single_day_the_date_column_is_dropped(): void
+    {
+        // All 34 rows would otherwise repeat the same date. The CSS keys off this.
+        $this->actAsHr()->get('/app/attendance-report?gran=day')
+            ->assertOk()
+            ->assertSee('data-gran="day"', false);
     }
 
     public function test_a_plain_employee_cannot_reach_the_report(): void
     {
-        $plainUser = User::create([
-            'name' => 'Plain Employee User',
-            'email' => 'plain@example.com',
-            'password' => Hash::make('password'),
+        $staff = User::create([
+            'name' => 'Staff', 'email' => 'staff@example.com', 'password' => Hash::make('password'),
         ]);
-        $plainUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
-
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee']);
         Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'user_id' => $plainUser->id,
-            'name' => 'Plain Employee',
-            'status' => 'active',
-            'workload' => 'green',
+            'tenant_id' => $this->tenant->id, 'user_id' => $staff->id,
+            'name' => 'Staff Person', 'status' => 'active', 'workload' => 'green',
         ]);
 
-        $response = $this->actingAs($plainUser)
-            ->withSession([
-                'current_tenant' => $this->tenant->id,
-                'persona' => 'employee',
-            ])
-            ->get('/app/attendance-report');
-
-        $this->assertNotEquals(200, $response->getStatusCode());
+        $this->actingAs($staff)
+            ->withSession(['current_tenant' => $this->tenant->id, 'persona' => 'employee'])
+            ->get('/app/attendance-report')
+            ->assertForbidden();
     }
 
-    public function test_the_never_clocked_sentence_names_at_most_three(): void
+    public function test_the_export_button_carries_the_current_filters(): void
     {
-        $names = [
-            'Alpha NeverName',
-            'Beta NeverName',
-            'Gamma NeverName',
-            'Delta NeverName',
-            'Epsilon NeverName',
-            'Zeta NeverName',
-        ];
-
-        foreach ($names as $name) {
-            Employee::create([
-                'tenant_id' => $this->tenant->id,
-                'name' => $name,
-                'status' => 'active',
-                'workload' => 'green',
-            ]);
-        }
-
-        $response = $this->actAsHr()->get('/app/attendance-report');
-        $response->assertOk();
-
-        $content = $response->getContent();
-
-        // Scope assertion strictly to the shelf lead sentence HTML block
-        $shelfStart = strpos($content, 'class="uj-ar-figsub"');
-        $this->assertNotFalse($shelfStart, 'Shelf figsub element must exist.');
-        $shelfEnd = strpos($content, 'class="uj-ar-cov"', $shelfStart);
-        $this->assertNotFalse($shelfEnd, 'Shelf coverage bar element must exist.');
-        $shelfHtml = substr($content, $shelfStart, $shelfEnd - $shelfStart);
-
-        // At most 3 names listed (HR Manager from setUp + Alpha + Beta)
-        $this->assertStringContainsString('HR Manager', $shelfHtml);
-        $this->assertStringContainsString('Alpha NeverName', $shelfHtml);
-        $this->assertStringContainsString('Beta NeverName', $shelfHtml);
-
-        // Overflow wording present (6 seeded + 1 HR Manager from setUp = 7 never clocked; 7 - 3 = 4 others)
-        $this->assertStringContainsString('and 4 others', $shelfHtml);
-
-        // Fourth and subsequent names are omitted from the shelf sentence
-        $this->assertStringNotContainsString('Gamma NeverName', $shelfHtml);
-        $this->assertStringNotContainsString('Delta NeverName', $shelfHtml);
-        $this->assertStringNotContainsString('Epsilon NeverName', $shelfHtml);
-        $this->assertStringNotContainsString('Zeta NeverName', $shelfHtml);
-    }
-
-    // --- Reverse punch button on the drill-down ------------------------------
-
-    private function punchedEmployee(): Employee
-    {
-        $e = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'name' => 'Punched Staff',
-            'status' => 'active',
-            'workload' => 'green',
-        ]);
-        AttendanceRecord::create([
-            'tenant_id' => $this->tenant->id,
-            'employee_id' => $e->id,
-            // A day inside the window but short of its exact end boundary — the window's
-            // upper edge is unreliable with SQLite's raw string date storage (matches every
-            // other date literal in this file), not something this test is about.
-            'date' => '2026-07-14',
-            'clock_in' => '09:00:00',
-            'clock_out' => '18:00:00',
-        ]);
-
-        return $e;
-    }
-
-    public function test_hr_sees_a_reverse_button_on_the_drill_down(): void
-    {
-        $e = $this->punchedEmployee();
-
-        $this->actAsHr()->get('/app/attendance-report?emp='.$e->id)
+        $this->actAsHr()->get('/app/attendance-report?gran=week&lens=late&dept=Finance')
             ->assertOk()
-            ->assertSee('attendance-admin/records/', false)
-            ->assertSee('Reverse out');
+            ->assertSee('attendance-report/export', false)
+            ->assertSee('lens=late', false)
+            ->assertSee('dept=Finance', false);
     }
 
-    public function test_a_manager_does_not_see_a_reverse_button_on_the_drill_down(): void
+    public function test_the_screen_works_without_javascript(): void
     {
-        $managerUser = User::create([
-            'name' => 'Line Manager',
-            'email' => 'manager@example.com',
-            'password' => Hash::make('password'),
-        ]);
-        $managerUser->tenants()->attach($this->tenant->id, ['role' => 'manager']);
-        $managerEmployee = Employee::create([
-            'tenant_id' => $this->tenant->id,
-            'user_id' => $managerUser->id,
-            'name' => 'Line Manager',
-            'status' => 'active',
-            'workload' => 'green',
-        ]);
-        $e = $this->punchedEmployee();
-        $e->update(['reports_to_id' => $managerEmployee->id]);
+        // Every filter is a link or a GET form, so the period, the lens and the sort
+        // all still change with scripting off.
+        $html = $this->actAsHr()->get('/app/attendance-report?gran=week')->assertOk()->getContent();
 
-        $response = $this->actingAs($managerUser)
-            ->withSession(['current_tenant' => $this->tenant->id, 'persona' => 'manager'])
-            ->get('/app/attendance-report?emp='.$e->id);
+        $this->assertStringContainsString('gran=month', $html, 'the period segment is a link');
+        $this->assertStringContainsString('lens=miss', $html, 'the lens chips are links');
+        $this->assertStringContainsString('sort=person', $html, 'the sort segment is a link');
+    }
+
+    public function test_the_ledger_gets_the_wide_measure(): void
+    {
+        // Eight dense columns do not fit the 920px focused measure the roster used.
+        $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()
+            ->assertSee('uj-main--wide', false);
+    }
+
+    public function test_the_screen_does_not_repeat_the_shell_title(): void
+    {
+        // The app shell renders "Attendance Reports" and its description above
+        // <main>. A second heading under it said the same thing twice.
+        $html = $this->actAsHr()->get('/app/attendance-report')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('uj-ar-head', $html);
+        $this->assertSame(1, substr_count($html, '<h1'), 'one heading on the page, not two');
+    }
+
+    public function test_the_custom_range_lives_in_a_popover(): void
+    {
+        // Two date boxes parked permanently in the filter bar read as loudly as
+        // Day/Week/Month, and Custom is the rare choice. Approved shape is a panel.
+        $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()
+            ->assertSee('uj-ar-pop', false)
+            ->assertSee('uj-ar-customwrap', false)
+            ->assertDontSee('uj-ar-range"', false);
+    }
+
+    public function test_a_custom_range_filters_to_those_dates(): void
+    {
+        $response = $this->actAsHr()
+            ->get('/app/attendance-report?gran=custom&from=2026-07-13&to=2026-07-14');
 
         $response->assertOk();
-        $response->assertDontSee('attendance-admin/records/', false);
+        $this->assertSame('custom', $response->viewData('gran'));
+        $this->assertSame(['2026-07-13', '2026-07-14'], $response->viewData('workingDays'));
+    }
+
+    public function test_the_phone_sheet_stages_its_filters_behind_show_results(): void
+    {
+        // Tapping a filter used to navigate immediately, which closed the sheet under
+        // you after every single choice. The sheet now holds the whole form and one
+        // submit applies the lot.
+        $html = $this->actAsHr()->get('/app/attendance-report?gran=week&sort=person')
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('type="submit"', $html);
+        $this->assertStringContainsString('Show results', $html);
+        $this->assertStringNotContainsString('onchange="this.form.submit()"', $html,
+            'the department select must not auto-submit while the sheet is open');
+
+        // The form carries the current state, so submitting it without touching
+        // anything lands on the same screen.
+        $this->assertStringContainsString('name="gran" value="week"', $html);
+        $this->assertStringContainsString('name="sort" value="person"', $html);
+    }
+
+    public function test_the_sheet_gets_every_period_label_it_can_step_to(): void
+    {
+        // The staged stepper has to move the label before the page moves. The server
+        // hands over the labels rather than letting Alpine redo the date maths.
+        $labels = $this->actAsHr()->get('/app/attendance-report')
+            ->assertOk()->viewData('stepLabels');
+
+        $this->assertSame('July 2026', $labels['month'][0]['en']);
+        $this->assertSame('June 2026', $labels['month'][-1]['en']);
+        $this->assertSame('Jun 2026', $labels['month'][-1]['ms']);
+        $this->assertArrayHasKey(-12, $labels['week'], 'a year of reach in every granularity');
+        $this->assertArrayHasKey('day', $labels);
+    }
+
+    // --- The ledger body as a fragment ---------------------------------------
+
+    public function test_the_body_route_returns_the_ledger_without_the_app_shell(): void
+    {
+        // Changing a filter used to re-render the sidebar, the header and the whole
+        // app shell to swap some table rows. Only this travels now.
+        $html = $this->actAsHr()->get('/app/attendance-report/body?gran=week')
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-ar-chips', $html);
+        $this->assertStringContainsString('uj-ar-sum', $html);
+        $this->assertStringContainsString('uj-ar-tbl', $html);
+        $this->assertStringNotContainsString('<html', $html);
+        $this->assertStringNotContainsString('uj-sb-nav', $html, 'no sidebar');
+        $this->assertStringNotContainsString('uj-guide', $html, 'the guide keeps its own open state');
+    }
+
+    public function test_the_body_fragment_and_the_screen_agree(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '09:00:00', 'clock_out' => null,
+            'status' => 'on_time', 'flags' => [],
+        ]);
+
+        $fragment = $this->actAsHr()->get('/app/attendance-report/body?gran=week&lens=miss')
+            ->assertOk()->getContent();
+        $screen = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=miss')
+            ->assertOk()->getContent();
+
+        // A fragment that disagrees with the page it replaces is worse than no fragment.
+        $this->assertSame(
+            substr_count($screen, 'uj-ar-cols uj-ar-row'),
+            substr_count($fragment, 'uj-ar-cols uj-ar-row')
+        );
+    }
+
+    public function test_a_plain_employee_cannot_fetch_the_body(): void
+    {
+        $staff = User::create([
+            'name' => 'Staff', 'email' => 'staff2@example.com', 'password' => Hash::make('password'),
+        ]);
+        $staff->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $staff->id,
+            'name' => 'Staff Person', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($staff)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance-report/body')
+            ->assertForbidden();
+    }
+
+    public function test_a_lens_that_matches_nothing_explains_itself(): void
+    {
+        // Reachable in one click — pick an exception nobody has — so it must not be
+        // a bare blank panel.
+        $response = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=short');
+
+        $response->assertOk()
+            ->assertSee('uj-ar-empty', false)
+            ->assertSee('Nothing matches')
+            ->assertSee('Clear filters');
+
+        $this->assertSame(0, $response->viewData('rows')->count());
     }
 }

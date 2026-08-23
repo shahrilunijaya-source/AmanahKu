@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -90,7 +91,6 @@ class AttendanceAdminController extends Controller
             'work_site_id' => ['nullable', 'integer', Rule::exists('work_sites', 'id')->where('tenant_id', $tenantId)],
             'hybrid_office_days' => ['nullable', 'array'],
             'hybrid_office_days.*' => ['integer', 'between:1,7'],
-            'reset_home' => ['nullable', 'boolean'],
         ]);
 
         $arrangement = $data['work_arrangement'];
@@ -105,13 +105,6 @@ class AttendanceAdminController extends Controller
                 : null,
         ];
 
-        // Clear a registered home so it re-captures on the next home clock-in.
-        if (! empty($data['reset_home'])) {
-            $attributes['home_latitude'] = null;
-            $attributes['home_longitude'] = null;
-            $attributes['home_locked_at'] = null;
-        }
-
         $employee->update($attributes);
         AuditLog::record('Updated work arrangement', $employee->name);
 
@@ -119,7 +112,7 @@ class AttendanceAdminController extends Controller
     }
 
     /**
-     * Set the single company-wide work-from-home policy (hours + geofence radius) for this
+     * Set the single company-wide work-from-home policy (hours) for this
      * tenant. Every WFH / hybrid home day follows these hours (see ScheduleResolver::homeSite),
      * independent of any branch — so deleting a branch never changes WFH hours.
      *
@@ -135,7 +128,6 @@ class AttendanceAdminController extends Controller
             'wfh_work_start' => ['nullable', 'date_format:H:i'],
             'wfh_work_end' => ['nullable', 'date_format:H:i'],
             'wfh_min_hours' => ['nullable', 'numeric', 'between:0,24'],
-            'wfh_radius_m' => ['nullable', 'integer', 'between:20,5000'],
             // sometimes: the WFH-hours form posts to this same endpoint and omits this key
             // entirely. required: a cleared box still posts the key as '', which
             // ConvertEmptyStringsToNull turns into null — reject that instead of zeroing the
@@ -150,32 +142,6 @@ class AttendanceAdminController extends Controller
         AuditLog::record('Updated WFH policy', $tenant->name);
 
         return back()->with('ok', 'Work-from-home policy saved.');
-    }
-
-    /**
-     * Register (or move) a work-from-home / hybrid employee's home geofence from the map,
-     * instead of waiting for it to capture automatically on their first home clock-in.
-     */
-    public function updateHome(Request $request, Employee $employee): RedirectResponse
-    {
-        $this->authorize($request);
-        $this->assertTenant($employee->tenant_id);
-
-        abort_unless(in_array($employee->work_arrangement, ['wfh', 'hybrid'], true), 422);
-
-        $data = $request->validate([
-            'home_latitude' => ['required', 'numeric', 'between:-90,90'],
-            'home_longitude' => ['required', 'numeric', 'between:-180,180'],
-        ]);
-
-        $employee->update([
-            'home_latitude' => $data['home_latitude'],
-            'home_longitude' => $data['home_longitude'],
-            'home_locked_at' => now(),
-        ]);
-        AuditLog::record('Registered home address', $employee->name);
-
-        return back()->with('ok', $employee->name.' home address saved.');
     }
 
     /**
@@ -198,7 +164,10 @@ class AttendanceAdminController extends Controller
             }
 
             $flags = array_values(array_diff($record->flags ?? [], [
-                'out_of_radius_out', 'early_out', 'short_hours',
+                // 'amended' marks an HR-typed clock-out. Reversing removes the typed
+                // time, so the mark must go with it or the record keeps claiming a
+                // fabricated punch that is no longer there.
+                'out_of_radius_out', 'early_out', 'short_hours', 'amended',
                 // 'no_location' only ever meant the clock-OUT had no fix when the clock-IN
                 // did — a clock-in with no fix carries the same flag and must keep it.
                 ...($record->latitude !== null ? ['no_location'] : []),
@@ -209,6 +178,7 @@ class AttendanceAdminController extends Controller
                 'clock_out_latitude' => null,
                 'clock_out_longitude' => null,
                 'out_radius' => null,
+                'clock_out_work_mode' => null,
                 'clock_out_justification' => null,
                 'clock_out_photo_path' => null,
                 'worked_minutes' => null,
@@ -230,6 +200,66 @@ class AttendanceAdminController extends Controller
         AuditLog::record('Reversed clock-in', $name);
 
         return back()->with('ok', 'Clock-in reversed. '.$name.' can clock in again.');
+    }
+
+    /**
+     * Fill in a clock-out somebody forgot. Only ever fills a HOLE: a record that
+     * already has a clock-out must be reversed first, so there is exactly one way to
+     * overwrite a real punch and it leaves two audit entries rather than one.
+     *
+     * The typed time carries no selfie and no coordinates, so it is not a punch and is
+     * marked `amended`. Location-derived flags are deliberately NOT recomputed —
+     * inventing an out_of_radius verdict for a time nobody stood anywhere to record
+     * would be a fabricated fact in an audit trail.
+     */
+    public function amendClockOut(Request $request, AttendanceRecord $record): RedirectResponse
+    {
+        $this->authorizeReverse($request);
+        $this->assertTenant($record->tenant_id);
+
+        abort_if($record->clock_in === null, 422);
+        abort_if($record->clock_out !== null, 422);
+
+        $validated = $request->validate([
+            'time' => ['required', 'date_format:H:i'],
+        ]);
+
+        $date = $record->date->toDateString();
+        $in = CarbonImmutable::parse($date.' '.$record->clock_in);
+        $out = CarbonImmutable::parse($date.' '.$validated['time']);
+
+        if ($out->lte($in)) {
+            return back()->withErrors([
+                'time' => 'The clock-out must be after the '.$in->format('H:i').' clock-in.',
+            ]);
+        }
+
+        $minutes = (int) $in->diffInMinutes($out);
+        $expected = (float) ($record->expected_min_hours ?? 8);
+
+        $flags = $record->flags ?? [];
+        if (! in_array('amended', $flags, true)) {
+            $flags[] = 'amended';
+        }
+        if ($minutes < $expected * 60 && ! in_array('short_hours', $flags, true)) {
+            $flags[] = 'short_hours';
+        }
+
+        $record->update([
+            'clock_out' => $out->format('H:i:s'),
+            'worked_minutes' => $minutes,
+            'flags' => $flags,
+        ]);
+
+        $employee = $record->employee;
+
+        AuditLog::record(
+            'Amended clock-out',
+            ($employee->name ?? 'Unknown employee')
+                .' · '.$record->date->format('j M').' · set to '.$out->format('H:i')
+        );
+
+        return back()->with('ok', 'Clock-out set to '.$out->format('H:i').'.');
     }
 
     /** @return array<string,mixed> */

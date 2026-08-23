@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceRecord;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
@@ -188,6 +190,37 @@ class DashboardRenderedQueueTest extends TestCase
             'Solo Viewer',
             array_column($around['rows'], 'title'),
             'The viewer must not be listed among colleagues who are off.'
+        );
+    }
+
+    /**
+     * A shift clocked in at 23:00 leaves its open record dated *yesterday*, so the
+     * dashboard's "on today" lookups found nothing after midnight: the greeting told an
+     * employee mid-shift they had "not clocked in yet", and the "You are still clocked
+     * in" reminder vanished for exactly the person who needed it. Same yesterday-or-today
+     * bound as AttendanceRecord::scopeOpenPunch().
+     */
+    public function test_dashboard_reads_the_open_overnight_punch_after_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-16 01:30:00'));
+        $viewer = $this->member('employee', 'Night Owl');
+
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $viewer->id,
+            'date' => '2026-07-15',
+            'status' => 'late',
+            'clock_in' => '23:00:00',
+        ]);
+
+        $response = $this->dash($viewer)->assertOk();
+
+        $this->assertStringContainsString('clocked in at 23:00', $response->viewData('head')['sub']);
+
+        $this->assertContains(
+            'You are still clocked in',
+            array_column($response->viewData('queue')->all(), 'title'),
+            'The open overnight punch must still raise the clock-out reminder after midnight.'
         );
     }
 }

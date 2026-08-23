@@ -7,12 +7,6 @@ parameters:
 			path: app/Actions/Fortify/UpdateUserProfileInformation.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:onDate\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Attendance/ClockService.php
-
-		-
 			message: '#^Ternary operator condition is always true\.$#'
 			identifier: ternary.alwaysTrue
 			count: 1
@@ -32,12 +26,6 @@ parameters:
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>wfh_min_hours" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Attendance/ScheduleResolver.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>wfh_radius_m" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Attendance/ScheduleResolver.php
@@ -118,12 +106,6 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 2
-			path: app/Http/Controllers/AppController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:onDate\(\)\.$#'
-			identifier: method.notFound
-			count: 3
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -209,12 +191,6 @@ parameters:
 			identifier: method.notFound
 			count: 2
 			path: app/Http/Controllers/AssistantController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/AttendanceReportController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
@@ -717,13 +693,13 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,App\\Models\\TimesheetEntry\>\:\:filter\(\) expects \(callable\(App\\Models\\TimesheetEntry, int\)\: bool\)\|null, Closure\(mixed\)\: \(Illuminate\\Database\\Eloquent\\Model\|null\) given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 1
 			path: app/Http/Controllers/TimesheetController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 2
+			count: 1
 			path: app/Http/Controllers/TimesheetController.php
 
 		-

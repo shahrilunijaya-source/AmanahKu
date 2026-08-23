@@ -11,9 +11,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Clock-in / clock-out business rules: geofence checks against the expected site,
- * punctuality (late / early / short hours), home auto-registration, and justification
- * enforcement for out-of-radius or early exits. A selfie is mandatory for every punch.
- * Persists the attendance record.
+ * punctuality (late / early / short hours), and justification enforcement for
+ * out-of-radius or early exits. A selfie is mandatory for every punch. Persists the
+ * attendance record.
  */
 class ClockService
 {
@@ -22,7 +22,7 @@ class ClockService
     /**
      * @return array{status:string, message:string}
      */
-    public function clockIn(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now): array
+    public function clockIn(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now, string $workMode = 'office_home'): array
     {
         $existing = $employee->attendanceRecords()->onDate($now)->first();
         if ($existing && $existing->clock_in) {
@@ -32,21 +32,16 @@ class ClockService
         $assigned = $this->resolver->resolve($employee, $now);
 
         // Clock against whichever configured location the staff member is actually standing
-        // in. Runs before home capture, so someone on a home day who walks into the office
-        // is matched to the office instead of registering the office as their home.
+        // in. A home day is never fenced (homeSite() carries no coordinates), so this only
+        // matters for office / client sites.
         $site = $this->resolver->matchActualSite($employee, $assigned, $lat, $lng);
 
-        // First home / hybrid-home clock-in registers the home location and locks it.
-        if ($site === $assigned && $site->type === 'home' && $site->needsHomeCapture && $lat !== null && $lng !== null) {
-            $employee->update([
-                'home_latitude' => $lat,
-                'home_longitude' => $lng,
-                'home_locked_at' => $now,
-            ]);
-            $site = $this->resolver->resolve($employee, $now);
-        }
-
         $inRadius = $this->within($site, $lat, $lng);
+
+        // A declared site visit: the employee said before punching that today is customer
+        // work. That changes the framing, never the evidence — GPS, selfie and a typed line
+        // are all still collected, and in_radius below is still recorded truthfully.
+        $siteVisit = $workMode === 'site_visit';
 
         // A punch with no coordinates at all is allowed, but never cheap: it costs a reason
         // and a permanent flag. Blocking it instead only pushed the day off-system into a
@@ -56,8 +51,15 @@ class ClockService
             return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock in without it.'];
         }
 
+        // The price of declaring a site visit, and the only thing that keeps the pill from
+        // being a one-tap exemption from the geofence: say where you are going.
+        if ($siteVisit && ! $this->filled($justification)) {
+            return ['status' => 'needs_justification', 'message' => 'Say where you are going to clock in.'];
+        }
+
         // Outside the geofence must be justified — never hard-blocked (bad GPS shouldn't strand staff).
-        if ($inRadius === false && ! $this->filled($justification)) {
+        // Skipped for a declared site visit, which has already paid with a destination above.
+        if (! $siteVisit && $inRadius === false && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'You appear to be outside '.$site->label.'. Add a reason to clock in.'];
         }
 
@@ -89,7 +91,11 @@ class ClockService
         if ($late) {
             $flags[] = 'late';
         }
-        if ($inRadius === false) {
+        // A declared site visit writes no flag of its own: work_mode records it, and `flags`
+        // is the anomaly list, where an entry turns the day amber and counts toward "N flags".
+        // It still suppresses out_of_radius_in — in_radius keeps the honest fence result, but
+        // being outside a fence you said you would be outside of is not a finding.
+        if (! $siteVisit && $inRadius === false) {
             $flags[] = 'out_of_radius_in';
         }
         if ($lat === null || $lng === null) {
@@ -108,6 +114,7 @@ class ClockService
             'expected_end' => $site->workEnd,
             'expected_min_hours' => $site->minHours,
             'in_radius' => $inRadius,
+            'work_mode' => $siteVisit ? 'site_visit' : 'office_home',
             'clock_in_justification' => $this->filled($justification) ? $justification : null,
             'flags' => $flags,
             'photo_path' => $photoPath,
@@ -128,19 +135,11 @@ class ClockService
     /**
      * @return array{status:string, message:string}
      */
-    public function clockOut(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now): array
+    public function clockOut(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now, string $workMode = 'office_home'): array
     {
-        // Not onDate($now): a shift that crosses midnight (clock in 23:00, out 01:30) has
-        // its open record dated *yesterday*, so looking up "today" found nothing and told
-        // an employee mid-shift they had never clocked in. Look for the still-open punch
-        // instead, bounded to yesterday-or-today so a genuinely forgotten clock-out from
-        // days ago doesn't get attributed to whatever the employee is doing right now.
-        $record = $employee->attendanceRecords()
-            ->whereNotNull('clock_in')
-            ->whereNull('clock_out')
-            ->where('date', '>=', $now->copy()->subDay()->toDateString())
-            ->orderByDesc('date')
-            ->first();
+        // Not onDate($now): a shift that crosses midnight has its open record dated
+        // *yesterday*. See AttendanceRecord::scopeOpenPunch() for the full reasoning.
+        $record = $employee->attendanceRecords()->openPunch($now)->first();
         if (! $record) {
             return ['status' => 'noop', 'message' => 'You have not clocked in yet today.'];
         }
@@ -151,13 +150,24 @@ class ClockService
         $early = $this->isEarly($record->expected_start, $record->expected_end, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
+        $siteVisit = $workMode === 'site_visit';
+
+        // Only a mode that was NOT already declared this morning owes a destination. A day
+        // declared a site visit at clock-in already carries the text on the record, and
+        // asking for it again at 6pm collects nothing new.
+        $newlyDeclared = $siteVisit && $record->work_mode !== 'site_visit';
+
         // Same price as an unlocatable clock-in: a reason and a flag.
         if (($lat === null || $lng === null) && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'Your location could not be read. Add a reason to clock out without it.'];
         }
 
+        if ($newlyDeclared && ! $this->filled($justification)) {
+            return ['status' => 'needs_justification', 'message' => 'Say where you were to clock out.'];
+        }
+
         // Leaving the site early, off-site, or short of hours must be justified.
-        if (($outRadius === false || $early || $short) && ! $this->filled($justification)) {
+        if (((! $siteVisit && $outRadius === false) || $early || $short) && ! $this->filled($justification)) {
             return ['status' => 'needs_justification', 'message' => 'This clock-out looks early or off-site. Add a reason to clock out.'];
         }
 
@@ -174,7 +184,9 @@ class ClockService
         }
 
         $flags = $record->flags ?? [];
-        if ($outRadius === false) {
+        // Same suppression as clock-in: a declared site visit writes no flag of its own,
+        // it only keeps out_of_radius_out from being written.
+        if (! $siteVisit && $outRadius === false) {
             $flags[] = 'out_of_radius_out';
         }
         if ($early) {
@@ -192,6 +204,7 @@ class ClockService
             'clock_out_latitude' => $lat,
             'clock_out_longitude' => $lng,
             'out_radius' => $outRadius,
+            'clock_out_work_mode' => $siteVisit ? 'site_visit' : 'office_home',
             'clock_out_justification' => $this->filled($justification) ? $justification : null,
             'worked_minutes' => $worked,
             'flags' => array_values(array_unique($flags)),

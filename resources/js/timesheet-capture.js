@@ -14,10 +14,47 @@
  * own rows. The POST body is unchanged: one entry per (day, allocation); the server
  * re-appends the leave portion itself.
  */
+
+/** Find which day + row index carries this entry id, for the Review tab's "open this
+ *  entry" deep link. Pure — no Alpine/DOM — so it's testable without a browser. */
+export function findEditTarget(rows, editId) {
+    for (const iso of Object.keys(rows)) {
+        const i = rows[iso].findIndex((r) => String(r.id) === String(editId));
+        if (i !== -1) return { iso, index: i };
+    }
+
+    return null;
+}
+
+/** ISO date $days after $iso, in UTC so a local timezone can never shift the day. */
+export function addDaysIso(iso, days) {
+    const [y, m, d] = iso.split('-').map(Number);
+
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** True when $iso is the first Saturday of its month — Unijaya's TOT day, a work half day.
+ *  Mirrors App\Timesheet\DayCapacity::isFirstSaturday() on the server. */
+export function isFirstSaturday(iso) {
+    const dt = new Date(iso + 'T00:00:00Z');
+
+    return dt.getUTCDay() === 6 && dt.getUTCDate() <= 7;
+}
+
 export function registerTimesheetCapture(Alpine) {
+    // Shared with the outer tab-bar scope (a sibling Alpine root) so it can hide itself
+    // while the pre-submit review is open — Alpine scope chaining only flows parent to
+    // child, so a plain component property on timesheetCapture can't cross that sibling
+    // boundary to the tab bar.
+    Alpine.store('tsReview', { open: false });
+
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
-        days: cfg.days || 5,
+        // 5 on an ordinary week, 6 when the week holds the first Saturday of the month —
+        // Unijaya's TOT half day, which staff must be able to fill without hunting for the
+        // "Show weekend" toggle. cfg.days still wins when the caller passes one (tests).
+        days: cfg.days || (isFirstSaturday(addDaysIso(cfg.weekStart, 5)) ? 6 : 5),
+        // Kept in sync with the "Show weekend" toggle, which flips between this and 7.
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
         locked: cfg.locked || {},
@@ -26,6 +63,7 @@ export function registerTimesheetCapture(Alpine) {
         projects: cfg.projects || [],
         templates: cfg.templates || [],
         readonly: cfg.readonly || false,
+        editEntryId: cfg.editEntryId || null,
         rows: {},
         selected: null,
         sheetOpen: false,
@@ -47,12 +85,19 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         init() {
+            // The review pane's open/closed flag lives on a store (singleton across screen
+            // navigations, see the class-level comment above), so a previous mount leaving it
+            // `true` would otherwise land a fresh mount straight on the review pane. Every
+            // mount starts closed regardless of what the last one left behind.
+            this.$store.tsReview.open = false;
+
             const seed = cfg.existing || {};
             for (const iso of Object.keys(seed)) {
                 // Fully locked days never carry editable rows (the server drops them and
                 // owns the day). A half day keeps the staffer's work rows, so seed those.
                 if (this.isFullyLocked(iso)) continue;
                 this.rows[iso] = seed[iso].map((e) => ({
+                    id: e.id,
                     category_id: e.category_id || '',
                     project_id: e.project_id || '',
                     sub_pillar_id: e.sub_pillar_id || '',
@@ -75,9 +120,25 @@ export function registerTimesheetCapture(Alpine) {
                     ? 'This week is ready — remember to submit it.'
                     : 'Minggu ini sudah sedia — jangan lupa hantar.');
             }
+
+            // Deep link from the Review tab ("open this entry"). Skipped on a submitted
+            // week: Record shows it locked with a reopen banner, there is no row to edit
+            // until it's recalled, and openEditRow() assumes an editable this.selected day.
+            if (this.editEntryId && !this.readonly) {
+                const target = findEditTarget(this.rows, this.editEntryId);
+                if (target) {
+                    this.selected = target.iso;
+                    this.$nextTick(() => this.openEditRow(target.index));
+                }
+            }
         },
 
         // ---- the week ------------------------------------------------------
+        // The week's own day count with the weekend hidden: 6 when it holds the TOT
+        // Saturday, 5 otherwise. The "Show weekend" toggle returns here.
+        baseDays() {
+            return isFirstSaturday(addDaysIso(this.weekStart, 5)) ? 6 : 5;
+        },
         dayDates() {
             const out = [];
             const [y, m, d] = this.weekStart.split('-').map(Number);
@@ -102,17 +163,23 @@ export function registerTimesheetCapture(Alpine) {
         isLocked(iso) {
             return !!this.locked[iso];
         },
-        // Percentage HR has already claimed on this day: 100 (holiday / whole-day leave),
-        // 50 (half-day leave), or 0 (nothing locked).
+        // Percentage HR has already claimed on this day: the day's whole capacity (holiday
+        // / whole-day leave), half of it (half-day leave), or 0 (nothing locked).
         lockedPct(iso) {
             return this.locked[iso] ? parseFloat(this.locked[iso].percentage) || 0 : 0;
         },
+        // How much this day asks to be filled: 50% on the first Saturday of the month (the
+        // TOT half day), 100% on every other day. Mirrors App\Timesheet\DayCapacity, which
+        // is what the submit gate actually enforces.
+        capacityFor(iso) {
+            return isFirstSaturday(iso) ? 50 : 100;
+        },
         isFullyLocked(iso) {
-            return this.lockedPct(iso) >= 100;
+            return this.lockedPct(iso) >= this.capacityFor(iso);
         },
         isPartlyLocked(iso) {
             const pct = this.lockedPct(iso);
-            return pct > 0 && pct < 100;
+            return pct > 0 && pct < this.capacityFor(iso);
         },
         isFuture(iso) {
             return iso > this.today;
@@ -137,7 +204,7 @@ export function registerTimesheetCapture(Alpine) {
                 && !this.isOffDay(iso) && iso >= this.earliestWeek;
         },
         dayTotal(iso) {
-            if (this.isFullyLocked(iso)) return 100;
+            if (this.isFullyLocked(iso)) return this.capacityFor(iso);
             // The leave half (if any) plus the staffer's own rows.
             return this.lockedPct(iso) + (this.rows[iso] || []).reduce((sum, r) => sum + (parseFloat(r.percentage) || 0), 0);
         },
@@ -146,11 +213,11 @@ export function registerTimesheetCapture(Alpine) {
             if (this.isFuture(iso)) return 'future';
             const total = this.dayTotal(iso);
             if (total === 0) return 'empty';
-            if (total > 100) return 'over';
-            // A day sitting on exactly 100% is still unfinished while it holds a line the
-            // staffer added but never costed — the week strip, the tally and the submit gate
-            // must all agree, or the dot reads "done" on a day that cannot be submitted.
-            if (Math.abs(total - 100) < 0.01) return this.hasBlankRows(iso) ? 'partial' : 'done';
+            if (total > this.capacityFor(iso)) return 'over';
+            // A day sitting on exactly its capacity is still unfinished while it holds a line
+            // the staffer added but never costed — the week strip, the tally and the submit
+            // gate must all agree, or the dot reads "done" on a day that cannot be submitted.
+            if (Math.abs(total - this.capacityFor(iso)) < 0.01) return this.hasBlankRows(iso) ? 'partial' : 'done';
 
             return 'partial';
         },
@@ -239,25 +306,14 @@ export function registerTimesheetCapture(Alpine) {
         rowColour(i) {
             return ['var(--info)', 'var(--success)', 'var(--amber)', 'var(--muted-soft)'][i % 4];
         },
-        // A category's colour in the picker — grouped by what the category actually is, not
-        // by its position in the list (index-based cycling repeats every 4 slots, so past the
-        // 4th category two unrelated categories share a dot with no way to tell them apart).
-        // Matched against the canonical `name`, not the localised label, so the group a
-        // category falls into doesn't change with the viewer's language. Deliberately a
-        // SEPARATE palette lookup from rowColour(): that one distinguishes lines within a
-        // single day and must stay index-based (four fixed slots for up to four lines).
-        categoryColourGroups: [
-            { test: (c) => c.requires_project, colour: 'var(--info)' }, // Development, Maintenance, InHouse Project, CI
-            { test: (c) => /leave/i.test(c.name), colour: 'var(--success)' }, // Medical Leave, On Leave
-            { test: (c) => /sales|marketing/i.test(c.name), colour: 'var(--amber)' }, // Sales, Marketing
-            { test: (c) => /account|admin/i.test(c.name), colour: 'var(--error)' }, // Account and Finance, Administration, HR and Admin
-        ],
+        // A category's colour in the picker. Comes straight from the server
+        // (TimesheetCategory::colour()) so the same category reads the same here and
+        // on the Projects register — one list of colours, not two that drift apart.
+        // Deliberately NOT rowColour(): that one distinguishes lines within a single
+        // day and must stay index-based (four fixed slots for up to four lines).
         categoryColour(categoryId) {
             const cat = this.categories.find((c) => String(c.id) === String(categoryId));
-            if (!cat) {
-                return 'var(--muted-soft)';
-            }
-            return this.categoryColourGroups.find((g) => g.test(cat))?.colour || 'var(--muted-soft)';
+            return (cat && cat.colour) || 'var(--muted-soft)';
         },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
@@ -615,7 +671,7 @@ export function registerTimesheetCapture(Alpine) {
             const en = this.$store.ui.lang === 'en';
             const over = this.overDays();
             if (over.length) {
-                return this.joinDays(over) + (en ? ' went over 100% — take the extra off a line.' : ' melebihi 100% — kurangkan satu baris.');
+                return this.joinDays(over) + (en ? ' went over its total — take the extra off a line.' : ' melebihi jumlahnya — kurangkan satu baris.');
             }
             const blank = this.blankDays();
             if (blank.length) {
@@ -623,7 +679,7 @@ export function registerTimesheetCapture(Alpine) {
             }
             const days = this.blockingDays();
             if (days.length) {
-                return this.joinDays(days) + (en ? ' not at 100% yet' : ' belum 100%');
+                return this.joinDays(days) + (en ? ' not filled yet' : ' belum penuh');
             }
             if (!this.weekEndReached()) {
                 return en ? 'Week is still open — submit becomes available on ' + this.dayLong(this.weekEndsOn()) + '.'
@@ -635,10 +691,8 @@ export function registerTimesheetCapture(Alpine) {
         // The week's cutoff date: Friday, unless this week's Saturday is the first Saturday
         // of the month (Unijaya's TOT day), which pushes the cutoff to that Saturday.
         weekEndsOn() {
-            const [y, m, d] = this.weekStart.split('-').map(Number);
-            const friday = new Date(Date.UTC(y, m - 1, d + 4));
-            const saturday = new Date(Date.UTC(y, m - 1, d + 5));
-            return (saturday.getUTCDate() <= 7 ? saturday : friday).toISOString().slice(0, 10);
+            const saturday = addDaysIso(this.weekStart, 5);
+            return isFirstSaturday(saturday) ? saturday : addDaysIso(this.weekStart, 4);
         },
         // A day can be fully filled without the week being over — a staffer could otherwise
         // finish Mon-Wed by Wednesday and submit early, skipping days that haven't happened.
@@ -720,8 +774,11 @@ export function registerTimesheetCapture(Alpine) {
                     });
                     const body = await res.json();
                     if (!res.ok) {
-                        this.error = Object.values(body.errors || {}).flat()[0] || 'Could not save.';
-                        if (announce) this.$store.toast.error(this.error);
+                        this.error = this.explainRefusal(body, entries);
+                        // The toast is a one-line box; the block under the buttons is what
+                        // carries the full list. Squeezing three days into the toast turns
+                        // it into a wall, so it takes the first and counts the rest.
+                        if (announce) this.$store.toast.error(this.toastLine(this.error));
                         return;
                     }
                     this.locked = body.locked || {};
@@ -740,6 +797,123 @@ export function registerTimesheetCapture(Alpine) {
             })();
 
             return this.savePromise;
+        },
+        /**
+         * Turn a refused save into something that names the day it is about.
+         *
+         * Three things used to go missing here. Laravel's own field errors are keyed
+         * `entries.7.percentage`, and row 7 of a flattened list means nothing to someone
+         * looking at a week grid — the index is resolved back to its date. A refusal
+         * raised with abort() carries `message` and no `errors` bag at all, so the real
+         * reason (empty week, already submitted) was replaced by a flat "Could not save."
+         * And only the first message was ever read, so a week with three bad days was
+         * fixed and resubmitted three times to be told about them one at a time.
+         */
+        /**
+         * Carbon's 'D, j M' — how every server-side timesheet message opens. Assembled
+         * rather than asked of toLocaleDateString, which drops the comma under en-GB and
+         * would then never match the string it exists to recognise.
+         */
+        dayShortEn(iso) {
+            const dt = new Date(iso + 'T00:00:00Z');
+            const rest = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+            return `${this.weekdayNames.short.en[dt.getUTCDay()]}, ${rest}`;
+        },
+
+        /** The first refusal, plus how many others are waiting in the block below. */
+        toastLine(error) {
+            const lines = error.split('\n');
+            if (lines.length < 2) return error;
+            const more = lines.length - 1;
+
+            return this.$store.ui.lang === 'en'
+                ? `${lines[0]} (+${more} more)`
+                : `${lines[0]} (+${more} lagi)`;
+        },
+
+        explainRefusal(body, entries) {
+            const lines = [];
+            for (const [key, messages] of Object.entries(body.errors || {})) {
+                // `entries.<index>.<field>` — the index is a position in the array THIS
+                // save sent, so the date is already in hand and needs no server round trip.
+                const at = key.match(/^entries\.(\d+)\./);
+                const iso = at ? entries[Number(at[1])]?.entry_date : null;
+                for (const message of [].concat(messages)) {
+                    // A message the server already opened with the day must not be given a
+                    // second one. Its checks format the date with Carbon's 'D, j M', which
+                    // is always English regardless of the reader's language, so matching on
+                    // dayLong() alone would miss it and print the day twice in two tongues.
+                    const alreadyNamed = iso && (message.startsWith(this.dayLong(iso)) || message.startsWith(this.dayShortEn(iso)));
+                    lines.push(iso && !alreadyNamed ? `${this.dayLong(iso)}: ${message}` : message);
+                }
+            }
+            if (!lines.length && body.message) lines.push(body.message);
+
+            return [...new Set(lines)].join('\n') || 'Could not save.';
+        },
+
+        // ---- pre-submit review ---------------------------------------------
+        // A pane swap, not a dialog: no aria-modal, no focus trap. openReview()/closeReview()
+        // own the two things a pane swap always gets wrong — where focus goes, and what the
+        // back gesture does. Escape and "Back to editing" both call history.back() so every
+        // closing path funnels through the one popstate listener below.
+        openReview() {
+            if (this.readonly) return;
+            this.$store.tsReview.open = true;
+            history.pushState(null, '', location.href);
+            this.$nextTick(() => document.getElementById('ts-review-title')?.focus());
+        },
+        closeReview() {
+            this.$store.tsReview.open = false;
+            this.$nextTick(() => document.getElementById('ts-submit-btn')?.focus());
+        },
+        // The exact set flatRows() will POST: isEditable() days holding rows, plus every
+        // locked day. Deliberately NOT dayDates() — that follows the reactive 5/7 "Show
+        // weekend" toggle, which flatRows() ignores entirely (Saturday's rows still post
+        // even after the toggle is switched back to 5). Sorted so the day cards read Mon→Fri.
+        reviewDays() {
+            const rowDays = Object.keys(this.rows).filter((d) => this.isEditable(d) && (this.rows[d] || []).length);
+            const lockedDays = Object.keys(this.locked);
+
+            return [...new Set([...rowDays, ...lockedDays])].sort();
+        },
+        // Week split by category, over reviewDays() — not dayDates() — for the same reason.
+        // Each day's contribution clamps at 100 so an over-allocated day can't push the split
+        // past the headline week-percent figure shown directly above it.
+        categoryTotals() {
+            const days = this.reviewDays();
+            const denom = Math.max(1, days.length) * 100;
+            const buckets = {};
+
+            for (const iso of days) {
+                const raw = this.dayTotal(iso);
+                const scale = raw > 100 ? 100 / raw : 1;
+
+                if (this.locked[iso]) {
+                    const label = this.locked[iso].label;
+                    const key = 'locked:' + label;
+                    buckets[key] = buckets[key] || { key, label, colour: 'var(--muted)', amount: 0 };
+                    buckets[key].amount += this.lockedPct(iso) * scale;
+                }
+                // A fully-locked day contributes only its locked amount (handled above) —
+                // never its rows. Those can still be sitting in this.rows[iso] stale from
+                // before HR approved leave / added a holiday mid-session (save() refreshes
+                // `locked` from the server but never touches `rows`), and dayTotal() already
+                // reads the day as 100 regardless of what's in rows. Counting the stale rows
+                // on top of that would push this day's bucket contributions past 100.
+                for (const r of (this.isFullyLocked(iso) ? [] : (this.rows[iso] || []))) {
+                    const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
+                    const key = 'cat:' + r.category_id;
+                    buckets[key] = buckets[key] || { key, label: cat ? this.categoryName(cat) : '', colour: this.categoryColour(r.category_id), amount: 0 };
+                    buckets[key].amount += (parseFloat(r.percentage) || 0) * scale;
+                }
+            }
+
+            return Object.values(buckets)
+                .map((b) => ({ key: b.key, label: b.label, colour: b.colour, pct: Math.round((b.amount / denom) * 100) }))
+                .filter((b) => b.pct > 0)
+                .sort((a, b) => b.pct - a.pct);
         },
     }));
 }

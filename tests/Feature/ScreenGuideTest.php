@@ -97,7 +97,7 @@ class ScreenGuideTest extends TestCase
         $response = $this->actAsHr()->get('/app/attendance-report');
 
         $response->assertOk();
-        $response->assertSee('One row for every active employee, whether they clocked in or not.');
+        $response->assertSee('One row for every active employee on every working day');
     }
 
     public function test_the_guide_is_skipped_in_embed_mode(): void

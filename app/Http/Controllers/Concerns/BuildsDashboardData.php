@@ -166,7 +166,11 @@ trait BuildsDashboardData
         $firstName = $name === '' ? '' : (string) Str::of($name)->squish()->explode(' ')->first();
         $h1 = $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
 
-        $today = $employee?->attendanceRecords()->onDate(now())->first();
+        // Prefer the still-open punch: an overnight shift's open record is dated
+        // yesterday, so an onDate() lookup greeted someone mid-shift with "not clocked
+        // in yet". Falls back to today's row so a closed day still reports its times.
+        $today = $employee?->attendanceRecords()->openPunch(now())->first()
+            ?? $employee?->attendanceRecords()->onDate(now())->first();
         $clockState = match (true) {
             $today === null || ! $today->clock_in => 'not clocked in yet',
             (bool) $today->clock_out => 'clocked out',
@@ -280,7 +284,10 @@ trait BuildsDashboardData
             ]);
         }
 
-        $attendanceToday = $employee?->attendanceRecords()->onDate($today)->first();
+        // Same overnight case as meHead(): without the open-punch lookup this reminder
+        // disappeared at midnight for exactly the person still on the clock.
+        $attendanceToday = $employee?->attendanceRecords()->openPunch($today)->first()
+            ?? $employee?->attendanceRecords()->onDate($today)->first();
         if ($attendanceToday && $attendanceToday->clock_in && ! $attendanceToday->clock_out) {
             $rows->push([
                 'month' => $today->format('M'), 'day' => $today->format('d'),

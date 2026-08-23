@@ -17,9 +17,16 @@
  */
 
 const MAIN = 'main.uj-main';
-const NAV_LINKS = '.uj-sb-nav a[href], .uj-sb-today a[href]';
+const NAV_LINKS = '.uj-sb-nav a[href], .uj-sb-today a[href], .uj-dock a[href], .uj-dockmore a[href]';
 
 let controller = null;
+// The URL currently rendered into <main>. Tracked separately from window.location so a
+// popstate that lands on the SAME document (a pushState some other component made just to
+// get a history entry to pop, e.g. the timesheet review pane's open/close) can be told apart
+// from a real navigation and skipped — see shouldRefetchOnPopstate() below. Set for real in
+// registerPartialNav() (not here at module scope) so importing this file never touches
+// `window` — the unit test imports it under bun's DOM-less test runner.
+let currentUrl = null;
 
 /**
  * Should this click be handled in-page? Exported for the unit test; `link` only has to
@@ -40,6 +47,16 @@ export function isPartialLink(event, link, origin = window.location.origin) {
         link.origin === origin &&
         link.getAttribute('href')?.startsWith('#') !== true
     );
+}
+
+/**
+ * Should a popstate event trigger a partial-nav refetch? Exported for the unit test. A
+ * popstate whose URL matches what's already rendered came from some other component's own
+ * in-page pushState (a history entry pushed only so Back/Escape has something to pop) rather
+ * than a real navigation, and must not trigger a full main.innerHTML rebuild.
+ */
+export function shouldRefetchOnPopstate(eventState, currentHref, trackedUrl) {
+    return Boolean(eventState?.partialNav) && currentHref !== trackedUrl;
 }
 
 /**
@@ -99,12 +116,19 @@ async function go(url, { push = true } = {}) {
     main.removeAttribute('data-nav-busy');
     document.title = doc.title;
     syncNavState(doc);
+    currentUrl = url;
 
     if (push) { history.pushState({ partialNav: true }, '', url); }
     main.scrollTop = 0;
 
-    // Mobile: the nav drawer covers the screen it just changed.
-    if (window.innerWidth <= 900) { document.querySelector('.uj-nav-backdrop')?.click(); }
+    // Mobile: the dock's More grid covers the screen it just changed. Its own
+    // `@click` closes it too, but a partial nav can also start from a link inside a
+    // screen, and Alpine's state is the only thing that knows the grid is open.
+    if (window.innerWidth <= 900) {
+        const grid = document.querySelector('.uj-dockmore')?.parentElement;
+        const state = grid && window.Alpine ? window.Alpine.$data(grid) : null;
+        if (state) { state.more = false; }
+    }
 }
 
 export function registerPartialNav() {
@@ -119,10 +143,11 @@ export function registerPartialNav() {
     });
 
     window.addEventListener('popstate', (event) => {
-        if (!event.state?.partialNav) { return; }
+        if (!shouldRefetchOnPopstate(event.state, window.location.href, currentUrl)) { return; }
         go(window.location.href, { push: false });
     });
 
     // So the first Back after a partial navigation lands on a state we own.
-    history.replaceState({ partialNav: true }, '', window.location.href);
+    currentUrl = window.location.href;
+    history.replaceState({ partialNav: true }, '', currentUrl);
 }
