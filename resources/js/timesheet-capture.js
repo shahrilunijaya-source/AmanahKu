@@ -26,6 +26,21 @@ export function findEditTarget(rows, editId) {
     return null;
 }
 
+/** ISO date $days after $iso, in UTC so a local timezone can never shift the day. */
+export function addDaysIso(iso, days) {
+    const [y, m, d] = iso.split('-').map(Number);
+
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** True when $iso is the first Saturday of its month — Unijaya's TOT day, a work half day.
+ *  Mirrors App\Timesheet\DayCapacity::isFirstSaturday() on the server. */
+export function isFirstSaturday(iso) {
+    const dt = new Date(iso + 'T00:00:00Z');
+
+    return dt.getUTCDay() === 6 && dt.getUTCDate() <= 7;
+}
+
 export function registerTimesheetCapture(Alpine) {
     // Shared with the outer tab-bar scope (a sibling Alpine root) so it can hide itself
     // while the pre-submit review is open — Alpine scope chaining only flows parent to
@@ -35,7 +50,11 @@ export function registerTimesheetCapture(Alpine) {
 
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
-        days: cfg.days || 5,
+        // 5 on an ordinary week, 6 when the week holds the first Saturday of the month —
+        // Unijaya's TOT half day, which staff must be able to fill without hunting for the
+        // "Show weekend" toggle. cfg.days still wins when the caller passes one (tests).
+        days: cfg.days || (isFirstSaturday(addDaysIso(cfg.weekStart, 5)) ? 6 : 5),
+        // Kept in sync with the "Show weekend" toggle, which flips between this and 7.
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
         locked: cfg.locked || {},
@@ -115,6 +134,11 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- the week ------------------------------------------------------
+        // The week's own day count with the weekend hidden: 6 when it holds the TOT
+        // Saturday, 5 otherwise. The "Show weekend" toggle returns here.
+        baseDays() {
+            return isFirstSaturday(addDaysIso(this.weekStart, 5)) ? 6 : 5;
+        },
         dayDates() {
             const out = [];
             const [y, m, d] = this.weekStart.split('-').map(Number);
@@ -139,17 +163,23 @@ export function registerTimesheetCapture(Alpine) {
         isLocked(iso) {
             return !!this.locked[iso];
         },
-        // Percentage HR has already claimed on this day: 100 (holiday / whole-day leave),
-        // 50 (half-day leave), or 0 (nothing locked).
+        // Percentage HR has already claimed on this day: the day's whole capacity (holiday
+        // / whole-day leave), half of it (half-day leave), or 0 (nothing locked).
         lockedPct(iso) {
             return this.locked[iso] ? parseFloat(this.locked[iso].percentage) || 0 : 0;
         },
+        // How much this day asks to be filled: 50% on the first Saturday of the month (the
+        // TOT half day), 100% on every other day. Mirrors App\Timesheet\DayCapacity, which
+        // is what the submit gate actually enforces.
+        capacityFor(iso) {
+            return isFirstSaturday(iso) ? 50 : 100;
+        },
         isFullyLocked(iso) {
-            return this.lockedPct(iso) >= 100;
+            return this.lockedPct(iso) >= this.capacityFor(iso);
         },
         isPartlyLocked(iso) {
             const pct = this.lockedPct(iso);
-            return pct > 0 && pct < 100;
+            return pct > 0 && pct < this.capacityFor(iso);
         },
         isFuture(iso) {
             return iso > this.today;
@@ -174,7 +204,7 @@ export function registerTimesheetCapture(Alpine) {
                 && !this.isOffDay(iso) && iso >= this.earliestWeek;
         },
         dayTotal(iso) {
-            if (this.isFullyLocked(iso)) return 100;
+            if (this.isFullyLocked(iso)) return this.capacityFor(iso);
             // The leave half (if any) plus the staffer's own rows.
             return this.lockedPct(iso) + (this.rows[iso] || []).reduce((sum, r) => sum + (parseFloat(r.percentage) || 0), 0);
         },
@@ -183,11 +213,11 @@ export function registerTimesheetCapture(Alpine) {
             if (this.isFuture(iso)) return 'future';
             const total = this.dayTotal(iso);
             if (total === 0) return 'empty';
-            if (total > 100) return 'over';
-            // A day sitting on exactly 100% is still unfinished while it holds a line the
-            // staffer added but never costed — the week strip, the tally and the submit gate
-            // must all agree, or the dot reads "done" on a day that cannot be submitted.
-            if (Math.abs(total - 100) < 0.01) return this.hasBlankRows(iso) ? 'partial' : 'done';
+            if (total > this.capacityFor(iso)) return 'over';
+            // A day sitting on exactly its capacity is still unfinished while it holds a line
+            // the staffer added but never costed — the week strip, the tally and the submit
+            // gate must all agree, or the dot reads "done" on a day that cannot be submitted.
+            if (Math.abs(total - this.capacityFor(iso)) < 0.01) return this.hasBlankRows(iso) ? 'partial' : 'done';
 
             return 'partial';
         },
@@ -641,7 +671,7 @@ export function registerTimesheetCapture(Alpine) {
             const en = this.$store.ui.lang === 'en';
             const over = this.overDays();
             if (over.length) {
-                return this.joinDays(over) + (en ? ' went over 100% — take the extra off a line.' : ' melebihi 100% — kurangkan satu baris.');
+                return this.joinDays(over) + (en ? ' went over its total — take the extra off a line.' : ' melebihi jumlahnya — kurangkan satu baris.');
             }
             const blank = this.blankDays();
             if (blank.length) {
@@ -649,7 +679,7 @@ export function registerTimesheetCapture(Alpine) {
             }
             const days = this.blockingDays();
             if (days.length) {
-                return this.joinDays(days) + (en ? ' not at 100% yet' : ' belum 100%');
+                return this.joinDays(days) + (en ? ' not filled yet' : ' belum penuh');
             }
             if (!this.weekEndReached()) {
                 return en ? 'Week is still open — submit becomes available on ' + this.dayLong(this.weekEndsOn()) + '.'
@@ -661,10 +691,8 @@ export function registerTimesheetCapture(Alpine) {
         // The week's cutoff date: Friday, unless this week's Saturday is the first Saturday
         // of the month (Unijaya's TOT day), which pushes the cutoff to that Saturday.
         weekEndsOn() {
-            const [y, m, d] = this.weekStart.split('-').map(Number);
-            const friday = new Date(Date.UTC(y, m - 1, d + 4));
-            const saturday = new Date(Date.UTC(y, m - 1, d + 5));
-            return (saturday.getUTCDate() <= 7 ? saturday : friday).toISOString().slice(0, 10);
+            const saturday = addDaysIso(this.weekStart, 5);
+            return isFirstSaturday(saturday) ? saturday : addDaysIso(this.weekStart, 4);
         },
         // A day can be fully filled without the week being over — a staffer could otherwise
         // finish Mon-Wed by Wednesday and submit early, skipping days that haven't happened.

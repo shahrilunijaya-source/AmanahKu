@@ -118,3 +118,60 @@ test('categoryColour() uses the colour the server sent, and greys out a category
     expect(c.categoryColour(9)).toBe('#8a4bdb');
     expect(c.categoryColour(8)).toBe('var(--muted-soft)');
 });
+
+// --- TOT Saturday: the first Saturday of the month is a work half day -------------
+// 2026-08-01 is the first Saturday of August, so its week (Mon 2026-07-27) is the TOT week.
+// The week of Mon 2026-08-03 ends on Saturday 2026-08-08 — the second — so it is ordinary.
+const TOT_WEEK = '2026-07-27';
+const TOT_SATURDAY = '2026-08-01';
+const TOT_THURSDAY = '2026-07-30';
+const PLAIN_WEEK = '2026-08-03';
+
+test('a first-Saturday week shows six days by default, an ordinary week five', () => {
+    expect(makeComponent({ weekStart: TOT_WEEK }).days).toBe(6);
+    expect(makeComponent({ weekStart: PLAIN_WEEK }).days).toBe(5);
+});
+
+test('the TOT Saturday is done at 50%, an ordinary day only at 100%', () => {
+    const c = makeComponent({ weekStart: TOT_WEEK });
+    c.rows = { [TOT_SATURDAY]: [{ category_id: 2, percentage: 50 }], [TOT_THURSDAY]: [{ category_id: 2, percentage: 50 }] };
+
+    expect(c.capacityFor(TOT_SATURDAY)).toBe(50);
+    expect(c.dayState(TOT_SATURDAY)).toBe('done');
+    expect(c.dayState(TOT_THURSDAY)).toBe('partial');
+});
+
+test('the TOT Saturday goes over past 50%', () => {
+    const c = makeComponent({ weekStart: TOT_WEEK });
+    c.rows = { [TOT_SATURDAY]: [{ category_id: 2, percentage: 75 }] };
+
+    expect(c.dayState(TOT_SATURDAY)).toBe('over');
+});
+
+test('a holiday locking the TOT Saturday at 50% reads as fully locked', () => {
+    const c = makeComponent({
+        weekStart: TOT_WEEK,
+        locked: { [TOT_SATURDAY]: { label: 'Cuti Peristiwa', source: 'holiday', percentage: 50 } },
+    });
+
+    expect(c.isFullyLocked(TOT_SATURDAY)).toBe(true);
+    expect(c.isPartlyLocked(TOT_SATURDAY)).toBe(false);
+    expect(c.dayTotal(TOT_SATURDAY)).toBe(50);
+    expect(c.dayState(TOT_SATURDAY)).toBe('locked');
+});
+
+test('the same 50% lock on an ordinary Saturday is only a half day', () => {
+    const plainSaturday = '2026-08-08';
+    const c = makeComponent({
+        weekStart: PLAIN_WEEK,
+        locked: { [plainSaturday]: { label: 'Annual', source: 'leave', percentage: 50 } },
+    });
+
+    expect(c.isFullyLocked(plainSaturday)).toBe(false);
+    expect(c.isPartlyLocked(plainSaturday)).toBe(true);
+});
+
+test('weekEndsOn moves to the TOT Saturday and stays on Friday otherwise', () => {
+    expect(makeComponent({ weekStart: TOT_WEEK }).weekEndsOn()).toBe('2026-08-01');
+    expect(makeComponent({ weekStart: PLAIN_WEEK }).weekEndsOn()).toBe('2026-08-07');
+});

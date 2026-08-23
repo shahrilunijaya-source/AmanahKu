@@ -20,6 +20,7 @@ use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\DayCapacity;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekReconciler;
@@ -53,6 +54,7 @@ class TimesheetController extends Controller
      * Blocking past days outright is not an option: a forgotten Monday could never reach
      * 100%, so the week could never be submitted. An unbounded window is not either, because
      * it lets somebody backfill months the night before an audit.
+     *
      */
     private const BACKFILL_WEEKS = 3;
 
@@ -229,9 +231,10 @@ class TimesheetController extends Controller
         $userEntries = array_filter(
             $data['entries'],
             function (array $e) use ($locked) {
-                $day = $locked[Carbon::parse($e['entry_date'])->toDateString()] ?? null;
+                $date = Carbon::parse($e['entry_date']);
+                $day = $locked[$date->toDateString()] ?? null;
 
-                return $day === null || $day['percentage'] < 100;
+                return $day === null || $day['percentage'] < DayCapacity::for($date);
             }
         );
 
@@ -957,10 +960,14 @@ class TimesheetController extends Controller
         }
 
         foreach ($byDay as $date => $total) {
-            if (abs($total - 100) >= 0.01) {
+            // The TOT Saturday is a half day, so it is full at 50%; every other day at 100%.
+            $capacity = DayCapacity::for($date);
+
+            if (abs($total - $capacity) >= 0.01) {
                 $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
+                $want = rtrim(rtrim(number_format($capacity, 2), '0'), '.');
                 throw ValidationException::withMessages([
-                    'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — each day must add up to 100% before submitting.',
+                    'submit' => Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.',
                 ]);
             }
         }

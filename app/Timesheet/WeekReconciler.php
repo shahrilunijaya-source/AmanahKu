@@ -30,9 +30,9 @@ final class WeekReconciler
      * Merge staffer-typed rows with the generated locked rows for a week, then append the
      * generated rows. A fully locked day (public holiday, whole-day leave) is a fact HR
      * owns, not a claim, so anything typed against it is dropped. A half-day leave locks
-     * only 50%: the staffer still fills the other half, so their rows on a partly locked
-     * day are kept and the day reaches 100% from the 50% leave plus those rows. Returns
-     * entry arrays ready to persist.
+     * only half the day: the staffer still fills the other half, so their rows on a partly
+     * locked day are kept and the day reaches its capacity from the leave half plus those
+     * rows. Returns entry arrays ready to persist.
      *
      * @param  array<int, array<string, mixed>>  $userRows  normalised, source=null rows
      * @return array<int, array<string, mixed>>
@@ -44,9 +44,13 @@ final class WeekReconciler
         $kept = array_filter(
             $userRows,
             function (array $e) use ($locked) {
-                $day = $locked[CarbonImmutable::parse($e['entry_date'])->toDateString()] ?? null;
+                $date = CarbonImmutable::parse($e['entry_date']);
+                $day = $locked[$date->toDateString()] ?? null;
 
-                return $day === null || $day['percentage'] < 100;
+                // "Fully locked" is measured against the day's own capacity: the TOT
+                // Saturday is full at 50%, so a holiday there drops typed rows just as a
+                // 100% weekday holiday does.
+                return $day === null || $day['percentage'] < DayCapacity::for($date);
             }
         );
 

@@ -88,7 +88,6 @@
     <div class="uj-card uj-ts-card" style="width:100%;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
-            days: 5,
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),
@@ -138,7 +137,7 @@
                         : hasBlankRows(selected) ? 'var(--amber-ink)'
                         : dayState(selected) === 'done' ? 'var(--success-ink)' : 'var(--muted)' }"
                     x-text="dayState(selected) === 'over'
-                        ? ($store.ui.lang==='en' ? 'over by ' : 'lebih ') + Math.round((dayTotal(selected) - 100) * 100) / 100 + '%'
+                        ? ($store.ui.lang==='en' ? 'over by ' : 'lebih ') + Math.round((dayTotal(selected) - capacityFor(selected)) * 100) / 100 + '%'
                         : hasBlankRows(selected)
                             ? ($store.ui.lang==='en' ? 'a line has no percentage' : 'satu baris tiada peratus')
                             : dayState(selected) === 'done'
@@ -155,12 +154,12 @@
             </template>
             <template x-if="!isFullyLocked(selected) && lockedPct(selected) > 0">
                 <div style="height:100%;background:var(--muted);"
-                    :style="{ width: (lockedPct(selected) / Math.max(100, dayTotal(selected)) * 100) + '%' }"></div>
+                    :style="{ width: (lockedPct(selected) / Math.max(capacityFor(selected), dayTotal(selected)) * 100) + '%' }"></div>
             </template>
             <template x-for="(r, i) in (isFullyLocked(selected) ? [] : (rows[selected] || []))" :key="i">
                 <div style="height:100%;transition:width .3s var(--ease);"
                     :style="{
-                        width: ((parseFloat(r.percentage) || 0) / Math.max(100, dayTotal(selected)) * 100) + '%',
+                        width: ((parseFloat(r.percentage) || 0) / Math.max(capacityFor(selected), dayTotal(selected)) * 100) + '%',
                         background: dayState(selected) === 'over' ? 'var(--error)' : rowColour(i),
                     }"></div>
             </template>
@@ -194,7 +193,7 @@
                         <div style="font-size:11px;color:var(--muted);"
                             x-text="$store.ui.lang==='en' ? 'Nothing to do here.' : 'Tiada apa-apa untuk dibuat.'"></div>
                     </div>
-                    <span style="font-family:var(--font-mono);font-size:13px;">100%</span>
+                    <span style="font-family:var(--font-mono);font-size:13px;" x-text="capacityFor(selected) + '%'">100%</span>
                 </div>
             </template>
 
@@ -562,8 +561,10 @@
                     </button>
                 </template>
             </div>
-            <button type="button" @click="days = (days === 5 ? 7 : 5)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
-                <span x-text="days === 5 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
+            {{-- Base is 6 on a first-Saturday week (the TOT half day is shown by default),
+                 5 otherwise; the toggle reaches Sunday and back. --}}
+            <button type="button" @click="days = (days === 7 ? baseDays() : 7)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
+                <span x-text="days !== 7 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
             </button>
         </div>
         <div style="display:flex;gap:14px;align-items:center;margin-top:11px;font-size:11px;color:var(--muted);flex-wrap:wrap;">
@@ -654,12 +655,12 @@
             <h2 id="ts-review-title" tabindex="-1" style="outline:none;font-size:18px;font-weight:600;margin:0 0 3px;">
                 <span x-text="$store.ui.lang==='en' ? 'Review before you submit' : 'Semak sebelum hantar'">Review before you submit</span>
             </h2>
-            <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M Y') }} &middot; <span x-text="$store.ui.lang==='en' ? 'every working day at 100%' : 'setiap hari bekerja pada 100%'"></span></div>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M Y') }} &middot; <span x-text="$store.ui.lang==='en' ? 'every working day filled' : 'setiap hari bekerja penuh'"></span></div>
 
             <div id="ts-review-summary" style="background:var(--shelf,#ece9e1);border:1px solid var(--shelf-line,#ddd9cf);border-radius:14px;padding:16px;margin-bottom:20px;">
                 <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
                     <span style="font-size:20px;font-weight:600;font-family:var(--font-mono);"
-                        x-text="Math.round(reviewDays().reduce((s,d)=>s+Math.min(dayTotal(d),100),0) / Math.max(1, reviewDays().length*100) * 100) + '%'">0%</span>
+                        x-text="Math.round(reviewDays().reduce((s,d)=>s+Math.min(dayTotal(d),capacityFor(d)),0) / Math.max(1, reviewDays().reduce((s,d)=>s+capacityFor(d),0)) * 100) + '%'">0%</span>
                     <span style="font-size:12px;color:var(--body);" x-text="$store.ui.lang==='en' ? 'of the week allocated' : 'daripada minggu diperuntukkan'"></span>
                 </div>
                 <div aria-hidden="true" style="display:flex;height:9px;border-radius:999px;overflow:hidden;gap:2px;margin-bottom:10px;">
