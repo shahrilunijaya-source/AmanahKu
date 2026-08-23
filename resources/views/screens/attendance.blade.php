@@ -863,11 +863,11 @@
             'key' => 'attendance-work-mode',
             'en'  => [
                 'title' => 'New: pick your working mode',
-                'body'  => 'Leave this on "Office / Home" for an ordinary day at your desk or working from home. Tap "Site visit" when you are going to a customer, and the clock in window will ask where you are heading. A declared site visit is not counted as being off site.',
+                'body'  => 'Leave this on "Office / Home" for an ordinary day, and tap "Site visit" when you are going to a customer.',
             ],
             'ms'  => [
                 'title' => 'Baharu: pilih mod kerja anda',
-                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa di meja anda atau bekerja dari rumah. Tekan "Lawatan tapak" apabila anda ke tempat pelanggan, dan tetingkap clock in akan bertanya ke mana anda menuju. Lawatan tapak yang diisytiharkan tidak dikira sebagai berada di luar lokasi.',
+                'body'  => 'Biarkan pada "Pejabat / Rumah" untuk hari biasa, dan tekan "Lawatan tapak" apabila anda ke tempat pelanggan.',
             ],
         ])
 
@@ -936,11 +936,11 @@
                         'anchor' => '.uj-at-fence',
                         'en'  => [
                             'title' => 'New: tap to re-check your location',
-                            'body'  => 'This badge says whether you are inside your workplace. It reads your location once when the screen opens, so if you opened Amanahku on the way in it can still say off site after you arrive. Tap it once you are at your desk and it looks again.',
+                            'body'  => 'This badge reads your location once when the screen opens, so tap it when you get to your desk and it looks again.',
                         ],
                         'ms'  => [
                             'title' => 'Baharu: tekan untuk semak semula lokasi',
-                            'body'  => 'Lencana ini menunjukkan sama ada anda berada di tempat kerja. Ia membaca lokasi sekali sahaja ketika skrin dibuka, jadi jika anda membuka Amanahku dalam perjalanan ia mungkin masih kata di luar lokasi selepas anda sampai. Tekan sekali anda di meja dan ia akan semak semula.',
+                            'body'  => 'Lencana ini membaca lokasi sekali sahaja ketika skrin dibuka, jadi tekan bila anda sampai di meja dan ia akan semak semula.',
                         ],
                     ])
 

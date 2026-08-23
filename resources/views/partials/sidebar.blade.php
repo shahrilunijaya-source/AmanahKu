@@ -74,6 +74,36 @@
         </div>
     @endif
 
+    {{-- First visit only. Explains the section rows, then never returns.
+         Sat outside <nav> on purpose: that column scrolls, so it clips anything wider
+         than 248px and the bubble is 340px. $side puts it to the right of the column
+         rather than under a row, where it would cover the five rows it is telling
+         people to hover — and to the right is where the section panel opens anyway.
+         Wrapped in .uj-nav-secs, the same class the section rows carry, so it appears
+         only where the thing it describes does and stays out of the mobile drawer,
+         which still renders the old tree.
+
+         Dashboard only. The sidebar renders on every screen, and some screens carry
+         their own coachmark — Attendance has two — so shown everywhere this one lands
+         on top of them. Dashboard is where you arrive after signing in and it has no
+         bubble of its own, so that is where this one waits. --}}
+    @if ((request()->route('screen') ?? 'dash') === 'dash')
+    <div class="uj-nav-secs">
+        @include('partials.coachmark', [
+            'key' => 'sidebar-sections',
+            'side' => true,
+            'en'  => [
+                'title' => 'New: the sidebar lists sections',
+                'body'  => 'Each row is a section, so point at one and its screens open in a panel right here.',
+            ],
+            'ms'  => [
+                'title' => 'Baharu: bar sisi menyenaraikan bahagian',
+                'body'  => 'Setiap baris ialah satu bahagian, jadi halakan tetikus pada satu dan skrinnya terbuka dalam panel di sini.',
+            ],
+        ])
+    </div>
+    @endif
+
     <nav class="uj-sb-nav">
         {{-- ── Desktop nav — one row per SECTION, nothing nested on show. ──────────
              The tree used to sit here in full: every section header, every screen,

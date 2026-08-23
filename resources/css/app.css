@@ -2584,6 +2584,23 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .uj-coach-bubble::before { top: -7px; border-bottom: 7px solid var(--hairline); }
 .uj-coach-bubble::after { top: -6px; border-bottom: 7px solid var(--card, #fff); }
 
+/* Side variant ($side) — bubble beside its column, tail on the left edge. The sidebar
+   is a 248px column, so a bubble hanging under a nav row covers the rows it is asking
+   people to hover; this one opens where the section panel itself opens, which shows the
+   gesture as well as describes it. calc(100% + 10px) follows the host width, so the
+   64px rail gets it for free. The 26px tail is aimed at the second section row: the
+   first is a solo link that opens no panel. */
+.uj-coach-side .uj-coach-bubble { top: 40px; left: calc(100% + 10px); }
+.uj-coach-side .uj-coach-bubble::before,
+.uj-coach-side .uj-coach-bubble::after {
+    top: 26px;
+    border-left: 0;
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+}
+.uj-coach-side .uj-coach-bubble::before { left: -7px; border-right: 7px solid var(--hairline); }
+.uj-coach-side .uj-coach-bubble::after { left: -6px; border-right: 7px solid var(--card, #fff); }
+
 .uj-coach-head { display: flex; align-items: center; gap: 7px; }
 .uj-coach-dot { display: inline-flex; color: var(--red, #b4342b); flex: none; }
 .uj-coach-title { font-size: var(--t-sm); font-weight: 600; color: var(--ink); flex: 1; min-width: 0; }

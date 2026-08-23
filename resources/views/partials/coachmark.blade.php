@@ -33,7 +33,11 @@
     control floats to the far right of a wide row and the default 22px tail would point
     at whatever happens to sit at the row's start.
 
-    Required: $key, $en. $ms, $after and $anchor optional; $ms falls back to English.
+    Optional $side: put the bubble beside the marker's column with the tail on its left
+    edge, instead of below the control with the tail on top. For a bubble about a narrow
+    column — the sidebar — where hanging underneath would cover the very rows it names.
+
+    Required: $key, $en. $ms, $after, $anchor and $side optional; $ms falls back to English.
 --}}
 @php
     $ms = $ms ?? $en;
@@ -108,7 +112,7 @@
      x-transition:enter="uj-coach-in"
      x-transition:enter-start="uj-coach-in-start"
      x-transition:enter-end="uj-coach-in-end"
-     class="uj-coach"
+     class="uj-coach{{ ($side ?? false) ? ' uj-coach-side' : '' }}"
      role="note">
     <div class="uj-coach-bubble" x-ref="bubble">
         <div class="uj-coach-head">
