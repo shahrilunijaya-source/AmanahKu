@@ -229,3 +229,10 @@ test('explainRefusal() still falls back when the server said nothing useful', ()
 
     expect(c.explainRefusal({}, [])).toBe('Could not save.');
 });
+
+test('toastLine() keeps the toast to one line and counts the rest', () => {
+    const c = makeComponent({ days: 5 });
+
+    expect(c.toastLine('one problem')).toBe('one problem');
+    expect(c.toastLine('first\nsecond\nthird')).toBe('first (+2 more)');
+});

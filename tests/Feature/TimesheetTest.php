@@ -193,6 +193,29 @@ class TimesheetTest extends TestCase
         $this->assertStringNotContainsString('17 Jun', implode(' ', $messages));
     }
 
+    /**
+     * Same again for the rows themselves: two days each missing the project their category
+     * demands are one refusal naming both, not one save each.
+     */
+    public function test_store_names_every_row_missing_its_project_at_once(): void
+    {
+        $needsProject = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Delivery',
+            'requires_project' => true,
+        ]);
+
+        $response = $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $needsProject->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-16', 'category_id' => $needsProject->id, 'percentage' => 100],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['entries.0.project_id', 'entries.1.project_id']);
+    }
+
     public function test_store_with_submit_now_submits_when_every_day_is_100(): void
     {
         $this->actingInTenant()->post('/app/timesheets', [

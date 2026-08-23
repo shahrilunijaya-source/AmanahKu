@@ -848,10 +848,16 @@ class TimesheetController extends Controller
         $projects = Project::whereIn('id', collect($raw)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
 
         $out = [];
+        // Gathered, not thrown at the first bad row: five lines missing a project are one
+        // refusal naming five days, rather than five saves each naming one. A row that
+        // fails is skipped, and $out is discarded by the throw below anyway.
+        $problems = [];
         foreach ($raw as $i => $e) {
             $category = $categories->get($e['category_id']);
             if (! $category) {
-                throw ValidationException::withMessages(["entries.$i.category_id" => 'Unknown category.']);
+                $problems["entries.$i.category_id"] = 'Unknown category.';
+
+                continue;
             }
 
             $projectId = $e['project_id'] ?? null;
@@ -859,7 +865,9 @@ class TimesheetController extends Controller
 
             if ($category->requires_project) {
                 if (! $projectId || ! $projects->has($projectId)) {
-                    throw ValidationException::withMessages(["entries.$i.project_id" => 'Choose a project for '.$category->name.'.']);
+                    $problems["entries.$i.project_id"] = 'Choose a project for '.$category->name.'.';
+
+                    continue;
                 }
             } else {
                 // Standalone categories never carry a project or sub-pillar.
@@ -882,6 +890,10 @@ class TimesheetController extends Controller
                 // Hours derived from percentage so manday RM costing keeps working.
                 'hours' => round($percentage / 100 * $hoursPerDay, 2),
             ];
+        }
+
+        if ($problems !== []) {
+            throw ValidationException::withMessages($problems);
         }
 
         return $out;

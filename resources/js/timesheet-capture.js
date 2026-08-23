@@ -775,7 +775,10 @@ export function registerTimesheetCapture(Alpine) {
                     const body = await res.json();
                     if (!res.ok) {
                         this.error = this.explainRefusal(body, entries);
-                        if (announce) this.$store.toast.error(this.error);
+                        // The toast is a one-line box; the block under the buttons is what
+                        // carries the full list. Squeezing three days into the toast turns
+                        // it into a wall, so it takes the first and counts the rest.
+                        if (announce) this.$store.toast.error(this.toastLine(this.error));
                         return;
                     }
                     this.locked = body.locked || {};
@@ -816,6 +819,17 @@ export function registerTimesheetCapture(Alpine) {
             const rest = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
             return `${this.weekdayNames.short.en[dt.getUTCDay()]}, ${rest}`;
+        },
+
+        /** The first refusal, plus how many others are waiting in the block below. */
+        toastLine(error) {
+            const lines = error.split('\n');
+            if (lines.length < 2) return error;
+            const more = lines.length - 1;
+
+            return this.$store.ui.lang === 'en'
+                ? `${lines[0]} (+${more} more)`
+                : `${lines[0]} (+${more} lagi)`;
         },
 
         explainRefusal(body, entries) {
