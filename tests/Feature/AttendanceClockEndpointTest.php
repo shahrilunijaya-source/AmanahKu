@@ -257,4 +257,26 @@ class AttendanceClockEndpointTest extends TestCase
         $this->assertNotNull($record);
         $this->assertSame('office_home', $record->work_mode);
     }
+
+    /**
+     * An authenticated request is rate-limited on sha1(user id) alone — the route is not
+     * part of the key. Every bare `throttle:` in routes/web.php therefore drew on ONE
+     * counter per person, and the header pollers that run on every app page emptied it:
+     * staff were refused clock-ins for background traffic they never made. Each throttle
+     * now names its own bucket, and this is the test that the naming survives.
+     */
+    public function test_polling_a_badge_route_does_not_spend_the_clock_rate_limit(): void
+    {
+        // One more than the clock's own cap of 20. Shared bucket, and the punch below is
+        // refused before it reaches the controller.
+        for ($i = 0; $i < 21; $i++) {
+            $this->actingAs($this->user)
+                ->withSession(['current_tenant' => $this->tenant->id])
+                ->get('/app/notifications/summary')
+                ->assertStatus(200);
+        }
+
+        $this->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')])
+            ->assertSessionHas('clock_ok');
+    }
 }

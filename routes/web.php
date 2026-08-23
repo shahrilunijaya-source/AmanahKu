@@ -176,8 +176,19 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/leave-setup/holidays/{holiday}/delete', [LeaveSetupController::class, 'deleteHoliday'])->name('holiday.delete');
         // Throttled: every post accepts a 4MB selfie, and a real day needs two punches, not
         // twenty. The cap stops a stuck client (or a bored one) from filling the disk.
+        //
+        // The third argument is the bucket name, and it is not optional decoration. An
+        // authenticated request is keyed on sha1(user id) ALONE — the route plays no part
+        // (ThrottleRequests::resolveRequestSignature) — so every bare `throttle:` in this
+        // file used to share one counter per person. The header pollers on every app page
+        // (messages.summary every 5-7s, notifications.summary every 15-20s) spend ~13 of
+        // these 20 attempts a minute on their own, and a second open tab spends the rest:
+        // staff were then refused three clock-ins in a row for traffic they never made
+        // (21 Aug 2026, and twice on 12 Aug). Naming the bucket is what makes this cap mean
+        // "twenty punches" rather than "twenty of anything". Every throttle in this file is
+        // named for the same reason — do not drop the name when editing one.
         Route::post('/app/attendance/clock', [AttendanceController::class, 'clock'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:20,1,clock')
             ->name('attendance.clock');
         // Auth-gated clock selfie stream from the private disk — {slot} is 'in' or 'out' (AK-SEC-05).
         Route::get('/app/attendance/photos/{record}/{slot}', [AttendanceController::class, 'photo'])->name('attendance.photo');
@@ -237,7 +248,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');
         Route::post('/app/onboarding/tasks/{task}/remove', [OnboardingController::class, 'removeTask'])->name('onboarding.tasks.remove');
         // Company onboarding content library (privileged): text/video/file/ack per checklist item.
-        Route::post('/app/onboarding/content', [OnboardingContentController::class, 'save'])->middleware('throttle:30,1')->name('onboarding.content.save');
+        Route::post('/app/onboarding/content', [OnboardingContentController::class, 'save'])->middleware('throttle:30,1,onboarding-content')->name('onboarding.content.save');
         Route::get('/app/onboarding/content/{resource}/file', [OnboardingContentController::class, 'download'])->name('onboarding.content.file');
         Route::post('/app/kpi/{kpiItem}', [KpiController::class, 'update'])->name('kpi.update');
         Route::post('/app/training', [TrainingController::class, 'store'])->name('training.store');
@@ -254,7 +265,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/welcome', [WelcomeWizardController::class, 'show'])->name('welcome.show');
         Route::post('/app/welcome/personal', [WelcomeWizardController::class, 'savePersonal'])->name('welcome.personal');
         Route::post('/app/welcome/bank', [WelcomeWizardController::class, 'saveBank'])->name('welcome.bank');
-        Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1')->name('welcome.certificate');
+        Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1,welcome-cert')->name('welcome.certificate');
         Route::post('/app/welcome/finish', [WelcomeWizardController::class, 'finish'])->name('welcome.finish');
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
         Route::post('/app/admin/features', [AdminController::class, 'updateFeatures'])->name('admin.features.update');
@@ -281,11 +292,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/members/{employee}/reset-password', [MemberController::class, 'resetPassword'])->name('members.reset-password');
         Route::post('/app/members/{employee}/resend-invite', [MemberController::class, 'resendInvite'])->name('members.resend-invite');
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
-        Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1')->name('assistant.reply');
+        Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1,assistant')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
         Route::post('/app/notifications/{notification}/read', [NotificationController::class, 'readOne'])->name('notifications.read-one');
-        Route::get('/app/notifications/unseen', [NotificationController::class, 'unseen'])->middleware('throttle:120,1')->name('notifications.unseen');
-        Route::get('/app/notifications/summary', [NotificationController::class, 'summary'])->middleware('throttle:120,1')->name('notifications.summary');
+        Route::get('/app/notifications/unseen', [NotificationController::class, 'unseen'])->middleware('throttle:120,1,notif-unseen')->name('notifications.unseen');
+        Route::get('/app/notifications/summary', [NotificationController::class, 'summary'])->middleware('throttle:120,1,notif-summary')->name('notifications.summary');
         // Roster (shift scheduling)
         Route::post('/app/roster', [RosterController::class, 'store'])->name('roster.store');
         Route::post('/app/roster/{shift}/cancel', [RosterController::class, 'cancel'])->name('roster.cancel');
@@ -299,7 +310,7 @@ Route::middleware('auth')->group(function () {
         // Helpdesk / IT tickets
         // 20/min per user — carried over from the retiring feedback.store route. This modal is
         // on every screen and takes uploads, so it stays rate-limited.
-        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->middleware('throttle:20,1')->name('helpdesk.store');
+        Route::post('/app/helpdesk', [HelpdeskController::class, 'store'])->middleware('throttle:20,1,helpdesk')->name('helpdesk.store');
         Route::post('/app/helpdesk/{ticket}', [HelpdeskController::class, 'update'])->name('helpdesk.update');
         // Stream a ticket's screenshot/document — auth-gated (raiser or an appropriate viewer), never public.
         Route::get('/app/helpdesk/attachments/{attachment}', [HelpdeskController::class, 'attachment'])->name('helpdesk.attachment');
@@ -325,11 +336,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/recruitment/{requisition}/candidates', [RecruitmentController::class, 'storeCandidate'])->name('recruitment.candidates');
         Route::post('/app/recruitment/candidates/{candidate}/move', [RecruitmentController::class, 'moveCandidate'])->name('recruitment.move');
         // Loans & advances
-        Route::post('/app/loans', [LoanController::class, 'store'])->middleware('throttle:20,1')->name('loans.store');
+        Route::post('/app/loans', [LoanController::class, 'store'])->middleware('throttle:20,1,loans')->name('loans.store');
         Route::post('/app/loans/{loan}/approve', [LoanController::class, 'approve'])->name('loans.approve');
         Route::post('/app/loans/{loan}/reject', [LoanController::class, 'reject'])->name('loans.reject');
         // Travel & business trips
-        Route::post('/app/travel', [TravelController::class, 'store'])->middleware('throttle:20,1')->name('travel.store');
+        Route::post('/app/travel', [TravelController::class, 'store'])->middleware('throttle:20,1,travel')->name('travel.store');
         Route::post('/app/travel/{travel}/approve', [TravelController::class, 'approve'])->name('travel.approve');
         Route::post('/app/travel/{travel}/reject', [TravelController::class, 'reject'])->name('travel.reject');
         // Meeting room booking
@@ -373,7 +384,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
-        Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1')->name('messages.send');
+        Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');
         Route::post('/app/messages/{conversation}/read', [MessageController::class, 'markRead'])->name('messages.read');
         // Benefits & insurance enrollment
         Route::post('/app/benefits/{plan}/enroll', [BenefitController::class, 'enroll'])->name('benefits.enroll');
@@ -389,7 +400,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/probation/{review}/checkin', [ProbationController::class, 'checkin'])->name('probation.checkin');
         Route::post('/app/probation/{review}/decide', [ProbationController::class, 'decide'])->name('probation.decide');
         // Overtime requests
-        Route::post('/app/overtime', [OvertimeController::class, 'store'])->middleware('throttle:20,1')->name('overtime.store');
+        Route::post('/app/overtime', [OvertimeController::class, 'store'])->middleware('throttle:20,1,overtime')->name('overtime.store');
         Route::post('/app/overtime/{overtime}/verify', [OvertimeController::class, 'verify'])->name('overtime.verify');
         Route::post('/app/overtime/{overtime}/approve', [OvertimeController::class, 'approve'])->name('overtime.approve');
         Route::post('/app/overtime/{overtime}/reject', [OvertimeController::class, 'reject'])->name('overtime.reject');
@@ -432,7 +443,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/skills/rate', [SkillController::class, 'rate'])->name('skills.rate');
         Route::post('/app/skills/verify/{employeeSkill}', [SkillController::class, 'verify'])->name('skills.verify');
         // Employee referrals
-        Route::post('/app/referrals', [ReferralController::class, 'store'])->middleware('throttle:20,1')->name('referrals.store');
+        Route::post('/app/referrals', [ReferralController::class, 'store'])->middleware('throttle:20,1,referrals')->name('referrals.store');
         Route::post('/app/referrals/{referral}/status', [ReferralController::class, 'setStatus'])->name('referrals.status');
         // Shift swaps / cover (extends Roster)
         Route::post('/app/shiftswap', [ShiftSwapController::class, 'store'])->name('shiftswap.store');
@@ -453,7 +464,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/wellness/request', [WellnessController::class, 'requestSession'])->name('wellness.request');
         Route::post('/app/wellness/requests/{req}', [WellnessController::class, 'resolveRequest'])->name('wellness.resolve');
         Route::post('/app/wellness/resources', [WellnessController::class, 'storeResource'])->name('wellness.resources');
-        Route::middleware('throttle:30,1')->group(function () {
+        Route::middleware('throttle:30,1,payroll')->group(function () {
             Route::post('/app/payroll/salary', [PayrollController::class, 'storeSalary'])->name('payroll.salary');
             Route::post('/app/payroll/rates', [PayrollController::class, 'updateRates'])->name('payroll.rates');
             Route::post('/app/payroll/runs', [PayrollController::class, 'createRun'])->name('payroll.runs.create');
@@ -463,12 +474,12 @@ Route::middleware('auth')->group(function () {
         });
 
         // GET endpoints — before the catch-all so they aren't swallowed by /app/{screen?}.
-        Route::get('/app/search', [SearchController::class, 'index'])->middleware('throttle:60,1')->name('search.index');
+        Route::get('/app/search', [SearchController::class, 'index'])->middleware('throttle:60,1,search')->name('search.index');
         // Messaging JSON — the ~30s unread poll + the slide-over's inline thread load.
         // Must sit above the /app/{screen?} catch-all or they resolve as screen names.
-        Route::get('/app/messages/unread', [MessageController::class, 'unread'])->middleware('throttle:120,1')->name('messages.unread');
-        Route::get('/app/messages/summary', [MessageController::class, 'summary'])->middleware('throttle:60,1')->name('messages.summary');
-        Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->middleware('throttle:60,1')->name('messages.thread');
+        Route::get('/app/messages/unread', [MessageController::class, 'unread'])->middleware('throttle:120,1,messages-unread')->name('messages.unread');
+        Route::get('/app/messages/summary', [MessageController::class, 'summary'])->middleware('throttle:60,1,messages-summary')->name('messages.summary');
+        Route::get('/app/messages/thread/{conversation}', [MessageController::class, 'thread'])->middleware('throttle:60,1,messages-thread')->name('messages.thread');
         // The screen's thread column as an HTML fragment — swapped in place of a reload.
         Route::get('/app/messages/pane', [MessageController::class, 'pane'])->name('messages.pane');
         Route::get('/app/messages/attachments/{attachment}', [MessageController::class, 'attachment'])->name('messages.attachment');
