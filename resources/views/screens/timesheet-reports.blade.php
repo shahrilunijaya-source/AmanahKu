@@ -289,22 +289,12 @@
          so the thing you drilled into doesn't have to compete with eight controls
          above it. --}}
     <div x-show="sel.view==='bars'">
-        {{-- Same controls the attendance ledger has, because it is the same question
-             asked of a different table: which period, whose rows. Period is links (so
-             partial-nav swaps the screen and nothing else); the pickers stay in one GET
-             form behind Apply, because four of them changing one at a time would be
-             four navigations. Everything carries tab=report — without it Apply lands you
-             back on the chase tab you did not ask for. --}}
-        <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
-            <input type="hidden" name="tab" value="report">
-            <input type="hidden" name="gran" value="{{ $gran }}">
-            @if ($gran === 'custom')
-                <input type="hidden" name="from" value="{{ $from }}">
-                <input type="hidden" name="to" value="{{ $to }}">
-            @else
-                <input type="hidden" name="offset" value="{{ $offset }}">
-            @endif
-
+        {{-- Two rows, because the controls answer to two different things. The period
+             is links: pressing one moves you now, and partial-nav swaps the screen and
+             nothing else. The pickers below are form fields, so they wait for Apply —
+             four of them navigating one at a time would be four page changes. Mixing
+             them on one line made Apply look like it governed all seven. --}}
+        <div class="uj-tr-period">
             <div class="uj-ar-seg">
                 @foreach ($trGrans as $key => $granLabel)
                     <a href="{{ $trUrl(['gran' => $key, 'offset' => 0, 'from' => null, 'to' => null]) }}"
@@ -367,6 +357,19 @@
                 </span>
             </div>
 
+            <span class="uj-tr-range">{{ $dateRange }}</span>
+        </div>
+
+        <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
+            <input type="hidden" name="tab" value="report">
+            <input type="hidden" name="gran" value="{{ $gran }}">
+            @if ($gran === 'custom')
+                <input type="hidden" name="from" value="{{ $from }}">
+                <input type="hidden" name="to" value="{{ $to }}">
+            @else
+                <input type="hidden" name="offset" value="{{ $offset }}">
+            @endif
+
             <select name="dept" class="uj-tr-sel"
                 :aria-label="$store.ui.lang==='en' ? 'Department' : 'Jabatan'">
                 <option value="" x-text="$store.ui.lang==='en' ? 'All departments' : 'Semua jabatan'">All departments</option>
@@ -403,7 +406,6 @@
             </div>
 
             <button type="submit" class="uj-tr-btn" data-primary><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
-            <span class="uj-tr-range">{{ $dateRange }}</span>
         </form>
 
         {{-- The custom-range popover's own form, so its two date inputs replace the

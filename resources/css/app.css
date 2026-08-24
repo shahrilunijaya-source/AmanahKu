@@ -2539,6 +2539,10 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-pill:focus-visible, .uj-tr-sel:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .uj-tr-sel { padding: 8px 12px; border: 1px solid var(--shelf-line); border-radius: 10px; font: inherit; font-size: var(--t-sm); color: var(--ink); background: var(--card); outline: none; cursor: pointer; }
 .uj-tr-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+/* Period row: same shape, but it sits above the Apply row and owns the top margin,
+   so the two read as one control block rather than two unrelated bars. */
+.uj-tr-period { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.uj-tr-period + .uj-tr-filter { margin-top: 10px; }
 .uj-tr-range { font-size: var(--t-sm); color: var(--muted); margin-left: auto; font-family: var(--font-mono); }
 
 .uj-tr-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: var(--t-micro); font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: .02em; }

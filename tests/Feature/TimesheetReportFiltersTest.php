@@ -182,6 +182,9 @@ class TimesheetReportFiltersTest extends TestCase
             ->get('/app/timesheet-reports');
 
         $response->assertOk();
+        // Two rows: the period acts on click, the pickers wait for Apply. Keeping them
+        // apart is the point — one bar made Apply look like it governed the period too.
+        $response->assertSee('class="uj-tr-period"', false);
         $response->assertSee('uj-ar-seg', false);
         $response->assertSee('All departments', false);
         $response->assertSee('tr-range-form', false);
