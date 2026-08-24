@@ -50,11 +50,15 @@ class TimesheetCategory extends Model
         if (isset(self::COLOURS[$this->name])) {
             return self::COLOURS[$this->name];
         }
+        // The -ink pairs, not --success / --amber: this value is used as pill text as
+        // well as a dot, and the raw fill tokens measure under 4.5:1 on white (see
+        // docs/DESIGN.md, The Text-Safe Tone Rule). The docblock above already promised
+        // every value here is dark enough to be read as text; these two were not.
         if (preg_match('/leave|holiday/i', $this->name)) {
-            return 'var(--success)';
+            return 'var(--success-ink)';
         }
         if (preg_match('/marketing/i', $this->name)) {
-            return 'var(--amber)';
+            return 'var(--amber-ink)';
         }
         if (preg_match('/account|admin/i', $this->name)) {
             return 'var(--error)';

@@ -2658,6 +2658,11 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 
 .uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0 3px 14px; }
 .uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; min-width: 4ch; text-align: right; }
+/* Entry taxonomy. The category is a pill tinted with its own colour; the fallback is
+   the neutral one, for a line with no category row behind it. The project is text, not
+   a second pill — it is the category's child, not its equal. */
+.uj-tr-cat { display: inline-block; padding: 1px 9px; border: 1px solid var(--hairline); border-radius: 9999px; font-size: var(--t-micro); font-weight: 600; background: var(--hairline-soft); color: var(--ink); margin-right: 6px; }
+.uj-tr-proj { font-size: var(--t-micro); font-weight: 500; color: var(--muted); }
 .uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
 
 /* Person header of the drill-down panel: who, what they cost, how many weeks are in. */

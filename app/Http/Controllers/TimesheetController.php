@@ -806,6 +806,11 @@ class TimesheetController extends Controller
                     // separate, for the Review tab's two-pill rows.
                     'label' => implode(' · ', array_filter([$category, $project])),
                     'category' => $category ?: null,
+                    // The category's own colour, so a week reads by category at a glance
+                    // and matches the dot in the capture picker and the pill on the
+                    // Projects register. Null when the line has no category row (a
+                    // free-text project), which renders as the plain neutral pill.
+                    'categoryColour' => $e->category?->colour(),
                     'project' => $project ?: null,
                     'note' => $e->description,
                     'days' => round((float) $e->percentage / 100, 2),

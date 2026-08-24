@@ -77,11 +77,27 @@
                                          to the note's full height instead of staying pill-sized. --}}
                                     <a class="uj-tr-ent" :href="entryUrl(line)">
                                         <div>
+                                            {{-- One filled thing per row. The category is the
+                                                 axis a week is read along, so it keeps the pill
+                                                 and carries its own colour (the same one the
+                                                 capture picker's dot and the Projects register
+                                                 use). The project hangs off it, so it drops the
+                                                 fill: two identical grey pills side by side
+                                                 read as one object and neither told you which
+                                                 was which. --}}
                                             <template x-if="line.category">
-                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--ink);margin-right:4px;" x-text="line.category"></span>
+                                                <span class="uj-tr-cat"
+                                                    {{-- The tone-chip recipe from docs/DESIGN.md: the
+                                                         hue lives in the fill and the ring, the word
+                                                         stays ink. Set as text on its own tint, four of
+                                                         these colours measure under 4.5:1 at 11px. --}}
+                                                    :style="line.categoryColour
+                                                        ? 'background:color-mix(in srgb, ' + line.categoryColour + ' 8%, var(--card));border-color:color-mix(in srgb, ' + line.categoryColour + ' 30%, var(--hairline))'
+                                                        : ''"
+                                                    x-text="line.category"></span>
                                             </template>
                                             <template x-if="line.project">
-                                                <span class="uj-pill" style="background:var(--hairline-soft);color:var(--muted);" x-text="line.project"></span>
+                                                <span class="uj-tr-proj" x-text="line.project"></span>
                                             </template>
                                             <template x-if="line.note">
                                                 <span class="n" x-html="line.note"></span>

@@ -151,6 +151,29 @@ class TimesheetReviewWeekPanelTest extends TestCase
         $this->assertSame(0.0, $weeks[0]['cost']);
     }
 
+    public function test_entry_lines_carry_their_categorys_colour(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $maintenance = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true,
+        ]);
+        $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
+            'category_id' => $maintenance->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        // Same colour the capture picker's dot and the Projects register pill use, so a
+        // category reads the same wherever it appears (TimesheetCategory::colour()).
+        $line = $response->viewData('myWeeks')[0]['lines'][0];
+        $this->assertSame('Maintenance', $line['category']);
+        $this->assertSame('var(--amber-ink)', $line['categoryColour']);
+    }
+
     public function test_review_tab_renders_week_nav_and_entry_link(): void
     {
         $sheet = Timesheet::create([
