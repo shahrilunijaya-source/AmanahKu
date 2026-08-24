@@ -3474,6 +3474,25 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .tot-btn-g:hover{border-color:var(--muted);}
 .tot-btn-g:active{transform:scale(.97);}
 
+/* External TOT list — a simple broadcast card per event, not a tot-row (no reactions/
+   watch/score chrome to make room for). Title/host/meta follow the app's 5-step type
+   ramp (t-lg / t-sm / t-sm) rather than inventing sizes off it. */
+.ext-item{padding:16px 0;border-top:1px solid var(--hairline-soft);}
+.ext-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.ext-title{font-size:var(--t-lg);font-weight:600;color:var(--ink);margin:0 0 2px;line-height:1.35;}
+.ext-host{font-size:var(--t-sm);color:var(--muted);margin:0;}
+.ext-del{font-size:var(--t-micro);color:var(--muted-soft);background:none;border:0;cursor:pointer;padding:4px 6px;border-radius:6px;flex-shrink:0;transition:color .12s,background .12s;}
+.ext-del:hover{color:var(--red);background:var(--red-tint);}
+.ext-del:active{transform:scale(.97);}
+.ext-meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0;font-size:var(--t-sm);color:var(--body);}
+.ext-meta-i a{color:var(--info);text-decoration:none;}
+.ext-meta-i a:hover{text-decoration:underline;}
+.ext-desc{font-size:var(--t-sm);line-height:1.6;color:var(--body);margin:0 0 12px;white-space:pre-line;}
+@media (prefers-reduced-motion:reduce){
+    .ext-del{transition:none;}
+    .ext-del:active{transform:none;}
+}
+
 /* The PIC strip. Somebody who presents once a year does not need a route, they
    need the board to point at their month. */
 .tot-pic { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0;
