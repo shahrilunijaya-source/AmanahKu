@@ -145,17 +145,54 @@ export function registerTimesheetReport(Alpine) {
         direction: 'fwd',
         hasAnimated: false,
         staleNotice: false,
+        /* "This week" tab: one staff member's weeks, fetched read-only. Separate from
+           sel/lens above — that drill-down reads the closed report period and only ever
+           holds submitted time, and the people on the chase list are precisely the ones
+           with none of it. */
+        staffWeekHtml: '',
+        staffWeekLoading: null,
+        staffWeekError: false,
 
         init() {
-            const { lens, sel, stale } = selFromSearch(
-                new URLSearchParams(window.location.search),
-                this.lens,
-                (l) => this.rowsFor(l)
-            );
+            const search = new URLSearchParams(window.location.search);
+            const { lens, sel, stale } = selFromSearch(search, this.lens, (l) => this.rowsFor(l));
             this.lens = lens;
             this.sel = sel;
             this.staleNotice = stale;
+            const emp = search.get('emp');
+            if (this.tab === 'week' && emp) { this.fetchStaffWeek(Number(emp)); }
             this.$nextTick(() => { this.hasAnimated = true; });
+        },
+
+        openStaffWeek(id) {
+            const url = new URL(location);
+            url.searchParams.set('emp', id);
+            history.pushState({ partialNav: true }, '', url);
+            this.fetchStaffWeek(id);
+        },
+
+        closePerson() {
+            const url = new URL(location);
+            url.searchParams.delete('emp');
+            history.pushState({ partialNav: true }, '', url);
+            this.staffWeekHtml = '';
+            this.staffWeekError = false;
+        },
+
+        async fetchStaffWeek(id) {
+            this.staffWeekLoading = id;
+            this.staffWeekError = false;
+            try {
+                const res = await fetch(`/app/timesheet-reports/person/${id}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!res.ok) { this.staffWeekError = true; return; }
+                this.staffWeekHtml = await res.text();
+            } catch {
+                this.staffWeekError = true;
+            } finally {
+                this.staffWeekLoading = null;
+            }
         },
 
         rowsFor(lens) {
@@ -177,8 +214,10 @@ export function registerTimesheetReport(Alpine) {
             this.tab = t;
             const url = new URL(location);
             url.searchParams.set('tab', t);
-            ['view', 'lens', 'id', 'pid'].forEach((p) => url.searchParams.delete(p));
+            ['view', 'lens', 'id', 'pid', 'emp'].forEach((p) => url.searchParams.delete(p));
             history.replaceState(null, '', url);
+            this.staffWeekHtml = '';
+            this.staffWeekError = false;
         },
 
         navigate(nextSel, dir) {

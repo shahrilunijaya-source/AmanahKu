@@ -494,6 +494,10 @@ Route::middleware('auth')->group(function () {
         // The person drawer as a fragment, so opening one does not rebuild the table.
         Route::get('/app/attendance-report/person/{employee}', [AttendanceReportController::class, 'drawer'])
             ->whereNumber('employee')->name('attendance.report.person');
+        // One staff member's recent weeks as a read-only fragment for the timesheet
+        // report's chase tab. Above the catch-all or it resolves as a screen name.
+        Route::get('/app/timesheet-reports/person/{employee}', [TimesheetController::class, 'personWeeks'])
+            ->whereNumber('employee')->name('timesheet.reports.person');
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');

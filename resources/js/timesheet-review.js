@@ -14,7 +14,9 @@ import { dayColor } from './timesheet-report';
  * there is nothing to link to.
  */
 export function reviewEntryUrl(baseUrl, weekStart, line) {
-    if (!line.id) return null;
+    // No baseUrl = somebody else's weeks on the all-staff report. There is no edit
+    // path into another person's sheet, so every line renders as plain text.
+    if (!baseUrl || !line.id) return null;
     const sep = baseUrl.includes('?') ? '&' : '?';
 
     return `${baseUrl}${sep}tab=record&week=${encodeURIComponent(weekStart)}&edit=${encodeURIComponent(line.id)}`;
