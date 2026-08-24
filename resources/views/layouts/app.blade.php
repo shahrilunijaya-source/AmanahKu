@@ -27,9 +27,19 @@
         toggleSb() {
             this.sbCollapsed = !this.sbCollapsed;
             localStorage.setItem('amanahku-sb-collapsed', this.sbCollapsed ? '1' : '0');
+        },
+        /* Which sidebar layout: 'tree' (every section listed down the column, its
+           screens expanding in place on hover) or 'sections' (rows are sections and
+           the screens open in a panel beside them). The tree is the default — it is
+           the layout people already know. Follows the browser, same as the collapse
+           state above, not the account, so a different machine starts on the default. */
+        sbStyle: localStorage.getItem('amanahku-sb-style') === 'sections' ? 'sections' : 'tree',
+        toggleSbStyle() {
+            this.sbStyle = this.sbStyle === 'tree' ? 'sections' : 'tree';
+            localStorage.setItem('amanahku-sb-style', this.sbStyle);
         } }"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
-     :class="sbCollapsed ? 'uj-sb-collapsed' : ''"
+     :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
      {{-- No bottom dock inside an embedded panel, so nothing there should reserve
           room for one (see --uj-dock-h in app.css). --}}
      style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">

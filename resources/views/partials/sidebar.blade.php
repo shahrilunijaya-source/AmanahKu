@@ -6,6 +6,14 @@
         </a>
         <div class="uj-sb-hide" style="flex:1;"></div>
         {{-- Collapse to the rail (desktop). Same action as the topbar menu button and Ctrl+B. --}}
+        {{-- Swap the nav body: sections with a panel, or the whole tree listed down.
+             Hidden on the rail, where the tree has no room to open in and the panel
+             is the only layout that fits. --}}
+        <button type="button" @click="toggleSbStyle()" class="uj-sb-tgl uj-sb-hide"
+                :aria-label="$store.ui.lang==='en' ? 'Switch sidebar layout' : 'Tukar susun atur bar sisi'"
+                :title="$store.ui.lang==='en' ? 'Switch sidebar layout' : 'Tukar susun atur bar sisi'">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3L4 7l4 4"></path><path d="M4 7h16"></path><path d="M16 21l4-4-4-4"></path><path d="M20 17H4"></path></svg>
+        </button>
         <button type="button" @click="toggleSb()" class="uj-sb-tgl uj-sb-hide"
                 :aria-label="$store.ui.lang==='en' ? 'Collapse sidebar' : 'Kecilkan bar sisi'"
                 :title="$store.ui.lang==='en' ? 'Collapse sidebar (Ctrl+B)' : 'Kecilkan bar sisi (Ctrl+B)'">
@@ -74,27 +82,48 @@
         </div>
     @endif
 
-    {{-- First visit only. Explains the section rows, then never returns.
+    {{-- First visit only. Explains how a row opens, then never returns.
          Sat outside <nav> on purpose: that column scrolls, so it clips anything wider
          than 248px and the bubble is 340px. $side puts it to the right of the column
-         rather than under a row, where it would cover the five rows it is telling
-         people to hover — and to the right is where the section panel opens anyway.
+         rather than under a row, where it would cover the very rows it is telling
+         people to point at.
 
          Dashboard only. The sidebar renders on every screen, and some screens carry
          their own coachmark — Attendance has two — so shown everywhere this one lands
          on top of them. Dashboard is where you arrive after signing in and it has no
          bubble of its own, so that is where this one waits. --}}
     @if ((request()->route('screen') ?? 'dash') === 'dash')
+    {{-- The layout people land on: sections listed down, screens opening in place.
+         Says both halves — how a row opens, and that the arrows swap the whole thing —
+         because one bubble on arrival is enough and the second layout explains itself
+         once you are looking at it. --}}
     <div>
         @include('partials.coachmark', [
-            'key' => 'sidebar-sections',
+            'key'  => 'sidebar-style-switch',
             'side' => true,
             'en'  => [
-                'title' => 'New: the sidebar lists sections',
+                'title' => 'Point at a section to open it',
+                'body'  => 'Its screens drop open right here. The arrows by the collapse button swap this list for a panel layout, if you prefer that.',
+            ],
+            'ms'  => [
+                'title' => 'Halakan tetikus pada bahagian untuk membukanya',
+                'body'  => 'Skrinnya terbuka di sini juga. Anak panah di sebelah butang kecilkan menukar senarai ini kepada susun atur panel, jika anda lebih suka begitu.',
+            ],
+        ])
+    </div>
+    {{-- Only once they have actually switched, and only after the first bubble is gone:
+         two side bubbles hang off the same column edge and would sit on top of each other. --}}
+    <div x-show="sbStyle === 'sections'">
+        @include('partials.coachmark', [
+            'key'   => 'sidebar-sections-2',
+            'after' => 'sidebar-style-switch',
+            'side'  => true,
+            'en'  => [
+                'title' => 'This layout lists sections',
                 'body'  => 'Each row is a section, so point at one and its screens open in a panel right here.',
             ],
             'ms'  => [
-                'title' => 'Baharu: bar sisi menyenaraikan bahagian',
+                'title' => 'Susun atur ini menyenaraikan bahagian',
                 'body'  => 'Setiap baris ialah satu bahagian, jadi halakan tetikus pada satu dan skrinnya terbuka dalam panel di sini.',
             ],
         ])
@@ -118,7 +147,7 @@
              A section holding a single leaf (Overview → Dashboard) skips the panel
              and links straight through: a hover panel to reveal one row is a step
              that buys nothing. --}}
-        <div>
+        <div class="uj-nav-sections">
             @foreach (collect($nav)->groupBy('section') as $section => $items)
                 @php
                     $sectionMs = $items->first()['section_ms'] ?? $section;
@@ -205,6 +234,112 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+                @endif
+            @endforeach
+        </div>
+
+        {{-- ── The listed-down layout. ───────────────────────────────────────────
+             Same $nav, drawn as the tree the sidebar carried before the section
+             panel replaced it: every section down the column, its screens opening
+             in place underneath rather than flying out sideways. Which of the two
+             bodies shows is pure CSS off .uj-sb-tree on the shell (see app.css),
+             so the nav is built once and the switch costs no request.
+
+             Opening is on hover with a short delay and one section at a time —
+             without either, running the pointer down the column pops every section
+             open in turn and the rows slide out from under it. Click still toggles,
+             which is the keyboard and touch route in.
+
+             A group (Oversight, Offboarding) shows its own screens indented under
+             it right away. A second hover to reach them would rebuild the very
+             thing this layout exists to avoid. --}}
+        <div class="uj-nav-tree" x-data="sbTree" @mouseleave="leave()">
+            @foreach (collect($nav)->groupBy('section') as $section => $items)
+                @php
+                    $sectionMs = $items->first()['section_ms'] ?? $section;
+                    $secIcon = \App\Support\Amanahku::sectionIcon($section);
+                    $secOn = $items->contains(fn ($i) => $i['active'] || collect($i['children'] ?? [])->contains(fn ($c) => $c['active'] ?? false));
+                    $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
+                @endphp
+                @if ($solo)
+                    @php $only = $items->first(); @endphp
+                    <a href="{{ route('app.screen', ['screen' => $only['id']]) }}" class="uj-nav-row"
+                       @mouseenter="leave()" @if ($secOn) data-on @endif>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
+                        <span class="uj-nav-lbl" x-text="$store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])">{{ $only['label'] }}</span>
+                    </a>
+                @else
+                    <div>
+                        <button type="button" class="uj-nav-row"
+                                @mouseenter="enter(@js($section))"
+                                @click="toggle(@js($section))"
+                                @keydown.escape="close()"
+                                :aria-expanded="open === @js($section) ? 'true' : 'false'"
+                                @if ($secOn) data-on @endif>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
+                            <span class="uj-nav-lbl" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
+                            <svg class="uj-nav-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                 :style="open === @js($section) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
+                        </button>
+
+                        {{-- :class, not x-show. x-show writes style.display, and a display:none
+                             element cannot transition — the box has to stay in the layout and
+                             open by row size instead. See .uj-tree-kids in app.css. --}}
+                        <div class="uj-tree-kids" :class="open === @js($section) ? 'is-open' : ''">
+                          <div class="uj-tree-kids-in">
+                            @foreach ($items as $item)
+                                @php $itemOn = $item['active'] || collect($item['children'] ?? [])->contains(fn ($c) => $c['active'] ?? false); @endphp
+                                @if ($item['hasChildren'])
+                                    {{-- A group (Oversight, Offboarding) opens the same way its section
+                                         does: point at it and its screens drop open underneath. Showing
+                                         them outright made the section twice as tall as the others for
+                                         screens most people never open. --}}
+                                    <div @mouseenter="enterKid(@js($item['id']))" @mouseleave="leaveKid()">
+                                        @if ($item['landing'] ?? false)
+                                            {{-- Has a page of its own, so the row is still a link; pointing at
+                                                 it opens the children, clicking it goes to the landing page. --}}
+                                            <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-tree-lnk"
+                                               @if ($itemOn) data-on @endif>
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                                <svg class="uj-tree-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                                     :style="openKid === @js($item['id']) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
+                                            </a>
+                                        @else
+                                            {{-- No page of its own, so the row is only a door to its screens. --}}
+                                            <button type="button" class="uj-tree-lnk" @click="toggleKid(@js($item['id']))"
+                                                    :aria-expanded="openKid === @js($item['id']) ? 'true' : 'false'"
+                                                    @if ($itemOn) data-on @endif>
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                                <svg class="uj-tree-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                                                     :style="openKid === @js($item['id']) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
+                                            </button>
+                                        @endif
+
+                                        <div class="uj-tree-kids" :class="openKid === @js($item['id']) ? 'is-open' : ''">
+                                          <div class="uj-tree-kids-in">
+                                            @foreach ($item['children'] as $child)
+                                                <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
+                                                   class="uj-tree-lnk uj-tree-deep" @if ($child['active'] ?? false) data-on @endif>
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                    <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
+                                                </a>
+                                            @endforeach
+                                          </div>
+                                        </div>
+                                    </div>
+                                @else
+                                    <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-tree-lnk"
+                                       @mouseenter="leaveKid()" @if ($itemOn) data-on @endif>
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                        <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                    </a>
+                                @endif
+                            @endforeach
+                          </div>
+                        </div>
                     </div>
                 @endif
             @endforeach

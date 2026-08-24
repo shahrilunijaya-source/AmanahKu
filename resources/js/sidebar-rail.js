@@ -75,6 +75,105 @@ export function registerSidebarRail(Alpine) {
     }));
 
     /**
+     * The listed-down layout: sections down the column, screens opening in place.
+     *
+     * One section open at a time, and opening waits a beat. Both exist for the same
+     * reason: the rows move. Run the pointer from the top of the column to the bottom
+     * without either and every section it crosses opens under the cursor, pushing the
+     * row you were aiming at somewhere else. The delay lets a pointer pass over a row
+     * on its way somewhere without opening it; the single slot means the column's
+     * height only ever changes by one section's worth.
+     *
+     * Click pins, and is the keyboard and touch route in — hover reaches neither.
+     */
+    Alpine.data('sbTree', () => ({
+        open: null,
+        openKid: null,
+        pinned: false,
+        pinnedKid: false,
+        openTimer: null,
+        closeTimer: null,
+        kidTimer: null,
+        kidCloseTimer: null,
+
+        enter(section) {
+            if (this.pinned) {
+                return;
+            }
+            clearTimeout(this.openTimer);
+            clearTimeout(this.closeTimer);
+            this.openTimer = setTimeout(() => {
+                this.open = section;
+                this.shutKid();
+            }, 120);
+        },
+
+        leave() {
+            if (this.pinned) {
+                return;
+            }
+            clearTimeout(this.openTimer);
+            this.closeTimer = setTimeout(() => { this.close(); }, 160);
+        },
+
+        toggle(section) {
+            clearTimeout(this.openTimer);
+            clearTimeout(this.closeTimer);
+            if (this.open === section && this.pinned) {
+                this.close();
+                return;
+            }
+            this.open = section;
+            this.pinned = true;
+            this.shutKid();
+        },
+
+        close() {
+            this.pinned = false;
+            this.open = null;
+            this.shutKid();
+        },
+
+        /* A group inside an open section (Oversight, Offboarding) opens the same way
+           the section does, one level in. Same delay, same single slot, same reason:
+           the rows below it move when it opens. */
+        enterKid(id) {
+            if (this.pinnedKid) {
+                return;
+            }
+            clearTimeout(this.kidTimer);
+            clearTimeout(this.kidCloseTimer);
+            this.kidTimer = setTimeout(() => { this.openKid = id; }, 120);
+        },
+
+        leaveKid() {
+            if (this.pinnedKid) {
+                return;
+            }
+            clearTimeout(this.kidTimer);
+            this.kidCloseTimer = setTimeout(() => { this.openKid = null; }, 160);
+        },
+
+        toggleKid(id) {
+            clearTimeout(this.kidTimer);
+            clearTimeout(this.kidCloseTimer);
+            if (this.openKid === id && this.pinnedKid) {
+                this.shutKid();
+                return;
+            }
+            this.openKid = id;
+            this.pinnedKid = true;
+        },
+
+        shutKid() {
+            clearTimeout(this.kidTimer);
+            clearTimeout(this.kidCloseTimer);
+            this.pinnedKid = false;
+            this.openKid = null;
+        },
+    }));
+
+    /**
      * Sub-panel for a group inside a section panel (Oversight, Offboarding).
      *
      * The group holds one cell in the section grid; its own screens open in a panel
