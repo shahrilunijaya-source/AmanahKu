@@ -77,7 +77,7 @@ class OnboardingController extends Controller
             'profiles' => $profiles,
             'resources' => $resources,
             'privileged' => $privileged,
-            'employees' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'position']) : collect(),
+            'employees' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'position']) : collect(),
         ];
     }
 

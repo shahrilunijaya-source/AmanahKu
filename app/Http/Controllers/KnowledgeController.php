@@ -80,11 +80,11 @@ class KnowledgeController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $entries = KnowledgeEntry::with([
-            'employee:id,name,initials,avatar_color,position',
+            'employee:id,name,nickname,initials,avatar_color,position',
             'segment:id,label',
             'subSegment:id,label',
             'attachments',
-            'comments' => fn ($c) => $c->with('employee:id,name,initials,avatar_color')->orderBy('id'),
+            'comments' => fn ($c) => $c->with('employee:id,name,nickname,initials,avatar_color')->orderBy('id'),
         ])
             ->withCount(['stars', 'comments'])
             ->when($seg, fn ($b) => $b->where('seg_id', $seg))
@@ -570,7 +570,7 @@ class KnowledgeController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
 
         $comments = $entry->comments()
-            ->with('employee:id,name,initials,avatar_color')
+            ->with('employee:id,name,nickname,initials,avatar_color')
             ->orderBy('id')
             ->get()
             ->map(fn (KnowledgeComment $c): array => [
@@ -719,7 +719,7 @@ class KnowledgeController extends Controller
      */
     private function popularEntries(): array
     {
-        return KnowledgeEntry::with(['employee:id,name,initials,avatar_color', 'segment:id,label'])
+        return KnowledgeEntry::with(['employee:id,name,nickname,initials,avatar_color', 'segment:id,label'])
             ->withCount(['stars', 'comments', 'reactions'])
             ->orderByRaw('stars_count + reactions_count desc')
             ->orderByDesc('id')

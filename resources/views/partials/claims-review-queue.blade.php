@@ -32,7 +32,7 @@
                 <span style="flex:0 0 32px;height:32px;border-radius:50%;background:{{ $c->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:grid;place-items:center;font-size:var(--t-micro);font-weight:600;">{{ $c->employee?->initials }}</span>
                 <button type="button" class="uj-lv-ar-t" @click="open = !open" style="display:flex;flex-direction:column;gap:2px;">
                     <span class="uj-lv-rw-1">
-                        {{ $c->employee?->name }}
+                        {{ $c->employee?->display_name }}
                         @if ($c->employee?->position)<span style="color:var(--muted);font-weight:400;">· {{ $c->employee->position }}</span>@endif
                     </span>
                     <span class="uj-lv-rw-2">

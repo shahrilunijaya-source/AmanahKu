@@ -93,23 +93,48 @@ export function breadcrumb(sel, lens, currentSliceRow, personRow, fromSliceRow, 
 }
 
 /**
- * Weekday -> one of the app's existing accent tokens, so entry-line day labels
- * are scannable at a glance instead of all reading as the same muted grey.
- * Friday reuses Monday's colour — only four accents exist in the palette and
- * they're not adjacent in the list, so the repeat doesn't read as a mix-up.
+ * A week's `lines` (one flat array from TimesheetController::buildWeekBlocks())
+ * grouped into one heading per day, in the order days first appear, each carrying
+ * its own person-day total. The day is the unit that has to add up to 1, so a
+ * reader should never have to sum 0.8 + 0.2 themselves to see a day is short.
+ *
+ * Grouping replaced a per-weekday colour scale on the day labels. Five accents
+ * repeating down a list is decoration, and one of them was the action red, which
+ * this system reserves for "act" and the focus ring. Structure separates the days
+ * now: a heading, a rule, and the total.
  */
-const DAY_COLORS = {
-    Mon: 'var(--info)',
-    Tue: 'var(--success-ink)',
-    Wed: 'var(--amber-ink)',
-    Thu: 'var(--red)',
-    Fri: 'var(--info)',
-};
+export function groupLinesByDay(lines) {
+    const groups = [];
+    const byDay = new Map();
+    for (const line of lines) {
+        if (!byDay.has(line.day)) {
+            const group = { day: line.day, lines: [], days: 0 };
+            byDay.set(line.day, group);
+            groups.push(group);
+        }
+        const group = byDay.get(line.day);
+        group.lines.push(line);
+        group.days = round2(group.days + (Number(line.days) || 0));
+    }
 
-/** dayColor('Mon 6 Jul') -> 'var(--info)'; unknown/weekend prefixes get no colour. */
-export function dayColor(dayLabel) {
-    if (!dayLabel) { return ''; }
-    return DAY_COLORS[dayLabel.slice(0, 3)] || '';
+    return groups;
+}
+
+function round2(n) {
+    return Math.round(n * 100) / 100;
+}
+
+/** 1 -> "1", 0.8 -> "0.8", 5.25 -> "5.25". The panel's one number format. */
+export function formatDays(value) {
+    return round2(Number(value) || 0).toFixed(2).replace(/\.?0+$/, '');
+}
+
+/** 1260 -> "RM 1,260.00". */
+export function formatRm(value) {
+    return 'RM ' + Number(value || 0).toLocaleString('en-MY', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
 }
 
 /** "8 people · 35.5 md · RM 19,800.60" (or the BM equivalent) for a slice's share line. */
@@ -117,8 +142,8 @@ export function formatSliceSubline(slice, isEn) {
     if (!slice) { return ''; }
     const memCount = slice.members ? slice.members.length : 0;
     const pWord = isEn ? (memCount === 1 ? 'person' : 'people') : 'orang';
-    const mdVal = (Math.round((slice.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md';
-    const rmVal = 'RM ' + Number(slice.cost || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const mdVal = formatDays(slice.days) + ' md';
+    const rmVal = formatRm(slice.cost);
     return memCount + ' ' + pWord + ' · ' + mdVal + ' · ' + rmVal;
 }
 
@@ -145,17 +170,54 @@ export function registerTimesheetReport(Alpine) {
         direction: 'fwd',
         hasAnimated: false,
         staleNotice: false,
+        /* "This week" tab: one staff member's weeks, fetched read-only. Separate from
+           sel/lens above — that drill-down reads the closed report period and only ever
+           holds submitted time, and the people on the chase list are precisely the ones
+           with none of it. */
+        staffWeekHtml: '',
+        staffWeekLoading: null,
+        staffWeekError: false,
 
         init() {
-            const { lens, sel, stale } = selFromSearch(
-                new URLSearchParams(window.location.search),
-                this.lens,
-                (l) => this.rowsFor(l)
-            );
+            const search = new URLSearchParams(window.location.search);
+            const { lens, sel, stale } = selFromSearch(search, this.lens, (l) => this.rowsFor(l));
             this.lens = lens;
             this.sel = sel;
             this.staleNotice = stale;
+            const emp = search.get('emp');
+            if (this.tab === 'week' && emp) { this.fetchStaffWeek(Number(emp)); }
             this.$nextTick(() => { this.hasAnimated = true; });
+        },
+
+        openStaffWeek(id) {
+            const url = new URL(location);
+            url.searchParams.set('emp', id);
+            history.pushState({ partialNav: true }, '', url);
+            this.fetchStaffWeek(id);
+        },
+
+        closePerson() {
+            const url = new URL(location);
+            url.searchParams.delete('emp');
+            history.pushState({ partialNav: true }, '', url);
+            this.staffWeekHtml = '';
+            this.staffWeekError = false;
+        },
+
+        async fetchStaffWeek(id) {
+            this.staffWeekLoading = id;
+            this.staffWeekError = false;
+            try {
+                const res = await fetch(`/app/timesheet-reports/person/${id}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!res.ok) { this.staffWeekError = true; return; }
+                this.staffWeekHtml = await res.text();
+            } catch {
+                this.staffWeekError = true;
+            } finally {
+                this.staffWeekLoading = null;
+            }
         },
 
         rowsFor(lens) {
@@ -177,8 +239,10 @@ export function registerTimesheetReport(Alpine) {
             this.tab = t;
             const url = new URL(location);
             url.searchParams.set('tab', t);
-            ['view', 'lens', 'id', 'pid'].forEach((p) => url.searchParams.delete(p));
+            ['view', 'lens', 'id', 'pid', 'emp'].forEach((p) => url.searchParams.delete(p));
             history.replaceState(null, '', url);
+            this.staffWeekHtml = '';
+            this.staffWeekError = false;
         },
 
         navigate(nextSel, dir) {
@@ -262,8 +326,8 @@ export function registerTimesheetReport(Alpine) {
         formatMissingWeeks(p) {
             return formatMissingWeeks(p, this.$store.ui.lang === 'en');
         },
-        dayColor(day) {
-            return dayColor(day);
-        },
+        daysInWeek(wk) { return groupLinesByDay(wk.lines || []); },
+        md(value) { return formatDays(value); },
+        rm(value) { return formatRm(value); },
     }));
 }

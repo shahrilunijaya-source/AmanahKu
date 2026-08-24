@@ -363,9 +363,9 @@ trait BuildsDashboardData
     private function aroundRows(?Employee $employee): array
     {
         return $this->teamOnLeaveSoon($employee)->map(fn (LeaveRequest $r) => [
-            'title' => $r->employee?->name ?? 'Someone',
+            'title' => $r->employee?->display_name ?? 'Someone',
             'sub' => trim($r->date_from->format('j M').'–'.$r->date_to->format('j M')),
-            'meta' => $r->leaveType?->name ?? 'Leave',
+            'meta' => ($r->leaveType?->name ?? 'Leave').' leave',
             'initials' => $r->employee?->initials ?? '–',
             'color' => $r->employee?->avatar_color ?? config('amanahku.avatar_color'),
         ])->all();
@@ -550,7 +550,7 @@ trait BuildsDashboardData
         $today = now()->startOfDay();
         $horizon = $today->copy()->addDays(7);
 
-        return LeaveRequest::with(['employee:id,name,initials,avatar_color', 'leaveType:id,name'])
+        return LeaveRequest::with(['employee:id,name,nickname,initials,avatar_color', 'leaveType:id,name'])
             ->where('status', 'approved')
             ->when($employee, fn ($q) => $q->where('employee_id', '!=', $employee->id))
             ->whereHas('employee', fn ($q) => $q->active())
@@ -568,7 +568,7 @@ trait BuildsDashboardData
             ->whereNotNull('date_of_birth')
             ->whereMonth('date_of_birth', now()->month)
             ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
-            ->get(['id', 'name', 'initials', 'avatar_color', 'date_of_birth'])
+            ->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'date_of_birth'])
             ->sortBy(fn (Employee $e) => (int) $e->date_of_birth->format('d'))
             ->values();
     }
@@ -728,7 +728,7 @@ trait BuildsDashboardData
             'totalCount' => Achievement::whereHas('employee', fn ($q) => $q->active())->count(),
             'thisMonth' => Achievement::whereHas('employee', fn ($q) => $q->active())->whereDate('date', '>=', now()->startOfMonth()->toDateString())->count(),
             // Recipient picker is only used by the privileged-only recognition form.
-            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color']) : collect(),
+            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color']) : collect(),
         ];
     }
 

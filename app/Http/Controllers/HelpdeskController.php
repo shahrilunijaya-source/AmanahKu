@@ -100,7 +100,7 @@ class HelpdeskController extends Controller
                     ->orderByDesc('created_at')->get()
                 : new Collection,
             'grouped' => $grouped,
-            'employees' => Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color']),
+            'employees' => Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color']),
             'counts' => (new Collection(self::STATUSES))
                 ->mapWithKeys(fn (string $s) => [$s => $tickets->where('status', $s)->count()])
                 ->all(),

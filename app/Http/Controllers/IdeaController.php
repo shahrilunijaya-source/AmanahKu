@@ -35,7 +35,7 @@ class IdeaController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
 
         $ideas = Idea::withCount('votes')
-            ->with('employee:id,name,initials,avatar_color')
+            ->with('employee:id,name,nickname,initials,avatar_color')
             ->orderByDesc('votes_count')
             ->orderByDesc('id')
             ->get();

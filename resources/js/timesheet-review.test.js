@@ -6,6 +6,10 @@ test('reviewEntryUrl() builds a tab=record + week + edit link for a normal entry
     expect(url).toBe('/app/timesheets?tab=record&week=2026-06-15&edit=42');
 });
 
+test('reviewEntryUrl() returns null with no baseUrl (somebody else\'s weeks)', () => {
+    expect(reviewEntryUrl(null, '2026-06-15', { id: 42 })).toBeNull();
+});
+
 test('reviewEntryUrl() returns null for a system-generated line (no id)', () => {
     expect(reviewEntryUrl('/app/timesheets', '2026-06-15', { id: null })).toBeNull();
 });
@@ -18,8 +22,8 @@ test('groupLinesByDay() groups consecutive same-day lines under one heading', ()
     ];
     const groups = groupLinesByDay(lines);
     expect(groups.length).toBe(2);
-    expect(groups[0]).toEqual({ day: 'Mon 27 Jul', lines: [lines[0], lines[1]] });
-    expect(groups[1]).toEqual({ day: 'Tue 28 Jul', lines: [lines[2]] });
+    expect(groups[0]).toEqual({ day: 'Mon 27 Jul', lines: [lines[0], lines[1]], days: 0 });
+    expect(groups[1]).toEqual({ day: 'Tue 28 Jul', lines: [lines[2]], days: 0 });
 });
 
 test('groupLinesByDay() keeps day order as first-seen, even if the same day is not contiguous', () => {

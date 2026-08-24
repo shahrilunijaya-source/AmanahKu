@@ -2539,6 +2539,10 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-pill:focus-visible, .uj-tr-sel:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .uj-tr-sel { padding: 8px 12px; border: 1px solid var(--shelf-line); border-radius: 10px; font: inherit; font-size: var(--t-sm); color: var(--ink); background: var(--card); outline: none; cursor: pointer; }
 .uj-tr-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+/* Period row: same shape, but it sits above the Apply row and owns the top margin,
+   so the two read as one control block rather than two unrelated bars. */
+.uj-tr-period { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.uj-tr-period + .uj-tr-filter { margin-top: 10px; }
 .uj-tr-range { font-size: var(--t-sm); color: var(--muted); margin-left: auto; font-family: var(--font-mono); }
 
 .uj-tr-av { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: var(--t-micro); font-weight: 600; color: #fff; flex-shrink: 0; letter-spacing: .02em; }
@@ -2551,6 +2555,9 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-sect h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
 .uj-tr-sect .sum { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .uj-tr-note { margin-top: 8px; font-size: var(--t-sm); color: var(--muted); line-height: 1.5; max-width: 64ch; }
+/* The note sits directly under the figure it explains, so it keeps the figure's gap
+   rather than opening a second one. */
+.uj-tr-note--tight { margin: -4px 0 12px; }
 
 .uj-tr-card { background: var(--card); border: 1px solid var(--hairline); border-radius: 14px; margin-top: 14px; overflow: hidden; }
 
@@ -2620,12 +2627,66 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-notice { display: flex; align-items: center; gap: 10px; background: #faf1e2; border: 1px solid #f0dfc0; border-radius: 10px; padding: 10px 14px; margin: 14px 0; font-size: var(--t-sm); color: var(--amber-ink); }
 .uj-tr-notice-close { margin-left: auto; background: none; border: 0; font-size: 16px; line-height: 1; color: inherit; cursor: pointer; padding: 4px; }
 
-.uj-tr-wk { border-top: 1px solid var(--hairline-soft); padding: 11px 0; }
-.uj-tr-wk .hdr { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-micro); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-bottom: 7px; }
-.uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0; }
-.uj-tr-ent-day { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-micro); font-weight: 600; color: var(--muted); margin-bottom: 2px; }
-.uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; }
+.uj-tr-wk { border-top: 1px solid var(--hairline); padding: 14px 0 4px; }
+
+/* Week header. The pager lives inside it, because paging is an action on this week,
+   not a control floating in a band of its own above it. The week's own figure sits
+   opposite the label so a reader lands on "which week" and "how much" in one line. */
+.uj-tr-wk-hd { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+/* Not flex:1 on the label: grown to fill, it pinned the arrows to the panel's two far
+   edges and pushed the total away from the week it belongs to. The line reads as one
+   object when it sits together in the middle. */
+.uj-tr-wk-hd .lbl { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.uj-tr-wk-hd .lbl b { font-size: var(--t-lg); font-weight: 600; color: var(--ink); }
+.uj-tr-wk-hd .lbl span { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.uj-tr-wk-hd .lbl .pos { font-size: var(--t-micro); color: var(--muted-soft); }
+
+/* The week name as a picker. The real <select> lies over the label at zero opacity, so
+   the platform draws the list and owns the keyboard; the label underneath is what you
+   see. [data-pick] is absent when there is only one week, and then none of this
+   applies — no chevron, no hover, no pointer. */
+.uj-tr-wkpick[data-pick] { position: relative; align-items: center; border-radius: 9px; margin: 0 -7px; padding: 2px 7px; cursor: pointer; transition: background .12s var(--ease); }
+.uj-tr-wkpick[data-pick]:hover { background: var(--hairline-soft); }
+.uj-tr-wkpick .chev { color: var(--muted-soft); align-self: center; flex-shrink: 0; }
+.uj-tr-wkpick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+/* The ring belongs on the label you can see, not on the invisible control over it. */
+.uj-tr-wkpick:has(select:focus-visible) { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-tr-wkpick select:focus-visible { outline: none; }
+.uj-tr-wk-hd .tot { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Beside a status badge the total is the quieter of the two: the badge answers "is
+   this week in", the total answers "how much is in it". */
+.uj-tr-wk-hd .tot:not(:last-of-type) b { color: var(--body); font-weight: 500; }
+.uj-tr-wk-hd .tot b { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-tr-wk-hd .tot span { font-size: var(--t-micro); color: var(--muted); }
+
+/* Day heading: label, a rule that eats the slack, then the day's total. The rule is
+   what separates one day from the next now that the labels no longer carry a colour
+   each — five accents repeating down a list was decoration, and one of them was the
+   action red this system reserves for "act". */
+.uj-tr-day { display: flex; align-items: center; gap: 10px; margin: 0 0 5px; }
+.uj-tr-day .d { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.uj-tr-day .rule { flex: 1; height: 1px; background: var(--hairline-soft); }
+.uj-tr-day .t { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-micro); font-weight: 600; color: var(--ink); min-width: 4ch; text-align: right; }
+/* A day that does not reach a full person-day is the thing worth catching. Amber's
+   text-safe tone, and the number itself is the label, so it survives greyscale. */
+.uj-tr-day .t[data-short] { color: var(--amber-ink); }
+
+.uj-tr-ent { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-sm); color: var(--ink); padding: 3px 0 3px 14px; }
+.uj-tr-ent .d { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); flex-shrink: 0; min-width: 4ch; text-align: right; }
+/* Entry taxonomy. The category is a pill tinted with its own colour; the fallback is
+   the neutral one, for a line with no category row behind it. The project is text, not
+   a second pill — it is the category's child, not its equal. */
+.uj-tr-cat { display: inline-block; padding: 1px 9px; border: 1px solid var(--hairline); border-radius: 9999px; font-size: var(--t-micro); font-weight: 600; background: var(--hairline-soft); color: var(--ink); margin-right: 6px; }
+.uj-tr-proj { font-size: var(--t-micro); font-weight: 500; color: var(--muted); }
 .uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
+
+/* Person header of the drill-down panel: who, what they cost, how many weeks are in. */
+.uj-tr-person { display: flex; align-items: center; gap: 11px; margin: 14px 0 12px; }
+.uj-tr-person .who { min-width: 0; flex: 1; }
+.uj-tr-person h3 { margin: 0 0 2px; font-size: var(--t-lg); font-weight: 600; color: var(--ink); line-height: 1.3; }
+.uj-tr-person .tally { text-align: right; white-space: nowrap; }
+.uj-tr-person .tally b { display: block; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-lg); font-weight: 600; color: var(--ink); }
+.uj-tr-person .tally span { font-size: var(--t-micro); color: var(--muted); }
 
 .uj-tr-panel[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
 .uj-tr-panel[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
@@ -2636,13 +2697,14 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
    with a full month of daily entries turned the panel into a very long
    scroll. Reuses the panel's own forward/back slide so paging feels like the
    same "move sideways through the data" gesture as drilling in and out. */
-.uj-tr-weeknav-hd { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 4px; }
-.uj-tr-weeknav-btn { min-width: 44px; min-height: 44px; border: 1px solid var(--shelf-line); border-radius: 9px; background: var(--card); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease), transform .04s var(--ease); }
+/* Inline in the week header. 32px square on the pointer, and the touch target is
+   restored to 44px by a transparent ::after so a thumb still has something to hit. */
+.uj-tr-weeknav-btn { position: relative; width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); border-radius: 9px; background: var(--card); color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease), transform .04s var(--ease); }
+.uj-tr-weeknav-btn::after { content: ''; position: absolute; inset: -6px; }
 .uj-tr-weeknav-btn:hover:not(:disabled) { border-color: var(--muted-soft); }
 .uj-tr-weeknav-btn:active:not(:disabled) { background: var(--hairline-soft); transform: scale(0.97); }
 .uj-tr-weeknav-btn:disabled { opacity: .35; cursor: default; }
 .uj-tr-weeknav-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-.uj-tr-weeknav-pos { min-width: 5ch; text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-sm); color: var(--muted); }
 .uj-tr-wk[data-dir="fwd"] { animation: uj-tr-panel-in-fwd .2s var(--ease) both; }
 .uj-tr-wk[data-dir="back"] { animation: uj-tr-panel-in-back .2s var(--ease) both; }
 
@@ -2650,7 +2712,6 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-status-badge[data-status="draft"] { color: var(--muted); background: var(--hairline-soft); }
 .uj-tr-status-badge[data-status="submitted"] { color: var(--amber-ink); background: #f8ecd8; }
 
-.uj-tr-weekpick { display: block; width: 100%; max-width: 280px; margin: 8px auto 12px; padding: 7px 10px; text-align: center; font-size: var(--t-sm); color: var(--ink); background: var(--card); border: 1px solid var(--shelf-line); border-radius: 9px; }
 
 /* Review tab's entry rows are real links into Record; the report screen's own
    .uj-tr-ent (plain divs, no link) is untouched by this. */
@@ -2663,7 +2724,26 @@ a.uj-tr-ent[href]:hover { background: var(--hairline-soft); }
 a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
 
 /* One heading per day, however many entries fall under it. */
-.uj-tr-day-grp + .uj-tr-day-grp { margin-top: 10px; }
+.uj-tr-day-grp + .uj-tr-day-grp { margin-top: 14px; }
+
+/* On a phone the week's figure takes its own line under the label. Kept on one line
+   it squeezes the pager off the panel's edge as soon as the cost reaches six digits. */
+@media (max-width: 560px) {
+    .uj-tr-wk-hd { flex-wrap: wrap; row-gap: 6px; }
+    /* Order every child, not just the ones that move: an unordered item defaults to 0
+       and lands beside the first button, which put the status badge ahead of the week
+       label it describes.
+
+       ::after is a flex item too, so it can take an order and force the line break at
+       exactly one place. Without it the badge filled row one and pushed the next-week
+       arrow onto a row of its own, stranded in the middle of the panel. */
+    .uj-tr-wk-hd > .uj-tr-weeknav-btn:first-child { order: 0; }
+    .uj-tr-wk-hd .lbl { order: 1; }
+    .uj-tr-wk-hd > .uj-tr-weeknav-btn:last-child { order: 2; }
+    .uj-tr-wk-hd::after { content: ''; order: 3; flex-basis: 100%; height: 0; }
+    .uj-tr-wk-hd .tot { order: 4; }
+    .uj-tr-wk-hd .uj-tr-status-badge { order: 5; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .uj-tr-anim .uj-tr-bar i { animation: none; }
@@ -3313,7 +3393,6 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .tot-mast{background:var(--red);padding:24px 26px 20px;}
 .tot-mast-k{font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:rgba(255,255,255,.92);font-weight:600;}
 .tot-mast-y{font:600 54px/1 var(--font-mono);color:#fff;margin-top:8px;letter-spacing:-.03em;}
-.tot-mast-s{font-size:13px;color:rgba(255,255,255,.94);margin-top:7px;}
 .tot-yr-list{display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-top:4px;}
 .tot-yr{background:none;border:0;cursor:pointer;font:600 15px var(--font-mono);color:rgba(255,255,255,.72);padding:2px 0;transition:color 160ms var(--tot-eo);text-decoration:none;}
 .tot-yr:hover{color:rgba(255,255,255,.9);}

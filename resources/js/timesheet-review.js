@@ -5,7 +5,11 @@
  * nextWeek, no fetch per step), for one person's own weeks instead of a viewed
  * colleague's.
  */
-import { dayColor } from './timesheet-report';
+import { formatDays, groupLinesByDay } from './timesheet-report';
+
+/* Re-exported: the grouping moved to timesheet-report.js when the all-staff report
+   started grouping its own day lines too, and both surfaces must group identically. */
+export { groupLinesByDay };
 
 /**
  * Build the link into Record for one entry line: its week, its edit form. Lines with
@@ -14,31 +18,12 @@ import { dayColor } from './timesheet-report';
  * there is nothing to link to.
  */
 export function reviewEntryUrl(baseUrl, weekStart, line) {
-    if (!line.id) return null;
+    // No baseUrl = somebody else's weeks on the all-staff report. There is no edit
+    // path into another person's sheet, so every line renders as plain text.
+    if (!baseUrl || !line.id) return null;
     const sep = baseUrl.includes('?') ? '&' : '?';
 
     return `${baseUrl}${sep}tab=record&week=${encodeURIComponent(weekStart)}&edit=${encodeURIComponent(line.id)}`;
-}
-
-/**
- * A week's `lines` (backend-shared with the all-staff report, one flat array — see
- * TimesheetController::buildWeekBlocks()) grouped into one heading per day, in the
- * order days first appear. Frontend-only: the report screen still gets the flat
- * array unchanged, this grouping is Review's own presentation choice.
- */
-export function groupLinesByDay(lines) {
-    const groups = [];
-    const byDay = new Map();
-    for (const line of lines) {
-        if (!byDay.has(line.day)) {
-            const group = { day: line.day, lines: [] };
-            byDay.set(line.day, group);
-            groups.push(group);
-        }
-        byDay.get(line.day).lines.push(line);
-    }
-
-    return groups;
 }
 
 export function registerTimesheetReview(Alpine) {
@@ -52,8 +37,8 @@ export function registerTimesheetReview(Alpine) {
         prevWeek() { if (this.weekIdx > 0) { this.weekDir = 'back'; this.weekIdx--; } },
         nextWeek() { if (this.weekIdx < this.weeks.length - 1) { this.weekDir = 'fwd'; this.weekIdx++; } },
 
-        dayColor,
         daysInWeek(wk) { return groupLinesByDay(wk.lines); },
+        md(value) { return formatDays(value); },
         entryUrl(line) { return reviewEntryUrl(this.baseUrl, this.currentWeek?.weekStart, line); },
     }));
 }

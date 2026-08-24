@@ -60,7 +60,7 @@
                 <div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $l->employee?->initials }}</div>
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->name }}</div>
+                        <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->display_name }}</div>
                         <div style="font-size:11.5px;color:var(--muted);">{{ $l->leaveType?->name }}</div>
                     </div>
                     <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $l->date_from->format('j') }}–{{ $l->date_to->format('j M') }}</span>
@@ -93,9 +93,9 @@
                 <div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $b->avatar_color ?? '#c026d3' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $b->initials }}</div>
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $b->name }}</div>
+                        <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $b->display_name }}</div>
                     </div>
-                    <a href="{{ route('app.screen', ['screen' => 'messages', 'to' => $b->id, 'draft' => 'Happy birthday, '.\Illuminate\Support\Str::of($b->name)->squish()->explode(' ')->first().'! 🎉']) }}" style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                    <a href="{{ route('app.screen', ['screen' => 'messages', 'to' => $b->id, 'draft' => 'Happy birthday, '.\Illuminate\Support\Str::of($b->display_name)->squish()->explode(' ')->first().'! 🎉']) }}" style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
                         {{ $b->date_of_birth->format('j M') }} <span style="font-size:13px;">🎂</span>
                     </a>
                 </div>

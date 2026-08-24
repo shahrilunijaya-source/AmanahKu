@@ -126,6 +126,79 @@ class TimesheetReviewWeekPanelTest extends TestCase
         $this->assertSame($entry->id, $grid['2026-06-15'][0]['id']);
     }
 
+    public function test_the_review_tab_shows_the_weeks_own_total_but_never_a_salary_figure(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
+            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        // "Did this week add up" is the question the tab exists to answer; the day
+        // totals below only answered it one day at a time.
+        $response->assertSee("md(wk.days) + ' md'", false);
+
+        // Cost is a management figure (TimesheetController::canSeeCost). The partial is
+        // shared with the all-staff report, so the personal payload is checked here
+        // rather than trusting the markup to keep leaving RM out.
+        $weeks = $response->viewData('myWeeks');
+        $this->assertSame(1.0, $weeks[0]['days']);
+        $this->assertSame(0.0, $weeks[0]['cost']);
+    }
+
+    public function test_entry_lines_carry_their_categorys_colour(): void
+    {
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        $maintenance = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true,
+        ]);
+        $sheet->entries()->create([
+            'tenant_id' => $this->tenant->id, 'entry_date' => '2026-06-15',
+            'category_id' => $maintenance->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        // Same colour the capture picker's dot and the Projects register pill use, so a
+        // category reads the same wherever it appears (TimesheetCategory::colour()).
+        $line = $response->viewData('myWeeks')[0]['lines'][0];
+        $this->assertSame('Maintenance', $line['category']);
+        $this->assertSame('var(--amber-ink)', $line['categoryColour']);
+    }
+
+    public function test_the_week_name_is_the_picker_and_carries_every_week_as_an_option(): void
+    {
+        foreach (['2026-06-08', '2026-06-15'] as $weekStart) {
+            $sheet = Timesheet::create([
+                'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+                'week_start' => $weekStart, 'status' => 'draft', 'total_hours' => 8,
+            ]);
+            $sheet->entries()->create([
+                'tenant_id' => $this->tenant->id, 'entry_date' => $weekStart,
+                'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+            ]);
+        }
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        // The arrows step one week; the week's own name jumps to any of them. A real
+        // <select> lies over the label, so the platform draws the list.
+        $response->assertSee('uj-tr-wkpick', false);
+        $response->assertSee("w.label + ': ' + w.dates", false);
+        // The picker only exists when there is more than one week to pick.
+        $response->assertSee('weeks.length > 1', false);
+        // The control it replaced is gone, not merely hidden.
+        $response->assertDontSee('uj-tr-weekpick', false);
+    }
+
     public function test_review_tab_renders_week_nav_and_entry_link(): void
     {
         $sheet = Timesheet::create([

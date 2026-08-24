@@ -53,7 +53,7 @@ class OffboardingController extends Controller
         return [
             'case' => $case,
             'privileged' => $privileged,
-            'employees' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'position']) : collect(),
+            'employees' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'position']) : collect(),
         ];
     }
 

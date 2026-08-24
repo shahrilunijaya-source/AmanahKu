@@ -60,7 +60,7 @@ class StuckRequests
                 ->whereHas('employee', fn ($q) => $q->active()
                     ->whereDoesntHave('reportsTo', fn ($m) => $m->whereNull('archived_at'))
                     ->whereDoesntHave('additionalManagers'))
-                ->with('employee:id,name,initials,avatar_color')
+                ->with('employee:id,name,nickname,initials,avatar_color')
                 ->get();
 
             foreach ($rows as $r) {

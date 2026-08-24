@@ -318,7 +318,13 @@ class ProjectScreenTest extends TestCase
             ->assertSee('JKDM: MyStods');
     }
 
-    public function test_the_usage_counts_are_rendered(): void
+    /**
+     * The register used to print "18 timesheet lines · 3 board cards" under every
+     * project and sub-pillar. It was noise on a screen whose job is naming projects,
+     * so it went. Kept as a test rather than deleted: the counts are cheap to add back
+     * by reflex, and this says the absence was a decision.
+     */
+    public function test_the_register_does_not_print_usage_counts(): void
     {
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM: MyStods']);
         $category = TimesheetCategory::create([
@@ -338,6 +344,9 @@ class ProjectScreenTest extends TestCase
 
         $this->actingAsRole('hr')->get('/app/projects')
             ->assertOk()
-            ->assertSee('timesheet lines');
+            ->assertSee('JKDM: MyStods')
+            ->assertDontSee('timesheet lines')
+            ->assertDontSee('board cards')
+            ->assertDontSee('not used yet');
     }
 }

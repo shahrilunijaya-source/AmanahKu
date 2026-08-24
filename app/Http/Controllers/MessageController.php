@@ -98,7 +98,7 @@ class MessageController extends Controller
         $recipients = Employee::active()
             ->where('id', '!=', $employee->id)
             ->orderBy('name')
-            ->get(['id', 'name', 'initials', 'avatar_color', 'position_id'])
+            ->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'position_id'])
             ->map(fn (Employee $e) => $this->personArr($e))
             ->values()->all();
 

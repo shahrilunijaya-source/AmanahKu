@@ -64,7 +64,7 @@ class ShiftSwapController extends Controller
 
         // Colleagues a requester can name as counterpart (everyone but themselves).
         $employees = $employee
-            ? Employee::active()->where('id', '!=', $employee->id)->orderBy('name')->get(['id', 'name'])
+            ? Employee::active()->where('id', '!=', $employee->id)->orderBy('name')->get(['id', 'name', 'nickname'])
             : new Collection;
 
         return [

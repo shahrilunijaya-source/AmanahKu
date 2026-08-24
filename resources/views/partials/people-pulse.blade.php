@@ -39,7 +39,7 @@
                style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);text-decoration:none;">
                 <div style="width:30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $l->employee?->initials }}</div>
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->name }}</div>
+                    <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->display_name }}</div>
                     <div style="font-size:11.5px;color:var(--muted);">{{ $l->leaveType?->name ?? 'Leave' }}</div>
                 </div>
                 <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">
@@ -65,13 +65,13 @@
         @forelse ($birthdays as $b)
             @php
                 $isToday = $b->date_of_birth?->format('m-d') === $todayKey;
-                $first = \Illuminate\Support\Str::of($b->name)->squish()->explode(' ')->first();
+                $first = \Illuminate\Support\Str::of($b->display_name)->squish()->explode(' ')->first();
                 $wishUrl = route('app.screen', ['screen' => 'messages', 'to' => $b->id, 'draft' => 'Happy birthday, '.$first.'! 🎉']);
             @endphp
             <div style="display:flex;align-items:center;gap:11px;padding:8px {{ $isToday ? '8px' : '0' }};border-bottom:1px solid var(--hairline-soft);{{ $isToday ? 'background:#fff8ef;border-radius:8px;' : '' }}">
                 <div style="width:30px;height:30px;border-radius:50%;background:{{ $b->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $b->initials }}</div>
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $b->name }}</div>
+                    <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $b->display_name }}</div>
                     <div style="font-size:11.5px;color:{{ $isToday ? 'var(--red)' : 'var(--muted)' }};font-weight:{{ $isToday ? '600' : '400' }};">
                         @if ($isToday)
                             🎂 <span x-text="$store.ui.lang==='en' ? 'Today' : 'Hari ini'">Today</span>

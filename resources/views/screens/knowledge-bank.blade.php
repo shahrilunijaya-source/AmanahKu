@@ -51,23 +51,19 @@
         {{-- Slide 1 — culture stats --}}
         <div style="flex:0 0 100%;scroll-snap-align:start;">
             <div style="background:var(--shelf);border:1px solid var(--shelf-line);border-radius:14px;padding:24px 26px 20px;">
-                <div style="font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:var(--muted);font-weight:600;" x-text="$store.ui.lang==='en' ? 'Knowledge bank' : 'Bank pengetahuan'">Knowledge bank</div>
-                <div style="font:600 54px/1 var(--font-mono);color:var(--ink);margin-top:8px;letter-spacing:-.03em;">{{ $total }}</div>
-                <div style="font-size:13px;color:var(--body);margin-top:7px;">
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'One lesson from everyone, every month.{{ $teamStreak > 0 ? ' '.$teamStreak.' '.($teamStreak === 1 ? 'month' : 'months').' unbroken.' : '' }}'
-                        : 'Satu pengajaran daripada semua, setiap bulan.{{ $teamStreak > 0 ? ' '.$teamStreak.' bulan berturut.' : '' }}'">One lesson from everyone, every month.</span>
-                </div>
+                <div style="font:600 54px/1 var(--font-mono);color:var(--ink);letter-spacing:-.03em;">{{ $total }}</div>
+                <div style="font-size:13px;color:var(--body);margin-top:7px;" x-text="$store.ui.lang==='en' ? '{{ $total === 1 ? 'lesson shared' : 'lessons shared' }}' : 'pengajaran dikongsi'">{{ $total === 1 ? 'lesson shared' : 'lessons shared' }}</div>
+                @php $chip = 'background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;'; @endphp
                 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
-                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
-                        <b style="font:600 18px var(--font-mono);color:var(--ink);line-height:1;">{{ $segCount }}</b>
-                        <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Segments' : 'Segmen'">Segments</span>
-                    </div>
-                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
+                    {{-- Contribution rate is slide 2's whole story for HR/management, so it only
+                         earns a chip here for everyone who has no slide 2. --}}
+                    @unless ($hasCompliance)
+                    <div style="{{ $chip }}">
                         <b style="font:600 18px var(--font-mono);color:var(--success);line-height:1;">{{ $contribPct }}%</b>
                         <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Contributed' : 'Menyumbang'">Contributed</span>
                     </div>
-                    <div style="background:#fff;border:1px solid var(--shelf-line);border-radius:9px;padding:8px 13px;display:flex;align-items:baseline;gap:7px;">
+                    @endunless
+                    <div style="{{ $chip }}">
                         <b style="font:600 18px var(--font-mono);color:var(--ink);line-height:1;">{{ $teamStreak }}</b>
                         <span style="font-size:11px;letter-spacing:.04em;color:var(--body);font-weight:500;" x-text="$store.ui.lang==='en' ? ({{ $teamStreak }}===1 ? 'month streak' : 'months streak') : 'bulan berturut'">months streak</span>
                     </div>
@@ -256,7 +252,7 @@
                         @endif
                     </div>
                     <div style="font-size:18px;font-weight:600;line-height:1.35;margin-top:6px;color:var(--ink);">{{ $e->title }}</div>
-                    <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
+                    <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->display_name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
                     <span x-show="reactionTotal" class="kb-reaction-pill" style="align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">

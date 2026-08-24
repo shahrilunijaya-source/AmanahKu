@@ -1,6 +1,6 @@
 {{-- One project row on the Projects register. Shared by the initial render and the
-     AJAX append on add. Expects $project (with categories loaded and entries_count /
-     work_items_count), $categories (full list, for the edit form) and $canEdit. --}}
+     AJAX append on add. Expects $project (with categories loaded), $categories (full
+     list, for the edit form) and $canEdit. --}}
 @php
     $canEdit = $canEdit ?? false;
     $hay = mb_strtolower(trim($project->name.' '.$project->code));
@@ -20,22 +20,18 @@
         @endif
         <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:{{ $project->is_active ? 'var(--ink)' : 'var(--muted)' }};font-weight:500;">{{ $project->name }}</div>
-            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:5px;">
-                @unless ($project->is_active)
-                    <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span></span>
-                @endunless
-                @foreach ($project->categories as $cat)
-                    <span class="uj-pill" style="background:color-mix(in srgb, {{ $cat->colour() }} 13%, var(--card));color:{{ $cat->colour() }};">{{ $cat->name }}</span>
-                @endforeach
-                <span style="font-size:11.5px;font-weight:500;color:var(--muted-soft);font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
-                    @if ($project->entries_count || $project->work_items_count)
-                        <span style="font-weight:600;color:var(--muted);">{{ $project->entries_count }}</span> <span x-text="$store.ui.lang==='en' ? 'timesheet lines' : 'baris lembaran masa'">timesheet lines</span>
-                        · <span style="font-weight:600;color:var(--muted);">{{ $project->work_items_count }}</span> <span x-text="$store.ui.lang==='en' ? 'board cards' : 'kad papan'">board cards</span>
-                    @else
-                        <span x-text="$store.ui.lang==='en' ? 'not used yet' : 'belum digunakan'">not used yet</span>
-                    @endif
-                </span>
-            </div>
+            {{-- Only rendered when there is something to put in it: most projects carry
+                 no category, and an empty flex row still spends its margin. --}}
+            @if (! $project->is_active || $project->categories->isNotEmpty())
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:5px;">
+                    @unless ($project->is_active)
+                        <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span></span>
+                    @endunless
+                    @foreach ($project->categories as $cat)
+                        <span class="uj-pill" style="background:color-mix(in srgb, {{ $cat->colour() }} 13%, var(--card));color:{{ $cat->colour() }};">{{ $cat->name }}</span>
+                    @endforeach
+                </div>
+            @endif
         </div>
         @if ($canEdit)
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>

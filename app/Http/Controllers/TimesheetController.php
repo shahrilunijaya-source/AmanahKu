@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Attendance\ReportPeriod;
 use App\Console\Commands\TimesheetReminder;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\SubPillar;
@@ -24,6 +26,7 @@ use App\Timesheet\DayCapacity;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekReconciler;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +35,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class TimesheetController extends Controller
 {
@@ -390,10 +394,26 @@ class TimesheetController extends Controller
         $role = $request->attributes->get('tenantRole', 'employee');
         $canSeeCost = $this->canSeeCost($role);
 
-        [$from, $to] = $this->periodFromRequest($request);
+        $period = $this->periodFromRequest($request);
+        $from = Carbon::parse($period->from->toDateString())->startOfDay();
+        /* ReportPeriod clamps its end to today, which is right for attendance — a
+           future working day with no punch is not an absence. A timesheet period is
+           not the same shape: the weeks-in/weeks-missing figures are counted per whole
+           week, and a range somebody typed themselves should mean what they typed. So
+           the window ends where the granularity says it ends, unclamped. */
+        $to = match ($period->gran) {
+            'week' => $from->copy()->addDays(4)->endOfDay(),
+            'custom' => Carbon::parse((string) $request->query('to', $period->to->toDateString()))->endOfDay(),
+            default => $from->copy()->endOfMonth()->endOfDay(),
+        };
+        if ($to->lt($from)) {
+            $to = $from->copy()->endOfDay();
+        }
 
         $categoryId = $request->integer('category') ?: null;
         $projectId = $request->integer('project') ?: null;
+        $dept = $request->query('dept') ?: null;
+        $q = trim((string) $request->query('q', ''));
 
         // Data scope: a branch/department-restricted manager only sees their slice of the
         // (money-sensitive) timesheet cost report (AK-AUTHZ-01). null = 'company', no limit.
@@ -402,9 +422,12 @@ class TimesheetController extends Controller
 
         $entries = TimesheetEntry::with(['category', 'projectRef', 'subPillar', 'timesheet.employee.positionBand'])
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
-            ->whereHas('timesheet', fn ($q) => $q->where('status', 'submitted')
-                ->whereHas('employee', fn ($e) => $e->active()) // archived owners' entries drop from RM totals
-                ->when($visibleIds !== null, fn ($t) => $t->whereIn('employee_id', $visibleIds)))
+            ->whereHas('timesheet', fn ($t) => $t->where('status', 'submitted')
+                // archived owners' entries drop from RM totals
+                ->whereHas('employee', fn ($e) => $e->active()
+                    ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
+                    ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%')))
+                ->when($visibleIds !== null, fn ($t2) => $t2->whereIn('employee_id', $visibleIds)))
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->when($projectId, fn ($q) => $q->where('project_id', $projectId))
             ->get()
@@ -437,7 +460,9 @@ class TimesheetController extends Controller
         $periodWeekStarts = array_map(fn (Carbon $w) => $w->toDateString(), $periodWeeks);
 
         $visibleEmployees = Employee::active()
-            ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
+            ->when($visibleIds !== null, fn ($b) => $b->whereIn('id', $visibleIds))
+            ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
+            ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))
             ->get();
 
         $submittedWeekStartsByEmployee = [];
@@ -605,6 +630,17 @@ class TimesheetController extends Controller
         return [
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
+            // Period controls, the same shape the attendance ledger's bar reads.
+            'gran' => $period->gran,
+            'offset' => $period->offset,
+            'canPrev' => $period->canPrev,
+            'canNext' => $period->canNext,
+            'periodLabel' => ['en' => $period->label('en'), 'ms' => $period->label('ms')],
+            // People filters. Scoped to this tab: the chase roster below is always the
+            // current week for everyone, which is a different question.
+            'departments' => Department::orderBy('name')->pluck('name'),
+            'dept' => $dept,
+            'q' => $q,
             'canSeeCost' => $canSeeCost,
             'lensCategory' => $lensCategory,
             'lensProject' => $lensProject,
@@ -664,6 +700,58 @@ class TimesheetController extends Controller
     }
 
     /**
+     * One staff member's recent weeks, read-only, as an HTML fragment for the report
+     * screen's "This week" tab.
+     *
+     * The chase list is by definition people who have NOT submitted, so this reads
+     * drafts as well as submitted sheets — an empty draft is exactly the thing the
+     * person chasing needs to see. It carries no RM: chasing a missing sheet is not a
+     * money question, and the fragment is one employee wide, so leaving cost out keeps
+     * it clear of the salary-band gate entirely.
+     */
+    public function personWeeks(Request $request, Employee $employee): View
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+
+        abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $scope = $request->attributes->get('tenantScope', 'company');
+        $actor = $request->attributes->get('employee');
+        $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $actor);
+        if ($visibleIds !== null) {
+            abort_unless(in_array($employee->id, $visibleIds, true), 403);
+        }
+
+        $weekStart = $request->filled('week')
+            ? Carbon::parse($request->query('week'))->startOfWeek()
+            : Carbon::now()->startOfWeek();
+
+        // Eight weeks back, so the viewer's own prev/next has somewhere to step without
+        // a round trip per step. buildWeekBlocks() returns them oldest-first and the
+        // Alpine component opens on the last one, which is the week asked for.
+        $timesheets = Timesheet::with(['entries.category', 'entries.projectRef', 'entries.subPillar'])
+            ->where('employee_id', $employee->id)
+            // Half-open upper bound, not whereBetween: the date cast stores a 00:00:00
+            // time on sqlite, which sorts after the bare date string and drops the very
+            // week asked for. Same reason Timesheet::scopeForWeek() avoids whereDate().
+            ->where('week_start', '>=', $weekStart->copy()->subWeeks(7)->toDateString())
+            ->where('week_start', '<', $weekStart->copy()->addDay()->toDateString())
+            ->get();
+
+        /* The week asked for is always a block, even when no sheet was ever started
+           for it — a null entry under its key is enough for buildWeekBlocks() to make
+           one. Without it the viewer opens on whatever week last had entries, which on
+           a chase list is weeks old and reads as if that were the current position. */
+        $byWeekStart = $timesheets->keyBy(fn (Timesheet $t) => $t->week_start->toDateString());
+        $byWeekStart->put($weekStart->toDateString(), $byWeekStart->get($weekStart->toDateString()));
+
+        return view('partials.timesheet-report.person-weeks', [
+            'person' => $employee,
+            'weeks' => $this->buildWeekBlocks($timesheets->flatMap->entries, $byWeekStart),
+        ]);
+    }
+
+    /**
      * Group one person's timesheet entries into week blocks: label, date range, totals,
      * and each day's lines. Shared by the all-staff report (reportData(), one call per
      * employee, no $timesheetsByWeekStart — status stays null, unused there) and the
@@ -718,6 +806,11 @@ class TimesheetController extends Controller
                     // separate, for the Review tab's two-pill rows.
                     'label' => implode(' · ', array_filter([$category, $project])),
                     'category' => $category ?: null,
+                    // The category's own colour, so a week reads by category at a glance
+                    // and matches the dot in the capture picker and the pill on the
+                    // Projects register. Null when the line has no category row (a
+                    // free-text project), which renders as the plain neutral pill.
+                    'categoryColour' => $e->category?->colour(),
                     'project' => $project ?: null,
                     'note' => $e->description,
                     'days' => round((float) $e->percentage / 100, 2),
@@ -742,20 +835,21 @@ class TimesheetController extends Controller
     }
 
     /**
-     * Resolve a [from, to] reporting window from ?from / ?to (inclusive day bounds),
-     * defaulting to the current calendar month and swapping if the two are reversed.
+     * The reporting window, resolved by the same ReportPeriod the attendance ledger
+     * uses — Week/Month with an offset to step back through, or a custom pair of dates.
      *
-     * @return array{0: Carbon, 1: Carbon}
+     * A link from before this screen had granularity carries a bare ?from&?to with no
+     * ?gran, so those are read as a custom range rather than silently falling back to
+     * this month and showing the wrong period under an old bookmark.
      */
-    private function periodFromRequest(Request $request): array
+    private function periodFromRequest(Request $request): ReportPeriod
     {
-        $from = $request->filled('from') ? Carbon::parse($request->query('from'))->startOfDay() : Carbon::now()->startOfMonth();
-        $to = $request->filled('to') ? Carbon::parse($request->query('to'))->endOfDay() : Carbon::now()->endOfMonth();
-        if ($to->lt($from)) {
-            [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+        $query = $request->query();
+        if (! isset($query['gran']) && (isset($query['from']) || isset($query['to']))) {
+            $query['gran'] = 'custom';
         }
 
-        return [$from, $to];
+        return ReportPeriod::fromRequest($query, CarbonImmutable::now()->startOfDay());
     }
 
     // ---- Helpers ----------------------------------------------------------

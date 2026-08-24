@@ -75,18 +75,31 @@
          */
         trackTail() {
             const anchor = this.$root.parentElement?.querySelector('{{ $anchor }}');
-            const ro = new ResizeObserver(() => this.placeTail());
-            ro.observe(this.$root.parentElement);
-            ro.observe(this.$refs.bubble);
-            if (anchor) { ro.observe(anchor); }
+            this.ro = new ResizeObserver(() => this.placeTail());
+            this.ro.observe(this.$root.parentElement);
+            this.ro.observe(this.$refs.bubble);
+            if (anchor) { this.ro.observe(anchor); }
             document.fonts?.ready.then(() => this.placeTail());
-            window.addEventListener('resize', () => this.placeTail());
+            this.onResize = () => this.placeTail();
+            window.addEventListener('resize', this.onResize);
+        },
+        /**
+         * Screens swap without a page load (see CLAUDE.md), so a coachmark leaves the DOM
+         * while its observer and resize listener are still live. Alpine calls this on
+         * removal; without it they keep firing at a bubble that no longer exists.
+         */
+        destroy() {
+            this.ro?.disconnect();
+            if (this.onResize) { window.removeEventListener('resize', this.onResize); }
         },
         measureTail() {
             const el = this.$root.parentElement?.querySelector('{{ $anchor }}');
-            if (!el) { return; }
+            const bubble = this.$refs.bubble;
+            // Both can be gone: a queued callback (rAF, fonts.ready, a resize) can land
+            // after this screen was swapped out from under it.
+            if (!el || !bubble) { return; }
             const a = el.getBoundingClientRect();
-            const b = this.$refs.bubble.getBoundingClientRect();
+            const b = bubble.getBoundingClientRect();
             // Either box can be zero-width here: the bubble while the tip is still closed,
             // the control while it waits on whatever makes it appear. Measuring then pins
             // the tail to the clamp floor and it never recovers, so wait to be asked again.

@@ -18,7 +18,7 @@
 
     $selCatName = $selCategory ? $filterCategories->firstWhere('id', (int) $selCategory)?->name : null;
     $selProjName = $selProject ? $filterProjects->firstWhere('id', (int) $selProject)?->name : null;
-    $activeFilterParts = array_filter([$selCatName, $selProjName]);
+    $activeFilterParts = array_filter([$dept, $selCatName, $selProjName, $q !== '' ? '"'.$q.'"' : null]);
     $activeFilterName = count($activeFilterParts) > 0 ? implode(' + ', $activeFilterParts) : 'This period';
 
     // Which tab opens. Defaults to this week, so an unfilled sheet is the first
@@ -27,6 +27,22 @@
 
     // Rows the chase tab is about, so the tab label can carry the number.
     $oweCount = collect($tsRoster ?? [])->where('status', '!=', 'done')->count();
+
+    // Every period link keeps the rest of the query and stays on the report tab. The
+    // drill-down params are dropped: they name a row inside the old period, which the
+    // new one may not contain.
+    $trUrl = function (array $overrides = []) {
+        $query = array_merge(request()->query(), $overrides, ['tab' => 'report']);
+        unset($query['view'], $query['id'], $query['pid'], $query['emp']);
+        $query = array_filter($query, fn ($v) => $v !== null && $v !== '');
+        ksort($query);
+
+        return route('app.screen', ['screen' => 'timesheet-reports'] + $query);
+    };
+
+    // No Day: a timesheet line is a share of a whole day, so a one-day report has
+    // nothing to say that the week does not say better.
+    $trGrans = ['week' => ['Week', 'Minggu'], 'month' => ['Month', 'Bulan']];
 @endphp
 
 @section('screen')
@@ -55,10 +71,10 @@
             'who'   => 'Managers, Management & HR',
             'steps' => [
                 'Two tabs. "Where time went" reads a closed period; "This week" chases the sheets still missing, and its number tells you how many.',
-                'On the report tab, set the period (defaults to this month), optionally filter to one category or project, then press Apply.',
+                'On the report tab, pick Week or Month and step back with the arrows, or take any two dates with Custom. Narrow by department, category, project or name, then press Apply.',
                 'Pick a breakdown: By category, By project, or By person. Bars show each slice as a share of the total.',
                 'Click any row to open the panel beside it: a category or project lists the people inside it, and a person shows the weeks and lines behind their number.',
-                'On the week tab, each person who still owes a sheet can be reminded, which sends them the same bell the Friday reminder sends.',
+                'On the week tab, each person who still owes a sheet can be reminded, which sends them the same bell the Friday reminder sends. Open week shows the sheet as it stands, read-only.',
             ],
         ],
         'ms'  => [
@@ -67,10 +83,10 @@
             'who'   => 'Pengurus, Pengurusan & HR',
             'steps' => [
                 'Dua tab. "Ke mana masa pergi" membaca tempoh yang telah tutup; "Minggu ini" mengejar lembaran yang masih belum masuk, dan nombornya memberitahu berapa banyak.',
-                'Pada tab laporan, tetapkan tempoh (lalai bulan ini), pilihan tapis kepada satu kategori atau projek, kemudian tekan Guna.',
+                'Pada tab laporan, pilih Minggu atau Bulan dan undur dengan anak panah, atau ambil dua tarikh dengan Tersuai. Tapis ikut jabatan, kategori, projek atau nama, kemudian tekan Guna.',
                 'Pilih pecahan: Mengikut kategori, projek, atau individu. Bar menunjukkan setiap bahagian sebagai peratus jumlah.',
                 'Klik mana-mana baris untuk membuka panel di sebelahnya: kategori atau projek menyenaraikan orang di dalamnya, dan seorang individu menunjukkan minggu dan baris di sebalik nombornya.',
-                'Pada tab minggu, setiap orang yang masih belum hantar boleh diingatkan, yang menghantar loceng sama seperti peringatan Jumaat.',
+                'Pada tab minggu, setiap orang yang masih belum hantar boleh diingatkan, yang menghantar loceng sama seperti peringatan Jumaat. Buka minggu menunjukkan lembaran orang itu seadanya, baca sahaja.',
             ],
         ],
     ])
@@ -126,8 +142,16 @@
         $tsDeadlineFormatted = $tsDeadlineObj ? $tsDeadlineObj->format('l j M, H:i') : '';
         $tsDeadlineDiff = $tsDeadlineObj ? $tsDeadlineObj->diffForHumans() : '';
     @endphp
+    <div x-show="staffWeekError" x-cloak class="uj-tr-notice">
+        <span x-text="$store.ui.lang==='en' ? 'Could not open that week. Check your connection and try again.' : 'Tidak dapat membuka minggu itu. Semak sambungan anda dan cuba lagi.'"></span>
+        <button type="button" class="uj-tr-notice-close" @click="staffWeekError=false" :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'">&times;</button>
+    </div>
+
+    {{-- Host for the fetched staff week viewer. Alpine initialises what x-html injects. --}}
+    <div x-html="staffWeekHtml"></div>
+
     @if ($tsTotalCount)
-    <div class="uj-card" style="margin-bottom:16px;overflow:hidden;" x-data="{ open: true, showAll: false }">
+    <div class="uj-card" style="margin-bottom:16px;overflow:hidden;" x-show="! staffWeekHtml" x-data="{ open: true, showAll: false }">
         <div style="padding:14px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;" @click="open = !open">
             <strong style="flex:1;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'This week — team status' : 'Minggu ini — status pasukan'">This week — team status</strong>
             <span style="font-size:12.5px;color:var(--body);">
@@ -220,9 +244,16 @@
                                     </form>
                                 @endif
 
-                                <a href="{{ route('app.screen', ['screen' => 'timesheets', 'week' => $tsWeekStart]) }}" class="uj-tr-btn" style="display:inline-flex;align-items:center;text-decoration:none;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Open week' : 'Buka minggu'">Open week</span>
-                                </a>
+                                {{-- Opens THIS person's week beside the roster, read-only. It used
+                                     to link to /app/timesheets, which is the reader's own sheet —
+                                     wrong person, and an edit form on top of it. --}}
+                                <button type="button" class="uj-tr-btn" @click="openStaffWeek({{ $row['employee']->id }})"
+                                        :disabled="staffWeekLoading === {{ $row['employee']->id }}">
+                                    <span x-show="staffWeekLoading !== {{ $row['employee']->id }}"
+                                          x-text="$store.ui.lang==='en' ? 'Open week' : 'Buka minggu'">Open week</span>
+                                    <span x-show="staffWeekLoading === {{ $row['employee']->id }}" x-cloak
+                                          x-text="$store.ui.lang==='en' ? 'Opening…' : 'Membuka…'">Opening…</span>
+                                </button>
                             </div>
                         </div>
                     @endforeach
@@ -258,35 +289,134 @@
          so the thing you drilled into doesn't have to compete with eight controls
          above it. --}}
     <div x-show="sel.view==='bars'">
-        <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
-            <div>
-                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</span></label>
-                <input type="date" name="from" value="{{ $from }}" class="uj-tr-sel" />
+        {{-- Two rows, because the controls answer to two different things. The period
+             is links: pressing one moves you now, and partial-nav swaps the screen and
+             nothing else. The pickers below are form fields, so they wait for Apply —
+             four of them navigating one at a time would be four page changes. Mixing
+             them on one line made Apply look like it governed all seven. --}}
+        <div class="uj-tr-period">
+            <div class="uj-ar-seg">
+                @foreach ($trGrans as $key => $granLabel)
+                    <a href="{{ $trUrl(['gran' => $key, 'offset' => 0, 'from' => null, 'to' => null]) }}"
+                       @if($gran === $key) data-on @endif
+                       x-text="$store.ui.lang==='en' ? @js($granLabel[0]) : @js($granLabel[1])">{{ $granLabel[0] }}</a>
+                @endforeach
             </div>
-            <div>
-                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</span></label>
-                <input type="date" name="to" value="{{ $to }}" class="uj-tr-sel" />
+
+            <div class="uj-ar-month">
+                @if ($canPrev)
+                    <a class="nav" href="{{ $trUrl(['offset' => $offset - 1]) }}"
+                       :aria-label="$store.ui.lang==='en' ? 'Previous period' : 'Tempoh sebelum'">&lsaquo;</a>
+                @else
+                    <span class="nav" data-off aria-hidden="true">&lsaquo;</span>
+                @endif
+                <span class="lbl" x-text="$store.ui.lang==='en' ? @js($periodLabel['en']) : @js($periodLabel['ms'])">{{ $periodLabel['en'] }}</span>
+                @if ($canNext)
+                    <a class="nav" href="{{ $trUrl(['offset' => $offset + 1]) }}"
+                       :aria-label="$store.ui.lang==='en' ? 'Next period' : 'Tempoh seterusnya'">&rsaquo;</a>
+                @else
+                    <span class="nav" data-off aria-hidden="true">&rsaquo;</span>
+                @endif
+                <span class="div"></span>
+                {{-- click.outside on the wrapper, not the panel: on the panel the button
+                     itself counts as outside, so the popover shuts a moment before the
+                     button reopens it and the toggle never opens at all. --}}
+                <span class="uj-ar-customwrap" x-data="{ range: false }"
+                      @keydown.escape="range = false" @click.outside="range = false">
+                    <button type="button" class="custom nav" @click="range = ! range"
+                            :aria-expanded="range" aria-haspopup="dialog"
+                            @if($gran === 'custom') data-on @endif>
+                        <span x-text="$store.ui.lang==='en' ? 'Custom' : 'Tersuai'">Custom</span>
+                    </button>
+
+                    <div class="uj-ar-pop" role="dialog" aria-modal="false" aria-labelledby="tr-rangetitle"
+                         x-show="range" x-cloak x-transition.opacity.duration.160ms>
+                        <h4 id="tr-rangetitle" x-text="$store.ui.lang==='en' ? 'Custom range' : 'Julat tersuai'">Custom range</h4>
+                        <p x-text="$store.ui.lang==='en'
+                            ? 'Pick any two dates. Overrides the period above.'
+                            : 'Pilih dua tarikh. Menggantikan tempoh di atas.'">Pick any two dates. Overrides the period above.</p>
+                        <div class="rng">
+                            <span>
+                                <label for="tr-from" x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</label>
+                                {{-- form=: these belong to the range form below, not to the
+                                     filter form they sit inside. Nested forms are invalid. --}}
+                                <input type="date" id="tr-from" form="tr-range-form" name="from" value="{{ $from }}">
+                            </span>
+                            <span>
+                                <label for="tr-to" x-text="$store.ui.lang==='en' ? 'To' : 'Hingga'">To</label>
+                                <input type="date" id="tr-to" form="tr-range-form" name="to" value="{{ $to }}">
+                            </span>
+                        </div>
+                        <div class="acts">
+                            <button type="button" class="uj-tr-btn" @click="range = false"
+                                    x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                            <button type="submit" form="tr-range-form" class="uj-tr-btn" data-primary
+                                    x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</button>
+                        </div>
+                    </div>
+                </span>
             </div>
-            <div>
-                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span></label>
-                <select name="category" class="uj-tr-sel">
-                    <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
-                    @foreach ($filterCategories as $c)
-                        <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>
-                <select name="project" class="uj-tr-sel">
-                    <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
-                    @foreach ($filterProjects as $p)
-                        <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <button type="submit" class="uj-tr-btn" data-primary style="align-self:flex-end;"><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
+
             <span class="uj-tr-range">{{ $dateRange }}</span>
+        </div>
+
+        <form method="get" action="{{ route('app.screen', 'timesheet-reports') }}" class="uj-tr-filter">
+            <input type="hidden" name="tab" value="report">
+            <input type="hidden" name="gran" value="{{ $gran }}">
+            @if ($gran === 'custom')
+                <input type="hidden" name="from" value="{{ $from }}">
+                <input type="hidden" name="to" value="{{ $to }}">
+            @else
+                <input type="hidden" name="offset" value="{{ $offset }}">
+            @endif
+
+            <select name="dept" class="uj-tr-sel"
+                :aria-label="$store.ui.lang==='en' ? 'Department' : 'Jabatan'">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All departments' : 'Semua jabatan'">All departments</option>
+                @foreach ($departments as $name)
+                    <option value="{{ $name }}" @selected($dept === $name)>{{ $name }}</option>
+                @endforeach
+            </select>
+
+            <select name="category" class="uj-tr-sel"
+                :aria-label="$store.ui.lang==='en' ? 'Category' : 'Kategori'">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'">All categories</option>
+                @foreach ($filterCategories as $c)
+                    <option value="{{ $c->id }}" @selected((string) $selCategory === (string) $c->id)>{{ $c->name }}</option>
+                @endforeach
+            </select>
+
+            <select name="project" class="uj-tr-sel"
+                :aria-label="$store.ui.lang==='en' ? 'Project' : 'Projek'">
+                <option value="" x-text="$store.ui.lang==='en' ? 'All projects' : 'Semua projek'">All projects</option>
+                @foreach ($filterProjects as $p)
+                    <option value="{{ $p->id }}" @selected((string) $selProject === (string) $p->id)>{{ $p->name }}</option>
+                @endforeach
+            </select>
+
+            <div class="uj-ar-search" @if($q !== '') data-has @endif>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+                <input type="search" name="q" value="{{ $q }}"
+                       :placeholder="$store.ui.lang==='en' ? 'Search a name' : 'Cari nama'"
+                       placeholder="Search a name">
+                @if ($q !== '')
+                    <a class="clr" href="{{ $trUrl(['q' => null]) }}"
+                       :aria-label="$store.ui.lang==='en' ? 'Clear search' : 'Kosongkan carian'">&times;</a>
+                @endif
+            </div>
+
+            <button type="submit" class="uj-tr-btn" data-primary><span x-text="$store.ui.lang==='en' ? 'Apply' : 'Guna'">Apply</span></button>
+        </form>
+
+        {{-- The custom-range popover's own form, so its two date inputs replace the
+             period instead of joining it. Sibling, not nested. --}}
+        <form method="get" id="tr-range-form" action="{{ route('app.screen', 'timesheet-reports') }}" hidden>
+            <input type="hidden" name="tab" value="report">
+            <input type="hidden" name="gran" value="custom">
+            @if ($dept)<input type="hidden" name="dept" value="{{ $dept }}">@endif
+            @if ($q !== '')<input type="hidden" name="q" value="{{ $q }}">@endif
+            @if ($selCategory)<input type="hidden" name="category" value="{{ $selCategory }}">@endif
+            @if ($selProject)<input type="hidden" name="project" value="{{ $selProject }}">@endif
         </form>
 
         <div style="margin-top:20px;">
@@ -449,49 +579,84 @@
                             prevWeek() { if (this.weekIdx > 0) { this.weekDir = 'back'; this.weekIdx-- } },
                             nextWeek() { if (this.weekIdx < this.weeksList.length - 1) { this.weekDir = 'fwd'; this.weekIdx++ } },
                         }">
-                        <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
+                        {{-- The name lives here, not only in the breadcrumb above it: the
+                             breadcrumb is a route, and a panel that reports one person's
+                             month should say whose it is without being read as navigation. --}}
+                        <div class="uj-tr-person">
                             <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
-                            <div style="min-width:0;flex:1">
-                                <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
+                            <div class="who">
+                                <h3 x-text="p.name"></h3>
+                                <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + rm(p.rate) + '/day') : '')"></div>
+                            </div>
+                            <div class="tally">
+                                <b x-text="p.weeksIn + ' / ' + p.weeksTotal"></b>
+                                <span x-text="$store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar'">weeks submitted</span>
                             </div>
                         </div>
-                        <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
+
+                        {{-- Which weeks are absent belongs beside the count that raised the
+                             question, not in a footnote under the entries. --}}
+                        <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
+                            <div class="uj-tr-note uj-tr-note--tight" x-text="formatMissingWeeks(p)"></div>
+                        </template>
+
                         <template x-if="weeksList.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
                         </template>
                         <template x-if="weeksList.length > 0">
                             <div class="uj-tr-weeknav">
-                                <div class="uj-tr-weeknav-hd">
-                                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
-                                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
-                                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeksList.length"></span>
-                                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
-                                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
-                                </div>
                                 <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
                                     <div class="uj-tr-wk" :data-dir="weekDir">
-                                        <div class="hdr">
-                                            <span x-text="wk.label + ' · ' + wk.dates"></span>
-                                            <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                                        {{-- The pager sits in the header of the thing it pages,
+                                             rather than floating above it in its own band. --}}
+                                        <div class="uj-tr-wk-hd">
+                                            <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                                                :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                                            <div class="lbl">
+                                                <b x-text="wk.label"></b>
+                                                <span x-text="wk.dates"></span>
+                                                {{-- Which of how many. Two disabled arrows say
+                                                     "first" and "last" but never say how many
+                                                     weeks are behind them. --}}
+                                                <span class="pos" x-show="weeksList.length > 1"
+                                                    x-text="(weekIdx + 1) + ' / ' + weeksList.length"></span>
+                                            </div>
+                                            <div class="tot">
+                                                <b x-text="md(wk.days) + ' md'"></b>
+                                                <template x-if="p.costed && wk.cost > 0">
+                                                    <span x-text="rm(wk.cost)"></span>
+                                                </template>
+                                            </div>
+                                            <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
+                                                :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                                         </div>
-                                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                            <div class="uj-tr-ent">
-                                                <div>
-                                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                                    <span x-text="line.label"></span>
-                                                    <template x-if="line.note">
-                                                        <span class="n" x-html="line.note"></span>
-                                                    </template>
+
+                                        {{-- One heading per day carrying that day's total, so a
+                                             day that does not reach 1 is visible without adding
+                                             its lines up by hand. --}}
+                                        <template x-for="grp in daysInWeek(wk)" :key="grp.day">
+                                            <div class="uj-tr-day-grp">
+                                                <div class="uj-tr-day">
+                                                    <span class="d" x-text="grp.day"></span>
+                                                    <span class="rule" aria-hidden="true"></span>
+                                                    <span class="t" :data-short="grp.days < 1 || null" x-text="md(grp.days)"></span>
                                                 </div>
-                                                <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                                <template x-for="(line, lidx) in grp.lines" :key="lidx">
+                                                    <div class="uj-tr-ent">
+                                                        <div>
+                                                            <span x-text="line.label"></span>
+                                                            <template x-if="line.note">
+                                                                <span class="n" x-html="line.note"></span>
+                                                            </template>
+                                                        </div>
+                                                        <span class="d" x-text="md(line.days)"></span>
+                                                    </div>
+                                                </template>
                                             </div>
                                         </template>
                                     </div>
                                 </template>
                             </div>
-                        </template>
-                        <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
-                            <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
                         </template>
                         <template x-if="!p.costed">
                             <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>

@@ -12,10 +12,10 @@
         $items->push(['kind' => 'event', 'label' => $e->title, 'color' => '#3a6ea5', 'tint' => '#eaf1f9']);
     }
     foreach (($cell['birthday'] ?? collect()) as $b) {
-        $items->push(['kind' => 'birthday', 'label' => '🎂 '.($b->name ?? 'Birthday'), 'color' => '#c026d3', 'tint' => '#faeffb']);
+        $items->push(['kind' => 'birthday', 'label' => '🎂 '.($b->display_name ?? 'Birthday'), 'color' => '#c026d3', 'tint' => '#faeffb']);
     }
     foreach ($cell['leave'] as $l) {
-        $items->push(['kind' => 'leave', 'label' => $l->employee?->name ?? 'Employee', 'color' => 'var(--success)', 'tint' => '#e9f5ee']);
+        $items->push(['kind' => 'leave', 'label' => $l->employee?->display_name ?? 'Employee', 'color' => 'var(--success)', 'tint' => '#e9f5ee']);
     }
     $visible = $items->take($maxItems);
     $overflow = $items->count() - $visible->count();
