@@ -78,6 +78,49 @@ class SidebarNavTest extends TestCase
             "A group's sub-panel is gone. Oversight and Offboarding hold one cell each and open their screens beside it.");
     }
 
+    public function test_listed_down_layout_ships_alongside_the_panel(): void
+    {
+        $this->signIn();
+
+        $nav = $this->desktopNav();
+
+        // Both bodies are in the HTML on every page; a CSS class picks one, so the
+        // switch costs no request. Lose either and the switch flips to an empty column.
+        $this->assertStringContainsString('uj-nav-sections', $nav, 'The section body is gone.');
+        $this->assertStringContainsString('uj-nav-tree', $nav, 'The listed-down body is gone.');
+    }
+
+    public function test_listed_down_layout_reaches_every_screen_the_panel_does(): void
+    {
+        $this->signIn();
+
+        $nav = $this->desktopNav();
+        $tree = substr($nav, strpos($nav, 'class="uj-nav-tree"'));
+
+        // Same screens as the panel test, drawn the other way. A group's children are
+        // indented under it here rather than waiting behind a second hover.
+        foreach (['attendance', 'timesheets', 'leave', 'claims', 'attendance-report', 'resignation'] as $screen) {
+            $this->assertStringContainsString(route('app.screen', ['screen' => $screen]), $tree,
+                sprintf('%s is not linked in the listed-down sidebar.', $screen));
+        }
+
+        // A group (Oversight, Offboarding) opens the way its section does — pointing at
+        // it drops its screens open. Showing them outright makes the section tower over
+        // the others for screens most people never open.
+        $this->assertStringContainsString('openKid', $tree,
+            'A group in the listed-down sidebar shows its screens outright instead of opening on hover.');
+    }
+
+    public function test_the_layout_switch_is_on_the_page(): void
+    {
+        $this->signIn();
+
+        $html = $this->get('/app/dash')->assertOk()->getContent();
+
+        $this->assertStringContainsString('toggleSbStyle()', $html,
+            'The control that swaps the two sidebar layouts is gone.');
+    }
+
     public function test_every_nav_section_has_an_icon(): void
     {
         $sections = collect(Amanahku::nav())->pluck('section')->unique();

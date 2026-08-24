@@ -534,6 +534,54 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-row[aria-expanded="true"] .uj-nav-chev { transform: rotate(90deg); }
 .uj-nav-pill { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; color: var(--sidebar-dim); background: rgba(255, 255, 255, .08); border-radius: 9999px; padding: 1px 7px; flex-shrink: 0; }
 
+/* ── The two nav bodies ──
+   Both are in the HTML on every page; which one shows is a class on the shell.
+   Collapsing wins over the choice: the listed-down tree has nowhere to open in a
+   64px rail, so the rail always falls back to sections plus the panel. */
+.uj-nav-tree { display: none; }
+.uj-sb-tree .uj-nav-sections { display: none; }
+.uj-sb-tree .uj-nav-tree { display: block; }
+.uj-sb-tree.uj-sb-collapsed .uj-nav-sections { display: block; }
+.uj-sb-tree.uj-sb-collapsed .uj-nav-tree { display: none; }
+
+/* The accordion box. A 0fr → 1fr row is the only way to open to a height nobody
+   measured, and the chevron beside it already glides (.uj-tree-chev below) — before
+   this the arrow moved while the rows it points at jumped.
+
+   Opening eases, closing is instant, and that asymmetry is deliberate: the box closes
+   because the pointer walked away from it, so easing the exit only keeps something on
+   screen the person has already left. Hence the transition living on .is-open alone.
+
+   Layout, not transform, so it is not composited. Fine at 130ms over a handful of rows
+   in a fixed-width column; do not reach for this on anything wider. */
+.uj-tree-kids { display: grid; grid-template-rows: 0fr; }
+.uj-tree-kids.is-open { grid-template-rows: 1fr; transition: grid-template-rows 130ms var(--ease); }
+/* No padding here. min-height:0 clamps the content box but not padding, so a closed
+   0fr row would still stand 6px tall — five sections' worth of dead space down the
+   column. The rows carry their own vertical padding already. */
+.uj-tree-kids-in { min-height: 0; overflow: hidden; }
+.uj-tree-kids.is-open > .uj-tree-kids-in { padding-bottom: 4px; }
+.uj-tree-lnk { display: flex; align-items: center; gap: 9px; width: 100%; padding: 5px 10px 5px 32px; border-radius: 7px; font-size: var(--t-sm); font-weight: 500; color: var(--sidebar-text); background: none; border: 0; text-align: left; cursor: pointer; text-decoration: none; opacity: 0; transform: translateY(-2px); }
+.uj-tree-kids.is-open > .uj-tree-kids-in > .uj-tree-lnk,
+.uj-tree-kids.is-open > .uj-tree-kids-in > div > .uj-tree-lnk { opacity: 1; transform: none; transition: opacity 110ms var(--ease), transform 110ms var(--ease); }
+/* Every other pill in the app presses down on :active (.kb-chip, .uj-seg). Listed
+   after the rules above so it outranks their transform: none. */
+.uj-tree-lnk:active, .uj-tree-kids.is-open .uj-tree-lnk:active { transform: scale(.98); transition: transform 140ms ease-out; }
+.uj-tree-lnk > svg { flex-shrink: 0; color: var(--muted-soft); }
+.uj-tree-lnk:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.uj-tree-lnk[data-on] { background: rgba(255, 255, 255, .09); color: #fff; }
+.uj-tree-lnk[data-on] > svg { color: var(--red); }
+.uj-tree-deep { padding-left: 46px; }
+.uj-tree-chev { flex-shrink: 0; margin-left: auto; color: var(--sidebar-dim); transition: transform .16s cubic-bezier(.23, 1, .32, 1); }
+@media (prefers-reduced-motion: reduce) {
+    .uj-tree-kids.is-open { transition: none; }
+    .uj-tree-kids.is-open > .uj-tree-kids-in > .uj-tree-lnk,
+    .uj-tree-kids.is-open > .uj-tree-kids-in > div > .uj-tree-lnk { transition: opacity 120ms ease; }
+    .uj-tree-lnk { transform: none; }
+    .uj-tree-lnk:active, .uj-tree-kids.is-open .uj-tree-lnk:active { transform: none; }
+    .uj-tree-chev { transition: none; }
+}
+
 .uj-sb-foot { flex-shrink: 0; border-top: 1px solid var(--sidebar-line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .uj-sb-ws { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin-top: 8px; border-radius: 9px; text-decoration: none; }
 .uj-sb-ws:hover { background: rgba(255, 255, 255, .06); }
