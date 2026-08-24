@@ -365,7 +365,7 @@ trait BuildsDashboardData
         return $this->teamOnLeaveSoon($employee)->map(fn (LeaveRequest $r) => [
             'title' => $r->employee?->display_name ?? 'Someone',
             'sub' => trim($r->date_from->format('j M').'–'.$r->date_to->format('j M')),
-            'meta' => $r->leaveType?->name ?? 'Leave',
+            'meta' => ($r->leaveType?->name ?? 'Leave').' leave',
             'initials' => $r->employee?->initials ?? '–',
             'color' => $r->employee?->avatar_color ?? config('amanahku.avatar_color'),
         ])->all();

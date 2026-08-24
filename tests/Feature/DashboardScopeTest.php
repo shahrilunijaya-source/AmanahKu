@@ -213,5 +213,6 @@ class DashboardScopeTest extends TestCase
         $rows = collect($this->get('/app/dash')->viewData('railCards'))->firstWhere('id', 'around')['rows'];
 
         $this->assertSame('Akilah', $rows[0]['title']);
+        $this->assertSame('Annual leave', $rows[0]['meta']);
     }
 }
