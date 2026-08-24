@@ -26,6 +26,13 @@ export function findEditTarget(rows, editId) {
     return null;
 }
 
+/** Plain text (a board card's title/description) escaped for Quill's dangerouslyPasteHTML,
+ *  which parses its input as HTML — an unescaped "<" or "&" would otherwise corrupt or
+ *  vanish from the note it's meant to seed. */
+export function escapeForNotes(text) {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /** ISO date $days after $iso, in UTC so a local timezone can never shift the day. */
 export function addDaysIso(iso, days) {
     const [y, m, d] = iso.split('-').map(Number);
@@ -62,6 +69,7 @@ export function registerTimesheetCapture(Alpine) {
         categories: cfg.categories || [],
         projects: cfg.projects || [],
         templates: cfg.templates || [],
+        boardTasks: cfg.boardTasks || [],
         readonly: cfg.readonly || false,
         editEntryId: cfg.editEntryId || null,
         rows: {},
@@ -332,13 +340,49 @@ export function registerTimesheetCapture(Alpine) {
         picker: {
             open: false, step: 'category', category: null, project: null,
             pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
+            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
         },
 
         openPicker() {
             this.picker = {
                 open: true, step: 'category', category: null, project: null,
                 pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
+                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
             };
+        },
+        // "Pull from board": same popup, but starts on a list of the employee's own In
+        // Progress cards instead of the category step. Category is still asked (a card
+        // carries no category), so this only pre-fills what the card already knows.
+        openBoardPicker() {
+            this.picker = {
+                open: true, step: 'board', category: null, project: null,
+                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
+                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+            };
+        },
+        projectName(id) {
+            const p = this.projects.find((p) => String(p.id) === String(id));
+            return p ? p.name : '';
+        },
+        chooseBoardTask(task) {
+            this.picker.viaBoard = true;
+            this.picker.boardProject = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
+            this.picker.boardDesc = escapeForNotes(task.description || task.title || '');
+            this.picker.boardTaskTitle = task.title;
+            this.picker.step = 'category';
+            this.focusPickerTitle();
+        },
+        // A category picked with a board-pulled project already in hand: skip the project
+        // step it would otherwise ask for, same terminal rule pickerProjects() uses (a
+        // project with no sub-pillars is terminal, one with sub-pillars asks that step).
+        advanceFromProject() {
+            const c = this.picker.category;
+            const p = this.picker.project;
+            if ((p.sub_pillars || []).length) {
+                this.picker.step = 'sub';
+            } else {
+                this.chooseItem(this.pickerItem(c, p, null));
+            }
         },
         // Reopens the picker straight on the details step, pre-filled from an existing row,
         // so editing a rich-text note goes through the same Quill instance that wrote it
@@ -374,6 +418,11 @@ export function registerTimesheetCapture(Alpine) {
                 this.picker.project = null;
             } else if (this.picker.step === 'project') {
                 this.picker.step = 'category';
+                this.picker.category = null;
+            } else if (this.picker.step === 'category' && this.picker.viaBoard) {
+                // A board pull's first step is the card list, not category — back goes
+                // there instead of closing, so re-picking a card doesn't reopen the popup.
+                this.picker.step = 'board';
                 this.picker.category = null;
             } else {
                 this.closePicker();
@@ -468,7 +517,12 @@ export function registerTimesheetCapture(Alpine) {
                 this.chooseItem(option.item);
             } else if (this.picker.step === 'category') {
                 this.picker.category = option.c;
-                this.picker.step = 'project';
+                if (this.picker.boardProject && option.c.requires_project) {
+                    this.picker.project = this.picker.boardProject;
+                    this.advanceFromProject();
+                } else {
+                    this.picker.step = 'project';
+                }
             } else {
                 this.picker.project = option.p;
                 this.picker.step = 'sub';
@@ -511,7 +565,9 @@ export function registerTimesheetCapture(Alpine) {
             this.picker.detailsFrom = this.picker.step;
             this.picker.pendingItem = item;
             this.picker.pendingPct = pct;
-            this.picker.pendingDesc = '';
+            // A board-pulled card's description (or its title, if it has none) rides along
+            // into the notes field — empty for every other path into this step.
+            this.picker.pendingDesc = this.picker.boardDesc || '';
             this.picker.step = 'details';
             this.focusPickerTitle();
         },

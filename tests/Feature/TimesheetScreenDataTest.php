@@ -10,6 +10,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Models\WorkItem;
 use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -145,6 +146,36 @@ class TimesheetScreenDataTest extends TestCase
      * re-post as a manual `source=null` entry, exactly what D5 (categoryOptions' exclusion of
      * On Leave / Public Holiday from the picker) is meant to prevent.
      */
+    /**
+     * `tsBoardTasks` feeds the timesheet screen's "Pull from board" picker step
+     * (docs/superpowers/specs/2026-08-24-timesheet-pull-from-board-design.md):
+     * only the signed-in employee's own In Progress cards, never another
+     * employee's or a card sitting in a different column.
+     */
+    public function test_in_progress_board_cards_reach_the_view(): void
+    {
+        WorkItem::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'title' => 'Tender ISCAF', 'type' => 'task', 'status' => 'prog',
+        ]);
+        WorkItem::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'title' => 'Done already', 'type' => 'task', 'status' => 'done',
+        ]);
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else', 'status' => 'active', 'workload' => 'green',
+        ]);
+        WorkItem::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
+            'title' => 'Not mine', 'type' => 'task', 'status' => 'prog',
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $titles = collect($response->viewData('tsBoardTasks'))->pluck('title');
+        $this->assertSame(['Tender ISCAF'], $titles->all());
+    }
+
     public function test_existing_grid_excludes_source_tagged_rows(): void
     {
         $sheet = Timesheet::create([

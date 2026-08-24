@@ -268,6 +268,21 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-btn-primary:hover { background: var(--red-active); }
 .uj-btn-primary:active { transform: scale(0.97); }
 
+/* display can't be inline on an x-show element: Alpine strips the inline `display`
+   property when it shows the element (it only ever restores to '', not a remembered
+   value), so a flex row written as inline style silently collapses to block the
+   moment isEditable(selected) flips true. The class survives because Alpine only
+   ever touches el.style, never classList. */
+.uj-ts-add-row { display: flex; flex-direction: row; gap: 8px; margin-top: 12px; }
+/* Base look lives here, not inline, so :hover below can actually win — an inline
+   style on the element beats any class selector, hover included. */
+.uj-ts-add-btn {
+    flex: 1; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px;
+    background: none; cursor: pointer; font-size: 12.5px; color: var(--muted);
+    transition: background .15s, border-color .15s, color .15s;
+}
+.uj-ts-add-btn:hover { background: var(--red); border-color: var(--red); border-style: solid; color: #fff; }
+
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
 .uj-field:focus {
@@ -986,6 +1001,8 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-foot { display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); color: var(--muted); }
 .wc-when { font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .wc-when--over { color: var(--error); font-weight: 600; }
+.wc-when-badge { font-variant-numeric: tabular-nums; flex-shrink: 0; font-weight: 600; font-size: 10px; }
+.wc-when-badge.wc-when--early { color: var(--success-ink); }
 .wc-sep { color: var(--muted-soft); flex-shrink: 0; }
 .wc-when--none { color: var(--muted); }
 .wc-proj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

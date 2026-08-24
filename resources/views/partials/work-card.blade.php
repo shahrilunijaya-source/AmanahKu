@@ -19,6 +19,22 @@
     $wcCompact = $compact ?? false;
     $wcOverdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today());
 
+    // How many days late (+) or early (-) against due_at: done cards compare
+    // against done_at (stamped once on the done transition), open cards
+    // compare against today — but only once actually overdue, matching $wcOverdue.
+    $wcDueBadge = null;
+    if ($c->due_at) {
+        $wcRef = $c->status === 'done' ? $c->done_at : ($wcOverdue ? today() : null);
+        if ($wcRef) {
+            $wcDiffDays = (int) $c->due_at->copy()->startOfDay()->diffInDays($wcRef->copy()->startOfDay(), false);
+            if ($wcDiffDays > 0) {
+                $wcDueBadge = ['text' => '+'.$wcDiffDays.' days', 'class' => 'wc-when--over'];
+            } elseif ($wcDiffDays < 0) {
+                $wcDueBadge = ['text' => $wcDiffDays.' days', 'class' => 'wc-when--early'];
+            }
+        }
+    }
+
     // The footer avatar stack: the assigner (if this is a tac) first, then the
     // shared card's participants. Capped at 3 with a "+N" for the rest — the
     // assigner is not exempt from the cap, it is just the first in line.
@@ -77,6 +93,9 @@
     <div class="wc-foot">
         @if ($c->due_at)
             <span class="wc-when @if ($wcOverdue) wc-when--over @endif">{{ $c->due_at->format('d M') }}</span>
+            @if ($wcDueBadge)
+                <span class="wc-when-badge {{ $wcDueBadge['class'] }}">{{ $wcDueBadge['text'] }}</span>
+            @endif
         @else
             <span class="wc-when wc-when--none">No due date</span>
         @endif
