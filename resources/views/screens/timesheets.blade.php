@@ -696,7 +696,7 @@
                                 <span :style="{ background: categoryColour(r.category_id) }" style="width:8px;height:8px;border-radius:2px;margin-top:4px;flex-shrink:0;"></span>
                                 <div style="flex:1;min-width:0;">
                                     <div style="font-size:12.5px;font-weight:600;" x-text="rowLabel(r)"></div>
-                                    <div x-show="r.description" style="font-size:11.5px;color:var(--body);margin-top:2px;" x-text="r.description"></div>
+                                    <div class="uj-markdown" x-show="r.description" style="font-size:11.5px;margin-top:2px;" x-html="r.description"></div>
                                 </div>
                                 <div style="font-size:13px;font-family:var(--font-mono);font-weight:600;" x-text="(parseFloat(r.percentage)||0) + '%'"></div>
                             </div>
