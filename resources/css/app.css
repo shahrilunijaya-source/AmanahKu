@@ -3313,7 +3313,6 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .tot-mast{background:var(--red);padding:24px 26px 20px;}
 .tot-mast-k{font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:rgba(255,255,255,.92);font-weight:600;}
 .tot-mast-y{font:600 54px/1 var(--font-mono);color:#fff;margin-top:8px;letter-spacing:-.03em;}
-.tot-mast-s{font-size:13px;color:rgba(255,255,255,.94);margin-top:7px;}
 .tot-yr-list{display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-top:4px;}
 .tot-yr{background:none;border:0;cursor:pointer;font:600 15px var(--font-mono);color:rgba(255,255,255,.72);padding:2px 0;transition:color 160ms var(--tot-eo);text-decoration:none;}
 .tot-yr:hover{color:rgba(255,255,255,.9);}

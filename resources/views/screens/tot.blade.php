@@ -115,7 +115,6 @@
             <div>
                 <div class="tot-mast-k">Transfer of technology</div>
                 <div class="tot-mast-y">{{ $year }}</div>
-                <div class="tot-mast-s" x-text="$store.ui.lang==='en' ? 'First Saturday of every month. One person, one topic.' : 'Sabtu pertama setiap bulan. Seorang membentang satu topik.'">First Saturday of every month. One person, one topic.</div>
             </div>
             <div class="tot-yr-list">
                 @foreach ($years as $y)
