@@ -171,7 +171,7 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 8
+			count: 7
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -917,12 +917,13 @@ parameters:
 			# whereIn(...)->get()->keyBy() only covers users that have an Employee row —
 			# verified against real data that some tenant users have none (no match, get()
 			# genuinely returns null). Removing the nullsafe would fatal-error those tenants.
-			# Count 2: one hit in AppController::auditLogsData() itself, one in
-			# BuildsPeopleData::rolesData() — a trait used only by AppController, so
-			# PHPStan attributes both to this file.
+			# Count 3: one hit in AppController::auditLogsData() itself, one in
+			# BuildsPeopleData::rolesData() and one in BuildsDashboardData::aroundRows()
+			# — traits used only by AppController, so PHPStan attributes all three to
+			# this file.
 			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 2
+			count: 3
 			path: app/Http/Controllers/AppController.php
 
 		-
