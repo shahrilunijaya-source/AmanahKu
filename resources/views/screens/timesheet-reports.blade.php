@@ -579,49 +579,84 @@
                             prevWeek() { if (this.weekIdx > 0) { this.weekDir = 'back'; this.weekIdx-- } },
                             nextWeek() { if (this.weekIdx < this.weeksList.length - 1) { this.weekDir = 'fwd'; this.weekIdx++ } },
                         }">
-                        <div style="display:flex;align-items:center;gap:11px;margin:10px 0 12px;">
+                        {{-- The name lives here, not only in the breadcrumb above it: the
+                             breadcrumb is a route, and a panel that reports one person's
+                             month should say whose it is without being read as navigation. --}}
+                        <div class="uj-tr-person">
                             <span class="uj-tr-av" :style="'background:' + (p.color || 'var(--info)')" x-text="p.initials"></span>
-                            <div style="min-width:0;flex:1">
-                                <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + 'RM ' + Number(p.rate).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/day') : '')"></div>
+                            <div class="who">
+                                <h3 x-text="p.name"></h3>
+                                <div class="uj-tr-sub" x-text="(p.title || '') + (p.costed && p.rate ? ((p.title ? ' · ' : '') + rm(p.rate) + '/day') : '')"></div>
+                            </div>
+                            <div class="tally">
+                                <b x-text="p.weeksIn + ' / ' + p.weeksTotal"></b>
+                                <span x-text="$store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar'">weeks submitted</span>
                             </div>
                         </div>
-                        <div style="font-size:var(--t-sm);color:var(--muted);margin-bottom:12px;" x-text="p.weeksIn + ' ' + ($store.ui.lang === 'en' ? 'of' : 'daripada') + ' ' + p.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'weeks submitted' : 'minggu dihantar')"></div>
+
+                        {{-- Which weeks are absent belongs beside the count that raised the
+                             question, not in a footnote under the entries. --}}
+                        <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
+                            <div class="uj-tr-note uj-tr-note--tight" x-text="formatMissingWeeks(p)"></div>
+                        </template>
+
                         <template x-if="weeksList.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No submitted lines in this period.' : 'Tiada baris dihantar dalam tempoh ini.'"></div>
                         </template>
                         <template x-if="weeksList.length > 0">
                             <div class="uj-tr-weeknav">
-                                <div class="uj-tr-weeknav-hd">
-                                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
-                                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
-                                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeksList.length"></span>
-                                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
-                                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
-                                </div>
                                 <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
                                     <div class="uj-tr-wk" :data-dir="weekDir">
-                                        <div class="hdr">
-                                            <span x-text="wk.label + ' · ' + wk.dates"></span>
-                                            <span x-text="(Math.round((wk.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md' + (p.costed && wk.cost > 0 ? ' · RM ' + Number(wk.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '')"></span>
+                                        {{-- The pager sits in the header of the thing it pages,
+                                             rather than floating above it in its own band. --}}
+                                        <div class="uj-tr-wk-hd">
+                                            <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                                                :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                                            <div class="lbl">
+                                                <b x-text="wk.label"></b>
+                                                <span x-text="wk.dates"></span>
+                                                {{-- Which of how many. Two disabled arrows say
+                                                     "first" and "last" but never say how many
+                                                     weeks are behind them. --}}
+                                                <span class="pos" x-show="weeksList.length > 1"
+                                                    x-text="(weekIdx + 1) + ' / ' + weeksList.length"></span>
+                                            </div>
+                                            <div class="tot">
+                                                <b x-text="md(wk.days) + ' md'"></b>
+                                                <template x-if="p.costed && wk.cost > 0">
+                                                    <span x-text="rm(wk.cost)"></span>
+                                                </template>
+                                            </div>
+                                            <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
+                                                :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                                         </div>
-                                        <template x-for="(line, lidx) in wk.lines" :key="lidx">
-                                            <div class="uj-tr-ent">
-                                                <div>
-                                                    <div class="uj-tr-ent-day" :style="'color:' + dayColor(line.day)" x-text="line.day"></div>
-                                                    <span x-text="line.label"></span>
-                                                    <template x-if="line.note">
-                                                        <span class="n" x-html="line.note"></span>
-                                                    </template>
+
+                                        {{-- One heading per day carrying that day's total, so a
+                                             day that does not reach 1 is visible without adding
+                                             its lines up by hand. --}}
+                                        <template x-for="grp in daysInWeek(wk)" :key="grp.day">
+                                            <div class="uj-tr-day-grp">
+                                                <div class="uj-tr-day">
+                                                    <span class="d" x-text="grp.day"></span>
+                                                    <span class="rule" aria-hidden="true"></span>
+                                                    <span class="t" :data-short="grp.days < 1 || null" x-text="md(grp.days)"></span>
                                                 </div>
-                                                <span class="d" x-text="(Math.round((line.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                                <template x-for="(line, lidx) in grp.lines" :key="lidx">
+                                                    <div class="uj-tr-ent">
+                                                        <div>
+                                                            <span x-text="line.label"></span>
+                                                            <template x-if="line.note">
+                                                                <span class="n" x-html="line.note"></span>
+                                                            </template>
+                                                        </div>
+                                                        <span class="d" x-text="md(line.days)"></span>
+                                                    </div>
+                                                </template>
                                             </div>
                                         </template>
                                     </div>
                                 </template>
                             </div>
-                        </template>
-                        <template x-if="p.missingWeeks && p.missingWeeks.length > 0">
-                            <div class="uj-tr-note" style="margin-top:12px" x-text="formatMissingWeeks(p)"></div>
                         </template>
                         <template x-if="!p.costed">
                             <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>

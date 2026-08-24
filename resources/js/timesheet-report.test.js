@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks, dayColor } from './timesheet-report';
+import { backTarget, selFromSearch, selToParams, breadcrumb, formatSliceSubline, formatMissingWeeks, groupLinesByDay, formatDays, formatRm } from './timesheet-report';
 
 test('backTarget pops person-with-slice to its slice', () => {
     expect(backTarget({ view: 'person', key: '42', from: '3' })).toEqual({ view: 'slice', key: '3', from: null });
@@ -126,17 +126,33 @@ test('formatMissingWeeks: no missing weeks or no person is blank', () => {
     expect(formatMissingWeeks(null, true)).toBe('');
 });
 
-test('dayColor maps each weekday prefix to a distinct accent, Friday repeats Monday', () => {
-    expect(dayColor('Mon 6 Jul')).toBe('var(--info)');
-    expect(dayColor('Tue 7 Jul')).toBe('var(--success-ink)');
-    expect(dayColor('Wed 8 Jul')).toBe('var(--amber-ink)');
-    expect(dayColor('Thu 9 Jul')).toBe('var(--red)');
-    expect(dayColor('Fri 10 Jul')).toBe('var(--info)');
+test('groupLinesByDay() totals each day, so a short day is visible without adding up', () => {
+    const groups = groupLinesByDay([
+        { day: 'Mon 6 Jul', days: 0.8 },
+        { day: 'Mon 6 Jul', days: 0.2 },
+        { day: 'Tue 7 Jul', days: 0.5 },
+    ]);
+    expect(groups.map((g) => g.day)).toEqual(['Mon 6 Jul', 'Tue 7 Jul']);
+    expect(groups[0].days).toBe(1);
+    expect(groups[1].days).toBe(0.5);
 });
 
-test('dayColor is blank for weekends and empty input', () => {
-    expect(dayColor('Sat 11 Jul')).toBe('');
-    expect(dayColor('Sun 12 Jul')).toBe('');
-    expect(dayColor(null)).toBe('');
-    expect(dayColor('')).toBe('');
+test('groupLinesByDay() does not let float addition leak into the total', () => {
+    const groups = groupLinesByDay([
+        { day: 'Mon 6 Jul', days: 0.1 },
+        { day: 'Mon 6 Jul', days: 0.2 },
+    ]);
+    expect(groups[0].days).toBe(0.3);
+});
+
+test('formatDays() drops trailing zeros so a column of numbers stays a column', () => {
+    expect(formatDays(1)).toBe('1');
+    expect(formatDays(0.8)).toBe('0.8');
+    expect(formatDays(5.25)).toBe('5.25');
+    expect(formatDays(null)).toBe('0');
+});
+
+test('formatRm() groups thousands and always keeps two decimals', () => {
+    expect(formatRm(1260)).toBe('RM 1,260.00');
+    expect(formatRm(0)).toBe('RM 0.00');
 });

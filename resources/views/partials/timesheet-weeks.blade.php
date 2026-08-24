@@ -16,13 +16,6 @@
         </template>
         <template x-if="weeks.length > 0">
             <div class="uj-tr-panel">
-                <div class="uj-tr-weeknav-hd">
-                    <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
-                        :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
-                    <span class="uj-tr-weeknav-pos" x-text="(weekIdx + 1) + ' / ' + weeks.length"></span>
-                    <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeks.length - 1"
-                        :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
-                </div>
                 <select class="uj-tr-weekpick" x-model.number="weekIdx"
                     :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
                     <template x-for="(w, i) in weeks" :key="i">
@@ -31,14 +24,24 @@
                 </select>
                 <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
                     <div class="uj-tr-wk" :data-dir="weekDir">
-                        <div class="hdr">
-                            <span x-text="wk.label + ' · ' + wk.dates"></span>
+                        {{-- Pager inside the header of the week it pages, and the week
+                             label reading as a heading — same shape the all-staff report's
+                             person panel uses, because it is the same object. --}}
+                        <div class="uj-tr-wk-hd">
+                            <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
+                                :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
+                            <div class="lbl">
+                                <b x-text="wk.label"></b>
+                                <span x-text="wk.dates"></span>
+                            </div>
                             {{-- No status and no lines = no sheet was ever started for that
                                  week. Calling that "Draft" would claim a draft exists. --}}
                             <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"
                                 x-text="wk.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar')
                                       : (!wk.status && wk.lines.length === 0 ? ($store.ui.lang==='en' ? 'Nothing yet' : 'Belum ada')
                                       : ($store.ui.lang==='en' ? 'Draft' : 'Draf'))"></span>
+                            <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeks.length - 1"
+                                :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                         </div>
                         <template x-if="wk.lines.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
@@ -53,7 +56,11 @@
                              not in tab order, not clickable. --}}
                         <template x-for="grp in daysInWeek(wk)" :key="grp.day">
                             <div class="uj-tr-day-grp">
-                                <div class="uj-tr-ent-day" :style="'color:' + dayColor(grp.day)" x-text="grp.day"></div>
+                                <div class="uj-tr-day">
+                                    <span class="d" x-text="grp.day"></span>
+                                    <span class="rule" aria-hidden="true"></span>
+                                    <span class="t" :data-short="grp.days < 1 || null" x-text="md(grp.days)"></span>
+                                </div>
                                 <template x-for="(line, lidx) in grp.lines" :key="lidx">
                                     {{-- `.uj-tr-ent` is a flex row (align-items: stretch by
                                          default) — the pills must sit inside their own block

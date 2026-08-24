@@ -22,8 +22,8 @@ test('groupLinesByDay() groups consecutive same-day lines under one heading', ()
     ];
     const groups = groupLinesByDay(lines);
     expect(groups.length).toBe(2);
-    expect(groups[0]).toEqual({ day: 'Mon 27 Jul', lines: [lines[0], lines[1]] });
-    expect(groups[1]).toEqual({ day: 'Tue 28 Jul', lines: [lines[2]] });
+    expect(groups[0]).toEqual({ day: 'Mon 27 Jul', lines: [lines[0], lines[1]], days: 0 });
+    expect(groups[1]).toEqual({ day: 'Tue 28 Jul', lines: [lines[2]], days: 0 });
 });
 
 test('groupLinesByDay() keeps day order as first-seen, even if the same day is not contiguous', () => {
