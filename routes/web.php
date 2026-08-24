@@ -374,6 +374,10 @@ Route::middleware('auth')->group(function () {
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
+        // Static "external" segment must be registered ahead of the /app/tot/{session}
+        // wildcard routes below, or "external" would bind as a {session} id instead.
+        Route::post('/app/tot/external', [TotController::class, 'storeExternal'])->name('tot.external.store');
+        Route::post('/app/tot/external/{event}/delete', [TotController::class, 'destroyExternal'])->name('tot.external.destroy');
         Route::delete('/app/tot/comments/{comment}', [TotController::class, 'deleteComment'])->name('tot.comments.delete');
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');
         Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');

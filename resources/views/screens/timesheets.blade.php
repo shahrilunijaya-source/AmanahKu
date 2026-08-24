@@ -95,6 +95,7 @@
             categories: @js($tsCategories),
             projects: @js($tsProjects),
             templates: @js($tsTemplates),
+            boardTasks: @js($tsBoardTasks),
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
@@ -352,10 +353,17 @@
              The picker itself lives in a popup (below), not inline here, so opening it never
              reflows the day's rows underneath — the #1 complaint on the old inline-expanding
              panel, worst on a phone where the expansion pushed "Submit week" off screen. ---- --}}
-        <div x-show="isEditable(selected)" x-cloak style="margin-top:12px;">
+        <div x-show="isEditable(selected)" x-cloak class="uj-ts-add-row">
             <button type="button" x-ref="addEntryBtn" @click="openPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
-                style="width:100%;padding:10px;border:1px dashed var(--hairline);border-radius:10px;background:none;cursor:pointer;font-size:12.5px;color:var(--muted);">
+                class="uj-ts-add-btn">
                 <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
+            </button>
+            {{-- Pulls an In Progress board card's title/description/project straight into
+                 the same add flow below, so the staffer doesn't retype what the card
+                 already says — see timesheet-capture.js's openBoardPicker()/chooseBoardTask(). --}}
+            <button type="button" x-show="boardTasks.length" x-cloak @click="openBoardPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
+                class="uj-ts-add-btn">
+                <span x-text="$store.ui.lang==='en' ? '+ Pull from T.A.A' : '+ Tarik dari papan tugasan'"></span>
             </button>
         </div>
 
@@ -378,11 +386,11 @@
                      already chosen so the staffer knows where they are. --}}
                 <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                     <button type="button" x-ref="pickerCloseBtn" @click="pickerBack()" class="uj-btn-ghost"
-                        :aria-label="picker.step === 'category'
+                        :aria-label="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard))
                             ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal')
                             : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
                         style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
-                        x-text="picker.step === 'category' ? '×' : '←'"></button>
+                        x-text="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard)) ? '×' : '←'"></button>
                     <div style="flex:1;min-width:0;">
                         {{-- tabindex=-1 + outline:none: a script-focus target only, so a screen
                              reader/keyboard user's position moves with each step instead of
@@ -390,13 +398,15 @@
                              row — see chooseStep()/chooseItem()/pickerBack() in
                              timesheet-capture.js, which all focus this after changing step. --}}
                         <strong id="ts-picker-title" tabindex="-1" style="display:block;outline:none;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
-                            x-text="picker.step === 'category'
-                                ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
-                                : (picker.step === 'project'
-                                    ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
-                                    : (picker.step === 'sub'
-                                        ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
-                                        : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?')))"></strong>
+                            x-text="picker.step === 'board'
+                                ? ($store.ui.lang==='en' ? 'Pull which card?' : 'Tarik kad yang mana?')
+                                : (picker.step === 'category'
+                                    ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
+                                    : (picker.step === 'project'
+                                        ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
+                                        : (picker.step === 'sub'
+                                            ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
+                                            : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?'))))"></strong>
                         <span x-show="picker.step !== 'details' && pickerTrail()" x-cloak
                             style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                             x-text="pickerTrail()"></span>
@@ -407,6 +417,24 @@
                 </div>
 
                 <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:5px;">
+
+                    {{-- Board step: the employee's own In Progress cards. Picking one carries
+                         its title/description/project into the same category → (project) →
+                         details flow below — see chooseBoardTask() in timesheet-capture.js. --}}
+                    <template x-if="picker.step === 'board'">
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <template x-for="task in boardTasks" :key="task.id">
+                                <div @click="chooseBoardTask(task)" role="button" tabindex="0"
+                                    @keydown.enter="chooseBoardTask(task)" @keydown.space.prevent="chooseBoardTask(task)"
+                                    class="uj-ts-opt"
+                                    style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                    <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="task.title"></span>
+                                    <span x-show="projectName(task.project_id)" x-cloak style="font-size:11px;color:var(--muted);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%;" x-text="projectName(task.project_id)"></span>
+                                    <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
 
                     {{-- Saved templates and recent work, pinned above the first step only:
                          a one-tap shortcut straight past the drill-down. --}}

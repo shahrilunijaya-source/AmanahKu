@@ -9,6 +9,7 @@ use App\Models\Announcement;
 use App\Models\Claim;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\ExternalTotEvent;
 use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeRead;
 use App\Models\LeaveRequest;
@@ -371,15 +372,42 @@ trait BuildsDashboardData
         ])->all();
     }
 
-    /** Recent announcements, shared by both scopes' "news" rail card (flat rail-row shape). */
+    /**
+     * Recent announcements, shared by both scopes' "news" rail card (flat rail-row
+     * shape), merged with upcoming External TOT events tagged separately. An External
+     * TOT row drops off the moment its event_date passes — it's an invite, not a
+     * record, and a finished workshop lingering as a "brief" is stale noise once
+     * nobody can register anymore. Gated behind the `tot` screen so a tenant with
+     * the module off never gets a row linking to a screen it can't open (same rule
+     * companyQueueRows() already follows for QUEUE_SOURCES).
+     */
     private function newsRows(): array
     {
-        return Announcement::orderByDesc('date')->take(5)->get()->map(fn (Announcement $a) => [
+        $rows = Announcement::orderByDesc('date')->take(5)->get()->map(fn (Announcement $a) => [
             'title' => (string) ($a->title ?? ''),
             'sub' => (string) ($a->body ?? ''),
             'meta' => $a->date?->format('j M') ?? '',
             'tag' => 'News',
-        ])->all();
+            '_sort' => $a->date,
+        ]);
+
+        $tenant = app(CurrentTenant::class)->get();
+        if (app(FeatureManager::class)->screenAllowed($tenant, 'tot')) {
+            $rows = $rows->concat(
+                ExternalTotEvent::where('event_date', '>=', now()->toDateString())
+                    ->orderByDesc('event_date')->take(5)->get()
+                    ->map(fn (ExternalTotEvent $e) => [
+                        'title' => $e->title,
+                        'sub' => collect([$e->host, $e->event_date->format('j M')])->filter()->implode(' · '),
+                        'meta' => $e->event_date->format('j M'),
+                        'tag' => 'External TOT',
+                        'url' => route('app.screen', 'tot').'?tab=external',
+                        '_sort' => $e->event_date,
+                    ])
+            );
+        }
+
+        return $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
     }
 
     /**

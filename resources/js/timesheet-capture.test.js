@@ -26,6 +26,9 @@ registerTimesheetCapture(fakeAlpine);
 function makeComponent(cfg) {
     const c = capturedFactory({ weekStart: WEEK_START, today: TODAY, earliestWeek: '2026-01-01', categories: CATEGORIES, ...cfg });
     c.$store = { ui: { lang: 'en' }, tsReview: stores.tsReview, toast: { info: () => {}, success: () => {}, error: () => {} } };
+    // Real Alpine defers to next tick and then touches the DOM (focus/$refs) — this suite
+    // only asserts on state, so the callback is dropped rather than given a fake DOM.
+    c.$nextTick = () => {};
     return c;
 }
 
@@ -235,4 +238,110 @@ test('toastLine() keeps the toast to one line and counts the rest', () => {
 
     expect(c.toastLine('one problem')).toBe('one problem');
     expect(c.toastLine('first\nsecond\nthird')).toBe('first (+2 more)');
+});
+
+// --- "Pull from board": pick an In Progress card, then fill in the same details step ---
+
+const PROJECTS = [
+    { id: 5, name: 'KPT: RMS', category_ids: [], sub_pillars: [{ id: 50, name: 'Backend' }] },
+    { id: 6, name: 'Legacy Project', category_ids: [], sub_pillars: [] },
+];
+const BOARD_TASKS = [
+    { id: 100, title: 'Tender ISCAF', description: 'Prep the submission', project_id: 5 },
+    { id: 101, title: 'No project card', description: '', project_id: null },
+];
+
+test('openBoardPicker() opens the picker on the board step', () => {
+    const c = makeComponent({ days: 5, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+
+    expect(c.picker.open).toBe(true);
+    expect(c.picker.step).toBe('board');
+});
+
+test('chooseBoardTask() carries the card into a category step, pre-filling its project and description', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[0]);
+
+    expect(c.picker.step).toBe('category');
+    expect(c.picker.boardProject.id).toBe(5);
+    expect(c.picker.boardDesc).toBe('Prep the submission');
+});
+
+test('chooseBoardTask() falls back to the card title when it has no description', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[1]);
+
+    expect(c.picker.boardProject).toBeNull();
+    expect(c.picker.boardDesc).toBe('No project card');
+});
+
+test('picking a project-requiring category after a board pull skips straight to sub-pillar, project already set', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[0]); // project 5 has a sub-pillar
+    c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null }); // requires_project: true
+
+    expect(c.picker.step).toBe('sub');
+    expect(c.picker.project.id).toBe(5);
+});
+
+test('a board-pulled project with no sub-pillars lands straight on the details step, notes pre-filled', () => {
+    const c = makeComponent({
+        days: 5,
+        projects: [{ id: 6, name: 'Legacy Project', category_ids: [], sub_pillars: [] }],
+        boardTasks: [{ id: 102, title: 'Quick fix', description: 'Patch the thing', project_id: 6 }],
+    });
+    c.openBoardPicker();
+    c.chooseBoardTask(c.boardTasks[0]);
+    c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null });
+
+    expect(c.picker.step).toBe('details');
+    expect(c.picker.pendingItem.project_id).toBe(6);
+    expect(c.picker.pendingDesc).toBe('Patch the thing');
+});
+
+test('a category that does not require a project ignores a board-pulled project and stays terminal', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[0]);
+    // requires_project: false, so pickerCategories() would hand this option a terminal item.
+    c.chooseStep({ c: CATEGORIES[1], label: 'Sales', item: c.pickerItem(CATEGORIES[1], null, null) });
+
+    expect(c.picker.step).toBe('details');
+    expect(c.picker.pendingItem.project_id).toBe('');
+});
+
+test('manually adding an entry never carries a leftover board description from an earlier pull', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[0]);
+    c.closePicker();
+
+    c.openPicker();
+    c.chooseItem(c.pickerItem(CATEGORIES[1], null, null));
+
+    expect(c.picker.pendingDesc).toBe('');
+});
+
+test('pickerBack() from category returns to the board list when the flow started there', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openBoardPicker();
+    c.chooseBoardTask(BOARD_TASKS[0]);
+
+    c.pickerBack();
+
+    expect(c.picker.step).toBe('board');
+    expect(c.picker.open).toBe(true);
+});
+
+test('pickerBack() from category still closes the picker for a manually-started flow', () => {
+    const c = makeComponent({ days: 5 });
+    c.openPicker();
+
+    c.pickerBack();
+
+    expect(c.picker.open).toBe(false);
 });

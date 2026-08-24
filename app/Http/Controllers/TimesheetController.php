@@ -16,6 +16,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\TimesheetTemplate;
+use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Services\MandayRateService;
@@ -175,6 +176,16 @@ class TimesheetController extends Controller
 
         $tsItems = array_values($tsItems);
 
+        // The employee's own In Progress board cards, for the capture screen's "Pull
+        // from board" picker step — never another employee's card, and never a card
+        // sitting in a different column.
+        $tsBoardTasks = $employee
+            ? WorkItem::where('employee_id', $employee->id)
+                ->where('status', 'prog')
+                ->orderBy('due_at')
+                ->get(['id', 'title', 'description', 'project_id'])
+            : new Collection;
+
         return [
             'myTimesheets' => $myTimesheets,
             'canSeeCost' => $canSeeCost,
@@ -195,6 +206,7 @@ class TimesheetController extends Controller
             // Day-first capture screen inputs (Tasks 7-8).
             'tsLocked' => $locked,
             'tsItems' => $tsItems,
+            'tsBoardTasks' => $tsBoardTasks,
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];

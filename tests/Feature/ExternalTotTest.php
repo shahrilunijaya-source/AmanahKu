@@ -1,0 +1,159 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Employee;
+use App\Models\ExternalTotEvent;
+use App\Models\Tenant;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
+
+class ExternalTotTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Tenant $tenant;
+
+    private function seedWorkspace(string $role): User
+    {
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+
+        $user = User::create([
+            'name' => 'Actor', 'email' => $role.'@example.com', 'password' => Hash::make('password'),
+        ]);
+        $user->tenants()->attach($this->tenant->id, ['role' => $role]);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
+            'name' => 'Actor', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        return $user;
+    }
+
+    private function actingInTenant(User $user): self
+    {
+        $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id]);
+
+        return $this;
+    }
+
+    private function payload(array $overrides = []): array
+    {
+        return array_merge([
+            'title' => 'Cybersecurity in the Age of NeoCloud',
+            'host' => 'Techdata Systems',
+            'description' => 'How AI, Cloud, and Cybersecurity come together.',
+            'event_date' => '2026-08-28',
+            'time_label' => '10:00 AM – 12:00 PM',
+            'venue' => 'Techdata Systems, Level 3 Conference Room',
+            'venue_map_url' => 'https://maps.app.goo.gl/pb47NuLjfLLRsP4t6',
+            'registration_url' => 'https://forms.gle/M7NSkbmbnbr64pZC7',
+        ], $overrides);
+    }
+
+    public function test_a_manager_can_post_an_external_event(): void
+    {
+        $user = $this->seedWorkspace('manager');
+
+        $this->actingInTenant($user)
+            ->post('/app/tot/external', $this->payload())
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('external_tot_events', [
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Cybersecurity in the Age of NeoCloud',
+        ]);
+    }
+
+    public function test_an_employee_cannot_post_an_external_event(): void
+    {
+        $user = $this->seedWorkspace('employee');
+
+        $this->actingInTenant($user)
+            ->post('/app/tot/external', $this->payload())
+            ->assertForbidden();
+
+        $this->assertSame(0, ExternalTotEvent::count());
+    }
+
+    public function test_posting_stamps_the_posters_employee_id(): void
+    {
+        $user = $this->seedWorkspace('hr');
+
+        $this->actingInTenant($user)->post('/app/tot/external', $this->payload());
+
+        $employee = Employee::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame($employee->id, ExternalTotEvent::first()->posted_by);
+    }
+
+    public function test_a_privileged_role_can_remove_an_external_event(): void
+    {
+        $user = $this->seedWorkspace('management');
+        $event = ExternalTotEvent::create(array_merge($this->payload(), ['tenant_id' => $this->tenant->id]));
+
+        $this->actingInTenant($user)
+            ->post("/app/tot/external/{$event->id}/delete")
+            ->assertRedirect();
+
+        $this->assertSame(0, ExternalTotEvent::count());
+    }
+
+    public function test_an_employee_cannot_remove_an_external_event(): void
+    {
+        $user = $this->seedWorkspace('employee');
+        $event = ExternalTotEvent::create(array_merge($this->payload(), ['tenant_id' => $this->tenant->id]));
+
+        $this->actingInTenant($user)
+            ->post("/app/tot/external/{$event->id}/delete")
+            ->assertForbidden();
+
+        $this->assertSame(1, ExternalTotEvent::count());
+    }
+
+    public function test_a_foreign_tenants_event_404s_instead_of_reaching_a_privileged_actor(): void
+    {
+        $user = $this->seedWorkspace('management');
+
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreignEvent = ExternalTotEvent::create(array_merge($this->payload(), ['tenant_id' => $otherTenant->id]));
+
+        $this->actingInTenant($user)
+            ->post("/app/tot/external/{$foreignEvent->id}/delete")
+            ->assertNotFound();
+
+        // Not ::count(): by now the request has set CurrentTenant to "acme", so the
+        // model's own tenant global scope would silently hide the other tenant's row.
+        // assertDatabaseHas reads the table directly, unscoped.
+        $this->assertDatabaseHas('external_tot_events', ['id' => $foreignEvent->id]);
+    }
+
+    public function test_the_board_shows_a_posted_external_event_to_a_plain_employee(): void
+    {
+        $user = $this->seedWorkspace('employee');
+        ExternalTotEvent::create(array_merge($this->payload(), ['tenant_id' => $this->tenant->id]));
+
+        $this->actingInTenant($user)->get('/app/tot')
+            ->assertOk()
+            ->assertSee('Cybersecurity in the Age of NeoCloud');
+    }
+
+    public function test_a_plain_employee_sees_no_post_form(): void
+    {
+        $user = $this->seedWorkspace('employee');
+
+        $this->actingInTenant($user)->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('name="registration_url"', false);
+    }
+
+    public function test_a_manager_sees_the_post_form(): void
+    {
+        $user = $this->seedWorkspace('manager');
+
+        $this->actingInTenant($user)->get('/app/tot')
+            ->assertOk()
+            ->assertSee('name="registration_url"', false);
+    }
+}

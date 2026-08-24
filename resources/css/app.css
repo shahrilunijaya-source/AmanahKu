@@ -268,6 +268,21 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-btn-primary:hover { background: var(--red-active); }
 .uj-btn-primary:active { transform: scale(0.97); }
 
+/* display can't be inline on an x-show element: Alpine strips the inline `display`
+   property when it shows the element (it only ever restores to '', not a remembered
+   value), so a flex row written as inline style silently collapses to block the
+   moment isEditable(selected) flips true. The class survives because Alpine only
+   ever touches el.style, never classList. */
+.uj-ts-add-row { display: flex; flex-direction: row; gap: 8px; margin-top: 12px; }
+/* Base look lives here, not inline, so :hover below can actually win — an inline
+   style on the element beats any class selector, hover included. */
+.uj-ts-add-btn {
+    flex: 1; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px;
+    background: none; cursor: pointer; font-size: 12.5px; color: var(--muted);
+    transition: background .15s, border-color .15s, color .15s;
+}
+.uj-ts-add-btn:hover { background: var(--red); border-color: var(--red); border-style: solid; color: #fff; }
+
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
 .uj-field:focus {
@@ -986,6 +1001,9 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-foot { display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); color: var(--muted); }
 .wc-when { font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .wc-when--over { color: var(--error); font-weight: 600; }
+.wc-when-badge { font-variant-numeric: tabular-nums; flex-shrink: 0; font-weight: 600; font-size: 10px; }
+.wc-when-badge.wc-when-badge--over { color: var(--error); }
+.wc-when-badge.wc-when--early { color: var(--success-ink); }
 .wc-sep { color: var(--muted-soft); flex-shrink: 0; }
 .wc-when--none { color: var(--muted); }
 .wc-proj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3473,6 +3491,25 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .tot-btn-g{height:38px;padding:0 16px;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--ink);font:500 13px var(--font-sans);cursor:pointer;transition:border-color 150ms var(--tot-eo),transform 140ms var(--tot-eo);}
 .tot-btn-g:hover{border-color:var(--muted);}
 .tot-btn-g:active{transform:scale(.97);}
+
+/* External TOT list — a simple broadcast card per event, not a tot-row (no reactions/
+   watch/score chrome to make room for). Title/host/meta follow the app's 5-step type
+   ramp (t-lg / t-sm / t-sm) rather than inventing sizes off it. */
+.ext-item{padding:16px 0;border-top:1px solid var(--hairline-soft);}
+.ext-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.ext-title{font-size:var(--t-lg);font-weight:600;color:var(--ink);margin:0 0 2px;line-height:1.35;}
+.ext-host{font-size:var(--t-sm);color:var(--muted);margin:0;}
+.ext-del{font-size:var(--t-micro);color:var(--muted-soft);background:none;border:0;cursor:pointer;padding:4px 6px;border-radius:6px;flex-shrink:0;transition:color .12s,background .12s;}
+.ext-del:hover{color:var(--red);background:var(--red-tint);}
+.ext-del:active{transform:scale(.97);}
+.ext-meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0;font-size:var(--t-sm);color:var(--body);}
+.ext-meta-i a{color:var(--info);text-decoration:none;}
+.ext-meta-i a:hover{text-decoration:underline;}
+.ext-desc{font-size:var(--t-sm);line-height:1.6;color:var(--body);margin:0 0 12px;white-space:pre-line;}
+@media (prefers-reduced-motion:reduce){
+    .ext-del{transition:none;}
+    .ext-del:active{transform:none;}
+}
 
 /* The PIC strip. Somebody who presents once a year does not need a route, they
    need the board to point at their month. */

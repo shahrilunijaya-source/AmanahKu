@@ -15,7 +15,9 @@
      * rendered as a compact list item — avatar/initials if given, else a
      * mono tag badge, else nothing; title + optional sub on the left, meta
      * right-aligned. This mirrors the mock's miniList/newsList/flatList
-     * renderers, which all share this same visual shape.
+     * renderers, which all share this same visual shape. A row carrying
+     * `url` renders as a link (currently only the External TOT rows in the
+     * Announcements card do); every other row stays inert, as before.
      */
     $rows = $card['rows'] ?? [];
 @endphp
@@ -50,7 +52,8 @@
     <h2 class="uj-card-title">{{ $card['title'] }}</h2>
     <div :data-dq-inert="edit">
         @forelse ($rows as $r)
-            <div class="uj-dq-mini">
+            @php $tag = empty($r['url']) ? 'div' : 'a'; @endphp
+            <{{ $tag }} class="uj-dq-mini" @if (! empty($r['url'])) href="{{ $r['url'] }}" style="text-decoration:none;color:inherit;cursor:pointer;" @endif>
                 @if (! empty($r['initials']))
                     <span class="av" style="background:{{ $r['color'] ?? 'var(--info)' }}">{{ $r['initials'] }}</span>
                 @elseif (! empty($r['tag']))
@@ -65,7 +68,7 @@
                 @if (! empty($r['meta']))
                     <span class="r">{{ $r['meta'] }}</span>
                 @endif
-            </div>
+            </{{ $tag }}>
         @empty
             @include('partials.list-empty', [
                 'en' => ['title' => 'Nothing here yet', 'body' => 'This card is empty for now.'],
