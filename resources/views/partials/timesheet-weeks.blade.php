@@ -34,6 +34,15 @@
                                 <b x-text="wk.label"></b>
                                 <span x-text="wk.dates"></span>
                             </div>
+                            {{-- The week's own total, same as the all-staff report's person
+                                 panel. "Did this week add up to five days" is the question
+                                 the tab exists to answer, and the day totals below only
+                                 answered it one day at a time. No RM here: this partial is
+                                 also the employee's own Review tab, and cost is a
+                                 management figure (see TimesheetController::canSeeCost). --}}
+                            <span class="tot" x-show="wk.lines.length > 0">
+                                <b x-text="md(wk.days) + ' md'"></b>
+                            </span>
                             {{-- No status and no lines = no sheet was ever started for that
                                  week. Calling that "Draft" would claim a draft exists. --}}
                             <span class="uj-tr-status-badge" :data-status="wk.status || 'draft'"

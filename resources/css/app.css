@@ -2638,6 +2638,9 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-wk-hd .lbl span { font-size: var(--t-sm); color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .uj-tr-wk-hd .lbl .pos { font-size: var(--t-micro); color: var(--muted-soft); }
 .uj-tr-wk-hd .tot { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Beside a status badge the total is the quieter of the two: the badge answers "is
+   this week in", the total answers "how much is in it". */
+.uj-tr-wk-hd .tot:not(:last-of-type) b { color: var(--body); font-weight: 500; }
 .uj-tr-wk-hd .tot b { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
 .uj-tr-wk-hd .tot span { font-size: var(--t-micro); color: var(--muted); }
 
@@ -2708,10 +2711,14 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
    it squeezes the pager off the panel's edge as soon as the cost reaches six digits. */
 @media (max-width: 560px) {
     .uj-tr-wk-hd { flex-wrap: wrap; row-gap: 6px; }
+    /* Order every child, not just the ones that move: an unordered item defaults to 0
+       and lands beside the first button, which put the status badge ahead of the week
+       label it describes. */
     .uj-tr-wk-hd > .uj-tr-weeknav-btn:first-child { order: 0; }
     .uj-tr-wk-hd .lbl { order: 1; }
-    .uj-tr-wk-hd > .uj-tr-weeknav-btn:last-child { order: 2; }
-    .uj-tr-wk-hd .tot { order: 3; width: 100%; justify-content: flex-end; }
+    .uj-tr-wk-hd .uj-tr-status-badge { order: 2; }
+    .uj-tr-wk-hd > .uj-tr-weeknav-btn:last-child { order: 3; }
+    .uj-tr-wk-hd .tot { order: 4; width: 100%; justify-content: flex-end; }
 }
 
 @media (prefers-reduced-motion: reduce) {
