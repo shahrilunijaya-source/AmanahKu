@@ -33,10 +33,8 @@ class ProjectController extends Controller
     {
         return [
             'projects' => Project::with('categories')
-                ->withCount(['entries', 'workItems'])
                 ->orderBy('sort')->orderBy('name')->get(),
-            'subPillars' => SubPillar::withCount('entries')
-                ->orderBy('sort')->orderBy('name')->get(),
+            'subPillars' => SubPillar::orderBy('sort')->orderBy('name')->get(),
             // Two lists on purpose: the ADD form offers active categories only (a
             // retired category should not be pickable on a brand-new project), while
             // an EDIT form must show every category a project might already be tied
@@ -61,7 +59,7 @@ class ProjectController extends Controller
         AuditLog::record('Added project', $project->name);
 
         if ($request->wantsJson()) {
-            $project->load('categories')->loadCount(['entries', 'workItems']);
+            $project->load('categories');
 
             return response()->json([
                 'html' => view('partials.ts-project-row', [
@@ -120,8 +118,6 @@ class ProjectController extends Controller
         AuditLog::record('Added sub-pillar', $sub->name);
 
         if ($request->wantsJson()) {
-            $sub->loadCount('entries');
-
             return response()->json([
                 'html' => view('partials.ts-subpillar-row', ['sp' => $sub, 'canEdit' => true])->render(),
                 'count_sel' => '#ts-sub-count',
