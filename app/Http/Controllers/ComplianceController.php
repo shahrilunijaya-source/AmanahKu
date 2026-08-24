@@ -51,7 +51,7 @@ class ComplianceController extends Controller
         return [
             'items' => $items,
             'buckets' => $buckets,
-            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name']) : new Collection,
+            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname']) : new Collection,
         ];
     }
 

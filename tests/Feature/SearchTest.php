@@ -80,4 +80,17 @@ class SearchTest extends TestCase
     {
         $this->actingInTenant()->getJson('/app/search?q=')->assertOk()->assertJsonCount(0);
     }
+
+    /** Results carry the nickname people say, and typing the nickname finds the person. */
+    public function test_search_matches_and_returns_the_nickname(): void
+    {
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Siti Nur Ain Akilah Binti Tarmizi',
+            'nickname' => 'akilah', 'status' => 'active', 'workload' => 'green', 'initials' => 'SN',
+        ]);
+
+        $this->actingInTenant()->getJson('/app/search?q=akilah')
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Akilah']);
+    }
 }

@@ -49,7 +49,7 @@ class DocumentController extends Controller
             'documents' => $query->get()->groupBy('category'),
             // Owner picker is only used by the privileged-only upload form.
             'employees' => $privileged
-                ? Employee::active()->orderBy('name')->get(['id', 'name'])
+                ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname'])
                 : collect(),
             'categories' => self::CATEGORIES,
         ];

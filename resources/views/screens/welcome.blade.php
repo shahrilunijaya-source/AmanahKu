@@ -32,7 +32,7 @@
     {{-- Heading + overall progress --}}
     <div style="margin-bottom:20px;">
         <h1 style="font-size:23px;font-weight:600;color:var(--ink);margin:0 0 6px;"
-            x-text="$store.ui.lang==='en' ? 'Welcome, {{ $employee->name }}' : 'Selamat datang, {{ $employee->name }}'">Welcome, {{ $employee->name }}</h1>
+            x-text="$store.ui.lang==='en' ? 'Welcome, {{ $employee->display_name }}' : 'Selamat datang, {{ $employee->display_name }}'">Welcome, {{ $employee->display_name }}</h1>
         <p style="font-size:13.5px;color:var(--muted);margin:0 0 12px;"
            x-text="$store.ui.lang==='en'
                 ? 'Let\'s finish setting up your profile. It only takes a few minutes.'

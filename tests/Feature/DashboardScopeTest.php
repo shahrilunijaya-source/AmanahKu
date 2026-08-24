@@ -190,4 +190,28 @@ class DashboardScopeTest extends TestCase
         $response = $this->get('/app/dash?scope=company');
         $this->assertSame('Four requests are waiting on you.', $response->viewData('head')['h1']);
     }
+
+    /** The "Around you" rail card shows the nickname people actually say, not the full legal name. */
+    public function test_around_you_card_uses_nickname(): void
+    {
+        $viewer = $this->userWithRole('employee', 'viewer@acme.test');
+        $this->employeeFor($viewer);
+
+        $colleague = $this->userWithRole('employee', 'colleague@acme.test');
+        $colleagueEmployee = $this->employeeFor($colleague);
+        $colleagueEmployee->update(['name' => 'Siti Nur Ain Akilah Binti Tarmizi', 'nickname' => 'akilah']);
+
+        $leaveType = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => $colleagueEmployee->id,
+            'leave_type_id' => $leaveType->id, 'status' => 'approved',
+            'date_from' => now()->addDay(), 'date_to' => now()->addDay(), 'days' => 1,
+        ]);
+
+        $this->actAs($viewer);
+        $rows = collect($this->get('/app/dash')->viewData('railCards'))->firstWhere('id', 'around')['rows'];
+
+        $this->assertSame('Akilah', $rows[0]['title']);
+    }
 }

@@ -256,7 +256,7 @@
                         @endif
                     </div>
                     <div style="font-size:18px;font-weight:600;line-height:1.35;margin-top:6px;color:var(--ink);">{{ $e->title }}</div>
-                    <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
+                    <div style="font-size:13px;color:var(--muted-soft);margin-top:6px;">{{ $e->employee?->display_name ?? 'Unknown' }}@if ($e->employee?->position) · {{ $e->employee->position }}@endif</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:4px;">
                     <span x-show="reactionTotal" class="kb-reaction-pill" style="align-items:center;gap:4px;font-size:12.5px;color:var(--muted-soft);white-space:nowrap;">

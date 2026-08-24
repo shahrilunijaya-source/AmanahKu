@@ -20,7 +20,7 @@
                 <h2 class="wd-title">{{ $t->subject }}</h2>
                 <p class="wd-sub">
                     @if ($privileged)
-                        @if ($t->employee?->name){{ $t->employee->name }}@else<span x-text="$store.ui.lang==='en' ? 'Unknown' : 'Tidak diketahui'">Unknown</span>@endif ·
+                        @if ($t->employee?->name){{ $t->employee->display_name }}@else<span x-text="$store.ui.lang==='en' ? 'Unknown' : 'Tidak diketahui'">Unknown</span>@endif ·
                     @endif
                     {{ $t->category }} · <span style="color:{{ $priorityColor[$t->priority] ?? 'var(--muted)' }};font-weight:600;">{{ ucfirst($t->priority) }}</span> ·
                     {{ $t->created_at?->format('j M Y') }}
@@ -85,7 +85,7 @@
                                 <select name="assignee_employee_id" class="uj-lv-in">
                                     <option value="" x-text="$store.ui.lang==='en' ? 'Unassigned' : 'Belum ditugaskan'">Unassigned</option>
                                     @foreach ($employees as $e)
-                                        <option value="{{ $e->id }}" @selected((string) old('assignee_employee_id', (string) $t->assignee_employee_id) === (string) $e->id)>{{ $e->name }}</option>
+                                        <option value="{{ $e->id }}" @selected((string) old('assignee_employee_id', (string) $t->assignee_employee_id) === (string) $e->id)>{{ $e->display_name }}</option>
                                     @endforeach
                                 </select>
                             </div>

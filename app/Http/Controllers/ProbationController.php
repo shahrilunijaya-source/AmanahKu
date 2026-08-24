@@ -69,7 +69,7 @@ class ProbationController extends Controller
         $eligible = Employee::active()->where('status', 'probation')
             ->whereNotIn('id', $reviewedEmployeeIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'position', 'joined_at']);
+            ->get(['id', 'name', 'nickname', 'position', 'joined_at']);
 
         $today = Carbon::today();
         $dueForDecision = $active->filter(

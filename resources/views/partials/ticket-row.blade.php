@@ -16,7 +16,7 @@
             <span class="uj-lv-rw-1">{{ $t->subject }}</span>
             <span class="uj-lv-rw-2">
                 @if ($privileged)
-                    @if ($t->employee?->name){{ $t->employee->name }}@else<span x-text="$store.ui.lang==='en' ? 'Unknown' : 'Tidak diketahui'">Unknown</span>@endif ·
+                    @if ($t->employee?->name){{ $t->employee->display_name }}@else<span x-text="$store.ui.lang==='en' ? 'Unknown' : 'Tidak diketahui'">Unknown</span>@endif ·
                 @endif
                 {{ $t->category }} · <span style="color:{{ $priorityColor[$t->priority] ?? 'var(--muted)' }};font-weight:600;">{{ ucfirst($t->priority) }}</span> ·
                 {{ $t->created_at?->format('j M Y') }}

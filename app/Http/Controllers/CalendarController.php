@@ -191,7 +191,7 @@ class CalendarController extends Controller
     {
         return Employee::active()
             ->whereNotNull('date_of_birth')
-            ->get(['id', 'name', 'initials', 'avatar_color', 'date_of_birth']);
+            ->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'date_of_birth']);
     }
 
     /**

@@ -37,16 +37,17 @@ class SearchController extends Controller
             ->with('department:id,name')
             ->where(fn ($w) => $w
                 ->where('name', 'like', $term)
+                ->orWhere('nickname', 'like', $term)
                 ->orWhereHas('positionBand', fn ($p) => $p->where('title', 'like', $term))
                 ->orWhereHas('department', fn ($d) => $d->where('name', 'like', $term))
                 ->orWhereHas('branch', fn ($r) => $r->where('name', 'like', $term)))
             ->orderBy('name')
             ->limit(self::RESULT_LIMIT)
-            ->get(['id', 'name', 'position', 'position_id', 'department_id', 'initials', 'avatar_color']);
+            ->get(['id', 'name', 'nickname', 'position', 'position_id', 'department_id', 'initials', 'avatar_color']);
 
         $results = $employees->map(fn (Employee $e) => [
             'id' => $e->id,
-            'name' => $e->name,
+            'name' => $e->display_name,
             'department' => $e->department?->name,
             'position' => $e->position,
             'initials' => $e->initials,

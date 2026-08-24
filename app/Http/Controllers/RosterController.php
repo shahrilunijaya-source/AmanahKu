@@ -56,7 +56,7 @@ class RosterController extends Controller
             ];
         }
 
-        $employees = Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color']);
+        $employees = Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color']);
 
         $weekShifts = Shift::with('employee')
             ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])

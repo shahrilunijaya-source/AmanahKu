@@ -37,7 +37,7 @@
     // Approved leave already on the books, so overlapping dates are flagged while the
     // dates can still be changed rather than in a panel read after submitting.
     $teamRanges = $teamLeave->map(fn ($l) => [
-        'name' => $l->employee?->name,
+        'name' => $l->employee?->display_name,
         'from' => $l->date_from->toDateString(),
         'to' => $l->date_to->toDateString(),
     ])->filter(fn ($r) => $r['name'])->values()->all();

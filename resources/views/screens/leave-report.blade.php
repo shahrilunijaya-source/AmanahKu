@@ -115,7 +115,7 @@
     @if ($drill)
         <div class="uj-card" style="flex:1;min-width:300px;padding:20px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <h3 class="uj-card-title">{{ $drill->name }}</h3>
+                <h3 class="uj-card-title">{{ $drill->display_name }}</h3>
                 <a href="{{ $baseUrl }}" style="font-size:12px;color:var(--info);text-decoration:none;">✕ <span x-text="$store.ui.lang==='en' ? 'Close' : 'Tutup'">Close</span></a>
             </div>
             @foreach ($drillByType as $t)

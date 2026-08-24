@@ -66,7 +66,7 @@ class CaseController extends Controller
             'privileged' => true,
             'cases' => $cases,
             'grouped' => $grouped,
-            'employees' => Employee::active()->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color']),
+            'employees' => Employee::active()->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color']),
             'counts' => (new Collection(self::STATUSES))
                 ->mapWithKeys(fn (string $s) => [$s => $cases->where('status', $s)->count()])
                 ->all(),

@@ -102,7 +102,7 @@ trait BuildsPeopleData
             'allPositions' => Position::with(['department', 'staffLevel'])->orderBy('sort')->orderBy('title')->get(),
             // Current staff as candidate managers for the profile "Reports to" picker —
             // the link that builds the org chart. The form excludes the person themselves.
-            'allManagers' => Employee::active()->orderBy('name')->get(['id', 'name']),
+            'allManagers' => Employee::active()->orderBy('name')->get(['id', 'name', 'nickname']),
         ];
     }
 
@@ -166,7 +166,7 @@ trait BuildsPeopleData
 
         return [
             'assets' => Asset::with('employee')->orderByDesc('status')->orderBy('name')->get(),
-            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name']) : collect(),
+            'recipients' => $privileged ? Employee::active()->orderBy('name')->get(['id', 'name', 'nickname']) : collect(),
         ];
     }
 
@@ -181,7 +181,7 @@ trait BuildsPeopleData
             // user_id + department + position loaded so the assign picker can group staff by
             // role tier and show each person's job title.
             'recipients' => $privileged
-                ? Employee::active()->with(['department:id,name', 'positionBand:id,title'])->orderBy('name')->get(['id', 'name', 'initials', 'avatar_color', 'department_id', 'user_id', 'position_id'])
+                ? Employee::active()->with(['department:id,name', 'positionBand:id,title'])->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'department_id', 'user_id', 'position_id'])
                 : collect(),
             // Tenant role per login (user_id → role) so the picker can rank staff
             // Director → Management → HR → Manager → Employee. No login = plain employee.

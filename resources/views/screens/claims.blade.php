@@ -308,7 +308,7 @@
         @endphp
         <div role="tabpanel" x-show="tab === 'all'" x-cloak x-data="{
                 rows: @js($allClaims->map(fn ($c) => [
-                    'name' => $c->employee?->name ?? '—',
+                    'name' => $c->employee?->display_name ?? '—',
                     'type' => $c->type,
                     'status' => $c->status,
                     'amount' => (float) $c->amount,

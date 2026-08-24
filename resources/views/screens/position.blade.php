@@ -323,7 +323,7 @@
             @else
                 <div style="max-height:620px;overflow-y:auto;">
                     @foreach ($staff as $emp)
-                        <div x-show="staffFilter === '' || @js(\Illuminate\Support\Str::lower($emp->name)).includes(staffFilter.toLowerCase().trim())"
+                        <div x-show="staffFilter === '' || @js(\Illuminate\Support\Str::lower($emp->name.' '.$emp->nickname)).includes(staffFilter.toLowerCase().trim())"
                              x-data="{
                                 positionId: '{{ $emp->position_id }}',
                                 saving: false, saved: false, error: false,
@@ -346,7 +346,7 @@
                              style="display:flex;align-items:center;gap:12px;padding:9px 20px;border-top:1px solid var(--hairline-soft);">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $emp->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $emp->initials }}</div>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $emp->name }}</div>
+                                <div style="font-size:13px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $emp->display_name }}</div>
                                 <div style="font-size:11.5px;color:var(--muted);">{{ $emp->department?->name ?? '—' }}@if ($emp->positionBand) · {{ $emp->positionBand->title }}@endif</div>
                             </div>
                             <select x-model="positionId" @change="save()" :disabled="saving" style="width:280px;max-width:42vw;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;">
