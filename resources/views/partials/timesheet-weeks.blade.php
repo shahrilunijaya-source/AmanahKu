@@ -16,12 +16,6 @@
         </template>
         <template x-if="weeks.length > 0">
             <div class="uj-tr-panel">
-                <select class="uj-tr-weekpick" x-model.number="weekIdx"
-                    :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
-                    <template x-for="(w, i) in weeks" :key="i">
-                        <option :value="i" x-text="w.label + ': ' + w.dates"></option>
-                    </template>
-                </select>
                 <template x-for="wk in (currentWeek ? [currentWeek] : [])" :key="weekIdx">
                     <div class="uj-tr-wk" :data-dir="weekDir">
                         {{-- Pager inside the header of the week it pages, and the week
@@ -30,9 +24,24 @@
                         <div class="uj-tr-wk-hd">
                             <button type="button" class="uj-tr-weeknav-btn" @click="prevWeek()" :disabled="weekIdx === 0"
                                 :aria-label="$store.ui.lang==='en' ? 'Previous week' : 'Minggu sebelum'">&lsaquo;</button>
-                            <div class="lbl">
+                            {{-- The week's name IS the picker: the arrows step one week,
+                                 clicking the name jumps to any of them. A real <select> lies
+                                 over the label at zero opacity, so this is the platform's own
+                                 picker (and its keyboard behaviour) rather than a menu built
+                                 by hand. With only one week there is nothing to pick, so the
+                                 label renders plain. --}}
+                            <div class="lbl uj-tr-wkpick" :data-pick="weeks.length > 1 || null">
                                 <b x-text="wk.label"></b>
                                 <span x-text="wk.dates"></span>
+                                <svg x-show="weeks.length > 1" class="chev" width="11" height="11" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
+                                     stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                                <select x-show="weeks.length > 1" x-model.number="weekIdx"
+                                    :aria-label="$store.ui.lang==='en' ? 'Jump to week' : 'Lompat ke minggu'">
+                                    <template x-for="(w, i) in weeks" :key="i">
+                                        <option :value="i" x-text="w.label + ': ' + w.dates"></option>
+                                    </template>
+                                </select>
                             </div>
                             {{-- The week's own total, same as the all-staff report's person
                                  panel. "Did this week add up to five days" is the question

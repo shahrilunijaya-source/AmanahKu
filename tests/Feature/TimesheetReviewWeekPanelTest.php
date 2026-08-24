@@ -174,6 +174,31 @@ class TimesheetReviewWeekPanelTest extends TestCase
         $this->assertSame('var(--amber-ink)', $line['categoryColour']);
     }
 
+    public function test_the_week_name_is_the_picker_and_carries_every_week_as_an_option(): void
+    {
+        foreach (['2026-06-08', '2026-06-15'] as $weekStart) {
+            $sheet = Timesheet::create([
+                'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+                'week_start' => $weekStart, 'status' => 'draft', 'total_hours' => 8,
+            ]);
+            $sheet->entries()->create([
+                'tenant_id' => $this->tenant->id, 'entry_date' => $weekStart,
+                'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+            ]);
+        }
+
+        $response = $this->actingInTenant()->get('/app/timesheets?tab=review');
+
+        // The arrows step one week; the week's own name jumps to any of them. A real
+        // <select> lies over the label, so the platform draws the list.
+        $response->assertSee('uj-tr-wkpick', false);
+        $response->assertSee("w.label + ': ' + w.dates", false);
+        // The picker only exists when there is more than one week to pick.
+        $response->assertSee('weeks.length > 1', false);
+        // The control it replaced is gone, not merely hidden.
+        $response->assertDontSee('uj-tr-weekpick', false);
+    }
+
     public function test_review_tab_renders_week_nav_and_entry_link(): void
     {
         $sheet = Timesheet::create([
