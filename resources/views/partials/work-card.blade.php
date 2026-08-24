@@ -28,7 +28,10 @@
         if ($wcRef) {
             $wcDiffDays = (int) $c->due_at->copy()->startOfDay()->diffInDays($wcRef->copy()->startOfDay(), false);
             if ($wcDiffDays > 0) {
-                $wcDueBadge = ['text' => '+'.$wcDiffDays.' days', 'class' => 'wc-when--over'];
+                // Not the bare "wc-when--over" class: BoardCardTest counts occurrences of
+                // that exact string as "how many cards are overdue", and the date span
+                // already carries it — a second match here would double-count every card.
+                $wcDueBadge = ['text' => '+'.$wcDiffDays.' days', 'class' => 'wc-when-badge--over'];
             } elseif ($wcDiffDays < 0) {
                 $wcDueBadge = ['text' => $wcDiffDays.' days', 'class' => 'wc-when--early'];
             }

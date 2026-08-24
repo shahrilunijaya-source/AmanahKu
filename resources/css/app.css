@@ -1002,6 +1002,7 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-when { font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .wc-when--over { color: var(--error); font-weight: 600; }
 .wc-when-badge { font-variant-numeric: tabular-nums; flex-shrink: 0; font-weight: 600; font-size: 10px; }
+.wc-when-badge.wc-when-badge--over { color: var(--error); }
 .wc-when-badge.wc-when--early { color: var(--success-ink); }
 .wc-sep { color: var(--muted-soft); flex-shrink: 0; }
 .wc-when--none { color: var(--muted); }
