@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { isPartialLink, shouldRefetchOnPopstate } from './partial-nav';
+import { isPartialLink, shouldRefetchOnPopstate, buildSig } from './partial-nav';
 
 const ORIGIN = 'http://localhost:9100';
 
@@ -62,4 +62,22 @@ test('skips the refetch when the URL did not actually change (e.g. a same-page p
 test('skips history states partial-nav never stamped', () => {
     expect(shouldRefetchOnPopstate(null, '/app/dash', '/app/board')).toBe(false);
     expect(shouldRefetchOnPopstate({}, '/app/dash', '/app/board')).toBe(false);
+});
+
+/** Minimal document stand-in — buildSig only calls querySelectorAll + getAttribute. */
+function docWith(assets) {
+    const els = assets.map(([attr, val]) => ({ getAttribute: (n) => (n === attr ? val : null) }));
+    return { querySelectorAll: () => els };
+}
+
+test('same deploy: two pages carrying identical build assets share a signature', () => {
+    const a = docWith([['src', '/build/assets/app-AAAA.js'], ['href', '/build/assets/app-BBBB.css']]);
+    const b = docWith([['href', '/build/assets/app-BBBB.css'], ['src', '/build/assets/app-AAAA.js']]);
+    expect(buildSig(a)).toBe(buildSig(b));
+});
+
+test('a deploy that rehashes the JS bundle changes the signature, forcing a reload', () => {
+    const before = docWith([['src', '/build/assets/app-D9S8jG0k.js']]);
+    const after = docWith([['src', '/build/assets/app-8THJz1Lg.js']]);
+    expect(buildSig(before)).not.toBe(buildSig(after));
 });

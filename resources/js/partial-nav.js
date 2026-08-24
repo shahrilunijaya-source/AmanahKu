@@ -27,6 +27,24 @@ let controller = null;
 // registerPartialNav() (not here at module scope) so importing this file never touches
 // `window` — the unit test imports it under bun's DOM-less test runner.
 let currentUrl = null;
+// The set of built asset URLs the page booted with. A deploy gives every bundle a new
+// hash, so a tab left open across a deploy keeps running the old JS while partial-nav
+// pulls markup that expects the new JS — the exact shape of the `md is not defined`
+// crash. Captured at register time; compared on every fetch so a stale tab reloads
+// itself into the new build instead of swapping mismatched markup in.
+let bootSig = null;
+
+/**
+ * A signature of the page's built assets — every `/build/` script and stylesheet URL,
+ * sorted and joined. Two pages from the same deploy share it; a deploy changes it.
+ * Exported for the unit test; `doc` only has to quack like a document (querySelectorAll).
+ */
+export function buildSig(doc) {
+    return [...doc.querySelectorAll('script[src*="/build/"], link[href*="/build/"]')]
+        .map((el) => el.getAttribute('src') || el.getAttribute('href'))
+        .sort()
+        .join('|');
+}
 
 /**
  * Should this click be handled in-page? Exported for the unit test; `link` only has to
@@ -97,6 +115,13 @@ async function go(url, { push = true } = {}) {
         if (!doc.querySelector(MAIN)) { throw new Error('not an app screen'); }
         // Follow any redirect the server actually performed.
         url = res.url || url;
+        // The fetched page names a different build than this tab loaded — a deploy landed
+        // while the tab was open. Swapping its markup in would run new HTML against old JS
+        // (missing helpers, renamed globals). Reload into the new build instead.
+        if (bootSig && buildSig(doc) !== bootSig) {
+            window.location.assign(url);
+            return;
+        }
     } catch (e) {
         if (e.name === 'AbortError') { return; }
         main.removeAttribute('data-nav-busy');
@@ -147,6 +172,7 @@ export function registerPartialNav() {
         go(window.location.href, { push: false });
     });
 
+    bootSig = buildSig(document);
     // So the first Back after a partial navigation lands on a state we own.
     currentUrl = window.location.href;
     history.replaceState({ partialNav: true }, '', currentUrl);
