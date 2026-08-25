@@ -251,8 +251,10 @@
                     @csrf
                     <input name="name" required :placeholder="$store.ui.lang==='en'?'Level (e.g. L3)':'Tahap (cth. L3)'" style="flex:2;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                     <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                    <input name="rank" type="number" min="0" max="65535" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                     <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
+                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'Smaller number = more senior. This order controls who can view whose profile.':'Nombor lebih kecil = lebih kanan. Susunan ini mengawal siapa boleh lihat profil siapa.'">Smaller number = more senior. This order controls who can view whose profile.</p>
             @endif
             @forelse ($staffLevels as $lv)
                 <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
@@ -270,6 +272,7 @@
                             @csrf
                             <input name="name" value="{{ $lv->name }}" required style="flex:2;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                             <input name="code" value="{{ $lv->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                            <input name="rank" type="number" min="0" max="65535" value="{{ $lv->rank }}" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                             <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
                             <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>

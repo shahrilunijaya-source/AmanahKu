@@ -504,6 +504,12 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-chip-tone[data-tone="info"]      { background: color-mix(in srgb, var(--info) 7%, #fff);    border-color: color-mix(in srgb, var(--info) 22%, var(--hairline)); }
 .uj-chip-tone[data-tone="amber"]     { background: color-mix(in srgb, var(--amber) 8%, #fff);   border-color: color-mix(in srgb, var(--amber) 26%, var(--hairline)); }
 .uj-chip-tone[data-tone="muted"]     { background: var(--hairline-soft); }
+/* Stacked sections inside an x-show tab panel. Alpine's x-show REMOVES the inline
+   `display` when it reveals an element, so an inline `display:flex` on the panel is
+   wiped the first time the tab is shown and the section gap collapses. A class
+   survives that, inline style does not. */
+.uj-tab-stack { display: flex; flex-direction: column; gap: 20px; }
+
 .uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
 .uj-progress > span { display: block; height: 100%; background: var(--success); }
 
