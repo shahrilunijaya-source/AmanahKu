@@ -20,7 +20,7 @@ use App\Models\Payslip;
  */
 final class PcbYearToDate
 {
-    /** @return array{grossY: float, epfK: float, zakatZ: float, mtdPaidX: float} */
+    /** @return array{grossY: float, epfK: float, zakatZ: float, mtdPaidX: float, optionalDeductions: float} */
     public function forPeriod(Employee $employee, string $period): array
     {
         [$year] = explode('-', $period);
@@ -44,6 +44,11 @@ final class PcbYearToDate
             'epfK' => (float) ($opening?->epf ?? 0) + (float) ($opening?->additional_epf ?? 0) + (float) $paidThisYear->sum('epf_employee'),
             'zakatZ' => (float) ($opening?->zakat_paid ?? 0) + (float) $paidThisYear->sum('zakat'),
             'mtdPaidX' => (float) ($opening?->pcb_paid ?? 0) + (float) $paidThisYear->sum(fn ($p) => $p->pcb + $p->pcb_additional),
+            // ∑LP opening balance — TP1 optional deductions (parents' medical, study fees,
+            // etc.) the employee already claimed through a previous employer this year.
+            // Nothing on Payslip accumulates a current-year TP1 figure yet, so this is the
+            // opening balance only; wire in this app's own TP1 claims here once they exist.
+            'optionalDeductions' => (float) ($opening?->optional_deductions ?? 0),
         ];
     }
 }

@@ -166,8 +166,8 @@
 
         {{-- Tabs --}}
         <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--hairline);">
-            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'opening' => 'Angka permulaan']; @endphp
-            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'opening' => 'Opening figures'] as $id => $label)
+            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'opening' => 'Pekerjaan sebelum ini (TP3)']; @endphp
+            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'opening' => 'Previous employment (TP3)'] as $id => $label)
                 <button @click="tab = '{{ $id }}'" :style="tab === '{{ $id }}' ? { color:'var(--red)', borderBottom:'2px solid var(--red)' } : { color:'var(--muted)', borderBottom:'2px solid transparent' }" style="background:none;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($tabLabelsMs[$id])">{{ $label }}</button>
             @endforeach
         </div>
@@ -380,17 +380,18 @@
             </div>
         </div>
 
-        {{-- ════ TAB: Opening figures ════ --}}
+        {{-- ════ TAB: Previous employment (TP3) ════ --}}
         <div x-show="tab === 'opening'" x-cloak x-data="{ openFor: null }">
             <div class="uj-card" style="max-width:820px;">
                 <div class="uj-card-head" style="padding:16px 22px;">
-                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Opening figures' : 'Angka permulaan'">Opening figures</h3>
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Previous employment (TP3)' : 'Pekerjaan sebelum ini (TP3)'">Previous employment (TP3)</h3>
                     <span style="font-size:12px;color:var(--muted);">{{ $openingYear }}</span>
                 </div>
                 <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
                     @include('partials.hint', [
-                        'en' => 'What a previous employer or previous payroll system already paid this employee earlier this calendar year — needed so PCB for the rest of the year is correct for anyone who joined mid-year, or if your company switched to AmanahKu mid-year. Leave everything at 0 for anyone who has been paid through AmanahKu since January.',
-                        'ms' => 'Apa yang telah dibayar oleh majikan atau sistem payroll sebelumnya kepada pekerja ini lebih awal tahun kalendar ini — diperlukan supaya PCB bagi baki tahun itu betul untuk sesiapa yang menyertai di tengah tahun, atau jika syarikat anda bertukar ke AmanahKu di tengah tahun. Biarkan semua pada 0 bagi sesiapa yang telah dibayar melalui AmanahKu sejak Januari.',
+                        'tone' => 'warn',
+                        'en' => 'Gross, PCB, EPF, zakat and the optional-deductions figures come from the employee\'s Form TP3 (or the payroll system the company used earlier this year) and must be entered before that person\'s first payroll run — getting them wrong makes both the monthly tax and the year-end EA form wrong. SOCSO and EIS are not part of Form TP3 itself; they come from the previous payroll system\'s own take-on screen and are kept here for the EA form and your own reconciliation. Leave everything at 0 for anyone who has been paid through AmanahKu since January.',
+                        'ms' => 'Angka kasar, PCB, EPF, zakat dan potongan pilihan datang daripada Borang TP3 pekerja (atau sistem payroll yang syarikat guna lebih awal tahun ini) dan mesti dimasukkan sebelum payroll run pertama pekerja itu — jika salah, cukai bulanan dan Borang EA akhir tahun turut salah. SOCSO dan EIS bukan sebahagian daripada Borang TP3 itu sendiri; ia datang daripada skrin take-on sistem payroll sebelumnya dan disimpan di sini untuk Borang EA dan rekonsiliasi anda sendiri. Biarkan semua pada 0 bagi sesiapa yang telah dibayar melalui AmanahKu sejak Januari.',
                     ])
                 </div>
                 @foreach ($openingEmployees as $e)
@@ -410,17 +411,33 @@
                                 @csrf
                                 <input type="hidden" name="employee_id" value="{{ $e->id }}" />
                                 <input type="hidden" name="year" value="{{ $openingYear }}" />
-                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;">
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Pay & statutory (feeds PCB)' : 'Gaji & berkanun (mempengaruhi PCB)'">Pay &amp; statutory (feeds PCB)</div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
                                     @foreach ([
                                         ['gross', 'Gross paid (RM)', 'Kasar dibayar (RM)', $o?->gross],
+                                        ['pcb_paid', 'PCB (income tax) paid (RM)', 'PCB (cukai pendapatan) dibayar (RM)', $o?->pcb_paid],
                                         ['epf', 'EPF paid (RM)', 'EPF dibayar (RM)', $o?->epf],
-                                        ['pcb_paid', 'PCB paid (RM)', 'PCB dibayar (RM)', $o?->pcb_paid],
+                                        ['socso', 'SOCSO paid (RM)', 'SOCSO dibayar (RM)', $o?->socso],
+                                        ['eis', 'EIS paid (RM)', 'EIS dibayar (RM)', $o?->eis],
                                         ['zakat_paid', 'Zakat paid (RM)', 'Zakat dibayar (RM)', $o?->zakat_paid],
-                                        ['additional_gross', 'Additional (bonus) gross (RM)', 'Kasar tambahan (bonus) (RM)', $o?->additional_gross],
-                                        ['additional_epf', 'EPF on additional (RM)', 'EPF atas tambahan (RM)', $o?->additional_epf],
                                     ] as $f)
                                         <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] !== null ? number_format((float) $f[3], 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
                                     @endforeach
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
+                                    @foreach ([
+                                        ['additional_gross', 'Additional (bonus) gross (RM)', 'Kasar tambahan (bonus) (RM)', $o?->additional_gross],
+                                        ['additional_epf', 'EPF on additional (RM)', 'EPF atas tambahan (RM)', $o?->additional_epf],
+                                        ['optional_deductions', 'Optional deductions claimed (RM)', 'Potongan pilihan dituntut (RM)', $o?->optional_deductions],
+                                    ] as $f)
+                                        <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] !== null ? number_format((float) $f[3], 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    @endforeach
+                                </div>
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Record-keeping only (EA form)' : 'Untuk rekod sahaja (Borang EA)'">Record-keeping only (EA form)</div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Exempt allowances (RM)' : 'Elaun dikecualikan cukai (RM)'">Exempt allowances (RM)</label><input name="exempt_allowances" type="number" step="0.01" min="0" value="{{ $o?->exempt_allowances !== null ? number_format((float) $o?->exempt_allowances, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div style="grid-column:span 2;"><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Previous employer' : 'Majikan sebelum ini'">Previous employer</label><input name="previous_employer" value="{{ $o?->previous_employer }}" placeholder="Company name" :placeholder="$store.ui.lang==='en' ? 'Company name' : 'Nama syarikat'" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Previous employer TIN' : 'TIN majikan sebelum ini'">Previous employer TIN</label><input name="previous_employer_tin" value="{{ $o?->previous_employer_tin }}" placeholder="Tax ID no." :placeholder="$store.ui.lang==='en' ? 'Tax ID no.' : 'No. rujukan cukai'" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
                                 </div>
                                 <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save opening figures' : 'Simpan angka permulaan'">Save opening figures</button><button type="button" @click="openFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
                             </form>

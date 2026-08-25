@@ -38,6 +38,15 @@ Getting formally verified by IRBM is a separate, human process: answer those que
 payslips, EA forms, calculation details and CP39 text files before 1 October. Nothing in this
 repo does that for you.
 
+The `payroll_opening_figures` table (`App\Models\PayrollOpeningFigure`, HR-facing "Previous
+employment (TP3)" tab) is the previous-employer-figures scenario above in database form — most
+of its columns mirror LHDN's Form TP3. `App\Services\Payroll\PcbYearToDate` reads it into the
+∑Y/∑K/Z/X/∑LP year-to-date figures `PcbCalculator` needs: `gross`, `epf`, `pcb_paid`,
+`zakat_paid`, `additional_gross`, `additional_epf` and `optional_deductions` all feed the
+formula. `socso`, `eis`, `previous_employer`, `previous_employer_tin` and `exempt_allowances`
+are record-keeping only (year-end EA form, HR reconciliation) and are deliberately never read
+by `PcbYearToDate` — see the columns split documented on the model itself.
+
 SKBBK ("Lindung 24 Jam") started 1 June 2026 and became voluntary on 8 July 2026. It is paid
 entirely by the employee, 0.75% of wages capped by the RM6,000 ceiling, and is opted into per
 employee on their salary structure. The rate is scheduled to rise to 1.0% and later 1.25%; when

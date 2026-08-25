@@ -127,6 +127,12 @@ class PayrollController extends Controller
             'zakat_paid' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'additional_gross' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'additional_epf' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'socso' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'eis' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'optional_deductions' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'exempt_allowances' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'previous_employer' => ['nullable', 'string', 'max:120'],
+            'previous_employer_tin' => ['nullable', 'string', 'max:40'],
         ]);
 
         PayrollOpeningFigure::updateOrCreate(
@@ -138,6 +144,12 @@ class PayrollController extends Controller
                 'zakat_paid' => $data['zakat_paid'] ?? 0,
                 'additional_gross' => $data['additional_gross'] ?? 0,
                 'additional_epf' => $data['additional_epf'] ?? 0,
+                'socso' => $data['socso'] ?? 0,
+                'eis' => $data['eis'] ?? 0,
+                'optional_deductions' => $data['optional_deductions'] ?? 0,
+                'exempt_allowances' => $data['exempt_allowances'] ?? 0,
+                'previous_employer' => $data['previous_employer'] ?? null,
+                'previous_employer_tin' => $data['previous_employer_tin'] ?? null,
             ],
         );
 
@@ -427,6 +439,7 @@ class PayrollController extends Controller
             // No spouse relief at all for category 1 (single) — see PcbCalculator::reliefs().
             disabledSpouse: $category !== 1 && (bool) ($structure?->disabled_spouse ?? false),
             qualifyingChildren: (int) ($structure?->children_relief_count ?? 0),
+            ytdOptionalDeductions: $ytd['optionalDeductions'],
             currentAdditionalGrossYt: $bonus,
             currentAdditionalEpfKt: $kt,
         );

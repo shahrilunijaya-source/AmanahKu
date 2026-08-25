@@ -342,6 +342,9 @@ class PayrollTest extends TestCase
         $this->actingHr()->post('/app/payroll/opening', [
             'employee_id' => $this->emp1->id, 'year' => 2026,
             'gross' => 30000, 'epf' => 3300, 'pcb_paid' => 1200, 'zakat_paid' => 500,
+            'additional_gross' => 2000, 'additional_epf' => 220,
+            'socso' => 250, 'eis' => 40, 'optional_deductions' => 1000, 'exempt_allowances' => 600,
+            'previous_employer' => 'Acme Prior Sdn Bhd', 'previous_employer_tin' => 'C1234567890',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('payroll_opening_figures', [
@@ -350,6 +353,16 @@ class PayrollTest extends TestCase
         $row = PayrollOpeningFigure::where('employee_id', $this->emp1->id)->firstOrFail();
         $this->assertEqualsWithDelta(30000.0, (float) $row->gross, 0.001);
         $this->assertEqualsWithDelta(1200.0, (float) $row->pcb_paid, 0.001);
+        $this->assertEqualsWithDelta(3300.0, (float) $row->epf, 0.001);
+        $this->assertEqualsWithDelta(500.0, (float) $row->zakat_paid, 0.001);
+        $this->assertEqualsWithDelta(2000.0, (float) $row->additional_gross, 0.001);
+        $this->assertEqualsWithDelta(220.0, (float) $row->additional_epf, 0.001);
+        $this->assertEqualsWithDelta(250.0, (float) $row->socso, 0.001);
+        $this->assertEqualsWithDelta(40.0, (float) $row->eis, 0.001);
+        $this->assertEqualsWithDelta(1000.0, (float) $row->optional_deductions, 0.001);
+        $this->assertEqualsWithDelta(600.0, (float) $row->exempt_allowances, 0.001);
+        $this->assertSame('Acme Prior Sdn Bhd', $row->previous_employer);
+        $this->assertSame('C1234567890', $row->previous_employer_tin);
     }
 
     public function test_employee_cannot_save_opening_figures(): void
@@ -547,6 +560,47 @@ class PayrollTest extends TestCase
         $slipWith = $withOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
 
         $this->assertNotEqualsWithDelta((float) $slipWithout->pcb, (float) $slipWith->pcb, 0.001);
+    }
+
+    public function test_opening_socso_and_eis_do_not_change_the_computed_pcb(): void
+    {
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+
+        $withoutOpening = $this->createRun('2026-06');
+        $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        // SOCSO/EIS are record-keeping (EA form / reconciliation) — Form TP3 doesn't
+        // even carry them — so setting them alone must leave PCB untouched.
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $emp3->id, 'year' => 2026,
+            'socso' => 9999, 'eis' => 9999,
+        ])->assertRedirect();
+
+        $withOpening = $this->createRun('2026-07');
+        $slipWith = $withOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        $this->assertEqualsWithDelta((float) $slipWithout->pcb, (float) $slipWith->pcb, 0.001);
+    }
+
+    public function test_opening_optional_deductions_lower_the_computed_pcb(): void
+    {
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 9000]);
+
+        $withoutOpening = $this->createRun('2026-06');
+        $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        // optional_deductions is Form TP3 section D's ∑LP — it DOES feed the formula.
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $emp3->id, 'year' => 2026,
+            'optional_deductions' => 10000,
+        ])->assertRedirect();
+
+        $withOpening = $this->createRun('2026-07');
+        $slipWith = $withOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        $this->assertLessThan((float) $slipWithout->pcb, (float) $slipWith->pcb);
     }
 
     public function test_bonus_produces_both_a_normal_and_an_additional_pcb_figure(): void
