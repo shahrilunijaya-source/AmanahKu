@@ -19,7 +19,7 @@
             <div class="wd-body">
                 @if ($session->exists)
                     @php
-                        $presenterName = $session->presenter?->display_name ?? $session->presenter_name;
+                        $presenterName = $session->presenterLabel();
                         $isEvent = in_array($session->status, ['not_tot', 'skipped'], true);
                     @endphp
 
@@ -117,19 +117,7 @@
                             @csrf
                             <input type="hidden" name="year" value="{{ $session->year }}">
                             <input type="hidden" name="month" value="{{ $session->month }}">
-                            <div style="display:grid;grid-template-columns:{{ $canManage ? '1fr 1fr' : '1fr' }};gap:12px;max-width:620px;">
-                                @if ($canManage)
-                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name"></div>
-                                @endif
-                                <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter (optional)' : 'Pembentang (pilihan)'">Presenter (optional)</label>
-                                    <select class="tot-field" name="presenter_employee_id">
-                                        <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
-                                        @foreach ($assignableEmployees as $person)
-                                            <option value="{{ $person->id }}">{{ $person->display_name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
+                            @include('partials.tot-presenter-picker', ['session' => $session, 'assignableEmployees' => $assignableEmployees])
                             @if ($canManage)
                                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title"></div>
                                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>

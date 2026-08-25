@@ -12,27 +12,15 @@
         <form method="post" action="{{ route('tot.update', $session) }}">
             @csrf
             <input type="hidden" name="totform" value="{{ $session->id }}">
-            @if ($canManage || $canAssignPresenter)
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px;">
-                    @if ($canManage)
-                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter name' : 'Nama pembentang'">Presenter name</label><input class="tot-field" name="presenter_name" value="{{ $session->presenter_name }}"></div>
-                    @endif
-                    @if ($canAssignPresenter)
-                        <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</label>
-                            <select class="tot-field" name="presenter_employee_id">
-                                {{-- Blank first, so a presenter can be cleared: an empty value nulls
-                                     both presenter_employee_id and presenter_name server-side. --}}
-                                <option value="" x-text="$store.ui.lang==='en' ? 'Nobody yet' : 'Belum ada'">Nobody yet</option>
-                                @foreach ($assignableEmployees as $person)
-                                    <option value="{{ $person->id }}" @selected($session->presenter_employee_id === $person->id)>{{ $person->display_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
-                </div>
+            @if ($canAssignPresenter)
+                @include('partials.tot-presenter-picker', ['session' => $session, 'assignableEmployees' => $assignableEmployees])
+                @if (filled($session->presenter_name) && $session->presenterList()->isEmpty())
+                    {{-- An imported slot whose historical name never matched an employee.
+                         Shown so it is not silently lost; picking somebody above replaces it. --}}
+                    <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? @js('Imported as “'.$session->presenter_name.'”, not yet matched to anybody. Picking a presenter above replaces it.') : @js('Diimport sebagai “'.$session->presenter_name.'”, belum dipadankan dengan sesiapa. Memilih pembentang di atas menggantikannya.')">Imported as &ldquo;{{ $session->presenter_name }}&rdquo;.</div>
+                @endif
             @endif
             @if ($canManage)
-                <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? 'Picking a presenter overrides the presenter name above, everywhere this session is shown.' : 'Memilih pembentang mengatasi nama pembentang di atas, di mana sahaja sesi ini dipaparkan.'">Picking a presenter overrides the presenter name above, everywhere this session is shown.</div>
                 <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</label>
                     <select class="tot-field" name="status">
                         @foreach (\App\Models\TotSession::STATUSES as $st)
@@ -41,11 +29,14 @@
                     </select>
                 </div>
             @endif
-            {{-- The material belongs to the presenter of this slot or to a
-                 privileged role, matching TotController::update(), which gives
-                 a tot.assign holder no rule for any of these. Rendering them
-                 to a holder would show fields the save silently discards. --}}
-            @if ($canManage || $isPresenterOfSlot)
+            @php $totSeesMaterial = $canManage || $isPresenterOfSlot; @endphp
+            {{-- The material (topic/description/hours) belongs to the presenter of this
+                 slot or to a privileged role, matching TotController::update(), which gives
+                 a tot.assign holder no rule for any of these. Rendering them to a holder
+                 would show fields the save silently discards. Links are gated separately
+                 below: a tot.assign holder — the moderator — edits the Nota Perbincangan
+                 row without needing any of this. --}}
+            @if ($totSeesMaterial)
             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Topic' : 'Topik'">Topic</label><input class="tot-field" name="title" value="{{ $session->title }}"></div>
             <div style="margin-top:12px;max-width:620px;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:64px;padding-top:9px;resize:vertical;">{{ $session->description }}</textarea></div>
 
@@ -56,22 +47,48 @@
                 <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Ends' : 'Tamat'">Ends</label><input class="tot-field" type="time" name="ends_at" value="{{ $session->ends_at ? substr((string) $session->ends_at, 0, 5) : '' }}" placeholder="{{ \App\Models\TotSession::DEFAULT_END }}"></div>
             </div>
             <div class="tot-note" style="margin-top:6px;max-width:620px;" x-text="$store.ui.lang==='en' ? @js('Leave both blank for the usual '.\App\Models\TotSession::DEFAULT_START.'–'.\App\Models\TotSession::DEFAULT_END.'. Set them only for a month that moved.') : @js('Biarkan kedua-duanya kosong untuk waktu biasa '.\App\Models\TotSession::DEFAULT_START.'–'.\App\Models\TotSession::DEFAULT_END.'. Tetapkan hanya untuk bulan yang berubah.')">Leave both blank for the usual {{ \App\Models\TotSession::DEFAULT_START }}&ndash;{{ \App\Models\TotSession::DEFAULT_END }}.</div>
+            @endif
 
             {{-- A slot with no links opens on the two rows a TOT always has, labelled
                  already so the presenter only pastes URLs. A row left with its label and
                  no URL is dropped on save (TotController::isUntouchedLinkRow). --}}
-            <div style="margin-top:16px;max-width:620px;" x-data="{ links: {{ \Illuminate\Support\Js::from(! empty($session->links) ? $session->links : array_map(fn ($label) => ['label' => $label, 'url' => ''], \App\Models\TotSession::DEFAULT_LINK_LABELS)) }} }">
-                <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</label>
-                <template x-for="(link, idx) in links" :key="idx">
-                    <div style="display:grid;grid-template-columns:150px 1fr 38px;gap:8px;margin-bottom:8px;">
-                        <input class="tot-field" :name="`links[${idx}][label]`" x-model="link.label" placeholder="Label">
-                        <input class="tot-field" :name="`links[${idx}][url]`" x-model="link.url" placeholder="https://...">
-                        <button type="button" class="tot-btn-g" style="padding:0;width:38px;" @click="links.splice(idx, 1)">&times;</button>
-                    </div>
-                </template>
-                <button type="button" class="tot-pillbtn" @click="links.push({ label: '', url: '' })"><span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'">+ Add a link</span></button>
-            </div>
+            @if ($totSeesMaterial)
+                @php
+                    $totEditorLinks = ! empty($session->links) ? $session->links : array_map(fn ($label) => ['label' => $label, 'url' => ''], \App\Models\TotSession::DEFAULT_LINK_LABELS);
+                    $totHasModeratorLink = collect($totEditorLinks)->contains(fn ($link) => ($link['label'] ?? null) === \App\Models\TotSession::MODERATOR_LINK_LABEL);
+                    if ($canAssignPresenter && ! $totHasModeratorLink) {
+                        $totEditorLinks[] = ['label' => \App\Models\TotSession::MODERATOR_LINK_LABEL, 'url' => ''];
+                    }
+                    if (! $canAssignPresenter) {
+                        $totEditorLinks = array_values(array_filter($totEditorLinks, fn ($link) => ($link['label'] ?? null) !== \App\Models\TotSession::MODERATOR_LINK_LABEL));
+                    }
+                @endphp
+                {{-- The moderator row (Nota Perbincangan) only renders for $canAssignPresenter
+                     (privileged roles plus a tot.assign holder) — TotController::update()
+                     merges it back in on a save from a viewer who cannot see it. --}}
+                <div style="margin-top:16px;max-width:620px;" x-data="{ links: {{ \Illuminate\Support\Js::from($totEditorLinks) }} }">
+                    <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</label>
+                    <template x-for="(link, idx) in links" :key="idx">
+                        <div style="display:grid;grid-template-columns:150px 1fr 38px;gap:8px;margin-bottom:8px;">
+                            <input class="tot-field" :name="`links[${idx}][label]`" x-model="link.label" placeholder="Label">
+                            <input class="tot-field" :name="`links[${idx}][url]`" x-model="link.url" placeholder="https://...">
+                            <button type="button" class="tot-btn-g" style="padding:0;width:38px;" @click="links.splice(idx, 1)">&times;</button>
+                        </div>
+                    </template>
+                    <button type="button" class="tot-pillbtn" @click="links.push({ label: '', url: '' })"><span x-text="$store.ui.lang==='en' ? '+ Add a link' : '+ Tambah pautan'">+ Add a link</span></button>
+                </div>
+            @elseif ($canAssignPresenter)
+                {{-- A tot.assign holder with no other access to this slot (the moderator) —
+                     the one link they edit, fixed to this label, nothing to add or remove.
+                     TotController::update() preserves every other stored link untouched. --}}
+                <div style="margin-top:16px;max-width:620px;">
+                    <label class="tot-lbl">{{ \App\Models\TotSession::MODERATOR_LINK_LABEL }}</label>
+                    <input type="hidden" name="links[0][label]" value="{{ \App\Models\TotSession::MODERATOR_LINK_LABEL }}">
+                    <input class="tot-field" type="url" name="links[0][url]" placeholder="https://..." value="{{ collect($session->links ?? [])->firstWhere('label', \App\Models\TotSession::MODERATOR_LINK_LABEL)['url'] ?? '' }}">
+                </div>
+            @endif
 
+            @if ($totSeesMaterial)
             {{-- Presenting is the contribution. There is no lesson to point at and none to
                  write: TotController::creditContribution marks the month when the slot is
                  marked done. --}}

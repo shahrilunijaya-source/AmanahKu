@@ -64,7 +64,7 @@ class TotReminder extends Command
     {
         $sent = 0;
 
-        $slots = TotSession::with('presenter')
+        $slots = TotSession::with(['presenter', 'presenters'])
             ->whereNotIn('status', self::SILENT_STATUSES)
             ->where('year', '>=', $today->year)
             ->get();
@@ -76,24 +76,31 @@ class TotReminder extends Command
             // Compare whole days by walking back from the session date rather than by
             // diffing. Carbon's signed diff semantics have changed between major versions;
             // isSameDay is unambiguous everywhere.
+            // A slot can be presented by a team, so each of these goes to every presenter.
+            // The dedupe key carries the employee id, or the second person's bell would be
+            // swallowed as a duplicate of the first's.
             if ($date->copy()->subDays(14)->isSameDay($today) && blank($slot->title)) {
-                $sent += (int) AppNotification::send(
-                    $slot->presenter?->user_id,
-                    'Your TOT is in two weeks',
-                    'The topic is still blank. Pick one so people can prepare.',
-                    $url,
-                    "tot:{$slot->id}:topic",
-                );
+                foreach ($slot->presenterList() as $presenter) {
+                    $sent += (int) AppNotification::send(
+                        $presenter->user_id,
+                        'Your TOT is in two weeks',
+                        'The topic is still blank. Pick one so people can prepare.',
+                        $url,
+                        "tot:{$slot->id}:topic:{$presenter->id}",
+                    );
+                }
             }
 
             if ($date->copy()->subDays(7)->isSameDay($today)) {
-                $sent += (int) AppNotification::send(
-                    $slot->presenter?->user_id,
-                    'Your TOT is next Saturday',
-                    'Upload your slides or notes to the TOT board before the session.',
-                    $url,
-                    "tot:{$slot->id}:prepare",
-                );
+                foreach ($slot->presenterList() as $presenter) {
+                    $sent += (int) AppNotification::send(
+                        $presenter->user_id,
+                        'Your TOT is next Saturday',
+                        'Upload your slides or notes to the TOT board before the session.',
+                        $url,
+                        "tot:{$slot->id}:prepare:{$presenter->id}",
+                    );
+                }
             }
 
             if ($date->copy()->subDay()->isSameDay($today)) {

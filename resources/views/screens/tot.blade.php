@@ -24,6 +24,7 @@
         'No session held' => 'Tiada sesi diadakan',
         'Company event' => 'Acara syarikat',
         'Nobody assigned' => 'Belum ada pembentang',
+        \App\Models\TotSession::TEAM_LABEL => 'Berkumpulan',
     ];
     $statusLabels = [
         'planned' => ['en' => 'Planned', 'ms' => 'Dirancang'],
@@ -46,7 +47,7 @@
 
         $nameText = $session->status === 'skipped'
             ? 'No session held'
-            : ($session->presenter?->display_name ?? $session->presenter_name
+            : ($session->presenterLabel()
                 ?? ($session->status === 'not_tot' ? 'Company event' : 'Nobody assigned'));
 
         $kind = match ($session->status) {
@@ -177,7 +178,7 @@
                 $sessionScore = $session->exists ? ($scores[$session->id] ?? null) : null;
                 $watched = $session->exists ? ($watchedCounts[$session->id] ?? 0) : 0;
                 $showUpcoming = in_array($session->status, ['planned', 'confirmed'], true) && $watched === 0;
-                $isPresenterOfSlot = $session->exists && $employee && $session->presenter_employee_id === $employee->id;
+                $isPresenterOfSlot = $session->exists && $session->isPresentedBy($employee);
                 $canEditSlot = $canManage || $canAssignPresenter || $isPresenterOfSlot;
                 // A rejected save redirects back to the whole board, so the slot that failed
                 // names itself in the flashed input and reopens with the error showing.
