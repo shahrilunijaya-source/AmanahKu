@@ -349,7 +349,7 @@
                                 </div>
                                 <div>
                                     <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Due date' : 'Tarikh akhir'">Due date</label>
-                                    <input name="due_at" type="date" value="{{ old('due_at') }}" style="{{ $fs }}" />
+                                    <input name="due_at" type="date" required value="{{ old('due_at') }}" style="{{ $fs }}" />
                                 </div>
                                 <div>
                                     <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label>
