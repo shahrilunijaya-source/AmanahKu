@@ -145,7 +145,10 @@ trait BuildsWorkData
                     // `nickname` is selected because display_name falls back to the
                     // legal name whenever the column is absent from the row.
                     ->orderBy('name')->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
-                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
+                    // `search` is the haystack the card's "add someone" picker filters
+                    // on — display name plus legal name, so someone typed by their
+                    // full name is found even when the list shows their nickname.
+                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color, 'search' => mb_strtolower($e->display_name.' '.$e->name)])
                     ->values()
                 : collect(),
         ];

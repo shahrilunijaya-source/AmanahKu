@@ -113,7 +113,7 @@ export function registerWorkBoard(Alpine) {
         // What the "add someone" menu lists: addable people matching the search box.
         get filteredPeople() {
             const q = this.drawer.peopleQuery.trim().toLowerCase();
-            return q ? this.availablePeople.filter((p) => p.name.toLowerCase().includes(q)) : this.availablePeople;
+            return q ? this.availablePeople.filter((p) => (p.search || p.name.toLowerCase()).includes(q)) : this.availablePeople;
         },
 
         // Who this card may mention: participants plus the assigner, exactly as

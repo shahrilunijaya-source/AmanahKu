@@ -707,9 +707,11 @@ class BoardCardTest extends TestCase
         ]);
         $card = $this->card();
 
-        // The picker roster on the board screen.
+        // The picker roster on the board screen. Its `search` haystack still carries
+        // the legal name, so typing "muhammad" finds someone listed as "Hakime".
         $this->actingInTenant()->get('/app/board')->assertOk()
-            ->assertViewHas('people', fn ($people) => $people->contains('name', 'Hakime'));
+            ->assertViewHas('people', fn ($people) => $people->contains('name', 'Hakime')
+                && $people->contains('search', 'hakime muhammad hakim bin ali'));
 
         // The participant chips on a saved card.
         $this->actingInTenant()->patchJson("/app/board/{$card->id}", [

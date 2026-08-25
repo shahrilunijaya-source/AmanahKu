@@ -201,7 +201,7 @@
                                     <div class="wd-menu" x-show="drawer.peopleMenuOpen" x-cloak @click.outside="drawer.peopleMenuOpen = false" role="menu" style="top:28px;max-height:220px;overflow:auto;">
                                         <input type="search" class="wd-inline" style="margin:0 0 4px;width:100%;" x-ref="peopleSearch" x-model="drawer.peopleQuery"
                                                @keydown.escape.stop="drawer.peopleMenuOpen = false"
-                                               :placeholder="$store.ui.lang==='en' ? 'Search people…' : 'Cari orang…'"
+                                               :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
                                                :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'" autocomplete="off">
                                         <template x-for="p in filteredPeople" :key="p.id">
                                             <button type="button" role="menuitem" @click="addPerson(p.id); drawer.peopleQuery = ''" x-text="p.name"></button>
