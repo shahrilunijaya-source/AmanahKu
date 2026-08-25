@@ -75,7 +75,10 @@ and generated mechanically into `App\Services\Payroll\PerkesoSchedule` (a PHP co
 class, not a migration — statutory data is identical for every tenant and only changes
 when PERKESO republishes). `SocsoCalculator`/`EisCalculator` look up bands from that
 table; there is no flat-percentage fallback and no tenant override — same posture as
-EPF. `StatutoryRate` now only stores PCB config.
+EPF. `StatutoryRate` has since been deleted entirely — PCB is now also a fixed
+published calculation (the LHDN computerised method, `PcbCalculator` +
+`PcbYearToDate` + `PayrollOpeningFigure`), leaving nothing tenant-editable in
+payroll's statutory config.
 
 Also landed alongside this: **SKBBK ("Lindung 24 Jam")**, voluntary since 8 July 2026 and
 entirely employee-paid, as a per-employee opt-in (`salary_structures.skbbk_opt_in`) with

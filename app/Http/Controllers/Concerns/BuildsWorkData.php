@@ -9,10 +9,10 @@ use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
-use App\Models\StatutoryRate;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
@@ -401,7 +401,9 @@ trait BuildsWorkData
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
-            'rates' => StatutoryRate::merged(),
+            'openingYear' => (int) now()->year,
+            'openingEmployees' => Employee::active()->orderBy('name')->get(),
+            'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
         ];
     }
 }

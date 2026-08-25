@@ -81,11 +81,6 @@ class Features
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,
             'help' => 'The in-app AI assistant slide-over.',
         ],
-        'payroll.auto_pcb' => [
-            'label' => 'Auto PCB/MTD estimate',
-            'type' => 'bool', 'scope' => 'tenant', 'default' => false,
-            'help' => 'Estimate monthly tax automatically (HR still reviews).',
-        ],
         'payroll.four_eyes' => [
             'label' => 'Require payroll approval before finalize',
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,

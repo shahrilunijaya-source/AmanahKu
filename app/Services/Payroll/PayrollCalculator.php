@@ -38,6 +38,10 @@ class PayrollCalculator
      *     additions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     unpaid_days?: float|int|string,
      *     pcb?: float|int|string,
+     *     pcb_additional?: float|int|string,
+     *     zakat?: float|int|string,
+     *     cp38?: float|int|string,
+     *     pcb_override?: float|int|string|null,
      *     other_deductions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     claims_reimbursement?: float|int|string,
      *     statutory_category?: int,
@@ -55,6 +59,11 @@ class PayrollCalculator
         $bonus = $this->money($inputs['bonus'] ?? 0);
         $unpaidDays = max(0.0, (float) ($inputs['unpaid_days'] ?? 0));
         $pcb = $this->money($inputs['pcb'] ?? 0);
+        $pcbAdditional = $this->money($inputs['pcb_additional'] ?? 0);
+        $zakat = $this->money($inputs['zakat'] ?? 0);
+        $cp38 = $this->money($inputs['cp38'] ?? 0);
+        $pcbOverride = isset($inputs['pcb_override']) && $inputs['pcb_override'] !== null && $inputs['pcb_override'] !== ''
+            ? $this->money($inputs['pcb_override']) : null;
         $claimsReimbursement = $this->money($inputs['claims_reimbursement'] ?? 0);
 
         $additions = $this->cleanLines($inputs['additions'] ?? []);
@@ -104,7 +113,12 @@ class PayrollCalculator
         $eisEmployee = $eisContribution['employee'];
         $eisEmployer = $eisContribution['employer'];
 
-        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcb + $otherDeductionsTotal, 2);
+        // A non-null override wins over the computed normal PCB verbatim — HR's manual
+        // figure, not netted against zakat again (that netting already happened, or
+        // didn't, in whatever the override represents).
+        $pcbEffective = $pcbOverride ?? $pcb;
+
+        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal, 2);
         $netPay = round($statWage - $totalDeductions + $claimsReimbursement, 2);
         $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer, 2);
 
@@ -126,7 +140,11 @@ class PayrollCalculator
             eisEmployee: $eisEmployee,
             eisEmployer: $eisEmployer,
             skbbkEmployee: $skbbkEmployee,
-            pcb: $pcb,
+            pcb: $pcbEffective,
+            pcbAdditional: $pcbAdditional,
+            zakat: $zakat,
+            cp38: $cp38,
+            pcbOverride: $pcbOverride,
             otherDeductions: $otherDeductions,
             otherDeductionsTotal: $otherDeductionsTotal,
             claimsReimbursement: $claimsReimbursement,

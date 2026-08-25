@@ -60,7 +60,7 @@ what the error said.
 route name, controller and view path, the exception class and stack trace, the app
 version, and a non-identifying user reference (role and internal id, never name,
 email or IC number). No model rows go into `context`. The models that must never be
-serialised into a ticket are `Payslip`, `Employee`, `SalaryStructure`, `StatutoryRate`,
+serialised into a ticket are `Payslip`, `Employee`, `SalaryStructure`, `PayrollOpeningFigure`,
 along with the screens that render them: `profile`, `directory`, `position`,
 `staff-load` and `timesheet-reports`.
 

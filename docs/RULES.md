@@ -43,17 +43,23 @@ Payroll is shipped **off** for the current scope. These rules apply if it is swi
   are marked `paid`.
 - Finalizing without approval is allowed by default — a deliberate single-operator shortcut.
   Set `payroll.four_eyes` to require approval first.
-- **EPF, SOCSO and EIS all follow fixed official schedules and are not tenant-editable.**
-  EPF is the KWSP Third Schedule (`EpfCalculator`); SOCSO is the PERKESO Third Schedule Act 4
-  (`SocsoCalculator`); EIS is the PERKESO Second Schedule Act 800 (`EisCalculator`). All
-  three read from published PDFs transcribed into `tests/Fixtures/`, not a percentage
-  formula — see [ROADMAP.md](ROADMAP.md) I-013. Only PCB stays configurable per tenant
-  (`StatutoryRate`, type `pcb`).
+- **EPF, SOCSO, EIS and PCB all follow fixed official schedules/methods and are not
+  tenant-editable.** EPF is the KWSP Third Schedule (`EpfCalculator`); SOCSO is the
+  PERKESO Third Schedule Act 4 (`SocsoCalculator`); EIS is the PERKESO Second Schedule
+  Act 800 (`EisCalculator`); PCB/MTD is the LHDN computerised calculation method
+  (`PcbCalculator`, year-to-date accumulation via `PcbYearToDate`, opening figures for
+  mid-year joiners via `PayrollOpeningFigure`). All read from published sources — see
+  [ROADMAP.md](ROADMAP.md) I-013/I-016. `StatutoryRate` is gone; there is nothing left
+  tenant-editable in payroll's statutory config.
 - **SKBBK ("Lindung 24 Jam")** — voluntary since 8 July 2026, entirely employee-paid — is a
   per-employee opt-in (`salary_structures.skbbk_opt_in`) with its own payslip deduction
   line (`payslips.skbbk_employee`), separate from `socso_employee`.
-- PCB / MTD is **manual entry per payslip**. No auto-calculation. Deliberate — the LHDN
-  progressive table plus reliefs changes yearly and is error-prone to encode.
+- PCB / MTD is **computed automatically** on every run/edit from the employee's statutory
+  profile (`SalaryStructure`) and year-to-date figures. HR can still override the computed
+  normal-PCB figure per payslip while its run is a draft (`payslips.pcb_override`); the
+  override survives recomputation until cleared. Bonus PCB (`payslips.pcb_additional`),
+  zakat (`payslips.zakat`, nets off PCB) and CP38 (`payslips.cp38`, a separate deduction)
+  each have their own column and payslip line.
 - Calculation constants (`PayrollCalculator`): 26 working days per month, 8 hours per day,
   overtime at 1.5× the ordinary rate of pay. Overtime = `hours × (basic / 26 / 8) × 1.5`;
   unpaid deduction = `unpaid_days × (basic / 26)`. Statutory is computed on gross earnings

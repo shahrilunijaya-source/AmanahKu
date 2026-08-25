@@ -472,7 +472,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/wellness/resources', [WellnessController::class, 'storeResource'])->name('wellness.resources');
         Route::middleware('throttle:30,1,payroll')->group(function () {
             Route::post('/app/payroll/salary', [PayrollController::class, 'storeSalary'])->name('payroll.salary');
-            Route::post('/app/payroll/rates', [PayrollController::class, 'updateRates'])->name('payroll.rates');
+            Route::post('/app/payroll/opening', [PayrollController::class, 'storeOpening'])->name('payroll.opening');
             Route::post('/app/payroll/runs', [PayrollController::class, 'createRun'])->name('payroll.runs.create');
             Route::post('/app/payroll/runs/{run}/approve', [PayrollController::class, 'approveRun'])->name('payroll.runs.approve');
             Route::post('/app/payroll/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->name('payroll.runs.finalize');

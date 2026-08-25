@@ -181,23 +181,17 @@ class FeatureEnforcementTest extends TestCase
 
     // ── Payroll flags ─────────────────────────────────────────────
 
-    public function test_auto_pcb_flag_drives_the_pcb_deduction(): void
+    public function test_pcb_is_always_computed_no_flag_needed(): void
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
 
-        // Default flag (off) → no auto-PCB.
-        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-05'])->assertRedirect();
-        $offSlip = PayrollRun::where('period', '2026-05')->firstOrFail()
+        // PCB is the real LHDN computation on every run — no feature flag gates it.
+        // January (n=11), no year-to-date → the spec's own worked example: 110/mo.
+        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-01'])->assertRedirect();
+        $slip = PayrollRun::where('period', '2026-01')->firstOrFail()
             ->payslips()->where('employee_id', $emp->id)->firstOrFail();
-        $this->assertSame(0.0, (float) $offSlip->pcb);
-
-        // Flag on → auto-PCB estimates the deduction (gross 5,000 → 110/mo).
-        app(FeatureManager::class)->setTenant($this->tenant, 'payroll.auto_pcb', true);
-        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
-        $onSlip = PayrollRun::where('period', '2026-06')->firstOrFail()
-            ->payslips()->where('employee_id', $emp->id)->firstOrFail();
-        $this->assertSame(110.0, (float) $onSlip->pcb);
+        $this->assertSame(110.0, (float) $slip->pcb);
     }
 
     public function test_four_eyes_flag_blocks_finalizing_a_draft(): void

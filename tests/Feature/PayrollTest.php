@@ -7,9 +7,9 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
-use App\Models\StatutoryRate;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -155,10 +155,33 @@ class PayrollTest extends TestCase
         // MY statutory wage brackets), net 4415.35.
         $this->assertEqualsWithDelta(4415.35, (float) $payslip->net_pay, 0.001);
 
-        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb' => 200])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])->assertRedirect();
 
         $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb, 0.001);
+        $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb_override, 0.001);
         $this->assertEqualsWithDelta(4215.35, (float) $payslip->fresh()->net_pay, 0.001);   // 4415.35 - 200 PCB
+    }
+
+    public function test_manual_pcb_override_survives_recomputation(): void
+    {
+        $run = $this->createRun();
+        $payslip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])->assertRedirect();
+        $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb, 0.001);
+
+        // A later edit that changes something else, but the override field is
+        // resubmitted (as the pre-filled form would) — override still wins.
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['overtime_hours' => 4, 'pcb_override' => 200])->assertRedirect();
+        $fresh = $payslip->fresh();
+        $this->assertEqualsWithDelta(200.0, (float) $fresh->pcb, 0.001);
+        $this->assertEqualsWithDelta(200.0, (float) $fresh->pcb_override, 0.001);
+
+        // Blanking the override field clears it — back to the computed PCB (0 here).
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => ''])->assertRedirect();
+        $cleared = $payslip->fresh();
+        $this->assertNull($cleared->pcb_override);
+        $this->assertEqualsWithDelta(0.0, (float) $cleared->pcb, 0.001);
     }
 
     public function test_overtime_and_bonus_increase_gross(): void
@@ -314,19 +337,24 @@ class PayrollTest extends TestCase
         $this->actingEmployee()->post('/app/payroll/salary', ['employee_id' => $this->emp2->id, 'basic_salary' => 9999])->assertForbidden();
     }
 
-    public function test_privileged_user_updates_statutory_rates(): void
+    public function test_privileged_user_saves_opening_figures(): void
     {
-        $this->actingHr()->post('/app/payroll/rates', [
-            'pcb_individual_relief' => 9500, 'pcb_epf_relief_cap' => 4000,
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $this->emp1->id, 'year' => 2026,
+            'gross' => 30000, 'epf' => 3300, 'pcb_paid' => 1200, 'zakat_paid' => 500,
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('statutory_rates', ['tenant_id' => $this->tenant->id, 'type' => 'pcb']);
-        $this->assertEqualsWithDelta(9500.0, (float) StatutoryRate::where('type', 'pcb')->first()->config['individual_relief'], 0.001);
+        $this->assertDatabaseHas('payroll_opening_figures', [
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'year' => 2026,
+        ]);
+        $row = PayrollOpeningFigure::where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertEqualsWithDelta(30000.0, (float) $row->gross, 0.001);
+        $this->assertEqualsWithDelta(1200.0, (float) $row->pcb_paid, 0.001);
     }
 
-    public function test_employee_cannot_update_statutory_rates(): void
+    public function test_employee_cannot_save_opening_figures(): void
     {
-        $this->actingEmployee()->post('/app/payroll/rates', [])->assertForbidden();
+        $this->actingEmployee()->post('/app/payroll/opening', ['employee_id' => $this->emp1->id, 'year' => 2026])->assertForbidden();
     }
 
     // ── Tenant isolation ──────────────────────────────────────────
@@ -419,37 +447,130 @@ class PayrollTest extends TestCase
         $this->assertStringContainsString('unverified layout', $log->target);
     }
 
-    // ── Auto-PCB / MTD (I-016) ────────────────────────────────────
+    // ── PCB / MTD — year-to-date accumulation (always on) ──────────
 
-    private function enableAutoPcb(): void
+    public function test_pcb_uses_the_employees_real_epf_part_not_an_assumed_under_60(): void
     {
-        $this->actingHr()->post('/app/payroll/rates', [
-            'pcb_auto' => 1, 'pcb_individual_relief' => 9000, 'pcb_epf_relief_cap' => 4000,
-        ])->assertRedirect();
-    }
-
-    public function test_pcb_is_zero_by_default_when_auto_is_off(): void
-    {
-        $run = $this->createRun();
+        // 60+ citizen → EPF Part E, 0% employee rate. PcbYearToDate's EPF-on-bonus split
+        // must use that same Part, not silently assume Part A (under 60) for K1/Kt.
+        $this->emp1->update(['date_of_birth' => '1960-01-01']);
+        $run = $this->createRun('2026-01');
         $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
-        $this->assertSame(0.0, (float) $slip->pcb);
+
+        $this->assertSame(0.0, (float) $slip->epf_employee);
+        // With K1 correctly 0 (no EPF relief to claim), January PCB is 134.20 — higher
+        // than the under-60 110 baseline, which would wrongly assume RM550 of EPF relief.
+        $this->assertSame(134.2, (float) $slip->pcb);
     }
 
-    public function test_auto_pcb_estimates_the_deduction_on_a_new_run(): void
+    public function test_pcb_is_computed_automatically_on_a_new_run(): void
     {
-        $this->enableAutoPcb();
-        $run = $this->createRun();
+        $run = $this->createRun('2026-01');
 
-        // emp1 gross 5,000 → annual 60,000 − 13,000 relief = 47,000 chargeable → 1,320/yr → 110/mo.
+        // emp1: single, basic 5000, January (n=11), no YTD — spec's own worked example.
         $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
         $this->assertSame(110.0, (float) $slip->pcb);
         // EPF 550 + SOCSO 24.75 + EIS 9.90 + PCB 110 = 694.65 → net 4305.35
         $this->assertEqualsWithDelta(4305.35, (float) $slip->net_pay, 0.001);
     }
 
-    public function test_rate_config_persists_the_auto_pcb_toggle(): void
+    /**
+     * The spec puts "married with a working spouse", "divorced" and "widowed" in the same
+     * tax category (3), so a divorced employee must not be forced to be recorded as widowed
+     * to be taxed correctly.
+     */
+    public function test_divorced_is_taxed_as_category_three_like_a_working_spouse(): void
     {
-        $this->enableAutoPcb();
-        $this->assertTrue((bool) StatutoryRate::where('type', 'pcb')->first()->config['auto']);
+        SalaryStructure::where('employee_id', $this->emp1->id)
+            ->update(['marital_status' => 'divorced', 'children_relief_count' => 2]);
+        SalaryStructure::where('employee_id', $this->emp2->id)
+            ->update(['marital_status' => 'married', 'spouse_working' => true, 'children_relief_count' => 2,
+                'basic_salary' => SalaryStructure::where('employee_id', $this->emp1->id)->value('basic_salary')]);
+
+        $run = $this->createRun('2026-01');
+        $divorced = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $marriedSpouseWorking = $run->payslips()->where('employee_id', $this->emp2->id)->firstOrFail();
+
+        $this->assertGreaterThan(0.0, (float) $divorced->pcb, 'Both would match trivially at zero.');
+        $this->assertSame((float) $marriedSpouseWorking->pcb, (float) $divorced->pcb);
+
+        // And category 3 is genuinely different from category 1 at the same pay.
+        SalaryStructure::where('employee_id', $this->emp2->id)->update(['marital_status' => 'single', 'spouse_working' => false, 'children_relief_count' => 0]);
+        $single = $this->createRun('2026-02')->payslips()->where('employee_id', $this->emp2->id)->firstOrFail();
+        $this->assertNotEqualsWithDelta((float) $divorced->pcb, (float) $single->pcb, 0.001);
+    }
+
+    public function test_pcb_moves_month_to_month_as_ytd_accumulates_and_drafts_never_leak(): void
+    {
+        $run1 = $this->createRun('2026-01');
+        $this->actingHr()->post("/app/payroll/runs/{$run1->id}/finalize")->assertRedirect();
+        $jan = $run1->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertSame(110.0, (float) $jan->pcb);
+
+        // A pay rise mid-year — YTD gross/EPF from the finalized January run feeds Feb's PCB.
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['basic_salary' => 8000]);
+        $run2 = $this->createRun('2026-02');
+        $this->actingHr()->post("/app/payroll/runs/{$run2->id}/finalize")->assertRedirect();
+        $feb = $run2->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertNotEqualsWithDelta(110.0, (float) $feb->pcb, 0.001);   // moved, driven by YTD
+
+        // March is created as a draft with a large bonus, but NEVER finalized.
+        $run3 = $this->createRun('2026-03');
+        $march = $run3->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->actingHr()->post("/app/payroll/payslips/{$march->id}", ['bonus' => 50000])->assertRedirect();
+        $this->assertSame('draft', $run3->fresh()->status);   // deliberately left unfinalized
+
+        // April's PCB must be computed from Jan+Feb only — March's draft (and its huge
+        // bonus) must never enter the year-to-date accumulation.
+        $run4 = $this->createRun('2026-04');
+        $april = $run4->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        // If March's draft bonus had leaked in, April's PCB would be well over 1,000.
+        $this->assertLessThan(600.0, (float) $april->pcb);
+    }
+
+    public function test_opening_figures_change_the_computed_pcb_for_a_mid_year_joiner(): void
+    {
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+
+        $withoutOpening = $this->createRun('2026-06');
+        $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        // A previous employer already paid this person RM40,000 gross / RM4,400 EPF /
+        // RM500 PCB earlier in 2026 before they joined — "Payroll Figures Take On".
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $emp3->id, 'year' => 2026,
+            'gross' => 40000, 'epf' => 4400, 'pcb_paid' => 500,
+        ])->assertRedirect();
+
+        $withOpening = $this->createRun('2026-07');
+        $slipWith = $withOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
+
+        $this->assertNotEqualsWithDelta((float) $slipWithout->pcb, (float) $slipWith->pcb, 0.001);
+    }
+
+    public function test_bonus_produces_both_a_normal_and_an_additional_pcb_figure(): void
+    {
+        $run = $this->createRun('2026-01');
+        $payslip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['bonus' => 5000])->assertRedirect();
+
+        $fresh = $payslip->fresh();
+        $this->assertSame(110.0, (float) $fresh->pcb);              // normal PCB unchanged by the bonus
+        $this->assertGreaterThan(0.0, (float) $fresh->pcb_additional);   // bonus taxed through its own line
+    }
+
+    public function test_zakat_nets_off_pcb_and_cp38_is_a_separate_deduction(): void
+    {
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['zakat_monthly' => 50, 'cp38_monthly' => 30]);
+        $run = $this->createRun('2026-01');
+        $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->assertEqualsWithDelta(60.0, (float) $slip->pcb, 0.001);   // 110 normal MTD − 50 zakat
+        $this->assertEqualsWithDelta(50.0, (float) $slip->zakat, 0.001);
+        $this->assertEqualsWithDelta(30.0, (float) $slip->cp38, 0.001);
+        // EPF 550 + SOCSO 24.75 + EIS 9.90 + PCB 60 + zakat 50 + CP38 30 = 724.65 → net 4275.35
+        $this->assertEqualsWithDelta(4275.35, (float) $slip->net_pay, 0.001);
     }
 }

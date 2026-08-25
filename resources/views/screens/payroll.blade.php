@@ -18,8 +18,9 @@
         'who'   => empty($privileged) ? 'Your own payslips' : 'HR & management only',
         'steps' => empty($privileged) ? [] : [
             'Make sure every active employee has a Salary structure set (Salary structures tab).',
-            'On Payroll runs, pick the pay month and "Generate draft run" — a draft payslip is created per employee.',
-            'Open each payslip and Edit to enter overtime, bonus, unpaid days and PCB (income tax). PCB is entered by hand.',
+            'If anyone joined partway through the year (or your company switched to AmanahKu mid-year), set their Opening figures first — otherwise their PCB for the rest of the year will be wrong.',
+            'On Payroll runs, pick the pay month and "Generate draft run" — a draft payslip is created per employee. PCB (income tax) is computed automatically from each employee\'s statutory profile and year-to-date figures.',
+            'Open each payslip and Edit to enter overtime, bonus or unpaid days. PCB can be overridden by hand if needed — the override sticks until cleared.',
             'When every figure is verified, "Finalize & issue". This locks payslips, notifies staff, and marks claims paid — it cannot be undone.',
         ],
     ],
@@ -31,8 +32,9 @@
         'who'   => empty($privileged) ? 'Payslip anda sendiri' : 'HR & pengurusan sahaja',
         'steps' => empty($privileged) ? [] : [
             'Pastikan setiap pekerja aktif ada Salary structure ditetapkan (tab Salary structures).',
-            'Di Payroll runs, pilih bulan gaji dan "Generate draft run" — satu draft payslip dibuat bagi setiap pekerja.',
-            'Buka setiap payslip dan Edit untuk masukkan overtime, bonus, hari tanpa gaji dan PCB (cukai pendapatan). PCB dimasukkan secara manual.',
+            'Jika ada pekerja yang menyertai di tengah tahun (atau syarikat anda bertukar ke AmanahKu di tengah tahun), tetapkan Opening figures dahulu — jika tidak, PCB mereka untuk baki tahun itu akan salah.',
+            'Di Payroll runs, pilih bulan gaji dan "Generate draft run" — satu draft payslip dibuat bagi setiap pekerja. PCB (cukai pendapatan) dikira automatik daripada profil berkanun dan angka tahun-ke-tarikh setiap pekerja.',
+            'Buka setiap payslip dan Edit untuk masukkan overtime, bonus atau hari tanpa gaji. PCB boleh ditindih secara manual jika perlu — tindihan itu kekal sehingga dikosongkan.',
             'Apabila setiap angka disahkan, "Finalize & issue". Ini kunci payslip, maklumkan staf, dan tanda claim sebagai paid — ia tidak boleh dibatalkan.',
         ],
     ],
@@ -88,9 +90,15 @@
                     ['EIS (employee)', 'EIS (pekerja)', $p->eis_employee],
                     $p->skbbk_employee > 0 ? ['SKBBK (Lindung 24 Jam)', 'SKBBK (Lindung 24 Jam)', $p->skbbk_employee] : null,
                     ['PCB / income tax', 'PCB / cukai pendapatan', $p->pcb],
+                    $p->pcb_additional > 0 ? ['PCB — bonus / additional', 'PCB — bonus / tambahan', $p->pcb_additional] : null,
+                    $p->zakat > 0 ? ['Zakat', 'Zakat', $p->zakat] : null,
+                    $p->cp38 > 0 ? ['CP38 instalment', 'Ansuran CP38', $p->cp38] : null,
                 ]) as $line)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line[2]) }}</span></div>
                 @endforeach
+                @if ($p->pcb_override !== null)
+                    <div style="font-size:11px;color:var(--muted);padding:2px 0 0;"><span x-text="$store.ui.lang==='en' ? 'PCB figure was overridden by HR, not computed' : 'Angka PCB ditindih oleh HR, bukan dikira'">PCB figure was overridden by HR, not computed</span></div>
+                @endif
                 @foreach (($p->other_deductions ?? []) as $ded)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $ded['name'] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($ded['amount']) }}</span></div>
                 @endforeach
@@ -158,8 +166,8 @@
 
         {{-- Tabs --}}
         <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--hairline);">
-            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'rates' => 'Kadar berkanun']; @endphp
-            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'rates' => 'Statutory rates'] as $id => $label)
+            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'opening' => 'Angka permulaan']; @endphp
+            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'opening' => 'Opening figures'] as $id => $label)
                 <button @click="tab = '{{ $id }}'" :style="tab === '{{ $id }}' ? { color:'var(--red)', borderBottom:'2px solid var(--red)' } : { color:'var(--muted)', borderBottom:'2px solid transparent' }" style="background:none;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($tabLabelsMs[$id])">{{ $label }}</button>
             @endforeach
         </div>
@@ -204,7 +212,7 @@
                                 <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($latest['gross'] ?? 0) }} · <span x-text="$store.ui.lang==='en' ? 'Deductions' : 'Potongan'">Deductions</span> {{ $money($latest['deductions'] ?? 0) }} · <span x-text="$store.ui.lang==='en' ? 'Net' : 'Bersih'">Net</span> {{ $money($latest['net'] ?? 0) }}</div>
                                 @if ($activeRun->status === 'finalized')
                                     @php $ps = $activeRun->payslips; @endphp
-                                    <div style="font-size:11.5px;color:var(--muted);margin-top:3px;"><span x-text="$store.ui.lang==='en' ? 'Employer' : 'Majikan'">Employer</span> — EPF {{ $money($ps->sum('epf_employer')) }} · SOCSO {{ $money($ps->sum('socso_employer')) }} · EIS {{ $money($ps->sum('eis_employer')) }} · <span x-text="$store.ui.lang==='en' ? 'PCB collected' : 'PCB dikutip'">PCB collected</span> {{ $money($ps->sum('pcb')) }}</div>
+                                    <div style="font-size:11.5px;color:var(--muted);margin-top:3px;"><span x-text="$store.ui.lang==='en' ? 'Employer' : 'Majikan'">Employer</span> — EPF {{ $money($ps->sum('epf_employer')) }} · SOCSO {{ $money($ps->sum('socso_employer')) }} · EIS {{ $money($ps->sum('eis_employer')) }} · <span x-text="$store.ui.lang==='en' ? 'PCB collected' : 'PCB dikutip'">PCB collected</span> {{ $money($ps->sum('pcb') + $ps->sum('pcb_additional')) }}</div>
                                 @endif
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
@@ -229,7 +237,7 @@
                         </div>
 
                         @if ($activeRun->status !== 'finalized')
-                            <div style="padding:10px 22px;background:#fff7ed;border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Draft figures. PCB (income tax) is entered manually per employee. Verify statutory amounts before finalizing.' : 'Angka draf. PCB (cukai pendapatan) dimasukkan secara manual bagi setiap pekerja. Sahkan jumlah berkanun sebelum finalize.'">Draft figures. PCB (income tax) is entered manually per employee. Verify statutory amounts before finalizing.</div>
+                            <div style="padding:10px 22px;background:#fff7ed;border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.' : 'Angka draf. PCB (cukai pendapatan) dikira automatik dan boleh ditindih bagi setiap pekerja jika perlu. Sahkan jumlah berkanun sebelum finalize.'">Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.</div>
                         @endif
 
                         {{-- Payslip rows --}}
@@ -239,7 +247,7 @@
                                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $p->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->employee?->initials }}</div>
                                     <div style="flex:1;min-width:0;">
                                         <a href="{{ route('app.screen', ['screen' => 'payroll', 'payslip' => $p->id]) }}" style="font-size:13px;color:var(--ink);font-weight:500;text-decoration:none;">{{ $p->employee?->name }}</a>
-                                        <div style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($p->gross) }} · <span x-text="$store.ui.lang==='en' ? 'Deduct' : 'Potong'">Deduct</span> {{ $money($p->total_deductions) }}@if ($p->pcb <= 0) · <span style="color:var(--amber);" x-text="$store.ui.lang==='en' ? 'PCB not set' : 'PCB belum ditetapkan'">PCB not set</span>@endif</div>
+                                        <div style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($p->gross) }} · <span x-text="$store.ui.lang==='en' ? 'Deduct' : 'Potong'">Deduct</span> {{ $money($p->total_deductions) }}@if ($p->pcb_override !== null) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'PCB overridden' : 'PCB ditindih'">PCB overridden</span>@endif</div>
                                     </div>
                                     <div style="text-align:right;"><div style="font-size:13.5px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($p->net_pay) }}</div><div style="font-size:10.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'net' : 'bersih'">net</div></div>
                                     @if ($activeRun->status !== 'finalized')
@@ -256,9 +264,9 @@
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Overtime (hrs)' : 'Kerja lebih masa (jam)'">Overtime (hrs)</label><input name="overtime_hours" type="number" step="0.5" min="0" value="{{ rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Bonus (RM)</label><input name="bonus" type="number" step="0.01" min="0" value="{{ $p->bonus > 0 ? number_format($p->bonus, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Unpaid days' : 'Hari tanpa gaji'">Unpaid days</label><input name="unpaid_days" type="number" step="0.5" min="0" max="31" value="{{ $p->unpaid_days > 0 ? rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.') : '' }}" placeholder="0" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB / tax (RM)' : 'PCB / cukai (RM)'">PCB / tax (RM)</label><input name="pcb" type="number" step="0.01" min="0" value="{{ $p->pcb > 0 ? number_format($p->pcb, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB override (RM)' : 'Tindihan PCB (RM)'">PCB override (RM)</label><input name="pcb_override" type="number" step="0.01" min="0" value="{{ $p->pcb_override !== null ? number_format($p->pcb_override, 2, '.', '') : '' }}" placeholder="{{ number_format($p->pcb, 2, '.', '') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                             </div>
-                                            @include('partials.hint', ['tone' => 'warn', 'en' => 'These change take-home pay. PCB (income tax) is not auto-calculated — look it up in the LHDN PCB table and enter it per employee. Unpaid days reduce pay; overtime and bonus add to it.', 'ms' => 'Ini ubah gaji bersih. PCB (cukai pendapatan) tidak dikira automatik — rujuk jadual PCB LHDN dan masukkan bagi setiap pekerja. Hari tanpa gaji kurangkan gaji; overtime dan bonus tambah pada gaji.'])
+                                            @include('partials.hint', ['tone' => 'warn', 'en' => 'PCB (income tax) is computed automatically from the LHDN method and each employee\'s statutory profile — leave the override blank to use it. Filling in a figure here overrides the computed PCB and sticks until cleared. Unpaid days reduce pay; overtime and bonus add to it (bonus gets its own PCB figure).', 'ms' => 'PCB (cukai pendapatan) dikira automatik mengikut kaedah LHDN dan profil berkanun setiap pekerja — biarkan tindihan kosong untuk guna nilai itu. Mengisi angka di sini akan menindih PCB yang dikira dan kekal sehingga dikosongkan. Hari tanpa gaji kurangkan gaji; overtime dan bonus tambah pada gaji (bonus ada angka PCB tersendiri).'])
                                             @php $adds = array_values($p->additions ?? []); $deds = array_values($p->other_deductions ?? []); @endphp
                                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
                                                 <div>
@@ -342,14 +350,14 @@
                                     <div>
                                         <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Marital status' : 'Status perkahwinan'">Marital status</label>
                                         <select name="marital_status" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;">
-                                            @foreach (['single' => ['Single', 'Bujang'], 'married' => ['Married', 'Berkahwin'], 'widowed' => ['Widowed', 'Balu/Duda']] as $val => $lbl)
+                                            @foreach (['single' => ['Single', 'Bujang'], 'married' => ['Married', 'Berkahwin'], 'divorced' => ['Divorced', 'Bercerai'], 'widowed' => ['Widowed', 'Balu/Duda']] as $val => $lbl)
                                                 <option value="{{ $val }}" @selected(($s?->marital_status ?? 'single') === $val) x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</option>
                                             @endforeach
                                         </select>
                                     </div>
                                     <input name="tax_no" value="{{ $s?->tax_no }}" placeholder="LHDN tax reference no" :placeholder="$store.ui.lang==='en' ? 'LHDN tax reference no' : 'No rujukan cukai LHDN'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                     <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'EPF employee rate override %' : 'Kadar caruman pekerja EPF %'">EPF employee rate override %</label><input name="epf_employee_rate_override" type="number" step="0.01" min="0" max="100" value="{{ $s?->epf_employee_rate_override }}" placeholder="—" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Children relief count' : 'Bilangan anak (pelepasan)'">Children relief count</label><input name="children_relief_count" type="number" step="1" min="0" max="20" value="{{ $s?->children_relief_count ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Child relief UNITS (not headcount)' : 'UNIT pelepasan anak (bukan bilangan anak)'">Child relief UNITS (not headcount)</label><input name="children_relief_count" type="number" step="1" min="0" max="20" value="{{ $s?->children_relief_count ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />@include('partials.hint', ['en' => 'Each unit is RM2,000 relief. A normal child under 18 is 1 unit. A child 18+ in full-time education is 4 units. A disabled child is 4 units. A disabled child 18+ in full-time education is 8 units. Add up every child\'s units and enter the total.', 'ms' => 'Setiap unit bersamaan pelepasan RM2,000. Anak biasa bawah 18 tahun = 1 unit. Anak 18+ dalam pengajian sepenuh masa = 4 unit. Anak OKU = 4 unit. Anak OKU 18+ dalam pengajian sepenuh masa = 8 unit. Jumlahkan unit semua anak dan masukkan jumlahnya.'])</div>
                                     <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Zakat (RM / month)' : 'Zakat (RM / bulan)'">Zakat (RM / month)</label><input name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $s?->zakat_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
                                     <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'CP38 instalment (RM / month)' : 'Ansuran CP38 (RM / bulan)'">CP38 instalment (RM / month)</label><input name="cp38_monthly" type="number" step="0.01" min="0" value="{{ $s?->cp38_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
                                 </div>
@@ -372,57 +380,53 @@
             </div>
         </div>
 
-        {{-- ════ TAB: Statutory rates ════ --}}
-        <div x-show="tab === 'rates'" x-cloak>
-            <div class="uj-card" style="max-width:720px;padding:24px;">
-                <h3 class="uj-card-title" style="margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Statutory contribution rates' : 'Kadar caruman berkanun'">Statutory contribution rates</h3>
-                <div style="display:flex;gap:8px;align-items:flex-start;background:#f0fdf4;border:1px solid #bbf0cc;border-radius:9px;padding:11px 14px;margin-bottom:18px;font-size:12px;color:#166534;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
-                    <span x-show="$store.ui.lang==='en'">EPF, SOCSO and EIS all now follow the fixed official schedules (KWSP Third Schedule, PERKESO Third Schedule Act 4, PERKESO Second Schedule Act 800), split by contribution category from each employee's date of birth (≥60 → Category 2, no EIS). None of the three are editable here.</span>
-                    <span x-show="$store.ui.lang==='ms'" x-cloak>EPF, SOCSO dan EIS kini mengikut jadual rasmi yang tetap (Jadual Ketiga KWSP, Jadual Ketiga PERKESO Akta 4, Jadual Kedua PERKESO Akta 800), dibahagi mengikut kategori caruman daripada tarikh lahir setiap pekerja (≥60 → Kategori 2, tiada EIS). Ketiga-tiganya tidak boleh disunting di sini.</span>
+        {{-- ════ TAB: Opening figures ════ --}}
+        <div x-show="tab === 'opening'" x-cloak x-data="{ openFor: null }">
+            <div class="uj-card" style="max-width:820px;">
+                <div class="uj-card-head" style="padding:16px 22px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Opening figures' : 'Angka permulaan'">Opening figures</h3>
+                    <span style="font-size:12px;color:var(--muted);">{{ $openingYear }}</span>
                 </div>
-                <form method="post" action="{{ route('payroll.rates') }}">
-                    @csrf
-                    <div style="margin-bottom:18px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EPF (KWSP)</div>
-                        @include('partials.hint', [
-                            'en' => 'EPF now follows the KWSP Third Schedule effective 1 October 2025 — a fixed ringgit amount per wage band, not a percentage. It is not editable here.',
-                            'ms' => 'EPF kini mengikut Jadual Ketiga KWSP berkuat kuasa 1 Oktober 2025 — jumlah ringgit tetap mengikut jalur gaji, bukan peratusan. Ia tidak boleh disunting di sini.',
-                        ])
-                    </div>
-                    <div style="margin-bottom:18px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">SOCSO (PERKESO)</div>
-                        @include('partials.hint', [
-                            'en' => 'SOCSO now follows the published PERKESO Third Schedule (Act 4) — fixed ringgit amounts per wage band, not editable here.',
-                            'ms' => 'SOCSO kini mengikut Jadual Ketiga PERKESO (Akta 4) yang diterbitkan — jumlah ringgit tetap mengikut jalur gaji, tidak boleh disunting di sini.',
-                        ])
-                    </div>
-                    <div style="margin-bottom:20px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EIS (SIP)</div>
-                        @include('partials.hint', [
-                            'en' => 'EIS now follows the published PERKESO Second Schedule (Act 800) — fixed ringgit amounts per wage band, not editable here.',
-                            'ms' => 'EIS kini mengikut Jadual Kedua PERKESO (Akta 800) yang diterbitkan — jumlah ringgit tetap mengikut jalur gaji, tidak boleh disunting di sini.',
-                        ])
-                    </div>
-                    <div style="margin-bottom:20px;padding-top:6px;border-top:1px solid var(--hairline-soft);">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin:12px 0 8px;" x-text="$store.ui.lang==='en' ? 'PCB / income tax (MTD)' : 'PCB / cukai pendapatan (MTD)'">PCB / income tax (MTD)</div>
-                        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink);margin-bottom:10px;cursor:pointer;">
-                            <input type="checkbox" name="pcb_auto" value="1" @checked(! empty($rates['pcb']['auto'])) style="width:16px;height:16px;" />
-                            <span x-text="$store.ui.lang==='en' ? 'Auto-calculate PCB on new runs (estimate — overridable per payslip)' : 'Kira PCB automatik pada run baharu (anggaran — boleh ditindih setiap payslip)'">Auto-calculate PCB on new runs (estimate — overridable per payslip)</span>
-                        </label>
-                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:360px;">
-                            @foreach ([
-                                ['pcb_individual_relief', 'Annual individual relief (RM)', 'Pelepasan individu tahunan (RM)', $rates['pcb']['individual_relief'] ?? 9000],
-                                ['pcb_epf_relief_cap', 'Annual EPF relief cap (RM)', 'Had pelepasan EPF tahunan (RM)', $rates['pcb']['epf_relief_cap'] ?? 4000],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
+                <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
+                    @include('partials.hint', [
+                        'en' => 'What a previous employer or previous payroll system already paid this employee earlier this calendar year — needed so PCB for the rest of the year is correct for anyone who joined mid-year, or if your company switched to AmanahKu mid-year. Leave everything at 0 for anyone who has been paid through AmanahKu since January.',
+                        'ms' => 'Apa yang telah dibayar oleh majikan atau sistem payroll sebelumnya kepada pekerja ini lebih awal tahun kalendar ini — diperlukan supaya PCB bagi baki tahun itu betul untuk sesiapa yang menyertai di tengah tahun, atau jika syarikat anda bertukar ke AmanahKu di tengah tahun. Biarkan semua pada 0 bagi sesiapa yang telah dibayar melalui AmanahKu sejak Januari.',
+                    ])
+                </div>
+                @foreach ($openingEmployees as $e)
+                    @php $o = $openingFigures->get($e->id); @endphp
+                    <div style="border-bottom:1px solid var(--hairline-soft);">
+                        <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
+                            <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
+                            <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
+                            <div style="text-align:right;">
+                                @if ($o)<div style="font-size:12.5px;color:var(--ink);">{{ $money($o->gross) }} <span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'gross' : 'kasar'">gross</span></div>
+                                @else<span class="uj-pill" style="background:var(--canvas);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'None (0)' : 'Tiada (0)'">None (0)</span>@endif
+                            </div>
+                            <button @click="openFor === {{ $e->id }} ? openFor = null : openFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
                         </div>
-                        <div style="font-size:11px;color:#9a5b14;margin-top:8px;"><span x-text="$store.ui.lang==='en' ? 'Estimate only — simplified annualised method, not LHDN\'s full MTD computation. HR must review each PCB before finalizing.' : 'Anggaran sahaja — kaedah tahunan ringkas, bukan pengiraan MTD penuh LHDN. HR mesti semak setiap PCB sebelum finalize.'">Estimate only — simplified annualised method, not LHDN's full MTD computation. HR must review each PCB before finalizing.</span>@if (\App\Services\Payroll\PcbCalculator::IS_PLACEHOLDER) <span x-text="$store.ui.lang==='en' ? 'Verify the tax bands against the current LHDN schedule.' : 'Sahkan jaluran cukai dengan jadual LHDN semasa.'">Verify the tax bands against the current LHDN schedule.</span>@endif</div>
+                        <div x-show="openFor === {{ $e->id }}" x-cloak style="padding:4px 22px 18px 64px;">
+                            <form method="post" action="{{ route('payroll.opening') }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
+                                @csrf
+                                <input type="hidden" name="employee_id" value="{{ $e->id }}" />
+                                <input type="hidden" name="year" value="{{ $openingYear }}" />
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;">
+                                    @foreach ([
+                                        ['gross', 'Gross paid (RM)', 'Kasar dibayar (RM)', $o?->gross],
+                                        ['epf', 'EPF paid (RM)', 'EPF dibayar (RM)', $o?->epf],
+                                        ['pcb_paid', 'PCB paid (RM)', 'PCB dibayar (RM)', $o?->pcb_paid],
+                                        ['zakat_paid', 'Zakat paid (RM)', 'Zakat dibayar (RM)', $o?->zakat_paid],
+                                        ['additional_gross', 'Additional (bonus) gross (RM)', 'Kasar tambahan (bonus) (RM)', $o?->additional_gross],
+                                        ['additional_epf', 'EPF on additional (RM)', 'EPF atas tambahan (RM)', $o?->additional_epf],
+                                    ] as $f)
+                                        <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] !== null ? number_format((float) $f[3], 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    @endforeach
+                                </div>
+                                <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save opening figures' : 'Simpan angka permulaan'">Save opening figures</button><button type="button" @click="openFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
+                            </form>
+                        </div>
                     </div>
-                    <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 20px;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'Save rates' : 'Simpan kadar'">Save rates</button>
-                    <span style="font-size:12px;color:var(--muted);margin-left:10px;" x-text="$store.ui.lang==='en' ? 'Applies to the next recalculation, not already-finalized runs.' : 'Terpakai pada pengiraan semula seterusnya, bukan run yang sudah difinalize.'">Applies to the next recalculation, not already-finalized runs.</span>
-                </form>
+                @endforeach
             </div>
         </div>
     </div>

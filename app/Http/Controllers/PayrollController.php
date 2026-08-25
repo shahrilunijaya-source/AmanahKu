@@ -8,14 +8,17 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\SalaryStructure;
-use App\Models\StatutoryRate;
 use App\Services\FeatureManager;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
+use App\Services\Payroll\PayslipComputation;
 use App\Services\Payroll\PcbCalculator;
+use App\Services\Payroll\PcbInputs;
+use App\Services\Payroll\PcbYearToDate;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +36,7 @@ class PayrollController extends Controller
         private readonly PayrollCalculator $calculator,
         private readonly PcbCalculator $pcb,
         private readonly EpfCalculator $epf,
+        private readonly PcbYearToDate $pcbYtd,
     ) {}
 
     // ── Salary structures ─────────────────────────────────────────
@@ -59,7 +63,7 @@ class PayrollController extends Controller
             'epf_opt_in_60plus' => ['boolean'],
             'epf_employee_rate_override' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'tax_no' => ['nullable', 'string', 'max:40'],
-            'marital_status' => ['nullable', Rule::in(['single', 'married', 'widowed'])],
+            'marital_status' => ['nullable', Rule::in(['single', 'married', 'divorced', 'widowed'])],
             'spouse_working' => ['boolean'],
             'children_relief_count' => ['nullable', 'integer', 'min:0', 'max:20'],
             'disabled_self' => ['boolean'],
@@ -101,33 +105,46 @@ class PayrollController extends Controller
         return back()->with('ok', 'Salary structure saved for '.$name.'.');
     }
 
-    // ── Statutory rate config ─────────────────────────────────────
+    // ── Opening figures (mid-year "take on") ───────────────────────
 
-    public function updateRates(Request $request): RedirectResponse
+    /**
+     * What a previous employer/system already paid an employee earlier in a calendar
+     * year — see PayrollOpeningFigure. Without this a mid-year joiner (or a company
+     * switching to this app mid-year) gets a wrong PCB and a wrong EA form for the
+     * rest of that year.
+     */
+    public function storeOpening(Request $request): RedirectResponse
     {
         $this->authorizeAdmin($request);
         $tid = app(CurrentTenant::class)->id();
 
         $data = $request->validate([
-            'pcb_individual_relief' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
-            'pcb_epf_relief_cap' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'employee_id' => ['required', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'gross' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'epf' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'pcb_paid' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'zakat_paid' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'additional_gross' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'additional_epf' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
         ]);
 
-        // EPF, SOCSO and EIS all follow fixed published schedules now (KWSP Third Schedule,
-        // PERKESO Third/Second Schedules) and are not tenant-editable — only PCB stays
-        // configurable here.
-        StatutoryRate::updateOrCreate(
-            ['tenant_id' => $tid, 'type' => 'pcb'],
-            ['config' => [
-                'auto' => $request->boolean('pcb_auto'),
-                'individual_relief' => (float) ($data['pcb_individual_relief'] ?? 9000),
-                'epf_relief_cap' => (float) ($data['pcb_epf_relief_cap'] ?? 4000),
-            ], 'label' => 'PCB'],
+        PayrollOpeningFigure::updateOrCreate(
+            ['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']],
+            [
+                'gross' => $data['gross'] ?? 0,
+                'epf' => $data['epf'] ?? 0,
+                'pcb_paid' => $data['pcb_paid'] ?? 0,
+                'zakat_paid' => $data['zakat_paid'] ?? 0,
+                'additional_gross' => $data['additional_gross'] ?? 0,
+                'additional_epf' => $data['additional_epf'] ?? 0,
+            ],
         );
 
-        AuditLog::record('Updated statutory rates', 'PCB');
+        $name = Employee::find($data['employee_id'])?->name;
+        AuditLog::record('Updated payroll opening figures', $name.' · '.$data['year']);
 
-        return back()->with('ok', 'Statutory rates updated.');
+        return back()->with('ok', 'Opening figures saved for '.$name.' ('.$data['year'].').');
     }
 
     // ── Payroll run lifecycle ─────────────────────────────────────
@@ -154,12 +171,11 @@ class PayrollController extends Controller
             return back()->withErrors(['period' => 'No employees have a salary structure yet. Add salary structures first.'])->withInput();
         }
 
-        $rates = $this->ratesWithFeatures();
         // Contribution category is assessed at the pay period's end.
         $periodEnd = Carbon::createFromFormat('Y-m', $data['period'])->endOfMonth();
         $missingDob = $employees->whereNull('date_of_birth')->count();
 
-        DB::transaction(function () use ($data, $employees, $rates, $periodEnd) {
+        DB::transaction(function () use ($data, $employees, $periodEnd) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => Carbon::createFromFormat('Y-m', $data['period'])->format('F Y'),
@@ -182,29 +198,28 @@ class PayrollController extends Controller
                     ->lockForUpdate()->get();
 
                 $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
+                // electedBefore1998 has no column — no tenant has data going back that far,
+                // so every non-citizen falls under mandatory Part F.
+                $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
                 $inputs = [
                     'basic' => $structure->basic_salary,
                     'allowances_total' => $structure->allowancesTotal(),
                     'claims_reimbursement' => $claims->sum('amount'),
                     'statutory_category' => $employee->statutoryCategory($periodEnd),
-                    // electedBefore1998 has no column — no tenant has data going back that far,
-                    // so every non-citizen falls under mandatory Part F.
-                    'epf_part' => $this->epf->part($structure->nationality ?? 'citizen', $age, false),
+                    'epf_part' => $epfPart,
                     'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
                 ];
                 $comp = $this->calculator->compute($inputs);
 
-                // Auto-PCB (I-016, OFF by default): estimate from the computed gross + EPF,
-                // then recompute so the deduction flows into net. Manual edits still win later.
-                if (! empty($rates['pcb']['auto'])) {
-                    $relief = $this->pcb->standardAnnualRelief(
-                        $comp->epfEmployee,
-                        (float) ($rates['pcb']['individual_relief'] ?? PcbCalculator::DEFAULT_INDIVIDUAL_RELIEF),
-                        (float) ($rates['pcb']['epf_relief_cap'] ?? PcbCalculator::DEFAULT_EPF_RELIEF_CAP),
-                    );
-                    $inputs['pcb'] = $this->pcb->monthlyEstimate($comp->gross, $relief);
-                    $comp = $this->calculator->compute($inputs);
-                }
+                // PCB: the real LHDN computerised MTD calculation, year-to-date-aware —
+                // see buildPcbInputs(). Two-pass like EPF/SOCSO above: compute gross/EPF
+                // first, feed those into PCB, then recompute so the deduction flows into net.
+                $result = $this->pcb->calculate($this->buildPcbInputs($employee, $data['period'], $comp, $structure, $epfPart));
+                $inputs['pcb'] = $result->netNormalMtd;
+                $inputs['pcb_additional'] = $result->additionalMtd;
+                $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
+                $inputs['cp38'] = (float) ($structure->cp38_monthly ?? 0);
+                $comp = $this->calculator->compute($inputs);
 
                 // Computed amount columns are excluded from $fillable — forceFill them.
                 // employee_id + claim_ids are fillable; payroll_run_id is set by the relation;
@@ -238,7 +253,9 @@ class PayrollController extends Controller
             'overtime_hours' => ['nullable', 'numeric', 'min:0', 'max:744'],
             'bonus' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'unpaid_days' => ['nullable', 'numeric', 'min:0', 'max:31'],
-            'pcb' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Null/blank = go with the computed PCB; a value here overrides it verbatim
+            // and survives future recomputes until cleared (see PayrollCalculator).
+            'pcb_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'add_name' => ['array'], 'add_name.*' => ['nullable', 'string', 'max:60'],
             'add_amount' => ['array'], 'add_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'ded_name' => ['array'], 'ded_name.*' => ['nullable', 'string', 'max:60'],
@@ -249,20 +266,33 @@ class PayrollController extends Controller
         // inputs are editable here. Recompute the full payslip from those.
         $periodEnd = Carbon::createFromFormat('Y-m', $payslip->payrollRun->period)->endOfMonth();
         $age = $payslip->employee->date_of_birth === null ? null : (int) $payslip->employee->date_of_birth->diffInYears($periodEnd);
-        $comp = $this->calculator->compute([
+        $structure = $payslip->employee->salaryStructure;
+        // electedBefore1998 has no column — see the same note in createRun().
+        $epfPart = $this->epf->part($structure?->nationality ?? 'citizen', $age, false);
+        $baseInputs = [
             'basic' => $payslip->basic,
             'allowances_total' => $payslip->allowances_total,
             'claims_reimbursement' => $payslip->claims_reimbursement,
             'overtime_hours' => $data['overtime_hours'] ?? 0,
             'bonus' => $data['bonus'] ?? 0,
             'unpaid_days' => $data['unpaid_days'] ?? 0,
-            'pcb' => $data['pcb'] ?? 0,
             'additions' => $this->zipLines($request->input('add_name', []), $request->input('add_amount', [])),
             'other_deductions' => $this->zipLines($request->input('ded_name', []), $request->input('ded_amount', [])),
             'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
-            // electedBefore1998 has no column — see the same note in createRun().
-            'epf_part' => $this->epf->part($payslip->employee->salaryStructure?->nationality ?? 'citizen', $age, false),
-            'skbbk_opt_in' => (bool) $payslip->employee->salaryStructure?->skbbk_opt_in,
+            'epf_part' => $epfPart,
+            'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
+        ];
+
+        // First pass: gross + EPF, needed to split normal vs. additional remuneration
+        // for PCB. Second pass: feed the computed PCB back in so it flows into net.
+        $comp = $this->calculator->compute($baseInputs);
+        $result = $this->pcb->calculate($this->buildPcbInputs($payslip->employee, $payslip->payrollRun->period, $comp, $structure, $epfPart));
+        $comp = $this->calculator->compute($baseInputs + [
+            'pcb' => $result->netNormalMtd,
+            'pcb_additional' => $result->additionalMtd,
+            'zakat' => (float) ($structure->zakat_monthly ?? 0),
+            'cp38' => (float) ($structure->cp38_monthly ?? 0),
+            'pcb_override' => $data['pcb_override'] ?? null,
         ]);
 
         // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement linkage
@@ -342,24 +372,64 @@ class PayrollController extends Controller
     }
 
     /**
-     * PCB rate config with the admin feature flag layered on top: payroll.auto_pcb (bool)
-     * gates the auto-PCB estimate compute path. EPF, SOCSO and EIS follow fixed published
-     * schedules and are not tenant-editable, so they're not part of this config.
+     * Assemble one month's PcbInputs for an employee from their statutory profile
+     * (SalaryStructure), the year-to-date figures (PcbYearToDate), and this month's
+     * computed gross/EPF ($comp, from a first PayrollCalculator pass with no PCB yet).
      *
-     * @return array{pcb: array<string, mixed>}
+     * $comp->bonus is treated as the spec's "additional remuneration" (Yt); everything
+     * else in gross is "normal remuneration" (Y1). The EPF attributable to the bonus
+     * (Kt) is the difference between EPF on the full month's pay and EPF on the pay
+     * excluding the bonus — EpfCalculator gives both.
      */
-    private function ratesWithFeatures(): array
+    private function buildPcbInputs(Employee $employee, string $period, PayslipComputation $comp, ?SalaryStructure $structure, ?string $epfPart): PcbInputs
     {
-        $features = app(FeatureManager::class);
-        $tenant = app(CurrentTenant::class)->get();
-        $rates = StatutoryRate::merged();
+        // Category (spec's own definitions): 1 = single; 2 = married, spouse not
+        // working; 3 = married with a working spouse, divorced, or widowed.
+        $category = match (true) {
+            ($structure?->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
+            ($structure?->marital_status ?? 'single') === 'married',
+            ($structure?->marital_status ?? 'single') === 'divorced',
+            ($structure?->marital_status ?? 'single') === 'widowed' => 3,
+            default => 1,
+        };
 
-        // Auto-PCB runs when opted in by either the admin feature flag or the legacy
-        // rate-config toggle (I-016) — the flag is an additional enable path, so tenants
-        // that turned auto-PCB on via the rate config keep their behaviour.
-        $rates['pcb']['auto'] = $features->enabled($tenant, 'payroll.auto_pcb') || ! empty($rates['pcb']['auto']);
+        // $epfPart is the same Part letter the caller's first PayrollCalculator pass
+        // used for $comp — passed in rather than re-derived so it can't drift from the
+        // employee's real age/nationality (re-deriving with a null age would silently
+        // assume under-60 Part A and misstate a 60+ citizen's EPF relief).
+        $bonus = $comp->bonus;
+        $epfWageExclBonus = max(0.0, round($comp->gross - $bonus - $comp->overtimeAmount, 2));
+        $k1 = $this->epf->contribution($epfWageExclBonus, $epfPart)['employee'];
+        $kt = max(0.0, round($comp->epfEmployee - $k1, 2));
 
-        return $rates;
+        $ytd = $this->pcbYtd->forPeriod($employee, $period);
+        $n = 12 - (int) substr($period, 5, 2);
+
+        return new PcbInputs(
+            category: $category,
+            // ponytail: residence for Malaysian tax is about days physically present in
+            // the country (and a 182-day-or-more foreign contract counts as resident),
+            // not nationality/passport — there's no "days in Malaysia" column on
+            // SalaryStructure to derive this faithfully. Defaulting every employee to
+            // resident (the common case, and the side that under-withholds rather than
+            // over-withholds a genuine resident) until that data exists; do not flip
+            // this to the 30% non-resident path off `nationality` alone.
+            isResident: true,
+            ytdGrossY: $ytd['grossY'],
+            ytdEpfK: $ytd['epfK'],
+            currentGrossY1: round($comp->gross - $bonus, 2),
+            currentEpfK1: $k1,
+            monthsRemainingAfterCurrent: $n,
+            ytdZakatZ: $ytd['zakatZ'],
+            ytdMtdPaidX: $ytd['mtdPaidX'],
+            currentZakat: (float) ($structure?->zakat_monthly ?? 0),
+            disabledIndividual: (bool) ($structure?->disabled_self ?? false),
+            // No spouse relief at all for category 1 (single) — see PcbCalculator::reliefs().
+            disabledSpouse: $category !== 1 && (bool) ($structure?->disabled_spouse ?? false),
+            qualifyingChildren: (int) ($structure?->children_relief_count ?? 0),
+            currentAdditionalGrossYt: $bonus,
+            currentAdditionalEpfKt: $kt,
+        );
     }
 
     /** Route-model binding resolves before the tenant scope is active — assert explicitly. */

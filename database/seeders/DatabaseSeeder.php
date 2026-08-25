@@ -29,7 +29,6 @@ use App\Models\PolicyAcknowledgement;
 use App\Models\PublicHoliday;
 use App\Models\SalaryStructure;
 use App\Models\StaffLevel;
-use App\Models\StatutoryRate;
 use App\Models\Tenant;
 use App\Models\TrainingRecord;
 use App\Models\User;
@@ -517,15 +516,6 @@ class DatabaseSeeder extends Seeder
      */
     private function seedPayroll(int $tid, User $demo, array $emp): void
     {
-        // Statutory rate tables — seeded from current published MY defaults (editable in-app).
-        foreach (StatutoryRate::defaults() as $type => $config) {
-            // forceFill: tenant_id is set explicitly here (multi-tenant seed loop) and is
-            // not mass-assignable on the tightened payroll models.
-            (new StatutoryRate)->forceFill([
-                'tenant_id' => $tid, 'type' => $type, 'config' => $config, 'label' => strtoupper($type),
-            ])->save();
-        }
-
         // [basic, [[allowance name, amount]], manual PCB, OT hours, bonus] keyed by employee name.
         $salaries = [
             'Aisyah Rahman' => [11000, [['Transport', 400], ['Phone', 150]], 950, 0, 0],
