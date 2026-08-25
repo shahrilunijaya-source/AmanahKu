@@ -86,11 +86,11 @@ class WelcomeWizardController extends Controller
             'socso_no' => ['required', 'string', 'max:40'],
         ]);
 
-        // Single source of truth for NRIC is the employee record; mirror it onto the
-        // salary structure (encrypted at rest on both via the model cast).
+        // NRIC lives only on the employee record now (see the reconcile migration
+        // 2026_08_25_200300) — salary_structures no longer has its own copy to mirror.
         $employee->salaryStructure()->updateOrCreate(
             ['employee_id' => $employee->id],
-            $data + ['nric' => $employee->nric],
+            $data,
         );
 
         AuditLog::record('Completed bank & statutory details', $employee->name);

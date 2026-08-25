@@ -277,14 +277,10 @@ class PayrollTest extends TestCase
 
         $this->actingHr()->post('/app/payroll/salary', [
             'employee_id' => $emp3->id, 'basic_salary' => 4200,
-            'alw_name' => ['Transport', ''], 'alw_amount' => [200, 0],
         ])->assertRedirect();
 
         $structure = SalaryStructure::where('employee_id', $emp3->id)->firstOrFail();
         $this->assertEqualsWithDelta(4200.0, (float) $structure->basic_salary, 0.001);
-        $this->assertCount(1, $structure->allowances);                                  // blank row dropped
-        $this->assertSame('Transport', $structure->allowances[0]['name']);
-        $this->assertEqualsWithDelta(200.0, (float) $structure->allowances[0]['amount'], 0.001);
     }
 
     public function test_salary_structure_requires_basic_salary(): void
@@ -302,7 +298,6 @@ class PayrollTest extends TestCase
             'epf_opt_in_60plus' => '1',
             'epf_employee_rate_override' => 12.5,
             'tax_no' => 'SG1234567890',
-            'marital_status' => 'married',
             'spouse_working' => '1',
             'children_relief_count' => 3,
             'disabled_self' => '1',
@@ -316,7 +311,6 @@ class PayrollTest extends TestCase
         $this->assertTrue($structure->epf_opt_in_60plus);
         $this->assertEqualsWithDelta(12.5, (float) $structure->epf_employee_rate_override, 0.001);
         $this->assertSame('SG1234567890', $structure->tax_no);
-        $this->assertSame('married', $structure->marital_status);
         $this->assertTrue($structure->spouse_working);
         $this->assertSame(3, $structure->children_relief_count);
         $this->assertTrue($structure->disabled_self);
@@ -388,13 +382,14 @@ class PayrollTest extends TestCase
 
     public function test_nric_is_encrypted_at_rest(): void
     {
-        $s = SalaryStructure::where('employee_id', $this->emp1->id)->firstOrFail();
-        $s->update(['nric' => '900101-01-1234']);
+        // NRIC lives on the employee record now (see the reconcile migration
+        // 2026_08_25_200300), not salary_structures.
+        $this->emp1->update(['nric' => '900101-01-1234']);
 
-        $raw = DB::table('salary_structures')->where('id', $s->id)->value('nric');
+        $raw = DB::table('employees')->where('id', $this->emp1->id)->value('nric');
         $this->assertNotSame('900101-01-1234', $raw);                       // ciphertext, not plaintext, at rest
         $this->assertSame('900101-01-1234', Crypt::decryptString($raw));    // round-trips
-        $this->assertSame('900101-01-1234', $s->fresh()->nric);            // model decrypts transparently
+        $this->assertSame('900101-01-1234', $this->emp1->fresh()->nric);   // model decrypts transparently
     }
 
     public function test_statutory_export_logs_who_pulled_the_nric(): void
@@ -432,7 +427,7 @@ class PayrollTest extends TestCase
     public function test_bank_file_format_is_selectable(): void
     {
         $run = $this->finalizedRun();
-        SalaryStructure::where('employee_id', $this->emp1->id)->first()->update(['nric' => '900101-01-1234']);
+        $this->emp1->update(['nric' => '900101-01-1234']);
 
         $response = $this->actingHr()->get("/app/payroll/runs/{$run->id}/bank-file?format=maybank2u");
         $response->assertOk();
@@ -494,10 +489,13 @@ class PayrollTest extends TestCase
      */
     public function test_divorced_is_taxed_as_category_three_like_a_working_spouse(): void
     {
-        SalaryStructure::where('employee_id', $this->emp1->id)
-            ->update(['marital_status' => 'divorced', 'children_relief_count' => 2]);
+        // Marital status lives on the employee record now (see the reconcile migration
+        // 2026_08_25_200300) — spouse_working stays payroll-specific, on SalaryStructure.
+        $this->emp1->update(['marital_status' => 'divorced']);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['children_relief_count' => 2]);
+        $this->emp2->update(['marital_status' => 'married']);
         SalaryStructure::where('employee_id', $this->emp2->id)
-            ->update(['marital_status' => 'married', 'spouse_working' => true, 'children_relief_count' => 2,
+            ->update(['spouse_working' => true, 'children_relief_count' => 2,
                 'basic_salary' => SalaryStructure::where('employee_id', $this->emp1->id)->value('basic_salary')]);
 
         $run = $this->createRun('2026-01');
@@ -508,7 +506,8 @@ class PayrollTest extends TestCase
         $this->assertSame((float) $marriedSpouseWorking->pcb, (float) $divorced->pcb);
 
         // And category 3 is genuinely different from category 1 at the same pay.
-        SalaryStructure::where('employee_id', $this->emp2->id)->update(['marital_status' => 'single', 'spouse_working' => false, 'children_relief_count' => 0]);
+        $this->emp2->update(['marital_status' => 'single']);
+        SalaryStructure::where('employee_id', $this->emp2->id)->update(['spouse_working' => false, 'children_relief_count' => 0]);
         $single = $this->createRun('2026-02')->payslips()->where('employee_id', $this->emp2->id)->firstOrFail();
         $this->assertNotEqualsWithDelta((float) $divorced->pcb, (float) $single->pcb, 0.001);
     }

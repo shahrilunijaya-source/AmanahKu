@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\FixedTransaction;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
@@ -58,15 +59,18 @@ class PayrollItemTest extends TestCase
 
     public function test_payslip_lines_sum_back_to_the_stored_columns(): void
     {
-        SalaryStructure::where('employee_id', $this->emp1->id)->update([
-            'allowances' => [['name' => 'Transport', 'amount' => 200], ['name' => 'Meal', 'amount' => 100]],
-        ]);
+        PayrollItem::seedFor($this->tenant);
+        $fixedAllowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'fixed-allowance')->firstOrFail();
+        $mealAllowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'meal-allowance')->firstOrFail();
+        FixedTransaction::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'payroll_item_id' => $fixedAllowance->id, 'amount' => 200, 'start_period' => '2026-06']);
+        FixedTransaction::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'payroll_item_id' => $mealAllowance->id, 'amount' => 100, 'start_period' => '2026-06']);
+
         $run = $this->createRun();
         $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
 
         $lines = $slip->lines;
         $this->assertSame((float) $slip->basic, (float) $lines->where('name', 'Basic Salary')->sum('amount'));
-        $this->assertSame((float) $slip->allowances_total, (float) $lines->whereIn('name', ['Transport', 'Meal'])->sum('amount'));
+        $this->assertSame((float) $slip->allowances_total, (float) $lines->whereIn('name', ['Fixed Allowance', 'Meal Allowance'])->sum('amount'));
 
         // Editing the payslip adds overtime, a bonus, an addition and unpaid days.
         $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", [
@@ -83,9 +87,9 @@ class PayrollItemTest extends TestCase
         $this->assertSame((float) $slip->bonus, (float) $lines->where('name', 'Bonus')->sum('amount'));
         $this->assertSame(80.0, (float) $lines->where('name', 'Travel claim')->sum('amount'));
         $this->assertSame((float) $slip->unpaid_deduction, (float) $lines->where('name', 'Unpaid Leave Deduction')->sum('amount'));
-        // Basic + allowance lines survive the edit untouched (they are "salary"-sourced).
+        // Basic + Fixed Transaction lines survive the edit untouched (source 'salary'/'fixed-transaction').
         $this->assertSame((float) $slip->basic, (float) $lines->where('name', 'Basic Salary')->sum('amount'));
-        $this->assertSame((float) $slip->allowances_total, (float) $lines->whereIn('name', ['Transport', 'Meal'])->sum('amount'));
+        $this->assertSame((float) $slip->allowances_total, (float) $lines->whereIn('name', ['Fixed Allowance', 'Meal Allowance'])->sum('amount'));
     }
 
     public function test_epf_liable_false_removes_the_amount_from_the_epf_base_but_not_gross(): void
@@ -103,8 +107,10 @@ class PayrollItemTest extends TestCase
             'active' => true,
             'sort_order' => 0,
         ]);
-        SalaryStructure::where('employee_id', $this->emp1->id)->update([
-            'allowances' => [['name' => 'Transport', 'amount' => 500]],
+        $item = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'fixed-allowance')->firstOrFail();
+        FixedTransaction::forceCreate([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'payroll_item_id' => $item->id,
+            'amount' => 500, 'start_period' => '2026-06', 'remarks' => 'Transport',
         ]);
 
         $run = $this->createRun();

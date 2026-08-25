@@ -549,6 +549,14 @@ class DatabaseSeeder extends Seeder
             $allowances = collect($row[1])->map(fn ($a) => ['name' => $a[0], 'amount' => (float) $a[1]])->all();
 
             $eid = $employee->id;
+            // NRIC lives on the employee record now, not salary_structures (see the
+            // reconcile migration 2026_08_25_200300) — only fill it if this demo
+            // employee doesn't already have one.
+            if (blank($employee->nric)) {
+                $employee->forceFill([
+                    'nric' => str_pad((string) (850000 + $eid), 6, '0', STR_PAD_LEFT).'-'.str_pad((string) (10 + $eid % 14), 2, '0', STR_PAD_LEFT).'-'.str_pad((string) (1000 + $eid * 13 % 9000), 4, '0', STR_PAD_LEFT),
+                ])->save();
+            }
             // forceFill: tenant_id is set explicitly in this multi-tenant seed loop.
             (new SalaryStructure)->forceFill([
                 'tenant_id' => $tid, 'employee_id' => $eid,
@@ -558,7 +566,6 @@ class DatabaseSeeder extends Seeder
                 'bank_account_no' => '51'.str_pad((string) ($eid * 7919 % 100000000), 8, '0', STR_PAD_LEFT),
                 'epf_no' => 'EPF'.str_pad((string) (1000000 + $eid * 31), 8, '0', STR_PAD_LEFT),
                 'socso_no' => 'SOC'.str_pad((string) (2000000 + $eid * 17), 8, '0', STR_PAD_LEFT),
-                'nric' => str_pad((string) (850000 + $eid), 6, '0', STR_PAD_LEFT).'-'.str_pad((string) (10 + $eid % 14), 2, '0', STR_PAD_LEFT).'-'.str_pad((string) (1000 + $eid * 13 % 9000), 4, '0', STR_PAD_LEFT),
             ])->save();
 
             $comp = $calculator->compute([

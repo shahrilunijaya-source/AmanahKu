@@ -25,12 +25,10 @@ class SalaryStructure extends Model
         'bank_account_no',
         'epf_no',
         'socso_no',
-        'nric',
         'nationality',
         'epf_opt_in_60plus',
         'epf_employee_rate_override',
         'tax_no',
-        'marital_status',
         'spouse_working',
         'children_relief_count',
         'disabled_self',
@@ -46,7 +44,6 @@ class SalaryStructure extends Model
             'basic_salary' => 'float',
             'allowances' => 'array',
             'effective_from' => 'date',
-            'nric' => 'encrypted',   // PII at rest (I-018); statutory reports decrypt on read
             'epf_opt_in_60plus' => 'boolean',
             'epf_employee_rate_override' => 'float',
             'spouse_working' => 'boolean',
@@ -62,11 +59,5 @@ class SalaryStructure extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
-    }
-
-    /** Sum of all fixed allowance lines. */
-    public function allowancesTotal(): float
-    {
-        return collect($this->allowances ?? [])->sum(fn ($a) => (float) ($a['amount'] ?? 0));
     }
 }

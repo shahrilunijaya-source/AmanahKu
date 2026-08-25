@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Concerns;
 use App\Attendance\ScheduleResolver;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\FixedTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollItem;
@@ -389,6 +390,9 @@ trait BuildsWorkData
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
                 'payrollItems' => collect(),
+                'currentPeriod' => now()->format('Y-m'),
+                'fixedTransactions' => collect(),
+                'fixedTransactionItems' => collect(),
             ];
         }
 
@@ -407,6 +411,18 @@ trait BuildsWorkData
             'openingEmployees' => Employee::active()->orderBy('name')->get(),
             'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
             'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
+            // Fixed Transactions: every non-ended (or ended-in-the-future) one, grouped by
+            // employee, for the Salary structures tab. currentPeriod is the default
+            // start/end value the "add"/"end" forms pre-fill.
+            'currentPeriod' => now()->format('Y-m'),
+            'fixedTransactions' => FixedTransaction::with('payrollItem')
+                ->where(fn ($q) => $q->whereNull('end_period')->orWhere('end_period', '>=', now()->format('Y-m')))
+                ->orderBy('start_period')->get()->groupBy('employee_id'),
+            // A Fixed Transaction must never target an item with its own automatic
+            // source — see PayrollController::FT_FORBIDDEN_ITEM_CODES.
+            'fixedTransactionItems' => PayrollItem::where('active', true)
+                ->whereNotIn('code', ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'])
+                ->orderBy('sort_order')->get(),
         ];
     }
 }

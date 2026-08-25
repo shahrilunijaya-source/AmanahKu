@@ -65,7 +65,21 @@
                 @php $otSuffix = $p->overtime_hours > 0 ? ' ('.rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.').'h)' : ''; @endphp
                 @foreach ([
                     ['Basic salary', 'Gaji pokok', $p->basic],
-                    ['Allowances', 'Elaun', $p->allowances_total],
+                ] as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line[2]) }}</span></div>
+                @endforeach
+                {{-- Fixed Transactions (earning side): itemised by Payroll Item name when
+                     this payslip has them, else the lumped legacy total for payslips issued
+                     before Fixed Transactions existed. --}}
+                @php $fixedEarningLines = $p->lines->where('type', 'earning')->where('source', 'fixed-transaction'); @endphp
+                @forelse ($fixedEarningLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                @empty
+                    @if ($p->allowances_total > 0)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Allowances' : 'Elaun'">Allowances</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->allowances_total) }}</span></div>
+                    @endif
+                @endforelse
+                @foreach ([
                     ['Overtime'.$otSuffix, 'Kerja lebih masa'.$otSuffix, $p->overtime_amount],
                     ['Bonus / one-off', 'Bonus / sekali', $p->bonus],
                 ] as $line)
@@ -105,6 +119,10 @@
                 @if ($p->pcb_override !== null)
                     <div style="font-size:11px;color:var(--muted);padding:2px 0 0;"><span x-text="$store.ui.lang==='en' ? 'PCB figure was overridden by HR, not computed' : 'Angka PCB ditindih oleh HR, bukan dikira'">PCB figure was overridden by HR, not computed</span></div>
                 @endif
+                {{-- Fixed Transactions (deduction side), itemised by Payroll Item name. --}}
+                @foreach ($p->lines->where('type', 'deduction')->where('source', 'fixed-transaction') as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
+                @endforeach
                 @php $deductionLines = $p->lines->where('type', 'deduction')->where('source', 'manual'); @endphp
                 @forelse ($deductionLines as $line)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
@@ -316,13 +334,17 @@
                 @php $setCount = $salaryEmployees->whereNotNull('salaryStructure')->count(); $totalCount = $salaryEmployees->count(); @endphp
                 <div class="uj-card-head" style="padding:16px 22px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Salary structures' : 'Struktur gaji'">Salary structures</h3><span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($setCount.' of '.$totalCount.' set') : @js($setCount.' daripada '.$totalCount.' ditetapkan')">{{ $setCount }} of {{ $totalCount }} set</span></div>
                 @foreach ($salaryEmployees as $e)
-                    @php $s = $e->salaryStructure; @endphp
+                    @php
+                        $s = $e->salaryStructure;
+                        $empFt = $fixedTransactions->get($e->id, collect());
+                        $empFtEarnings = $empFt->filter(fn ($ft) => $ft->payrollItem?->type === 'earning')->sum('amount');
+                    @endphp
                     <div style="border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
                             <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
                             <div style="text-align:right;">
-                                @if ($s)<div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($s->basic_salary) }}</div><div style="font-size:10.5px;color:var(--muted);">+ {{ $money($s->allowancesTotal()) }} <span x-text="$store.ui.lang==='en' ? 'allowances' : 'elaun'">allowances</span></div>
+                                @if ($s)<div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($s->basic_salary) }}</div><div style="font-size:10.5px;color:var(--muted);">+ {{ $money($empFtEarnings) }} <span x-text="$store.ui.lang==='en' ? 'fixed transactions' : 'transaksi tetap'">fixed transactions</span></div>
                                 @else<span class="uj-pill" style="background:var(--red-tint);color:var(--amber);" x-text="$store.ui.lang==='en' ? 'Not set' : 'Belum ditetapkan'">Not set</span>@endif
                             </div>
                             <button @click="salaryFor === {{ $e->id }} ? salaryFor = null : salaryFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? @js($s ? 'Edit' : 'Set') : @js($s ? 'Sunting' : 'Tetapkan')">{{ $s ? 'Edit' : 'Set' }}</button>
@@ -331,22 +353,19 @@
                             <form method="post" action="{{ route('payroll.salary') }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
                                 @csrf
                                 <input type="hidden" name="employee_id" value="{{ $e->id }}" />
-                                @php $alw = array_values($s->allowances ?? []); @endphp
                                 <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;">
                                     <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Basic salary (RM / month)' : 'Gaji pokok (RM / bulan)'">Basic salary (RM / month)</label><input name="basic_salary" type="number" step="0.01" min="0" required value="{{ $s ? number_format($s->basic_salary, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" />@include('partials.hint', ['tone' => 'warn', 'en' => 'Gross monthly basic. This drives every payslip and all EPF / SOCSO / EIS amounts — double-check before saving.', 'ms' => 'Gaji pokok bulanan kasar. Ini mempengaruhi setiap payslip dan semua jumlah EPF / SOCSO / EIS — semak dua kali sebelum simpan.'])</div>
                                     <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Effective from' : 'Berkuat kuasa dari'">Effective from</label><input name="effective_from" type="date" value="{{ $s?->effective_from?->toDateString() ?? now()->toDateString() }}" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" /></div>
                                 </div>
-                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Fixed allowances' : 'Elaun tetap'">Fixed allowances</div>
-                                @for ($i = 0; $i < 3; $i++)
-                                    <div style="display:flex;gap:6px;margin-bottom:6px;max-width:420px;"><input name="alw_name[]" value="{{ $alw[$i]['name'] ?? '' }}" placeholder="e.g. Transport" :placeholder="$store.ui.lang==='en' ? 'e.g. Transport' : 'cth. Pengangkutan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="alw_amount[]" type="number" step="0.01" min="0" value="{{ isset($alw[$i]) ? number_format($alw[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                @endfor
                                 <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:14px 0 6px;"><span x-text="$store.ui.lang==='en' ? 'Payment & statutory identifiers' : 'Pengenalan bayaran & berkanun'">Payment &amp; statutory identifiers</span> <span style="font-weight:400;color:var(--muted);" x-text="$store.ui.lang==='en' ? '— used for the bank file & EPF/SOCSO/EIS reports' : '— digunakan untuk fail bank & laporan EPF/SOCSO/EIS'">— used for the bank file &amp; EPF/SOCSO/EIS reports</span></div>
                                 <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
                                     <input name="bank_name" value="{{ $s?->bank_name }}" placeholder="Bank (e.g. Maybank)" :placeholder="$store.ui.lang==='en' ? 'Bank (e.g. Maybank)' : 'Bank (cth. Maybank)'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
                                     <input name="bank_account_no" value="{{ $s?->bank_account_no }}" placeholder="Bank account no" :placeholder="$store.ui.lang==='en' ? 'Bank account no' : 'No akaun bank'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                     <input name="epf_no" value="{{ $s?->epf_no }}" placeholder="EPF / KWSP no" :placeholder="$store.ui.lang==='en' ? 'EPF / KWSP no' : 'No EPF / KWSP'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                     <input name="socso_no" value="{{ $s?->socso_no }}" placeholder="SOCSO / PERKESO no" :placeholder="$store.ui.lang==='en' ? 'SOCSO / PERKESO no' : 'No SOCSO / PERKESO'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                    <input name="nric" value="{{ $s?->nric }}" placeholder="NRIC" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                                </div>
+                                <div style="margin-top:8px;max-width:560px;">
+                                    <div style="font-size:10.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'NRIC' : 'No. K/P (NRIC)'">NRIC</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $e->nric ?: '—' }}</span> <span x-text="$store.ui.lang==='en' ? '— from the employee record, not editable here' : '— daripada rekod pekerja, tidak boleh sunting di sini'">— from the employee record, not editable here</span></div>
                                 </div>
                                 <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--hairline-soft);" x-text="$store.ui.lang==='en' ? 'Statutory profile' : 'Profil berkanun'">Statutory profile</div>
                                 <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
@@ -360,11 +379,8 @@
                                     </div>
                                     <div>
                                         <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Marital status' : 'Status perkahwinan'">Marital status</label>
-                                        <select name="marital_status" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;">
-                                            @foreach (['single' => ['Single', 'Bujang'], 'married' => ['Married', 'Berkahwin'], 'divorced' => ['Divorced', 'Bercerai'], 'widowed' => ['Widowed', 'Balu/Duda']] as $val => $lbl)
-                                                <option value="{{ $val }}" @selected(($s?->marital_status ?? 'single') === $val) x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div style="height:34px;display:flex;align-items:center;font-size:12.5px;color:var(--ink);">{{ ucfirst((string) ($e->marital_status ?? 'single')) }}</div>
+                                        @include('partials.hint', ['en' => 'From the employee record (set at first login) — edit it on the employee\'s own profile, not here. It drives PCB category.', 'ms' => 'Daripada rekod pekerja (ditetapkan semasa log masuk pertama) — sunting di profil pekerja itu sendiri, bukan di sini. Ia mempengaruhi kategori PCB.'])
                                     </div>
                                     <input name="tax_no" value="{{ $s?->tax_no }}" placeholder="LHDN tax reference no" :placeholder="$store.ui.lang==='en' ? 'LHDN tax reference no' : 'No rujukan cukai LHDN'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                     <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'EPF employee rate override %' : 'Kadar caruman pekerja EPF %'">EPF employee rate override %</label><input name="epf_employee_rate_override" type="number" step="0.01" min="0" max="100" value="{{ $s?->epf_employee_rate_override }}" placeholder="—" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
@@ -385,6 +401,87 @@
                                 ])
                                 <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save structure' : 'Simpan struktur'">Save structure</button><button type="button" @click="salaryFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
                             </form>
+
+                            {{-- ── Fixed Transactions: recurring earnings/deductions against the Payroll Item catalogue ── --}}
+                            <div x-data="{ ftAdding: false, ftEditing: null, ftEnding: null }" style="margin-top:16px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fixed transactions' : 'Transaksi tetap'">Fixed transactions</div>
+                                    <button type="button" @click="ftAdding = !ftAdding" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? (ftAdding ? 'Cancel' : '+ Add') : (ftAdding ? 'Batal' : '+ Tambah')">+ Add</button>
+                                </div>
+
+                                @forelse ($empFt as $ft)
+                                    <div style="border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+                                        <div style="display:flex;align-items:center;gap:10px;">
+                                            <div style="flex:1;min-width:0;">
+                                                <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $ft->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $ft->payrollItem?->type }})</span></div>
+                                                <div style="font-size:10.5px;color:var(--muted);">
+                                                    {{ $ft->start_period }} →
+                                                    @if($ft->end_period)
+                                                        {{ $ft->end_period }}
+                                                    @else
+                                                        <span x-text="$store.ui.lang==='en' ? 'open-ended' : 'tiada had'">open-ended</span>
+                                                    @endif
+                                                    @if($ft->prorate)
+                                                        · <span x-text="$store.ui.lang==='en' ? 'prorated' : 'prorata'">prorated</span>
+                                                    @endif
+                                                    @if($ft->remarks)
+                                                        · {{ $ft->remarks }}
+                                                    @endif
+                                                </div>
+                                            </div>
+                                            <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($ft->amount) }}</div>
+                                            <button type="button" @click="ftEditing = ftEditing === {{ $ft->id }} ? null : {{ $ft->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                                            <button type="button" @click="ftEnding = ftEnding === {{ $ft->id }} ? null : {{ $ft->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'End' : 'Tamat'">End</button>
+                                        </div>
+                                        <div x-show="ftEditing === {{ $ft->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                            <form method="post" action="{{ route('payroll.fixed-transactions.update', $ft) }}">
+                                                @csrf
+                                                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required value="{{ number_format($ft->amount, 2, '.', '') }}" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</label><input name="start_period" type="month" required value="{{ $ft->start_period }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'End (blank = open)' : 'Tamat (kosong = tiada had)'">End (blank = open)</label><input name="end_period" type="month" value="{{ $ft->end_period }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last month RM' : 'RM bulan akhir'">Last month RM</label><input name="last_amount" type="number" step="0.01" min="0" value="{{ $ft->last_amount !== null ? number_format($ft->last_amount, 2, '.', '') : '' }}" placeholder="—" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                    <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" @checked($ft->prorate) /> <span x-text="$store.ui.lang==='en' ? 'Prorate' : 'Prorata'">Prorate</span></label>
+                                                    <input name="remarks" value="{{ $ft->remarks }}" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                                    <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div x-show="ftEnding === {{ $ft->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                            <form method="post" action="{{ route('payroll.fixed-transactions.end', $ft) }}" style="display:flex;gap:8px;align-items:flex-end;">
+                                                @csrf
+                                                <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last period it still applies' : 'Tempoh terakhir ia masih terpakai'">Last period it still applies</label><input name="end_period" type="month" required value="{{ $currentPeriod }}" style="width:130px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;background:var(--error);border-color:var(--error);" x-text="$store.ui.lang==='en' ? 'Confirm end' : 'Sahkan tamat'">Confirm end</button>
+                                            </form>
+                                            @include('partials.hint', ['en' => 'This never deletes the row — it sets the last period it still applies, so past payslips stay explainable.', 'ms' => 'Ini tidak memadam rekod — ia menetapkan tempoh terakhir ia masih terpakai, supaya payslip lepas kekal boleh dijelaskan.'])
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div style="font-size:11.5px;color:var(--muted);padding:6px 0;" x-text="$store.ui.lang==='en' ? 'No fixed transactions.' : 'Tiada transaksi tetap.'">No fixed transactions.</div>
+                                @endforelse
+
+                                <div x-show="ftAdding" x-cloak style="border:1px dashed var(--hairline);border-radius:8px;padding:10px;margin-top:6px;">
+                                    <form method="post" action="{{ route('payroll.fixed-transactions.store') }}">
+                                        @csrf
+                                        <input type="hidden" name="employee_id" value="{{ $e->id }}" />
+                                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                            <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                                <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                                    @foreach ($fixedTransactionItems as $item)
+                                                        <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->type }})</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</label><input name="start_period" type="month" required value="{{ $currentPeriod }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                            <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" /> <span x-text="$store.ui.lang==='en' ? 'Prorate' : 'Prorata'">Prorate</span></label>
+                                            <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                            <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
+                                        </div>
+                                        @include('partials.hint', ['en' => 'Prorate uses calendar days in the month (joiner/leaver), not the 26-day rule used for unpaid leave/overtime.', 'ms' => 'Prorata guna bilangan hari kalendar dalam bulan (pekerja baru/keluar), bukan peraturan 26 hari untuk cuti tanpa gaji/kerja lebih masa.'])
+                                    </form>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 @endforeach

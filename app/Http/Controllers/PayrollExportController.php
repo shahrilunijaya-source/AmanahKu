@@ -71,8 +71,10 @@ class PayrollExportController extends Controller
             foreach ($payslips as $p) {
                 $s = $p->employee?->salaryStructure;
                 // Name / NRIC / EPF / SOCSO numbers are user-controlled — neutralise CSV injection.
+                // NRIC is the employee record's, not salary_structures' — see the
+                // reconcile migration (2026_08_25_200300): one source of truth.
                 fputcsv($out, Csv::safeRow([
-                    $p->employee?->name, $s?->nric, $s?->epf_no,
+                    $p->employee?->name, $p->employee?->nric, $s?->epf_no,
                     $fmt($p->epf_employee), $fmt($p->epf_employer),
                     $s?->socso_no, $fmt($p->socso_employee), $fmt($p->socso_employer),
                     $fmt($p->eis_employee), $fmt($p->eis_employer),

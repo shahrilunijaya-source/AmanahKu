@@ -8,10 +8,13 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\FixedTransaction;
+use App\Models\OffboardingCase;
 use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
 use App\Services\Payroll\EpfCalculator;
@@ -33,6 +36,14 @@ class PayrollController extends Controller
 {
     /** Payroll administration is restricted to senior management + HR. */
     private const ADMIN_ROLES = ['management', 'hr'];
+
+    /**
+     * Payroll Item codes a Fixed Transaction must never target — each already has its own
+     * automatic source (basic salary from the salary structure, overtime/unpaid-leave from
+     * payslip edits, claim reimbursement from approved claims). Allowing a Fixed
+     * Transaction against one of these would double up or fight with that automatic line.
+     */
+    private const FT_FORBIDDEN_ITEM_CODES = ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'];
 
     public function __construct(
         private readonly PayrollCalculator $calculator,
@@ -56,16 +67,10 @@ class PayrollController extends Controller
             'bank_account_no' => ['nullable', 'string', 'max:40'],
             'epf_no' => ['nullable', 'string', 'max:40'],
             'socso_no' => ['nullable', 'string', 'max:40'],
-            'nric' => ['nullable', 'string', 'max:20'],
-            'alw_name' => ['array'],
-            'alw_name.*' => ['nullable', 'string', 'max:60'],
-            'alw_amount' => ['array'],
-            'alw_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
             'epf_opt_in_60plus' => ['boolean'],
             'epf_employee_rate_override' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'tax_no' => ['nullable', 'string', 'max:40'],
-            'marital_status' => ['nullable', Rule::in(['single', 'married', 'divorced', 'widowed'])],
             'spouse_working' => ['boolean'],
             'children_relief_count' => ['nullable', 'integer', 'min:0', 'max:20'],
             'disabled_self' => ['boolean'],
@@ -79,18 +84,22 @@ class PayrollController extends Controller
             ['tenant_id' => $tid, 'employee_id' => $data['employee_id']],
             [
                 'basic_salary' => $data['basic_salary'],
-                'allowances' => $this->zipLines($request->input('alw_name', []), $request->input('alw_amount', [])) ?: null,
+                // 'allowances' is deliberately no longer written here — Fixed Transactions
+                // (storeFixedTransaction et al., below) are the single source for recurring
+                // earnings now. The column itself is left alone (see the migration
+                // 2026_08_25_200200): a finalized payslip's history and any rollback still
+                // want it there, just nothing writes or reads it going forward.
                 'effective_from' => $data['effective_from'] ?? now()->toDateString(),
                 'bank_name' => $data['bank_name'] ?? null,
                 'bank_account_no' => $data['bank_account_no'] ?? null,
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,
-                'nric' => $data['nric'] ?? null,
                 'nationality' => $data['nationality'] ?? 'citizen',
                 'epf_opt_in_60plus' => $request->boolean('epf_opt_in_60plus'),
                 'epf_employee_rate_override' => $data['epf_employee_rate_override'] ?? null,
                 'tax_no' => $data['tax_no'] ?? null,
-                'marital_status' => $data['marital_status'] ?? 'single',
+                // marital_status/nric live on the Employee record now — see the reconcile
+                // migration 2026_08_25_200300 and PayrollController::buildPcbInputs().
                 'spouse_working' => $request->boolean('spouse_working'),
                 'children_relief_count' => $data['children_relief_count'] ?? 0,
                 'disabled_self' => $request->boolean('disabled_self'),
@@ -161,6 +170,174 @@ class PayrollController extends Controller
         return back()->with('ok', 'Opening figures saved for '.$name.' ('.$data['year'].').');
     }
 
+    // ── Fixed Transactions (recurring per-employee pay/deduction lines) ────────────
+
+    public function storeFixedTransaction(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $tid = app(CurrentTenant::class)->id();
+
+        $data = $this->validateFixedTransaction($request, $tid);
+
+        $tx = FixedTransaction::create($data + ['created_by_id' => Auth::id()]);
+
+        $name = $tx->employee?->name;
+        AuditLog::record('Added fixed transaction', $name.' · '.$tx->payrollItem?->name.' · RM '.number_format($tx->amount, 2));
+
+        return back()->with('ok', 'Fixed transaction added for '.$name.'.');
+    }
+
+    public function updateFixedTransaction(Request $request, FixedTransaction $fixedTransaction): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($fixedTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $data = $this->validateFixedTransaction($request, $fixedTransaction->tenant_id, $fixedTransaction->employee_id);
+        $fixedTransaction->update($data);
+
+        AuditLog::record('Updated fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name);
+
+        return back()->with('ok', 'Fixed transaction updated for '.$fixedTransaction->employee?->name.'.');
+    }
+
+    /**
+     * Ends a Fixed Transaction — sets end_period, never deletes the row, so any payslip
+     * already generated from it stays explicable. Takes effect from the following run:
+     * a period equal to or before end_period still matches scopeActiveDuring().
+     */
+    public function endFixedTransaction(Request $request, FixedTransaction $fixedTransaction): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($fixedTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $data = $request->validate([
+            'end_period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+        ]);
+
+        $fixedTransaction->update(['end_period' => $data['end_period']]);
+        AuditLog::record('Ended fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name.' · last period '.$data['end_period']);
+
+        return back()->with('ok', 'Fixed transaction ended after '.$data['end_period'].'.');
+    }
+
+    /**
+     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string}
+     */
+    private function validateFixedTransaction(Request $request, int $tid, ?int $lockEmployeeId = null): array
+    {
+        $data = $request->validate([
+            'employee_id' => $lockEmployeeId !== null
+                ? ['prohibited']   // editing/ending never reassigns the employee
+                : ['required', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            // Basic salary, overtime, unpaid-leave and claim reimbursement already have
+            // their own automatic source — a Fixed Transaction must not double them up.
+            'payroll_item_id' => [
+                'required',
+                Rule::exists('payroll_items', 'id')->where('tenant_id', $tid)->where('active', true)
+                    ->whereNotIn('code', self::FT_FORBIDDEN_ITEM_CODES),
+            ],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:10000000'],
+            'start_period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'end_period' => ['nullable', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/', 'after_or_equal:start_period'],
+            'last_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'prorate' => ['boolean'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return [
+            'employee_id' => $lockEmployeeId ?? $data['employee_id'],
+            'payroll_item_id' => $data['payroll_item_id'],
+            'amount' => $data['amount'],
+            'start_period' => $data['start_period'],
+            'end_period' => $data['end_period'] ?? null,
+            'last_amount' => $data['last_amount'] ?? null,
+            'prorate' => $request->boolean('prorate'),
+            'remarks' => $data['remarks'] ?? null,
+        ];
+    }
+
+    /**
+     * This employee's Fixed Transactions active for $period, each resolved to this
+     * month's amount: last_amount when the run period is exactly the transaction's
+     * end_period (the client's HRMS lets the final month differ from every other month),
+     * otherwise the standing amount — then, when prorate is on, multiplied by the
+     * calendar-day proration factor. That factor is 1.0 for a full-month employee, so
+     * applying it unconditionally is always safe.
+     *
+     * @return Collection<int, array{item: PayrollItem, amount: float, fixed_transaction_id: int}>
+     */
+    private function fixedTransactionLines(Employee $employee, string $period): Collection
+    {
+        return FixedTransaction::with('payrollItem')
+            ->where('employee_id', $employee->id)
+            ->activeDuring($period)
+            ->get()
+            ->filter(fn (FixedTransaction $ft) => $ft->payrollItem !== null)
+            ->map(function (FixedTransaction $ft) use ($employee, $period) {
+                $amount = ($ft->end_period === $period && $ft->last_amount !== null)
+                    ? $ft->last_amount
+                    : $ft->amount;
+
+                if ($ft->prorate) {
+                    $amount = round($amount * $this->prorationFactor($employee, $period), 2);
+                }
+
+                return ['item' => $ft->payrollItem, 'amount' => $amount, 'fixed_transaction_id' => $ft->id];
+            })
+            ->values();
+    }
+
+    /**
+     * Calendar-day proration for a Fixed Transaction with prorate on — confirmed with
+     * the client: amount × days employed in the month ÷ days in that month, using the
+     * REAL number of days in the month (28/29/30/31), not a fixed figure.
+     *
+     * Deliberately NOT the same basis as unpaid-leave/overtime proration elsewhere in
+     * PayrollCalculator (Employment Act ordinary rate: a fixed 26 days/month, 8
+     * hours/day) — two different divisors for two different rules is correct here. Do
+     * not "simplify" this by unifying them with that one.
+     *
+     * Joining mid-month: Employee::joined_at. Leaving mid-month: the best available
+     * signal is an in-progress or completed OffboardingCase whose last_day (a real,
+     * HR-entered leaving date — see OffboardingService/ArchiveDepartedStaff) falls
+     * inside this period. There is no other reliable leaving-date column today — an
+     * employee archived without going through the offboarding flow (e.g. the manual
+     * "Archive staff" action) has no such signal and is treated as employed the full
+     * month here.
+     */
+    private function prorationFactor(Employee $employee, string $period): float
+    {
+        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+        $daysInMonth = $periodEnd->day;
+
+        $employedFrom = $periodStart;
+        if ($employee->joined_at !== null && $employee->joined_at->gt($periodStart)) {
+            $employedFrom = $employee->joined_at->copy();
+        }
+
+        $employedTo = $periodEnd;
+        $lastDay = OffboardingCase::where('employee_id', $employee->id)
+            ->whereIn('status', ['in_progress', 'completed'])
+            ->whereBetween('last_day', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->orderByDesc('last_day')
+            ->value('last_day');
+        if ($lastDay !== null) {
+            $employedTo = Carbon::parse($lastDay);
+        }
+
+        if ($employedFrom->gt($employedTo)) {
+            return 0.0;
+        }
+
+        // Both dates fall within the same calendar month (employedFrom/employedTo are
+        // clamped to [periodStart, periodEnd] above) — day-of-month subtraction avoids
+        // diffInDays' float rounding on a periodEnd that carries a 23:59:59 time part.
+        $daysEmployed = $employedTo->day - $employedFrom->day + 1;
+
+        return min(1.0, max(0.0, $daysEmployed / $daysInMonth));
+    }
+
     // ── Payroll run lifecycle ─────────────────────────────────────
 
     public function createRun(Request $request): RedirectResponse
@@ -217,9 +394,23 @@ class PayrollController extends Controller
                 // electedBefore1998 has no column — no tenant has data going back that far,
                 // so every non-citizen falls under mandatory Part F.
                 $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
+
+                // Fixed Transactions replace salary_structures.allowances as the source of
+                // recurring earnings/deductions (see migration 2026_08_25_200200) — split
+                // by the transaction's own Payroll Item type.
+                $ftLines = $this->fixedTransactionLines($employee, $data['period']);
+                $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
+                $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+
                 $inputs = [
                     'basic' => $structure->basic_salary,
-                    'allowances_total' => $structure->allowancesTotal(),
+                    'allowances_total' => round($fixedEarnings->sum('amount'), 2),
+                    'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
+                    'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
+                        'amount' => $l['amount'],
+                        'epf_liable' => (bool) $l['item']->epf_liable,
+                        'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                    ])->values()->all(),
                     'claims_reimbursement' => $claims->sum('amount'),
                     'statutory_category' => $employee->statutoryCategory($periodEnd),
                     'epf_part' => $epfPart,
@@ -246,7 +437,7 @@ class PayrollController extends Controller
                     'claim_ids' => $claims->pluck('id')->all() ?: null,
                 ]);
                 $payslip->forceFill($comp->toPayslipAttributes())->save();
-                $this->writePayslipLines($payslip, $comp, $structure, $catalog);
+                $this->writePayslipLines($payslip, $comp, $ftLines, $catalog);
             }
 
             $this->recalcTotals($run);
@@ -280,8 +471,8 @@ class PayrollController extends Controller
             'ded_amount' => ['array'], 'ded_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
         ]);
 
-        // Basic, allowances and claims reimbursement stay as generated; only variable
-        // inputs are editable here. Recompute the full payslip from those.
+        // Basic, allowances/Fixed Transactions and claims reimbursement stay as generated;
+        // only variable inputs are editable here. Recompute the full payslip from those.
         $periodEnd = Carbon::createFromFormat('Y-m', $payslip->payrollRun->period)->endOfMonth();
         $age = $payslip->employee->date_of_birth === null ? null : (int) $payslip->employee->date_of_birth->diffInYears($periodEnd);
         $structure = $payslip->employee->salaryStructure;
@@ -290,6 +481,7 @@ class PayrollController extends Controller
         $baseInputs = [
             'basic' => $payslip->basic,
             'allowances_total' => $payslip->allowances_total,
+            'fixed_deductions_total' => $payslip->fixed_deductions_total,
             'claims_reimbursement' => $payslip->claims_reimbursement,
             'overtime_hours' => $data['overtime_hours'] ?? 0,
             'bonus' => $data['bonus'] ?? 0,
@@ -300,6 +492,22 @@ class PayrollController extends Controller
             'epf_part' => $epfPart,
             'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
         ];
+
+        // Re-derive each Fixed Transaction earning's own wage-base flags from the lines
+        // frozen at run generation, so editing bonus/overtime here doesn't silently
+        // re-base a non-EPF-liable Fixed Transaction (e.g. travel allowance) as EPF-liable.
+        // A payslip with no fixed-transaction-sourced lines (pre-Fixed-Transaction, or an
+        // employee with none) falls through to withWageBaseFlags' single lumped
+        // Fixed Allowance fallback against allowances_total.
+        $fixedEarningLines = $payslip->lines()->where('source', 'fixed-transaction')->where('type', 'earning')->get();
+        if ($fixedEarningLines->isNotEmpty()) {
+            $baseInputs['fixed_earning_lines'] = $fixedEarningLines->map(fn (PayslipLine $l) => [
+                'amount' => (float) $l->amount,
+                'epf_liable' => (bool) ($l->payrollItem?->epf_liable ?? true),
+                'perkeso_liable' => (bool) ($l->payrollItem?->perkeso_liable ?? true),
+            ])->all();
+        }
+
         $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
         $baseInputs = $this->withWageBaseFlags($baseInputs, $catalog);
 
@@ -394,8 +602,10 @@ class PayrollController extends Controller
 
     /**
      * Assemble one month's PcbInputs for an employee from their statutory profile
-     * (SalaryStructure), the year-to-date figures (PcbYearToDate), and this month's
-     * computed gross/EPF ($comp, from a first PayrollCalculator pass with no PCB yet).
+     * (marital status from the Employee record — the single source since the reconcile
+     * migration 2026_08_25_200300; everything else payroll-specific from SalaryStructure),
+     * the year-to-date figures (PcbYearToDate), and this month's computed gross/EPF
+     * ($comp, from a first PayrollCalculator pass with no PCB yet).
      *
      * $comp->bonus is treated as the spec's "additional remuneration" (Yt); everything
      * else in gross is "normal remuneration" (Y1). The EPF attributable to the bonus
@@ -406,11 +616,13 @@ class PayrollController extends Controller
     {
         // Category (spec's own definitions): 1 = single; 2 = married, spouse not
         // working; 3 = married with a working spouse, divorced, or widowed.
+        // spouse_working is genuine payroll-specific nuance (not a personal-status fact —
+        // it affects tax relief, not who the employee is), so it stays on SalaryStructure.
         $category = match (true) {
-            ($structure?->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
-            ($structure?->marital_status ?? 'single') === 'married',
-            ($structure?->marital_status ?? 'single') === 'divorced',
-            ($structure?->marital_status ?? 'single') === 'widowed' => 3,
+            ($employee->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
+            ($employee->marital_status ?? 'single') === 'married',
+            ($employee->marital_status ?? 'single') === 'divorced',
+            ($employee->marital_status ?? 'single') === 'widowed' => 3,
             default => 1,
         };
 
@@ -518,9 +730,19 @@ class PayrollController extends Controller
 
         $lines = [
             ['amount' => $inputs['basic'] ?? 0, ...$flagsFor('basic-salary')],
-            ['amount' => $inputs['allowances_total'] ?? 0, ...$flagsFor('fixed-allowance')],
             ['amount' => $inputs['bonus'] ?? 0, ...$flagsFor('bonus')],
         ];
+        if (isset($inputs['fixed_earning_lines'])) {
+            // Per-Fixed-Transaction-item flags (createRun, or updatePayslip when the
+            // payslip already has fixed-transaction-sourced lines) — each transaction's
+            // own Payroll Item drives the wage base, not one lumped Fixed Allowance flag.
+            array_push($lines, ...$inputs['fixed_earning_lines']);
+        } else {
+            // Fallback for payslips predating Fixed Transactions (or an edit where the
+            // payslip has none): the single lumped Fixed Allowance flag against
+            // allowances_total — the exact pre-Fixed-Transaction behaviour.
+            $lines[] = ['amount' => $inputs['allowances_total'] ?? 0, ...$flagsFor('fixed-allowance')];
+        }
         $additionFlags = $flagsFor('other-addition');
         foreach (($inputs['additions'] ?? []) as $addition) {
             $lines[] = ['amount' => $addition['amount'] ?? 0, ...$additionFlags];
@@ -541,6 +763,20 @@ class PayrollController extends Controller
             'type' => $type,
             'amount' => round($amount, 2),
             'quantity' => $quantity,
+            'source' => $source,
+            'sort_order' => $sortOrder,
+        ];
+    }
+
+    /** Same as lineAttrs(), but for a Fixed Transaction whose Payroll Item is already resolved. */
+    private function lineAttrsForItem(PayrollItem $item, float $amount, string $source, int $sortOrder): array
+    {
+        return [
+            'payroll_item_id' => $item->id,
+            'name' => $item->name,
+            'type' => $item->type,
+            'amount' => round($amount, 2),
+            'quantity' => null,
             'source' => $source,
             'sort_order' => $sortOrder,
         ];
@@ -574,20 +810,21 @@ class PayrollController extends Controller
         return $lines;
     }
 
-    /** Full itemisation at run creation: salary/claim lines (fixed for this payslip's life) + the variable ones. */
-    private function writePayslipLines(Payslip $payslip, PayslipComputation $comp, SalaryStructure $structure, Collection $catalog): void
+    /**
+     * Full itemisation at run creation: salary/Fixed Transaction/claim lines (fixed for
+     * this payslip's life) + the variable ones. $ftLines is this employee's resolved
+     * Fixed Transactions for the period — see fixedTransactionLines() — each written
+     * against its own Payroll Item, earning or deduction, source 'fixed-transaction' so
+     * a later payslip edit (refreshVariableLines) never touches or deletes it.
+     */
+    private function writePayslipLines(Payslip $payslip, PayslipComputation $comp, Collection $ftLines, Collection $catalog): void
     {
         $sort = 0;
         $lines = [
             $this->lineAttrs($catalog, 'basic-salary', 'Basic Salary', 'earning', $comp->basic, null, 'salary', $sort++),
         ];
-        foreach (($structure->allowances ?? []) as $allowance) {
-            $amount = (float) ($allowance['amount'] ?? 0);
-            $name = trim((string) ($allowance['name'] ?? ''));
-            if ($name === '' || $amount <= 0) {
-                continue;
-            }
-            $lines[] = $this->lineAttrs($catalog, 'fixed-allowance', $name, 'earning', $amount, null, 'salary', $sort++);
+        foreach ($ftLines as $ftLine) {
+            $lines[] = $this->lineAttrsForItem($ftLine['item'], $ftLine['amount'], 'fixed-transaction', $sort++);
         }
         if ($comp->claimsReimbursement > 0) {
             $lines[] = $this->lineAttrs($catalog, 'claim-reimbursement', 'Claim Reimbursement', 'earning', $comp->claimsReimbursement, null, 'claim', $sort++);

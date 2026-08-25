@@ -36,6 +36,7 @@ class Payslip extends Model
             'bonus' => 'float',
             'unpaid_days' => 'float',
             'unpaid_deduction' => 'float',
+            'fixed_deductions_total' => 'float',
             'gross' => 'float',
             'epf_employee' => 'float',
             'epf_employer' => 'float',

@@ -49,6 +49,7 @@ class PayrollCalculator
      *     skbbk_opt_in?: bool,
      *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>|null,
      *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool}|null,
+     *     fixed_deductions_total?: float|int|string,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -67,6 +68,11 @@ class PayrollCalculator
         $pcbOverride = isset($inputs['pcb_override']) && $inputs['pcb_override'] !== null && $inputs['pcb_override'] !== ''
             ? $this->money($inputs['pcb_override']) : null;
         $claimsReimbursement = $this->money($inputs['claims_reimbursement'] ?? 0);
+        // Deduction-type Fixed Transactions (e.g. a recurring staff loan instalment) —
+        // reduces net pay only, never the EPF/PERKESO wage bases (those are earnings
+        // concepts; see the flag-derived $epfBase/$perkesoBase below, which this
+        // deliberately does not feed into).
+        $fixedDeductionsTotal = $this->money($inputs['fixed_deductions_total'] ?? 0);
 
         $additions = $this->cleanLines($inputs['additions'] ?? []);
         $otherDeductions = $this->cleanLines($inputs['other_deductions'] ?? []);
@@ -145,7 +151,7 @@ class PayrollCalculator
         // didn't, in whatever the override represents).
         $pcbEffective = $pcbOverride ?? $pcb;
 
-        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal, 2);
+        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal, 2);
         $netPay = round($statWage - $totalDeductions + $claimsReimbursement, 2);
         $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer, 2);
 
@@ -174,6 +180,7 @@ class PayrollCalculator
             pcbOverride: $pcbOverride,
             otherDeductions: $otherDeductions,
             otherDeductionsTotal: $otherDeductionsTotal,
+            fixedDeductionsTotal: $fixedDeductionsTotal,
             claimsReimbursement: $claimsReimbursement,
             totalDeductions: $totalDeductions,
             netPay: $netPay,
