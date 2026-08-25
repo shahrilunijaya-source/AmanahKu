@@ -187,6 +187,21 @@ class OnboardingWizardTest extends TestCase
             ->get('/app/dash')->assertOk();
     }
 
+    public function test_the_finish_your_profile_banner_only_rides_the_dash_and_profile_screens(): void
+    {
+        [$tenant] = $this->company(1);
+        [$user] = $this->staff($tenant, $this->essentialAttrs());
+        $this->launch($tenant);
+        $this->actingAs($user)->withSession(['current_tenant' => $tenant->id]);
+
+        // Essentials filled but the certificates/personality group is not, so the nudge is live.
+        $this->get('/app/dash')->assertOk()->assertSee('profileBannerDismissedUntil', false);
+        $this->get('/app/profile')->assertOk()->assertSee('profileBannerDismissedUntil', false);
+
+        // It nags about your own record, so it stays off every other screen.
+        $this->get('/app/leave')->assertOk()->assertDontSee('profileBannerDismissedUntil', false);
+    }
+
     // ── Wizard save endpoints ──────────────────────────────────────────────────
 
     public function test_save_personal_persists_to_the_own_record(): void

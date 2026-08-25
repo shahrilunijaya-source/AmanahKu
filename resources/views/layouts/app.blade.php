@@ -158,7 +158,9 @@
                 @endunless
                 {{-- Flash confirmations are not rendered here: they are pushed into the
                      global toast queue on boot (see the toast seed in the Alpine block below). --}}
-                @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && $screen !== 'welcome')
+                {{-- Dashboard and the user's own profile only. It nudges you about YOUR record, so
+                     it has no business on the admin screens where you are working on someone else's. --}}
+                @if (($profileCompletion ?? null) && ! $profileCompletion['complete'] && in_array($screen, ['dash', 'profile'], true))
                     <div x-data="{ show: (() => { const t = localStorage.getItem('profileBannerDismissedUntil'); return !t || Date.now() > +t; })() }" x-show="show" x-cloak class="uj-banner-row" style="background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:11px 16px;">
                         <span class="uj-stamp" data-tone="red" x-text="$store.ui.lang==='en' ? 'Incomplete' : 'Belum lengkap'">Incomplete</span>
                         <div class="uj-banner-text" style="flex:1;">

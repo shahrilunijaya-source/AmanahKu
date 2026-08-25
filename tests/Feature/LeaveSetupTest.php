@@ -82,6 +82,19 @@ class LeaveSetupTest extends TestCase
         $this->asHr()->get('/app/leave-setup')->assertOk();
     }
 
+    public function test_the_balance_grid_is_searchable_by_nickname(): void
+    {
+        $this->staff->update(['nickname' => 'wory']);
+
+        $html = $this->asHr()->get('/app/leave-setup')->assertOk()->getContent();
+
+        // The search haystack Alpine filters on: display name, legal name and position,
+        // lower-cased, one entry per row.
+        $this->assertStringContainsString('wory worker', $html);
+        // The row shows the name people actually say, with the legal name alongside it.
+        $this->assertStringContainsString('>Wory</div>', $html);
+    }
+
     public function test_employee_cannot_see_the_leave_setup_screen(): void
     {
         $this->actingAs($this->employee)->withSession(['current_tenant' => $this->tenant->id])
