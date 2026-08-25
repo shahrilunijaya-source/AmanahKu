@@ -529,4 +529,56 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->actingAsEmployee($hr)->post("/app/claims/{$claim->id}/approve")->assertForbidden();
         $this->assertSame('verified', $claim->fresh()->status);
     }
+
+    // --- Cancel (the claimant withdraws) ------------------------------------
+
+    public function test_claimant_cancels_their_own_pending_claim(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $claim = $this->claim($report);
+
+        $this->actingAsEmployee($report)->post("/app/claims/{$claim->id}/cancel")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertSame('cancelled', $claim->fresh()->status);
+    }
+
+    public function test_an_approved_claim_cannot_be_cancelled(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $claim = $this->claim($report, 'approved', $manager->id);
+
+        $this->actingAsEmployee($report)->post("/app/claims/{$claim->id}/cancel")->assertStatus(422);
+        $this->assertSame('approved', $claim->fresh()->status);
+    }
+
+    public function test_nobody_else_can_cancel_someone_elses_claim(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $claim = $this->claim($report);
+
+        $this->actingAsEmployee($manager)->post("/app/claims/{$claim->id}/cancel")->assertForbidden();
+        $this->assertSame('submitted', $claim->fresh()->status);
+    }
+
+    public function test_a_cancelled_medical_claim_frees_its_annual_allowance(): void
+    {
+        Storage::fake('local');
+        app(FeatureManager::class)->setTenant($this->tenant, 'claims.medical_cap', 500);
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $spent = $this->claim($report, 'submitted', null, 'GP');
+        $spent->update(['type' => 'medical', 'amount' => 500, 'date' => '2026-03-01']);
+
+        $this->actingAsEmployee($report)->post("/app/claims/{$spent->id}/cancel")->assertRedirect();
+
+        $this->actingAsEmployee($report)->post('/app/claims', [
+            'type' => 'medical', 'title' => 'After cancel', 'amount' => 400, 'date' => '2026-07-01',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+    }
 }

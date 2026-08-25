@@ -17,9 +17,10 @@
         : ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $r->verifiedBy?->name, 'whoRole' => $r->verifiedBy?->position, 'at' => $r->verified_at];
 
     $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'whoRole' => null, 'at' => $r->created_at]];
-    if ($r->status === 'rejected') {
+    if (in_array($r->status, ['rejected', 'cancelled'], true)) {
         if ($r->verified_at) { $steps[] = $verifyDone; }
-        $steps[] = ['state' => 'rejected', 'en' => 'Declined', 'ms' => 'Ditolak', 'who' => $r->rejectedBy?->name, 'whoRole' => $r->rejectedBy?->position, 'at' => $r->rejected_at];
+        $cancelled = $r->status === 'cancelled';
+        $steps[] = ['state' => 'rejected', 'en' => $cancelled ? 'Cancelled' : 'Declined', 'ms' => $cancelled ? 'Dibatalkan' : 'Ditolak', 'who' => $cancelled ? null : $r->rejectedBy?->name, 'whoRole' => $cancelled ? null : $r->rejectedBy?->position, 'at' => $cancelled ? $r->updated_at : $r->rejected_at];
     } else {
         // Verify: once done, the actual verifier (name + position); while pending, the
         // assigned superior(s) so the applicant knows who is holding it.
@@ -32,8 +33,8 @@
             ? ['state' => 'done', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => $r->approvedBy?->name, 'whoRole' => $r->approvedBy?->position, 'at' => $r->approved_at]
             : ['state' => 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'whoRole' => null, 'whoI18n' => ['en' => 'Management', 'ms' => 'Pengurusan'], 'at' => null];
     }
-    $nextEn = ['submitted' => 'Waiting for the immediate superior to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — days deducted from balance.', 'rejected' => 'Declined.'][$r->status] ?? '';
-    $nextMs = ['submitted' => 'Menunggu penyelia terdekat mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — hari ditolak daripada baki.', 'rejected' => 'Ditolak.'][$r->status] ?? '';
+    $nextEn = ['submitted' => 'Waiting for the immediate superior to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — days deducted from balance.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$r->status] ?? '';
+    $nextMs = ['submitted' => 'Menunggu penyelia terdekat mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — hari ditolak daripada baki.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$r->status] ?? '';
     $dotCol = ['done' => 'var(--success)', 'pending' => 'var(--muted-soft)', 'rejected' => 'var(--error)'];
 @endphp
 <div style="padding:2px 0;">
@@ -60,7 +61,7 @@
             </div>
         </div>
     @endforeach
-    <div style="font-size:11.5px;color:{{ $r->status === 'rejected' ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
+    <div style="font-size:11.5px;color:{{ in_array($r->status, ['rejected', 'cancelled'], true) ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
         <span x-text="$store.ui.lang==='en' ? '{{ $nextEn }}' : '{{ $nextMs }}'">{{ $nextEn }}</span>
     </div>
 </div>

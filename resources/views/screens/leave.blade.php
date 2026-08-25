@@ -54,9 +54,9 @@
     $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0)
         ->sortByDesc(fn ($b) => $b->leaveType->entitlement);
 
-    $statusTone = ['approved' => 'success', 'verified' => 'amber', 'submitted' => 'amber', 'rejected' => 'error', 'draft' => 'muted'];
-    $statusEn = ['approved' => 'Approved', 'verified' => 'With management', 'submitted' => 'With your manager', 'rejected' => 'Declined', 'draft' => 'Draft'];
-    $statusMs = ['approved' => 'Diluluskan', 'verified' => 'Dengan pengurusan', 'submitted' => 'Dengan pengurus', 'rejected' => 'Ditolak', 'draft' => 'Draf'];
+    $statusTone = ['cancelled' => 'muted', 'approved' => 'success', 'verified' => 'amber', 'submitted' => 'amber', 'rejected' => 'error', 'draft' => 'muted'];
+    $statusEn = ['cancelled' => 'Cancelled', 'approved' => 'Approved', 'verified' => 'With management', 'submitted' => 'With your manager', 'rejected' => 'Declined', 'draft' => 'Draft'];
+    $statusMs = ['cancelled' => 'Dibatalkan', 'approved' => 'Diluluskan', 'verified' => 'Dengan pengurusan', 'submitted' => 'Dengan pengurus', 'rejected' => 'Ditolak', 'draft' => 'Draf'];
 
     $tabs = $reviewCount > 0 ? ['apply', 'mine', 'approvals'] : ['apply', 'mine'];
     $initialTab = in_array(request()->query('tab'), $tabs, true) ? request()->query('tab') : 'apply';
@@ -206,6 +206,14 @@
                             <div><div class="uj-lv-rw-in">
                                 @if ($r->reason)<div class="uj-lv-quote">“{{ $r->reason }}”</div>@endif
                                 @include('partials.leave-timeline', ['r' => $r, 'assignedVerifiers' => $leaveVerifiers])
+                                @if (in_array($r->status, ['submitted', 'verified'], true))
+                                    <form method="post" action="{{ route('leave.cancel', $r) }}" style="margin-top:11px;">
+                                        @csrf
+                                        <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
+                                            <span x-text="$store.ui.lang==='en' ? 'Cancel this application' : 'Batalkan permohonan ini'">Cancel this application</span>
+                                        </button>
+                                    </form>
+                                @endif
                             </div></div>
                         </div>
                     </div>
