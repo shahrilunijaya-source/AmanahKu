@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/leave/{leaveRequest}/verify', [LeaveController::class, 'verify'])->name('leave.verify');
         Route::post('/app/leave/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leave.approve');
         Route::post('/app/leave/{leaveRequest}/reject', [LeaveController::class, 'reject'])->name('leave.reject');
+        Route::post('/app/leave/{leaveRequest}/cancel', [LeaveController::class, 'cancel'])->name('leave.cancel');
         Route::post('/app/leave/bulk-verify', [LeaveController::class, 'bulkVerify'])->name('leave.bulk-verify');
         Route::post('/app/leave/bulk-approve', [LeaveController::class, 'bulkApprove'])->name('leave.bulk-approve');
         Route::get('/app/leave/{leaveRequest}/attachment', [LeaveController::class, 'attachment'])->name('leave.attachment');
@@ -214,6 +215,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/claims/{claim}/verify', [ClaimController::class, 'verify'])->name('claims.verify');
         Route::post('/app/claims/{claim}/approve', [ClaimController::class, 'approve'])->name('claims.approve');
         Route::post('/app/claims/{claim}/reject', [ClaimController::class, 'reject'])->name('claims.reject');
+        Route::post('/app/claims/{claim}/cancel', [ClaimController::class, 'cancel'])->name('claims.cancel');
         Route::get('/app/claims/{claim}/receipt', [ClaimController::class, 'receipt'])->name('claims.receipt');
         Route::post('/app/handbook/{section}/acknowledge', [HandbookController::class, 'acknowledge'])->name('handbook.acknowledge');
         Route::post('/app/achievements', [AchievementController::class, 'store'])->name('achievements.store');

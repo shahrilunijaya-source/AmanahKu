@@ -291,6 +291,25 @@ class LeaveController extends Controller
         return true;
     }
 
+    /** The requester withdraws their own application before anyone approves it. */
+    public function cancel(Request $request, LeaveRequest $leaveRequest): RedirectResponse
+    {
+        $this->assertSameTenant($leaveRequest->tenant_id);
+        $actor = $request->attributes->get('employee');
+        abort_unless($actor && $actor->id === $leaveRequest->employee_id, 403);
+
+        // Compare-and-set so a cancel can never race past an approval that already
+        // decremented the balance — only a still-pending row flips.
+        $flipped = LeaveRequest::whereKey($leaveRequest->id)
+            ->whereIn('status', ['submitted', 'verified'])
+            ->update(['status' => 'cancelled']);
+        abort_if($flipped === 0, 422, 'Only an application still awaiting approval can be cancelled.');
+
+        AuditLog::record('Cancelled leave', $actor->name.' · '.$leaveRequest->days.'d');
+
+        return back()->with('ok', 'Leave application cancelled.');
+    }
+
     public function reject(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
         $this->assertCanReject($request, $leaveRequest);

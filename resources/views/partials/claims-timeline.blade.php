@@ -10,11 +10,12 @@
     $verifierName = $c->relationLoaded('verifiedBy') ? $c->verifiedBy?->name : null;
 
     $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'at' => $c->created_at]];
-    if ($c->status === 'rejected') {
+    if (in_array($c->status, ['rejected', 'cancelled'], true)) {
         if ($c->verified_at) {
             $steps[] = ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $verifierName, 'at' => $c->verified_at];
         }
-        $steps[] = ['state' => 'rejected', 'en' => 'Declined', 'ms' => 'Ditolak', 'who' => null, 'at' => $c->updated_at];
+        $cancelled = $c->status === 'cancelled';
+        $steps[] = ['state' => 'rejected', 'en' => $cancelled ? 'Cancelled' : 'Declined', 'ms' => $cancelled ? 'Dibatalkan' : 'Ditolak', 'who' => null, 'at' => $c->updated_at];
     } else {
         $steps[] = $c->verified_at
             ? ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $verifierName, 'at' => $c->verified_at]
@@ -26,8 +27,8 @@
             ? ['state' => 'done', 'en' => 'Paid', 'ms' => 'Dibayar', 'who' => null, 'at' => $c->paid_at]
             : ['state' => 'pending', 'en' => 'Pays next payroll run', 'ms' => 'Dibayar dalam gaji berikutnya', 'who' => null, 'at' => null];
     }
-    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — pays in the next payroll run.', 'paid' => 'Paid.', 'rejected' => 'Declined.'][$c->status] ?? '';
-    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — dibayar dalam gaji berikutnya.', 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.'][$c->status] ?? '';
+    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — pays in the next payroll run.', 'paid' => 'Paid.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$c->status] ?? '';
+    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — dibayar dalam gaji berikutnya.', 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$c->status] ?? '';
     $dotCol = ['done' => 'var(--success)', 'pending' => 'var(--muted-soft)', 'rejected' => 'var(--error)'];
 @endphp
 <div style="padding:2px 0;">
@@ -52,7 +53,7 @@
             </div>
         </div>
     @endforeach
-    <div style="font-size:11.5px;color:{{ $c->status === 'rejected' ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
+    <div style="font-size:11.5px;color:{{ in_array($c->status, ['rejected', 'cancelled'], true) ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
         <span x-text="$store.ui.lang==='en' ? '{{ $nextEn }}' : '{{ $nextMs }}'">{{ $nextEn }}</span>
     </div>
 </div>

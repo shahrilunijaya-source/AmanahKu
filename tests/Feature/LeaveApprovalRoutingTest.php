@@ -330,4 +330,38 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->actingAsEmployee($hr)->post("/app/leave/{$req->id}/approve")->assertForbidden();
         $this->assertSame('verified', $req->fresh()->status);
     }
+
+    // --- Cancel (the requester withdraws) -----------------------------------
+
+    public function test_requester_cancels_their_own_pending_request(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = $this->request($report, 'verified', $manager->id);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$req->id}/cancel")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertSame('cancelled', $req->fresh()->status);
+    }
+
+    public function test_an_approved_request_cannot_be_cancelled(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = $this->request($report, 'approved', $manager->id);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$req->id}/cancel")->assertStatus(422);
+        $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    public function test_nobody_else_can_cancel_someone_elses_request(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = $this->request($report);
+
+        $this->actingAsEmployee($manager)->post("/app/leave/{$req->id}/cancel")->assertForbidden();
+        $this->assertSame('submitted', $req->fresh()->status);
+    }
 }

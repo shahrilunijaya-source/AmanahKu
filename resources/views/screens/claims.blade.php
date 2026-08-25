@@ -51,9 +51,9 @@
     $approveCount = $isApprover ? ($claimsToApprove?->count() ?? 0) : 0;
     $reviewCount = $verifyCount + $approveCount;
 
-    $sc = ['submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
-    $statusEn = ['submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved · pays next run', 'paid' => 'Paid', 'rejected' => 'Declined'];
-    $statusMs = ['submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan · gaji berikutnya', 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
+    $sc = ['cancelled' => 'muted', 'submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
+    $statusEn = ['cancelled' => 'Cancelled', 'submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved · pays next run', 'paid' => 'Paid', 'rejected' => 'Declined'];
+    $statusMs = ['cancelled' => 'Dibatalkan', 'submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan · gaji berikutnya', 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
 
     $money = fn ($v) => 'RM ' . number_format((float) $v, 2);
 
@@ -238,6 +238,14 @@
                                     </div>
                                 @endif
                                 @include('partials.claims-timeline', ['c' => $c])
+                                @if (in_array($c->status, ['submitted', 'verified'], true))
+                                    <form method="post" action="{{ route('claims.cancel', $c) }}" style="margin-top:11px;">
+                                        @csrf
+                                        <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
+                                            <span x-text="$store.ui.lang==='en' ? 'Cancel this claim' : 'Batalkan tuntutan ini'">Cancel this claim</span>
+                                        </button>
+                                    </form>
+                                @endif
                             </div></div>
                         </div>
                     </div>
@@ -417,7 +425,8 @@
                             <template x-if="r.status === 'verified'"><span><span style="font-weight:500;" :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--ink)'" x-text="$store.ui.lang==='en' ? 'With management' : 'Dengan pengurusan'"></span><span :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--muted)'" x-text="($store.ui.lang==='en' ? ' · to approve · ' : ' · lulus · ') + daysAgo(r.changed) + ($store.ui.lang==='en' ? 'd' : 'h') + (isStuck(r) ? ' ⚠' : '')"></span></span></template>
                             <template x-if="r.status === 'approved'"><span><span style="font-weight:500;color:var(--success-ink,#14614a);" x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'"></span><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? ' · pays next run' : ' · gaji berikutnya'"></span></span></template>
                             <template x-if="r.status === 'paid'"><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Paid' : 'Dibayar'"></span></template>
-                            <template x-if="r.status === 'rejected'"><span style="color:var(--error,#cf2d56);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'"></span></template>
+<template x-if="r.status === 'cancelled'"><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Cancelled' : 'Dibatalkan'"></span></template>
+                                                        <template x-if="r.status === 'rejected'"><span style="color:var(--error,#cf2d56);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'"></span></template>
                         </div>
                     </div>
                 </template>
