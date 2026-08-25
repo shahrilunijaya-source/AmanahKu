@@ -194,12 +194,22 @@
                                     <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'Just you' : 'Anda sahaja'"></span>
                                 </template>
                                 <span style="position:relative;display:inline-block;" x-show="!drawer.locked && availablePeople.length">
-                                    <select class="wd-inline" style="margin-left:0;" @change="addPerson($event.target.value); $event.target.value=''">
-                                        <option value="" x-text="$store.ui.lang==='en' ? '+ Add someone' : '+ Tambah orang'"></option>
-                                        <template x-for="p in availablePeople" :key="p.id">
-                                            <option :value="p.id" x-text="p.name"></option>
+                                    <button type="button" class="wd-add" @click="drawer.peopleQuery = ''; drawer.peopleMenuOpen = !drawer.peopleMenuOpen; if (drawer.peopleMenuOpen) $nextTick(() => $refs.peopleSearch.focus())"
+                                            aria-haspopup="menu" :aria-expanded="drawer.peopleMenuOpen ? 'true' : 'false'">
+                                        <span x-text="$store.ui.lang==='en' ? '+ Add someone' : '+ Tambah orang'"></span>
+                                    </button>
+                                    <div class="wd-menu" x-show="drawer.peopleMenuOpen" x-cloak @click.outside="drawer.peopleMenuOpen = false" role="menu" style="top:28px;max-height:220px;overflow:auto;">
+                                        <input type="search" class="wd-inline" style="margin:0 0 4px;width:100%;" x-ref="peopleSearch" x-model="drawer.peopleQuery"
+                                               @keydown.escape.stop="drawer.peopleMenuOpen = false"
+                                               :placeholder="$store.ui.lang==='en' ? 'Search people…' : 'Cari orang…'"
+                                               :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'" autocomplete="off">
+                                        <template x-for="p in filteredPeople" :key="p.id">
+                                            <button type="button" role="menuitem" @click="addPerson(p.id); drawer.peopleQuery = ''" x-text="p.name"></button>
                                         </template>
-                                    </select>
+                                        <template x-if="!filteredPeople.length">
+                                            <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'Nobody found' : 'Tiada sesiapa dijumpai'"></span>
+                                        </template>
+                                    </div>
                                 </span>
                             </span>
                         </span>

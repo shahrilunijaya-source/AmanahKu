@@ -96,6 +96,9 @@ export function registerWorkBoard(Alpine) {
             // mentionPool / paintMention / insertMention / onCommentKeydown below —
             // lifted from public/_proto-board.html's activeQuery/paintMent/insertMention.
             mention: { open: false, hits: [], idx: 0 },
+            // "+ Add someone" picker: menu visibility plus its search box.
+            peopleMenuOpen: false,
+            peopleQuery: '',
             _timers: {},
             _savedTimer: null,
             _closeTimer: null,
@@ -105,6 +108,12 @@ export function registerWorkBoard(Alpine) {
         get availablePeople() {
             const on = new Set((this.drawer.card.participants || []).map((p) => p.id));
             return this.people.filter((p) => !on.has(p.id));
+        },
+
+        // What the "add someone" menu lists: addable people matching the search box.
+        get filteredPeople() {
+            const q = this.drawer.peopleQuery.trim().toLowerCase();
+            return q ? this.availablePeople.filter((p) => p.name.toLowerCase().includes(q)) : this.availablePeople;
         },
 
         // Who this card may mention: participants plus the assigner, exactly as
