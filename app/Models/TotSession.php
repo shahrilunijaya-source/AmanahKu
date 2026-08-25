@@ -12,14 +12,16 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * `session_date` is computed from year/month, and `links` has an array cast whose shape
- * the editor enforces, so both read back richer than the raw columns suggest.
+ * `session_date` is computed from year/month, and `links` has an array cast, so both
+ * read back richer than the raw columns suggest. A link row's keys are optional on
+ * purpose: the save rule is `array` with no per-key rules, so a row can reach the
+ * column with only a label or only a URL, and every reader here checks before using.
  *
  * `presenter` really is nullable: presenter_employee_id is a nullable column, and a slot
  * exists before anybody is assigned to it.
  *
  * @property Carbon $session_date
- * @property array<int, array{label: string, url: string}>|null $links
+ * @property array<int, array{label?: string, url?: string}>|null $links
  * @property-read Employee|null $presenter
  */
 class TotSession extends Model
