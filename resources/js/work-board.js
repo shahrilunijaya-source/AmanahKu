@@ -232,6 +232,15 @@ export function registerWorkBoard(Alpine) {
             const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
             if (opts.body) headers['Content-Type'] = 'application/json';
             const res = await fetch(url, { headers, ...opts });
+            if (res.status === 422) {
+                // A rejected field carries a message worth showing verbatim (the
+                // due-date rule on shared cards). Flagged so commitField() knows
+                // it's safe to display, unlike a raw 500.
+                const body = await res.json().catch(() => null);
+                const err = new Error(body?.message || 'Request failed: 422');
+                err.validation = true;
+                throw err;
+            }
             if (!res.ok) throw new Error('Request failed: ' + res.status);
             return res.status === 204 ? null : res.json();
         },
@@ -312,14 +321,22 @@ export function registerWorkBoard(Alpine) {
                     method: 'PATCH',
                     body: JSON.stringify({ [field]: value }),
                 });
-                if (!this.acceptSeq(seq)) return;
+                // A superseded save is not a failed one — a newer save already owns
+                // the state, so callers that roll back on failure must not roll back.
+                if (!this.acceptSeq(seq)) return true;
                 (FIELD_DERIVED[field] || []).forEach((key) => {
                     this.drawer.card[key] = card[key];
                 });
                 this.applyFieldRepaint(field, html);
                 this.flashSaved();
+
+                return true;
             } catch (err) {
-                this.drawer.error = this.t('Save failed. Check the fields and try again.', 'Gagal simpan. Semak medan dan cuba lagi.');
+                this.drawer.error = err.validation
+                    ? err.message
+                    : this.t('Save failed. Check the fields and try again.', 'Gagal simpan. Semak medan dan cuba lagi.');
+
+                return false;
             }
         },
 
@@ -405,13 +422,19 @@ export function registerWorkBoard(Alpine) {
             this.commitFieldFromCard('links');
         },
 
-        addPerson(id) {
+        async addPerson(id) {
             const pid = Number(id);
             if (!pid || this.drawer.locked) return;
             const person = this.people.find((p) => p.id === pid);
             if (person && !this.drawer.card.participants.some((p) => p.id === pid)) {
                 this.drawer.card.participants.push(person);
-                this.commitField('participant_ids', this.drawer.card.participants.map((p) => p.id));
+                // The server refuses to share a card that has no due date, so take
+                // the person back off the list when it does — otherwise the chip
+                // sits there looking saved next to the error.
+                const ok = await this.commitField('participant_ids', this.drawer.card.participants.map((p) => p.id));
+                if (!ok) {
+                    this.drawer.card.participants = this.drawer.card.participants.filter((p) => p.id !== pid);
+                }
             }
         },
 
