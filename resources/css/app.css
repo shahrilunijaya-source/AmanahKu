@@ -3501,6 +3501,12 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 /* External TOT list — a simple broadcast card per event, not a tot-row (no reactions/
    watch/score chrome to make room for). Title/host/meta follow the app's 5-step type
    ramp (t-lg / t-sm / t-sm) rather than inventing sizes off it. */
+/* A rail row that is aimed at THIS reader, not just near them — currently the
+   External TOT event they were @mentioned in. Red, next to the title, so it is
+   read before the row's own words are. */
+.uj-dq-flag{display:inline-block;margin-left:6px;font-size:var(--t-micro);font-weight:600;
+  color:var(--red);background:var(--red-tint);border-radius:5px;padding:1px 6px;vertical-align:middle;}
+
 .ext-item{padding:16px 0;border-top:1px solid var(--hairline-soft);}
 .ext-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
 .ext-title{font-size:var(--t-lg);font-weight:600;color:var(--ink);margin:0 0 2px;line-height:1.35;}
@@ -3512,6 +3518,16 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .ext-meta-i a{color:var(--info);text-decoration:none;}
 .ext-meta-i a:hover{text-decoration:underline;}
 .ext-desc{font-size:var(--t-sm);line-height:1.6;color:var(--body);margin:0 0 12px;white-space:pre-line;}
+/* A person @mentioned in the description — they were notified and are expected to
+   register, so the name has to read as a summons, not as decoration. */
+.ext-mention{color:var(--info);font-weight:600;}
+.ext-mention[data-me]{color:var(--red);background:var(--red-tint);border-radius:5px;padding:0 4px;}
+/* The registration link is the one thing an invite exists for: centred on its own
+   line rather than left-hugging the description above it. */
+.ext-reg{display:block;width:fit-content;margin:0 auto;text-decoration:none;}
+/* Mention autocomplete, anchored under the description box (not at the caret —
+   a caret-tracked menu buys nothing here and costs a day). */
+.ext-mention-menu{position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:200px;overflow-y:auto;}
 @media (prefers-reduced-motion:reduce){
     .ext-del{transition:none;}
     .ext-del:active{transform:none;}

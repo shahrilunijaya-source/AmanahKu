@@ -99,4 +99,29 @@ class DashboardExternalTotTest extends TestCase
 
         $this->dash()->assertOk()->assertSee('Q3 town hall recap');
     }
+
+    public function test_the_brief_counts_down_instead_of_printing_a_bare_date(): void
+    {
+        $this->event(['event_date' => now()->addDays(3)->toDateString()]);
+
+        $this->dash()->assertOk()->assertSee('in 3 days');
+    }
+
+    public function test_a_tagged_viewer_gets_a_required_flag_and_others_do_not(): void
+    {
+        $me = Employee::where('user_id', $this->user->id)->firstOrFail();
+        $this->event(['tagged_employee_ids' => [$me->id]]);
+
+        $this->dash()->assertOk()->assertSee('Required');
+
+        $other = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
+        $other->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $other->id,
+            'name' => 'Other', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($other)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/dash?scope=me')->assertOk()->assertDontSee('uj-dq-flag', false);
+    }
 }

@@ -262,7 +262,7 @@
 </div>
 
 <div x-show="tab==='external'" x-cloak>
-    @include('partials.tot-external', ['externalEvents' => $externalEvents, 'canPostExternal' => $canPostExternal])
+    @include('partials.tot-external', ['externalEvents' => $externalEvents, 'canPostExternal' => $canPostExternal, 'assignableEmployees' => $assignableEmployees])
 </div>
 
 </div>

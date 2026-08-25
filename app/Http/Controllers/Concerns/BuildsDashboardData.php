@@ -61,7 +61,7 @@ trait BuildsDashboardData
     private function dashboardScopeData(Request $request, string $scope, ?Employee $employee): array
     {
         return $scope === 'company'
-            ? $this->companyScopeData($request)
+            ? $this->companyScopeData($request, $employee)
             : $this->meScopeData($employee);
     }
 
@@ -100,7 +100,7 @@ trait BuildsDashboardData
             ],
             'railCards' => [
                 ['id' => 'around', 'title' => 'Around you', 'rows' => $this->aroundRows($employee)],
-                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows()],
+                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows($employee)],
             ],
         ];
     }
@@ -111,7 +111,7 @@ trait BuildsDashboardData
      * dashboards and distinguished per-row by stage badge, plus StuckRequests as the
      * "reaching nobody" list.
      */
-    private function companyScopeData(Request $request): array
+    private function companyScopeData(Request $request, ?Employee $employee): array
     {
         $tenant = app(CurrentTenant::class)->get();
 
@@ -148,7 +148,7 @@ trait BuildsDashboardData
             'railCards' => [
                 ['id' => 'rot', 'title' => 'Quietly rotting', 'rows' => $this->rotRows()],
                 ['id' => 'pop', 'title' => 'Headcount', 'rows' => $this->popRows($tenant)],
-                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows()],
+                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows($employee)],
             ],
         ];
     }
@@ -381,7 +381,7 @@ trait BuildsDashboardData
      * the module off never gets a row linking to a screen it can't open (same rule
      * companyQueueRows() already follows for QUEUE_SOURCES).
      */
-    private function newsRows(): array
+    private function newsRows(?Employee $employee): array
     {
         $rows = Announcement::orderByDesc('date')->take(5)->get()->map(fn (Announcement $a) => [
             'title' => (string) ($a->title ?? ''),
@@ -398,9 +398,12 @@ trait BuildsDashboardData
                     ->orderByDesc('event_date')->take(5)->get()
                     ->map(fn (ExternalTotEvent $e) => [
                         'title' => $e->title,
-                        'sub' => collect([$e->host, $e->event_date->format('j M')])->filter()->implode(' · '),
-                        'meta' => $e->event_date->format('j M'),
+                        'sub' => collect([$e->host, $e->event_date->isoFormat('ddd, D MMM')])->filter()->implode(' · '),
+                        // How long you have left, not what the calendar says — a date the
+                        // reader has to subtract from today is a date they skim past.
+                        'meta' => $this->daysAway($e->event_date),
                         'tag' => 'External TOT',
+                        'flag' => $employee && in_array($employee->id, $e->taggedIds(), true) ? 'Required' : null,
                         'url' => route('app.screen', 'tot').'?tab=external',
                         '_sort' => $e->event_date,
                     ])
@@ -408,6 +411,18 @@ trait BuildsDashboardData
         }
 
         return $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
+    }
+
+    /** "today" / "tomorrow" / "in 3 days" — the rail's right-hand meta for a dated event. */
+    private function daysAway(CarbonInterface $date): string
+    {
+        $days = (int) now()->startOfDay()->diffInDays($date->copy()->startOfDay(), false);
+
+        return match (true) {
+            $days <= 0 => 'today',
+            $days === 1 => 'tomorrow',
+            default => "in {$days} days",
+        };
     }
 
     /**

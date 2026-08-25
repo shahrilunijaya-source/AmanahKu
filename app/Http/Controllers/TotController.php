@@ -632,17 +632,51 @@ class TotController extends Controller
             'venue' => ['nullable', 'string', 'max:200'],
             'venue_map_url' => ['nullable', 'url', 'max:2000'],
             'registration_url' => ['nullable', 'url', 'max:2000'],
+            'tagged' => ['nullable', 'array', 'max:20'],
+            'tagged.*' => ['integer'],
         ]);
+
+        $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
+        unset($data['tagged']);
 
         $event = ExternalTotEvent::create([
             ...$data,
+            'tagged_employee_ids' => $tagged->pluck('id')->all(),
             'tenant_id' => app(CurrentTenant::class)->id(),
             'posted_by' => $request->attributes->get('employee')?->id,
         ]);
 
+        AppNotification::sendMany(
+            $tagged->pluck('user_id')->filter()->all(),
+            "You're required to attend: {$event->title}",
+            collect([$event->host, $event->event_date->format('D, j M Y'), $event->time_label])->filter()->implode(' · '),
+            route('app.screen', 'tot').'?tab=external',
+            mail: true,
+        );
+
         AuditLog::record('Posted external TOT event', $event->title);
 
         return back()->with('ok', 'External event posted.');
+    }
+
+    /**
+     * The employees a poster actually @mentioned: ids they picked, narrowed to active
+     * employees of this tenant (a raw id from the form is never trusted), and narrowed
+     * again to the ones whose name is still written in the description — a mention the
+     * poster deleted from the text before posting should not send anybody a summons.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Employee>
+     */
+    private function taggedFromDescription(array $ids, ?string $description): Collection
+    {
+        if ($ids === [] || $description === null) {
+            return collect();
+        }
+
+        return Employee::active()->whereIn('id', $ids)->get()
+            ->filter(fn (Employee $person) => str_contains($description, '@'.$person->display_name))
+            ->values();
     }
 
     /** The External tab's privileged trio: remove an external training/event. */

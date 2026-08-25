@@ -2,12 +2,24 @@
      workshop invite, a vendor webinar). Simple broadcast, not a TOT session — no
      comments, reactions, ratings or watched-tracking, and no Knowledge Bank credit.
      Params: $externalEvents (ExternalTotEvent collection, newest event_date first),
-             $canPostExternal (bool — manager, management or hr).
+             $canPostExternal (bool — manager, management or hr),
+             $assignableEmployees (active employees, the @mention roster).
 
      The post form lives in a side-over panel (the same .wd/.wd-scrim drawer TOT's
      own internal session detail uses — see partials.tot-drawer), not inline: a
      collapsed accordion still pushed the event list down every time it opened,
      and this is a rare action next to the list everyone actually reads. --}}
+@php
+    $mentionRoster = $assignableEmployees->map(fn ($person) => [
+        'id' => $person->id,
+        'name' => $person->display_name,
+        'legal' => $person->name,
+    ])->values();
+    // A rejected post keeps the @names in the textarea, so it has to keep the ids too.
+    $mentionChosen = $mentionRoster->whereIn('id', array_map('intval', (array) old('tagged', [])))->values();
+    $mentionNames = $assignableEmployees->keyBy('id');
+    $viewerId = request()->attributes->get('employee')?->id;
+@endphp
 <div class="uj-card" style="padding:20px;"
      x-data="{ postOpen: {{ ($errors->any() && old('_extform')) ? 'true' : 'false' }} }">
     @if ($canPostExternal)
@@ -63,7 +75,64 @@
                                 <div style="grid-column:span 2;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Venue' : 'Tempat'">Venue</label><input class="tot-field" name="venue" value="{{ old('venue') }}"></div>
                                 <div style="grid-column:span 2;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Map link' : 'Pautan peta'">Map link</label><input class="tot-field" type="url" name="venue_map_url" value="{{ old('venue_map_url') }}"></div>
                                 <div style="grid-column:span 2;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Registration link' : 'Pautan pendaftaran'">Registration link</label><input class="tot-field" type="url" name="registration_url" value="{{ old('registration_url') }}"></div>
-                                <div style="grid-column:span 2;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label><textarea class="tot-field" name="description" style="height:72px;padding-top:9px;resize:vertical;">{{ old('description') }}</textarea></div>
+                                {{-- @mention a colleague in the description and they get a bell (and an
+                                     email copy) telling them they are expected to register. Nothing tracks
+                                     whether they did — registration happens on the organiser's own form,
+                                     outside this app — so this is a summons, not a checklist. --}}
+                                <div style="grid-column:span 2;position:relative;" x-data="{
+                                    roster: {{ \Illuminate\Support\Js::from($mentionRoster) }},
+                                    chosen: {{ \Illuminate\Support\Js::from($mentionChosen) }},
+                                    open: false,
+                                    query: '',
+                                    get matches() {
+                                        const q = this.query.trim().toLowerCase();
+                                        const list = q
+                                            ? this.roster.filter((p) => p.name.toLowerCase().includes(q) || (p.legal || '').toLowerCase().includes(q))
+                                            : this.roster;
+                                        return list.slice(0, 8);
+                                    },
+                                    /* A fragment being typed is '@' plus whatever follows it with no space —
+                                       enough to search on, and it ends the moment the poster types one. */
+                                    scan(el) {
+                                        const upto = el.value.slice(0, el.selectionStart);
+                                        const match = upto.match(/@([^\s@]*)$/);
+                                        this.open = match !== null;
+                                        this.query = match ? match[1] : '';
+                                    },
+                                    pick(person) {
+                                        const el = this.$refs.desc;
+                                        const caret = el.selectionStart;
+                                        const upto = el.value.slice(0, caret).replace(/@[^\s@]*$/, '@' + person.name + ' ');
+                                        el.value = upto + el.value.slice(caret);
+                                        el.setSelectionRange(upto.length, upto.length);
+                                        if (! this.chosen.some((p) => p.id === person.id)) {
+                                            this.chosen.push(person);
+                                        }
+                                        this.open = false;
+                                        this.query = '';
+                                        el.focus();
+                                    },
+                                }" @click.outside="open = false">
+                                    <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description — type @ to tag someone' : 'Penerangan — taip @ untuk tag seseorang'">Description — type @ to tag someone</label>
+                                    <textarea class="tot-field" name="description" x-ref="desc" style="height:72px;padding-top:9px;resize:vertical;"
+                                              @input="scan($event.target)" @keydown.escape.stop="open = false">{{ old('description') }}</textarea>
+
+                                    <template x-for="person in chosen" :key="person.id">
+                                        <input type="hidden" name="tagged[]" :value="person.id">
+                                    </template>
+
+                                    <div x-show="open" x-cloak class="wd-menu ext-mention-menu">
+                                        <template x-for="person in matches" :key="person.id">
+                                            <button type="button" @click="pick(person)"><span x-text="person.name"></span></button>
+                                        </template>
+                                        <div x-show="! matches.length" class="tot-note" style="padding:6px;"
+                                             x-text="$store.ui.lang==='en' ? 'Nobody by that name.' : 'Tiada nama begitu.'">Nobody by that name.</div>
+                                    </div>
+
+                                    <p class="tot-note" style="margin-top:6px;"
+                                       x-show="chosen.length"
+                                       x-text="($store.ui.lang==='en' ? 'Notified as required to attend: ' : 'Dimaklumkan wajib hadir: ') + chosen.map((p) => p.name).join(', ')"></p>
+                                </div>
                             </div>
                             <button type="submit" class="tot-btn-p" style="margin-top:14px;" x-text="$store.ui.lang==='en' ? 'Post event' : 'Siarkan acara'">Post event</button>
                         </form>
@@ -107,11 +176,29 @@
             </div>
 
             @if ($event->description)
-                <p class="ext-desc">{{ $event->description }}</p>
+                @php
+                    // Escaped first, then the known @names are wrapped — a description can
+                    // never inject markup, only the names this event actually tagged get marked.
+                    $desc = e($event->description);
+                    foreach ($event->taggedIds() as $taggedId) {
+                        $person = $mentionNames->get($taggedId);
+                        if (! $person) {
+                            continue;
+                        }
+                        $handle = '@'.e($person->display_name);
+                        $desc = str_replace($handle, '<span class="ext-mention"'.($taggedId === $viewerId ? ' data-me' : '').'>'.$handle.'</span>', $desc);
+                    }
+                @endphp
+                <p class="ext-desc">{!! $desc !!}</p>
+            @endif
+
+            @if (in_array($viewerId, $event->taggedIds(), true))
+                <p class="tot-note" style="color:var(--red);margin:0 0 12px;"
+                   x-text="$store.ui.lang==='en' ? 'You were tagged — you are expected to register for this.' : 'Anda ditag — anda dijangka mendaftar untuk acara ini.'">You were tagged — you are expected to register for this.</p>
             @endif
 
             @if ($event->registration_url)
-                <a class="tot-btn-p" style="display:inline-block;text-decoration:none;" href="{{ $event->registration_url }}" target="_blank" rel="noopener" x-text="$store.ui.lang==='en' ? 'Register ↗' : 'Daftar ↗'">Register ↗</a>
+                <a class="tot-btn-p ext-reg" href="{{ $event->registration_url }}" target="_blank" rel="noopener" x-text="$store.ui.lang==='en' ? 'Register ↗' : 'Daftar ↗'">Register ↗</a>
             @endif
         </div>
     @empty

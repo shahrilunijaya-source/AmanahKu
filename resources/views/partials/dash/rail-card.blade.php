@@ -11,7 +11,7 @@
      * Row shape assumption (NOT specified by the data contract, which only
      * defines the ROW ARRAY shape for the pinned queues): each rail row is a
      * flat associative array of
-     *   ['title','sub'?,'meta'?,'initials'?,'color'?,'tag'?,'url'?]
+     *   ['title','sub'?,'meta'?,'initials'?,'color'?,'tag'?,'flag'?,'url'?]
      * rendered as a compact list item — avatar/initials if given, else a
      * mono tag badge, else nothing; title + optional sub on the left, meta
      * right-aligned. This mirrors the mock's miniList/newsList/flatList
@@ -60,7 +60,7 @@
                     <span class="uj-dq-tag">{{ $r['tag'] }}</span>
                 @endif
                 <span style="min-width:0;">
-                    <span class="t" style="display:block;">{{ $r['title'] ?? '' }}</span>
+                    <span class="t" style="display:block;">{{ $r['title'] ?? '' }}@if (! empty($r['flag']))<span class="uj-dq-flag">{{ $r['flag'] }}</span>@endif</span>
                     @if (! empty($r['sub']))
                         <span class="s" style="display:block;">{{ $r['sub'] }}</span>
                     @endif
