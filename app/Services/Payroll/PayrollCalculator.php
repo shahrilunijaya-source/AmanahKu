@@ -47,6 +47,8 @@ class PayrollCalculator
      *     statutory_category?: int,
      *     epf_part?: string|null,
      *     skbbk_opt_in?: bool,
+     *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>|null,
+     *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool}|null,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -85,22 +87,47 @@ class PayrollCalculator
         // Callers that don't pass epf_part (e.g. older code paths) default to Part A —
         // the common case (citizen/PR under 60) — rather than silently contributing nothing.
         //
-        // "Wages" under s.2 of the EPF Act 1991 EXCLUDES overtime, so EPF is charged on the
-        // month's pay less the overtime amount. Bonus and commission are wages and stay in.
-        // Free-form allowance and addition lines are treated as wages (the safe default)
-        // until the pay-item catalogue can flag each line's statutory treatment.
+        // The EPF and PERKESO (SOCSO+EIS) wage bases are sums over each pay-item's own
+        // epf_liable/perkeso_liable flags (see PayrollItem/PayrollItemSeeder), not a
+        // hardcoded formula: "wages" under s.2 of the EPF Act 1991 EXCLUDES overtime, while
+        // PERKESO's published payments-subject-to-contribution list INCLUDES overtime but
+        // EXCLUDES the annual bonus — two deliberately different wage bases from the same
+        // gross pay. The unpaid-leave deduction reduces both bases equally.
         //
-        // SOCSO/EIS "wages" under the Employees' Social Security Act instead INCLUDE
-        // overtime but EXCLUDE the annual bonus (per PERKESO's published list of payments
-        // subject to contribution) — so SOCSO/EIS are charged on gross less bonus, a
-        // deliberately different wage base from EPF's gross-less-overtime.
+        // $inputs['lines'] carries the resolved flags for basic/allowances/bonus/additions
+        // (amounts known ahead of time); overtime's amount is only known after computing it
+        // above, so its flags travel separately in $inputs['overtime_flags']. Both must be
+        // present (isset, not merely truthy — an intentionally empty lines array is not "no
+        // catalogue data") for a caller to opt into flag-derived bases; otherwise this falls
+        // back to the pre-catalogue hardcoded rule so every caller that doesn't pass a
+        // catalogue (older code paths, unit tests exercising the calculator directly)
+        // reproduces the exact same figures as before this pass.
         $epfPart = $inputs['epf_part'] ?? 'A';
-        $epfWage = round(max(0.0, $statWage - $overtimeAmount), 2);
+        $catalogueLines = $inputs['lines'] ?? null;
+        $overtimeFlags = $inputs['overtime_flags'] ?? null;
+        if ($catalogueLines !== null && $overtimeFlags !== null) {
+            $epfBase = ! empty($overtimeFlags['epf_liable']) ? $overtimeAmount : 0.0;
+            $perkesoBase = ! empty($overtimeFlags['perkeso_liable']) ? $overtimeAmount : 0.0;
+            foreach ($catalogueLines as $line) {
+                $lineAmount = $this->money($line['amount'] ?? 0);
+                if (! empty($line['epf_liable'])) {
+                    $epfBase += $lineAmount;
+                }
+                if (! empty($line['perkeso_liable'])) {
+                    $perkesoBase += $lineAmount;
+                }
+            }
+            $epfWage = round(max(0.0, $epfBase - $unpaidDeduction), 2);
+            $socsoWageFromLines = round(max(0.0, $perkesoBase - $unpaidDeduction), 2);
+        } else {
+            $epfWage = round(max(0.0, $statWage - $overtimeAmount), 2);
+            $socsoWageFromLines = null;
+        }
         $epfContribution = $this->epf->contribution($epfWage, $epfPart);
         $epfEmployee = $epfContribution['employee'];
         $epfEmployer = $epfContribution['employer'];
 
-        $socsoWage = round(max(0.0, $statWage - $bonus), 2);
+        $socsoWage = $socsoWageFromLines ?? round(max(0.0, $statWage - $bonus), 2);
         $skbbkOptIn = (bool) ($inputs['skbbk_opt_in'] ?? false);
         $socsoContribution = $this->socso->contribution($socsoWage, $category, $skbbkOptIn);
         $skbbkEmployee = $socsoContribution['skbbk'];

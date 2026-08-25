@@ -124,6 +124,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ResignationSeeder::class);
         $this->call(ComplianceSeeder::class);
         $this->call(TimesheetCategorySeeder::class);
+        $this->call(PayrollItemSeeder::class);
         $this->call(ProjectSeeder::class);
         $this->call(TimesheetSeeder::class);
         $this->call(LearningSeeder::class);

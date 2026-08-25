@@ -250,4 +250,51 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(0.0, $c->socsoEmployee);          // still no Invalidity at ≥60
         $this->assertGreaterThan(0.0, $c->skbbkEmployee);   // but SKBBK applies if opted in
     }
+
+    // ── Pay-item catalogue: flag-derived wage bases ──────────────────
+
+    /**
+     * lines/overtime_flags spell out, per pay item, exactly the same wage-base rule the
+     * hardcoded gross-minus-overtime / gross-minus-bonus formulas encoded — so passing
+     * them must reproduce identical EPF/SOCSO/EIS figures.
+     */
+    public function test_flag_derived_wage_bases_reproduce_the_legacy_hardcoded_rule(): void
+    {
+        $inputs = [
+            'basic' => 5200,
+            'allowances_total' => 300,
+            'overtime_hours' => 10,
+            'bonus' => 500,
+        ];
+        $legacy = $this->calc->compute($inputs);
+
+        $flagged = $this->calc->compute($inputs + [
+            'lines' => [
+                ['amount' => 5200, 'epf_liable' => true, 'perkeso_liable' => true],   // basic
+                ['amount' => 300, 'epf_liable' => true, 'perkeso_liable' => true],    // allowance
+                ['amount' => 500, 'epf_liable' => true, 'perkeso_liable' => false],   // bonus: EPF yes, PERKESO no
+            ],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => true],    // overtime: EPF no, PERKESO yes
+        ]);
+
+        $this->assertSame($legacy->gross, $flagged->gross);
+        $this->assertSame($legacy->epfEmployee, $flagged->epfEmployee);
+        $this->assertSame($legacy->epfEmployer, $flagged->epfEmployer);
+        $this->assertSame($legacy->socsoEmployee, $flagged->socsoEmployee);
+        $this->assertSame($legacy->socsoEmployer, $flagged->socsoEmployer);
+        $this->assertSame($legacy->eisEmployee, $flagged->eisEmployee);
+    }
+
+    /** An empty lines array is a deliberate "zero wage base", not "no catalogue data" — it must NOT fall back to the legacy rule. */
+    public function test_empty_lines_array_is_not_treated_as_missing_catalogue_data(): void
+    {
+        $withLines = $this->calc->compute([
+            'basic' => 5200,
+            'lines' => [],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => false],
+        ]);
+
+        $this->assertSame(0.0, $withLines->epfEmployee);
+        $this->assertSame(0.0, $withLines->socsoEmployee);
+    }
 }

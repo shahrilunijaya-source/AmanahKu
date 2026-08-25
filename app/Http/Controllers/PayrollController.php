@@ -8,6 +8,7 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
@@ -23,6 +24,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -187,7 +189,9 @@ class PayrollController extends Controller
         $periodEnd = Carbon::createFromFormat('Y-m', $data['period'])->endOfMonth();
         $missingDob = $employees->whereNull('date_of_birth')->count();
 
-        DB::transaction(function () use ($data, $employees, $periodEnd) {
+        $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
+
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => Carbon::createFromFormat('Y-m', $data['period'])->format('F Y'),
@@ -221,6 +225,7 @@ class PayrollController extends Controller
                     'epf_part' => $epfPart,
                     'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
                 ];
+                $inputs = $this->withWageBaseFlags($inputs, $catalog);
                 $comp = $this->calculator->compute($inputs);
 
                 // PCB: the real LHDN computerised MTD calculation, year-to-date-aware —
@@ -241,6 +246,7 @@ class PayrollController extends Controller
                     'claim_ids' => $claims->pluck('id')->all() ?: null,
                 ]);
                 $payslip->forceFill($comp->toPayslipAttributes())->save();
+                $this->writePayslipLines($payslip, $comp, $structure, $catalog);
             }
 
             $this->recalcTotals($run);
@@ -294,6 +300,8 @@ class PayrollController extends Controller
             'epf_part' => $epfPart,
             'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
         ];
+        $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
+        $baseInputs = $this->withWageBaseFlags($baseInputs, $catalog);
 
         // First pass: gross + EPF, needed to split normal vs. additional remuneration
         // for PCB. Second pass: feed the computed PCB back in so it flows into net.
@@ -311,6 +319,7 @@ class PayrollController extends Controller
         // set at run creation survives edits. Amount columns are excluded from $fillable —
         // forceFill them.
         $payslip->forceFill($comp->toPayslipAttributes())->save();
+        $this->refreshVariableLines($payslip, $comp, $catalog);
         $this->recalcTotals($payslip->payrollRun);
         AuditLog::record('Updated payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
 
@@ -483,5 +492,162 @@ class PayrollController extends Controller
         }
 
         return $lines;
+    }
+
+    // ── Payroll item catalogue ──────────────────────────────────────
+
+    /**
+     * Merge PayrollCalculator's flag-derived-wage-base inputs onto $inputs: one entry per
+     * basic/allowance-total/bonus/addition line (amounts already known), plus overtime's
+     * flags separately (its amount is only known once the calculator computes it). Every
+     * tenant is seeded with the catalogue (PayrollItem::seedFor), but this still tolerates
+     * a missing item — falling back to PayrollItem::SYSTEM_ITEMS, the one definition of
+     * the statutory flags, rather than crashing.
+     */
+    private function withWageBaseFlags(array $inputs, Collection $catalog): array
+    {
+        $flagsFor = function (string $code) use ($catalog): array {
+            $item = $catalog->get($code);
+            [, , , $defaultEpf, $defaultPerkeso] = PayrollItem::SYSTEM_ITEMS[$code];
+
+            return [
+                'epf_liable' => $item ? (bool) $item->epf_liable : $defaultEpf,
+                'perkeso_liable' => $item ? (bool) $item->perkeso_liable : $defaultPerkeso,
+            ];
+        };
+
+        $lines = [
+            ['amount' => $inputs['basic'] ?? 0, ...$flagsFor('basic-salary')],
+            ['amount' => $inputs['allowances_total'] ?? 0, ...$flagsFor('fixed-allowance')],
+            ['amount' => $inputs['bonus'] ?? 0, ...$flagsFor('bonus')],
+        ];
+        $additionFlags = $flagsFor('other-addition');
+        foreach (($inputs['additions'] ?? []) as $addition) {
+            $lines[] = ['amount' => $addition['amount'] ?? 0, ...$additionFlags];
+        }
+
+        $inputs['lines'] = $lines;
+        $inputs['overtime_flags'] = $flagsFor('overtime');
+
+        return $inputs;
+    }
+
+    /** Attributes for one PayslipLine row; payroll_item_id is null if the tenant has no matching catalogue item. */
+    private function lineAttrs(Collection $catalog, string $code, string $name, string $type, float $amount, ?float $quantity, string $source, int $sortOrder): array
+    {
+        return [
+            'payroll_item_id' => $catalog->get($code)?->id,
+            'name' => $name,
+            'type' => $type,
+            'amount' => round($amount, 2),
+            'quantity' => $quantity,
+            'source' => $source,
+            'sort_order' => $sortOrder,
+        ];
+    }
+
+    /**
+     * The variable lines a payslip edit can change: overtime, bonus, free-form additions,
+     * the unpaid-leave deduction, and free-form other-deductions. Zero-amount lines are
+     * skipped, matching the existing "additions"/"other_deductions" convention of dropping
+     * blank rows.
+     */
+    private function variableLineAttrs(PayslipComputation $comp, Collection $catalog, int $sort): array
+    {
+        $lines = [];
+        if ($comp->overtimeAmount > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'overtime', 'Overtime', 'earning', $comp->overtimeAmount, $comp->overtimeHours, 'overtime', $sort++);
+        }
+        if ($comp->bonus > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'bonus', 'Bonus', 'earning', $comp->bonus, null, 'manual', $sort++);
+        }
+        foreach ($comp->additions as $addition) {
+            $lines[] = $this->lineAttrs($catalog, 'other-addition', $addition['name'], 'earning', $addition['amount'], null, 'manual', $sort++);
+        }
+        if ($comp->unpaidDeduction > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'unpaid-leave-deduction', 'Unpaid Leave Deduction', 'deduction', $comp->unpaidDeduction, $comp->unpaidDays, 'leave', $sort++);
+        }
+        foreach ($comp->otherDeductions as $deduction) {
+            $lines[] = $this->lineAttrs($catalog, 'other-deduction', $deduction['name'], 'deduction', $deduction['amount'], null, 'manual', $sort++);
+        }
+
+        return $lines;
+    }
+
+    /** Full itemisation at run creation: salary/claim lines (fixed for this payslip's life) + the variable ones. */
+    private function writePayslipLines(Payslip $payslip, PayslipComputation $comp, SalaryStructure $structure, Collection $catalog): void
+    {
+        $sort = 0;
+        $lines = [
+            $this->lineAttrs($catalog, 'basic-salary', 'Basic Salary', 'earning', $comp->basic, null, 'salary', $sort++),
+        ];
+        foreach (($structure->allowances ?? []) as $allowance) {
+            $amount = (float) ($allowance['amount'] ?? 0);
+            $name = trim((string) ($allowance['name'] ?? ''));
+            if ($name === '' || $amount <= 0) {
+                continue;
+            }
+            $lines[] = $this->lineAttrs($catalog, 'fixed-allowance', $name, 'earning', $amount, null, 'salary', $sort++);
+        }
+        if ($comp->claimsReimbursement > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'claim-reimbursement', 'Claim Reimbursement', 'earning', $comp->claimsReimbursement, null, 'claim', $sort++);
+        }
+        $lines = array_merge($lines, $this->variableLineAttrs($comp, $catalog, $sort));
+
+        $payslip->lines()->createMany($lines);
+    }
+
+    /**
+     * A payslip edit only ever touches overtime/bonus/additions/unpaid-leave/other-
+     * deductions — basic, allowances and the claim reimbursement "stay as generated"
+     * (see updatePayslip's comment). Rebuilding those from the live SalaryStructure here
+     * would drift from the payslip's own stored figures if HR edited the structure after
+     * the run was created, so only the variable-source lines are replaced.
+     */
+    private function refreshVariableLines(Payslip $payslip, PayslipComputation $comp, Collection $catalog): void
+    {
+        $payslip->lines()->whereIn('source', ['overtime', 'manual', 'leave'])->delete();
+        $nextSort = (int) ($payslip->lines()->max('sort_order') ?? -1) + 1;
+        $payslip->lines()->createMany($this->variableLineAttrs($comp, $catalog, $nextSort));
+    }
+
+    public function updateItem(Request $request, PayrollItem $item): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'name_ms' => ['nullable', 'string', 'max:80'],
+            'epf_liable' => ['boolean'],
+            'perkeso_liable' => ['boolean'],
+            'pcb_taxable' => ['boolean'],
+            'active' => ['boolean'],
+        ]);
+
+        $item->update([
+            'name' => $data['name'],
+            'name_ms' => $data['name_ms'] ?? null,
+            'epf_liable' => $request->boolean('epf_liable'),
+            'perkeso_liable' => $request->boolean('perkeso_liable'),
+            'pcb_taxable' => $request->boolean('pcb_taxable'),
+            'active' => $request->boolean('active'),
+        ]);
+
+        AuditLog::record('Updated payroll item', $item->name);
+
+        return back()->with('ok', 'Payroll item "'.$item->name.'" saved.');
+    }
+
+    public function destroyItem(Request $request, PayrollItem $item): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+        abort_if($item->is_system, 422, 'System payroll items cannot be deleted.');
+
+        $item->delete();
+        AuditLog::record('Deleted payroll item', $item->name);
+
+        return back()->with('ok', 'Payroll item "'.$item->name.'" deleted.');
     }
 }

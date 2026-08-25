@@ -9,6 +9,7 @@ use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
@@ -371,7 +372,7 @@ trait BuildsWorkData
         // A specific payslip detail: own (finalized) for everyone, any for privileged.
         $selectedPayslip = null;
         if ($request->filled('payslip')) {
-            $candidate = Payslip::with(['employee', 'payrollRun'])->find($request->query('payslip'));
+            $candidate = Payslip::with(['employee', 'payrollRun', 'lines'])->find($request->query('payslip'));
             if ($candidate) {
                 $ownIt = $employee && $candidate->employee_id === $employee->id;
                 $visible = $privileged || ($ownIt && $candidate->payrollRun?->status === 'finalized');
@@ -387,6 +388,7 @@ trait BuildsWorkData
                 'runs' => collect(),
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
+                'payrollItems' => collect(),
             ];
         }
 
@@ -404,6 +406,7 @@ trait BuildsWorkData
             'openingYear' => (int) now()->year,
             'openingEmployees' => Employee::active()->orderBy('name')->get(),
             'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
+            'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
         ];
     }
 }

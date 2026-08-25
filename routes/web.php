@@ -477,6 +477,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs/{run}/approve', [PayrollController::class, 'approveRun'])->name('payroll.runs.approve');
             Route::post('/app/payroll/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->name('payroll.runs.finalize');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
+            Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
+            Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });
 
         // GET endpoints — before the catch-all so they aren't swallowed by /app/{screen?}.
