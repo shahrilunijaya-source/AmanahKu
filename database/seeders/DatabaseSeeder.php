@@ -35,6 +35,7 @@ use App\Models\TrainingRecord;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkSite;
+use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
 use App\Support\Permissions;
 use Illuminate\Database\Seeder;
@@ -537,7 +538,7 @@ class DatabaseSeeder extends Seeder
             'Hafiz Zulkifli' => [5800, [['Transport', 300]], 240, 6, 0],
         ];
 
-        $calculator = new PayrollCalculator;
+        $calculator = new PayrollCalculator(new EpfCalculator);
         $rates = StatutoryRate::defaults();
         $banks = ['Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank'];
 

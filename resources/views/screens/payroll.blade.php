@@ -328,6 +328,36 @@
                                     <input name="socso_no" value="{{ $s?->socso_no }}" placeholder="SOCSO / PERKESO no" :placeholder="$store.ui.lang==='en' ? 'SOCSO / PERKESO no' : 'No SOCSO / PERKESO'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                     <input name="nric" value="{{ $s?->nric }}" placeholder="NRIC" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
                                 </div>
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--hairline-soft);" x-text="$store.ui.lang==='en' ? 'Statutory profile' : 'Profil berkanun'">Statutory profile</div>
+                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
+                                    <div>
+                                        <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Nationality' : 'Kewarganegaraan'">Nationality</label>
+                                        <select name="nationality" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;">
+                                            @foreach (['citizen' => ['Citizen', 'Warganegara'], 'pr' => ['Permanent resident', 'Penduduk tetap'], 'foreign' => ['Foreign worker', 'Pekerja asing']] as $val => $lbl)
+                                                <option value="{{ $val }}" @selected(($s?->nationality ?? 'citizen') === $val) x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Marital status' : 'Status perkahwinan'">Marital status</label>
+                                        <select name="marital_status" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;">
+                                            @foreach (['single' => ['Single', 'Bujang'], 'married' => ['Married', 'Berkahwin'], 'widowed' => ['Widowed', 'Balu/Duda']] as $val => $lbl)
+                                                <option value="{{ $val }}" @selected(($s?->marital_status ?? 'single') === $val) x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <input name="tax_no" value="{{ $s?->tax_no }}" placeholder="LHDN tax reference no" :placeholder="$store.ui.lang==='en' ? 'LHDN tax reference no' : 'No rujukan cukai LHDN'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'EPF employee rate override %' : 'Kadar caruman pekerja EPF %'">EPF employee rate override %</label><input name="epf_employee_rate_override" type="number" step="0.01" min="0" max="100" value="{{ $s?->epf_employee_rate_override }}" placeholder="—" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Children relief count' : 'Bilangan anak (pelepasan)'">Children relief count</label><input name="children_relief_count" type="number" step="1" min="0" max="20" value="{{ $s?->children_relief_count ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Zakat (RM / month)' : 'Zakat (RM / bulan)'">Zakat (RM / month)</label><input name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $s?->zakat_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'CP38 instalment (RM / month)' : 'Ansuran CP38 (RM / bulan)'">CP38 instalment (RM / month)</label><input name="cp38_monthly" type="number" step="0.01" min="0" value="{{ $s?->cp38_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;">
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="epf_opt_in_60plus" value="1" @checked($s?->epf_opt_in_60plus) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'EPF opt-in (60+)' : 'Pilih masuk EPF (60+)'">EPF opt-in (60+)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="spouse_working" value="1" @checked($s?->spouse_working) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Spouse working' : 'Pasangan bekerja'">Spouse working</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="disabled_self" value="1" @checked($s?->disabled_self) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (self)' : 'OKU (diri sendiri)'">Disabled (self)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="disabled_spouse" value="1" @checked($s?->disabled_spouse) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (spouse)' : 'OKU (pasangan)'">Disabled (spouse)</span></label>
+                                </div>
                                 <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save structure' : 'Simpan struktur'">Save structure</button><button type="button" @click="salaryFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
                             </form>
                         </div>
@@ -345,25 +375,19 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
                     <span x-show="$store.ui.lang==='en'">SOCSO &amp; EIS now use the PERKESO <strong>stepped bracket schedule</strong> (effective {{ $brackets::SCHEDULE_EFFECTIVE }}), split by contribution category from each employee's date of birth (≥60 → SOCSO Category 2, no EIS). The percentage fields below are the <strong>fallback</strong> only — used if bracket mode is cleared.
                         @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Bracket amounts are PLACEHOLDER (generated, not the official figures) — transcribe the official PERKESO Jadual Caruman before any real statutory filing.</strong>@endif
-                        EPF is an exact percentage. <strong>Verify against the official KWSP / PERKESO tables before running real payroll.</strong></span>
+                        EPF now follows the fixed KWSP Third Schedule and is not editable here. <strong>Verify against the official KWSP / PERKESO tables before running real payroll.</strong></span>
                     <span x-show="$store.ui.lang==='ms'" x-cloak>SOCSO &amp; EIS kini guna <strong>jadual bracket berperingkat</strong> PERKESO (berkuat kuasa {{ $brackets::SCHEDULE_EFFECTIVE }}), dibahagi mengikut kategori caruman daripada tarikh lahir setiap pekerja (≥60 → SOCSO Kategori 2, tiada EIS). Medan peratus di bawah ialah <strong>sandaran</strong> sahaja — digunakan jika mod bracket dikosongkan.
                         @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Amaun bracket ialah PLACEHOLDER (dijana, bukan angka rasmi) — salin Jadual Caruman PERKESO rasmi sebelum sebarang pemfailan berkanun sebenar.</strong>@endif
-                        EPF ialah peratusan tepat. <strong>Sahkan dengan jadual KWSP / PERKESO rasmi sebelum menjalankan payroll sebenar.</strong></span>
+                        EPF kini mengikut Jadual Ketiga KWSP yang tetap dan tidak boleh disunting di sini. <strong>Sahkan dengan jadual KWSP / PERKESO rasmi sebelum menjalankan payroll sebenar.</strong></span>
                 </div>
                 <form method="post" action="{{ route('payroll.rates') }}">
                     @csrf
                     <div style="margin-bottom:18px;">
                         <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EPF (KWSP)</div>
-                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-                            @foreach ([
-                                ['epf_employee_pct', 'Employee %', 'Pekerja %', $rates['epf']['employee_pct']],
-                                ['epf_employer_pct_below', 'Employer % (≤ threshold)', 'Majikan % (≤ ambang)', $rates['epf']['employer_pct_below']],
-                                ['epf_employer_pct_above', 'Employer % (> threshold)', 'Majikan % (> ambang)', $rates['epf']['employer_pct_above']],
-                                ['epf_threshold', 'Threshold (RM)', 'Ambang (RM)', $rates['epf']['threshold']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" />@error($f[0])<div style="font-size:10.5px;color:var(--error);margin-top:3px;">{{ $message }}</div>@enderror</div>
-                            @endforeach
-                        </div>
+                        @include('partials.hint', [
+                            'en' => 'EPF now follows the KWSP Third Schedule effective 1 October 2025 — a fixed ringgit amount per wage band, not a percentage. It is not editable here.',
+                            'ms' => 'EPF kini mengikut Jadual Ketiga KWSP berkuat kuasa 1 Oktober 2025 — jumlah ringgit tetap mengikut jalur gaji, bukan peratusan. Ia tidak boleh disunting di sini.',
+                        ])
                     </div>
                     <div style="margin-bottom:18px;">
                         <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">SOCSO (PERKESO)</div>

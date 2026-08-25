@@ -13,6 +13,7 @@ use App\Models\Payslip;
 use App\Models\SalaryStructure;
 use App\Models\StatutoryRate;
 use App\Services\FeatureManager;
+use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\PcbCalculator;
 use App\Tenancy\CurrentTenant;
@@ -31,6 +32,7 @@ class PayrollController extends Controller
     public function __construct(
         private readonly PayrollCalculator $calculator,
         private readonly PcbCalculator $pcb,
+        private readonly EpfCalculator $epf,
     ) {}
 
     // ── Salary structures ─────────────────────────────────────────
@@ -53,6 +55,17 @@ class PayrollController extends Controller
             'alw_name.*' => ['nullable', 'string', 'max:60'],
             'alw_amount' => ['array'],
             'alw_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
+            'epf_opt_in_60plus' => ['boolean'],
+            'epf_employee_rate_override' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_no' => ['nullable', 'string', 'max:40'],
+            'marital_status' => ['nullable', Rule::in(['single', 'married', 'widowed'])],
+            'spouse_working' => ['boolean'],
+            'children_relief_count' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'disabled_self' => ['boolean'],
+            'disabled_spouse' => ['boolean'],
+            'zakat_monthly' => ['nullable', 'numeric', 'min:0'],
+            'cp38_monthly' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         SalaryStructure::updateOrCreate(
@@ -66,6 +79,17 @@ class PayrollController extends Controller
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,
                 'nric' => $data['nric'] ?? null,
+                'nationality' => $data['nationality'] ?? 'citizen',
+                'epf_opt_in_60plus' => $request->boolean('epf_opt_in_60plus'),
+                'epf_employee_rate_override' => $data['epf_employee_rate_override'] ?? null,
+                'tax_no' => $data['tax_no'] ?? null,
+                'marital_status' => $data['marital_status'] ?? 'single',
+                'spouse_working' => $request->boolean('spouse_working'),
+                'children_relief_count' => $data['children_relief_count'] ?? 0,
+                'disabled_self' => $request->boolean('disabled_self'),
+                'disabled_spouse' => $request->boolean('disabled_spouse'),
+                'zakat_monthly' => $data['zakat_monthly'] ?? 0,
+                'cp38_monthly' => $data['cp38_monthly'] ?? 0,
             ],
         );
 
@@ -83,10 +107,6 @@ class PayrollController extends Controller
         $tid = app(CurrentTenant::class)->id();
 
         $data = $request->validate([
-            'epf_employee_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'epf_employer_pct_below' => ['required', 'numeric', 'min:0', 'max:100'],
-            'epf_employer_pct_above' => ['required', 'numeric', 'min:0', 'max:100'],
-            'epf_threshold' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'socso_employer_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'socso_employee_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'socso_ceiling' => ['required', 'numeric', 'min:0', 'max:1000000'],
@@ -98,12 +118,6 @@ class PayrollController extends Controller
         ]);
 
         $configs = [
-            'epf' => [
-                'employee_pct' => (float) $data['epf_employee_pct'],
-                'employer_pct_below' => (float) $data['epf_employer_pct_below'],
-                'employer_pct_above' => (float) $data['epf_employer_pct_above'],
-                'threshold' => (float) $data['epf_threshold'],
-            ],
             'socso' => [
                 'employer_pct' => (float) $data['socso_employer_pct'],
                 'employee_pct' => (float) $data['socso_employee_pct'],
@@ -184,11 +198,15 @@ class PayrollController extends Controller
                     ->whereNotIn('id', $usedClaimIds)
                     ->lockForUpdate()->get();
 
+                $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
                 $inputs = [
                     'basic' => $structure->basic_salary,
                     'allowances_total' => $structure->allowancesTotal(),
                     'claims_reimbursement' => $claims->sum('amount'),
                     'statutory_category' => $employee->statutoryCategory($periodEnd),
+                    // electedBefore1998 has no column — no tenant has data going back that far,
+                    // so every non-citizen falls under mandatory Part F.
+                    'epf_part' => $this->epf->part($structure->nationality ?? 'citizen', $age, false),
                 ];
                 $comp = $this->calculator->compute($inputs, $rates);
 
@@ -246,6 +264,7 @@ class PayrollController extends Controller
         // Basic, allowances and claims reimbursement stay as generated; only variable
         // inputs are editable here. Recompute the full payslip from those.
         $periodEnd = Carbon::createFromFormat('Y-m', $payslip->payrollRun->period)->endOfMonth();
+        $age = $payslip->employee->date_of_birth === null ? null : (int) $payslip->employee->date_of_birth->diffInYears($periodEnd);
         $comp = $this->calculator->compute([
             'basic' => $payslip->basic,
             'allowances_total' => $payslip->allowances_total,
@@ -257,6 +276,8 @@ class PayrollController extends Controller
             'additions' => $this->zipLines($request->input('add_name', []), $request->input('add_amount', [])),
             'other_deductions' => $this->zipLines($request->input('ded_name', []), $request->input('ded_amount', [])),
             'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
+            // electedBefore1998 has no column — see the same note in createRun().
+            'epf_part' => $this->epf->part($payslip->employee->salaryStructure?->nationality ?? 'citizen', $age, false),
         ], $this->ratesWithFeatures());
 
         // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement linkage
@@ -341,7 +362,7 @@ class PayrollController extends Controller
      *  - payroll.statutory_mode (enum)  → flat|brackets toggles SOCSO/EIS use_brackets.
      * Defaults (auto_pcb off, mode brackets) leave the computed values unchanged.
      *
-     * @return array{epf: array<string, mixed>, socso: array<string, mixed>, eis: array<string, mixed>, pcb: array<string, mixed>}
+     * @return array{socso: array<string, mixed>, eis: array<string, mixed>, pcb: array<string, mixed>}
      */
     private function ratesWithFeatures(): array
     {

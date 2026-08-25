@@ -26,6 +26,17 @@ class SalaryStructure extends Model
         'epf_no',
         'socso_no',
         'nric',
+        'nationality',
+        'epf_opt_in_60plus',
+        'epf_employee_rate_override',
+        'tax_no',
+        'marital_status',
+        'spouse_working',
+        'children_relief_count',
+        'disabled_self',
+        'disabled_spouse',
+        'zakat_monthly',
+        'cp38_monthly',
     ];
 
     protected function casts(): array
@@ -35,6 +46,14 @@ class SalaryStructure extends Model
             'allowances' => 'array',
             'effective_from' => 'date',
             'nric' => 'encrypted',   // PII at rest (I-018); statutory reports decrypt on read
+            'epf_opt_in_60plus' => 'boolean',
+            'epf_employee_rate_override' => 'float',
+            'spouse_working' => 'boolean',
+            'children_relief_count' => 'integer',
+            'disabled_self' => 'boolean',
+            'disabled_spouse' => 'boolean',
+            'zakat_monthly' => 'float',
+            'cp38_monthly' => 'float',
         ];
     }
 

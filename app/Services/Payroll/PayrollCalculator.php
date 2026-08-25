@@ -8,11 +8,13 @@ namespace App\Services\Payroll;
  * Pure payroll math — no DB, no framework. Given an employee's pay inputs and the
  * active statutory rate tables, produces a fully-costed PayslipComputation.
  *
- * Statutory model: EPF is a percentage of gross (no ceiling). SOCSO/EIS use the PERKESO
- * stepped bracket tables (StatutoryBrackets) when `use_brackets` is set on their rate
- * config — looked up by the employee's contribution category (1 = <60, 2 = ≥60). When
- * `use_brackets` is absent/false the legacy flat-percentage-on-capped-wage path is used
- * (kept for tenants that override to a flat rate, and an approximation flagged in ISSUES).
+ * Statutory model: EPF follows the KWSP Third Schedule (EpfCalculator) — a fixed
+ * ringgit amount per wage band below RM20,000, not a percentage. SOCSO/EIS use the
+ * PERKESO stepped bracket tables (StatutoryBrackets) when `use_brackets` is set on
+ * their rate config — looked up by the employee's contribution category (1 = <60,
+ * 2 = ≥60). When `use_brackets` is absent/false the legacy flat-percentage-on-capped-wage
+ * path is used (kept for tenants that override to a flat rate, and an approximation
+ * flagged in ISSUES).
  */
 class PayrollCalculator
 {
@@ -22,6 +24,8 @@ class PayrollCalculator
     public const WORKING_HOURS_PER_DAY = 8;
 
     public const OVERTIME_MULTIPLIER = 1.5;
+
+    public function __construct(private readonly EpfCalculator $epf) {}
 
     /**
      * @param  array{
@@ -35,8 +39,9 @@ class PayrollCalculator
      *     other_deductions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     claims_reimbursement?: float|int|string,
      *     statutory_category?: int,
+     *     epf_part?: string|null,
      *  }  $inputs
-     * @param  array{epf: array<string, mixed>, socso: array<string, mixed>, eis: array<string, mixed>}  $rates
+     * @param  array{socso: array<string, mixed>, eis: array<string, mixed>}  $rates
      */
     public function compute(array $inputs, array $rates): PayslipComputation
     {
@@ -65,13 +70,19 @@ class PayrollCalculator
         $gross = round(max(0.0, $basic + $allowancesTotal + $overtimeAmount + $bonus + $additionsTotal - $unpaidDeduction), 2);
         $statWage = $gross;
 
-        // EPF — employer rate steps down above the threshold; no wage ceiling.
-        $epf = $rates['epf'];
-        $epfEmployee = round($statWage * (float) $epf['employee_pct'] / 100, 2);
-        $employerPct = $statWage <= (float) $epf['threshold']
-            ? (float) $epf['employer_pct_below']
-            : (float) $epf['employer_pct_above'];
-        $epfEmployer = round($statWage * $employerPct / 100, 2);
+        // EPF — KWSP Third Schedule wage bands (EpfCalculator), not a flat percentage.
+        // Callers that don't pass epf_part (e.g. older code paths) default to Part A —
+        // the common case (citizen/PR under 60) — rather than silently contributing nothing.
+        //
+        // "Wages" under s.2 of the EPF Act 1991 EXCLUDES overtime, so EPF is charged on the
+        // month's pay less the overtime amount. Bonus and commission are wages and stay in.
+        // Free-form allowance and addition lines are treated as wages (the safe default)
+        // until the pay-item catalogue can flag each line's statutory treatment.
+        $epfPart = $inputs['epf_part'] ?? 'A';
+        $epfWage = round(max(0.0, $statWage - $overtimeAmount), 2);
+        $epfContribution = $this->epf->contribution($epfWage, $epfPart);
+        $epfEmployee = $epfContribution['employee'];
+        $epfEmployer = $epfContribution['employer'];
 
         // SOCSO + EIS — official PERKESO stepped brackets when enabled, else flat-% fallback.
         $socso = $rates['socso'];

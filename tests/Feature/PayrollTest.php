@@ -106,6 +106,17 @@ class PayrollTest extends TestCase
         $this->assertGreaterThan(0.0, (float) $slip1->socso_employee);
     }
 
+    public function test_foreign_nationality_gets_epf_part_f_flat_two_percent(): void
+    {
+        SalaryStructure::where('employee_id', $this->emp2->id)->update(['nationality' => 'foreign']);
+        $run = $this->createRun();
+
+        $slip = $run->payslips()->where('employee_id', $this->emp2->id)->firstOrFail();
+        // emp2 basic 3000, Part F has no wage bands — flat 2% each side.
+        $this->assertEqualsWithDelta(60.0, (float) $slip->epf_employee, 0.001);
+        $this->assertEqualsWithDelta(60.0, (float) $slip->epf_employer, 0.001);
+    }
+
     public function test_missing_dob_is_flagged_on_the_run(): void
     {
         // Neither seeded employee has a DOB → both treated as Category 1, count surfaced.
@@ -244,6 +255,46 @@ class PayrollTest extends TestCase
         $this->actingHr()->post('/app/payroll/salary', ['employee_id' => $this->emp1->id])->assertSessionHasErrors('basic_salary');
     }
 
+    public function test_privileged_user_saves_the_statutory_profile(): void
+    {
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Newbie', 'status' => 'active', 'workload' => 'green']);
+
+        $this->actingHr()->post('/app/payroll/salary', [
+            'employee_id' => $emp3->id, 'basic_salary' => 4200,
+            'nationality' => 'pr',
+            'epf_opt_in_60plus' => '1',
+            'epf_employee_rate_override' => 12.5,
+            'tax_no' => 'SG1234567890',
+            'marital_status' => 'married',
+            'spouse_working' => '1',
+            'children_relief_count' => 3,
+            'disabled_self' => '1',
+            'disabled_spouse' => '1',
+            'zakat_monthly' => 150.50,
+            'cp38_monthly' => 75.25,
+        ])->assertRedirect();
+
+        $structure = SalaryStructure::where('employee_id', $emp3->id)->firstOrFail();
+        $this->assertSame('pr', $structure->nationality);
+        $this->assertTrue($structure->epf_opt_in_60plus);
+        $this->assertEqualsWithDelta(12.5, (float) $structure->epf_employee_rate_override, 0.001);
+        $this->assertSame('SG1234567890', $structure->tax_no);
+        $this->assertSame('married', $structure->marital_status);
+        $this->assertTrue($structure->spouse_working);
+        $this->assertSame(3, $structure->children_relief_count);
+        $this->assertTrue($structure->disabled_self);
+        $this->assertTrue($structure->disabled_spouse);
+        $this->assertEqualsWithDelta(150.50, (float) $structure->zakat_monthly, 0.001);
+        $this->assertEqualsWithDelta(75.25, (float) $structure->cp38_monthly, 0.001);
+    }
+
+    public function test_invalid_nationality_is_rejected(): void
+    {
+        $this->actingHr()->post('/app/payroll/salary', [
+            'employee_id' => $this->emp1->id, 'basic_salary' => 4200, 'nationality' => 'martian',
+        ])->assertSessionHasErrors('nationality');
+    }
+
     public function test_employee_cannot_set_a_salary_structure(): void
     {
         $this->actingEmployee()->post('/app/payroll/salary', ['employee_id' => $this->emp2->id, 'basic_salary' => 9999])->assertForbidden();
@@ -252,19 +303,17 @@ class PayrollTest extends TestCase
     public function test_privileged_user_updates_statutory_rates(): void
     {
         $this->actingHr()->post('/app/payroll/rates', [
-            'epf_employee_pct' => 9, 'epf_employer_pct_below' => 13, 'epf_employer_pct_above' => 12, 'epf_threshold' => 5000,
             'socso_employer_pct' => 1.75, 'socso_employee_pct' => 0.5, 'socso_ceiling' => 6000,
             'eis_employer_pct' => 0.2, 'eis_employee_pct' => 0.2, 'eis_ceiling' => 6000,
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('statutory_rates', ['tenant_id' => $this->tenant->id, 'type' => 'epf']);
-        $this->assertEqualsWithDelta(9.0, (float) StatutoryRate::where('type', 'epf')->first()->config['employee_pct'], 0.001);
+        $this->assertDatabaseHas('statutory_rates', ['tenant_id' => $this->tenant->id, 'type' => 'socso']);
+        $this->assertEqualsWithDelta(6000.0, (float) StatutoryRate::where('type', 'socso')->first()->config['wage_ceiling'], 0.001);
     }
 
     public function test_employee_cannot_update_statutory_rates(): void
     {
         $this->actingEmployee()->post('/app/payroll/rates', [
-            'epf_employee_pct' => 0, 'epf_employer_pct_below' => 0, 'epf_employer_pct_above' => 0, 'epf_threshold' => 0,
             'socso_employer_pct' => 0, 'socso_employee_pct' => 0, 'socso_ceiling' => 0,
             'eis_employer_pct' => 0, 'eis_employee_pct' => 0, 'eis_ceiling' => 0,
         ])->assertForbidden();
@@ -365,7 +414,6 @@ class PayrollTest extends TestCase
     private function enableAutoPcb(): void
     {
         $this->actingHr()->post('/app/payroll/rates', [
-            'epf_employee_pct' => 11, 'epf_employer_pct_below' => 13, 'epf_employer_pct_above' => 12, 'epf_threshold' => 5000,
             'socso_employer_pct' => 1.75, 'socso_employee_pct' => 0.5, 'socso_ceiling' => 6000,
             'eis_employer_pct' => 0.2, 'eis_employee_pct' => 0.2, 'eis_ceiling' => 6000,
             'pcb_auto' => 1, 'pcb_individual_relief' => 9000, 'pcb_epf_relief_cap' => 4000,

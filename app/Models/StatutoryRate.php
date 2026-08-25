@@ -32,8 +32,9 @@ class StatutoryRate extends Model
 
     /**
      * Active rate config for the current tenant: stored values layered over the
-     * published defaults, keyed by type (epf|socso|eis). Single source of truth for
-     * both the calculator and the rate-config UI.
+     * published defaults, keyed by type (socso|eis|pcb). EPF is not here — it follows
+     * the fixed KWSP Third Schedule (EpfCalculator) and is not tenant-editable. Single
+     * source of truth for both the calculator and the rate-config UI.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -57,12 +58,6 @@ class StatutoryRate extends Model
     public static function defaults(): array
     {
         return [
-            'epf' => [
-                'employee_pct' => 11,
-                'employer_pct_below' => 13,   // wage <= threshold
-                'employer_pct_above' => 12,   // wage > threshold
-                'threshold' => 5000,
-            ],
             'socso' => [
                 'employer_pct' => 1.75,   // flat-% fallback (used only if use_brackets is cleared)
                 'employee_pct' => 0.5,

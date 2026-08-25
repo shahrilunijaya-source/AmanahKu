@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\StatutoryBrackets;
 use PHPUnit\Framework\TestCase;
@@ -12,9 +13,8 @@ class PayrollCalculatorTest extends TestCase
 {
     private PayrollCalculator $calc;
 
-    /** Current published MY defaults — mirrors StatutoryRate::defaults(). */
+    /** Current published MY defaults — mirrors StatutoryRate::defaults(). EPF is not here — it's the fixed KWSP Third Schedule (EpfCalculator), not a rate config. */
     private array $rates = [
-        'epf' => ['employee_pct' => 11, 'employer_pct_below' => 13, 'employer_pct_above' => 12, 'threshold' => 5000],
         'socso' => ['employer_pct' => 1.75, 'employee_pct' => 0.5, 'wage_ceiling' => 6000],
         'eis' => ['employer_pct' => 0.2, 'employee_pct' => 0.2, 'wage_ceiling' => 6000],
     ];
@@ -22,21 +22,38 @@ class PayrollCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calc = new PayrollCalculator;
+        $this->calc = new PayrollCalculator(new EpfCalculator);
     }
 
     public function test_epf_employer_rate_steps_down_above_threshold(): void
     {
-        // Wage above RM5,000 → employer 12%.
+        // Wage above RM5,000 → employer 12% of the RM100 band ceiling (11,550 → band 11,600).
         $high = $this->calc->compute(['basic' => 11000, 'allowances_total' => 550], $this->rates);
         $this->assertSame(11550.0, $high->gross);
-        $this->assertSame(1270.50, $high->epfEmployee);   // 11%
-        $this->assertSame(1386.00, $high->epfEmployer);   // 12% (> threshold)
+        $this->assertSame(1276.00, $high->epfEmployee);   // 11% of 11,600
+        $this->assertSame(1392.00, $high->epfEmployer);   // 12% of 11,600 (> threshold)
 
-        // Wage at/below RM5,000 → employer 13%.
+        // Wage at/below RM5,000 → employer 13% (4,000 is exactly on a band boundary).
         $low = $this->calc->compute(['basic' => 4000], $this->rates);
         $this->assertSame(440.00, $low->epfEmployee);     // 11%
         $this->assertSame(520.00, $low->epfEmployer);     // 13% (<= threshold)
+    }
+
+    public function test_epf_third_schedule_band_for_a_3000_wage(): void
+    {
+        // Third Schedule Part A, band 2,980.01–3,000.00 (verified against the fixture CSV).
+        $c = $this->calc->compute(['basic' => 3000], $this->rates);
+        $this->assertSame(330.00, $c->epfEmployee);
+        $this->assertSame(390.00, $c->epfEmployer);
+    }
+
+    public function test_epf_third_schedule_band_for_a_4010_wage(): void
+    {
+        // Third Schedule Part A, band 4,000.01–4,020.00: 11%/13% of the 4,020 band ceiling,
+        // rounded up. The fixture gives 443/523 here — not 444/525.
+        $c = $this->calc->compute(['basic' => 4010], $this->rates);
+        $this->assertSame(443.00, $c->epfEmployee);
+        $this->assertSame(523.00, $c->epfEmployer);
     }
 
     public function test_socso_and_eis_are_capped_at_wage_ceiling(): void
@@ -55,6 +72,31 @@ class PayrollCalculatorTest extends TestCase
         $c = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10], $this->rates);
         $this->assertSame(375.00, $c->overtimeAmount);
         $this->assertSame(5575.00, $c->gross);
+    }
+
+    /** s.2 EPF Act 1991: overtime is not "wages", so it must not raise the EPF contribution. */
+    public function test_epf_ignores_overtime_but_socso_does_not(): void
+    {
+        $withoutOvertime = $this->calc->compute(['basic' => 5200], $this->rates);
+        $withOvertime = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10], $this->rates);
+
+        $this->assertSame(5575.00, $withOvertime->gross, 'Overtime still counts towards gross pay.');
+        $this->assertSame($withoutOvertime->epfEmployee, $withOvertime->epfEmployee);
+        $this->assertSame($withoutOvertime->epfEmployer, $withOvertime->epfEmployer);
+        $this->assertSame(572.00, $withOvertime->epfEmployee);   // 11% of the RM5,200 band, not of RM5,575
+        $this->assertSame(624.00, $withOvertime->epfEmployer);   // 12% of RM5,200 (above the RM5,000 step)
+
+        // SOCSO/EIS wages do include overtime, so those move with the higher gross.
+        $this->assertGreaterThan($withoutOvertime->socsoEmployer, $withOvertime->socsoEmployer);
+    }
+
+    /** Bonus IS wages for EPF — it must raise the contribution, unlike overtime. */
+    public function test_epf_includes_bonus(): void
+    {
+        $c = $this->calc->compute(['basic' => 3000, 'bonus' => 1000], $this->rates);
+        $this->assertSame(4000.00, $c->gross);
+        $this->assertSame(440.00, $c->epfEmployee);   // 11% of RM4,000, not of RM3,000
+        $this->assertSame(520.00, $c->epfEmployer);
     }
 
     public function test_unpaid_leave_prorates_against_daily_rate(): void
@@ -129,7 +171,6 @@ class PayrollCalculatorTest extends TestCase
 
     /** Same rates as $rates but with SOCSO/EIS in bracket mode. */
     private array $bracketRates = [
-        'epf' => ['employee_pct' => 11, 'employer_pct_below' => 13, 'employer_pct_above' => 12, 'threshold' => 5000],
         'socso' => ['employer_pct' => 1.75, 'employee_pct' => 0.5, 'wage_ceiling' => 6000, 'use_brackets' => true],
         'eis' => ['employer_pct' => 0.2, 'employee_pct' => 0.2, 'wage_ceiling' => 6000, 'use_brackets' => true],
     ];
