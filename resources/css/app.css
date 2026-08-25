@@ -3523,8 +3523,10 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .ext-mention{color:var(--info);font-weight:600;}
 .ext-mention[data-me]{color:var(--red);background:var(--red-tint);border-radius:5px;padding:0 4px;}
 /* The registration link is the one thing an invite exists for: centred on its own
-   line rather than left-hugging the description above it. */
-.ext-reg{display:block;width:fit-content;margin:0 auto;text-decoration:none;}
+   line rather than left-hugging the description above it. It is an <a>, not a
+   <button>, so .tot-btn-p's fixed 38px height does not centre the label by itself
+   the way a button's own layout does — flex puts it back in the middle. */
+.ext-reg{display:flex;align-items:center;justify-content:center;width:fit-content;margin:0 auto;text-decoration:none;}
 /* Mention autocomplete, anchored under the description box (not at the caret —
    a caret-tracked menu buys nothing here and costs a day). */
 .ext-mention-menu{position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:200px;overflow-y:auto;}
