@@ -24,6 +24,7 @@ class LeaveRequest extends Model
         return [
             'date_from' => 'date', 'date_to' => 'date', 'days' => 'float',
             'verified_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime',
+            'paid_at' => 'datetime',
         ];
     }
 

@@ -62,7 +62,6 @@
             {{-- Earnings --}}
             <div style="flex:1;min-width:300px;padding:22px 26px;border-right:1px solid var(--hairline-soft);">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;" x-text="$store.ui.lang==='en' ? 'Earnings' : 'Pendapatan'">Earnings</div>
-                @php $otSuffix = $p->overtime_hours > 0 ? ' ('.rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.').'h)' : ''; @endphp
                 @foreach ([
                     ['Basic salary', 'Gaji pokok', $p->basic],
                 ] as $line)
@@ -79,16 +78,40 @@
                         <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Allowances' : 'Elaun'">Allowances</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->allowances_total) }}</span></div>
                     @endif
                 @endforelse
-                @foreach ([
-                    ['Overtime'.$otSuffix, 'Kerja lebih masa'.$otSuffix, $p->overtime_amount],
-                    ['Bonus / one-off', 'Bonus / sekali', $p->bonus],
-                ] as $line)
-                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line[2]) }}</span></div>
-                @endforeach
-                {{-- Free-form additions: itemised lines when this payslip has them (source: manual, since this feature pass), else the legacy JSON column for older payslips. --}}
-                @php $additionLines = $p->lines->where('type', 'earning')->where('source', 'manual'); @endphp
-                @forelse ($additionLines as $line)
-                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                {{-- Overtime: one line per rate multiplier (e.g. "Overtime 1.5×" and
+                     "Overtime 3×" as separate lines) so a pull mixing an ordinary and a
+                     public-holiday request is never flattened into one ambiguous figure —
+                     the total below is just their sum. Legacy payslips predating this
+                     breakdown fall back to the single lumped overtime_amount column. --}}
+                @php $overtimeLines = $p->lines->where('source', 'overtime'); @endphp
+                @forelse ($overtimeLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->quantity) <span style="color:var(--muted);font-weight:400;"> ({{ rtrim(rtrim(number_format($line->quantity, 2), '0'), '.') }}h)</span>@endif</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                @empty
+                    @if ($p->overtime_amount > 0)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Overtime' : 'Kerja lebih masa'">Overtime</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->overtime_amount) }}</span></div>
+                    @endif
+                @endforelse
+                <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Bonus / one-off' : 'Bonus / sekali'">Bonus / one-off</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->bonus) }}</span></div>
+                {{-- Where the overtime figure came from: pulled from approved OvertimeRequests
+                     (count + hours, per rate — see the lines above), or typed by HR. --}}
+                @if ($p->overtime_amount > 0 || ($p->overtime_request_ids ?? null))
+                    @php $otCount = count($p->overtime_request_ids ?? []); @endphp
+                    <div style="font-size:11px;color:var(--muted);padding:0 0 4px;">
+                        @if ($p->overtime_overridden)
+                            <span x-text="$store.ui.lang==='en' ? 'Entered by hand — overrides the pulled figure' : 'Dimasukkan secara manual — menindih angka yang ditarik'">Entered by hand — overrides the pulled figure</span>
+                            @if ($otCount > 0)
+                                <span x-text="$store.ui.lang==='en' ? @js(' ('.$otCount.' approved OT request(s), '.number_format($p->pulled_overtime_hours, 2).' hrs pulled but not used)') : @js(' ('.$otCount.' permintaan OT diluluskan, '.number_format($p->pulled_overtime_hours, 2).' jam ditarik tetapi tidak digunakan)')"></span>
+                            @endif
+                        @elseif ($otCount > 0)
+                            <span x-text="$store.ui.lang==='en' ? @js($otCount.' approved OT request(s) · '.number_format($p->pulled_overtime_hours, 2).' hours pulled automatically') : @js($otCount.' permintaan OT diluluskan · '.number_format($p->pulled_overtime_hours, 2).' jam ditarik automatik')"></span>
+                        @endif
+                    </div>
+                @endif
+                {{-- Individual Transactions (earning side) and, for a payslip predating this
+                     feature, the legacy free-form additions JSON. --}}
+                @php $individualEarningLines = $p->lines->where('type', 'earning')->where('source', 'individual'); @endphp
+                @forelse ($individualEarningLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->remark) <span style="color:var(--muted);font-weight:400;">— {{ $line->remark }}</span>@endif</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
                 @empty
                     @foreach (($p->additions ?? []) as $add)
                         <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $add['name'] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($add['amount']) }}</span></div>
@@ -97,6 +120,16 @@
                 @if ($p->unpaid_deduction > 0)
                     @php $unpaidDays = rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.'); @endphp
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--error);"><span x-text="$store.ui.lang==='en' ? @js('Unpaid leave ('.$unpaidDays.' days)') : @js('Cuti tanpa gaji ('.$unpaidDays.' hari)')">Unpaid leave ({{ $unpaidDays }} days)</span><span style="font-family:var(--font-mono);">−{{ $money($p->unpaid_deduction) }}</span></div>
+                @endif
+                @if ($p->unpaid_deduction > 0 || ($p->unpaid_leave_request_ids ?? null))
+                    @php $leaveCount = count($p->unpaid_leave_request_ids ?? []); @endphp
+                    <div style="font-size:11px;color:var(--muted);padding:0 0 4px;">
+                        @if ($p->unpaid_days_overridden)
+                            <span x-text="$store.ui.lang==='en' ? 'Entered by hand — overrides the pulled figure' : 'Dimasukkan secara manual — menindih angka yang ditarik'">Entered by hand — overrides the pulled figure</span>
+                        @elseif ($leaveCount > 0)
+                            <span x-text="$store.ui.lang==='en' ? @js($leaveCount.' approved unpaid-leave request(s) pulled automatically') : @js($leaveCount.' permintaan cuti tanpa gaji diluluskan ditarik automatik')"></span>
+                        @endif
+                    </div>
                 @endif
                 <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--hairline);color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span><span style="font-family:var(--font-mono);">{{ $money($p->gross) }}</span></div>
             </div>
@@ -131,6 +164,10 @@
                         <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $ded['name'] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($ded['amount']) }}</span></div>
                     @endforeach
                 @endforelse
+                {{-- Individual Transactions (deduction side). --}}
+                @foreach ($p->lines->where('type', 'deduction')->where('source', 'individual') as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->remark) <span style="color:var(--muted);font-weight:400;">— {{ $line->remark }}</span>@endif</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
+                @endforeach
                 <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--hairline);color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Total deductions' : 'Jumlah potongan'">Total deductions</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($p->total_deductions) }}</span></div>
                 @if ($p->claims_reimbursement > 0)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:10px 0 0;color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Claims reimbursement' : 'Bayaran balik tuntutan'">Claims reimbursement</span><span style="font-family:var(--font-mono);">+{{ $money($p->claims_reimbursement) }}</span></div>
@@ -289,29 +326,42 @@
                                     <div x-show="editing === {{ $p->id }}" x-cloak style="padding:4px 22px 18px 64px;">
                                         <form method="post" action="{{ route('payroll.payslips.update', $p) }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
                                             @csrf
-                                            <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:12px;">
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Overtime (hrs)' : 'Kerja lebih masa (jam)'">Overtime (hrs)</label><input name="overtime_hours" type="number" step="0.5" min="0" value="{{ rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                            @php
+                                                $otPulled = rtrim(rtrim(number_format($p->pulled_overtime_hours, 2), '0'), '.') ?: '0';
+                                                $unpaidPulled = rtrim(rtrim(number_format($p->pulled_unpaid_days, 2), '0'), '.') ?: '0';
+                                            @endphp
+                                            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;margin-bottom:4px;">
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Overtime hours (override)' : 'Jam OT (tindihan)'">Overtime hours (override)</label><input name="overtime_hours" type="number" step="0.5" min="0" value="{{ $p->overtime_overridden ? rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.') : '' }}" placeholder="{{ $otPulled }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                {{-- Same unit as the pulled figure's per-rate lines above — hours here always need a
+                                                     multiplier alongside them, never a bare number that could be mistaken for one
+                                                     unit or the other. Offered as the three Employment Act minimums (1.5x normal
+                                                     day, 2x rest day, 3x public holiday) via the datalist, but not restricted to
+                                                     them — the day type isn't known here, and a company may pay above the minimum. --}}
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Multiplier (×)' : 'Gandaan (×)'">Multiplier (×)</label><input name="overtime_multiplier" type="number" step="0.1" min="1" list="ot-mult-{{ $p->id }}" value="{{ $p->overtime_overridden && $p->overtime_multiplier !== null ? rtrim(rtrim(number_format($p->overtime_multiplier, 2), '0'), '.') : '' }}" placeholder="1.5" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /><datalist id="ot-mult-{{ $p->id }}"><option value="1.5"></option><option value="2.0"></option><option value="3.0"></option></datalist></div>
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Bonus (RM)</label><input name="bonus" type="number" step="0.01" min="0" value="{{ $p->bonus > 0 ? number_format($p->bonus, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Unpaid days' : 'Hari tanpa gaji'">Unpaid days</label><input name="unpaid_days" type="number" step="0.5" min="0" max="31" value="{{ $p->unpaid_days > 0 ? rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.') : '' }}" placeholder="0" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Unpaid days override' : 'Tindihan hari tanpa gaji'">Unpaid days override</label><input name="unpaid_days" type="number" step="0.5" min="0" max="31" value="{{ $p->unpaid_days_overridden ? rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.') : '' }}" placeholder="{{ $unpaidPulled }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB override (RM)' : 'Tindihan PCB (RM)'">PCB override (RM)</label><input name="pcb_override" type="number" step="0.01" min="0" value="{{ $p->pcb_override !== null ? number_format($p->pcb_override, 2, '.', '') : '' }}" placeholder="{{ number_format($p->pcb, 2, '.', '') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                             </div>
-                                            @include('partials.hint', ['tone' => 'warn', 'en' => 'PCB (income tax) is computed automatically from the LHDN method and each employee\'s statutory profile — leave the override blank to use it. Filling in a figure here overrides the computed PCB and sticks until cleared. Unpaid days reduce pay; overtime and bonus add to it (bonus gets its own PCB figure).', 'ms' => 'PCB (cukai pendapatan) dikira automatik mengikut kaedah LHDN dan profil berkanun setiap pekerja — biarkan tindihan kosong untuk guna nilai itu. Mengisi angka di sini akan menindih PCB yang dikira dan kekal sehingga dikosongkan. Hari tanpa gaji kurangkan gaji; overtime dan bonus tambah pada gaji (bonus ada angka PCB tersendiri).'])
-                                            @php $adds = array_values($p->additions ?? []); $deds = array_values($p->other_deductions ?? []); @endphp
-                                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
-                                                <div>
-                                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Additions' : 'Tambahan'">Additions</div>
-                                                    @for ($i = 0; $i < 2; $i++)
-                                                        <div style="display:flex;gap:6px;margin-bottom:6px;"><input name="add_name[]" value="{{ $adds[$i]['name'] ?? '' }}" placeholder="e.g. Travel allowance" :placeholder="$store.ui.lang==='en' ? 'e.g. Travel allowance' : 'cth. Elaun perjalanan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="add_amount[]" type="number" step="0.01" min="0" value="{{ isset($adds[$i]) ? number_format($adds[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                                    @endfor
-                                                </div>
-                                                <div>
-                                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Other deductions' : 'Potongan lain'">Other deductions</div>
-                                                    @for ($i = 0; $i < 2; $i++)
-                                                        <div style="display:flex;gap:6px;margin-bottom:6px;"><input name="ded_name[]" value="{{ $deds[$i]['name'] ?? '' }}" placeholder="e.g. Salary advance" :placeholder="$store.ui.lang==='en' ? 'e.g. Salary advance' : 'cth. Pendahuluan gaji'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="ded_amount[]" type="number" step="0.01" min="0" value="{{ isset($deds[$i]) ? number_format($deds[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                                    @endfor
-                                                </div>
+                                            @include('partials.hint', ['en' => 'Overtime and unpaid days are pulled automatically from approved OvertimeRequests/unpaid LeaveRequests for this month (shown as the placeholder) — leave the override blank to use the pulled figure. Overtime is entered as hours plus the rate beside it (1.5× if left blank) — the same units the pulled lines show, so the two can never be confused. PCB (income tax) is computed automatically from the LHDN method — leave that override blank too, to use it. Any override sticks until cleared.', 'ms' => 'Overtime dan hari tanpa gaji ditarik automatik daripada OvertimeRequest/LeaveRequest tanpa gaji yang diluluskan bagi bulan ini (ditunjukkan sebagai placeholder) — biarkan tindihan kosong untuk guna angka yang ditarik. Overtime dimasukkan sebagai jam campur kadar di sebelahnya (1.5× jika kosong) — unit yang sama seperti baris yang ditarik, jadi kedua-duanya tidak boleh dikelirukan. PCB (cukai pendapatan) dikira automatik mengikut kaedah LHDN — biarkan tindihan itu kosong juga untuk guna nilai itu. Sebarang tindihan kekal sehingga dikosongkan.'])
+                                            @php $individualTxLines = $p->lines->where('source', 'individual')->values(); @endphp
+                                            <div style="margin-top:10px;">
+                                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Individual transactions (one-off)' : 'Transaksi individu (sekali sahaja)'">Individual transactions (one-off)</div>
+                                                @for ($i = 0; $i < max(2, $individualTxLines->count()); $i++)
+                                                    @php $existingTx = $individualTxLines->get($i); @endphp
+                                                    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+                                                        <select name="tx_item_id[]" style="flex:2;height:34px;padding:0 7px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;background:#fff;">
+                                                            <option value="" x-text="$store.ui.lang==='en' ? '— none —' : '— tiada —'">— none —</option>
+                                                            @foreach ($fixedTransactionItems as $item)
+                                                                <option value="{{ $item->id }}" @selected($existingTx?->payroll_item_id === $item->id)>{{ $item->name }} ({{ $item->type }})</option>
+                                                            @endforeach
+                                                        </select>
+                                                        <input name="tx_amount[]" type="number" step="0.01" min="0" value="{{ $existingTx ? number_format($existingTx->amount, 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                                                        <input name="tx_remark[]" value="{{ $existingTx?->remark }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+                                                    </div>
+                                                @endfor
+                                                @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula.'])
                                             </div>
-                                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Recalculate & save' : 'Kira semula & simpan'">Recalculate & save</button>
+                                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Recalculate & save' : 'Kira semula & simpan'">Recalculate & save</button>
                                             <button type="button" @click="editing = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
                                         </form>
                                     </div>

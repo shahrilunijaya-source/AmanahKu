@@ -74,6 +74,52 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(5575.00, $c->gross);
     }
 
+    /**
+     * A pull mixing a 1.5x and a 3.0x request must produce two independent groups, each
+     * multiplied by its own rate exactly once — never flattened into one "equivalent
+     * hours" total that risks getting multiplied a second time.
+     */
+    public function test_overtime_groups_are_multiplied_independently_and_not_flattened(): void
+    {
+        // hourly = 5200/26/8 = 25.00 ; 6h*25*1.5 = 225.00 ; 4h*25*3.0 = 300.00
+        $c = $this->calc->compute([
+            'basic' => 5200,
+            'overtime_groups' => [
+                ['hours' => 6, 'multiplier' => 1.5],
+                ['hours' => 4, 'multiplier' => 3.0],
+            ],
+        ]);
+
+        $this->assertSame(10.0, $c->overtimeHours);
+        $this->assertSame(525.00, $c->overtimeAmount);
+        $this->assertNotEqualsWithDelta(787.50, $c->overtimeAmount, 0.001, 'must not treat 10h as one blended rate');
+        $this->assertCount(2, $c->overtimeGroups);
+        $this->assertSame(6.0, $c->overtimeGroups[0]['hours']);
+        $this->assertSame(1.5, $c->overtimeGroups[0]['multiplier']);
+        $this->assertSame(225.00, $c->overtimeGroups[0]['amount']);
+        $this->assertSame(4.0, $c->overtimeGroups[1]['hours']);
+        $this->assertSame(3.0, $c->overtimeGroups[1]['multiplier']);
+        $this->assertSame(300.00, $c->overtimeGroups[1]['amount']);
+    }
+
+    /** An override of 12 raw hours at the default 1.5x pays exactly that — nothing else. */
+    public function test_overtime_override_at_default_multiplier_pays_exactly_hours_times_1_5(): void
+    {
+        // 12 * 25.00 * 1.5 = 450.00
+        $c = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 12]);
+        $this->assertSame(450.00, $c->overtimeAmount);
+    }
+
+    /** An override at an explicit 3.0x multiplier pays 3x, never the default 1.5x (nor a stacked 4.5x). */
+    public function test_overtime_override_at_explicit_multiplier_pays_that_rate_not_the_default(): void
+    {
+        // 12 * 25.00 * 3.0 = 900.00
+        $c = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 12, 'overtime_multiplier' => 3.0]);
+        $this->assertSame(900.00, $c->overtimeAmount);
+        $this->assertNotEqualsWithDelta(450.00, $c->overtimeAmount, 0.001);
+        $this->assertNotEqualsWithDelta(540.00, $c->overtimeAmount, 0.001, 'must not stack 3.0x on top of the 1.5x default');
+    }
+
     /** s.2 EPF Act 1991: overtime is not "wages", so it must not raise the EPF contribution. */
     public function test_epf_ignores_overtime_but_socso_does_not(): void
     {

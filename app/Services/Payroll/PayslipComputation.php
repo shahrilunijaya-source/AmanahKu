@@ -13,12 +13,14 @@ final readonly class PayslipComputation
     /**
      * @param  array<int, array{name: string, amount: float}>  $additions
      * @param  array<int, array{name: string, amount: float}>  $otherDeductions
+     * @param  array<int, array{hours: float, multiplier: float, amount: float}>  $overtimeGroups
      */
     public function __construct(
         public float $basic,
         public float $allowancesTotal,
         public float $overtimeHours,
         public float $overtimeAmount,
+        public array $overtimeGroups,
         public float $bonus,
         public array $additions,
         public float $additionsTotal,
@@ -66,6 +68,10 @@ final readonly class PayslipComputation
             'allowances_total' => $this->allowancesTotal,
             'overtime_hours' => $this->overtimeHours,
             'overtime_amount' => $this->overtimeAmount,
+            // Null when the pull mixed more than one rate — no single multiplier
+            // describes that payslip; the PayslipLine rows (one per rate) are the
+            // source of truth for the breakdown either way.
+            'overtime_multiplier' => count($this->overtimeGroups) === 1 ? $this->overtimeGroups[0]['multiplier'] : null,
             'bonus' => $this->bonus,
             'additions' => $this->additions ?: null,
             'unpaid_days' => $this->unpaidDays,

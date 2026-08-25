@@ -19,6 +19,7 @@ class LeaveType extends Model
             'entitlement' => 'float',
             'requires_attachment' => 'boolean',
             'is_unplanned' => 'boolean',
+            'is_unpaid' => 'boolean',
             'min_notice_days' => 'integer',
             'monthly_accrual_days' => 'float',
             'max_balance' => 'float',

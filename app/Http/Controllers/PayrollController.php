@@ -9,7 +9,9 @@ use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\FixedTransaction;
+use App\Models\LeaveRequest;
 use App\Models\OffboardingCase;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
@@ -38,10 +40,12 @@ class PayrollController extends Controller
     private const ADMIN_ROLES = ['management', 'hr'];
 
     /**
-     * Payroll Item codes a Fixed Transaction must never target — each already has its own
-     * automatic source (basic salary from the salary structure, overtime/unpaid-leave from
-     * payslip edits, claim reimbursement from approved claims). Allowing a Fixed
-     * Transaction against one of these would double up or fight with that automatic line.
+     * Payroll Item codes a Fixed Transaction or Individual Transaction must never target —
+     * each already has its own automatic source (basic salary from the salary structure,
+     * overtime from approved OvertimeRequests, unpaid-leave from approved unpaid
+     * LeaveRequests, claim reimbursement from approved claims). Allowing a Fixed or
+     * Individual Transaction against one of these would double up or fight with that
+     * automatic line.
      */
     private const FT_FORBIDDEN_ITEM_CODES = ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'];
 
@@ -338,6 +342,101 @@ class PayrollController extends Controller
         return min(1.0, max(0.0, $daysEmployed / $daysInMonth));
     }
 
+    // ── Overtime / unpaid-leave pull (approved requests → payslip) ─────────────────
+
+    /**
+     * OvertimeRequest ids already reserved by some OTHER payslip — never pulled twice
+     * across concurrent or sequential runs, mirroring createRun()'s $usedClaimIds. Pass
+     * the current payslip's own id (updatePayslip's recompute) so it doesn't compete
+     * against its own prior pull.
+     *
+     * @return array<int, int>
+     */
+    private function usedOvertimeIds(?int $excludePayslipId): array
+    {
+        return Payslip::whereNotNull('overtime_request_ids')
+            ->when($excludePayslipId, fn ($q) => $q->whereKeyNot($excludePayslipId))
+            ->get(['overtime_request_ids'])
+            ->pluck('overtime_request_ids')->flatten()->filter()->unique()->all();
+    }
+
+    /** @return array<int, int> */
+    private function usedUnpaidLeaveIds(?int $excludePayslipId): array
+    {
+        return Payslip::whereNotNull('unpaid_leave_request_ids')
+            ->when($excludePayslipId, fn ($q) => $q->whereKeyNot($excludePayslipId))
+            ->get(['unpaid_leave_request_ids'])
+            ->pluck('unpaid_leave_request_ids')->flatten()->filter()->unique()->all();
+    }
+
+    /**
+     * Approved overtime for $employee whose ot_date falls inside $period, not yet paid
+     * and not already reserved by another payslip. A public-holiday (3x) request and an
+     * ordinary (1.5x) one are never worth the same per hour — see overtimeGroups(),
+     * which splits these by rate before they reach PayrollCalculator.
+     *
+     * @return Collection<int, OvertimeRequest>
+     */
+    private function pullableOvertimeFor(Employee $employee, string $period, array $usedIds): Collection
+    {
+        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+
+        return OvertimeRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')->whereNull('paid_at')
+            ->whereBetween('ot_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereNotIn('id', $usedIds)
+            ->lockForUpdate()->get();
+    }
+
+    /**
+     * Group approved overtime requests by their rate_multiplier — a public-holiday (3x)
+     * request and an ordinary (1.5x) one must never be summed into one "equivalent
+     * hours" figure (that flattening is exactly the ambiguity that let HR's raw-hours
+     * override double-multiply an already-multiplied pulled figure). Each group carries
+     * its own raw hours total, ready for PayrollCalculator to multiply exactly once.
+     *
+     * @param  Collection<int, OvertimeRequest>  $overtimeRequests
+     * @return array<int, array{hours: float, multiplier: float}>
+     */
+    private function overtimeGroups(Collection $overtimeRequests): array
+    {
+        return $overtimeRequests
+            ->groupBy(fn (OvertimeRequest $o) => (string) round((float) $o->rate_multiplier, 2))
+            ->map(fn (Collection $group) => [
+                'hours' => round($group->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2),
+                'multiplier' => round((float) $group->first()->rate_multiplier, 2),
+            ])
+            ->sortBy('multiplier')->values()->all();
+    }
+
+    /**
+     * Approved unpaid leave for $employee overlapping $period, not yet paid and not
+     * already reserved by another payslip. "Unpaid" is whichever LeaveType has is_unpaid
+     * set (leave_types.is_unpaid) — never matched by name, which breaks the moment a
+     * company renames the type or seeds it in Malay (see the 2026_08_25_210000 migration).
+     *
+     * Not period-scoped down to the day (a request spanning two payroll periods is pulled
+     * whole into whichever run gets to it first, same as claims aren't day-scoped either)
+     * — a multi-month unpaid leave request needs HR to split the days by hand across the
+     * two runs via the override.
+     *
+     * @return Collection<int, LeaveRequest>
+     */
+    private function pullableUnpaidLeaveFor(Employee $employee, string $period, array $usedIds): Collection
+    {
+        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+
+        return LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')->whereNull('paid_at')
+            ->whereHas('leaveType', fn ($q) => $q->where('is_unpaid', true))
+            ->where('date_from', '<=', $periodEnd->toDateString())
+            ->where('date_to', '>=', $periodStart->toDateString())
+            ->whereNotIn('id', $usedIds)
+            ->lockForUpdate()->get();
+    }
+
     // ── Payroll run lifecycle ─────────────────────────────────────
 
     public function createRun(Request $request): RedirectResponse
@@ -382,6 +481,9 @@ class PayrollController extends Controller
             // double reimbursement across concurrent or sequential draft runs.
             $usedClaimIds = Payslip::whereNotNull('claim_ids')->get(['claim_ids'])
                 ->pluck('claim_ids')->flatten()->filter()->unique()->all();
+            // Same double-pull protection for approved overtime and unpaid leave.
+            $usedOvertimeIds = $this->usedOvertimeIds(null);
+            $usedLeaveIds = $this->usedUnpaidLeaveIds(null);
 
             foreach ($employees as $employee) {
                 $structure = $employee->salaryStructure;
@@ -389,6 +491,12 @@ class PayrollController extends Controller
                     ->where('status', 'approved')->whereNull('paid_at')
                     ->whereNotIn('id', $usedClaimIds)
                     ->lockForUpdate()->get();
+
+                $overtimeRequests = $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds);
+                $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
+                $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
+                $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds);
+                $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
                 $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
                 // electedBefore1998 has no column — no tenant has data going back that far,
@@ -412,6 +520,14 @@ class PayrollController extends Controller
                         'perkeso_liable' => (bool) $l['item']->perkeso_liable,
                     ])->values()->all(),
                     'claims_reimbursement' => $claims->sum('amount'),
+                    // Approved overtime/unpaid-leave populate the draft automatically — see
+                    // pullableOvertimeFor()/pullableUnpaidLeaveFor()/overtimeGroups(). One
+                    // group per distinct rate_multiplier found (3x public holiday, 1.5x
+                    // ordinary, ...) so the calculator multiplies each rate's raw hours
+                    // exactly once — never flattened into one ambiguous "equivalent hours"
+                    // figure that could be double-multiplied later.
+                    'overtime_groups' => $pulledOvertimeGroups,
+                    'unpaid_days' => $pulledUnpaidDays,
                     'statutory_category' => $employee->statutoryCategory($periodEnd),
                     'epf_part' => $epfPart,
                     'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
@@ -436,7 +552,12 @@ class PayrollController extends Controller
                     'employee_id' => $employee->id,
                     'claim_ids' => $claims->pluck('id')->all() ?: null,
                 ]);
-                $payslip->forceFill($comp->toPayslipAttributes())->save();
+                $payslip->forceFill($comp->toPayslipAttributes() + [
+                    'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
+                    'pulled_overtime_hours' => $pulledOvertimeHours,
+                    'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
+                    'pulled_unpaid_days' => $pulledUnpaidDays,
+                ])->save();
                 $this->writePayslipLines($payslip, $comp, $ftLines, $catalog);
             }
 
@@ -459,16 +580,32 @@ class PayrollController extends Controller
         abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
 
         $data = $request->validate([
+            // Blank/absent = use the auto-pulled figure (approved overtime for this
+            // period); a value here overrides it verbatim, exactly like pcb_override.
+            // Always RAW hours — the same unit the pulled per-rate lines show — paired
+            // with overtime_multiplier below so there is only ever one unit on screen.
             'overtime_hours' => ['nullable', 'numeric', 'min:0', 'max:744'],
+            // Not enforced against the Employment Act minimums (1.5x normal day, 2x rest
+            // day, 3x public holiday) — the day type lives in attendance, not here, and a
+            // company may choose to pay above the minimum. Defaults to 1.5x when omitted.
+            'overtime_multiplier' => ['nullable', 'numeric', 'min:1', 'max:10'],
             'bonus' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Blank/absent = use the auto-pulled figure (approved unpaid leave for this
+            // period); a value here overrides it verbatim.
             'unpaid_days' => ['nullable', 'numeric', 'min:0', 'max:31'],
             // Null/blank = go with the computed PCB; a value here overrides it verbatim
             // and survives future recomputes until cleared (see PayrollCalculator).
             'pcb_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
-            'add_name' => ['array'], 'add_name.*' => ['nullable', 'string', 'max:60'],
-            'add_amount' => ['array'], 'add_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
-            'ded_name' => ['array'], 'ded_name.*' => ['nullable', 'string', 'max:60'],
-            'ded_amount' => ['array'], 'ded_amount.*' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Individual Transactions: a one-off earning/deduction against a Payroll Item,
+            // an amount, and an optional remark — replaces the old free-form add_name/
+            // ded_name pairs so every payslip amount traces back to a catalogue item.
+            'tx_item_id' => ['array'], 'tx_item_id.*' => [
+                'nullable',
+                Rule::exists('payroll_items', 'id')->where('tenant_id', $payslip->tenant_id)->where('active', true)
+                    ->whereNotIn('code', self::FT_FORBIDDEN_ITEM_CODES),
+            ],
+            'tx_amount' => ['array'], 'tx_amount.*' => ['nullable', 'numeric', 'min:0.01', 'max:10000000'],
+            'tx_remark' => ['array'], 'tx_remark.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         // Basic, allowances/Fixed Transactions and claims reimbursement stay as generated;
@@ -478,56 +615,129 @@ class PayrollController extends Controller
         $structure = $payslip->employee->salaryStructure;
         // electedBefore1998 has no column — see the same note in createRun().
         $epfPart = $this->epf->part($structure?->nationality ?? 'citizen', $age, false);
-        $baseInputs = [
-            'basic' => $payslip->basic,
-            'allowances_total' => $payslip->allowances_total,
-            'fixed_deductions_total' => $payslip->fixed_deductions_total,
-            'claims_reimbursement' => $payslip->claims_reimbursement,
-            'overtime_hours' => $data['overtime_hours'] ?? 0,
-            'bonus' => $data['bonus'] ?? 0,
-            'unpaid_days' => $data['unpaid_days'] ?? 0,
-            'additions' => $this->zipLines($request->input('add_name', []), $request->input('add_amount', [])),
-            'other_deductions' => $this->zipLines($request->input('ded_name', []), $request->input('ded_amount', [])),
-            'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
-            'epf_part' => $epfPart,
-            'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
-        ];
 
-        // Re-derive each Fixed Transaction earning's own wage-base flags from the lines
-        // frozen at run generation, so editing bonus/overtime here doesn't silently
-        // re-base a non-EPF-liable Fixed Transaction (e.g. travel allowance) as EPF-liable.
-        // A payslip with no fixed-transaction-sourced lines (pre-Fixed-Transaction, or an
-        // employee with none) falls through to withWageBaseFlags' single lumped
-        // Fixed Allowance fallback against allowances_total.
-        $fixedEarningLines = $payslip->lines()->where('source', 'fixed-transaction')->where('type', 'earning')->get();
-        if ($fixedEarningLines->isNotEmpty()) {
-            $baseInputs['fixed_earning_lines'] = $fixedEarningLines->map(fn (PayslipLine $l) => [
-                'amount' => (float) $l->amount,
-                'epf_liable' => (bool) ($l->payrollItem?->epf_liable ?? true),
-                'perkeso_liable' => (bool) ($l->payrollItem?->perkeso_liable ?? true),
-            ])->all();
-        }
+        // overtime_hours/unpaid_days: null or '' (never submitted, or explicitly cleared)
+        // means "use the pulled figure"; any other value — including 0 — is HR's override
+        // and wins, exactly like pcb_override just above. Locked inside a transaction
+        // (lockForUpdate, same as createRun) so two concurrent recomputes across different
+        // draft runs can't both pull the same OvertimeRequest/LeaveRequest.
+        $rawOvertimeHours = $request->input('overtime_hours');
+        $overtimeOverridden = $rawOvertimeHours !== null && $rawOvertimeHours !== '';
+        $rawOvertimeMultiplier = $request->input('overtime_multiplier');
+        $rawUnpaidDays = $request->input('unpaid_days');
+        $unpaidOverridden = $rawUnpaidDays !== null && $rawUnpaidDays !== '';
 
-        $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
-        $baseInputs = $this->withWageBaseFlags($baseInputs, $catalog);
+        $comp = DB::transaction(function () use (
+            $request, $data, $payslip, $structure, $epfPart, $periodEnd,
+            $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
+        ) {
+            $overtimeRequests = $this->pullableOvertimeFor(
+                $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
+            );
+            $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
+            $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
+            $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor(
+                $payslip->employee, $payslip->payrollRun->period, $this->usedUnpaidLeaveIds($payslip->id)
+            );
+            $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
-        // First pass: gross + EPF, needed to split normal vs. additional remuneration
-        // for PCB. Second pass: feed the computed PCB back in so it flows into net.
-        $comp = $this->calculator->compute($baseInputs);
-        $result = $this->pcb->calculate($this->buildPcbInputs($payslip->employee, $payslip->payrollRun->period, $comp, $structure, $epfPart));
-        $comp = $this->calculator->compute($baseInputs + [
-            'pcb' => $result->netNormalMtd,
-            'pcb_additional' => $result->additionalMtd,
-            'zakat' => (float) ($structure->zakat_monthly ?? 0),
-            'cp38' => (float) ($structure->cp38_monthly ?? 0),
-            'pcb_override' => $data['pcb_override'] ?? null,
-        ]);
+            $baseInputs = [
+                'basic' => $payslip->basic,
+                'allowances_total' => $payslip->allowances_total,
+                'fixed_deductions_total' => $payslip->fixed_deductions_total,
+                'claims_reimbursement' => $payslip->claims_reimbursement,
+                'bonus' => $data['bonus'] ?? 0,
+                'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
+                'epf_part' => $epfPart,
+                'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
+            ];
 
-        // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement linkage
-        // set at run creation survives edits. Amount columns are excluded from $fillable —
-        // forceFill them.
-        $payslip->forceFill($comp->toPayslipAttributes())->save();
-        $this->refreshVariableLines($payslip, $comp, $catalog);
+            if ($overtimeOverridden) {
+                // HR's own figure: raw hours at HR's chosen multiplier (defaults to the
+                // standard 1.5x ordinary rate) — the exact same unit the pulled per-rate
+                // lines show, so there is no second "equivalent hours" conversion left
+                // to get wrong.
+                $baseInputs['overtime_groups'] = [[
+                    'hours' => (float) $rawOvertimeHours,
+                    'multiplier' => ($rawOvertimeMultiplier !== null && $rawOvertimeMultiplier !== '')
+                        ? (float) $rawOvertimeMultiplier : PayrollCalculator::OVERTIME_MULTIPLIER,
+                ]];
+            } else {
+                // Pulled: one group per distinct rate_multiplier found among the approved
+                // requests for this period — see overtimeGroups(). Each group's raw hours
+                // get multiplied by its own rate exactly once.
+                $baseInputs['overtime_groups'] = $pulledOvertimeGroups;
+            }
+            $baseInputs['unpaid_days'] = $unpaidOverridden ? (float) $rawUnpaidDays : $pulledUnpaidDays;
+
+            $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
+
+            // Individual Transactions: resolve each posted (item, amount, remark) row
+            // against the catalogue, split by the item's own earning/deduction type.
+            $itemsById = $catalog->values()->keyBy('id');
+            $individualLines = $this->individualTransactionLines(
+                $request->input('tx_item_id', []), $request->input('tx_amount', []),
+                $request->input('tx_remark', []), $itemsById,
+            );
+            $individualEarnings = $individualLines->filter(fn (array $l) => $l['item']->type === 'earning');
+            $individualDeductions = $individualLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+            $baseInputs['individual_earnings_total'] = round($individualEarnings->sum('amount'), 2);
+            $baseInputs['individual_deductions_total'] = round($individualDeductions->sum('amount'), 2);
+            $baseInputs['individual_earning_lines'] = $individualEarnings->map(fn (array $l) => [
+                'amount' => $l['amount'],
+                'epf_liable' => (bool) $l['item']->epf_liable,
+                'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+            ])->values()->all();
+
+            // Re-derive each Fixed Transaction earning's own wage-base flags from the lines
+            // frozen at run generation, so editing bonus/overtime here doesn't silently
+            // re-base a non-EPF-liable Fixed Transaction (e.g. travel allowance) as EPF-liable.
+            // A payslip with no fixed-transaction-sourced lines (pre-Fixed-Transaction, or an
+            // employee with none) falls through to withWageBaseFlags' single lumped
+            // Fixed Allowance fallback against allowances_total.
+            $fixedEarningLines = $payslip->lines()->where('source', 'fixed-transaction')->where('type', 'earning')->get();
+            if ($fixedEarningLines->isNotEmpty()) {
+                $baseInputs['fixed_earning_lines'] = $fixedEarningLines->map(fn (PayslipLine $l) => [
+                    'amount' => (float) $l->amount,
+                    'epf_liable' => (bool) ($l->payrollItem?->epf_liable ?? true),
+                    'perkeso_liable' => (bool) ($l->payrollItem?->perkeso_liable ?? true),
+                ])->all();
+            }
+
+            $baseInputs = $this->withWageBaseFlags($baseInputs, $catalog);
+
+            // First pass: gross + EPF, needed to split normal vs. additional remuneration
+            // for PCB. Second pass: feed the computed PCB back in so it flows into net.
+            $comp = $this->calculator->compute($baseInputs);
+            $result = $this->pcb->calculate($this->buildPcbInputs($payslip->employee, $payslip->payrollRun->period, $comp, $structure, $epfPart));
+            $comp = $this->calculator->compute($baseInputs + [
+                'pcb' => $result->netNormalMtd,
+                'pcb_additional' => $result->additionalMtd,
+                'zakat' => (float) ($structure->zakat_monthly ?? 0),
+                'cp38' => (float) ($structure->cp38_monthly ?? 0),
+                'pcb_override' => $data['pcb_override'] ?? null,
+            ]);
+
+            // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement
+            // linkage set at run creation survives edits. Amount columns are excluded from
+            // $fillable — forceFill them. overtime_request_ids/unpaid_leave_request_ids are
+            // refreshed every recompute (not frozen like claim_ids) — reserving whatever is
+            // currently eligible and releasing anything no longer eligible (e.g. an OT
+            // request that got rejected after the last save) back to the pool, whether or
+            // not HR's own override is what actually drives the amount used above.
+            $payslip->forceFill($comp->toPayslipAttributes() + [
+                'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
+                'pulled_overtime_hours' => $pulledOvertimeHours,
+                'overtime_overridden' => $overtimeOverridden,
+                'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
+                'pulled_unpaid_days' => $pulledUnpaidDays,
+                'unpaid_days_overridden' => $unpaidOverridden,
+            ])->save();
+            $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
+
+            return $comp;
+        });
+
         $this->recalcTotals($payslip->payrollRun);
         AuditLog::record('Updated payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
 
@@ -575,6 +785,20 @@ class PayrollController extends Controller
             if ($claimIds->isNotEmpty()) {
                 Claim::whereIn('id', $claimIds)->where('status', 'approved')
                     ->update(['status' => 'paid', 'paid_at' => now()]);
+            }
+
+            // Same for the overtime and unpaid-leave requests this run pulled in — paid_at
+            // both closes the loop on the source request and (via pullableOvertimeFor's/
+            // pullableUnpaidLeaveFor's whereNull('paid_at')) keeps it out of every future
+            // run's pool for good. Marked whether or not HR overrode the figure used —
+            // the requests were still consumed by this payslip either way.
+            $overtimeIds = $payslips->flatMap(fn ($p) => $p->overtime_request_ids ?? [])->unique()->values();
+            if ($overtimeIds->isNotEmpty()) {
+                OvertimeRequest::whereIn('id', $overtimeIds)->update(['paid_at' => now()]);
+            }
+            $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
+            if ($unpaidLeaveIds->isNotEmpty()) {
+                LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => now()]);
             }
 
             // Notify each employee that their payslip is ready.
@@ -686,21 +910,28 @@ class PayrollController extends Controller
     }
 
     /**
-     * Zip parallel name[]/amount[] form arrays into [{name, amount}] line items,
-     * dropping blank rows.
+     * Zip parallel tx_item_id[]/tx_amount[]/tx_remark[] Individual Transaction form arrays
+     * into resolved {item, amount, remark} rows, dropping blank/invalid rows. $itemsById
+     * is the tenant's Payroll Item catalogue keyed by id — each id has already been
+     * validated tenant-scoped/active/not-forbidden by updatePayslip's request rules, so a
+     * miss here only happens for a genuinely blank row.
      *
-     * @return array<int, array{name: string, amount: float}>
+     * @param  array<int, mixed>  $itemIds
+     * @param  array<int, mixed>  $amounts
+     * @param  array<int, mixed>  $remarks
+     * @return Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>
      */
-    private function zipLines(array $names, array $amounts): array
+    private function individualTransactionLines(array $itemIds, array $amounts, array $remarks, Collection $itemsById): Collection
     {
-        $lines = [];
-        foreach ($names as $i => $name) {
-            $name = trim((string) $name);
+        $lines = collect();
+        foreach ($itemIds as $i => $itemId) {
+            $item = $itemId !== null && $itemId !== '' ? $itemsById->get((int) $itemId) : null;
             $amount = (float) ($amounts[$i] ?? 0);
-            if ($name === '' || $amount <= 0) {
+            if ($item === null || $amount <= 0) {
                 continue;
             }
-            $lines[] = ['name' => $name, 'amount' => round($amount, 2)];
+            $remark = trim((string) ($remarks[$i] ?? ''));
+            $lines->push(['item' => $item, 'amount' => round($amount, 2), 'remark' => $remark !== '' ? $remark : null]);
         }
 
         return $lines;
@@ -768,8 +999,8 @@ class PayrollController extends Controller
         ];
     }
 
-    /** Same as lineAttrs(), but for a Fixed Transaction whose Payroll Item is already resolved. */
-    private function lineAttrsForItem(PayrollItem $item, float $amount, string $source, int $sortOrder): array
+    /** Same as lineAttrs(), but for a Fixed/Individual Transaction whose Payroll Item is already resolved. */
+    private function lineAttrsForItem(PayrollItem $item, float $amount, string $source, int $sortOrder, ?string $remark = null): array
     {
         return [
             'payroll_item_id' => $item->id,
@@ -778,8 +1009,25 @@ class PayrollController extends Controller
             'amount' => round($amount, 2),
             'quantity' => null,
             'source' => $source,
+            'remark' => $remark,
             'sort_order' => $sortOrder,
         ];
+    }
+
+    /**
+     * Attributes for this payslip's Individual Transaction lines — one per resolved
+     * {item, amount, remark} row (individualTransactionLines()), source 'individual'.
+     *
+     * @param  Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
+     */
+    private function individualLineAttrs(Collection $individualLines, int $sort): array
+    {
+        $lines = [];
+        foreach ($individualLines as $line) {
+            $lines[] = $this->lineAttrsForItem($line['item'], $line['amount'], 'individual', $sort++, $line['remark']);
+        }
+
+        return $lines;
     }
 
     /**
@@ -787,12 +1035,19 @@ class PayrollController extends Controller
      * the unpaid-leave deduction, and free-form other-deductions. Zero-amount lines are
      * skipped, matching the existing "additions"/"other_deductions" convention of dropping
      * blank rows.
+     *
+     * Overtime writes ONE line per rate group ($comp->overtimeGroups) — "Overtime 1.5×"
+     * and "Overtime 3×" as separate lines, each with its own raw hours as quantity and
+     * its own amount — rather than one lumped figure. That per-rate breakdown is exactly
+     * what an employee needs to check their own payslip, and it is what keeps the pulled
+     * figure and the override field in the same unit (see the report this fixes).
      */
     private function variableLineAttrs(PayslipComputation $comp, Collection $catalog, int $sort): array
     {
         $lines = [];
-        if ($comp->overtimeAmount > 0) {
-            $lines[] = $this->lineAttrs($catalog, 'overtime', 'Overtime', 'earning', $comp->overtimeAmount, $comp->overtimeHours, 'overtime', $sort++);
+        foreach ($comp->overtimeGroups as $group) {
+            $mult = rtrim(rtrim(number_format($group['multiplier'], 2), '0'), '.');
+            $lines[] = $this->lineAttrs($catalog, 'overtime', "Overtime {$mult}×", 'earning', $group['amount'], $group['hours'], 'overtime', $sort++);
         }
         if ($comp->bonus > 0) {
             $lines[] = $this->lineAttrs($catalog, 'bonus', 'Bonus', 'earning', $comp->bonus, null, 'manual', $sort++);
@@ -836,16 +1091,21 @@ class PayrollController extends Controller
 
     /**
      * A payslip edit only ever touches overtime/bonus/additions/unpaid-leave/other-
-     * deductions — basic, allowances and the claim reimbursement "stay as generated"
-     * (see updatePayslip's comment). Rebuilding those from the live SalaryStructure here
-     * would drift from the payslip's own stored figures if HR edited the structure after
-     * the run was created, so only the variable-source lines are replaced.
+     * deductions/Individual Transactions — basic, allowances and the claim reimbursement
+     * "stay as generated" (see updatePayslip's comment). Rebuilding those from the live
+     * SalaryStructure here would drift from the payslip's own stored figures if HR edited
+     * the structure after the run was created, so only the variable-source lines are
+     * replaced.
+     *
+     * @param  Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
      */
-    private function refreshVariableLines(Payslip $payslip, PayslipComputation $comp, Collection $catalog): void
+    private function refreshVariableLines(Payslip $payslip, PayslipComputation $comp, Collection $individualLines, Collection $catalog): void
     {
-        $payslip->lines()->whereIn('source', ['overtime', 'manual', 'leave'])->delete();
+        $payslip->lines()->whereIn('source', ['overtime', 'manual', 'leave', 'individual'])->delete();
         $nextSort = (int) ($payslip->lines()->max('sort_order') ?? -1) + 1;
-        $payslip->lines()->createMany($this->variableLineAttrs($comp, $catalog, $nextSort));
+        $variableLines = $this->variableLineAttrs($comp, $catalog, $nextSort);
+        $lines = array_merge($variableLines, $this->individualLineAttrs($individualLines, $nextSort + count($variableLines)));
+        $payslip->lines()->createMany($lines);
     }
 
     public function updateItem(Request $request, PayrollItem $item): RedirectResponse

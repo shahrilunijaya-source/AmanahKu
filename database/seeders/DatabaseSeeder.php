@@ -323,6 +323,8 @@ class DatabaseSeeder extends Seeder
             'requires_attachment' => $x[2],
             'is_unplanned' => $x[3],
             'min_notice_days' => $x[4],
+            // Payroll's unpaid-leave pull matches this flag, not the name.
+            'is_unpaid' => $x[0] === 'Unpaid',
         ])->id]);
 
         // Emergency leave is not a privilege — it spends the Annual balance.

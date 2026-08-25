@@ -397,8 +397,8 @@ trait BuildsWorkData
         }
 
         $activeRun = $request->filled('run')
-            ? PayrollRun::with('payslips.employee')->find($request->query('run'))
-            : PayrollRun::with('payslips.employee')->orderByDesc('period')->first();
+            ? PayrollRun::with('payslips.employee', 'payslips.lines')->find($request->query('run'))
+            : PayrollRun::with('payslips.employee', 'payslips.lines')->orderByDesc('period')->first();
 
         return [
             'privileged' => true,

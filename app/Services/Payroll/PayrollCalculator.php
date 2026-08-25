@@ -34,6 +34,8 @@ class PayrollCalculator
      *     basic?: float|int|string,
      *     allowances_total?: float|int|string,
      *     overtime_hours?: float|int|string,
+     *     overtime_multiplier?: float|int|string,
+     *     overtime_groups?: array<int, array{hours?: float|int|string, multiplier?: float|int|string}>,
      *     bonus?: float|int|string,
      *     additions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     unpaid_days?: float|int|string,
@@ -50,6 +52,9 @@ class PayrollCalculator
      *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>|null,
      *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool}|null,
      *     fixed_deductions_total?: float|int|string,
+     *     individual_earnings_total?: float|int|string,
+     *     individual_earning_lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>,
+     *     individual_deductions_total?: float|int|string,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -58,7 +63,6 @@ class PayrollCalculator
         $category = ((int) ($inputs['statutory_category'] ?? 1)) >= 2 ? 2 : 1;
         $basic = $this->money($inputs['basic'] ?? 0);
         $allowancesTotal = $this->money($inputs['allowances_total'] ?? 0);
-        $overtimeHours = max(0.0, (float) ($inputs['overtime_hours'] ?? 0));
         $bonus = $this->money($inputs['bonus'] ?? 0);
         $unpaidDays = max(0.0, (float) ($inputs['unpaid_days'] ?? 0));
         $pcb = $this->money($inputs['pcb'] ?? 0);
@@ -74,6 +78,13 @@ class PayrollCalculator
         // deliberately does not feed into).
         $fixedDeductionsTotal = $this->money($inputs['fixed_deductions_total'] ?? 0);
 
+        // Individual Transactions: one-off earning/deduction lines HR picks a Payroll Item
+        // for (PayrollController::validateIndividualTransaction). Earnings raise gross and
+        // feed the wage base through their own item's flags (individual_earning_lines,
+        // below); deductions only reduce net pay — same treatment as fixedDeductionsTotal.
+        $individualEarningsTotal = $this->money($inputs['individual_earnings_total'] ?? 0);
+        $individualDeductionsTotal = $this->money($inputs['individual_deductions_total'] ?? 0);
+
         $additions = $this->cleanLines($inputs['additions'] ?? []);
         $otherDeductions = $this->cleanLines($inputs['other_deductions'] ?? []);
         $additionsTotal = $this->sumLines($additions);
@@ -82,11 +93,39 @@ class PayrollCalculator
         // Earnings.
         $dailyRate = $basic / self::WORKING_DAYS_PER_MONTH;
         $hourlyRate = $dailyRate / self::WORKING_HOURS_PER_DAY;
-        $overtimeAmount = round($overtimeHours * $hourlyRate * self::OVERTIME_MULTIPLIER, 2);
+        // Overtime carries its own multiplier explicitly now — never a single ambiguous
+        // "hours" figure. overtime_groups is one {hours, multiplier} pair per distinct
+        // rate a pull found (1.5x ordinary, 2x rest day, 3x public holiday, ...), each
+        // multiplied exactly once; a caller with a single rate can pass overtime_hours
+        // (+ optional overtime_multiplier, default OVERTIME_MULTIPLIER) instead and gets
+        // treated as one group.
+        $overtimeGroupInputs = $inputs['overtime_groups'] ?? null;
+        if ($overtimeGroupInputs === null) {
+            $singleHours = max(0.0, (float) ($inputs['overtime_hours'] ?? 0));
+            $overtimeGroupInputs = $singleHours > 0
+                ? [['hours' => $singleHours, 'multiplier' => $inputs['overtime_multiplier'] ?? self::OVERTIME_MULTIPLIER]]
+                : [];
+        }
+        $overtimeHours = 0.0;
+        $overtimeAmount = 0.0;
+        $overtimeGroups = [];
+        foreach ($overtimeGroupInputs as $group) {
+            $groupHours = max(0.0, (float) ($group['hours'] ?? 0));
+            if ($groupHours <= 0.0) {
+                continue;
+            }
+            $groupMultiplier = (float) ($group['multiplier'] ?? self::OVERTIME_MULTIPLIER);
+            $groupAmount = round($groupHours * $hourlyRate * $groupMultiplier, 2);
+            $overtimeHours += $groupHours;
+            $overtimeAmount += $groupAmount;
+            $overtimeGroups[] = ['hours' => round($groupHours, 2), 'multiplier' => $groupMultiplier, 'amount' => $groupAmount];
+        }
+        $overtimeHours = round($overtimeHours, 2);
+        $overtimeAmount = round($overtimeAmount, 2);
         $unpaidDeduction = round($unpaidDays * $dailyRate, 2);
 
         // Gross floors at zero — unpaid leave can't drive earnings negative.
-        $gross = round(max(0.0, $basic + $allowancesTotal + $overtimeAmount + $bonus + $additionsTotal - $unpaidDeduction), 2);
+        $gross = round(max(0.0, $basic + $allowancesTotal + $overtimeAmount + $bonus + $additionsTotal + $individualEarningsTotal - $unpaidDeduction), 2);
         $statWage = $gross;
 
         // EPF — KWSP Third Schedule wage bands (EpfCalculator), not a flat percentage.
@@ -112,6 +151,10 @@ class PayrollCalculator
         $catalogueLines = $inputs['lines'] ?? null;
         $overtimeFlags = $inputs['overtime_flags'] ?? null;
         if ($catalogueLines !== null && $overtimeFlags !== null) {
+            // Each Individual Transaction earning carries its own item's flags (e.g. a
+            // reimbursement-flavoured item HR picked should not raise EPF wages) —
+            // appended onto the same catalogue-lines pass, not lumped under one flag.
+            $catalogueLines = [...$catalogueLines, ...($inputs['individual_earning_lines'] ?? [])];
             $epfBase = ! empty($overtimeFlags['epf_liable']) ? $overtimeAmount : 0.0;
             $perkesoBase = ! empty($overtimeFlags['perkeso_liable']) ? $overtimeAmount : 0.0;
             foreach ($catalogueLines as $line) {
@@ -151,15 +194,16 @@ class PayrollCalculator
         // didn't, in whatever the override represents).
         $pcbEffective = $pcbOverride ?? $pcb;
 
-        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal, 2);
+        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
         $netPay = round($statWage - $totalDeductions + $claimsReimbursement, 2);
         $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer, 2);
 
         return new PayslipComputation(
             basic: $basic,
             allowancesTotal: $allowancesTotal,
-            overtimeHours: round($overtimeHours, 2),
+            overtimeHours: $overtimeHours,
             overtimeAmount: $overtimeAmount,
+            overtimeGroups: $overtimeGroups,
             bonus: $bonus,
             additions: $additions,
             additionsTotal: $additionsTotal,

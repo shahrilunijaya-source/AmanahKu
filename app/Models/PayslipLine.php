@@ -24,6 +24,7 @@ class PayslipLine extends Model
         'amount',
         'quantity',
         'source',
+        'remark',
         'sort_order',
     ];
 

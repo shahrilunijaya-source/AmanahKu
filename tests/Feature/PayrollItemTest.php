@@ -72,20 +72,28 @@ class PayrollItemTest extends TestCase
         $this->assertSame((float) $slip->basic, (float) $lines->where('name', 'Basic Salary')->sum('amount'));
         $this->assertSame((float) $slip->allowances_total, (float) $lines->whereIn('name', ['Fixed Allowance', 'Meal Allowance'])->sum('amount'));
 
-        // Editing the payslip adds overtime, a bonus, an addition and unpaid days.
+        $travelAllowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'travel-allowance')->firstOrFail();
+
+        // Editing the payslip adds overtime, a bonus, an Individual Transaction and unpaid days.
         $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", [
             'overtime_hours' => 10,
             'bonus' => 500,
             'unpaid_days' => 1,
-            'add_name' => ['Travel claim'],
-            'add_amount' => [80],
+            'tx_item_id' => [$travelAllowance->id],
+            'tx_amount' => [80],
+            'tx_remark' => ['Travel claim'],
         ])->assertRedirect();
         $slip->refresh();
 
         $lines = $slip->lines;
-        $this->assertSame((float) $slip->overtime_amount, (float) $lines->where('name', 'Overtime')->sum('amount'));
+        // Overtime writes one line per rate multiplier (e.g. "Overtime 1.5×"), not a
+        // single lumped "Overtime" line — match by source, not name.
+        $this->assertSame((float) $slip->overtime_amount, (float) $lines->where('source', 'overtime')->sum('amount'));
         $this->assertSame((float) $slip->bonus, (float) $lines->where('name', 'Bonus')->sum('amount'));
-        $this->assertSame(80.0, (float) $lines->where('name', 'Travel claim')->sum('amount'));
+        $travelLine = $lines->where('source', 'individual')->firstOrFail();
+        $this->assertSame($travelAllowance->name, $travelLine->name);
+        $this->assertSame('Travel claim', $travelLine->remark);
+        $this->assertSame(80.0, (float) $travelLine->amount);
         $this->assertSame((float) $slip->unpaid_deduction, (float) $lines->where('name', 'Unpaid Leave Deduction')->sum('amount'));
         // Basic + Fixed Transaction lines survive the edit untouched (source 'salary'/'fixed-transaction').
         $this->assertSame((float) $slip->basic, (float) $lines->where('name', 'Basic Salary')->sum('amount'));
