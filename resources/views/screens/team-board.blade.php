@@ -343,7 +343,7 @@
 
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
                         <span class="wd-pval">
-                            <input type="date" name="due_at" value="{{ old('due_at') }}" class="wd-inline" />
+                            <input type="date" name="due_at" value="{{ old('due_at') }}" class="wd-inline" required />
                         </span>
                     </div>
 

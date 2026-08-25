@@ -310,6 +310,229 @@ class TotTest extends TestCase
         $this->assertSame('Install git on our own server', $session->fresh()->title);
     }
 
+    public function test_hr_assigns_a_team_of_presenters(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $second = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'presenter_employee_ids' => [$this->employee->id, $second->id],
+            ])->assertSessionHasNoErrors();
+
+        $this->assertEqualsCanonicalizing(
+            [$this->employee->id, $second->id],
+            $session->fresh()->presenters->pluck('id')->all(),
+        );
+    }
+
+    public function test_a_team_member_may_edit_the_slot_they_co_present(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'presenter_employee_id' => null, 'title' => null]);
+        $other = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $session->presenters()->sync([$other->id, $this->employee->id]);
+
+        $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'title' => 'Queue workers in production',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Queue workers in production', $session->fresh()->title);
+    }
+
+    public function test_marking_a_team_session_done_credits_every_presenter(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'presenter_employee_id' => null]);
+        $second = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $session->presenters()->sync([$this->employee->id, $second->id]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['status' => 'done'])
+            ->assertSessionHasNoErrors();
+
+        foreach ([$this->employee, $second] as $presenter) {
+            $this->assertDatabaseHas('knowledge_monthly_contributions', [
+                'employee_id' => $presenter->id, 'year' => 2026, 'month' => 3,
+            ]);
+        }
+    }
+
+    public function test_a_save_without_the_picker_leaves_the_team_alone(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'presenter_employee_id' => null]);
+        $second = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $session->presenters()->sync([$this->employee->id, $second->id]);
+
+        // The presenter's own editor never renders the picker, so their save carries none.
+        $this->actingInTenant()->post("/app/tot/{$session->id}", ['title' => 'Still ours'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertCount(2, $session->fresh()->presenters);
+    }
+
+    public function test_the_picker_can_clear_every_presenter(): void
+    {
+        $session = $this->makeSession();
+        $session->presenters()->sync([$this->employee->id]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenters_submitted' => '1'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertCount(0, $session->fresh()->presenters);
+        $this->assertNull($session->fresh()->presenter_employee_id);
+    }
+
+    public function test_a_foreign_tenant_employee_cannot_be_smuggled_into_a_team(): void
+    {
+        $session = $this->makeSession();
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = Employee::create([
+            'tenant_id' => $other->id, 'name' => 'Outsider', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'presenter_employee_ids' => [$this->employee->id, $foreign->id],
+            ])->assertSessionHasErrors('presenter_employee_ids.1');
+    }
+
+    public function test_the_presenter_label_joins_a_team(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $second = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $session->presenters()->sync([$this->employee->id, $second->id]);
+
+        $this->assertSame('Demo & Aiman', $session->fresh()->presenterLabel());
+    }
+
+    public function test_a_team_with_nobody_picked_yet_still_reads_as_a_team(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'presenters_submitted' => '1',
+                'presenter_mode' => 'team',
+            ])->assertSessionHasNoErrors();
+
+        $fresh = $session->fresh();
+        $this->assertTrue($fresh->isTeam());
+        $this->assertCount(0, $fresh->presenters);
+        $this->assertSame(TotSession::TEAM_LABEL, $fresh->presenterLabel());
+    }
+
+    public function test_a_solo_slot_with_nobody_picked_names_nobody(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'presenters_submitted' => '1',
+                'presenter_mode' => 'solo',
+            ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($session->fresh()->isTeam());
+        $this->assertNull($session->fresh()->presenterLabel());
+    }
+
+    public function test_picking_two_people_forces_team_mode_whatever_was_posted(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $second = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Aiman', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'presenter_employee_ids' => [$this->employee->id, $second->id],
+                'presenter_mode' => 'solo',
+            ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($session->fresh()->isTeam());
+    }
+
+    public function test_the_board_shows_a_team_slot_as_team(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $session->update(['presenter_mode' => 'team']);
+
+        $this->actingInTenant()->get('/app/tot?year=2026')
+            ->assertOk()
+            ->assertSee(TotSession::TEAM_LABEL)
+            ->assertSee('Berkumpulan');
+    }
+
+    public function test_the_roster_screen_still_assigns_one_person_as_solo(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null]);
+        $hr = $this->hrActor();
+
+        // The roster posts the singular id and no mode at all.
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", ['presenter_employee_id' => $this->employee->id])
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse($session->fresh()->isTeam());
+    }
+
+    public function test_an_imported_slot_still_shows_its_free_text_name(): void
+    {
+        $session = $this->makeSession(['presenter_employee_id' => null, 'presenter_name' => 'Pak Samad']);
+
+        $this->assertSame('Pak Samad', $session->fresh()->presenterLabel());
+    }
+
+    public function test_a_presenter_save_does_not_wipe_the_moderator_link_row(): void
+    {
+        $session = $this->makeSession([
+            'status' => 'confirmed',
+            'links' => [
+                ['label' => 'Slides', 'url' => 'https://example.com/slides'],
+                ['label' => TotSession::MODERATOR_LINK_LABEL, 'url' => 'https://example.com/notes'],
+            ],
+        ]);
+
+        // The presenter's editor never renders the moderator row, so their form only
+        // posts the row they can see.
+        $this->actingInTenant()->post("/app/tot/{$session->id}", [
+            'links' => [['label' => 'Slides', 'url' => 'https://example.com/slides-v2']],
+        ])->assertSessionHasNoErrors();
+
+        $links = collect($session->fresh()->links);
+        $this->assertSame('https://example.com/slides-v2', $links->firstWhere('label', 'Slides')['url']);
+        $this->assertSame('https://example.com/notes', $links->firstWhere('label', TotSession::MODERATOR_LINK_LABEL)['url']);
+    }
+
+    public function test_hr_edits_the_moderator_link_row(): void
+    {
+        $session = $this->makeSession(['status' => 'confirmed', 'links' => null]);
+        $hr = $this->hrActor();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/tot/{$session->id}", [
+                'links' => [['label' => TotSession::MODERATOR_LINK_LABEL, 'url' => 'https://example.com/notes']],
+            ])->assertSessionHasNoErrors();
+
+        $this->assertSame(TotSession::MODERATOR_LINK_LABEL, $session->fresh()->links[0]['label']);
+    }
+
     public function test_the_presenter_moves_the_hour_of_their_own_slot(): void
     {
         $session = $this->makeSession(['status' => 'confirmed']);
@@ -1075,11 +1298,11 @@ class TotTest extends TestCase
 
     /**
      * The roster owner is not HR and does not know anybody's database id, so the presenter
-     * field must be a name dropdown. assertDontSee targets presenter_employee_id itself:
-     * name="title" and name="description" also belong to the layout's Knowledge Bank share
-     * and feedback panels, so asserting on those would answer about a different form.
+     * field must offer names. It is the solo/team picker rather than a native select now,
+     * so the guard is on the picker's roster payload carrying names and on there being no
+     * numeric id box anywhere.
      */
-    public function test_the_presenter_field_is_a_name_dropdown_not_a_numeric_id_box(): void
+    public function test_the_presenter_field_offers_names_not_a_numeric_id_box(): void
     {
         Employee::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'Hakime',
@@ -1092,14 +1315,18 @@ class TotTest extends TestCase
             ->get('/app/tot?year=2026');
 
         $response->assertOk();
-        $response->assertSee('<select class="tot-field" name="presenter_employee_id">', false);
         $response->assertDontSee('type="number" name="presenter_employee_id"', false);
-        $response->assertSee('>Hakime</option>', false);
+        $response->assertSee('presenter_employee_ids[]', false);
+        $response->assertSee('Hakime');
     }
 
     /**
      * The board is a wall of twelve months read at a glance, so it names presenters the way
      * colleagues say them. A lower-case nickname still starts with a capital letter there.
+     *
+     * The legal name is deliberately NOT asserted absent from the document any more: the
+     * presenter picker searches on it (people know each other by either name), so it rides
+     * along in that payload for anybody who may assign. This asserts the card text itself.
      */
     public function test_the_board_names_the_presenter_by_capitalised_nickname(): void
     {
@@ -1107,11 +1334,32 @@ class TotTest extends TestCase
             'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'hakime',
             'status' => 'active', 'workload' => 'green',
         ]);
-        $this->makeSession(['presenter_employee_id' => $hakime->id]);
+        $session = $this->makeSession(['presenter_employee_id' => $hakime->id]);
+        $session->presenters()->sync([$hakime->id]);
 
         $hr = $this->hrActor();
         $response = $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/tot?year=2026');
+
+        $response->assertOk();
+        $response->assertSee('Hakime');
+        $this->assertSame('Hakime', $session->fresh()->presenterLabel());
+    }
+
+    /**
+     * A viewer who cannot assign never gets the picker, so the legal names never reach
+     * their page at all — the nickname is the only name the board gives them.
+     */
+    public function test_the_legal_name_never_reaches_a_viewer_who_cannot_assign(): void
+    {
+        $hakime = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Mohd Hakime Bin Md Nasri', 'nickname' => 'hakime',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        $session = $this->makeSession(['presenter_employee_id' => $hakime->id]);
+        $session->presenters()->sync([$hakime->id]);
+
+        $response = $this->actingInTenant()->get('/app/tot?year=2026');
 
         $response->assertOk();
         $response->assertSee('Hakime');

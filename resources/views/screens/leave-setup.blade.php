@@ -160,11 +160,22 @@
          scope (which holds no grid cells) instead of the table. One grid per page, so the
          [data-lt] selector is unambiguous. --}}
     <form method="post" action="{{ route('leave.setup.save') }}"
-          x-data="{ fillCol(id, val) { if (val === '' || val === null) return; document.querySelectorAll('input[data-lt=\'' + id + '\']').forEach(i => { i.value = val; }); } }">
+          x-data="{
+              q: '',
+              rows: @js($setupStaff->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+              hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+              get shown() { return this.rows.filter(h => this.hit(h)).length; },
+              fillCol(id, val) { if (val === '' || val === null) return; document.querySelectorAll('input[data-lt=\'' + id + '\']').forEach(i => { if (i.closest('tr').style.display !== 'none') { i.value = val; } }); } }">
         @csrf
-        <div style="display:flex;align-items:center;gap:9px;margin:0 0 6px;">
+        <div style="display:flex;align-items:center;gap:9px;margin:0 0 6px;flex-wrap:wrap;">
             <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Opening balances' : 'Baki permulaan'">Opening balances</span></h2>
-            <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;">{{ $setupStaff->count() }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span>
+            <span style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;"><span x-text="shown">{{ $setupStaff->count() }}</span> <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></span>
+            <div style="margin-left:auto;position:relative;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input type="search" x-model="q" @keydown.escape="q = ''"
+                       :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                       style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+            </div>
         </div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Tip: type a number in a column header and click Set to fill that leave type for everyone, then Save balances.' : 'Petua: taip nombor pada tajuk lajur dan klik Set untuk isi jenis cuti itu bagi semua orang, kemudian Simpan baki.'"></span></p>
 
@@ -176,12 +187,18 @@
                         @foreach ($leaveTypes as $type)
                             <th style="text-align:right;padding:11px 14px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;vertical-align:top;">
                                 {{ $type->name }}
+                                @if ($type->deducts_from_leave_type_id)
+                                    {{-- Spends another type's balance, so there is nothing to open here. --}}
+                                    <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
+                                         x-text="$store.ui.lang==='en' ? 'off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}' : 'dari {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}'">off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}</div>
+                                @else
                                 <div x-data="{ v: '' }" style="display:flex;gap:4px;justify-content:flex-end;margin-top:7px;font-weight:400;">
                                     <input type="number" step="0.5" min="0" max="9999" x-model="v" placeholder="all"
                                            @keydown.enter.prevent="fillCol({{ $type->id }}, v)"
                                            style="width:52px;height:28px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;text-align:right;font-family:var(--font-mono);outline:none;" />
                                     <button type="button" @click="fillCol({{ $type->id }}, v)" class="uj-btn-ghost" style="height:28px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Set' : 'Isi'">Set</span></button>
                                 </div>
+                                @endif
                             </th>
                         @endforeach
                     </tr>
@@ -189,25 +206,33 @@
                 <tbody>
                     @foreach ($setupStaff as $e)
                         @php $row = $balanceMatrix->get($e->id); @endphp
-                        <tr style="border-bottom:1px solid var(--hairline-soft);">
+                        <tr x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                             <td style="position:sticky;left:0;z-index:1;background:var(--surface,#fff);padding:9px 16px;">
-                                <div style="font-weight:600;color:var(--ink);white-space:nowrap;">{{ $e->name }}</div>
-                                <div style="font-size:11px;color:var(--muted);white-space:nowrap;">{{ $e->position ?? '—' }}</div>
+                                <div style="font-weight:600;color:var(--ink);white-space:nowrap;">{{ $e->display_name }}</div>
+                                <div style="font-size:11px;color:var(--muted);white-space:nowrap;">{{ $e->position ?? '—' }}@if ($e->display_name !== $e->name) · {{ $e->name }}@endif</div>
                             </td>
                             @foreach ($leaveTypes as $type)
                                 @php $cell = $row?->get($type->id); @endphp
                                 <td style="padding:7px 14px;text-align:right;">
-                                    <input type="number" step="0.5" min="0" max="9999"
-                                           name="balances[{{ $e->id }}][{{ $type->id }}]"
-                                           data-lt="{{ $type->id }}"
-                                           value="{{ $cell === null ? '' : ($cell == (int) $cell ? (int) $cell : $cell) }}"
-                                           placeholder="—" style="{{ $cellStyle }}" />
+                                    @if ($type->deducts_from_leave_type_id)
+                                        @php $src = $row?->get($type->deducts_from_leave_type_id); @endphp
+                                        <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $src === null ? '—' : ($src == (int) $src ? (int) $src : $src) }}</span>
+                                    @else
+                                        <input type="number" step="0.5" min="0" max="9999"
+                                               name="balances[{{ $e->id }}][{{ $type->id }}]"
+                                               data-lt="{{ $type->id }}"
+                                               value="{{ $cell === null ? '' : ($cell == (int) $cell ? (int) $cell : $cell) }}"
+                                               placeholder="—" style="{{ $cellStyle }}" />
+                                    @endif
                                 </td>
                             @endforeach
                         </tr>
                     @endforeach
                 </tbody>
             </table>
+            <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+            </div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">

@@ -121,6 +121,12 @@
         },
         left() { const m = this.t(); return m && m.balLeft !== null ? m.balLeft : null; },
         overBy() { const l = this.left(); return l === null ? 0 : Math.max(0, this.days() - l); },
+        /**
+         * Unplanned leave that spends another type's balance (Emergency off Annual) is
+         * never refused for being over that balance: the days past it are approved as
+         * Unpaid leave, which carries no quota.
+         */
+        overflows() { const m = this.t(); return !!(m && m.unplanned && m.deducts); },
         remains() { const l = this.left(); return l === null ? null : Math.max(0, l - this.days()); },
         pct(v) { const m = this.t(); return m && m.balQuota ? Math.min(100, (v / m.balQuota) * 100) : 0; },
         used() { const m = this.t(); return m && m.balQuota !== null && m.balLeft !== null ? m.balQuota - m.balLeft : 0; },
@@ -162,7 +168,7 @@
             const m = this.t();
             if (!m) return 'type';
             if (!this.days()) return 'dates';
-            if (this.overBy() > 0) return 'over';
+            if (this.overBy() > 0 && !this.overflows()) return 'over';
             if (m.doc && !this.fileName) return 'doc';
             return '';
         },
@@ -322,10 +328,14 @@
                          x-text="clashText($store.ui.lang === 'en')"></div>
                 </div>
 
-                <div class="uj-lv-note" data-tone="bad" x-show="overBy() > 0" x-cloak
+                <div class="uj-lv-note" data-tone="bad" x-show="overBy() > 0 && !overflows()" x-cloak
                      x-text="$store.ui.lang==='en'
                         ? 'That is ' + overBy() + (overBy() === 1 ? ' day' : ' days') + ' more than your ' + (t() ? t().balName.toLowerCase() : '') + ' balance. Shorten the dates, or apply for Unpaid leave instead.'
                         : 'Itu ' + overBy() + ' hari lebih daripada baki ' + (t() ? t().balName.toLowerCase() : '') + ' anda. Pendekkan tarikh, atau mohon cuti tanpa gaji.'"></div>
+                <div class="uj-lv-note" data-tone="warn" x-show="overBy() > 0 && overflows()" x-cloak
+                     x-text="$store.ui.lang==='en'
+                        ? 'Your ' + (t() ? t().balName.toLowerCase() : '') + ' balance only covers part of this. You can still send it — the last ' + overBy() + (overBy() === 1 ? ' day' : ' days') + ' will be approved as Unpaid leave, so those days are not paid.'
+                        : 'Baki ' + (t() ? t().balName.toLowerCase() : '') + ' anda hanya menampung sebahagian. Anda masih boleh hantar — ' + overBy() + ' hari terakhir akan diluluskan sebagai cuti tanpa gaji.'"></div>
 
                 <div style="margin-top:14px;">
                     <button type="button" class="uj-btn-ghost" style="height:36px;padding:0 15px;font-size:var(--t-sm);"

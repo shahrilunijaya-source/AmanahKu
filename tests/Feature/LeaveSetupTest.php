@@ -57,9 +57,42 @@ class LeaveSetupTest extends TestCase
         return $this;
     }
 
+    public function test_a_type_that_deducts_from_another_gets_no_opening_balance(): void
+    {
+        $emergency = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Emergency', 'entitlement' => 0,
+            'is_unplanned' => true, 'deducts_from_leave_type_id' => $this->annual->id,
+        ]);
+
+        $this->asHr()->post('/app/leave-setup', [
+            'balances' => [$this->staff->id => [$this->annual->id => 12, $emergency->id => 5]],
+        ])->assertRedirect();
+
+        // Annual is the only balance that exists — Emergency spends it, so a row of its
+        // own would be a number nothing ever reads.
+        $this->assertEqualsWithDelta(12.0, (float) LeaveBalance::where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+        $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $emergency->id]);
+
+        // The grid shows the Annual figure in that column instead of an editable cell.
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertSee('off Annual');
+    }
+
     public function test_hr_sees_the_leave_setup_screen(): void
     {
         $this->asHr()->get('/app/leave-setup')->assertOk();
+    }
+
+    public function test_the_balance_grid_is_searchable_by_nickname(): void
+    {
+        $this->staff->update(['nickname' => 'wory']);
+
+        $html = $this->asHr()->get('/app/leave-setup')->assertOk()->getContent();
+
+        // The search haystack Alpine filters on: display name, legal name and position,
+        // lower-cased, one entry per row.
+        $this->assertStringContainsString('wory worker', $html);
+        // The row shows the name people actually say, with the legal name alongside it.
+        $this->assertStringContainsString('>Wory</div>', $html);
     }
 
     public function test_employee_cannot_see_the_leave_setup_screen(): void

@@ -18,7 +18,20 @@ class ExternalTotEvent extends Model
 
     protected function casts(): array
     {
-        return ['event_date' => 'date'];
+        return ['event_date' => 'date', 'tagged_employee_ids' => 'array'];
+    }
+
+    /**
+     * Employees @mentioned in the description, who are expected to register. Kept as a
+     * plain id list rather than a pivot: nothing tracks follow-through, so this is read
+     * whole and checked in PHP — never with whereJsonContains, which sqlite and MySQL
+     * disagree about.
+     *
+     * @return list<int>
+     */
+    public function taggedIds(): array
+    {
+        return array_map('intval', $this->tagged_employee_ids ?? []);
     }
 
     /** @return BelongsTo<Employee, $this> */

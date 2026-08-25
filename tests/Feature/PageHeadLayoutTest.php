@@ -53,9 +53,11 @@ class PageHeadLayoutTest extends TestCase
 
     public function test_profile_banner_renders_above_the_page_heading(): void
     {
+        // Profile, not attendance: the banner nudges you about your own record, so it
+        // only rides the dashboard and the profile screen.
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/attendance');
+            ->get('/app/profile');
 
         $response->assertOk();
 

@@ -8,16 +8,22 @@ use App\Models\Asset;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeSkill;
 use App\Models\EmploymentType;
+use App\Models\Goal;
 use App\Models\HandbookSection;
 use App\Models\LeaveRequest;
+use App\Models\LoanRequest;
+use App\Models\OvertimeRequest;
 use App\Models\PolicyAcknowledgement;
 use App\Models\Position;
+use App\Models\ProbationReview;
 use App\Models\StaffLevel;
 use App\Models\TrainingRecord;
 use App\Models\UserPermission;
 use App\Models\WorkItem;
 use App\Services\DataScope;
+use App\Services\FeatureManager;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -110,21 +116,62 @@ trait BuildsPeopleData
     {
         $with = ['positionBand', 'department', 'branch', 'reportsTo', 'careerTimeline', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
 
-        // A specific employee (from a directory row), else the signed-in user's own
-        // record, else the showcase profile as a last resort. Employee queries are
-        // tenant-scoped by the global scope, so emp/own can never cross tenants.
+        // A specific employee (from a directory row), else the signed-in user's own record.
+        // No arbitrary showcase fallback: an unresolved employee renders the empty state, not
+        // a stranger's full record. Employee queries are tenant-scoped by the global scope,
+        // so emp/own can never cross tenants.
         $e = $request->filled('emp')
             ? Employee::with($with)->find($request->query('emp'))
             : null;
         $own = $request->attributes->get('employee');
         $e ??= $own ? Employee::with($with)->find($own->id) : null;
-        // Last-resort showcase fallback picks an arbitrary CURRENT employee, so it must
-        // not surface an archived person. The ?emp= and own-record lookups above stay
-        // unfiltered — they legitimately resolve a specific (possibly archived) profile.
-        $e ??= Employee::active()->with($with)->where('name', 'like', 'Nurul%')->first()
-            ?? Employee::active()->with($with)->first();
 
-        $assignedTasks = $e
+        $tenant = app(CurrentTenant::class)->get();
+        $features = app(FeatureManager::class);
+
+        // The security fix: directory rows and the header people-search both deep-link
+        // ?emp=, so without this gate any signed-in employee could read any colleague's
+        // full record. Full profile is one of four things (see profileViewerOutranksOrLeads
+        // below for the seniority/reporting-line half): the person themselves,
+        // management/HR/director, the viewer's staff level strictly outranking the
+        // subject's, or the viewer sitting anywhere above the subject in the reporting
+        // line. This also folds in what canSeeAttendance used to compute on its own — same
+        // formula, one variable. Anyone else gets a slim public card, never a 403 — header
+        // search and directory clicks must not dead-end.
+        $canViewFull = $e && (
+            ($own && $own->id === $e->id)
+            || $this->hasTenantRole($request, ['management', 'hr', 'director'])
+            || ($own && $this->profileViewerOutranksOrLeads($own, $e))
+        );
+
+        // Money is board + HR only, same rule as the directory salary column and the
+        // server-side write guard in EmployeeController. Managers still verify claims/OT on
+        // the approvals screens; they just don't get a pay dossier on the profile. Unlike
+        // canViewFull, a manager verifying their own report does NOT gain this.
+        $canSeeMoney = $e && (
+            ($own && $own->id === $e->id)
+            || $this->hasTenantRole($request, ['director', 'hr'])
+        );
+
+        // Director keeps edit rights: hasTenantRole() collapses director into the management
+        // super-set (Permissions::effectiveRole), unlike a raw in_array($role, ...) check.
+        $canEdit = $this->hasTenantRole($request, ['management', 'hr']);
+
+        // Every tab/section gate is canViewFull (or canSeeMoney for the pay dossier) ANDed
+        // with the tenant's module flag — a tab must never render for a module the tenant
+        // switched off, even for a viewer who'd otherwise be allowed to see it.
+        $leaveGate = $canViewFull && $features->screenAllowed($tenant, 'leave');
+        $kpiGate = $canViewFull && $features->screenAllowed($tenant, 'kpi');
+        $goalsGate = $canViewFull && $features->screenAllowed($tenant, 'goals');
+        $reviewsGate = $canViewFull && $features->screenAllowed($tenant, 'reviews');
+        $probationGate = $canViewFull && $features->screenAllowed($tenant, 'probation');
+        $skillsGate = $canViewFull && $features->screenAllowed($tenant, 'skills');
+        $payrollGate = $canSeeMoney && $features->screenAllowed($tenant, 'payroll');
+        $claimsGate = $canSeeMoney && $features->screenAllowed($tenant, 'claims');
+        $loansGate = $canSeeMoney && $features->screenAllowed($tenant, 'loans');
+        $overtimeGate = $canSeeMoney && $features->screenAllowed($tenant, 'overtime');
+
+        $assignedTasks = ($e && $canViewFull)
             ? WorkItem::where('employee_id', $e->id)
                 ->whereNotNull('assigned_by_id')
                 ->with('assignedBy')
@@ -132,32 +179,162 @@ trait BuildsPeopleData
                 ->get()
             : collect();
 
-        // Attendance is sensitive: the person themselves, management/HR/director, or one of
-        // this person's own managers (primary or dotted-line) may see it — never a random peer.
-        // verifierIds() is the same "who manages this requester" source used by leave/claim gates.
-        $canSeeAttendance = $e && (
-            ($own && $own->id === $e->id)
-            || $this->hasTenantRole($request, ['management', 'hr', 'director'])
-            || ($own && in_array($own->id, $e->verifierIds(), true))
-        );
-        $attendance = ($e && $canSeeAttendance)
+        // Attendance rides the Leave & Attendance tab's gate — canViewFull plus the `leave`
+        // module flag — rather than canViewFull alone, so a tenant with Leave off doesn't
+        // leak attendance through the same tab.
+        $attendance = ($e && $leaveGate)
             ? $e->attendanceRecords()
                 ->whereBetween('date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
                 ->orderByDesc('date')
                 ->get()
             : collect();
 
+        $leaveHistory = ($e && $leaveGate)
+            ? $e->leaveRequests()->with('leaveType')->orderByDesc('date_from')->limit(12)->get()
+            : collect();
+
+        $payslips = ($e && $payrollGate)
+            ? $e->payslips()->orderByDesc('id')->limit(12)->get()
+            : collect();
+
+        $claims = ($e && $claimsGate)
+            ? $e->claims()->orderByDesc('date')->limit(12)->get()
+            : collect();
+
+        $loans = ($e && $loansGate)
+            ? LoanRequest::where('employee_id', $e->id)->orderByDesc('created_at')->limit(12)->get()
+            : collect();
+
+        $overtime = ($e && $overtimeGate)
+            ? OvertimeRequest::where('employee_id', $e->id)->orderByDesc('ot_date')->limit(12)->get()
+            : collect();
+
+        $goals = ($e && $goalsGate)
+            ? Goal::where('employee_id', $e->id)->with('keyResults')->orderByDesc('created_at')->limit(12)->get()
+            : collect();
+
+        $reviews = ($e && $reviewsGate)
+            ? $e->performanceReviews()->orderByDesc('review_date')->limit(12)->get()
+            : collect();
+
+        $probation = ($e && $probationGate)
+            ? ProbationReview::where('employee_id', $e->id)->orderByDesc('created_at')->limit(12)->get()
+            : collect();
+
+        // Skill matrix is a current snapshot, not a history list — no 12-row cap.
+        $skills = ($e && $skillsGate)
+            ? EmployeeSkill::where('employee_id', $e->id)->with('skill')->get()
+            : collect();
+
         return array_merge([
             'profile' => $e,
+            'canViewFull' => $canViewFull,
+            'canEdit' => $canEdit,
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
             // Salary is board + HR only — gates the salary field inside the edit form so the
             // management role can edit everyone without seeing or changing pay (same rule as
             // the directory column and the server-side write guard in EmployeeController).
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
+            'canSeeMoney' => $canSeeMoney,
             'assignedTasks' => $assignedTasks,
-            'canSeeAttendance' => $canSeeAttendance,
+            'canSeeAttendance' => $leaveGate,
             'attendance' => $attendance,
-        ], $this->orgOptions());
+            'leaveGate' => $leaveGate,
+            'leaveHistory' => $leaveHistory,
+            'kpiGate' => $kpiGate,
+            'goalsGate' => $goalsGate,
+            'goals' => $goals,
+            'reviewsGate' => $reviewsGate,
+            'reviews' => $reviews,
+            'probationGate' => $probationGate,
+            'probation' => $probation,
+            'skillsGate' => $skillsGate,
+            'skills' => $skills,
+            'payrollGate' => $payrollGate,
+            'payslips' => $payslips,
+            'claimsGate' => $claimsGate,
+            'claims' => $claims,
+            'loansGate' => $loansGate,
+            'loans' => $loans,
+            'overtimeGate' => $overtimeGate,
+            'overtime' => $overtime,
+        ], $canEdit ? $this->orgOptions() : []);
+    }
+
+    /**
+     * Rules 3 and 4 of the profile visibility gate (rules 1 and 2 — self, and
+     * management/hr/director — live inline in profileData()). Either path alone misses a
+     * real case the other covers, so both stay:
+     *
+     * - Rank (rule 3): the viewer's staff level strictly outranks the subject's, company
+     *   wide. Gives a Director-level viewer with zero reports (e.g. Suandy) the same
+     *   visibility as one who has reports, and lets a senior level see junior staff
+     *   outside their own branch/department without depending on the org chart being
+     *   correct. Requires both ranks non-null — a null rank on either side means this
+     *   rule cannot apply (fail closed, see class docblock in the migration).
+     * - Ancestor (rule 4): the viewer sits anywhere above the subject in the reporting
+     *   line, direct or transitive. Rank alone regresses managers whose own staff level
+     *   happens to be junior-tagged relative to people they manage (e.g. an Exec-level
+     *   lead with Manager-level reports) — without this they'd lose sight of their own
+     *   team. verifierIds() covers the immediate primary + dotted-line managers; the
+     *   reports_to_id walk on top covers everyone further up that chain (a skip-level
+     *   grandmanager, etc). Archived intermediates are walked through regardless: the org
+     *   position held even if the person filling it has since left.
+     */
+    private function profileViewerOutranksOrLeads(Employee $viewer, Employee $subject): bool
+    {
+        if ($this->staffLevelRankOutranks($viewer, $subject)) {
+            return true;
+        }
+
+        return $this->isReportingLineAncestor($viewer, $subject);
+    }
+
+    private function staffLevelRankOutranks(Employee $viewer, Employee $subject): bool
+    {
+        $viewerRank = $viewer->staffLevel?->rank;
+        $subjectRank = $subject->staffLevel?->rank;
+
+        return $viewerRank !== null && $subjectRank !== null && $viewerRank < $subjectRank;
+    }
+
+    /**
+     * True when $viewer is a direct or transitive superior of $subject: either a primary
+     * or dotted-line manager (verifierIds()), or anywhere further up the raw reports_to_id
+     * chain. The chain is walked without regard to whether an intermediate manager is
+     * archived — the reporting relationship held historically even if that seat is now
+     * vacant — so a visited-id set plus a depth cap is the only guard against a corrupt
+     * cyclic chain hanging the request.
+     */
+    private function isReportingLineAncestor(Employee $viewer, Employee $subject): bool
+    {
+        if (in_array($viewer->id, $subject->verifierIds(), true)) {
+            return true;
+        }
+
+        $visited = [];
+        $currentId = $subject->reports_to_id;
+        $depth = 0;
+
+        while ($currentId !== null && ! in_array($currentId, $visited, true) && $depth < 50) {
+            if ($currentId === $viewer->id) {
+                return true;
+            }
+
+            $visited[] = $currentId;
+            $depth++;
+
+            // Raw query builder, not the Employee model: archived staff carry no soft-
+            // delete/global scope of their own (scopeActive()/scopeArchived() are opt-in
+            // local scopes), but going straight to the table sidesteps ever having to
+            // reason about that as scopes evolve — an archived intermediate must still be
+            // walked through. Cast to int: the raw query builder doesn't apply Eloquent's
+            // key casting, and the strict comparisons above need matching types.
+            $next = DB::table('employees')->where('id', $currentId)->value('reports_to_id');
+            $currentId = $next === null ? null : (int) $next;
+        }
+
+        return false;
     }
 
     private function assetsData(Request $request): array

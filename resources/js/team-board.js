@@ -98,6 +98,9 @@ export function registerTeamBoard(Alpine) {
             },
             comments: [],
             mention: { open: false, hits: [], idx: 0 },
+            // Never opens here (drawer.locked), but the picker's directives still bind.
+            peopleMenuOpen: false,
+            peopleQuery: '',
             _closeTimer: null,
         },
 
@@ -112,6 +115,10 @@ export function registerTeamBoard(Alpine) {
         // regardless — x-show only toggles display, it doesn't stop Alpine from
         // evaluating child directives. Real content is never needed.
         get availablePeople() {
+            return [];
+        },
+
+        get filteredPeople() {
             return [];
         },
 

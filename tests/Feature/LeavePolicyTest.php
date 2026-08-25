@@ -85,6 +85,116 @@ class LeavePolicyTest extends TestCase
         $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $this->emergency->id]);
     }
 
+    // --- Emergency overflows onto Unpaid ------------------------------------
+
+    private function unpaidType(): LeaveType
+    {
+        return LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Unpaid', 'entitlement' => 0,
+        ]);
+    }
+
+    /** @return array{0: Employee, 1: Employee} management approver, requester */
+    private function approverAndRequester(float $annualBalance): array
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create([
+            'employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => $annualBalance,
+        ]);
+
+        return [$mgmt, $report];
+    }
+
+    public function test_emergency_beyond_the_annual_balance_splits_the_overflow_onto_unpaid_leave(): void
+    {
+        $unpaid = $this->unpaidType();
+        [$mgmt, $report] = $this->approverAndRequester(2);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-05', 'days' => 5, 'status' => 'verified',
+        ]);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        // The paid part shrinks to the 2 days Annual could cover.
+        $fresh = $req->fresh();
+        $this->assertSame($this->emergency->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(2.0, (float) $fresh->days, 0.001);
+        $this->assertSame('2026-07-02', $fresh->date_to->toDateString());
+
+        // The rest becomes an already-approved Unpaid row picking up the next day.
+        $over = LeaveRequest::where('leave_type_id', $unpaid->id)->firstOrFail();
+        $this->assertEqualsWithDelta(3.0, (float) $over->days, 0.001);
+        $this->assertSame('2026-07-03', $over->date_from->toDateString());
+        $this->assertSame('2026-07-05', $over->date_to->toDateString());
+        $this->assertSame('approved', $over->status);
+        $this->assertSame($mgmt->id, $over->approved_by_id);
+        $this->assertSame($report->id, $over->employee_id);
+
+        // Only the covered days come off the balance — the unpaid days are not charged twice.
+        $this->assertEqualsWithDelta(0.0, (float) LeaveBalance::where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+    }
+
+    public function test_emergency_with_no_annual_balance_left_is_approved_entirely_as_unpaid(): void
+    {
+        $unpaid = $this->unpaidType();
+        [$mgmt, $report] = $this->approverAndRequester(0);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-03', 'days' => 3, 'status' => 'verified',
+        ]);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        // One row, converted in place — no second request to review.
+        $fresh = $req->fresh();
+        $this->assertSame($unpaid->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(3.0, (float) $fresh->days, 0.001);
+        $this->assertSame('2026-07-03', $fresh->date_to->toDateString());
+        $this->assertSame(1, LeaveRequest::count());
+    }
+
+    public function test_half_day_emergency_without_balance_is_converted_whole_rather_than_split(): void
+    {
+        $unpaid = $this->unpaidType();
+        [$mgmt, $report] = $this->approverAndRequester(0);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-01', 'half_day_period' => 'am',
+            'days' => 0.5, 'status' => 'verified',
+        ]);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        $fresh = $req->fresh();
+        $this->assertSame($unpaid->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(0.5, (float) $fresh->days, 0.001);
+        $this->assertSame(1, LeaveRequest::count());
+    }
+
+    public function test_overflow_stays_on_the_request_when_no_unpaid_type_is_configured(): void
+    {
+        [$mgmt, $report] = $this->approverAndRequester(2);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-05', 'days' => 5, 'status' => 'verified',
+        ]);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        $fresh = $req->fresh();
+        $this->assertSame($this->emergency->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(5.0, (float) $fresh->days, 0.001);
+        $this->assertSame(1, LeaveRequest::count());
+        $this->assertEqualsWithDelta(0.0, (float) LeaveBalance::where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+    }
+
     // --- Decision chronology ------------------------------------------------
 
     public function test_verify_then_approve_records_the_full_decision_trail(): void
