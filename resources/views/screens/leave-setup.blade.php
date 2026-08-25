@@ -176,12 +176,18 @@
                         @foreach ($leaveTypes as $type)
                             <th style="text-align:right;padding:11px 14px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;vertical-align:top;">
                                 {{ $type->name }}
+                                @if ($type->deducts_from_leave_type_id)
+                                    {{-- Spends another type's balance, so there is nothing to open here. --}}
+                                    <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
+                                         x-text="$store.ui.lang==='en' ? 'off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}' : 'dari {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}'">off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}</div>
+                                @else
                                 <div x-data="{ v: '' }" style="display:flex;gap:4px;justify-content:flex-end;margin-top:7px;font-weight:400;">
                                     <input type="number" step="0.5" min="0" max="9999" x-model="v" placeholder="all"
                                            @keydown.enter.prevent="fillCol({{ $type->id }}, v)"
                                            style="width:52px;height:28px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;text-align:right;font-family:var(--font-mono);outline:none;" />
                                     <button type="button" @click="fillCol({{ $type->id }}, v)" class="uj-btn-ghost" style="height:28px;padding:0 9px;font-size:11px;"><span x-text="$store.ui.lang==='en' ? 'Set' : 'Isi'">Set</span></button>
                                 </div>
+                                @endif
                             </th>
                         @endforeach
                     </tr>
@@ -197,11 +203,16 @@
                             @foreach ($leaveTypes as $type)
                                 @php $cell = $row?->get($type->id); @endphp
                                 <td style="padding:7px 14px;text-align:right;">
-                                    <input type="number" step="0.5" min="0" max="9999"
-                                           name="balances[{{ $e->id }}][{{ $type->id }}]"
-                                           data-lt="{{ $type->id }}"
-                                           value="{{ $cell === null ? '' : ($cell == (int) $cell ? (int) $cell : $cell) }}"
-                                           placeholder="—" style="{{ $cellStyle }}" />
+                                    @if ($type->deducts_from_leave_type_id)
+                                        @php $src = $row?->get($type->deducts_from_leave_type_id); @endphp
+                                        <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $src === null ? '—' : ($src == (int) $src ? (int) $src : $src) }}</span>
+                                    @else
+                                        <input type="number" step="0.5" min="0" max="9999"
+                                               name="balances[{{ $e->id }}][{{ $type->id }}]"
+                                               data-lt="{{ $type->id }}"
+                                               value="{{ $cell === null ? '' : ($cell == (int) $cell ? (int) $cell : $cell) }}"
+                                               placeholder="—" style="{{ $cellStyle }}" />
+                                    @endif
                                 </td>
                             @endforeach
                         </tr>

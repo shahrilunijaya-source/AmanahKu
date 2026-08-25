@@ -235,8 +235,10 @@ class LeaveController extends Controller
     private function applyApproval(LeaveRequest $leaveRequest, ?int $actorId): bool
     {
         $reconciled = 0;
+        $originalDays = (float) $leaveRequest->days;
+        $unpaidDays = 0.0;
 
-        $flipped = DB::transaction(function () use ($leaveRequest, $actorId, &$reconciled) {
+        $flipped = DB::transaction(function () use ($leaveRequest, $actorId, &$reconciled, &$unpaidDays) {
             // Atomic compare-and-set: two concurrent approves can both pass the status
             // check, but only one flips verified→approved here. The loser matches zero
             // rows and must NOT decrement the balance again.
@@ -258,8 +260,13 @@ class LeaveController extends Controller
                 ->lockForUpdate()
                 ->first();
 
+            $overflow = null;
+
             if ($balance) {
-                $balance->update(['balance' => max(0, $balance->balance - $leaveRequest->days)]);
+                // Days the balance cannot pay for do not block the absence — they move
+                // onto Unpaid leave, and only the covered days come off the balance.
+                ['spend' => $spend, 'unpaid' => $unpaidDays, 'overflow' => $overflow] = $this->absorbOverflowAsUnpaid($leaveRequest, (float) $balance->balance, $actorId);
+                $balance->update(['balance' => max(0, $balance->balance - $spend)]);
             }
 
             // Leave→timesheet is otherwise pull-based: LockedDays only materialises the
@@ -269,6 +276,9 @@ class LeaveController extends Controller
             // flip + balance so the approval never half-succeeds. The row is 'approved' on
             // this connection now, so LockedDays sees it.
             $reconciled = app(WeekReconciler::class)->reconcileForLeave($leaveRequest);
+            if ($overflow) {
+                $reconciled += app(WeekReconciler::class)->reconcileForLeave($overflow);
+            }
 
             return true;
         });
@@ -277,18 +287,80 @@ class LeaveController extends Controller
             return false;
         }
 
-        AuditLog::record('Approved leave', $leaveRequest->employee->name.' · '.$leaveRequest->days.'d');
+        AuditLog::record('Approved leave', $leaveRequest->employee->name.' · '.$originalDays.'d'
+            .($unpaidDays > 0 ? ' ('.$unpaidDays.'d unpaid)' : ''));
         if ($reconciled > 0) {
             AuditLog::record('Reconciled timesheet', $leaveRequest->employee->name.' · '.$reconciled.' week(s) updated for approved leave');
         }
         AppNotification::send(
             $leaveRequest->employee->user_id,
             'Leave approved',
-            ($leaveRequest->leaveType?->name ?? 'Leave').' · '.$leaveRequest->days.' day(s)',
+            ($leaveRequest->leaveType?->name ?? 'Leave').' · '.$leaveRequest->days.' day(s)'
+                .($unpaidDays > 0 ? ' — '.$unpaidDays.' day(s) beyond your balance approved as unpaid leave' : ''),
             route('app.screen', 'leave'),
         );
 
         return true;
+    }
+
+    /**
+     * Trim an approved request to the days its balance can actually pay for and move the
+     * rest onto Unpaid leave. Emergency leave shares the Annual quota, so once that quota
+     * is spent the absence still stands — it just stops being paid.
+     *
+     * Whole days only: a stranded half day of balance (2.5 left against a 5 day request)
+     * stays on the balance rather than being split across a date, and a half day request
+     * is paid in full or not at all.
+     *
+     * @return array{spend: float, unpaid: float, overflow: ?LeaveRequest}
+     */
+    private function absorbOverflowAsUnpaid(LeaveRequest $leaveRequest, float $balance, ?int $actorId): array
+    {
+        $days = (float) $leaveRequest->days;
+
+        if ($balance >= $days) {
+            return ['spend' => $days, 'unpaid' => 0.0, 'overflow' => null];
+        }
+
+        $unpaid = LeaveType::where('name', 'Unpaid')->first();
+
+        if (! $unpaid) {
+            AuditLog::record('Leave over balance', $leaveRequest->employee->name.' · '
+                .round($days - max(0, $balance), 2).'d unconverted — no Unpaid leave type configured');
+
+            return ['spend' => max(0, $balance), 'unpaid' => 0.0, 'overflow' => null];
+        }
+
+        $covered = $leaveRequest->isHalfDay() ? 0.0 : floor(max(0, $balance));
+
+        if ($covered <= 0) {
+            // Nothing left to pay for it: the whole absence becomes unpaid, no second row.
+            $leaveRequest->update(['leave_type_id' => $unpaid->id]);
+            $leaveRequest->setRelation('leaveType', $unpaid);
+
+            return ['spend' => 0.0, 'unpaid' => $days, 'overflow' => null];
+        }
+
+        $paidTo = $leaveRequest->date_from->copy()->addDays((int) $covered - 1);
+
+        $overflow = LeaveRequest::create([
+            'tenant_id' => $leaveRequest->tenant_id,
+            'employee_id' => $leaveRequest->employee_id,
+            'leave_type_id' => $unpaid->id,
+            'date_from' => $paidTo->copy()->addDay(),
+            'date_to' => $leaveRequest->date_to,
+            'days' => $days - $covered,
+            'reason' => $leaveRequest->reason,
+            'status' => 'approved',
+            'verified_by_id' => $leaveRequest->verified_by_id,
+            'verified_at' => $leaveRequest->verified_at,
+            'approved_by_id' => $actorId,
+            'approved_at' => now(),
+        ]);
+
+        $leaveRequest->update(['date_to' => $paidTo, 'days' => $covered]);
+
+        return ['spend' => $covered, 'unpaid' => $days - $covered, 'overflow' => $overflow];
     }
 
     /** The requester withdraws their own application before anyone approves it. */

@@ -337,12 +337,6 @@ parameters:
 			path: app/Http/Controllers/KnowledgeController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\LeaveRequest\:\:\$verified_by_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/LeaveController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 2

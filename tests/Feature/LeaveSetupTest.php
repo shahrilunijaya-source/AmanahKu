@@ -57,6 +57,26 @@ class LeaveSetupTest extends TestCase
         return $this;
     }
 
+    public function test_a_type_that_deducts_from_another_gets_no_opening_balance(): void
+    {
+        $emergency = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Emergency', 'entitlement' => 0,
+            'is_unplanned' => true, 'deducts_from_leave_type_id' => $this->annual->id,
+        ]);
+
+        $this->asHr()->post('/app/leave-setup', [
+            'balances' => [$this->staff->id => [$this->annual->id => 12, $emergency->id => 5]],
+        ])->assertRedirect();
+
+        // Annual is the only balance that exists — Emergency spends it, so a row of its
+        // own would be a number nothing ever reads.
+        $this->assertEqualsWithDelta(12.0, (float) LeaveBalance::where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+        $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $emergency->id]);
+
+        // The grid shows the Annual figure in that column instead of an editable cell.
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertSee('off Annual');
+    }
+
     public function test_hr_sees_the_leave_setup_screen(): void
     {
         $this->asHr()->get('/app/leave-setup')->assertOk();
