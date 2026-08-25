@@ -32,9 +32,10 @@ class StatutoryRate extends Model
 
     /**
      * Active rate config for the current tenant: stored values layered over the
-     * published defaults, keyed by type (socso|eis|pcb). EPF is not here — it follows
-     * the fixed KWSP Third Schedule (EpfCalculator) and is not tenant-editable. Single
-     * source of truth for both the calculator and the rate-config UI.
+     * published defaults, keyed by type (currently just pcb). EPF, SOCSO and EIS are
+     * not here — they follow fixed published schedules (EpfCalculator, SocsoCalculator,
+     * EisCalculator) and are not tenant-editable. Single source of truth for both the
+     * calculator and the rate-config UI.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -50,26 +51,13 @@ class StatutoryRate extends Model
     }
 
     /**
-     * Current MY statutory defaults (confirmed 2026-06-24). Editable per tenant;
-     * verify against official KWSP/PERKESO tables before a real payroll run.
+     * PCB defaults (confirmed 2026-06-24) — the only type still tenant-editable.
      *
      * @return array<string, array<string, int|float>>
      */
     public static function defaults(): array
     {
         return [
-            'socso' => [
-                'employer_pct' => 1.75,   // flat-% fallback (used only if use_brackets is cleared)
-                'employee_pct' => 0.5,
-                'wage_ceiling' => 6000,
-                'use_brackets' => true,   // use the PERKESO stepped Jadual Caruman (StatutoryBrackets)
-            ],
-            'eis' => [
-                'employer_pct' => 0.2,
-                'employee_pct' => 0.2,
-                'wage_ceiling' => 6000,
-                'use_brackets' => true,
-            ],
             'pcb' => [
                 'auto' => false,                // OFF by default — PCB stays manual entry (I-016)
                 'individual_relief' => 9000,    // annual; editable per tenant

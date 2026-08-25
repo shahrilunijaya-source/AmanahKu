@@ -31,6 +31,7 @@ final readonly class PayslipComputation
         public float $socsoEmployer,
         public float $eisEmployee,
         public float $eisEmployer,
+        public float $skbbkEmployee,
         public float $pcb,
         public array $otherDeductions,
         public float $otherDeductionsTotal,
@@ -40,10 +41,10 @@ final readonly class PayslipComputation
         public float $employerCost,
     ) {}
 
-    /** Total employee-side statutory contributions (EPF + SOCSO + EIS). */
+    /** Total employee-side statutory contributions (EPF + SOCSO + EIS + SKBBK). */
     public function statutoryEmployee(): float
     {
-        return round($this->epfEmployee + $this->socsoEmployee + $this->eisEmployee, 2);
+        return round($this->epfEmployee + $this->socsoEmployee + $this->eisEmployee + $this->skbbkEmployee, 2);
     }
 
     /** Total employer-side statutory contributions. */
@@ -71,6 +72,7 @@ final readonly class PayslipComputation
             'socso_employer' => $this->socsoEmployer,
             'eis_employee' => $this->eisEmployee,
             'eis_employer' => $this->eisEmployer,
+            'skbbk_employee' => $this->skbbkEmployee,
             'pcb' => $this->pcb,
             'other_deductions' => $this->otherDeductions ?: null,
             'claims_reimbursement' => $this->claimsReimbursement,

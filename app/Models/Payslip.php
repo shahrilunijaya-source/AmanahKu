@@ -42,6 +42,7 @@ class Payslip extends Model
             'socso_employer' => 'float',
             'eis_employee' => 'float',
             'eis_employer' => 'float',
+            'skbbk_employee' => 'float',
             'pcb' => 'float',
             'claims_reimbursement' => 'float',
             'total_deductions' => 'float',
@@ -60,9 +61,9 @@ class Payslip extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    /** Total employee-side statutory contributions. */
+    /** Total employee-side statutory contributions, including SKBBK. */
     public function statutoryEmployee(): float
     {
-        return $this->epf_employee + $this->socso_employee + $this->eis_employee;
+        return $this->epf_employee + $this->socso_employee + $this->eis_employee + $this->skbbk_employee;
     }
 }

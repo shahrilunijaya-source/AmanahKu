@@ -117,6 +117,20 @@ class PayrollTest extends TestCase
         $this->assertEqualsWithDelta(60.0, (float) $slip->epf_employer, 0.001);
     }
 
+    public function test_skbbk_opt_in_adds_a_deduction_line_and_lowers_net_pay(): void
+    {
+        $baseline = $this->createRun('2026-06');
+        $baselineSlip = $baseline->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertSame(0.0, (float) $baselineSlip->skbbk_employee);
+
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['skbbk_opt_in' => true]);
+        $optedIn = $this->createRun('2026-07');
+        $optedInSlip = $optedIn->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->assertGreaterThan(0.0, (float) $optedInSlip->skbbk_employee);
+        $this->assertLessThan((float) $baselineSlip->net_pay, (float) $optedInSlip->net_pay);
+    }
+
     public function test_missing_dob_is_flagged_on_the_run(): void
     {
         // Neither seeded employee has a DOB → both treated as Category 1, count surfaced.
@@ -303,20 +317,16 @@ class PayrollTest extends TestCase
     public function test_privileged_user_updates_statutory_rates(): void
     {
         $this->actingHr()->post('/app/payroll/rates', [
-            'socso_employer_pct' => 1.75, 'socso_employee_pct' => 0.5, 'socso_ceiling' => 6000,
-            'eis_employer_pct' => 0.2, 'eis_employee_pct' => 0.2, 'eis_ceiling' => 6000,
+            'pcb_individual_relief' => 9500, 'pcb_epf_relief_cap' => 4000,
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('statutory_rates', ['tenant_id' => $this->tenant->id, 'type' => 'socso']);
-        $this->assertEqualsWithDelta(6000.0, (float) StatutoryRate::where('type', 'socso')->first()->config['wage_ceiling'], 0.001);
+        $this->assertDatabaseHas('statutory_rates', ['tenant_id' => $this->tenant->id, 'type' => 'pcb']);
+        $this->assertEqualsWithDelta(9500.0, (float) StatutoryRate::where('type', 'pcb')->first()->config['individual_relief'], 0.001);
     }
 
     public function test_employee_cannot_update_statutory_rates(): void
     {
-        $this->actingEmployee()->post('/app/payroll/rates', [
-            'socso_employer_pct' => 0, 'socso_employee_pct' => 0, 'socso_ceiling' => 0,
-            'eis_employer_pct' => 0, 'eis_employee_pct' => 0, 'eis_ceiling' => 0,
-        ])->assertForbidden();
+        $this->actingEmployee()->post('/app/payroll/rates', [])->assertForbidden();
     }
 
     // ── Tenant isolation ──────────────────────────────────────────
@@ -414,8 +424,6 @@ class PayrollTest extends TestCase
     private function enableAutoPcb(): void
     {
         $this->actingHr()->post('/app/payroll/rates', [
-            'socso_employer_pct' => 1.75, 'socso_employee_pct' => 0.5, 'socso_ceiling' => 6000,
-            'eis_employer_pct' => 0.2, 'eis_employee_pct' => 0.2, 'eis_ceiling' => 6000,
             'pcb_auto' => 1, 'pcb_individual_relief' => 9000, 'pcb_epf_relief_cap' => 4000,
         ])->assertRedirect();
     }

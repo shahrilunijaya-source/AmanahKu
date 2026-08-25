@@ -37,6 +37,7 @@ class SalaryStructure extends Model
         'disabled_spouse',
         'zakat_monthly',
         'cp38_monthly',
+        'skbbk_opt_in',
     ];
 
     protected function casts(): array
@@ -54,6 +55,7 @@ class SalaryStructure extends Model
             'disabled_spouse' => 'boolean',
             'zakat_monthly' => 'float',
             'cp38_monthly' => 'float',
+            'skbbk_opt_in' => 'boolean',
         ];
     }
 

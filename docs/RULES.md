@@ -43,12 +43,15 @@ Payroll is shipped **off** for the current scope. These rules apply if it is swi
   are marked `paid`.
 - Finalizing without approval is allowed by default — a deliberate single-operator shortcut.
   Set `payroll.four_eyes` to require approval first.
-- **Statutory rates are editable per company and must be verified against the official
-  KWSP / PERKESO tables before a real run.** The app warns in-app. Seeded values (confirmed
-  2026-06-24): EPF employee 11%, employer 13% at wage ≤ RM5,000 or 12% above; SOCSO employer
-  1.75% / employee 0.5%; EIS 0.2% each; SOCSO and EIS wage ceiling RM6,000.
-- SOCSO and EIS use a **flat percentage on the capped wage**, not the PERKESO stepped
-  bracket table. Close enough for estimates, not exact. See [ROADMAP.md](ROADMAP.md) I-013.
+- **EPF, SOCSO and EIS all follow fixed official schedules and are not tenant-editable.**
+  EPF is the KWSP Third Schedule (`EpfCalculator`); SOCSO is the PERKESO Third Schedule Act 4
+  (`SocsoCalculator`); EIS is the PERKESO Second Schedule Act 800 (`EisCalculator`). All
+  three read from published PDFs transcribed into `tests/Fixtures/`, not a percentage
+  formula — see [ROADMAP.md](ROADMAP.md) I-013. Only PCB stays configurable per tenant
+  (`StatutoryRate`, type `pcb`).
+- **SKBBK ("Lindung 24 Jam")** — voluntary since 8 July 2026, entirely employee-paid — is a
+  per-employee opt-in (`salary_structures.skbbk_opt_in`) with its own payslip deduction
+  line (`payslips.skbbk_employee`), separate from `socso_employee`.
 - PCB / MTD is **manual entry per payslip**. No auto-calculation. Deliberate — the LHDN
   progressive table plus reliefs changes yearly and is error-prone to encode.
 - Calculation constants (`PayrollCalculator`): 26 working days per month, 8 hours per day,

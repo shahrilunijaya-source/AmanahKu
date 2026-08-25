@@ -4,37 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Services\Payroll\EisCalculator;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
-use App\Services\Payroll\StatutoryBrackets;
+use App\Services\Payroll\SocsoCalculator;
 use PHPUnit\Framework\TestCase;
 
 class PayrollCalculatorTest extends TestCase
 {
     private PayrollCalculator $calc;
 
-    /** Current published MY defaults — mirrors StatutoryRate::defaults(). EPF is not here — it's the fixed KWSP Third Schedule (EpfCalculator), not a rate config. */
-    private array $rates = [
-        'socso' => ['employer_pct' => 1.75, 'employee_pct' => 0.5, 'wage_ceiling' => 6000],
-        'eis' => ['employer_pct' => 0.2, 'employee_pct' => 0.2, 'wage_ceiling' => 6000],
-    ];
-
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calc = new PayrollCalculator(new EpfCalculator);
+        $this->calc = new PayrollCalculator(new EpfCalculator, new SocsoCalculator, new EisCalculator);
     }
 
     public function test_epf_employer_rate_steps_down_above_threshold(): void
     {
         // Wage above RM5,000 → employer 12% of the RM100 band ceiling (11,550 → band 11,600).
-        $high = $this->calc->compute(['basic' => 11000, 'allowances_total' => 550], $this->rates);
+        $high = $this->calc->compute(['basic' => 11000, 'allowances_total' => 550]);
         $this->assertSame(11550.0, $high->gross);
         $this->assertSame(1276.00, $high->epfEmployee);   // 11% of 11,600
         $this->assertSame(1392.00, $high->epfEmployer);   // 12% of 11,600 (> threshold)
 
         // Wage at/below RM5,000 → employer 13% (4,000 is exactly on a band boundary).
-        $low = $this->calc->compute(['basic' => 4000], $this->rates);
+        $low = $this->calc->compute(['basic' => 4000]);
         $this->assertSame(440.00, $low->epfEmployee);     // 11%
         $this->assertSame(520.00, $low->epfEmployer);     // 13% (<= threshold)
     }
@@ -42,7 +37,7 @@ class PayrollCalculatorTest extends TestCase
     public function test_epf_third_schedule_band_for_a_3000_wage(): void
     {
         // Third Schedule Part A, band 2,980.01–3,000.00 (verified against the fixture CSV).
-        $c = $this->calc->compute(['basic' => 3000], $this->rates);
+        $c = $this->calc->compute(['basic' => 3000]);
         $this->assertSame(330.00, $c->epfEmployee);
         $this->assertSame(390.00, $c->epfEmployer);
     }
@@ -51,25 +46,30 @@ class PayrollCalculatorTest extends TestCase
     {
         // Third Schedule Part A, band 4,000.01–4,020.00: 11%/13% of the 4,020 band ceiling,
         // rounded up. The fixture gives 443/523 here — not 444/525.
-        $c = $this->calc->compute(['basic' => 4010], $this->rates);
+        $c = $this->calc->compute(['basic' => 4010]);
         $this->assertSame(443.00, $c->epfEmployee);
         $this->assertSame(523.00, $c->epfEmployer);
     }
 
-    public function test_socso_and_eis_are_capped_at_wage_ceiling(): void
+    public function test_socso_and_eis_are_capped_at_the_ceiling_row(): void
     {
-        $c = $this->calc->compute(['basic' => 8000], $this->rates);
-        // Base capped at RM6,000.
-        $this->assertSame(30.00, $c->socsoEmployee);      // 0.5% of 6000
-        $this->assertSame(105.00, $c->socsoEmployer);     // 1.75% of 6000
-        $this->assertSame(12.00, $c->eisEmployee);        // 0.2% of 6000
-        $this->assertSame(12.00, $c->eisEmployer);
+        // Basic 8,000 is above the RM6,000 ceiling — uses the schedule's last row, same
+        // as wages of exactly RM6,000.
+        $atCeiling = $this->calc->compute(['basic' => 6000]);
+        $above = $this->calc->compute(['basic' => 8000]);
+        $this->assertSame($atCeiling->socsoEmployee, $above->socsoEmployee);
+        $this->assertSame($atCeiling->socsoEmployer, $above->socsoEmployer);
+        $this->assertSame($atCeiling->eisEmployee, $above->eisEmployee);
+        $this->assertSame(29.75, $above->socsoEmployee);
+        $this->assertSame(104.15, $above->socsoEmployer);
+        $this->assertSame(11.90, $above->eisEmployee);
+        $this->assertSame(11.90, $above->eisEmployer);
     }
 
     public function test_overtime_uses_ordinary_rate_of_pay(): void
     {
         // hourly = 5200 / 26 / 8 = 25.00 ; OT = 10 * 25 * 1.5 = 375.00
-        $c = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10], $this->rates);
+        $c = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10]);
         $this->assertSame(375.00, $c->overtimeAmount);
         $this->assertSame(5575.00, $c->gross);
     }
@@ -77,8 +77,8 @@ class PayrollCalculatorTest extends TestCase
     /** s.2 EPF Act 1991: overtime is not "wages", so it must not raise the EPF contribution. */
     public function test_epf_ignores_overtime_but_socso_does_not(): void
     {
-        $withoutOvertime = $this->calc->compute(['basic' => 5200], $this->rates);
-        $withOvertime = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10], $this->rates);
+        $withoutOvertime = $this->calc->compute(['basic' => 5200]);
+        $withOvertime = $this->calc->compute(['basic' => 5200, 'overtime_hours' => 10]);
 
         $this->assertSame(5575.00, $withOvertime->gross, 'Overtime still counts towards gross pay.');
         $this->assertSame($withoutOvertime->epfEmployee, $withOvertime->epfEmployee);
@@ -86,23 +86,53 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(572.00, $withOvertime->epfEmployee);   // 11% of the RM5,200 band, not of RM5,575
         $this->assertSame(624.00, $withOvertime->epfEmployer);   // 12% of RM5,200 (above the RM5,000 step)
 
-        // SOCSO/EIS wages do include overtime, so those move with the higher gross.
+        // SOCSO/EIS wages DO include overtime (PERKESO's payments-subject-to-contribution
+        // list), so those move with the higher wage.
         $this->assertGreaterThan($withoutOvertime->socsoEmployer, $withOvertime->socsoEmployer);
     }
 
     /** Bonus IS wages for EPF — it must raise the contribution, unlike overtime. */
     public function test_epf_includes_bonus(): void
     {
-        $c = $this->calc->compute(['basic' => 3000, 'bonus' => 1000], $this->rates);
+        $c = $this->calc->compute(['basic' => 3000, 'bonus' => 1000]);
         $this->assertSame(4000.00, $c->gross);
         $this->assertSame(440.00, $c->epfEmployee);   // 11% of RM4,000, not of RM3,000
         $this->assertSame(520.00, $c->epfEmployer);
     }
 
+    /**
+     * PERKESO's payments-subject-to-contribution list EXCLUDES the annual bonus, unlike
+     * EPF wages (which exclude overtime instead). The two statutory wage bases are
+     * deliberately different — this proves both directions.
+     */
+    public function test_socso_and_eis_exclude_bonus_but_epf_includes_it(): void
+    {
+        $withoutBonus = $this->calc->compute(['basic' => 3000]);
+        $withBonus = $this->calc->compute(['basic' => 3000, 'bonus' => 1000]);
+
+        $this->assertSame(4000.00, $withBonus->gross);
+        $this->assertGreaterThan($withoutBonus->epfEmployee, $withBonus->epfEmployee);
+        $this->assertSame($withoutBonus->socsoEmployee, $withBonus->socsoEmployee);
+        $this->assertSame($withoutBonus->socsoEmployer, $withBonus->socsoEmployer);
+        $this->assertSame($withoutBonus->eisEmployee, $withBonus->eisEmployee);
+    }
+
+    /** Overtime IS part of the SOCSO/EIS wage base, unlike EPF's (which excludes it). */
+    public function test_socso_and_eis_include_overtime_but_epf_excludes_it(): void
+    {
+        $withoutOvertime = $this->calc->compute(['basic' => 3000]);
+        $withOvertime = $this->calc->compute(['basic' => 3000, 'overtime_hours' => 10]);
+
+        $this->assertSame($withoutOvertime->epfEmployee, $withOvertime->epfEmployee);
+        $this->assertSame($withoutOvertime->epfEmployer, $withOvertime->epfEmployer);
+        $this->assertGreaterThan($withoutOvertime->socsoEmployee, $withOvertime->socsoEmployee);
+        $this->assertGreaterThan($withoutOvertime->eisEmployee, $withOvertime->eisEmployee);
+    }
+
     public function test_unpaid_leave_prorates_against_daily_rate(): void
     {
         // daily = 5200 / 26 = 200 ; 2 days unpaid = 400 off gross
-        $c = $this->calc->compute(['basic' => 5200, 'unpaid_days' => 2], $this->rates);
+        $c = $this->calc->compute(['basic' => 5200, 'unpaid_days' => 2]);
         $this->assertSame(400.00, $c->unpaidDeduction);
         $this->assertSame(4800.00, $c->gross);
     }
@@ -119,32 +149,34 @@ class PayrollCalculatorTest extends TestCase
             'other_deductions' => [['name' => 'Salary advance', 'amount' => 100]],
             'pcb' => 50,
             'claims_reimbursement' => 150,
-        ], $this->rates);
+        ]);
 
         $this->assertSame(3200.00, $c->gross);              // basic + one valid addition
         $this->assertSame(200.00, $c->additionsTotal);
         $this->assertCount(1, $c->additions);               // blanks stripped
         $this->assertSame(100.00, $c->otherDeductionsTotal);
         $this->assertSame(50.00, $c->pcb);
-        // EPF 11% of 3200 = 352 ; SOCSO 16 ; EIS 6.40 ; + pcb 50 + other 100
-        $this->assertSame(524.40, $c->totalDeductions);
+        // EPF 11% of 3200 = 352 ; SOCSO 15.75 ; EIS 6.30 ; + pcb 50 + other 100
+        $this->assertSame(524.05, $c->totalDeductions);
         // net = gross - deductions + reimbursement
-        $this->assertSame(2825.60, $c->netPay);
+        $this->assertSame(2825.95, $c->netPay);
     }
 
     public function test_employer_cost_includes_employer_statutory(): void
     {
-        $c = $this->calc->compute(['basic' => 4000], $this->rates);
-        // 4000 + EPF er 520 + SOCSO er 70 + EIS er 8 = 4598
-        $this->assertSame(4598.00, $c->employerCost);
-        $this->assertSame(598.00, $c->statutoryEmployer());
+        $c = $this->calc->compute(['basic' => 4000]);
+        // 4000 + EPF er 520 + SOCSO er 69.15 + EIS er 7.90 = 4597.05
+        $this->assertSame(4597.05, $c->employerCost);
+        $this->assertSame(597.05, $c->statutoryEmployer());
     }
 
     public function test_zero_basic_produces_zeroed_payslip_without_errors(): void
     {
-        $c = $this->calc->compute(['basic' => 0], $this->rates);
+        $c = $this->calc->compute(['basic' => 0]);
         $this->assertSame(0.0, $c->gross);
         $this->assertSame(0.0, $c->epfEmployee);
+        $this->assertSame(0.0, $c->socsoEmployee);
+        $this->assertSame(0.0, $c->eisEmployee);
         $this->assertSame(0.0, $c->netPay);
         $this->assertSame(0.0, $c->employerCost);
     }
@@ -152,7 +184,7 @@ class PayrollCalculatorTest extends TestCase
     public function test_unpaid_leave_cannot_push_gross_below_zero(): void
     {
         // 40 unpaid days against a 5200 basic would be negative raw earnings → clamps to 0.
-        $c = $this->calc->compute(['basic' => 5200, 'unpaid_days' => 40], $this->rates);
+        $c = $this->calc->compute(['basic' => 5200, 'unpaid_days' => 40]);
         $this->assertSame(0.0, $c->gross);
         $this->assertSame(0.0, $c->epfEmployee);
         $this->assertSame(0.0, $c->netPay);
@@ -160,59 +192,62 @@ class PayrollCalculatorTest extends TestCase
 
     public function test_negative_inputs_are_clamped_to_zero(): void
     {
-        $c = $this->calc->compute(['basic' => -500, 'bonus' => -100, 'overtime_hours' => -5], $this->rates);
+        $c = $this->calc->compute(['basic' => -500, 'bonus' => -100, 'overtime_hours' => -5]);
         $this->assertSame(0.0, $c->basic);
         $this->assertSame(0.0, $c->bonus);
         $this->assertSame(0.0, $c->overtimeAmount);
         $this->assertSame(0.0, $c->gross);
     }
 
-    // ── Bracket mode (PERKESO stepped schedule) ───────────────────
-
-    /** Same rates as $rates but with SOCSO/EIS in bracket mode. */
-    private array $bracketRates = [
-        'socso' => ['employer_pct' => 1.75, 'employee_pct' => 0.5, 'wage_ceiling' => 6000, 'use_brackets' => true],
-        'eis' => ['employer_pct' => 0.2, 'employee_pct' => 0.2, 'wage_ceiling' => 6000, 'use_brackets' => true],
-    ];
-
     public function test_two_wages_in_the_same_band_pay_identical_socso_and_eis(): void
     {
         // 2910 and 2990 fall in the same RM2,900–3,000 band → identical contributions.
-        $a = $this->calc->compute(['basic' => 2910], $this->bracketRates);
-        $b = $this->calc->compute(['basic' => 2990], $this->bracketRates);
+        $a = $this->calc->compute(['basic' => 2910]);
+        $b = $this->calc->compute(['basic' => 2990]);
 
         $this->assertSame($a->socsoEmployee, $b->socsoEmployee);
         $this->assertSame($a->socsoEmployer, $b->socsoEmployer);
         $this->assertSame($a->eisEmployee, $b->eisEmployee);
-        // But the flat-% path would differ for these two wages — confirm bracket ≠ flat here.
-        $flat = $this->calc->compute(['basic' => 2990], $this->rates);
-        $this->assertNotSame($flat->socsoEmployee, $b->socsoEmployee);
-    }
-
-    public function test_bracket_amounts_come_from_the_statutory_table(): void
-    {
-        $c = $this->calc->compute(['basic' => 3450], $this->bracketRates);
-        $row = StatutoryBrackets::lookup(StatutoryBrackets::socso(1), 3450.0);
-        $this->assertSame($row['ee'], $c->socsoEmployee);
-        $this->assertSame($row['er'], $c->socsoEmployer);
-    }
-
-    public function test_above_ceiling_uses_the_top_band(): void
-    {
-        $atCeiling = $this->calc->compute(['basic' => 6000], $this->bracketRates);
-        $above = $this->calc->compute(['basic' => 9000], $this->bracketRates);
-
-        $this->assertSame($atCeiling->socsoEmployee, $above->socsoEmployee);
-        $this->assertSame($atCeiling->eisEmployer, $above->eisEmployer);
     }
 
     public function test_category_two_zeroes_employee_socso_and_all_eis(): void
     {
-        $c = $this->calc->compute(['basic' => 4000, 'statutory_category' => 2], $this->bracketRates);
+        $c = $this->calc->compute(['basic' => 4000, 'statutory_category' => 2]);
 
         $this->assertSame(0.0, $c->socsoEmployee);          // ≥60: employee pays no SOCSO
         $this->assertGreaterThan(0.0, $c->socsoEmployer);   // employer still pays Employment Injury
         $this->assertSame(0.0, $c->eisEmployee);            // EIS does not apply at ≥60
         $this->assertSame(0.0, $c->eisEmployer);
+    }
+
+    // ── SKBBK opt-in ────────────────────────────────────────────────
+
+    public function test_skbbk_is_a_separate_line_not_folded_into_socso_employee(): void
+    {
+        $optedOut = $this->calc->compute(['basic' => 4000]);
+        $optedIn = $this->calc->compute(['basic' => 4000, 'skbbk_opt_in' => true]);
+
+        $this->assertSame(0.0, $optedOut->skbbkEmployee);
+        $this->assertGreaterThan(0.0, $optedIn->skbbkEmployee);
+        // SKBBK opt-in must not change the SOCSO-proper (Invalidity) figure.
+        $this->assertSame($optedOut->socsoEmployee, $optedIn->socsoEmployee);
+        $this->assertSame($optedOut->socsoEmployer, $optedIn->socsoEmployer);
+        // But it does widen total deductions and shrink net pay by exactly the SKBBK amount.
+        $this->assertSame(
+            round($optedOut->totalDeductions + $optedIn->skbbkEmployee, 2),
+            $optedIn->totalDeductions,
+        );
+        $this->assertSame(
+            round($optedOut->netPay - $optedIn->skbbkEmployee, 2),
+            $optedIn->netPay,
+        );
+    }
+
+    public function test_skbbk_opt_in_works_for_category_two_with_no_other_socso(): void
+    {
+        $c = $this->calc->compute(['basic' => 4000, 'statutory_category' => 2, 'skbbk_opt_in' => true]);
+
+        $this->assertSame(0.0, $c->socsoEmployee);          // still no Invalidity at ≥60
+        $this->assertGreaterThan(0.0, $c->skbbkEmployee);   // but SKBBK applies if opted in
     }
 }

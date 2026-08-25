@@ -6,6 +6,24 @@ authority — if code and PDF disagree, the PDF wins.
 | File | What it is | Effective | Source |
 |------|-----------|-----------|--------|
 | `epf-third-schedule-2025-10.pdf` | EPF Act 1991, Third Schedule — monthly contribution amounts by wage band | 1 October 2025 | [KWSP](https://www.kwsp.gov.my/en/epf-act-1991-third-schedule) |
+| `socso-act4.pdf` | Employees' Social Security Act 1969 (Act 4), Third Schedule — contribution amounts including the non-employment injury scheme (SKBBK) | RM6,000 ceiling since 1 Oct 2024; SKBBK columns since 1 June 2026 | [PERKESO](https://www.perkeso.gov.my/en/our-services/employer-employee/kadar-caruman.html) |
+| `eis-act800.pdf` | Employment Insurance System Act 2017 (Act 800), Second Schedule — EIS/SIP contribution amounts | RM6,000 ceiling since 1 Oct 2024 | [PERKESO](https://www.perkeso.gov.my/en/our-services/employer-employee/kadar-caruman.html) |
+
+## How the PERKESO schedules are used
+
+Unlike EPF, the published PERKESO amounts do **not** follow a single arithmetic rule — the bands
+below RM500 do not match a percentage of the band midpoint — so both tables are transcribed as
+data rather than computed. `tests/Fixtures/socso-third-schedule-act4.csv` and
+`tests/Fixtures/eis-second-schedule-act800.csv` hold all 65 published rows each, and the SOCSO
+fixture's own total columns were checked to sum correctly on every row.
+
+`eis-act800.pdf` is a scan with no text layer; its fixture was transcribed by reading the page
+image. If a figure is ever disputed, the PDF is the authority.
+
+SKBBK ("Lindung 24 Jam") started 1 June 2026 and became voluntary on 8 July 2026. It is paid
+entirely by the employee, 0.75% of wages capped by the RM6,000 ceiling, and is opted into per
+employee on their salary structure. The rate is scheduled to rise to 1.0% and later 1.25%; when
+that happens PERKESO publishes a new table and the fixture is replaced.
 
 ## How the EPF schedule is used
 

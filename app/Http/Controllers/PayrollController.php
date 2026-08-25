@@ -66,6 +66,7 @@ class PayrollController extends Controller
             'disabled_spouse' => ['boolean'],
             'zakat_monthly' => ['nullable', 'numeric', 'min:0'],
             'cp38_monthly' => ['nullable', 'numeric', 'min:0'],
+            'skbbk_opt_in' => ['boolean'],
         ]);
 
         SalaryStructure::updateOrCreate(
@@ -90,6 +91,7 @@ class PayrollController extends Controller
                 'disabled_spouse' => $request->boolean('disabled_spouse'),
                 'zakat_monthly' => $data['zakat_monthly'] ?? 0,
                 'cp38_monthly' => $data['cp38_monthly'] ?? 0,
+                'skbbk_opt_in' => $request->boolean('skbbk_opt_in'),
             ],
         );
 
@@ -107,44 +109,25 @@ class PayrollController extends Controller
         $tid = app(CurrentTenant::class)->id();
 
         $data = $request->validate([
-            'socso_employer_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'socso_employee_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'socso_ceiling' => ['required', 'numeric', 'min:0', 'max:1000000'],
-            'eis_employer_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'eis_employee_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'eis_ceiling' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'pcb_individual_relief' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'pcb_epf_relief_cap' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
-        $configs = [
-            'socso' => [
-                'employer_pct' => (float) $data['socso_employer_pct'],
-                'employee_pct' => (float) $data['socso_employee_pct'],
-                'wage_ceiling' => (float) $data['socso_ceiling'],
-            ],
-            'eis' => [
-                'employer_pct' => (float) $data['eis_employer_pct'],
-                'employee_pct' => (float) $data['eis_employee_pct'],
-                'wage_ceiling' => (float) $data['eis_ceiling'],
-            ],
-            'pcb' => [
+        // EPF, SOCSO and EIS all follow fixed published schedules now (KWSP Third Schedule,
+        // PERKESO Third/Second Schedules) and are not tenant-editable — only PCB stays
+        // configurable here.
+        StatutoryRate::updateOrCreate(
+            ['tenant_id' => $tid, 'type' => 'pcb'],
+            ['config' => [
                 'auto' => $request->boolean('pcb_auto'),
                 'individual_relief' => (float) ($data['pcb_individual_relief'] ?? 9000),
                 'epf_relief_cap' => (float) ($data['pcb_epf_relief_cap'] ?? 4000),
-            ],
-        ];
+            ], 'label' => 'PCB'],
+        );
 
-        foreach ($configs as $type => $config) {
-            StatutoryRate::updateOrCreate(
-                ['tenant_id' => $tid, 'type' => $type],
-                ['config' => $config, 'label' => strtoupper($type)],
-            );
-        }
+        AuditLog::record('Updated statutory rates', 'PCB');
 
-        AuditLog::record('Updated statutory rates', 'EPF / SOCSO / EIS');
-
-        return back()->with('ok', 'Statutory rates updated. Verify against official KWSP/PERKESO tables before a real run.');
+        return back()->with('ok', 'Statutory rates updated.');
     }
 
     // ── Payroll run lifecycle ─────────────────────────────────────
@@ -207,8 +190,9 @@ class PayrollController extends Controller
                     // electedBefore1998 has no column — no tenant has data going back that far,
                     // so every non-citizen falls under mandatory Part F.
                     'epf_part' => $this->epf->part($structure->nationality ?? 'citizen', $age, false),
+                    'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
                 ];
-                $comp = $this->calculator->compute($inputs, $rates);
+                $comp = $this->calculator->compute($inputs);
 
                 // Auto-PCB (I-016, OFF by default): estimate from the computed gross + EPF,
                 // then recompute so the deduction flows into net. Manual edits still win later.
@@ -219,7 +203,7 @@ class PayrollController extends Controller
                         (float) ($rates['pcb']['epf_relief_cap'] ?? PcbCalculator::DEFAULT_EPF_RELIEF_CAP),
                     );
                     $inputs['pcb'] = $this->pcb->monthlyEstimate($comp->gross, $relief);
-                    $comp = $this->calculator->compute($inputs, $rates);
+                    $comp = $this->calculator->compute($inputs);
                 }
 
                 // Computed amount columns are excluded from $fillable — forceFill them.
@@ -278,7 +262,8 @@ class PayrollController extends Controller
             'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
             // electedBefore1998 has no column — see the same note in createRun().
             'epf_part' => $this->epf->part($payslip->employee->salaryStructure?->nationality ?? 'citizen', $age, false),
-        ], $this->ratesWithFeatures());
+            'skbbk_opt_in' => (bool) $payslip->employee->salaryStructure?->skbbk_opt_in,
+        ]);
 
         // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement linkage
         // set at run creation survives edits. Amount columns are excluded from $fillable —
@@ -357,12 +342,11 @@ class PayrollController extends Controller
     }
 
     /**
-     * Statutory rate tables with admin feature flags layered on top:
-     *  - payroll.auto_pcb (bool)        → gates the auto-PCB estimate compute path.
-     *  - payroll.statutory_mode (enum)  → flat|brackets toggles SOCSO/EIS use_brackets.
-     * Defaults (auto_pcb off, mode brackets) leave the computed values unchanged.
+     * PCB rate config with the admin feature flag layered on top: payroll.auto_pcb (bool)
+     * gates the auto-PCB estimate compute path. EPF, SOCSO and EIS follow fixed published
+     * schedules and are not tenant-editable, so they're not part of this config.
      *
-     * @return array{socso: array<string, mixed>, eis: array<string, mixed>, pcb: array<string, mixed>}
+     * @return array{pcb: array<string, mixed>}
      */
     private function ratesWithFeatures(): array
     {
@@ -374,11 +358,6 @@ class PayrollController extends Controller
         // rate-config toggle (I-016) — the flag is an additional enable path, so tenants
         // that turned auto-PCB on via the rate config keep their behaviour.
         $rates['pcb']['auto'] = $features->enabled($tenant, 'payroll.auto_pcb') || ! empty($rates['pcb']['auto']);
-
-        // Flat percentage vs PERKESO stepped brackets for SOCSO + EIS.
-        $useBrackets = $features->value($tenant, 'payroll.statutory_mode') === 'brackets';
-        $rates['socso']['use_brackets'] = $useBrackets;
-        $rates['eis']['use_brackets'] = $useBrackets;
 
         return $rates;
     }

@@ -61,29 +61,25 @@ Payroll ships off. These matter only when it is switched on.
 
 | id | severity | title |
 |----|----------|-------|
-| I-013 | medium | **SOCSO/EIS use a capped-percentage approximation.** PERKESO publishes exact stepped bracket tables; the app computes a flat percentage on the capped wage. Fine for estimates, wrong for a real run — an in-app banner warns. **Fully scoped below.** |
 | I-016 | info | **PCB / MTD is manual entry.** By design — avoids encoding the yearly-changing LHDN progressive table plus reliefs. A future auto-MTD calculator could sit behind the editable rate config. |
 | I-014 | low | **Payroll models use `$guarded = []`.** Consistent with all ~24 models. Every payroll write uses whitelisted computed attributes or explicitly validated fields, never `request()->all()`, so there is no live mass-assignment vector. Before a public payroll deploy, consider explicit `$fillable` allowlists on the four financial models excluding `tenant_id`, `status` and computed amounts. |
 | I-015 | low | **Finalize allows draft → finalized with no approval.** Intentional single-operator shortcut; the `payroll.four_eyes` setting enforces the control when required. |
 | I-017 | low | **Bank file is a generic CSV.** No./Name/Account/Amount. Bank-specific bulk formats (Maybank2u, CIMB BizChannel, RHB, DuitNow batch) are a future per-bank exporter. |
 
-### I-013 in detail — PERKESO statutory bracket tables
+### I-013 — PERKESO statutory bracket tables (done)
 
-**Goal:** replace the SOCSO/EIS flat-percentage-on-capped-wage approximation with the
-official PERKESO stepped contribution tables (Jadual Caruman), so contributions match the
-legally-published ringgit amounts exactly.
+SOCSO/EIS now compute from the official PERKESO stepped contribution tables (Jadual
+Caruman), transcribed row-by-row from the published PDFs into
+`tests/Fixtures/socso-third-schedule-act4.csv` and `tests/Fixtures/eis-second-schedule-act800.csv`,
+and generated mechanically into `App\Services\Payroll\PerkesoSchedule` (a PHP constant
+class, not a migration — statutory data is identical for every tenant and only changes
+when PERKESO republishes). `SocsoCalculator`/`EisCalculator` look up bands from that
+table; there is no flat-percentage fallback and no tenant override — same posture as
+EPF. `StatutoryRate` now only stores PCB config.
 
-**Status:** scoped, not built. **Touches** I-014 indirectly. **Out of scope:** EPF (already
-exact — a percentage with no bracket rounding), PCB/MTD (I-016), bank-specific export
-formats (I-017).
-
-Locked decision (2026-06-24): bracket data is stored as a **PHP constant class**
-`StatutoryBrackets`, not a migration. Statutory data is identical for every tenant and only
-changes when PERKESO republishes, so versioning it in git mirrors the existing
-`StatutoryRate::defaults()` pattern and needs no schema change.
-
-The `payroll.statutory_mode` setting already exists with `flat` and `brackets` options,
-defaulting to `brackets` — the switch is in place ahead of the implementation.
+Also landed alongside this: **SKBBK ("Lindung 24 Jam")**, voluntary since 8 July 2026 and
+entirely employee-paid, as a per-employee opt-in (`salary_structures.skbbk_opt_in`) with
+its own payslip line (`payslips.skbbk_employee`) — not folded into `socso_employee`.
 
 ## Deferred — features
 

@@ -82,12 +82,13 @@
             {{-- Deductions --}}
             <div style="flex:1;min-width:300px;padding:22px 26px;">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;" x-text="$store.ui.lang==='en' ? 'Deductions' : 'Potongan'">Deductions</div>
-                @foreach ([
+                @foreach (array_filter([
                     ['EPF (employee)', 'EPF (pekerja)', $p->epf_employee],
                     ['SOCSO (employee)', 'SOCSO (pekerja)', $p->socso_employee],
                     ['EIS (employee)', 'EIS (pekerja)', $p->eis_employee],
+                    $p->skbbk_employee > 0 ? ['SKBBK (Lindung 24 Jam)', 'SKBBK (Lindung 24 Jam)', $p->skbbk_employee] : null,
                     ['PCB / income tax', 'PCB / cukai pendapatan', $p->pcb],
-                ] as $line)
+                ]) as $line)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line[2]) }}</span></div>
                 @endforeach
                 @foreach (($p->other_deductions ?? []) as $ded)
@@ -357,7 +358,12 @@
                                     <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="spouse_working" value="1" @checked($s?->spouse_working) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Spouse working' : 'Pasangan bekerja'">Spouse working</span></label>
                                     <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="disabled_self" value="1" @checked($s?->disabled_self) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (self)' : 'OKU (diri sendiri)'">Disabled (self)</span></label>
                                     <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="disabled_spouse" value="1" @checked($s?->disabled_spouse) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (spouse)' : 'OKU (pasangan)'">Disabled (spouse)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="skbbk_opt_in" value="1" @checked($s?->skbbk_opt_in) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Lindung 24 Jam (SKBBK)' : 'Lindung 24 Jam (SKBBK)'">Lindung 24 Jam (SKBBK)</span></label>
                                 </div>
+                                @include('partials.hint', [
+                                    'en' => 'Voluntary since 8 July 2026, employee-paid: 0.75% of wages, capped at RM45/month.',
+                                    'ms' => 'Pilihan (voluntari) sejak 8 Julai 2026, dibayar oleh pekerja: 0.75% gaji, had siling RM45/bulan.',
+                                ])
                                 <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save structure' : 'Simpan struktur'">Save structure</button><button type="button" @click="salaryFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
                             </form>
                         </div>
@@ -370,15 +376,10 @@
         <div x-show="tab === 'rates'" x-cloak>
             <div class="uj-card" style="max-width:720px;padding:24px;">
                 <h3 class="uj-card-title" style="margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Statutory contribution rates' : 'Kadar caruman berkanun'">Statutory contribution rates</h3>
-                @php $brackets = \App\Services\Payroll\StatutoryBrackets::class; @endphp
-                <div style="display:flex;gap:8px;align-items:flex-start;background:#fff7ed;border:1px solid #f1c98a;border-radius:9px;padding:11px 14px;margin-bottom:18px;font-size:12px;color:#9a5b14;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-                    <span x-show="$store.ui.lang==='en'">SOCSO &amp; EIS now use the PERKESO <strong>stepped bracket schedule</strong> (effective {{ $brackets::SCHEDULE_EFFECTIVE }}), split by contribution category from each employee's date of birth (≥60 → SOCSO Category 2, no EIS). The percentage fields below are the <strong>fallback</strong> only — used if bracket mode is cleared.
-                        @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Bracket amounts are PLACEHOLDER (generated, not the official figures) — transcribe the official PERKESO Jadual Caruman before any real statutory filing.</strong>@endif
-                        EPF now follows the fixed KWSP Third Schedule and is not editable here. <strong>Verify against the official KWSP / PERKESO tables before running real payroll.</strong></span>
-                    <span x-show="$store.ui.lang==='ms'" x-cloak>SOCSO &amp; EIS kini guna <strong>jadual bracket berperingkat</strong> PERKESO (berkuat kuasa {{ $brackets::SCHEDULE_EFFECTIVE }}), dibahagi mengikut kategori caruman daripada tarikh lahir setiap pekerja (≥60 → SOCSO Kategori 2, tiada EIS). Medan peratus di bawah ialah <strong>sandaran</strong> sahaja — digunakan jika mod bracket dikosongkan.
-                        @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Amaun bracket ialah PLACEHOLDER (dijana, bukan angka rasmi) — salin Jadual Caruman PERKESO rasmi sebelum sebarang pemfailan berkanun sebenar.</strong>@endif
-                        EPF kini mengikut Jadual Ketiga KWSP yang tetap dan tidak boleh disunting di sini. <strong>Sahkan dengan jadual KWSP / PERKESO rasmi sebelum menjalankan payroll sebenar.</strong></span>
+                <div style="display:flex;gap:8px;align-items:flex-start;background:#f0fdf4;border:1px solid #bbf0cc;border-radius:9px;padding:11px 14px;margin-bottom:18px;font-size:12px;color:#166534;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+                    <span x-show="$store.ui.lang==='en'">EPF, SOCSO and EIS all now follow the fixed official schedules (KWSP Third Schedule, PERKESO Third Schedule Act 4, PERKESO Second Schedule Act 800), split by contribution category from each employee's date of birth (≥60 → Category 2, no EIS). None of the three are editable here.</span>
+                    <span x-show="$store.ui.lang==='ms'" x-cloak>EPF, SOCSO dan EIS kini mengikut jadual rasmi yang tetap (Jadual Ketiga KWSP, Jadual Ketiga PERKESO Akta 4, Jadual Kedua PERKESO Akta 800), dibahagi mengikut kategori caruman daripada tarikh lahir setiap pekerja (≥60 → Kategori 2, tiada EIS). Ketiga-tiganya tidak boleh disunting di sini.</span>
                 </div>
                 <form method="post" action="{{ route('payroll.rates') }}">
                     @csrf
@@ -391,27 +392,17 @@
                     </div>
                     <div style="margin-bottom:18px;">
                         <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">SOCSO (PERKESO)</div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                            @foreach ([
-                                ['socso_employer_pct', 'Employer %', 'Majikan %', $rates['socso']['employer_pct']],
-                                ['socso_employee_pct', 'Employee %', 'Pekerja %', $rates['socso']['employee_pct']],
-                                ['socso_ceiling', 'Wage ceiling (RM)', 'Siling gaji (RM)', $rates['socso']['wage_ceiling']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
-                        </div>
+                        @include('partials.hint', [
+                            'en' => 'SOCSO now follows the published PERKESO Third Schedule (Act 4) — fixed ringgit amounts per wage band, not editable here.',
+                            'ms' => 'SOCSO kini mengikut Jadual Ketiga PERKESO (Akta 4) yang diterbitkan — jumlah ringgit tetap mengikut jalur gaji, tidak boleh disunting di sini.',
+                        ])
                     </div>
                     <div style="margin-bottom:20px;">
                         <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EIS (SIP)</div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                            @foreach ([
-                                ['eis_employer_pct', 'Employer %', 'Majikan %', $rates['eis']['employer_pct']],
-                                ['eis_employee_pct', 'Employee %', 'Pekerja %', $rates['eis']['employee_pct']],
-                                ['eis_ceiling', 'Wage ceiling (RM)', 'Siling gaji (RM)', $rates['eis']['wage_ceiling']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
-                        </div>
+                        @include('partials.hint', [
+                            'en' => 'EIS now follows the published PERKESO Second Schedule (Act 800) — fixed ringgit amounts per wage band, not editable here.',
+                            'ms' => 'EIS kini mengikut Jadual Kedua PERKESO (Akta 800) yang diterbitkan — jumlah ringgit tetap mengikut jalur gaji, tidak boleh disunting di sini.',
+                        ])
                     </div>
                     <div style="margin-bottom:20px;padding-top:6px;border-top:1px solid var(--hairline-soft);">
                         <div style="font-size:12px;font-weight:700;color:var(--ink);margin:12px 0 8px;" x-text="$store.ui.lang==='en' ? 'PCB / income tax (MTD)' : 'PCB / cukai pendapatan (MTD)'">PCB / income tax (MTD)</div>

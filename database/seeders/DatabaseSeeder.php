@@ -35,8 +35,10 @@ use App\Models\TrainingRecord;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkSite;
+use App\Services\Payroll\EisCalculator;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
+use App\Services\Payroll\SocsoCalculator;
 use App\Support\Permissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -538,8 +540,7 @@ class DatabaseSeeder extends Seeder
             'Hafiz Zulkifli' => [5800, [['Transport', 300]], 240, 6, 0],
         ];
 
-        $calculator = new PayrollCalculator(new EpfCalculator);
-        $rates = StatutoryRate::defaults();
+        $calculator = new PayrollCalculator(new EpfCalculator, new SocsoCalculator, new EisCalculator);
         $banks = ['Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank'];
 
         // forceFill: tenant_id/status/finalized_at are not mass-assignable on the tightened model.
@@ -576,7 +577,7 @@ class DatabaseSeeder extends Seeder
                 'overtime_hours' => $row[3],
                 'bonus' => $row[4],
                 'statutory_category' => $employee->statutoryCategory(Carbon::create(2026, 5, 31)),
-            ], $rates);
+            ]);
 
             // forceFill: computed amount columns + tenant_id are not mass-assignable.
             (new Payslip)->forceFill(array_merge($comp->toPayslipAttributes(), [
