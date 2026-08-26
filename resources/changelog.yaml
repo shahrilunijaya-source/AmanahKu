@@ -22,6 +22,9 @@
     - tag: added
       text: "Optionally, let it make changes too — create and edit board cards, save a timesheet draft, and more. Turn this on with a checkbox next to your key, and every change always shows you exactly what it's about to do first and waits for your yes before anything happens."
       text_ms: "Secara pilihan, benarkan ia membuat perubahan juga — cipta dan edit kad board, simpan draf lembaran masa, dan lain-lain. Hidupkan ini dengan kotak semak di sebelah kunci anda, dan setiap perubahan sentiasa menunjukkan tepat apa yang akan dilakukan dahulu serta menunggu jawapan ya anda sebelum apa-apa berlaku."
+    - tag: fixed
+      text: "Applying leave over the first Saturday of the month now costs half a day, not a whole day — that Saturday is already a half working day (TOT) everywhere else in the app, and leave now matches."
+      text_ms: "Memohon cuti pada Sabtu pertama bulan itu kini mengambil separuh hari, bukan sehari penuh — Sabtu itu sudah pun separuh hari bekerja (TOT) di tempat lain dalam aplikasi, dan cuti kini turut sama."
 
 - version: "1.6"
   date: "2026-08-26"
