@@ -298,9 +298,9 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
         <div class="step">
           <h3 x-data x-text="$store.ui.lang==='en' ? 'It shows you exactly what it will change' : 'Ia menunjukkan tepat apa yang akan diubah'">It shows you exactly what it will change</h3>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'Before anything happens, Claude Code shows you a plain-language summary of the change — for example, moving a card to Done, or saving Monday and Tuesday on your timesheet as 8 hours each.'
-                  : 'Sebelum apa-apa berlaku, Claude Code menunjukkan ringkasan mudah tentang perubahan itu — contohnya, memindahkan kad ke Selesai, atau menyimpan Isnin dan Selasa pada lembaran masa anda sebagai 8 jam setiap satu.'">
-            Before anything happens, Claude Code shows you a plain-language summary of the change — for example, moving a card to Done, or saving Monday and Tuesday on your timesheet as 8 hours each.
+                  ? 'Before anything happens, Claude Code shows you a plain-language summary of the change — for example, moving a card to Done, or saving Monday and Tuesday on your timesheet at 100% each.'
+                  : 'Sebelum apa-apa berlaku, Claude Code menunjukkan ringkasan mudah tentang perubahan itu — contohnya, memindahkan kad ke Selesai, atau menyimpan Isnin dan Selasa pada lembaran masa anda pada 100% setiap satu.'">
+            Before anything happens, Claude Code shows you a plain-language summary of the change — for example, moving a card to Done, or saving Monday and Tuesday on your timesheet at 100% each.
           </p>
         </div>
         <div class="step">
@@ -312,6 +312,110 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
           </p>
         </div>
       </div>
+
+      <p class="sub" style="margin-top:24px;" x-data x-text="$store.ui.lang==='en'
+              ? 'A few real examples — what you type, and exactly what comes back before you say yes.'
+              : 'Beberapa contoh sebenar — apa yang anda taip, dan tepat apa yang dipaparkan sebelum anda kata ya.'">
+        A few real examples — what you type, and exactly what comes back before you say yes.
+      </p>
+
+      <h3 style="margin:22px 0 8px;font-size:15px;" x-data x-text="$store.ui.lang==='en' ? 'A board card' : 'Kad board'">A board card</h3>
+      <div class="qs">
+        <div class="q">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 2-3 4M12 17h.01"/></svg>
+          <span x-data x-text="$store.ui.lang==='en' ? '“add a card to my board to draft the Q3 handover notes”' : '“add a card to my board to draft the Q3 handover notes”'">"add a card to my board to draft the Q3 handover notes"</span>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:10px;" x-data x-text="$store.ui.lang==='en'
+              ? 'It shows you: “Create a new \'Draft Q3 handover notes\' card on your board, in the todo column.” Say yes, and the card appears.'
+              : 'Ia menunjukkan: “Create a new \'Draft Q3 handover notes\' card on your board, in the todo column.” Kata ya, dan kad itu muncul.'">
+        It shows you: "Create a new 'Draft Q3 handover notes' card on your board, in the todo column." Say yes, and the card appears.
+      </p>
+
+      <h3 style="margin:26px 0 8px;font-size:15px;" x-data x-text="$store.ui.lang==='en' ? 'Drafting a timesheet from a project folder' : 'Merangka lembaran masa dari folder projek'">Drafting a timesheet from a project folder</h3>
+      <p class="sub" x-data x-text="$store.ui.lang==='en'
+              ? 'This is the flow Claude Code was really built for. Say you\'re sitting in a project folder on your computer — you ask it to draft the week from what you worked on there.'
+              : 'Ini adalah aliran kerja yang menjadi sebab utama Claude Code dibina. Katakan anda berada dalam folder projek pada komputer anda — anda minta ia merangka minggu itu daripada apa yang anda kerjakan di situ.'">
+        This is the flow Claude Code was really built for. Say you're sitting in a project folder on your computer — you ask it to draft the week from what you worked on there.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'It looks up the real categories and projects' : 'Ia mencari kategori dan projek sebenar'">It looks up the real categories and projects</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'It matches what you worked on to your actual timesheet categories and projects, drafts those days, then shows you the full week to approve.'
+                  : 'Ia memadankan apa yang anda kerjakan dengan kategori dan projek lembaran masa sebenar anda, merangka hari-hari itu, kemudian menunjukkan minggu penuh untuk anda luluskan.'">
+            It matches what you worked on to your actual timesheet categories and projects, drafts those days, then shows you the full week to approve.
+          </p>
+        </div>
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Do it again from another folder, same week' : 'Buat lagi dari folder lain, minggu yang sama'">Do it again from another folder, same week</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'If you split your week across projects, you do the same thing standing in the other project\'s folder for the other days.'
+                  : 'Jika minggu anda terbahagi antara projek, buat perkara yang sama semasa berada dalam folder projek lain untuk hari-hari yang selebihnya.'">
+            If you split your week across projects, you do the same thing standing in the other project's folder for the other days.
+          </p>
+        </div>
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'A day already logged is added to, not overwritten' : 'Hari yang sudah dilog akan ditambah, bukan ditimpa'">A day already logged is added to, not overwritten</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'If a day already has something stored from the other folder, this doesn\'t erase it. The preview marks each line as \'already stored\' or \'added by this change\', so a Tuesday split half-and-half between two projects shows both halves.'
+                  : 'Jika sesuatu hari sudah menyimpan sesuatu daripada folder lain, ini tidak memadamkannya. Pratonton menandakan setiap baris sebagai \'already stored\' atau \'added by this change\', jadi Selasa yang terbahagi separuh-separuh antara dua projek menunjukkan kedua-dua bahagian.'">
+            If a day already has something stored from the other folder, this doesn't erase it. The preview marks each line as "already stored" or "added by this change", so a Tuesday split half-and-half between two projects shows both halves.
+          </p>
+        </div>
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'A day can\'t go over 100%' : 'Satu hari tidak boleh melebihi 100%'">A day can't go over 100%</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'A full day is 100% — the first Saturday of the month is a half day, full at 50%. Try to push a day over its capacity and it refuses, plainly: “Tue, 18 Aug already has 100% stored; adding 25% would bring it to 125%, over the 100% capacity for that day.”'
+                  : 'Satu hari penuh ialah 100% — Sabtu pertama setiap bulan adalah setengah hari, penuh pada 50%. Cuba tolak satu hari melebihi kapasitinya dan ia menolak, secara jelas: “Tue, 18 Aug already has 100% stored; adding 25% would bring it to 125%, over the 100% capacity for that day.”'">
+            A full day is 100% — the first Saturday of the month is a half day, full at 50%. Try to push a day over its capacity and it refuses, plainly: "Tue, 18 Aug already has 100% stored; adding 25% would bring it to 125%, over the 100% capacity for that day."
+          </p>
+        </div>
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Got it wrong? Just say so' : 'Tersilap? Cakap sahaja'">Got it wrong? Just say so</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'To take something back off a day, tell it — for example \'actually Tuesday was all Amanahku\' — and it replaces that day instead of adding to it.'
+                  : 'Untuk menarik balik sesuatu daripada satu hari, beritahu ia — contohnya \'actually Tuesday was all Amanahku\' — dan ia menggantikan hari itu, bukan menambah kepadanya.'">
+            To take something back off a day, tell it — for example "actually Tuesday was all Amanahku" — and it replaces that day instead of adding to it.
+          </p>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:14px;" x-data x-text="$store.ui.lang==='en'
+              ? 'As always: what it drafts is an estimate to check, not a measurement, and it only ever saves a DRAFT — submitting your timesheet stays something you do yourself.'
+              : 'Seperti biasa: apa yang ia rangka adalah anggaran untuk disemak, bukan ukuran tepat, dan ia hanya menyimpan sebagai DRAF — menghantar lembaran masa anda kekal sebagai sesuatu yang anda buat sendiri.'">
+        As always: what it drafts is an estimate to check, not a measurement, and it only ever saves a DRAFT — submitting your timesheet stays something you do yourself.
+      </p>
+
+      <h3 style="margin:26px 0 8px;font-size:15px;" x-data x-text="$store.ui.lang==='en' ? 'Assigning a task (managers and HR)' : 'Menugaskan tugasan (pengurus dan HR)'">Assigning a task (managers and HR)</h3>
+      <div class="qs">
+        <div class="q">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 2-3 4M12 17h.01"/></svg>
+          <span x-data x-text="$store.ui.lang==='en' ? '“assign the Q3 review to Huraidi, due next Friday”' : '“assign the Q3 review to Huraidi, due next Friday”'">"assign the Q3 review to Huraidi, due next Friday"</span>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:10px;" x-data x-text="$store.ui.lang==='en'
+              ? 'It shows you: “Assign \'Review the Q3 numbers\' to Huraidi Haidar Bin Adnan, due 2026-09-04. This WILL email and notify Huraidi Haidar Bin Adnan.” The preview names exactly who gets emailed, before you agree to anything — so you never send a notification by accident.'
+              : 'Ia menunjukkan: “Assign \'Review the Q3 numbers\' to Huraidi Haidar Bin Adnan, due 2026-09-04. This WILL email and notify Huraidi Haidar Bin Adnan.” Pratonton menyebut dengan tepat siapa yang akan menerima e-mel, sebelum anda bersetuju dengan apa-apa — supaya anda tidak pernah menghantar notifikasi secara tidak sengaja.'">
+        It shows you: "Assign 'Review the Q3 numbers' to Huraidi Haidar Bin Adnan, due 2026-09-04. This WILL email and notify Huraidi Haidar Bin Adnan." The preview names exactly who gets emailed, before you agree to anything — so you never send a notification by accident.
+      </p>
+
+      <h3 style="margin:26px 0 8px;font-size:15px;" x-data x-text="$store.ui.lang==='en' ? 'An external TOT event from a pasted invite (managers and HR)' : 'Acara TOT luaran daripada jemputan yang ditampal (pengurus dan HR)'">An external TOT event from a pasted invite (managers and HR)</h3>
+      <p class="sub" x-data x-text="$store.ui.lang==='en'
+              ? 'Paste an invite message and ask it to post the event. It fills in the title, host, date, time, venue and registration link for you.'
+              : 'Tampal mesej jemputan dan minta ia menyiarkan acara itu. Ia mengisi tajuk, hos, tarikh, masa, tempat dan pautan pendaftaran untuk anda.'">
+        Paste an invite message and ask it to post the event. It fills in the title, host, date, time, venue and registration link for you.
+      </p>
+      <p class="sub" x-data x-text="$store.ui.lang==='en'
+              ? 'It shows you: “Post the External TOT event \'MDEC AI Governance Briefing\' on 2026-09-10. No employees will be tagged or notified.” Tagging someone sends them a \'you\'re required to attend\' email, so this tool never tags anyone by itself — you add tags yourself in the app, where you can see exactly who they are.'
+              : 'Ia menunjukkan: “Post the External TOT event \'MDEC AI Governance Briefing\' on 2026-09-10. No employees will be tagged or notified.” Menandakan seseorang menghantar e-mel \'anda diperlukan hadir\' kepada mereka, jadi alat ini tidak pernah menandakan sesiapa dengan sendirinya — anda tambah tag sendiri dalam app, di mana anda boleh lihat dengan tepat siapa mereka.'">
+        It shows you: "Post the External TOT event 'MDEC AI Governance Briefing' on 2026-09-10. No employees will be tagged or notified." Tagging someone sends them a "you're required to attend" email, so this tool never tags anyone by itself — you add tags yourself in the app, where you can see exactly who they are.
+      </p>
+
+      <p class="sub" style="margin-top:22px;" x-data x-text="$store.ui.lang==='en'
+              ? 'Changed your mind? Say no, or just don\'t reply — nothing was saved, so there is nothing to clean up.'
+              : 'Berubah fikiran? Kata tidak, atau cuma jangan balas — tiada apa yang disimpan, jadi tiada apa untuk dibersihkan.'">
+        Changed your mind? Say no, or just don't reply — nothing was saved, so there is nothing to clean up.
+      </p>
     </section>
 
     <section id="safe">
