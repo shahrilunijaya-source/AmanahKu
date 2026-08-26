@@ -10,6 +10,19 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.7"
+  date: "2026-08-26"
+  entries:
+    - tag: added
+      text: "You can now connect Claude on your own computer to AmanahKu and ask it about your work — \"what did I log on my timesheet last week?\", \"what's on my board?\", \"when's the next TOT session?\" — instead of clicking through screens to find out. Get your own key from Account & security; it only ever shows you what you can already see in the app, so a normal staff member sees their own records, and HR and management see the company, exactly as on screen."
+      text_ms: "Anda kini boleh menyambungkan Claude pada komputer anda sendiri ke AmanahKu dan bertanya tentang kerja anda — \"apa yang saya log pada lembaran masa minggu lepas?\", \"apa yang ada pada board saya?\", \"bila sesi TOT seterusnya?\" — tanpa perlu mengklik melalui skrin untuk mengetahuinya. Dapatkan kunci anda sendiri daripada Akaun & keselamatan; ia hanya memaparkan apa yang anda sendiri sudah boleh lihat dalam app, jadi kakitangan biasa melihat rekod sendiri, manakala HR dan pengurusan melihat syarikat, sama seperti pada skrin."
+      link: "/docs/mcp"
+      link_text: "Read the guide"
+      link_text_ms: "Baca panduan"
+    - tag: added
+      text: "Optionally, let it make changes too — create and edit board cards, save a timesheet draft, and more. Turn this on with a checkbox next to your key, and every change always shows you exactly what it's about to do first and waits for your yes before anything happens."
+      text_ms: "Secara pilihan, benarkan ia membuat perubahan juga — cipta dan edit kad board, simpan draf lembaran masa, dan lain-lain. Hidupkan ini dengan kotak semak di sebelah kunci anda, dan setiap perubahan sentiasa menunjukkan tepat apa yang akan dilakukan dahulu serta menunggu jawapan ya anda sebelum apa-apa berlaku."
+
 - version: "1.6"
   date: "2026-08-26"
   entries:

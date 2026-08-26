@@ -33,6 +33,7 @@ use App\Http\Controllers\LearningController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\McpDocsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
@@ -108,6 +109,13 @@ Route::post('/activate/{user}', [ActivationController::class, 'update'])->middle
 Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
 
 Route::middleware('auth')->group(function () {
+    // Staff-facing guide for the self-service AI access key (Account & security).
+    // Authenticated, unlike /docs/api above: this page walks one signed-in person
+    // through generating a key that reads their own account's data, so it belongs
+    // behind login. Outside the tenant group on purpose — the content doesn't
+    // depend on tenant state and stays reachable from anywhere in the app.
+    Route::get('/docs/mcp', [McpDocsController::class, 'show'])->name('docs.mcp');
+
     // First-sign-in password rotation for invited members (I-008). Outside the tenant
     // group so a freshly-invited user can rotate before selecting a tenant. The
     // ForcePasswordChange middleware funnels every other route here until done.
