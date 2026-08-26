@@ -45,7 +45,7 @@ class TotController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         $year = (int) ($request->query('year') ?: now()->year);
 
-        $saved = TotSession::with('presenter')
+        $saved = TotSession::with(['presenter', 'presenters'])
             ->where('year', $year)
             ->get()
             ->keyBy('month');
@@ -73,8 +73,7 @@ class TotController extends Controller
             // person presents once a year, so they do not need their own route —
             // they need the board to point at their month.
             'myMonth' => $employee
-                ? collect($sessions)->first(fn (TotSession $s) => $s->exists
-                    && $s->presenter_employee_id === $employee->id)
+                ? collect($sessions)->first(fn (TotSession $s) => $s->exists && $s->isPresentedBy($employee))
                 : null,
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
@@ -97,7 +96,7 @@ class TotController extends Controller
 
         $year = (int) ($request->query('year') ?: now()->year);
 
-        $saved = TotSession::with('presenter')->where('year', $year)->get()->keyBy('month');
+        $saved = TotSession::with(['presenter', 'presenters'])->where('year', $year)->get()->keyBy('month');
 
         $slots = collect(range(1, 12))->map(fn (int $month) => $saved->get($month) ?? new TotSession([
             'year' => $year,
@@ -128,11 +127,9 @@ class TotController extends Controller
         $rules = [
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'month' => ['required', 'integer', 'min:1', 'max:12'],
-            'presenter_employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)],
-        ];
+        ] + $this->presenterRules($tenantId);
 
         if ($privileged) {
-            $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
             $rules['title'] = ['nullable', 'string', 'max:200'];
             $rules['description'] = ['nullable', 'string', 'max:2000'];
             $rules['status'] = ['required', 'in:'.implode(',', TotSession::STATUSES)];
@@ -142,6 +139,7 @@ class TotController extends Controller
         // including whether it happened, stays HR's decision, so their new slot is planned.
         $data = $request->validate($rules);
         $data['status'] ??= 'planned';
+        $presenterIds = $this->presenterIdsFrom($request, $data);
 
         $exists = TotSession::where('year', $data['year'])->where('month', $data['month'])->exists();
         abort_if($exists, 422, 'That slot already exists. Edit it instead of creating it again.');
@@ -150,8 +148,8 @@ class TotController extends Controller
             $session = TotSession::create([
                 'year' => $data['year'],
                 'month' => $data['month'],
-                'presenter_employee_id' => $data['presenter_employee_id'] ?? null,
-                'presenter_name' => $data['presenter_name'] ?? null,
+                'presenter_employee_id' => $presenterIds[0] ?? null,
+                'presenter_mode' => $this->presenterModeFrom($data, $presenterIds),
                 'title' => $data['title'] ?? null,
                 'description' => $data['description'] ?? null,
                 'status' => $data['status'],
@@ -168,9 +166,11 @@ class TotController extends Controller
             abort(422, 'That slot already exists. Edit it instead of creating it again.');
         }
 
+        $session->presenters()->sync($presenterIds);
+
         AuditLog::record('Created TOT slot', sprintf('%04d-%02d', $session->year, $session->month));
 
-        $this->announcePresenter($session, null);
+        $this->announcePresenters($session, []);
 
         // The roster needs the new id: without it the client still thinks the month is
         // unsaved and re-POSTs here on the next edit, which the duplicate guard rejects.
@@ -190,34 +190,40 @@ class TotController extends Controller
 
         $employee = $request->attributes->get('employee');
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
-        $isPresenterOfSlot = $employee && $session->presenter_employee_id === $employee->id;
+        $isPresenterOfSlot = $session->isPresentedBy($employee);
 
         $this->authorizeSlotEdit($request, $session, $employee);
         $tenantId = app(CurrentTenant::class)->id();
+        $canAssign = $this->canAssignPresenter($request);
 
-        // The material (title, description, links, cross-link) belongs to the presenter of
-        // THIS slot or a privileged role, not to a tot.assign holder: that override buys
-        // exactly one field, presenter_employee_id, handled below.
+        // The material (title, description, hours) belongs to the presenter of THIS slot or
+        // a privileged role, not to a tot.assign holder: that override buys presenter_employee_id
+        // and the moderator's link row below, nothing else.
         $rules = [];
 
         if ($privileged || $isPresenterOfSlot) {
             $rules['title'] = ['nullable', 'string', 'max:200'];
             $rules['description'] = ['nullable', 'string', 'max:2000'];
-            $rules['links'] = ['nullable', 'array', 'max:12'];
-            $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
-            $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
             // Blank means "the usual hour" (TotSession::DEFAULT_START/END), not midnight,
             // so an empty input nulls the column rather than storing 00:00.
             $rules['starts_at'] = ['nullable', 'date_format:H:i', 'required_with:ends_at'];
             $rules['ends_at'] = ['nullable', 'date_format:H:i', 'required_with:starts_at', 'after:starts_at'];
         }
 
-        if ($this->canAssignPresenter($request)) {
-            $rules['presenter_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
+        // Links are shared between the material owners (title/description above) and a
+        // tot.assign holder — the moderator — who edits only the Nota Perbincangan row
+        // (TotSession::MODERATOR_LINK_LABEL) and never sees the others (tot-edit-form.blade.php).
+        if ($privileged || $isPresenterOfSlot || $canAssign) {
+            $rules['links'] = ['nullable', 'array', 'max:12'];
+            $rules['links.*.label'] = ['required_with:links', 'string', 'max:60'];
+            $rules['links.*.url'] = ['required_with:links', 'url', 'max:2000'];
+        }
+
+        if ($canAssign) {
+            $rules += $this->presenterRules($tenantId);
         }
 
         if ($privileged) {
-            $rules['presenter_name'] = ['nullable', 'string', 'max:120'];
             $rules['status'] = ['nullable', 'in:'.implode(',', TotSession::STATUSES)];
             $rules['held_on'] = ['nullable', 'date'];
         }
@@ -238,16 +244,48 @@ class TotController extends Controller
         // reaches $data and cannot promote the slot.
         $data = $request->validate($rules);
 
-        $wasDone = $session->status === 'done';
-        $previousPresenterId = $session->presenter_employee_id;
+        // Neither editor renders every row: a material owner without the tot.assign grant
+        // never sees the moderator's Nota Perbincangan row, and a moderator with no material
+        // access sees only that row. Either save's POST is missing what it never rendered —
+        // merge the existing rows it couldn't see back in rather than let it wipe them.
+        if (array_key_exists('links', $data)) {
+            $seesMaterial = $privileged || $isPresenterOfSlot;
 
+            if ($seesMaterial && ! $canAssign) {
+                $data['links'] = array_merge(
+                    $data['links'],
+                    collect($session->links ?? [])
+                        ->filter(fn ($link) => ($link['label'] ?? null) === TotSession::MODERATOR_LINK_LABEL)
+                        ->all(),
+                );
+            } elseif (! $seesMaterial && $canAssign) {
+                $data['links'] = array_merge(
+                    collect($session->links ?? [])
+                        ->reject(fn ($link) => ($link['label'] ?? null) === TotSession::MODERATOR_LINK_LABEL)
+                        ->all(),
+                    $data['links'],
+                );
+            }
+        }
+
+        $wasDone = $session->status === 'done';
+        $previousPresenterIds = $session->presenters()->pluck('employees.id')->all();
+
+        // Only a request that was actually allowed to carry presenters may change them —
+        // otherwise a save that never rendered the picker would clear the whole team.
+        $presenterIds = $canAssign && $this->carriesPresenters($request)
+            ? $this->presenterIdsFrom($request, $data)
+            : null;
+        $presenterMode = $presenterIds === null ? null : $this->presenterModeFrom($data, $presenterIds);
+
+        unset($data['presenter_employee_id'], $data['presenter_employee_ids'], $data['presenter_mode']);
         $session->fill($data);
 
-        // The two presenter columns are one fact stored two ways: a linked employee, or a
-        // free-text name for an imported nickname nobody has matched yet. Whenever this
-        // request decides the linked employee, the stale free-text name goes with it,
-        // unless the same request explicitly supplies one (privileged callers only).
-        if (array_key_exists('presenter_employee_id', $data) && blank($data['presenter_name'] ?? null)) {
+        if ($presenterIds !== null) {
+            $session->presenter_employee_id = $presenterIds[0] ?? null;
+            $session->presenter_mode = $presenterMode;
+            // presenter_name is the imported free-text fallback and is never written again;
+            // a request that names real employees retires whatever legacy name was there.
             $session->presenter_name = null;
         }
 
@@ -260,7 +298,12 @@ class TotController extends Controller
 
         $session->save();
 
-        $this->announcePresenter($session, $previousPresenterId);
+        if ($presenterIds !== null) {
+            $session->presenters()->sync($presenterIds);
+            $session->unsetRelation('presenters');
+        }
+
+        $this->announcePresenters($session, $previousPresenterIds);
 
         // Credit only on the transition INTO done, and only once. Presenting is the thing
         // that earns the month; editing the title afterwards is not.
@@ -307,6 +350,7 @@ class TotController extends Controller
 
         $employee = $request->attributes->get('employee');
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $presenterIds = $session->presenterList()->pluck('id');
 
         $rows = TotComment::with('employee')
             ->where('session_id', $session->id)
@@ -317,8 +361,7 @@ class TotController extends Controller
                 'name' => $c->employee->display_name,
                 'initials' => $c->employee->initials ?? '',
                 'color' => $c->employee->avatar_color ?? '#3a6ea5',
-                'presenter' => $session->presenter_employee_id !== null
-                    && $c->employee_id === $session->presenter_employee_id,
+                'presenter' => $presenterIds->contains($c->employee_id),
                 'body' => $c->body,
                 'at' => $c->created_at?->format('j M') ?? '',
                 'canDelete' => $privileged || ($employee && $c->employee_id === $employee->id),
@@ -589,17 +632,51 @@ class TotController extends Controller
             'venue' => ['nullable', 'string', 'max:200'],
             'venue_map_url' => ['nullable', 'url', 'max:2000'],
             'registration_url' => ['nullable', 'url', 'max:2000'],
+            'tagged' => ['nullable', 'array', 'max:20'],
+            'tagged.*' => ['integer'],
         ]);
+
+        $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
+        unset($data['tagged']);
 
         $event = ExternalTotEvent::create([
             ...$data,
+            'tagged_employee_ids' => $tagged->pluck('id')->all(),
             'tenant_id' => app(CurrentTenant::class)->id(),
             'posted_by' => $request->attributes->get('employee')?->id,
         ]);
 
+        AppNotification::sendMany(
+            $tagged->pluck('user_id')->filter()->all(),
+            "You're required to attend: {$event->title}",
+            collect([$event->host, $event->event_date->format('D, j M Y'), $event->time_label])->filter()->implode(' · '),
+            route('app.screen', 'tot').'?tab=external',
+            mail: true,
+        );
+
         AuditLog::record('Posted external TOT event', $event->title);
 
         return back()->with('ok', 'External event posted.');
+    }
+
+    /**
+     * The employees a poster actually @mentioned: ids they picked, narrowed to active
+     * employees of this tenant (a raw id from the form is never trusted), and narrowed
+     * again to the ones whose name is still written in the description — a mention the
+     * poster deleted from the text before posting should not send anybody a summons.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Employee>
+     */
+    private function taggedFromDescription(array $ids, ?string $description): Collection
+    {
+        if ($ids === [] || $description === null) {
+            return collect();
+        }
+
+        return Employee::active()->whereIn('id', $ids)->get()
+            ->filter(fn (Employee $person) => str_contains($description, '@'.$person->display_name))
+            ->values();
     }
 
     /** The External tab's privileged trio: remove an external training/event. */
@@ -643,20 +720,29 @@ class TotController extends Controller
         }
 
         return blank($link['label'] ?? null)
-            || in_array($link['label'], TotSession::DEFAULT_LINK_LABELS, true);
+            || in_array($link['label'], TotSession::DEFAULT_LINK_LABELS, true)
+            || $link['label'] === TotSession::MODERATOR_LINK_LABEL;
     }
 
     /**
-     * Tell the newly assigned presenter, and record who decided it.
+     * Tell everybody newly added to this slot's presenters, and record who decided it.
      *
-     * Only fires when the linked employee actually changed, so re-saving the same person
-     * is silent. Clearing a presenter announces nothing: the person removed sees it on the
-     * screen, and a "you are no longer presenting" message is noise. In-app only, never
-     * email, matching the rest of the TOT board.
+     * Only the people added by this save are told, so re-saving the same team is silent and
+     * adding a second presenter does not re-notify the first. Somebody removed is told
+     * nothing: they see it on the screen, and a "you are no longer presenting" message is
+     * noise.
+     *
+     * @param  array<int, int>  $previousEmployeeIds
      */
-    private function announcePresenter(TotSession $session, ?int $previousEmployeeId): void
+    private function announcePresenters(TotSession $session, array $previousEmployeeIds): void
     {
-        if ($session->presenter_employee_id === $previousEmployeeId) {
+        // load(), not loadMissing(): the pivot changed a moment ago, so a relation loaded
+        // before that write would still list the people being replaced.
+        $session->load('presenters');
+        $current = $session->presenters->pluck('id')->all();
+
+        if (array_values(array_diff($current, $previousEmployeeIds)) === []
+            && array_values(array_diff($previousEmployeeIds, $current)) === []) {
             return;
         }
 
@@ -665,22 +751,18 @@ class TotController extends Controller
             sprintf('%04d-%02d', $session->year, $session->month)
         );
 
-        if ($session->presenter_employee_id === null) {
-            return;
+        $added = array_diff($current, $previousEmployeeIds);
+
+        foreach ($session->presenters->whereIn('id', $added) as $presenter) {
+            AppNotification::send(
+                $presenter->user_id,
+                'You are presenting TOT on '.$session->session_date->format('j F Y'),
+                'Pick your topic and upload your slides on the TOT board.',
+                route('app.screen', 'tot').'?year='.$session->year,
+                "tot:{$session->id}:assigned:{$presenter->id}",
+                mail: true,
+            );
         }
-
-        // load(), not loadMissing(): presenter_employee_id changed a moment ago, so a
-        // relation loaded before that write would point at the person being replaced.
-        $session->load('presenter');
-
-        AppNotification::send(
-            $session->presenter?->user_id,
-            'You are presenting TOT on '.$session->session_date->format('j F Y'),
-            'Pick your topic and upload your slides on the TOT board.',
-            route('app.screen', 'tot').'?year='.$session->year,
-            "tot:{$session->id}:assigned:{$session->presenter_employee_id}",
-            mail: true,
-        );
     }
 
     /**
@@ -723,10 +805,77 @@ class TotController extends Controller
         }
 
         abort_unless(
-            $employee && $session->presenter_employee_id === $employee->id,
+            $session->isPresentedBy($employee),
             403,
             'Only HR, management, the TOT organiser, or the presenter of this session can edit it.'
         );
+    }
+
+    /**
+     * The presenter picker accepts either shape: `presenter_employee_ids` (the drawer's
+     * solo/team picker) or the singular `presenter_employee_id` the roster screen posts on
+     * every click. Both validate each id against the acting tenant.
+     *
+     * @return array<string, mixed>
+     */
+    private function presenterRules(int $tenantId): array
+    {
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
+
+        return [
+            'presenter_employee_id' => ['nullable', 'integer', $belongsToTenant],
+            'presenter_employee_ids' => ['nullable', 'array', 'max:12'],
+            'presenter_employee_ids.*' => ['integer', $belongsToTenant],
+            'presenter_mode' => ['nullable', 'in:'.implode(',', TotSession::PRESENTER_MODES)],
+        ];
+    }
+
+    /**
+     * True when this request set out to decide the presenters at all.
+     *
+     * The picker posts no id inputs when the team is empty, so it also sends a marker —
+     * without it, clearing every presenter would be indistinguishable from a save that
+     * never rendered the picker, and the team would silently survive.
+     */
+    private function carriesPresenters(Request $request): bool
+    {
+        return $request->has('presenter_employee_ids')
+            || $request->has('presenter_employee_id')
+            || $request->boolean('presenters_submitted');
+    }
+
+    /**
+     * The presenters this request decided, as a de-duplicated list of ids. An empty list
+     * means "nobody presents this slot", which is a valid state.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
+     */
+    private function presenterIdsFrom(Request $request, array $data): array
+    {
+        $ids = $request->has('presenter_employee_ids')
+            ? ($data['presenter_employee_ids'] ?? [])
+            : array_filter([$data['presenter_employee_id'] ?? null]);
+
+        return collect($ids)->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * The mode this request decided. The roster screen posts a single presenter and no mode
+     * at all, so that path stays solo; more than one person is a team whatever was posted.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<int, int>  $presenterIds
+     */
+    private function presenterModeFrom(array $data, array $presenterIds): string
+    {
+        if (count($presenterIds) > 1) {
+            return 'team';
+        }
+
+        return in_array($data['presenter_mode'] ?? null, TotSession::PRESENTER_MODES, true)
+            ? $data['presenter_mode']
+            : 'solo';
     }
 
     /**
@@ -844,7 +993,7 @@ class TotController extends Controller
     private function visibleScores(Collection $saved, ?Employee $employee, bool $privileged): array
     {
         $visible = $saved->filter(
-            fn (TotSession $s) => $privileged || ($employee && $s->presenter_employee_id === $employee->id)
+            fn (TotSession $s) => $privileged || $s->isPresentedBy($employee)
         );
 
         if ($visible->isEmpty()) {
@@ -894,12 +1043,9 @@ class TotController extends Controller
      */
     private function creditContribution(TotSession $session): void
     {
-        $presenter = $session->presenter;
-
-        if (! $presenter) {
-            return;
+        // A team presents together, so the month counts for every one of them.
+        foreach ($session->presenterList() as $presenter) {
+            KnowledgeContribution::mark($presenter, (int) $session->year, (int) $session->month);
         }
-
-        KnowledgeContribution::mark($presenter, (int) $session->year, (int) $session->month);
     }
 }

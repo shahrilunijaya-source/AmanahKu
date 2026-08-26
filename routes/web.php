@@ -297,6 +297,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/members/{employee}/reset-password', [MemberController::class, 'resetPassword'])->name('members.reset-password');
         Route::post('/app/members/{employee}/resend-invite', [MemberController::class, 'resendInvite'])->name('members.resend-invite');
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
+        Route::post('/app/security/ai-key/generate', [SecurityController::class, 'generateAiKey'])->middleware('throttle:10,1,ai-key-generate')->name('security.ai-key.generate');
+        Route::post('/app/security/ai-key/revoke', [SecurityController::class, 'revokeAiKey'])->name('security.ai-key.revoke');
         Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1,assistant')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
         Route::post('/app/notifications/{notification}/read', [NotificationController::class, 'readOne'])->name('notifications.read-one');

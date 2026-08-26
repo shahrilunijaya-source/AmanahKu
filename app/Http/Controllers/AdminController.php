@@ -145,7 +145,7 @@ class AdminController extends Controller
     {
         $keys = array_keys(Features::MODULES);
         foreach (Features::SETTINGS as $key => $meta) {
-            if (($meta['scope'] ?? 'tenant') === 'tenant') {
+            if ($meta['scope'] === 'tenant') {
                 $keys[] = $key;
             }
         }

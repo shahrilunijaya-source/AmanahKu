@@ -104,6 +104,13 @@ final class Cp8dLine
             return (string) (int) floor(round($amount, 4));
         }
 
+        // INTEGER_MONEY_FIELDS/DECIMAL_MONEY_FIELDS are complementary and together cover
+        // every field money() is ever called for (9-22) — asserted here so a future field
+        // added to one list but not the other, or passed to money() without being added to
+        // either, fails loudly instead of silently formatting as whichever branch it fell
+        // through to.
+        assert(in_array($field, self::DECIMAL_MONEY_FIELDS, true), "Field {$field} is in neither money field list.");
+
         return number_format($amount, 2, '.', '');
     }
 

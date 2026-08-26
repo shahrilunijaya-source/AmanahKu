@@ -419,6 +419,23 @@ class ClockServiceTest extends TestCase
         $this->assertNotContains('early_out', $record->flags);
     }
 
+    /**
+     * A normal 09:00-18:00 day worked past midnight: clocking out at 00:19 used to compare
+     * against 18:00 on the *next* calendar day and flag the day as "left early".
+     */
+    public function test_day_shift_clock_out_after_midnight_is_not_early(): void
+    {
+        $svc = $this->service($this->office());
+        $svc->clockIn($this->employee, 3.10, 101.60, 'Traffic', 'attendance-photos/in.jpg', Carbon::parse('2026-07-02 09:57:00'));
+
+        $res = $svc->clockOut($this->employee, 3.10, 101.60, null, 'attendance-photos/out.jpg', Carbon::parse('2026-07-03 00:19:00'));
+
+        $this->assertSame('ok', $res['status']);
+        $record = $this->employee->attendanceRecords()->onDate(Carbon::parse('2026-07-02'))->first();
+        $this->assertNotContains('early_out', $record->flags);
+        $this->assertSame(862, $record->worked_minutes);
+    }
+
     /** A genuinely forgotten clock-out from days ago is not silently attributed to today. */
     public function test_clock_out_does_not_reach_back_past_yesterdays_open_punch(): void
     {

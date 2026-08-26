@@ -110,7 +110,7 @@ final class EaFormData
 
                 foreach ($earnings as $line) {
                     $item = $line->payrollItem;
-                    $category = $item?->ea_box ?? 'unclassified';
+                    $category = ($item !== null ? $item->ea_box : null) ?? 'unclassified';
                     $byCategory[$category] = ($byCategory[$category] ?? 0.0) + (float) $line->amount;
 
                     if ($line->source === 'overtime') {

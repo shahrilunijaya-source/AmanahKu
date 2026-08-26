@@ -11,6 +11,9 @@
   "security": [
     { "bearerAuth": [] }
   ],
+  "x-mcp-server": {
+    "description": "A separate read-only MCP (JSON-RPC) server at POST /mcp/amanahku, not part of this OpenAPI-described REST surface. Same bearer-token/tenant binding as this API, but its own scopes checked per tool: timesheets:read (weekly timesheets and their entries), board:read (board cards / work items), tot:read (TOT sessions and participation). See docs/API.md section 7."
+  },
   "components": {
     "securitySchemes": {
       "bearerAuth": { "type": "http", "scheme": "bearer" }

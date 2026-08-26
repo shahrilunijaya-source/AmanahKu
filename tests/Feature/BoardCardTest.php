@@ -88,7 +88,7 @@ class BoardCardTest extends TestCase
         return $this->employee->workItems()->create(array_merge([
             'tenant_id' => $this->tenant->id, 'title' => 'T', 'type' => 'adhoc',
             'priority' => 'medium', 'status' => 'todo', 'progress' => 0,
-            'assigned_by_id' => $mgr->id, 'assigned_at' => now(),
+            'due_at' => '2026-07-01', 'assigned_by_id' => $mgr->id, 'assigned_at' => now(),
         ], $attrs));
     }
 
@@ -412,7 +412,7 @@ class BoardCardTest extends TestCase
         $director = $this->manager('director');
 
         $this->actingAsManager($director)->postJson("/app/board/assign/{$this->employee->id}", [
-            'title' => 'Board paper', 'type' => 'adhoc', 'priority' => 'high',
+            'title' => 'Board paper', 'type' => 'adhoc', 'priority' => 'high', 'due_at' => '2026-07-01',
         ])->assertCreated();
 
         $this->assertDatabaseHas('work_items', [
@@ -444,7 +444,7 @@ class BoardCardTest extends TestCase
         $mgr = $this->manager('management');
 
         $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
-            'title' => 'Ping', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Ping', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ])->assertCreated();
 
         $this->assertDatabaseHas('app_notifications', [
@@ -457,7 +457,7 @@ class BoardCardTest extends TestCase
         $mgr = $this->manager('management');
 
         $response = $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
-            'title' => 'With links', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'With links', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             'links' => [['label' => 'Spec', 'url' => 'https://example.com/spec']],
         ]);
         $response->assertCreated();
@@ -472,7 +472,7 @@ class BoardCardTest extends TestCase
         $mgr = $this->manager('management');
 
         $response = $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
-            'title' => 'Blank row', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Blank row', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             'links' => [['label' => '', 'url' => '']],
         ]);
         $response->assertCreated();
@@ -580,6 +580,8 @@ class BoardCardTest extends TestCase
         return $mgr->workItems()->create(array_merge([
             'tenant_id' => $this->tenant->id, 'title' => 'Team task', 'type' => 'task',
             'priority' => 'medium', 'status' => 'todo', 'progress' => 0,
+            // Shared cards must carry a due date, so the sharing source always has one.
+            'due_at' => '2026-07-01',
         ], $attrs));
     }
 
@@ -681,7 +683,7 @@ class BoardCardTest extends TestCase
 
     public function test_plain_employee_sets_participants_on_their_own_card(): void
     {
-        $card = $this->card(); // owned by the plain employee
+        $card = $this->card(['due_at' => '2026-07-01']); // owned by the plain employee
         $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'C', 'status' => 'active', 'workload' => 'green']);
 
         $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
@@ -705,11 +707,13 @@ class BoardCardTest extends TestCase
             'tenant_id' => $this->tenant->id, 'name' => 'Muhammad Hakim bin Ali',
             'nickname' => 'hakime', 'status' => 'active', 'workload' => 'green',
         ]);
-        $card = $this->card();
+        $card = $this->card(['due_at' => '2026-07-01']);
 
-        // The picker roster on the board screen.
+        // The picker roster on the board screen. Its `search` haystack still carries
+        // the legal name, so typing "muhammad" finds someone listed as "Hakime".
         $this->actingInTenant()->get('/app/board')->assertOk()
-            ->assertViewHas('people', fn ($people) => $people->contains('name', 'Hakime'));
+            ->assertViewHas('people', fn ($people) => $people->contains('name', 'Hakime')
+                && $people->contains('search', 'hakime muhammad hakim bin ali'));
 
         // The participant chips on a saved card.
         $this->actingInTenant()->patchJson("/app/board/{$card->id}", [
@@ -763,7 +767,7 @@ class BoardCardTest extends TestCase
     public function test_a_company_scoped_manager_may_edit_someone_elses_card(): void
     {
         $mgr = $this->scopedManager('company');
-        $card = $this->card(); // owned by the plain employee, no assigner
+        $card = $this->card(['due_at' => '2026-07-01']); // owned by the plain employee, no assigner
 
         $this->actingAsManager($mgr)
             ->patchJson("/app/board/{$card->id}", ['title' => 'Manager edited this'])

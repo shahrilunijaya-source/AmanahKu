@@ -168,6 +168,8 @@ class AttendanceAdminController extends Controller
                 // time, so the mark must go with it or the record keeps claiming a
                 // fabricated punch that is no longer there.
                 'out_of_radius_out', 'early_out', 'short_hours', 'amended',
+                // Same for the nightly sweep's mark: reversing removes the time it stamped.
+                'auto_out',
                 // 'no_location' only ever meant the clock-OUT had no fix when the clock-IN
                 // did — a clock-in with no fix carries the same flag and must keep it.
                 ...($record->latitude !== null ? ['no_location'] : []),

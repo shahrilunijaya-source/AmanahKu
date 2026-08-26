@@ -36,11 +36,13 @@ class TotTomorrowMail extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         // A slot can reach the day before with nobody linked: an imported nickname in
-        // presenter_name, or nobody at all.
-        $presenter = $this->session->presenter?->display_name;
-        $presenter ??= $this->session->presenter_name ?? 'PIC yang akan diumumkan';
+        // presenter_name, or nobody at all. A team slot reads "A, B & C".
+        $team = $this->session->presenterList();
+        $presenter = $this->session->presenterLabel() ?: 'PIC yang akan diumumkan';
 
-        $phone = $this->session->presenter?->phone;
+        // Only a solo presenter's number goes in the line — one phone next to three names
+        // reads as though it belongs to the last of them.
+        $phone = $team->count() === 1 ? $team->first()->phone : null;
         $topic = $this->session->title ?: 'tajuk yang akan diumumkan';
         $date = $this->session->session_date->locale('ms')->translatedFormat('l, d F Y');
         $start = $this->malayTime($this->session->startTime());

@@ -356,7 +356,6 @@ class PayrollController extends Controller
     {
         return Payslip::whereNotNull('overtime_request_ids')
             ->when($excludePayslipId, fn ($q) => $q->whereKeyNot($excludePayslipId))
-            ->get(['overtime_request_ids'])
             ->pluck('overtime_request_ids')->flatten()->filter()->unique()->all();
     }
 
@@ -365,7 +364,6 @@ class PayrollController extends Controller
     {
         return Payslip::whereNotNull('unpaid_leave_request_ids')
             ->when($excludePayslipId, fn ($q) => $q->whereKeyNot($excludePayslipId))
-            ->get(['unpaid_leave_request_ids'])
             ->pluck('unpaid_leave_request_ids')->flatten()->filter()->unique()->all();
     }
 
@@ -479,7 +477,7 @@ class PayrollController extends Controller
 
             // Claims already attached to any run must never be pulled again — prevents
             // double reimbursement across concurrent or sequential draft runs.
-            $usedClaimIds = Payslip::whereNotNull('claim_ids')->get(['claim_ids'])
+            $usedClaimIds = Payslip::whereNotNull('claim_ids')
                 ->pluck('claim_ids')->flatten()->filter()->unique()->all();
             // Same double-pull protection for approved overtime and unpaid leave.
             $usedOvertimeIds = $this->usedOvertimeIds(null);
@@ -613,8 +611,11 @@ class PayrollController extends Controller
         $periodEnd = Carbon::createFromFormat('Y-m', $payslip->payrollRun->period)->endOfMonth();
         $age = $payslip->employee->date_of_birth === null ? null : (int) $payslip->employee->date_of_birth->diffInYears($periodEnd);
         $structure = $payslip->employee->salaryStructure;
-        // electedBefore1998 has no column — see the same note in createRun().
-        $epfPart = $this->epf->part($structure?->nationality ?? 'citizen', $age, false);
+        // electedBefore1998 has no column — see the same note in createRun(). $structure
+        // is genuinely nullable (not every employee has a salary structure row) —
+        // Larastan false-positives "nullsafe.neverNull" on ?-> here, so this is written
+        // as an explicit null check to sidestep that rather than silence it.
+        $epfPart = $this->epf->part(($structure !== null ? $structure->nationality : null) ?? 'citizen', $age, false);
 
         // overtime_hours/unpaid_days: null or '' (never submitted, or explicitly cleared)
         // means "use the pulled figure"; any other value — including 0 — is HR's override
@@ -697,10 +698,14 @@ class PayrollController extends Controller
             // Fixed Allowance fallback against allowances_total.
             $fixedEarningLines = $payslip->lines()->where('source', 'fixed-transaction')->where('type', 'earning')->get();
             if ($fixedEarningLines->isNotEmpty()) {
+                // A legacy line, or one whose catalogue item has since been deleted, has no
+                // payrollItem — Larastan false-positives "nullsafe.neverNull" on the ?->
+                // below even though the relation is genuinely nullable, so this is written
+                // as an explicit null check to sidestep that rather than silence it.
                 $baseInputs['fixed_earning_lines'] = $fixedEarningLines->map(fn (PayslipLine $l) => [
                     'amount' => (float) $l->amount,
-                    'epf_liable' => (bool) ($l->payrollItem?->epf_liable ?? true),
-                    'perkeso_liable' => (bool) ($l->payrollItem?->perkeso_liable ?? true),
+                    'epf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->epf_liable : null) ?? true),
+                    'perkeso_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->perkeso_liable : null) ?? true),
                 ])->all();
             }
 
@@ -871,11 +876,14 @@ class PayrollController extends Controller
             monthsRemainingAfterCurrent: $n,
             ytdZakatZ: $ytd['zakatZ'],
             ytdMtdPaidX: $ytd['mtdPaidX'],
-            currentZakat: (float) ($structure?->zakat_monthly ?? 0),
-            disabledIndividual: (bool) ($structure?->disabled_self ?? false),
+            // $structure is genuinely nullable — Larastan false-positives
+            // "nullsafe.neverNull" on ?-> below, so these are written as explicit null
+            // checks to sidestep that rather than silence it.
+            currentZakat: (float) (($structure !== null ? $structure->zakat_monthly : null) ?? 0),
+            disabledIndividual: (bool) (($structure !== null ? $structure->disabled_self : null) ?? false),
             // No spouse relief at all for category 1 (single) — see PcbCalculator::reliefs().
-            disabledSpouse: $category !== 1 && (bool) ($structure?->disabled_spouse ?? false),
-            qualifyingChildren: (int) ($structure?->children_relief_count ?? 0),
+            disabledSpouse: $category !== 1 && (bool) (($structure !== null ? $structure->disabled_spouse : null) ?? false),
+            qualifyingChildren: (int) (($structure !== null ? $structure->children_relief_count : null) ?? 0),
             ytdOptionalDeductions: $ytd['optionalDeductions'],
             currentAdditionalGrossYt: $bonus,
             currentAdditionalEpfKt: $kt,
@@ -1010,9 +1018,15 @@ class PayrollController extends Controller
      * Attributes for this payslip's Individual Transaction lines — one per resolved
      * {item, amount, remark} row (individualTransactionLines()), source 'individual'.
      *
-     * @param  Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
+     * Typed as iterable, not Collection, purely to sidestep Collection's TValue being
+     * invariant — passing the Collection individualTransactionLines() returns into a
+     * Collection-typed param here fails PHPStan's invariance check even though the
+     * array shape is identical; iterable doesn't have that restriction and this
+     * function only ever foreach()es the argument.
+     *
+     * @param  iterable<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
      */
-    private function individualLineAttrs(Collection $individualLines, int $sort): array
+    private function individualLineAttrs(iterable $individualLines, int $sort): array
     {
         $lines = [];
         foreach ($individualLines as $line) {
@@ -1089,9 +1103,12 @@ class PayrollController extends Controller
      * the structure after the run was created, so only the variable-source lines are
      * replaced.
      *
-     * @param  Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
+     * Typed as iterable, not Collection, for the same TValue-invariance reason noted on
+     * individualLineAttrs() — this only ever passes the argument through to that method.
+     *
+     * @param  iterable<int, array{item: PayrollItem, amount: float, remark: ?string}>  $individualLines
      */
-    private function refreshVariableLines(Payslip $payslip, PayslipComputation $comp, Collection $individualLines, Collection $catalog): void
+    private function refreshVariableLines(Payslip $payslip, PayslipComputation $comp, iterable $individualLines, Collection $catalog): void
     {
         $payslip->lines()->whereIn('source', ['overtime', 'manual', 'leave', 'individual'])->delete();
         $nextSort = (int) ($payslip->lines()->max('sort_order') ?? -1) + 1;

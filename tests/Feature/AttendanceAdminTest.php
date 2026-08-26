@@ -266,6 +266,21 @@ class AttendanceAdminTest extends TestCase
         Storage::disk('local')->assertMissing('attendance-photos/out.jpg');
     }
 
+    /** Reversing an auto-closed punch takes the sweep's mark with the time it stamped. */
+    public function test_hr_reverses_an_auto_clock_out_and_the_flag_goes_with_it(): void
+    {
+        $this->actingAsRole('hr');
+        $e = $this->staff('office');
+        $record = $this->punchedRecord($e, withClockOut: true, extra: ['flags' => ['auto_out', 'short_hours']]);
+
+        $this->post("/app/attendance-admin/records/{$record->id}/reverse")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $record->refresh();
+        $this->assertNull($record->clock_out);
+        $this->assertNotContains('auto_out', $record->flags ?? []);
+    }
+
     public function test_hr_reverses_a_site_visit_clock_out_and_clears_the_mode(): void
     {
         $this->actingAsRole('hr');

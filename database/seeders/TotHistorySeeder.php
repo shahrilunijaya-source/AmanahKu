@@ -137,7 +137,7 @@ class TotHistorySeeder extends Seeder
                     $ambiguous[$presenter] = true;
                 }
 
-                TotSession::updateOrCreate(
+                $session = TotSession::updateOrCreate(
                     ['tenant_id' => $tenant->id, 'year' => $year, 'month' => $month],
                     [
                         'presenter_employee_id' => $employee?->id,
@@ -152,6 +152,11 @@ class TotHistorySeeder extends Seeder
                             : array_map(fn (array $l) => ['label' => $l[0], 'url' => $l[1]], $links),
                     ],
                 );
+
+                // The pivot is the canonical presenter list, so an import has to fill it too
+                // or a re-seed leaves history readable only through the legacy column. An
+                // unmatched name has no employee to point at and stays free text alone.
+                $session->presenters()->sync(array_filter([$employee?->id]));
             }
         }
 

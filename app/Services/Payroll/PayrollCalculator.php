@@ -69,7 +69,8 @@ class PayrollCalculator
         $pcbAdditional = $this->money($inputs['pcb_additional'] ?? 0);
         $zakat = $this->money($inputs['zakat'] ?? 0);
         $cp38 = $this->money($inputs['cp38'] ?? 0);
-        $pcbOverride = isset($inputs['pcb_override']) && $inputs['pcb_override'] !== null && $inputs['pcb_override'] !== ''
+        // isset() already excludes null, so no separate !== null check is needed.
+        $pcbOverride = isset($inputs['pcb_override']) && $inputs['pcb_override'] !== ''
             ? $this->money($inputs['pcb_override']) : null;
         $claimsReimbursement = $this->money($inputs['claims_reimbursement'] ?? 0);
         // Deduction-type Fixed Transactions (e.g. a recurring staff loan instalment) —

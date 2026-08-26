@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Attendance;
 
+use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Support\Geo;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
@@ -147,7 +149,7 @@ class ClockService
         $site = $this->resolver->matchActualSite($employee, $this->resolver->resolve($employee, $now), $lat, $lng);
         $outRadius = $this->within($site, $lat, $lng);
         $worked = $this->minutesBetween($record->date, $record->clock_in, $now);
-        $early = $this->isEarly($record->expected_start, $record->expected_end, $now);
+        $early = $this->isEarly($record, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
         $siteVisit = $workMode === 'site_visit';
@@ -247,19 +249,74 @@ class ClockService
         return $now->gt($start->addMinutes($graceMinutes));
     }
 
-    /** Same overnight anchoring as isLate(), for the shift's end boundary instead of its start. */
-    private function isEarly(?string $expectedStart, ?string $expectedEnd, Carbon $now): bool
+    /**
+     * The moment this record's shift is due to end, or null when no end time was stamped.
+     *
+     * Anchored to the record's own date, not to "now": a clock-out that rolls past midnight
+     * leaves the current time a calendar day ahead, and anchoring there would put the end
+     * nearly a full day in the future and read a late clock-out as an early one. An overnight
+     * shift clocked in on the start-day side ends the following day.
+     */
+    public function shiftEnd(AttendanceRecord $record): ?Carbon
     {
+        $expectedStart = $record->expected_start;
+        $expectedEnd = $record->expected_end;
+
         if (! $expectedEnd) {
-            return false;
+            return null;
         }
 
-        $end = $now->copy()->setTimeFromTimeString($expectedEnd);
-        if ($expectedStart && $this->overnight($expectedStart, $expectedEnd) && $this->minutesOfDay($now) >= $this->toMinutes($expectedStart)) {
+        $end = Carbon::parse($record->date)->setTimeFromTimeString($expectedEnd);
+        if ($expectedStart && $this->overnight($expectedStart, $expectedEnd) && $this->toMinutes($record->clock_in) >= $this->toMinutes($expectedStart)) {
             $end->addDay();
         }
 
-        return $now->lt($end);
+        return $end;
+    }
+
+    /**
+     * Close an open punch at its own shift end, for the nightly sweep.
+     *
+     * Unijaya pays nothing past the shift end, so a forgotten clock-out costs the employee
+     * no time by being capped there — and a punch left open is worse: it never reaches the
+     * ledger at all, and `openPunch` stops offering it after a day. The stamped time is the
+     * shift end, never the moment the sweep runs, so the sweep can never invent worked hours.
+     * No location, no selfie and no justification: nothing was witnessed, and the `auto_out`
+     * flag says so on the row.
+     *
+     * Returns false when the record has no end time to close at, is already closed, or its
+     * shift end has not passed yet.
+     */
+    public function closeAtShiftEnd(AttendanceRecord $record, Carbon $now): bool
+    {
+        $end = $this->shiftEnd($record);
+
+        if ($record->clock_in === null || $record->clock_out !== null || $end === null || $now->lt($end)) {
+            return false;
+        }
+
+        $worked = $this->minutesBetween($record->date, $record->clock_in, $end);
+
+        $flags = $record->flags ?? [];
+        $flags[] = 'auto_out';
+        if ($this->isShort($worked, $record->expected_min_hours)) {
+            $flags[] = 'short_hours';
+        }
+
+        $record->update([
+            'clock_out' => $end->format('H:i:s'),
+            'worked_minutes' => $worked,
+            'flags' => array_values(array_unique($flags)),
+        ]);
+
+        return true;
+    }
+
+    private function isEarly(AttendanceRecord $record, Carbon $now): bool
+    {
+        $end = $this->shiftEnd($record);
+
+        return $end !== null && $now->lt($end);
     }
 
     private function overnight(string $workStart, string $workEnd): bool
@@ -288,12 +345,12 @@ class ClockService
         return $worked < (float) $minHours * 60;
     }
 
-    private function minutesBetween(Carbon $date, string $clockIn, Carbon $now): int
+    private function minutesBetween(CarbonInterface $date, string $clockIn, Carbon $now): int
     {
         // Anchored to the record's own date, not $now's: for an overnight shift $now
         // has already rolled to the next calendar day, and anchoring there would put
         // "start" after "now" and clamp a real multi-hour shift to 0.
-        $start = $date->copy()->setTimeFromTimeString($clockIn);
+        $start = Carbon::parse($date)->setTimeFromTimeString($clockIn);
 
         return (int) max(0, $start->diffInMinutes($now, false));
     }

@@ -61,7 +61,8 @@ class TotReminderTest extends TestCase
 
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $this->presenter->id,
-            'dedupe_key' => 'tot:'.TotSession::first()->id.':topic',
+            // The key carries the employee id so each member of a team gets their own bell.
+            'dedupe_key' => 'tot:'.TotSession::first()->id.':topic:'.$this->presenterEmployee->id,
         ]);
     }
 
@@ -84,7 +85,7 @@ class TotReminderTest extends TestCase
 
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $this->presenter->id,
-            'dedupe_key' => 'tot:'.$slot->id.':prepare',
+            'dedupe_key' => 'tot:'.$slot->id.':prepare:'.$this->presenterEmployee->id,
         ]);
     }
 

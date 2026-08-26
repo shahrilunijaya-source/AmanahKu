@@ -123,6 +123,24 @@ class TotAssignPermissionTest extends TestCase
         $this->assertNull($fresh->held_on);
     }
 
+    public function test_a_holder_edits_the_moderator_link_without_touching_material(): void
+    {
+        $this->seedWorkspace();
+        $this->grantAssign();
+        $session = $this->slot();
+        $session->update(['links' => [['label' => 'Slides', 'url' => 'https://example.com/slides']]]);
+
+        $this->actingAsManager()->post("/app/tot/{$session->id}", [
+            'links' => [['label' => TotSession::MODERATOR_LINK_LABEL, 'url' => 'https://example.com/notes']],
+        ])->assertSessionHasNoErrors();
+
+        $links = collect($session->fresh()->links);
+        $this->assertSame('https://example.com/notes', $links->firstWhere('label', TotSession::MODERATOR_LINK_LABEL)['url']);
+        // The holder's editor never renders the Slides row — it must survive untouched.
+        $this->assertSame('https://example.com/slides', $links->firstWhere('label', 'Slides')['url']);
+        $this->assertSame('Original title', $session->fresh()->title);
+    }
+
     public function test_a_manager_without_the_override_cannot_set_a_presenter(): void
     {
         $this->seedWorkspace();
@@ -315,7 +333,7 @@ class TotAssignPermissionTest extends TestCase
 
         $this->actingAsManager()->get('/app/tot')
             ->assertOk()
-            ->assertSee('name="presenter_employee_id"', false);
+            ->assertSee('presenter_employee_ids[]', false);
     }
 
     public function test_the_screen_hides_privileged_fields_from_a_holder(): void
@@ -373,7 +391,7 @@ class TotAssignPermissionTest extends TestCase
 
         $this->actingAsManager()->get('/app/tot')
             ->assertOk()
-            ->assertSee('name="presenter_employee_id"', false)
+            ->assertSee('presenter_employee_ids[]', false)
             ->assertDontSee('name="starts_at"', false);
     }
 

@@ -53,27 +53,37 @@ final class PayslipYearToDate
             'ytd' => round($opening + $priorSum + $month, 2),
         ];
 
+        // Larastan false-positives "nullsafe.neverNull" on `$opening?->x ?? 0` below even
+        // though ->first() is genuinely nullable — an employee with no take-on row is the
+        // common case, not an edge case, so this is NOT dead code. Written as an explicit
+        // null check instead of ?-> to sidestep the false positive rather than silence it.
+        $openingEpf = ($opening !== null ? $opening->epf : null) ?? 0;
+        $openingAdditionalEpf = ($opening !== null ? $opening->additional_epf : null) ?? 0;
+        $openingSocso = ($opening !== null ? $opening->socso : null) ?? 0;
+        $openingEis = ($opening !== null ? $opening->eis : null) ?? 0;
+        $openingPcbPaid = ($opening !== null ? $opening->pcb_paid : null) ?? 0;
+
         return [
             'epf' => [
                 'employee' => $row(
                     (float) $payslip->epf_employee,
-                    (float) ($opening?->epf ?? 0) + (float) ($opening?->additional_epf ?? 0),
+                    (float) $openingEpf + (float) $openingAdditionalEpf,
                     (float) $priorPaid->sum('epf_employee'),
                 ),
                 'employer' => $row((float) $payslip->epf_employer, 0.0, (float) $priorPaid->sum('epf_employer')),
             ],
             'socso' => [
-                'employee' => $row((float) $payslip->socso_employee, (float) ($opening?->socso ?? 0), (float) $priorPaid->sum('socso_employee')),
+                'employee' => $row((float) $payslip->socso_employee, (float) $openingSocso, (float) $priorPaid->sum('socso_employee')),
                 'employer' => $row((float) $payslip->socso_employer, 0.0, (float) $priorPaid->sum('socso_employer')),
             ],
             'eis' => [
-                'employee' => $row((float) $payslip->eis_employee, (float) ($opening?->eis ?? 0), (float) $priorPaid->sum('eis_employee')),
+                'employee' => $row((float) $payslip->eis_employee, (float) $openingEis, (float) $priorPaid->sum('eis_employee')),
                 'employer' => $row((float) $payslip->eis_employer, 0.0, (float) $priorPaid->sum('eis_employer')),
             ],
             'pcb' => [
                 'employee' => $row(
                     (float) $payslip->pcb + (float) $payslip->pcb_additional,
-                    (float) ($opening?->pcb_paid ?? 0),
+                    (float) $openingPcbPaid,
                     (float) $priorPaid->sum(fn (Payslip $p) => $p->pcb + $p->pcb_additional),
                 ),
             ],

@@ -504,6 +504,12 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-chip-tone[data-tone="info"]      { background: color-mix(in srgb, var(--info) 7%, #fff);    border-color: color-mix(in srgb, var(--info) 22%, var(--hairline)); }
 .uj-chip-tone[data-tone="amber"]     { background: color-mix(in srgb, var(--amber) 8%, #fff);   border-color: color-mix(in srgb, var(--amber) 26%, var(--hairline)); }
 .uj-chip-tone[data-tone="muted"]     { background: var(--hairline-soft); }
+/* Stacked sections inside an x-show tab panel. Alpine's x-show REMOVES the inline
+   `display` when it reveals an element, so an inline `display:flex` on the panel is
+   wiped the first time the tab is shown and the section gap collapses. A class
+   survives that, inline style does not. */
+.uj-tab-stack { display: flex; flex-direction: column; gap: 20px; }
+
 .uj-progress { height: 6px; background: var(--hairline); border-radius: 9999px; overflow: hidden; }
 .uj-progress > span { display: block; height: 100%; background: var(--success); }
 
@@ -3495,6 +3501,12 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 /* External TOT list — a simple broadcast card per event, not a tot-row (no reactions/
    watch/score chrome to make room for). Title/host/meta follow the app's 5-step type
    ramp (t-lg / t-sm / t-sm) rather than inventing sizes off it. */
+/* A rail row that is aimed at THIS reader, not just near them — currently the
+   External TOT event they were @mentioned in. Red, next to the title, so it is
+   read before the row's own words are. */
+.uj-dq-flag{display:inline-block;margin-left:6px;font-size:var(--t-micro);font-weight:600;
+  color:var(--red);background:var(--red-tint);border-radius:5px;padding:1px 6px;vertical-align:middle;}
+
 .ext-item{padding:16px 0;border-top:1px solid var(--hairline-soft);}
 .ext-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
 .ext-title{font-size:var(--t-lg);font-weight:600;color:var(--ink);margin:0 0 2px;line-height:1.35;}
@@ -3506,6 +3518,18 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 .ext-meta-i a{color:var(--info);text-decoration:none;}
 .ext-meta-i a:hover{text-decoration:underline;}
 .ext-desc{font-size:var(--t-sm);line-height:1.6;color:var(--body);margin:0 0 12px;white-space:pre-line;}
+/* A person @mentioned in the description — they were notified and are expected to
+   register, so the name has to read as a summons, not as decoration. */
+.ext-mention{color:var(--info);font-weight:600;}
+.ext-mention[data-me]{color:var(--red);background:var(--red-tint);border-radius:5px;padding:0 4px;}
+/* The registration link is an <a>, not a <button>, so .tot-btn-p's fixed 38px
+   height left the label riding the top of the pill: a button centres its own
+   content, a link does not. Inline-flex centres the label and nothing else — the
+   button itself still sits where every other control on the card sits. */
+.ext-reg{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;}
+/* Mention autocomplete, anchored under the description box (not at the caret —
+   a caret-tracked menu buys nothing here and costs a day). */
+.ext-mention-menu{position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:200px;overflow-y:auto;}
 @media (prefers-reduced-motion:reduce){
     .ext-del{transition:none;}
     .ext-del:active{transform:none;}

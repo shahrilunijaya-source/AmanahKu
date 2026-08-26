@@ -156,4 +156,85 @@ class ExternalTotTest extends TestCase
             ->assertOk()
             ->assertSee('name="registration_url"', false);
     }
+
+    /** A colleague who can be @mentioned: their own user, so the bell has somewhere to land. */
+    private function colleague(string $name, ?Tenant $tenant = null): Employee
+    {
+        $tenant ??= $this->tenant;
+        $user = User::create([
+            'name' => $name, 'email' => str($name)->slug().'@example.com', 'password' => Hash::make('password'),
+        ]);
+        $user->tenants()->attach($tenant->id, ['role' => 'employee']);
+
+        return Employee::create([
+            'tenant_id' => $tenant->id, 'user_id' => $user->id,
+            'name' => $name, 'status' => 'active', 'workload' => 'green',
+        ]);
+    }
+
+    public function test_tagging_someone_notifies_them_that_they_must_register(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $tagged = $this->colleague('Aminah');
+
+        $this->actingInTenant($poster)->post('/app/tot/external', $this->payload([
+            'description' => 'Everyone in ops, especially @Aminah, must attend.',
+            'tagged' => [$tagged->id],
+        ]))->assertRedirect();
+
+        $this->assertSame([$tagged->id], ExternalTotEvent::first()->taggedIds());
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $tagged->user_id,
+            'title' => "You're required to attend: Cybersecurity in the Age of NeoCloud",
+        ]);
+    }
+
+    public function test_a_mention_deleted_from_the_description_tags_nobody(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $tagged = $this->colleague('Aminah');
+
+        $this->actingInTenant($poster)->post('/app/tot/external', $this->payload([
+            'description' => 'Changed my mind, nobody in particular has to come.',
+            'tagged' => [$tagged->id],
+        ]))->assertRedirect();
+
+        $this->assertSame([], ExternalTotEvent::first()->taggedIds());
+        $this->assertDatabaseCount('app_notifications', 0);
+    }
+
+    public function test_an_employee_from_another_tenant_cannot_be_tagged(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $outsider = $this->colleague('Zarina', $other);
+
+        $this->actingInTenant($poster)->post('/app/tot/external', $this->payload([
+            'description' => 'Come along @Zarina.',
+            'tagged' => [$outsider->id],
+        ]))->assertRedirect();
+
+        $this->assertSame([], ExternalTotEvent::first()->taggedIds());
+        $this->assertDatabaseCount('app_notifications', 0);
+    }
+
+    public function test_a_tagged_viewer_is_told_on_the_board_that_they_must_register(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $tagged = $this->colleague('Aminah');
+        $taggedUser = $tagged->user;
+
+        $this->actingInTenant($poster)->post('/app/tot/external', $this->payload([
+            'description' => 'Ops team, @Aminah is expected there.',
+            'tagged' => [$tagged->id],
+        ]));
+
+        $this->actingAs($taggedUser)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/tot')->assertOk()
+            ->assertSee('You were tagged');
+
+        $this->actingInTenant($poster)->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('You were tagged');
+    }
 }

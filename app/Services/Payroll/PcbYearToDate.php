@@ -39,16 +39,20 @@ final class PcbYearToDate
                 ->where('period', '<', $period))
             ->get();
 
+        // Larastan false-positives "nullsafe.neverNull" on `$opening?->x ?? 0` here even
+        // though ->first() is genuinely nullable — an employee with no take-on row is the
+        // common case, not an edge case, so this is NOT dead code. Written as an explicit
+        // null check instead of ?-> to sidestep the false positive rather than silence it.
         return [
-            'grossY' => (float) ($opening?->gross ?? 0) + (float) ($opening?->additional_gross ?? 0) + (float) $paidThisYear->sum('gross'),
-            'epfK' => (float) ($opening?->epf ?? 0) + (float) ($opening?->additional_epf ?? 0) + (float) $paidThisYear->sum('epf_employee'),
-            'zakatZ' => (float) ($opening?->zakat_paid ?? 0) + (float) $paidThisYear->sum('zakat'),
-            'mtdPaidX' => (float) ($opening?->pcb_paid ?? 0) + (float) $paidThisYear->sum(fn ($p) => $p->pcb + $p->pcb_additional),
+            'grossY' => (float) (($opening !== null ? $opening->gross : null) ?? 0) + (float) (($opening !== null ? $opening->additional_gross : null) ?? 0) + (float) $paidThisYear->sum('gross'),
+            'epfK' => (float) (($opening !== null ? $opening->epf : null) ?? 0) + (float) (($opening !== null ? $opening->additional_epf : null) ?? 0) + (float) $paidThisYear->sum('epf_employee'),
+            'zakatZ' => (float) (($opening !== null ? $opening->zakat_paid : null) ?? 0) + (float) $paidThisYear->sum('zakat'),
+            'mtdPaidX' => (float) (($opening !== null ? $opening->pcb_paid : null) ?? 0) + (float) $paidThisYear->sum(fn ($p) => $p->pcb + $p->pcb_additional),
             // ∑LP opening balance — TP1 optional deductions (parents' medical, study fees,
             // etc.) the employee already claimed through a previous employer this year.
             // Nothing on Payslip accumulates a current-year TP1 figure yet, so this is the
             // opening balance only; wire in this app's own TP1 claims here once they exist.
-            'optionalDeductions' => (float) ($opening?->optional_deductions ?? 0),
+            'optionalDeductions' => (float) (($opening !== null ? $opening->optional_deductions : null) ?? 0),
         ];
     }
 }

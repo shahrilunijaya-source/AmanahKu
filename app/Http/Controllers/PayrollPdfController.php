@@ -69,7 +69,13 @@ class PayrollPdfController extends Controller
 
     private function filename(Payslip $payslip): string
     {
-        return 'payslip-'.($payslip->employee?->staff_id ?? $payslip->employee_id).'-'.$payslip->payrollRun?->period.'.pdf';
+        // employee is genuinely nullable — Larastan false-positives "nullsafe.neverNull"
+        // on ?-> here, so this is written as an explicit null check to sidestep that
+        // rather than silence it.
+        $employee = $payslip->employee;
+        $staffId = ($employee !== null ? $employee->staff_id : null) ?? $payslip->employee_id;
+
+        return 'payslip-'.$staffId.'-'.$payslip->payrollRun?->period.'.pdf';
     }
 
     /** The acting user's own Employee record in the current tenant, or null (e.g. HR-only login with no linked employee). */

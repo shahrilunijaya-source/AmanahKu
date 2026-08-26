@@ -40,11 +40,13 @@ class FixedTransaction extends Model
         ];
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /** @return BelongsTo<PayrollItem, $this> */
     public function payrollItem(): BelongsTo
     {
         return $this->belongsTo(PayrollItem::class);

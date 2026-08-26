@@ -46,6 +46,8 @@ final class LedgerBuilder
         // An HR-typed clock-out is not a punch. It has to be visible on the row, or
         // the ledger shows a time nobody actually recorded and says nothing about it.
         'amended' => 'amended',
+        // Neither is a nightly sweep's close. Same reasoning, different author.
+        'auto_out' => 'auto',
     ];
 
     /**

@@ -34,6 +34,7 @@ class PayrollRun extends Model
         ];
     }
 
+    /** @return HasMany<Payslip, $this> */
     public function payslips(): HasMany
     {
         return $this->hasMany(Payslip::class);

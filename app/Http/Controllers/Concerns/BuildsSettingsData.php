@@ -104,7 +104,7 @@ trait BuildsSettingsData
 
         $settings = [];
         foreach (Features::SETTINGS as $key => $meta) {
-            if (($meta['scope'] ?? 'tenant') !== 'tenant') {
+            if ($meta['scope'] !== 'tenant') {
                 continue;
             }
             $settings[] = [
@@ -114,7 +114,7 @@ trait BuildsSettingsData
                 'options' => $meta['options'] ?? null,
                 'min' => $meta['min'] ?? null,
                 'max' => $meta['max'] ?? null,
-                'help' => $meta['help'] ?? null,
+                'help' => $meta['help'],
                 'value' => $features->value($tenant, $key),
                 'locked' => $features->platformLocked($key),
             ];

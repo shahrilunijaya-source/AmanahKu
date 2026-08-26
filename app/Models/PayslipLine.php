@@ -37,11 +37,13 @@ class PayslipLine extends Model
         ];
     }
 
+    /** @return BelongsTo<Payslip, $this> */
     public function payslip(): BelongsTo
     {
         return $this->belongsTo(Payslip::class);
     }
 
+    /** @return BelongsTo<PayrollItem, $this> */
     public function payrollItem(): BelongsTo
     {
         return $this->belongsTo(PayrollItem::class);

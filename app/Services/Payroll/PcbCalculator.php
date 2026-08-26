@@ -34,8 +34,12 @@ final class PcbCalculator
      */
     public static function categoryFor(Employee $employee, ?SalaryStructure $structure): int
     {
+        // Larastan false-positives "nullsafe.neverNull" here even though $structure is
+        // genuinely ?SalaryStructure — written as an explicit null check to sidestep it.
+        $spouseWorking = ($structure !== null ? $structure->spouse_working : null) ?? false;
+
         return match (true) {
-            ($employee->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
+            ($employee->marital_status ?? 'single') === 'married' && ! $spouseWorking => 2,
             ($employee->marital_status ?? 'single') === 'married',
             ($employee->marital_status ?? 'single') === 'divorced',
             ($employee->marital_status ?? 'single') === 'widowed' => 3,
@@ -67,7 +71,7 @@ final class PcbCalculator
      * Table 1 (spec D.b.1): [upper P bound, M, R%, B for category 1 & 3, B for category 2].
      * The implicit band below RM5,001 has no entry — P at or under RM5,000 owes no MTD.
      *
-     * @var array<int, array{0: float, 1: float, 2: float, 3: float, 4: float}>
+     * @var array<int, array{0: int|float, 1: int|float, 2: int|float, 3: int|float, 4: int|float}>
      */
     private const TABLE_1 = [
         [20000, 5000, 1, -400, -800],

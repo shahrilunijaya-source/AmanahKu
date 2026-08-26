@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class WorkItemController extends Controller
 {
@@ -91,7 +92,9 @@ class WorkItemController extends Controller
             'title' => ['required', 'string', 'max:160'],
             'type' => ['required', 'in:assignment,task,adhoc'],
             'priority' => ['required', 'in:high,medium,low'],
-            'due_at' => ['nullable', 'date'],
+            // Work handed to someone else always carries a deadline — see the
+            // resulting-state guard in update() for the other half of the rule.
+            'due_at' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:5000'],
             'links' => ['sometimes', 'array', 'max:12'],
             'links.*.label' => ['required_with:links', 'string', 'max:60'],
@@ -209,6 +212,24 @@ class WorkItemController extends Controller
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
         ]);
+
+        // A card that involves anyone but its owner (a tac, or a card with
+        // participants) must carry a due date. Checked against the state the
+        // request would LEAVE BEHIND, not the body, because the drawer autosaves
+        // one field at a time: a participant-add PATCH carries no due_at, and a
+        // due_at-clearing PATCH carries no participants. One check covers both
+        // directions — adding people to a due-less card, and clearing the due off
+        // a shared one. due_label doesn't count; it's free display text.
+        $due = array_key_exists('due_at', $data) ? $data['due_at'] : $workItem->due_at;
+        $hasOthers = array_key_exists('participant_ids', $data)
+            ? $data['participant_ids'] !== []
+            : $workItem->participants()->exists();
+
+        if (! $due && ($hasOthers || $workItem->assigned_by_id)) {
+            throw ValidationException::withMessages([
+                'due_at' => 'A task shared with someone else needs a due date.',
+            ]);
+        }
 
         // Participants are a relation, not a column — pull them out before the fill.
         if (array_key_exists('participant_ids', $data)) {
