@@ -77,7 +77,7 @@ class DataScope
         $ids = [$self->id];
         $frontier = [$self->id];
 
-        while ($frontier !== []) {
+        while (true) {
             $children = Employee::whereIn('reports_to_id', $frontier)->pluck('id')->all();
             $children = array_values(array_diff($children, $ids));
 
