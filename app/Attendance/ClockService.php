@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Attendance;
 
+use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Support\Geo;
 use Carbon\Carbon;
@@ -147,7 +148,7 @@ class ClockService
         $site = $this->resolver->matchActualSite($employee, $this->resolver->resolve($employee, $now), $lat, $lng);
         $outRadius = $this->within($site, $lat, $lng);
         $worked = $this->minutesBetween($record->date, $record->clock_in, $now);
-        $early = $this->isEarly($record->expected_start, $record->expected_end, $now);
+        $early = $this->isEarly($record, $now);
         $short = $this->isShort($worked, $record->expected_min_hours);
 
         $siteVisit = $workMode === 'site_visit';
@@ -247,15 +248,23 @@ class ClockService
         return $now->gt($start->addMinutes($graceMinutes));
     }
 
-    /** Same overnight anchoring as isLate(), for the shift's end boundary instead of its start. */
-    private function isEarly(?string $expectedStart, ?string $expectedEnd, Carbon $now): bool
+    /**
+     * The shift's end boundary is anchored to the record's own date, not $now's: a clock-out
+     * that rolls past midnight leaves $now a calendar day ahead, and anchoring there would put
+     * the end nearly a full day in the future and read a late clock-out as an early one.
+     * An overnight shift clocked in on the start-day side ends the following day.
+     */
+    private function isEarly(AttendanceRecord $record, Carbon $now): bool
     {
+        $expectedStart = $record->expected_start;
+        $expectedEnd = $record->expected_end;
+
         if (! $expectedEnd) {
             return false;
         }
 
-        $end = $now->copy()->setTimeFromTimeString($expectedEnd);
-        if ($expectedStart && $this->overnight($expectedStart, $expectedEnd) && $this->minutesOfDay($now) >= $this->toMinutes($expectedStart)) {
+        $end = $record->date->copy()->setTimeFromTimeString($expectedEnd);
+        if ($expectedStart && $this->overnight($expectedStart, $expectedEnd) && $this->toMinutes($record->clock_in) >= $this->toMinutes($expectedStart)) {
             $end->addDay();
         }
 
