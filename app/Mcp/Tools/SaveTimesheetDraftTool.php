@@ -31,11 +31,16 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * is refused, same as the browser.
  *
  * The preview always renders the FULL resulting week, day by day, after the
- * change is merged with whatever is already saved — see
- * WeekWriter::mergePartialIntoExisting(). Days not mentioned in `entries`
- * are shown exactly as they are stored today; that is the whole point of
- * the preview, since a change to one day must never silently drop the rest
- * of the week.
+ * change is merged with whatever is already saved (WeekWriter::mergePartialIntoExisting())
+ * and then run through the exact same WeekWriter::resolveWeek() pipeline
+ * save() persists — locked-day filtering, the in-week date check, normalisation
+ * and all — so the preview can never show a week that confirm then refuses or
+ * silently stores differently. Days not mentioned in `entries` are shown
+ * exactly as they are stored today; that is the whole point of the preview,
+ * since a change to one day must never silently drop the rest of the week.
+ * A typed row a locked day overrides is dropped from the resulting week, same
+ * as save() would drop it, and named in `changes.dropped` so the model can
+ * tell the user which days were overridden and why.
  */
 #[Name('save_timesheet_draft')]
 #[IsReadOnly]
@@ -84,6 +89,15 @@ class SaveTimesheetDraftTool extends Tool
 
         $merged = $this->weekWriter->mergePartialIntoExisting($employee, $weekStart, $data['entries']);
 
+        // resolveWeek() is the exact same pipeline save() runs (locked-day filtering,
+        // the in-week date check, normalisation, the locked-row merge), so the preview
+        // can never render a week that confirm then refuses or stores differently.
+        $result = $this->guarded(fn () => $this->weekWriter->resolveWeek($employee, $weekStart, $merged));
+        if (isset($result['error'])) {
+            return Response::error($result['error']);
+        }
+        $resulting = $result['entries'];
+
         $payload = [
             'employee_id' => $employee->id,
             'week_start' => $weekStart->toDateString(),
@@ -94,8 +108,12 @@ class SaveTimesheetDraftTool extends Tool
         return $this->preview(
             $httpRequest,
             $payload,
-            'Save '.$weekStart->toDateString().' as a draft — resulting week has '.count($merged).' '.(count($merged) === 1 ? 'entry' : 'entries').' across '.count($this->byDate($merged)).' day(s).',
-            ['week_start' => $weekStart->toDateString(), 'resulting_week' => $this->renderByDate($merged, $tid)],
+            'Save '.$weekStart->toDateString().' as a draft — resulting week has '.count($resulting).' '.(count($resulting) === 1 ? 'entry' : 'entries').' across '.count($this->byDate($resulting)).' day(s).',
+            [
+                'week_start' => $weekStart->toDateString(),
+                'resulting_week' => $this->renderByDate($resulting, $tid),
+                'dropped' => $this->renderDropped($result['dropped'], $tid),
+            ],
         );
     }
 
@@ -145,13 +163,43 @@ class SaveTimesheetDraftTool extends Tool
         foreach ($this->byDate($entries) as $date => $rows) {
             $out[$date] = array_map(fn (array $e) => [
                 'category' => $categories->get($e['category_id'])?->name,
-                'project' => $e['project_id'] ? $projects->get($e['project_id'])?->name : null,
+                // project_id is an OPTIONAL schema key — some categories don't take a
+                // project, so a normal caller is entitled to omit it entirely rather
+                // than send null.
+                'project' => ($e['project_id'] ?? null) ? $projects->get($e['project_id'])?->name : null,
                 'percentage' => (float) $e['percentage'],
                 'description' => $e['description'] ?? null,
             ], $rows);
         }
 
         return $out;
+    }
+
+    /**
+     * The typed rows a locked day (public holiday, whole-day leave) overrode, for the
+     * preview to say why the resulting week differs from what was submitted — see
+     * WeekWriter::resolveWeek(). These are raw, un-normalised rows straight from the
+     * request, same as $entries in renderByDate() before normalisation.
+     *
+     * @param  array<int, array<string, mixed>>  $dropped
+     * @return array<int, array<string, mixed>>
+     */
+    private function renderDropped(array $dropped, int $tenantId): array
+    {
+        if ($dropped === []) {
+            return [];
+        }
+
+        $categories = TimesheetCategory::whereIn('id', collect($dropped)->pluck('category_id')->filter()->unique())->get()->keyBy('id');
+        $projects = Project::whereIn('id', collect($dropped)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
+
+        return array_values(array_map(fn (array $e) => [
+            'entry_date' => Carbon::parse($e['entry_date'])->toDateString(),
+            'category' => $categories->get($e['category_id'])?->name,
+            'project' => ($e['project_id'] ?? null) ? $projects->get($e['project_id'])?->name : null,
+            'percentage' => (float) $e['percentage'],
+            'reason' => 'Overridden by a locked day (public holiday or approved leave).',
+        ], $dropped));
     }
 
     /**
