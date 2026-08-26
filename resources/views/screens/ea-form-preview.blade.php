@@ -1,13 +1,21 @@
-@extends('layouts.app')
-
-@section('screen')
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Form EA — {{ $employee->name }} · {{ $data['year'] }} · Amanahku</title>
+    {{ Vite::fonts() }}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('partials.pwa-head')
+</head>
+<body style="background:var(--canvas);padding:28px;">
 
 <a href="{{ route('app.screen', 'payroll') }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);text-decoration:none;margin-bottom:16px;">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
     Back to payroll
 </a>
 
-<div class="uj-card" style="padding:22px 26px;max-width:720px;">
+<div class="uj-card" style="padding:22px 26px;max-width:720px;margin:0 auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;">
         <div>
             <div style="font-size:17px;font-weight:600;color:var(--ink);">Form EA — {{ $employee->name }}</div>
@@ -42,4 +50,5 @@
     </table>
 </div>
 
-@endsection
+</body>
+</html>

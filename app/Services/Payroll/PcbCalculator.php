@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\Employee;
+use App\Models\SalaryStructure;
+
 /**
  * PCB / MTD (Monthly Tax Deduction) — LHDN Computerized Calculation Method, 2026.
  *
@@ -21,6 +24,25 @@ namespace App\Services\Payroll;
  */
 final class PcbCalculator
 {
+    /**
+     * PCB/MTD category (spec's own definitions): 1 = single; 2 = married, spouse not
+     * working; 3 = married with a working spouse, divorced, widowed, or single with an
+     * adopted child. Also the same "Category of Employee" field 4 wants on the C.P.8D
+     * text file (Cp8dData) — one derivation, reused everywhere it's needed rather than
+     * re-derived. spouse_working is genuine payroll-specific nuance (not a personal-
+     * status fact), so it stays on SalaryStructure rather than Employee.
+     */
+    public static function categoryFor(Employee $employee, ?SalaryStructure $structure): int
+    {
+        return match (true) {
+            ($employee->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
+            ($employee->marital_status ?? 'single') === 'married',
+            ($employee->marital_status ?? 'single') === 'divorced',
+            ($employee->marital_status ?? 'single') === 'widowed' => 3,
+            default => 1,
+        };
+    }
+
     /** Non-resident MTD: a flat percentage of remuneration, no reliefs (spec D.a). */
     private const NON_RESIDENT_RATE = 0.30;
 

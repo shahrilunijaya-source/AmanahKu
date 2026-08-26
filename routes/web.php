@@ -22,6 +22,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForcePasswordChangeController;
+use App\Http\Controllers\FormEController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\HandbookController;
 use App\Http\Controllers\HelpdeskController;
@@ -526,6 +527,16 @@ Route::middleware('auth')->group(function () {
             ->whereNumber(['employee', 'year'])->name('payroll.ea-form.pdf');
         Route::get('/app/payroll/ea-forms/{year}', [EaFormController::class, 'bulk'])
             ->whereNumber('year')->name('payroll.export.ea-forms');
+
+        // Employer's annual return — Form E (C.P.8) and its C.P.8D employee schedule.
+        // Company-wide export of everyone's tax data — HR/management only, no
+        // employee-facing route at all (unlike Form EA above).
+        Route::get('/app/payroll/form-e/{year}', [FormEController::class, 'show'])
+            ->whereNumber('year')->name('payroll.form-e.show');
+        Route::get('/app/payroll/form-e/{year}/pdf', [FormEController::class, 'pdf'])
+            ->whereNumber('year')->name('payroll.form-e.pdf');
+        Route::get('/app/payroll/form-e/{year}/cp8d', [FormEController::class, 'cp8d'])
+            ->whereNumber('year')->name('payroll.form-e.cp8d');
 
         // App shell — all screens render through one controller action. Two gates run
         // only here (the staff navigation funnel), never on write-paths: system.launched

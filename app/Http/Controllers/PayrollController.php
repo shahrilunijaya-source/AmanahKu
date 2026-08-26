@@ -838,17 +838,9 @@ class PayrollController extends Controller
      */
     private function buildPcbInputs(Employee $employee, string $period, PayslipComputation $comp, ?SalaryStructure $structure, ?string $epfPart): PcbInputs
     {
-        // Category (spec's own definitions): 1 = single; 2 = married, spouse not
-        // working; 3 = married with a working spouse, divorced, or widowed.
-        // spouse_working is genuine payroll-specific nuance (not a personal-status fact —
-        // it affects tax relief, not who the employee is), so it stays on SalaryStructure.
-        $category = match (true) {
-            ($employee->marital_status ?? 'single') === 'married' && ! ($structure?->spouse_working ?? false) => 2,
-            ($employee->marital_status ?? 'single') === 'married',
-            ($employee->marital_status ?? 'single') === 'divorced',
-            ($employee->marital_status ?? 'single') === 'widowed' => 3,
-            default => 1,
-        };
+        // Category derivation lives on PcbCalculator (also reused by Cp8dData for the
+        // C.P.8D text file's "Category of employee" field) — never re-derive it here.
+        $category = PcbCalculator::categoryFor($employee, $structure);
 
         // $epfPart is the same Part letter the caller's first PayrollCalculator pass
         // used for $comp — passed in rather than re-derived so it can't drift from the

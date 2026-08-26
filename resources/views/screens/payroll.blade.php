@@ -306,6 +306,7 @@
                                     <a href="{{ route('payroll.export.statutory', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Statutory report' : 'Laporan berkanun'">Statutory report</a>
                                     <a href="{{ route('payroll.export.payslips-pdf', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Payslips (PDF)' : 'Payslip (PDF)'">Payslips (PDF)</a>
                                     <a href="{{ route('payroll.export.ea-forms', ['year' => substr($activeRun->period, 0, 4)]) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'EA forms (PDF)' : 'Borang EA (PDF)'">EA forms (PDF)</a>
+                                    <a href="{{ route('payroll.form-e.show', ['year' => substr($activeRun->period, 0, 4)]) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Form E / C.P.8D' : 'Borang E / C.P.8D'">Form E / C.P.8D</a>
                                 @endif
                             </div>
                         </div>
