@@ -12,7 +12,7 @@
     { "bearerAuth": [] }
   ],
   "x-mcp-server": {
-    "description": "A separate read-only MCP (JSON-RPC) server at POST /mcp/amanahku, not part of this OpenAPI-described REST surface. Same bearer-token/tenant binding as this API, but its own scopes checked per tool: timesheets:read (weekly timesheets and their entries), board:read (board cards / work items), tot:read (TOT sessions and participation). See docs/API.md section 7."
+    "description": "A separate MCP (JSON-RPC) server at POST /mcp/amanahku, not part of this OpenAPI-described REST surface (which stays read-only). Same bearer-token/tenant binding as this API, but its own scopes checked per tool. Reads: timesheets:read (weekly timesheets and their entries), board:read (board cards / work items), tot:read (TOT sessions and participation). Writes (two-step preview/confirm, never applied on the first call): board:write (create/edit board cards, assign tasks), timesheets:write (save timesheet drafts), tot:write (post external TOT events). See docs/API.md section 7."
   },
   "components": {
     "securitySchemes": {

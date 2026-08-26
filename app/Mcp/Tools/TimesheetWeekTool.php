@@ -13,12 +13,14 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 /**
  * One week's timesheets, scoped like GET /api/v1/timesheet-effort's caller checks:
  * requires the timesheets:read scope, then a privileged caller (management|hr) sees
  * every employee's timesheet for the week, everyone else sees only their own.
  */
+#[IsReadOnly]
 #[Description('Get one week\'s timesheets (status and daily entries: date, project, category, hours, percentage). Privileged callers (management/HR) see the whole tenant; everyone else sees only their own timesheet.')]
 class TimesheetWeekTool extends Tool
 {

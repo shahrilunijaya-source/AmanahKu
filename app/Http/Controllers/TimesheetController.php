@@ -23,23 +23,22 @@ use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
-use App\Timesheet\DayCapacity;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
-use App\Timesheet\WeekReconciler;
+use App\Timesheet\WeekWriter;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TimesheetController extends Controller
 {
+    public function __construct(private WeekWriter $weekWriter) {}
+
     /**
      * Roles allowed to see salary-derived RM cost: management (directors included, via
      * effectiveRole) and HR. Line managers and plain employees never see money — only
@@ -54,17 +53,12 @@ class TimesheetController extends Controller
     }
 
     /**
-     * How far back a staffer may still edit. The current week plus this many earlier weeks.
-     *
-     * Blocking past days outright is not an option: a forgotten Monday could never reach
-     * 100%, so the week could never be submitted. An unbounded window is not either, because
-     * it lets somebody backfill months the night before an audit.
-     *
-     * Six weeks, widened from three: three left no room for a fortnight of sick leave or a
-     * stretch of travel, and a week that falls out of the window cannot be recovered — there
-     * is no per-week override for HR to grant.
+     * How far back a staffer may still edit — kept on WeekWriter now (single source, since
+     * it also enforces the window). Six weeks, widened from three: three left no room for a
+     * fortnight of sick leave or a stretch of travel, and a week that falls out of the window
+     * cannot be recovered — there is no per-week override for HR to grant.
      */
-    private const BACKFILL_WEEKS = 6;
+    private const BACKFILL_WEEKS = WeekWriter::BACKFILL_WEEKS;
 
     /**
      * Build the timesheets screen data. Tenant scope is automatic via BelongsToTenant.
@@ -240,73 +234,12 @@ class TimesheetController extends Controller
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
         ]);
 
-        $lockedDays = app(LockedDays::class);
-        $locked = $lockedDays->forWeek($employee, Carbon::parse($data['week_start'])->startOfDay());
-
-        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
-        // anything the staffer typed against it is wrong by definition, so it is dropped.
-        // A half-day leave locks only 50%, leaving the staffer to fill the other half, so
-        // their rows on a partially locked day are kept and merged with the 50% leave row.
-        $userEntries = array_filter(
-            $data['entries'],
-            function (array $e) use ($locked) {
-                $date = Carbon::parse($e['entry_date']);
-                $day = $locked[$date->toDateString()] ?? null;
-
-                return $day === null || $day['percentage'] < DayCapacity::for($date);
-            }
-        );
-
-        $this->assertDatesInWindow($userEntries);
-
-        // Shared with leave-approval reconciliation: drop fully-locked-day rows, keep the
-        // work-half of a half-day, and lay down the generated locked rows. The pre-filter
-        // above is only for the date-window check (fully-locked days bypass it); mergeEntries
-        // applies the same rule authoritatively.
-        // Normalise first, then check for duplicates: normalisation is what nulls the project
-        // on a standalone category, so two lines that differ only by a stray project_id the
-        // category never uses are the same line by the time they are compared.
-        $normalised = $this->normaliseEntries($userEntries);
-        $this->assertNoDuplicateLines($normalised);
-
-        $entries = app(WeekReconciler::class)->mergeEntries($employee, $data['week_start'], $normalised);
-
-        $weekStart = Carbon::parse($data['week_start'])->startOfDay();
-
         $submitNow = $request->boolean('submit_now');
-        // A fully-locked week may submit with no user rows, but a genuinely empty week
-        // must not: mirror submit()'s invariant so store()'s submit_now path can't create
-        // a submitted timesheet with zero entries (which would land in the cost report).
-        abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
-        if ($submitNow) {
-            $this->assertWeekEnded($weekStart);
-            $this->assertNoBlankLines($entries);
-            $this->assertDayTotals($entries);
-        }
 
-        $timesheet = Timesheet::firstOrNew([
-            'employee_id' => $employee->id,
-            'week_start' => $weekStart,
-        ]);
-        abort_if(
-            $timesheet->exists && $timesheet->status !== 'draft',
-            422,
-            'This week has already been submitted and cannot be edited.'
-        );
-
-        DB::transaction(function () use ($timesheet, $data, $entries, $submitNow) {
-            $timesheet->fill(['week_label' => $data['week_label'] ?? null, 'status' => 'draft'])->save();
-            // The grid represents the entire week — replace, don't append.
-            $timesheet->entries()->delete();
-            foreach ($entries as $entry) {
-                $timesheet->entries()->create($entry);
-            }
-            $timesheet->recomputeTotal();
-
-            if ($submitNow) {
-                $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
-            }
-        });
+        $result = $this->weekWriter->save($employee, $data['week_start'], $data['entries'], $data['week_label'] ?? null, $submitNow);
+        $timesheet = $result['timesheet'];
+        $entries = $result['entries'];
+        $locked = $result['locked'];
 
         $message = $submitNow
             ? 'Timesheet submitted.'
@@ -934,222 +867,6 @@ class TimesheetController extends Controller
                 'percentage' => $t->percentage !== null ? (float) $t->percentage : null,
                 'description' => $t->description ?? '',
             ])->values();
-    }
-
-    /**
-     * Apply business rules to raw validated entries and shape them for persistence:
-     * enforce requires_project, sanitise the description, set the legacy `project`
-     * string, and derive `hours` from the percentage so manday RM costing (hours *
-     * rate) keeps working — one full day at 100% equals one manday
-     * (config('manday.hours_per_day') hours).
-     *
-     * @param  array<int, array<string, mixed>>  $raw
-     * @return array<int, array<string, mixed>>
-     */
-    private function normaliseEntries(array $raw): array
-    {
-        $hoursPerDay = (float) config('manday.hours_per_day', 8);
-
-        $categories = TimesheetCategory::whereIn('id', collect($raw)->pluck('category_id')->filter()->unique())->get()->keyBy('id');
-        $projects = Project::whereIn('id', collect($raw)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
-
-        $out = [];
-        // Gathered, not thrown at the first bad row: five lines missing a project are one
-        // refusal naming five days, rather than five saves each naming one. A row that
-        // fails is skipped, and $out is discarded by the throw below anyway.
-        $problems = [];
-        foreach ($raw as $i => $e) {
-            $category = $categories->get($e['category_id']);
-            if (! $category) {
-                $problems["entries.$i.category_id"] = 'Unknown category.';
-
-                continue;
-            }
-
-            $projectId = $e['project_id'] ?? null;
-            $subId = $e['sub_pillar_id'] ?? null;
-
-            if ($category->requires_project) {
-                if (! $projectId || ! $projects->has($projectId)) {
-                    $problems["entries.$i.project_id"] = 'Choose a project for '.$category->name.'.';
-
-                    continue;
-                }
-            } else {
-                // Standalone categories never carry a project or sub-pillar.
-                $projectId = null;
-                $subId = null;
-            }
-
-            $percentage = round((float) $e['percentage'], 2);
-            $projectName = $projectId ? ($projects->get($projectId)->name ?? null) : null;
-
-            $out[] = [
-                'entry_date' => Carbon::parse($e['entry_date'])->toDateString(),
-                'category_id' => $category->id,
-                'project_id' => $projectId,
-                'sub_pillar_id' => $subId,
-                'percentage' => $percentage,
-                'description' => HtmlSanitizer::clean($e['description'] ?? null),
-                // Legacy readable fallback for any code still reading the string column.
-                'project' => trim($category->name.($projectName ? ' — '.$projectName : '')),
-                // Hours derived from percentage so manday RM costing keeps working.
-                'hours' => round($percentage / 100 * $hoursPerDay, 2),
-            ];
-        }
-
-        if ($problems !== []) {
-            throw ValidationException::withMessages($problems);
-        }
-
-        return $out;
-    }
-
-    /**
-     * A line added but never costed may sit in a draft (see store()'s min:0), but must not
-     * reach a submitted week: a 0% entry carries a category and project into the manday cost
-     * report while contributing nothing, which reads as real work that took no time.
-     *
-     * @param  array<int, array{entry_date:string, percentage:float|string}>  $entries
-     */
-    private function assertNoBlankLines(array $entries): void
-    {
-        // Every offending day, not the first. Throwing inside the loop made a week with
-        // three bad days cost three round trips: fix one, submit, be told about the next.
-        $days = [];
-        foreach ($entries as $e) {
-            if ((float) $e['percentage'] <= 0) {
-                $days[Carbon::parse($e['entry_date'])->toDateString()] = true;
-            }
-        }
-
-        if ($days !== []) {
-            throw ValidationException::withMessages([
-                'submit' => array_map(
-                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
-                    array_keys($days),
-                ),
-            ]);
-        }
-    }
-
-    /**
-     * The same Category · Project · Sub-pillar must not appear twice on one day. The picker
-     * greys out what a day already carries, but a stale tab or a hand-made POST can still
-     * send the pair, and two identical lines are impossible to tell apart once saved.
-     *
-     * @param  array<int, array<string, mixed>>  $entries
-     */
-    private function assertNoDuplicateLines(array $entries): void
-    {
-        $seen = [];
-        $days = [];
-        foreach ($entries as $e) {
-            $date = Carbon::parse($e['entry_date'])->toDateString();
-            $key = implode('|', [
-                $date,
-                $e['category_id'],
-                $e['project_id'] ?? '',
-                $e['sub_pillar_id'] ?? '',
-            ]);
-
-            if (isset($seen[$key])) {
-                $days[$date] = true;
-            }
-
-            $seen[$key] = true;
-        }
-
-        if ($days !== []) {
-            throw ValidationException::withMessages([
-                'entries' => array_map(
-                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has the same work listed twice — put it on one line instead.',
-                    array_keys($days),
-                ),
-            ]);
-        }
-    }
-
-    /**
-     * Every day that has entries must total exactly 100% (float tolerance). Empty days
-     * are allowed. Throws a ValidationException keyed by the offending date.
-     *
-     * @param  array<int, array{entry_date:string, percentage:float}>  $entries
-     */
-    /**
-     * Blocks submission before the week is over (Timesheet::weekEndsOn()). Without this, a
-     * staffer whose days-so-far already total 100% could submit mid-week — the "Submit"
-     * button on the Review tab is a plain form POST with no client-side gate, so the server
-     * must enforce this itself rather than trust the capture screen's own check.
-     */
-    private function assertWeekEnded(Carbon $weekStart): void
-    {
-        $endsOn = Timesheet::computeWeekEndsOn($weekStart);
-        if (Carbon::now()->startOfDay()->lessThan($endsOn)) {
-            throw ValidationException::withMessages([
-                'submit' => 'This week is not over yet — submit becomes available on '.$endsOn->format('D, j M').'.',
-            ]);
-        }
-    }
-
-    private function assertDayTotals(array $entries): void
-    {
-        $byDay = [];
-        foreach ($entries as $e) {
-            $byDay[$e['entry_date']] = ($byDay[$e['entry_date']] ?? 0) + (float) $e['percentage'];
-        }
-
-        $messages = [];
-        foreach ($byDay as $date => $total) {
-            // The TOT Saturday is a half day, so it is full at 50%; every other day at 100%.
-            $capacity = DayCapacity::for($date);
-
-            if (abs($total - $capacity) >= 0.01) {
-                $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
-                $want = rtrim(rtrim(number_format($capacity, 2), '0'), '.');
-                $messages[] = Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.';
-            }
-        }
-
-        if ($messages !== []) {
-            throw ValidationException::withMessages(['submit' => $messages]);
-        }
-    }
-
-    /**
-     * Entry dates must be today or earlier (D2 — you cannot have spent time you have not
-     * spent), and no earlier than the backfill window (D3). Generated leave and holiday rows
-     * bypass this: they are approved facts, not claims, and may legitimately sit in the future.
-     *
-     * @param  array<int, array<string, mixed>>  $entries
-     */
-    private function assertDatesInWindow(array $entries): void
-    {
-        $today = Carbon::now()->startOfDay();
-        $earliest = Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS);
-
-        // Keyed by row index — that is what points at the offending line — and gathered
-        // rather than thrown at the first one, so a week that reaches back too far is
-        // reported in full instead of one day per attempt.
-        $messages = [];
-        foreach ($entries as $i => $e) {
-            $date = Carbon::parse($e['entry_date'])->startOfDay();
-
-            if ($date->greaterThan($today)) {
-                $messages["entries.$i.entry_date"] = $date->format('D, j M').' has not happened yet.';
-            }
-
-            if ($date->lessThan($earliest)) {
-                // No per-week override exists, so the message must not promise one: it
-                // used to read "Ask HR to reopen it", which sent staff to HR for a
-                // button nobody has. recall() only un-submits a week already submitted.
-                $messages["entries.$i.entry_date"] = $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.';
-            }
-        }
-
-        if ($messages !== []) {
-            throw ValidationException::withMessages($messages);
-        }
     }
 
     private function authorizeOwner(Request $request, Timesheet $timesheet): void

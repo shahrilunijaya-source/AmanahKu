@@ -43,9 +43,17 @@ class ApiClient extends Model implements AuthenticatableContract
      * that read this API has a reason to see anyone's pay, and a checkbox that should
      * never be ticked is better removed than labelled.
      *
-     * `timesheets:read`, `board:read` and `tot:read` are also what the read-only MCP
-     * server (App\Mcp\Servers\AmanahkuServer and its tools) checks — same catalogue,
-     * same super-admin screen, one more caller.
+     * `timesheets:read`, `board:read` and `tot:read` are also what the MCP server
+     * (App\Mcp\Servers\AmanahkuServer and its tools) checks for reads — same
+     * catalogue, same super-admin screen, one more caller.
+     *
+     * `board:write`, `timesheets:write` and `tot:write` gate the MCP server's write
+     * tools (App\Mcp\Tools\{CreateCard,UpdateCard,...}Tool and ConfirmWriteTool) —
+     * every write is a separate scope from its matching read, so a key can browse a
+     * tenant without ever being able to change it. Not REST scopes: routes/api.php
+     * stays entirely GET, these have no corresponding /api/v1 route. Only ever
+     * granted alongside the self-service AI key flow (SecurityController::
+     * generateAiKey()'s allow_writes flag) — see resources/views/screens/security.blade.php.
      *
      * @var array<string, string>
      */
@@ -58,6 +66,9 @@ class ApiClient extends Model implements AuthenticatableContract
         'timesheets:read' => 'Weekly timesheets and their entries',
         'board:read' => 'Board cards (work items)',
         'tot:read' => 'TOT sessions and participation',
+        'board:write' => 'Create and edit board cards, assign tasks (MCP only)',
+        'timesheets:write' => 'Save timesheet drafts (MCP only)',
+        'tot:write' => 'Post external TOT events (MCP only)',
     ];
 
     protected $fillable = ['tenant_id', 'name', 'created_by'];
