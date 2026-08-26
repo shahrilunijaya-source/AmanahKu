@@ -26,6 +26,12 @@ class SalaryStructure extends Model
         'epf_no',
         'socso_no',
         'nationality',
+        // epf_opt_in_60plus/epf_employee_rate_override: stored, and still fillable for
+        // whatever already has a value, but read by no calculation — confirmed when they
+        // were added (EpfCalculator/PayrollCalculator never look at either column). The
+        // payroll form no longer exposes them (a control that looks like it changes a
+        // payslip and doesn't is worse than no control). Do not re-add either to the form
+        // without first wiring them into EpfCalculator.
         'epf_opt_in_60plus',
         'epf_employee_rate_override',
         'tax_no',
