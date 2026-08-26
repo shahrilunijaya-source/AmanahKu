@@ -265,12 +265,24 @@ export function registerWorkBoard(Alpine) {
         // drawer.node — goes stale the instant this runs. Re-resolve it by
         // [data-id] afterwards; skipping this leaves the drawer pointing at a
         // detached element that silently stops updating the visible card.
+        //
+        // Uses `document.querySelector`, not `this.$root` — this runs inside
+        // commitField()'s async continuation (after the save's await), and
+        // the drawer markup itself lives in a teleported <template
+        // x-teleport="body">. Alpine's $root magic isn't reliably resolvable
+        // from there past the first await in a drawer session; when it comes
+        // back undefined this throws, and the surrounding try/catch in
+        // commitField() then reports the save as failed even though the
+        // server already committed it (see WorkItemController::update()) —
+        // a card ends up saved but the drawer shows "Save failed" and rolls
+        // the field back locally until the next reload. data-id is unique
+        // page-wide, so a plain document-scoped lookup is exactly as correct.
         repaintNode(html) {
             const node = this.drawer.node;
             if (!node || !html) return;
             const id = node.dataset.id;
             node.outerHTML = html;
-            this.drawer.node = this.$root.querySelector(`[data-card][data-id="${id}"]`);
+            this.drawer.node = document.querySelector(`[data-card][data-id="${id}"]`);
         },
 
         // The changed-field → blast-radius map. See the design doc's "Targeted

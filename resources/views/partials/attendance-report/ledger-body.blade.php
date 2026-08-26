@@ -34,6 +34,7 @@
         'early' => ['Left early', 'Balik awal'],
         'noloc' => ['No location', 'Tiada lokasi'],
         'amended' => ['Clock-out amended', 'Clock out dipinda'],
+        'auto' => ['Auto clock-out', 'Clock out automatik'],
     ];
 
     $lensLabel = [
