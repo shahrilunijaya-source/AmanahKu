@@ -76,6 +76,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.
         $schedule->command('tot:remind')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('tot:remind'));
+        // Close punches nobody clocked out of, stamped at the shift end. Last thing at
+        // night so the whole working day has had its chance to clock out honestly, and
+        // late enough that an overnight shift started this evening is still inside its
+        // own hours and gets left alone until tomorrow's run.
+        $schedule->command('attendance:auto-clock-out')->dailyAt('23:59')
+            ->withoutOverlapping()->onFailure($onFailure('attendance:auto-clock-out'));
         // Captured faults are a debugging aid, not a record to keep. Without this the
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())
