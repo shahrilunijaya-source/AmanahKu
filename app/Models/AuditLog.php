@@ -34,11 +34,14 @@ class AuditLog extends Model
             return;
         }
 
+        // target is a varchar(255) and callers build it from user-supplied names. An
+        // over-long value used to throw mid-write; a trimmed audit line is always better
+        // than a failed action (a migration deploy died this way once).
         static::create([
             'user_id' => Auth::id(),
             'actor_name' => $user?->name ?? 'System',
-            'action' => $action,
-            'target' => $target,
+            'action' => mb_substr($action, 0, 255),
+            'target' => $target === null ? null : mb_substr($target, 0, 255),
         ]);
     }
 }

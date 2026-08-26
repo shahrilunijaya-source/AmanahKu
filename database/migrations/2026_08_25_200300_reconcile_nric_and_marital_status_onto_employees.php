@@ -72,14 +72,22 @@ return new class extends Migration
             // The Laravel log is unreadable on the production host from our side (no shell,
             // no log access), so the same warning goes into each company's own audit trail
             // where HR can actually find it and check the people named.
-            foreach (collect($conflicting)->groupBy('tenant_id') as $tenantId => $rows) {
+            //
+            // One row PER PERSON, not one row listing everybody: audit_logs.target is a
+            // varchar(255), and a single combined line overflowed it on a real database
+            // and failed the whole migration. A row each also reads better in the trail.
+            // mb_substr is the belt to that braces — a long name can never break a deploy.
+            foreach ($conflicting as $row) {
                 AuditLog::forceCreate([
-                    'tenant_id' => $tenantId,
+                    'tenant_id' => $row['tenant_id'],
                     'user_id' => null,
                     'actor_name' => 'System',
                     'action' => 'Payroll profile reconciled — please review',
-                    'target' => collect($rows)->map(fn ($r) => $r['name'].' ('.$r['field'].')')->unique()->implode(', ')
-                        .' — the employee record\'s value was kept; the payroll copy differed. Check their tax figures.',
+                    'target' => mb_substr(
+                        $row['name'].' ('.$row['field'].') — the employee record\'s value was kept; the payroll copy differed. Check their tax figures.',
+                        0,
+                        255,
+                    ),
                 ]);
             }
         }
