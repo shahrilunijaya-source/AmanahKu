@@ -8,6 +8,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Support\Geo;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
@@ -344,7 +345,7 @@ class ClockService
         return $worked < (float) $minHours * 60;
     }
 
-    private function minutesBetween(mixed $date, string $clockIn, Carbon $now): int
+    private function minutesBetween(CarbonInterface $date, string $clockIn, Carbon $now): int
     {
         // Anchored to the record's own date, not $now's: for an overnight shift $now
         // has already rolled to the next calendar day, and anchoring there would put
