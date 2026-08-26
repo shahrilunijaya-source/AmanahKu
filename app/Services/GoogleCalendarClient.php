@@ -93,7 +93,7 @@ class GoogleCalendarClient
     /** Returns a valid access token, refreshing and persisting it first if expired. */
     public function accessTokenFor(GoogleCalendarConnection $connection): string
     {
-        if ($connection->expires_at !== null && $connection->expires_at->isFuture()) {
+        if ($connection->expires_at !== null && $connection->expires_at->isAfter(now()->addMinute())) {
             return $connection->access_token;
         }
 
@@ -134,6 +134,13 @@ class GoogleCalendarClient
         $response = $item->google_event_id
             ? Http::withToken($token)->patch(self::EVENTS_URL.'/'.$item->google_event_id, $payload)
             : Http::withToken($token)->post(self::EVENTS_URL, $payload);
+
+        // The user may have deleted the event directly in their own Google Calendar —
+        // a 404/410 on PATCH means the id is dead, not that sync should fail forever.
+        // Fall back to creating a fresh event instead of throwing.
+        if ($item->google_event_id && ! $response->successful() && in_array($response->status(), [404, 410], true)) {
+            $response = Http::withToken($token)->post(self::EVENTS_URL, $payload);
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException('Google Calendar event sync failed: '.$response->body());

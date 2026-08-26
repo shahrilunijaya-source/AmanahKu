@@ -272,8 +272,12 @@
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
                 @if ($isOwn)
-                <div style="padding:0 20px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="padding:0 20px 12px;">
                     <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Google Calendar' : 'Kalendar Google'">Google Calendar</span>
+                    @if ($errors->has('google_calendar'))
+                        <div style="width:100%;font-size:12px;color:var(--red);margin-top:8px;">{{ $errors->first('google_calendar') }}</div>
+                    @endif
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
                     @if ($googleCalendarConnected ?? false)
                         <form method="post" action="{{ route('google-calendar.disconnect') }}">
                             @csrf

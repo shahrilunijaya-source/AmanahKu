@@ -147,6 +147,22 @@ class GoogleCalendarClientTest extends TestCase
             && str_contains((string) $request->url(), 'evt_existing'));
     }
 
+    public function test_create_or_update_event_falls_back_to_post_when_the_patch_target_is_gone(): void
+    {
+        Http::fake([
+            'www.googleapis.com/calendar/v3/calendars/primary/events/evt_gone' => Http::response(null, 404),
+            'www.googleapis.com/calendar/v3/calendars/primary/events' => Http::response(['id' => 'evt_new']),
+        ]);
+        $connection = $this->connection();
+        $item = $this->workItem();
+        $item->update(['google_event_id' => 'evt_gone']);
+
+        $eventId = $this->client()->createOrUpdateEvent($item, $connection);
+
+        $this->assertSame('evt_new', $eventId);
+        Http::assertSent(fn ($request) => $request->method() === 'POST' && ! str_contains((string) $request->url(), 'evt_gone'));
+    }
+
     public function test_delete_event_treats_404_as_success(): void
     {
         Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(null, 404)]);

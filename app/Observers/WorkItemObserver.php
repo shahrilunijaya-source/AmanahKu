@@ -19,13 +19,14 @@ class WorkItemObserver
 {
     public function saved(WorkItem $item): void
     {
-        // Check if any relevant field is currently dirty (has unsaved changes).
-        // Use isDirty() instead of wasChanged() because wasChanged() depends on original
-        // state sync timing, while isDirty() directly checks current vs original regardless
-        // of sync order. Deliberately NOT using wasRecentlyCreated: Laravel sets that flag
-        // true on insert and never resets it back to false on the same in-memory instance
-        // across later save()/update() calls, so it stays stuck true forever — wrongly
-        // treating every later unrelated update as "just created".
+        // isDirty() works here because Eloquent's `saved` event fires BEFORE
+        // syncOriginal() runs (see Model::finishSave()) — so at this point $original
+        // still holds the pre-save values, and isDirty() correctly reflects what this
+        // save just changed, on both create and update. Deliberately NOT using
+        // wasRecentlyCreated: Laravel sets that flag true on insert and never resets
+        // it back to false on the same in-memory instance across later save()/update()
+        // calls, so it stays stuck true forever — wrongly treating every later
+        // unrelated update as "just created".
         $relevant = $item->isDirty(['employee_id', 'due_at', 'archived_at', 'status']);
 
         if (! $relevant) {
