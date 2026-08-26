@@ -128,9 +128,9 @@
     <div class="uj-card" style="padding:24px;">
         <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'AI access key' : 'Kunci akses AI'">AI access key</h3>
         <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en'
-                ? 'Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions — nothing else, and it can only read, never change anything. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.'
-                : 'Benarkan Claude Code pada komputer anda sendiri membaca timesheet, kad board dan sesi TOT anda — tiada yang lain, dan ia hanya boleh membaca, tidak boleh ubah apa-apa. Jangan commit kunci ini ke dalam kod atau kongsi dengan sesiapa; layan seperti password. Menjana kunci baharu terus mematikan kunci lama.'">
-            Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions — nothing else, and it can only read, never change anything. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.
+                ? 'Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.'
+                : 'Benarkan Claude Code pada komputer anda sendiri membaca timesheet, kad board dan sesi TOT anda. Jangan commit kunci ini ke dalam kod atau kongsi dengan sesiapa; layan seperti password. Menjana kunci baharu terus mematikan kunci lama.'">
+            Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.
         </p>
 
         @if (session('aiKeyPlaintext'))
@@ -166,19 +166,39 @@
                 </form>
             </div>
             <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
-                <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+                <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;flex-direction:column;gap:11px;">
                     @csrf
-                    <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to replace it' : 'Sahkan password anda untuk gantikannya'">Confirm your password to replace it</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
-                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate new key' : 'Jana kunci baharu'">Generate new key</span></button>
-                    @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+                    <label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer;">
+                        <input type="checkbox" name="allow_writes" value="1" style="margin-top:2px;" />
+                        <span x-text="$store.ui.lang==='en'
+                                ? 'Also let it make changes (create and edit cards, assign tasks, save timesheet drafts, post external TOT events). It always asks before each change.'
+                                : 'Juga benarkan ia membuat perubahan (cipta dan edit kad, tugaskan tugasan, simpan draf timesheet, siarkan acara TOT luaran). Ia sentiasa bertanya sebelum setiap perubahan.'">
+                            Also let it make changes (create and edit cards, assign tasks, save timesheet drafts, post external TOT events). It always asks before each change.
+                        </span>
+                    </label>
+                    <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+                        <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to replace it' : 'Sahkan password anda untuk gantikannya'">Confirm your password to replace it</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
+                        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate new key' : 'Jana kunci baharu'">Generate new key</span></button>
+                        @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+                    </div>
                 </form>
             </div>
         @else
-            <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+            <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;flex-direction:column;gap:11px;">
                 @csrf
-                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to generate' : 'Sahkan password anda untuk jana'">Confirm your password to generate</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
-                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate key' : 'Jana kunci'">Generate key</span></button>
-                @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+                <label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer;">
+                    <input type="checkbox" name="allow_writes" value="1" style="margin-top:2px;" />
+                    <span x-text="$store.ui.lang==='en'
+                            ? 'Also let it make changes (create and edit cards, assign tasks, save timesheet drafts, post external TOT events). It always asks before each change.'
+                            : 'Juga benarkan ia membuat perubahan (cipta dan edit kad, tugaskan tugasan, simpan draf timesheet, siarkan acara TOT luaran). Ia sentiasa bertanya sebelum setiap perubahan.'">
+                        Also let it make changes (create and edit cards, assign tasks, save timesheet drafts, post external TOT events). It always asks before each change.
+                    </span>
+                </label>
+                <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+                    <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to generate' : 'Sahkan password anda untuk jana'">Confirm your password to generate</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
+                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate key' : 'Jana kunci'">Generate key</span></button>
+                    @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+                </div>
             </form>
         @endif
     </div>

@@ -11,12 +11,14 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 /**
  * Board cards (work items). Privileged callers (management|hr) see the whole
  * tenant's board; everyone else sees only cards assigned to them or unassigned —
  * the same "own records" rule as the rest of the read API, applied to employee_id.
  */
+#[IsReadOnly]
 #[Description('Search the board for work item cards (title, status, priority, labels, due date, assignee, project). Privileged callers (management/HR) see the whole board; everyone else sees only cards assigned to them or unassigned.')]
 class WorkItemsTool extends Tool
 {

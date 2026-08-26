@@ -12,12 +12,14 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 /**
  * TOT (Transfer of Training) sessions. Company-wide by nature — no per-role
  * narrowing beyond the tenant scope every tool already gets from ApiTenant.
  * Comments and reactions are intentionally never exposed here.
  */
+#[IsReadOnly]
 #[Description('List TOT (Transfer of Training) sessions for a tenant: date, topic, presenter, status, links, and who attended. Company-wide data — every caller with the tot:read scope sees the whole tenant, no per-employee narrowing. Comments and reactions are not exposed.')]
 class TotSessionsTool extends Tool
 {
