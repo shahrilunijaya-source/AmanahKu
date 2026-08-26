@@ -10,17 +10,7 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
-- version: "1.8"
-  date: "2026-08-26"
-  entries:
-    - tag: added
-      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
-      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
-      link: "/app/profile"
-      link_text: "Open your profile"
-      link_text_ms: "Buka profil anda"
-
-- version: "1.7"
+- version: "1.6"
   date: "2026-08-26"
   entries:
     - tag: added
@@ -32,10 +22,9 @@
     - tag: added
       text: "Optionally, let it make changes too — create and edit board cards, save a timesheet draft, and more. Turn this on with a checkbox next to your key, and every change always shows you exactly what it's about to do first and waits for your yes before anything happens."
       text_ms: "Secara pilihan, benarkan ia membuat perubahan juga — cipta dan edit kad board, simpan draf lembaran masa, dan lain-lain. Hidupkan ini dengan kotak semak di sebelah kunci anda, dan setiap perubahan sentiasa menunjukkan tepat apa yang akan dilakukan dahulu serta menunggu jawapan ya anda sebelum apa-apa berlaku."
-
-- version: "1.6"
-  date: "2026-08-26"
-  entries:
+    - tag: fixed
+      text: "Applying leave over the first Saturday of the month now costs half a day, not a whole day — that Saturday is already a half working day (TOT) everywhere else in the app, and leave now matches."
+      text_ms: "Memohon cuti pada Sabtu pertama bulan itu kini mengambil separuh hari, bukan sehari penuh — Sabtu itu sudah pun separuh hari bekerja (TOT) di tempat lain dalam aplikasi, dan cuti kini turut sama."
     - tag: added
       text: "Forgot to clock out? At the end of the night the app now closes the day for you, at your shift end time. You get a bell telling you it happened, and the day is marked as closed by the app rather than punched by you, so HR can see it and type in a truer time if you were still working. Before this, a day left open never counted at all."
       text_ms: "Terlupa clock out? Pada hujung malam, aplikasi kini menutup hari itu untuk anda, pada waktu tamat syif anda. Anda akan menerima loceng memberitahu ia berlaku, dan hari itu ditanda sebagai ditutup oleh aplikasi, bukan direkod oleh anda, jadi HR boleh melihatnya dan menaip masa yang lebih tepat jika anda masih bekerja. Sebelum ini, hari yang dibiarkan terbuka langsung tidak dikira."
@@ -45,6 +34,12 @@
     - tag: fixed
       text: "Working past midnight no longer shows up as \"Left early\". Clocking out after 12am was being compared against the next day's finishing time, so a long night was marked as leaving early and asked you for a reason. Days already marked this way keep the label until HR clears them."
       text_ms: "Bekerja melepasi tengah malam tidak lagi dipaparkan sebagai \"Balik awal\". Clock out selepas 12 pagi dibandingkan dengan waktu tamat hari berikutnya, jadi malam yang panjang ditanda sebagai balik awal dan meminta sebab daripada anda. Hari yang sudah ditanda begitu akan kekal sehingga HR membetulkannya."
+    - tag: added
+      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
+      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
+      link: "/app/profile"
+      link_text: "Open your profile"
+      link_text_ms: "Buka profil anda"
 
 - version: "1.5"
   date: "2026-08-21"

@@ -148,9 +148,9 @@ class ChangelogScreenTest extends TestCase
 
     public function test_the_newest_release_announces_the_claude_code_connection(): void
     {
-        $newest = collect(Changelog::releases())->firstWhere('version', '1.7');
+        $newest = Changelog::releases()[0];
 
-        $this->assertNotNull($newest, 'The 1.7 release entry is gone from the changelog.');
+        $this->assertSame('1.6', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
@@ -163,7 +163,7 @@ class ChangelogScreenTest extends TestCase
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.6 entry has no Malay copy of its own.');
         }
     }
 
