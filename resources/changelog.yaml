@@ -34,6 +34,12 @@
     - tag: fixed
       text: "Working past midnight no longer shows up as \"Left early\". Clocking out after 12am was being compared against the next day's finishing time, so a long night was marked as leaving early and asked you for a reason. Days already marked this way keep the label until HR clears them."
       text_ms: "Bekerja melepasi tengah malam tidak lagi dipaparkan sebagai \"Balik awal\". Clock out selepas 12 pagi dibandingkan dengan waktu tamat hari berikutnya, jadi malam yang panjang ditanda sebagai balik awal dan meminta sebab daripada anda. Hari yang sudah ditanda begitu akan kekal sehingga HR membetulkannya."
+    - tag: added
+      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
+      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
+      link: "/app/profile"
+      link_text: "Open your profile"
+      link_text_ms: "Buka profil anda"
 
 - version: "1.5"
   date: "2026-08-21"

@@ -24,6 +24,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
 use App\Http\Controllers\GoalController;
+use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\HandbookController;
 use App\Http\Controllers\HelpdeskController;
 use App\Http\Controllers\IdeaController;
@@ -248,6 +249,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/workload/apply', [WorkforceController::class, 'apply'])->name('workforce.apply');
         Route::post('/app/board/{workItem}/comments', [WorkItemController::class, 'comment'])->name('work.comment');
         Route::delete('/app/board/comments/{comment}', [WorkItemController::class, 'commentDestroy'])->name('work.comment.destroy');
+        Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
+        Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
+        Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
