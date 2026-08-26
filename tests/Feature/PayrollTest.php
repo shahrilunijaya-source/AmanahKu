@@ -295,8 +295,6 @@ class PayrollTest extends TestCase
         $this->actingHr()->post('/app/payroll/salary', [
             'employee_id' => $emp3->id, 'basic_salary' => 4200,
             'nationality' => 'pr',
-            'epf_opt_in_60plus' => '1',
-            'epf_employee_rate_override' => 12.5,
             'tax_no' => 'SG1234567890',
             'spouse_working' => '1',
             'children_relief_count' => 3,
@@ -308,8 +306,6 @@ class PayrollTest extends TestCase
 
         $structure = SalaryStructure::where('employee_id', $emp3->id)->firstOrFail();
         $this->assertSame('pr', $structure->nationality);
-        $this->assertTrue($structure->epf_opt_in_60plus);
-        $this->assertEqualsWithDelta(12.5, (float) $structure->epf_employee_rate_override, 0.001);
         $this->assertSame('SG1234567890', $structure->tax_no);
         $this->assertTrue($structure->spouse_working);
         $this->assertSame(3, $structure->children_relief_count);
@@ -317,6 +313,28 @@ class PayrollTest extends TestCase
         $this->assertTrue($structure->disabled_spouse);
         $this->assertEqualsWithDelta(150.50, (float) $structure->zakat_monthly, 0.001);
         $this->assertEqualsWithDelta(75.25, (float) $structure->cp38_monthly, 0.001);
+    }
+
+    /**
+     * epf_opt_in_60plus/epf_employee_rate_override are stored but read by no calculation
+     * (see the comment on SalaryStructure) — the form no longer submits them, and
+     * storeSalary() must not silently blank out whatever a tenant already has stored
+     * there when it saves any other field on the same structure.
+     */
+    public function test_saving_the_salary_structure_never_touches_the_unwired_epf_columns(): void
+    {
+        SalaryStructure::where('employee_id', $this->emp1->id)->update([
+            'epf_opt_in_60plus' => true,
+            'epf_employee_rate_override' => 9.5,
+        ]);
+
+        $this->actingHr()->post('/app/payroll/salary', [
+            'employee_id' => $this->emp1->id, 'basic_salary' => 5500,
+        ])->assertRedirect();
+
+        $structure = SalaryStructure::where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertTrue($structure->epf_opt_in_60plus);
+        $this->assertEqualsWithDelta(9.5, (float) $structure->epf_employee_rate_override, 0.001);
     }
 
     public function test_invalid_nationality_is_rejected(): void

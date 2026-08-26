@@ -26,6 +26,7 @@ use App\Services\Payroll\PayslipComputation;
 use App\Services\Payroll\PcbCalculator;
 use App\Services\Payroll\PcbInputs;
 use App\Services\Payroll\PcbYearToDate;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,8 +74,10 @@ class PayrollController extends Controller
             'epf_no' => ['nullable', 'string', 'max:40'],
             'socso_no' => ['nullable', 'string', 'max:40'],
             'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
-            'epf_opt_in_60plus' => ['boolean'],
-            'epf_employee_rate_override' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // epf_opt_in_60plus/epf_employee_rate_override are NOT validated or written
+            // here on purpose — see the "stored but unwired" comment on SalaryStructure.
+            // They stay off this form entirely so re-saving a structure never blanks
+            // whatever a tenant already has stored in those columns.
             'tax_no' => ['nullable', 'string', 'max:40'],
             'spouse_working' => ['boolean'],
             'children_relief_count' => ['nullable', 'integer', 'min:0', 'max:20'],
@@ -100,8 +103,8 @@ class PayrollController extends Controller
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,
                 'nationality' => $data['nationality'] ?? 'citizen',
-                'epf_opt_in_60plus' => $request->boolean('epf_opt_in_60plus'),
-                'epf_employee_rate_override' => $data['epf_employee_rate_override'] ?? null,
+                // epf_opt_in_60plus/epf_employee_rate_override deliberately absent from
+                // this write — see the comment on the validation rules above.
                 'tax_no' => $data['tax_no'] ?? null,
                 // marital_status/nric live on the Employee record now — see the reconcile
                 // migration 2026_08_25_200300 and PayrollController::buildPcbInputs().
@@ -1064,6 +1067,72 @@ class PayrollController extends Controller
         });
 
         return back()->with('ok', $run->label.' payroll finalized — payslips issued and employees notified.');
+    }
+
+    /**
+     * Delete a payroll run and every payslip/line it generated. A draft run is cheap to
+     * remove — nothing outside it has been touched yet — so any HR/management operator
+     * may delete it after a plain confirm(). A finalized run already consumed real
+     * records (claims marked paid, overtime/unpaid-leave requests marked paid_at), so
+     * deleting it must undo every one of those consumptions or they are lost for good —
+     * see the reversal block below, which mirrors finalizeRun()'s consumption line for
+     * line. Restricted to Permissions::MANAGEMENT_TIER and gated behind typing the exact
+     * period back, on top of the browser confirm() every destructive action here already
+     * gets — see payroll.blade.php.
+     */
+    public function destroyRun(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->assertTenant($run);
+        $wasFinalized = $run->status === 'finalized';
+
+        if ($wasFinalized) {
+            $this->authorizeTenantRole($request, Permissions::MANAGEMENT_TIER);
+            $data = $request->validate(['confirm_period' => ['required', 'string']]);
+            abort_unless($data['confirm_period'] === $run->period, 422, 'Type the period exactly ('.$run->period.') to confirm deleting a finalized run.');
+        } else {
+            $this->authorizeAdmin($request);
+        }
+
+        $label = $run->label;
+        $period = $run->period;
+
+        DB::transaction(function () use ($run, $wasFinalized) {
+            $payslips = $run->payslips()->get();
+
+            if ($wasFinalized) {
+                // Reverse every consumption finalizeRun() made, so each source record is
+                // free to be picked up by a future run again — mirrors finalizeRun()'s
+                // three consumption blocks exactly, in reverse.
+                $claimIds = $payslips->flatMap(fn ($p) => $p->claim_ids ?? [])->unique()->values();
+                if ($claimIds->isNotEmpty()) {
+                    Claim::whereIn('id', $claimIds)->where('status', 'paid')
+                        ->update(['status' => 'approved', 'paid_at' => null]);
+                }
+                $overtimeIds = $payslips->flatMap(fn ($p) => $p->overtime_request_ids ?? [])->unique()->values();
+                if ($overtimeIds->isNotEmpty()) {
+                    OvertimeRequest::whereIn('id', $overtimeIds)->update(['paid_at' => null]);
+                }
+                $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
+                if ($unpaidLeaveIds->isNotEmpty()) {
+                    LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
+                }
+            }
+
+            foreach ($payslips as $payslip) {
+                $payslip->lines()->delete();
+            }
+            $run->payslips()->delete();
+            $run->delete();
+        });
+
+        // Loud on purpose for a finalized run — this is the one action in payroll that
+        // unwinds records other parts of the app already treated as settled.
+        AuditLog::record(
+            $wasFinalized ? 'DELETED FINALIZED PAYROLL RUN' : 'Deleted draft payroll run',
+            $label.' ('.$period.')'.($wasFinalized ? ' · claims/overtime/unpaid-leave reversed to unpaid' : ''),
+        );
+
+        return redirect()->route('app.screen', 'payroll')->with('ok', $label.' payroll run deleted.');
     }
 
     // ── Helpers ───────────────────────────────────────────────────

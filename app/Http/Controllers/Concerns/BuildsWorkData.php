@@ -19,6 +19,7 @@ use App\Models\Project;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -389,6 +390,7 @@ trait BuildsWorkData
         if (! $privileged) {
             return [
                 'privileged' => false,
+                'isManagementTier' => false,
                 'myPayslips' => $myPayslips,
                 'selectedPayslip' => $selectedPayslip,
                 'runs' => collect(),
@@ -412,6 +414,9 @@ trait BuildsWorkData
 
         return [
             'privileged' => true,
+            // Deleting a FINALIZED run is a step above the usual HR/management payroll
+            // gate — see PayrollController::destroyRun() and Permissions::MANAGEMENT_TIER.
+            'isManagementTier' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
             'myPayslips' => $myPayslips,
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
