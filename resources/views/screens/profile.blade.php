@@ -271,6 +271,23 @@
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
+                @if ($isOwn)
+                <div style="padding:0 20px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Google Calendar' : 'Kalendar Google'">Google Calendar</span>
+                    @if ($googleCalendarConnected ?? false)
+                        <form method="post" action="{{ route('google-calendar.disconnect') }}">
+                            @csrf
+                            <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
+                                <span x-text="$store.ui.lang==='en' ? 'Disconnect' : 'Putuskan'">Disconnect</span>
+                            </button>
+                        </form>
+                    @else
+                        <a href="{{ route('google-calendar.redirect') }}" class="uj-btn-ghost" style="display:inline-flex;height:30px;align-items:center;padding:0 12px;font-size:12px;text-decoration:none;">
+                            <span x-text="$store.ui.lang==='en' ? 'Connect' : 'Sambung'">Connect</span>
+                        </a>
+                    @endif
+                </div>
+                @endif
                 @forelse ($wItems as $w)
                     @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted)']; @endphp
                     <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
