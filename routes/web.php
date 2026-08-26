@@ -42,6 +42,7 @@ use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollExportController;
+use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
@@ -512,6 +513,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
+        // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
+        Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
+        // Bulk payslip PDF for a finalized run — HR/management only.
+        Route::get('/app/payroll/runs/{run}/payslips-pdf', [PayrollPdfController::class, 'bulk'])->name('payroll.export.payslips-pdf');
 
         // App shell — all screens render through one controller action. Two gates run
         // only here (the staff navigation funnel), never on write-paths: system.launched
