@@ -12,6 +12,7 @@ use App\Mcp\Tools\SaveTimesheetDraftTool;
 use App\Models\Employee;
 use App\Models\ExternalTotEvent;
 use App\Models\Project;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -479,6 +480,133 @@ class AmanahkuWriteToolsTest extends TestCase
         ], $headers);
 
         $this->assertTrue($this->toolIsError($response));
+    }
+
+    /**
+     * Bug 1 (black-box): project_id is an OPTIONAL schema key. Omitting it entirely
+     * (not sending null) on a standalone category must not crash the preview.
+     */
+    public function test_preview_renders_an_entry_that_omits_project_id_entirely(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $standalone = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Admin', 'requires_project' => false, 'is_active' => true,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'category_id' => $standalone->id,
+                // project_id deliberately absent — a normal caller is entitled to
+                // omit an optional key rather than send null.
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $row = $this->toolData($preview)['changes']['resulting_week'][self::WEEK][0];
+        $this->assertSame('Admin', $row['category']);
+        $this->assertNull($row['project']);
+    }
+
+    /**
+     * Bug 2 (black-box): a valid date that simply belongs to a different week must be
+     * refused, not silently filed under the week it was submitted against — both at
+     * preview time (WeekWriter::resolveWeek()) and by the browser path that shares
+     * WeekWriter::save().
+     */
+    public function test_an_entry_dated_outside_its_week_is_refused_at_preview_and_in_the_browser(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        // A valid Monday in its own right — just not the week being saved.
+        $wrongWeekDate = date('Y-m-d', strtotime(self::WEEK.' -7 day'));
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $wrongWeekDate,
+                'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($preview));
+        // Specifically the in-week refusal, not the (also true) backfill-window one — the
+        // two dates are close enough that a weaker assertion here could pass for either.
+        $this->assertStringContainsString('is not in the week', $preview->json('result.content.0.text'));
+
+        // Same rule, same shared WeekWriter::save() — the browser grid must be refused too.
+        $this->actingAs($this->staffA)->withSession(['current_tenant' => $this->tenantA->id]);
+        $response = $this->post('/app/timesheets', [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $wrongWeekDate,
+                'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id,
+                'percentage' => 100,
+            ]],
+        ]);
+        $response->assertSessionHasErrors('entries.0.entry_date');
+        $this->assertStringContainsString('is not in the week', session('errors')->first('entries.0.entry_date'));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, TimesheetEntry::whereDate('entry_date', $wrongWeekDate)->count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * Bug 3 (black-box): the preview must render the SAME resulting week confirm actually
+     * stores. A typed row on a fully-locked public holiday must be dropped from the preview
+     * (not shown as submitted), the generated Public Holiday row must appear in its place,
+     * and the drop must be named in `changes.dropped` — not just a silently different week.
+     */
+    public function test_preview_matches_what_confirm_stores_when_a_locked_day_drops_the_typed_row(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Public Holiday', 'requires_project' => false, 'is_active' => true]);
+        PublicHoliday::create(['tenant_id' => $this->tenantA->id, 'name' => 'Test Holiday', 'date' => self::WEEK]);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+
+        // The typed "Project Work" row is absent; the generated holiday row is present.
+        $rows = $data['changes']['resulting_week'][self::WEEK];
+        $this->assertCount(1, $rows);
+        $this->assertSame('Public Holiday', $rows[0]['category']);
+
+        // The drop is surfaced, not silent.
+        $dropped = $data['changes']['dropped'];
+        $this->assertCount(1, $dropped);
+        $this->assertSame(self::WEEK, $dropped[0]['entry_date']);
+        $this->assertSame('Project Work', $dropped[0]['category']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
+        $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', self::WEEK)->get();
+        $this->assertCount(1, $stored, 'exactly what the preview showed is what got stored');
+        $this->assertSame('holiday', $stored->first()->source);
+        app(CurrentTenant::class)->set(null);
     }
 
     // --- confirm_write throttle ---------------------------------------------

@@ -132,6 +132,7 @@
                 : 'Benarkan Claude Code pada komputer anda sendiri membaca timesheet, kad board dan sesi TOT anda. Jangan commit kunci ini ke dalam kod atau kongsi dengan sesiapa; layan seperti password. Menjana kunci baharu terus mematikan kunci lama.'">
             Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.
         </p>
+        <a href="{{ route('docs.mcp') }}" style="display:inline-block;font-size:12.5px;font-weight:600;margin:-8px 0 16px;" x-text="$store.ui.lang==='en' ? 'New to this? Read the guide →' : 'Baru dengan ini? Baca panduan →'">New to this? Read the guide →</a>
 
         @if (session('aiKeyPlaintext'))
             <div style="background:#fbeaeb;border:1px solid #f3c6c8;border-radius:10px;padding:14px 16px;margin-bottom:18px;">

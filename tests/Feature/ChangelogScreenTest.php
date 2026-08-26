@@ -146,24 +146,24 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_the_nightly_auto_clock_out(): void
+    public function test_the_newest_release_announces_the_claude_code_connection(): void
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.6', $newest['version']);
+        $this->assertSame('1.7', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
-        $response->assertSee('Forgot to clock out?', false);
-        $response->assertSee('Left early', false);
+        $response->assertSee('connect Claude', false);
+        $response->assertSee('/docs/mcp', false);
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.6 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7 entry has no Malay copy of its own.');
         }
     }
 

@@ -53,31 +53,10 @@ final class WeekWriter
     public function save(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries, ?string $weekLabel, bool $submitNow): array
     {
         $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
-        $locked = $this->lockedDays->forWeek($employee, $weekStartCarbon);
 
-        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
-        // anything typed against it is wrong by definition, so it is dropped. A half-day
-        // leave locks only 50%, leaving the staffer to fill the other half, so their rows
-        // on a partially locked day are kept and merged with the 50% leave row.
-        $userEntries = array_filter(
-            $rawEntries,
-            function (array $e) use ($locked) {
-                $date = Carbon::parse($e['entry_date']);
-                $day = $locked[$date->toDateString()] ?? null;
-
-                return $day === null || $day['percentage'] < DayCapacity::for($date);
-            }
-        );
-
-        $this->assertDatesInWindow($userEntries);
-
-        // Normalise first, then check for duplicates: normalisation is what nulls the
-        // project on a standalone category, so two lines that differ only by a stray
-        // project_id the category never uses are the same line by the time they are compared.
-        $normalised = $this->normaliseEntries($userEntries);
-        $this->assertNoDuplicateLines($normalised);
-
-        $entries = $this->reconciler->mergeEntries($employee, $weekStart, $normalised);
+        $resolved = $this->resolveWeek($employee, $weekStartCarbon, $rawEntries);
+        $entries = $resolved['entries'];
+        $locked = $resolved['locked'];
 
         // A fully-locked week may submit with no user rows, but a genuinely empty week
         // must not: mirror submit()'s invariant so a submit_now save can't create a
@@ -117,15 +96,70 @@ final class WeekWriter
     }
 
     /**
+     * Compute the FULL resulting week — locked-day filtering, the date-window and
+     * in-week checks, normalisation, duplicate-line rejection, and the locked-row
+     * merge — without writing anything. save() persists exactly what this returns;
+     * SaveTimesheetDraftTool's preview renders exactly this too (fed the raw output
+     * of mergePartialIntoExisting()), so there is exactly one place that decides
+     * what "the resulting week" is, and preview and confirm can never disagree
+     * about it.
+     *
+     * @param  array<int, array{entry_date:string, category_id:int, project_id?:?int, sub_pillar_id?:?int, percentage:float|int|string, description?:?string}>  $rawEntries  the full week's grid, validated, not yet normalised
+     * @return array{entries: array<int, array<string, mixed>>, dropped: array<int, array<string, mixed>>, locked: array<string, mixed>}
+     */
+    public function resolveWeek(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries): array
+    {
+        $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+        $locked = $this->lockedDays->forWeek($employee, $weekStartCarbon);
+
+        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
+        // anything typed against it is wrong by definition, so it is dropped. A half-day
+        // leave locks only 50%, leaving the staffer to fill the other half, so their rows
+        // on a partially locked day are kept and merged with the 50% leave row.
+        //
+        // Dropped rows are collected (not just discarded) so the MCP preview can tell the
+        // model which typed rows a locked day overrode, instead of the resulting week just
+        // looking silently different from what was submitted.
+        $dropped = [];
+        $userEntries = array_filter(
+            $rawEntries,
+            function (array $e) use ($locked, &$dropped) {
+                $date = Carbon::parse($e['entry_date']);
+                $day = $locked[$date->toDateString()] ?? null;
+                $keep = $day === null || $day['percentage'] < DayCapacity::for($date);
+
+                if (! $keep) {
+                    $dropped[] = $e;
+                }
+
+                return $keep;
+            }
+        );
+
+        $this->assertDatesInWindow($userEntries);
+        $this->assertDatesInWeek($weekStartCarbon, $userEntries);
+
+        // Normalise first, then check for duplicates: normalisation is what nulls the
+        // project on a standalone category, so two lines that differ only by a stray
+        // project_id the category never uses are the same line by the time they are compared.
+        $normalised = $this->normaliseEntries($userEntries);
+        $this->assertNoDuplicateLines($normalised);
+
+        $entries = $this->reconciler->mergeEntries($employee, $weekStartCarbon, $normalised);
+
+        return ['entries' => $entries, 'dropped' => $dropped, 'locked' => $locked];
+    }
+
+    /**
      * Compute the FULL resulting week from the currently stored draft's own rows
      * (source = null, i.e. never the generated locked rows) overlaid by a partial
      * change: every date present in $partialEntries replaces that day's rows
      * entirely, every other day keeps its stored rows untouched.
      *
-     * This is deliberately a pure computation with no write — it is what the MCP
-     * save_timesheet_draft tool renders as its "day by day" preview, and what it
-     * then hands to save() to actually persist once confirmed. There is exactly
-     * one place that decides what "merge a partial change into a week" means.
+     * This is deliberately a pure computation with no write — its output is what
+     * gets handed to resolveWeek() (by both the MCP preview and save()) and, once
+     * confirmed, to save() itself. There is exactly one place that decides what
+     * "merge a partial change into a week" means.
      *
      * A week with no stored draft yet is treated as entirely empty, so the first
      * save from the tool is just the partial change on its own.
@@ -394,6 +428,37 @@ final class WeekWriter
             if ($date->lessThan($earliest)) {
                 // No per-week override exists, so the message must not promise one.
                 $messages["entries.$i.entry_date"] = $date->format('D, j M').' is closed — timesheets can only be edited for '.self::BACKFILL_WEEKS.' weeks back.';
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
+    }
+
+    /**
+     * An entry_date must actually fall inside the week it is being filed under.
+     * assertDatesInWindow() only checks a date against "today" and the backfill
+     * window — nothing stopped a perfectly valid Monday-dated entry from being
+     * saved into a *different* week's grid, silently corrupting that other week's
+     * totals and day-capacity checks. assertDatesInWindow() does not receive
+     * week_start today, so this is a separate assertion rather than a widened
+     * signature.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertDatesInWeek(CarbonInterface $weekStart, array $entries): void
+    {
+        $weekEnd = Carbon::parse($weekStart)->addDays(6);
+
+        // Keyed by row index and gathered, not thrown at the first one — same reasoning
+        // as assertDatesInWindow().
+        $messages = [];
+        foreach ($entries as $i => $e) {
+            $date = Carbon::parse($e['entry_date'])->startOfDay();
+
+            if ($date->lessThan($weekStart) || $date->greaterThan($weekEnd)) {
+                $messages["entries.$i.entry_date"] = $date->format('D, j M').' is not in the week starting '.Carbon::parse($weekStart)->format('D, j M').'.';
             }
         }
 
