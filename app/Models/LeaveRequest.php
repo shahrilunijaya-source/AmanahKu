@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Timesheet\DayCapacity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -61,5 +62,19 @@ class LeaveRequest extends Model
     public function isHalfDay(): bool
     {
         return $this->half_day_period !== null;
+    }
+
+    /**
+     * Inclusive day count between $from and $to, discounting Unijaya's TOT Saturday
+     * (the first Saturday of the month, a half working day) to 0.5.
+     */
+    public static function countDays(Carbon $from, Carbon $to): float
+    {
+        $days = 0.0;
+        for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
+            $days += DayCapacity::isFirstSaturday($date) ? 0.5 : 1.0;
+        }
+
+        return $days;
     }
 }

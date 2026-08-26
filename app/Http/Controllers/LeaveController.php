@@ -74,10 +74,11 @@ class LeaveController extends Controller
             'attachment.required' => $type->name.' leave needs a supporting document (e.g. medical certificate).',
         ]);
 
-        // A half day counts as 0.5; otherwise the inclusive whole-day span. `days` flows
-        // straight into the balance decrement at approval, so this is the only place the
-        // 0.5 originates.
-        $days = $isHalfDay ? 0.5 : Carbon::parse($data['date_from'])->diffInDays(Carbon::parse($data['date_to'])) + 1;
+        // A half day counts as 0.5; otherwise the inclusive whole-day span, with Unijaya's
+        // TOT Saturday (first Saturday of the month) counted as 0.5 like everywhere else it
+        // appears. `days` flows straight into the balance decrement at approval, so this is
+        // the only place the 0.5 originates.
+        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
 
         $attachmentPath = null;
         $attachmentName = null;
