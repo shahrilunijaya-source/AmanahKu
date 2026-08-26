@@ -226,7 +226,12 @@
 
     {{-- ─── Privileged view: run management ────────────────────────── --}}
     <div x-data="{ tab: '{{ request()->filled('itx_period') ? 'individual' : 'runs' }}', editing: null, salaryFor: null }">
-        @php $latest = $activeRun?->totals ?? []; @endphp
+        @php
+            $latest = $activeRun?->totals ?? [];
+            // Kept as its own collection (not the raw $activeRun->payslips->sortBy() call inline)
+            // so the search haystack below and the @foreach loop stay index-aligned.
+            $payslipRows = $activeRun ? $activeRun->payslips->sortBy('employee.name')->values() : collect();
+        @endphp
 
         {{-- Stat row --}}
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
@@ -276,7 +281,13 @@
                 </div>
 
                 {{-- Active run detail --}}
-                <div class="uj-card" style="flex:2;min-width:420px;padding:0;">
+                <div class="uj-card" style="flex:2;min-width:420px;padding:0;"
+                     x-data="{
+                         q: '',
+                         rows: @js($payslipRows->map(fn ($p) => mb_strtolower(trim($p->employee?->display_name.' '.$p->employee?->name.' '.$p->employee?->position)))->values()),
+                         hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                         get shown() { return this.rows.filter(h => this.hit(h)).length; },
+                     }">
                     @if ($activeRun)
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 22px;border-bottom:1px solid var(--hairline);">
                             <div>
@@ -329,9 +340,19 @@
                             <div style="padding:10px 22px;background:#fff7ed;border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.' : 'Angka draf. PCB (cukai pendapatan) dikira automatik dan boleh ditindih bagi setiap pekerja jika perlu. Sahkan jumlah berkanun sebelum finalize.'">Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.</div>
                         @endif
 
+                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 22px;border-bottom:1px solid var(--hairline-soft);">
+                            <span x-show="q.trim() !== ''" x-cloak style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;"><span x-text="shown"></span> <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span> {{ $payslipRows->count() }} <span x-text="$store.ui.lang==='en' ? 'shown' : 'dipaparkan'">shown</span></span>
+                            <div style="position:relative;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                                <input type="search" x-model="q" @keydown.escape="q = ''"
+                                       :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                                       style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                            </div>
+                        </div>
+
                         {{-- Payslip rows --}}
-                        @foreach ($activeRun->payslips->sortBy('employee.name') as $p)
-                            <div style="border-bottom:1px solid var(--hairline-soft);">
+                        @foreach ($payslipRows as $p)
+                            <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                                 <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $p->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->employee?->initials }}</div>
                                     <div style="flex:1;min-width:0;">
@@ -408,6 +429,9 @@
                                 @endif
                             </div>
                         @endforeach
+                        <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                        </div>
                     @else
                         <div style="padding:40px 24px;text-align:center;color:var(--muted);">
                             <div style="font-size:15px;color:var(--ink);font-weight:500;margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'No payroll run selected' : 'Tiada payroll run dipilih'"></span></div>
@@ -419,10 +443,26 @@
         </div>
 
         {{-- ════ TAB: Salary structures ════ --}}
-        <div x-show="tab === 'salaries'" x-cloak>
+        <div x-show="tab === 'salaries'" x-cloak
+             x-data="{
+                 q: '',
+                 rows: @js($salaryEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                 hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                 get shown() { return this.rows.filter(h => this.hit(h)).length; },
+             }">
             <div class="uj-card" style="padding:0;">
                 @php $setCount = $salaryEmployees->whereNotNull('salaryStructure')->count(); $totalCount = $salaryEmployees->count(); @endphp
-                <div class="uj-card-head" style="padding:16px 22px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Salary structures' : 'Struktur gaji'">Salary structures</h3><span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($setCount.' of '.$totalCount.' set') : @js($setCount.' daripada '.$totalCount.' ditetapkan')">{{ $setCount }} of {{ $totalCount }} set</span></div>
+                <div class="uj-card-head" style="padding:16px 22px;flex-wrap:wrap;gap:10px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Salary structures' : 'Struktur gaji'">Salary structures</h3>
+                    <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($setCount.' of '.$totalCount.' set') : @js($setCount.' daripada '.$totalCount.' ditetapkan')">{{ $setCount }} of {{ $totalCount }} set</span>
+                    <span x-show="q.trim() !== ''" x-cloak style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;"><span x-text="shown"></span> <span x-text="$store.ui.lang==='en' ? 'shown' : 'dipaparkan'">shown</span></span>
+                    <div style="margin-left:auto;position:relative;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" x-model="q" @keydown.escape="q = ''"
+                               :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                               style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                    </div>
+                </div>
                 @foreach ($salaryEmployees as $e)
                     @php
                         $s = $e->salaryStructure;
@@ -431,7 +471,7 @@
                         $empFtDeductions = $empFt->filter(fn ($ft) => $ft->payrollItem?->type === 'deduction')->sum('amount');
                         $formId = 'salary-form-'.$e->id;
                     @endphp
-                    <div style="border-bottom:1px solid var(--hairline-soft);">
+                    <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
                             <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
@@ -602,6 +642,9 @@
                         </div>
                     </div>
                 @endforeach
+                <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                </div>
             </div>
         </div>
 
@@ -633,15 +676,28 @@
                     <div style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);display:flex;justify-content:flex-end;">
                         <button type="button" @click="itxAdding = !itxAdding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? (itxAdding ? 'Cancel' : '+ Add') : (itxAdding ? 'Batal' : '+ Tambah')">+ Add</button>
                     </div>
-                    <div x-show="itxAdding" x-cloak style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);background:var(--canvas);">
+                    <div x-show="itxAdding" x-cloak
+                         x-data="{
+                             q: '',
+                             rows: @js($salaryEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                             hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                         }"
+                         style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);background:var(--canvas);">
                         <form method="post" action="{{ route('payroll.individual-transactions.store') }}">
                             @csrf
                             <input type="hidden" name="period" value="{{ $itxPeriod }}" />
                             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                <div style="flex:1;min-width:160px;position:relative;">
+                                    <label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'">Search name or nickname</label>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:7px;bottom:9px;pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                                    <input type="search" x-model="q" @keydown.escape="q = ''"
+                                           :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                                           style="width:100%;height:30px;padding:0 7px 0 24px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;outline:none;" />
+                                </div>
                                 <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Employee' : 'Pekerja'">Employee</label>
                                     <select name="employee_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
                                         @foreach ($salaryEmployees as $e)
-                                            <option value="{{ $e->id }}">{{ $e->name }}</option>
+                                            <option value="{{ $e->id }}" x-show="hit(rows[{{ $loop->index }}])">{{ $e->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -704,11 +760,24 @@
             </div>
         </div>
 
-        <div x-show="tab === 'opening'" x-cloak x-data="{ openFor: null }">
+        <div x-show="tab === 'opening'" x-cloak
+             x-data="{
+                 openFor: null,
+                 q: '',
+                 rows: @js($openingEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                 hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                 get shown() { return this.rows.filter(h => this.hit(h)).length; },
+             }">
             <div class="uj-card" style="max-width:820px;">
-                <div class="uj-card-head" style="padding:16px 22px;">
+                <div class="uj-card-head" style="padding:16px 22px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;">
                     <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Previous employment (TP3)' : 'Pekerjaan sebelum ini (TP3)'">Previous employment (TP3)</h3>
                     <span style="font-size:12px;color:var(--muted);">{{ $openingYear }}</span>
+                    <div style="margin-left:auto;position:relative;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" x-model="q" @keydown.escape="q = ''"
+                               :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                               style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                    </div>
                 </div>
                 <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
                     @include('partials.hint', [
@@ -719,7 +788,7 @@
                 </div>
                 @foreach ($openingEmployees as $e)
                     @php $o = $openingFigures->get($e->id); @endphp
-                    <div style="border-bottom:1px solid var(--hairline-soft);">
+                    <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
                             <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
@@ -767,6 +836,9 @@
                         </div>
                     </div>
                 @endforeach
+                <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                </div>
             </div>
         </div>
 

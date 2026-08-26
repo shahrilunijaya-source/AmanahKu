@@ -644,4 +644,22 @@ class PayrollTest extends TestCase
         // EPF 550 + SOCSO 24.75 + EIS 9.90 + PCB 60 + zakat 50 + CP38 30 = 724.65 → net 4275.35
         $this->assertEqualsWithDelta(4275.35, (float) $slip->net_pay, 0.001);
     }
+
+    // ── Search-by-name-or-nickname (payroll employee lists) ──────────
+
+    /**
+     * Same haystack shape as leave-setup's grid (display name + legal name + position,
+     * lower-cased) — present once per Alpine-filtered employee list on the screen:
+     * Salary structures, Previous employment (TP3), the Individual transactions
+     * employee picker, and this run's payslip rows.
+     */
+    public function test_payroll_employee_lists_are_searchable_by_nickname(): void
+    {
+        $this->emp1->update(['nickname' => 'wory']);
+        $this->createRun('2026-06');
+
+        $html = $this->actingHr()->get('/app/payroll')->assertOk()->getContent();
+
+        $this->assertSame(4, substr_count($html, 'wory worker'));
+    }
 }
