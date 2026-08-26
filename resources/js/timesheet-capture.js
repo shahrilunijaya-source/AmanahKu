@@ -366,10 +366,25 @@ export function registerTimesheetCapture(Alpine) {
         },
         chooseBoardTask(task) {
             this.picker.viaBoard = true;
-            this.picker.boardProject = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
+            const proj = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
+            this.picker.boardProject = proj;
             this.picker.boardDesc = escapeForNotes(task.description || task.title || '');
             this.picker.boardTaskTitle = task.title;
-            this.picker.step = 'category';
+            // A project linked to exactly one category has nothing left to ask — pick it and
+            // walk straight into whatever chooseStep() would have done with that one option.
+            const catIds = proj ? (proj.category_ids || []) : [];
+            const onlyCat = catIds.length === 1 ? this.categories.find((c) => String(c.id) === String(catIds[0])) : null;
+            if (onlyCat) {
+                this.picker.category = onlyCat;
+                if (onlyCat.requires_project) {
+                    this.picker.project = proj;
+                    this.advanceFromProject();
+                } else {
+                    this.chooseItem(this.pickerItem(onlyCat, null, null));
+                }
+            } else {
+                this.picker.step = 'category';
+            }
             this.focusPickerTitle();
         },
         // A category picked with a board-pulled project already in hand: skip the project
@@ -465,12 +480,20 @@ export function registerTimesheetCapture(Alpine) {
         },
         // Step 1. A category that needs no project is terminal here, so it can already be
         // greyed as "already on this day"; one that needs a project only opens step 2.
+        // A board pull already knows the project, so narrow to that project's own
+        // categories (still project<->category many-to-many, more than one can remain) —
+        // same opt-out pickerProjects() uses: an uncategorized project shows every category.
         pickerCategories() {
-            return this.categories.map((c) => ({
-                c,
-                label: this.categoryName(c),
-                item: c.requires_project ? null : this.pickerItem(c, null, null),
-            }));
+            const bp = this.picker.viaBoard ? this.picker.boardProject : null;
+            const catIds = bp ? (bp.category_ids || []) : [];
+
+            return this.categories
+                .filter((c) => !catIds.length || catIds.includes(c.id))
+                .map((c) => ({
+                    c,
+                    label: this.categoryName(c),
+                    item: c.requires_project ? null : this.pickerItem(c, null, null),
+                }));
         },
         // Step 2. Every project under the chosen category, terminal only when the project
         // carries no sub-pillar. A project with no categories of its own is uncategorized

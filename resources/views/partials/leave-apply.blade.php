@@ -113,11 +113,19 @@
         },
         single() { return !!this.dateFrom && this.dateFrom === this.dateTo; },
 
-        /** Whole inclusive days, or 0.5 for a half day — the same arithmetic as LeaveController. */
+        /**
+         * Whole inclusive days, or 0.5 for a half day — the same arithmetic as
+         * LeaveRequest::countDays(): each date counts 1, except the TOT Saturday (first
+         * Saturday of the month, Unijaya's half working day), which counts 0.5.
+         */
         days() {
             if (!this.dateFrom || !this.dateTo) return 0;
             if (this.half) return 0.5;
-            return Math.round((new Date(this.dateTo) - new Date(this.dateFrom)) / 864e5) + 1;
+            let total = 0;
+            for (let d = new Date(this.dateFrom + 'T00:00'); d <= new Date(this.dateTo + 'T00:00'); d.setDate(d.getDate() + 1)) {
+                total += (d.getDay() === 6 && d.getDate() <= 7) ? 0.5 : 1;
+            }
+            return total;
         },
         left() { const m = this.t(); return m && m.balLeft !== null ? m.balLeft : null; },
         overBy() { const l = this.left(); return l === null ? 0 : Math.max(0, this.days() - l); },
