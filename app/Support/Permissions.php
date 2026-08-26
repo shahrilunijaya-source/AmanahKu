@@ -57,7 +57,7 @@ class Permissions
 
     public const SCOPE_LABELS = [
         'own' => 'Own record only',
-        'team' => 'Direct reports',
+        'team' => 'Reporting line (all levels)',
         'department' => 'Own department',
         'branch' => 'Own branch',
         'company' => 'Entire company',

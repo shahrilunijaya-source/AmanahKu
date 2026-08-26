@@ -65,6 +65,46 @@ class DataScopeEnforcementTest extends TestCase
         $this->assertNotContains($this->inBranchB->id, $ids);
     }
 
+    /**
+     * 'team' must reach the whole org-chart subtree, not just direct reports: a
+     * manager's report's report is still visible, an unrelated employee is not, and a
+     * dotted-line (additional manager) direct report stays visible too.
+     */
+    public function test_team_scope_reaches_the_full_reporting_subtree(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+
+        $manager = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Manager', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $directReport = Employee::create([
+            'tenant_id' => $this->tenant->id, 'reports_to_id' => $manager->id,
+            'name' => 'Direct Report', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $grandchild = Employee::create([
+            'tenant_id' => $this->tenant->id, 'reports_to_id' => $directReport->id,
+            'name' => 'Grandchild', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $dottedLineReport = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Dotted Line Report', 'status' => 'active', 'workload' => 'green',
+        ]);
+        $dottedLineReport->additionalManagers()->attach($manager->id);
+        $outsider = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Outsider', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $ids = app(DataScope::class)->visibleEmployeeIds('team', $manager);
+
+        $this->assertContains($manager->id, $ids);
+        $this->assertContains($directReport->id, $ids);
+        $this->assertContains($grandchild->id, $ids, 'Grandchild in the reporting line must be visible');
+        $this->assertContains($dottedLineReport->id, $ids);
+        $this->assertNotContains($outsider->id, $ids);
+    }
+
     public function test_company_scope_is_unrestricted(): void
     {
         app(CurrentTenant::class)->set($this->tenant);
