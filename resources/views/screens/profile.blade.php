@@ -291,6 +291,7 @@
                         </a>
                     @endif
                 </div>
+                </div>
                 @endif
                 @forelse ($wItems as $w)
                     @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted)']; @endphp
