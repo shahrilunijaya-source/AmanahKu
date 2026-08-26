@@ -12,6 +12,7 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
+use App\Support\ApiCaller;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,6 @@ use Illuminate\Support\Collection;
  */
 class ApiController extends Controller
 {
-    private const PRIVILEGED = ['management', 'hr'];
-
     /** Timesheet states whose effort is final enough to bill against. See timesheetEffort(). */
     private const COUNTED_TIMESHEET_STATUSES = ['submitted', 'approved'];
 
@@ -293,16 +292,12 @@ class ApiController extends Controller
     }
 
     /**
-     * Whether the caller's token carries a scope. A person-token is minted ['*'],
-     * which Sanctum treats as every ability, so this is true for all of them and the
-     * guards below are invisible to the existing token stack.
+     * Whether the caller's token carries a scope. Delegates to ApiCaller, which the
+     * MCP tools share, so the two surfaces cannot drift apart on this rule.
      */
     private function tokenCan(Request $request, string $scope): bool
     {
-        /** @var list<string> $abilities */
-        $abilities = $request->attributes->get('tokenAbilities', []);
-
-        return in_array('*', $abilities, true) || in_array($scope, $abilities, true);
+        return ApiCaller::can($request, $scope);
     }
 
     private function denyScope(string $scope): JsonResponse
@@ -312,21 +307,16 @@ class ApiController extends Controller
 
     /**
      * Whether the caller may see the whole tenant rather than only its own records.
-     *
-     * A machine caller always may: it cleared its scope guard to get here, and the
-     * super-admin who ticked that scope was the authorization act. There is no "own
-     * records" for an app — it has no employee record to own any. A person-token is
-     * judged exactly as before, on its tenant role.
+     * Delegates to ApiCaller — see its docblock for the reasoning.
      */
     private function isPrivileged(Request $request): bool
     {
-        return $request->attributes->get('apiClient') !== null
-            || in_array($request->attributes->get('tenantRole', 'employee'), self::PRIVILEGED, true);
+        return ApiCaller::isPrivileged($request);
     }
 
     private function employee(Request $request): ?Employee
     {
-        return $request->attributes->get('employee');
+        return ApiCaller::employee($request);
     }
 
     private function ok(mixed $data): JsonResponse

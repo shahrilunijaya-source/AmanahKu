@@ -347,3 +347,22 @@ filtered response — there is no partial access to an endpoint.
 system's cost or billing calculations (Track's staff-dedication rows), so
 handing it to an app with no use for that number is scope creep, not
 convenience.
+
+## 7. MCP server (not this HTTP API)
+
+AmanahKu also exposes a read-only [MCP](https://modelcontextprotocol.io)
+server at `POST /mcp/amanahku`, for AI clients (e.g. Claude Code) rather than
+application integrations. It runs behind the same bearer-token stack as this
+API — same key, same tenant binding — but is a separate protocol (JSON-RPC
+over HTTP, not the `{data, error}` envelope above) with its own scopes,
+checked per tool:
+
+| Scope | Grants |
+|---|---|
+| `timesheets:read` | Weekly timesheets and their entries |
+| `board:read` | Board cards (work items) |
+| `tot:read` | TOT sessions and participation |
+
+These three scopes are minted the same way as the ones above
+(`php artisan api:token ... --ability=timesheets:read`) but have no
+corresponding `/api/v1` route — they exist only for the MCP tools.

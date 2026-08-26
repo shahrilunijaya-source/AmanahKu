@@ -43,6 +43,10 @@ class ApiClient extends Model implements AuthenticatableContract
      * that read this API has a reason to see anyone's pay, and a checkbox that should
      * never be ticked is better removed than labelled.
      *
+     * `timesheets:read`, `board:read` and `tot:read` are also what the read-only MCP
+     * server (App\Mcp\Servers\AmanahkuServer and its tools) checks — same catalogue,
+     * same super-admin screen, one more caller.
+     *
      * @var array<string, string>
      */
     public const SCOPES = [
@@ -51,6 +55,9 @@ class ApiClient extends Model implements AuthenticatableContract
         'positions:read' => 'Position bands (no salary)',
         'effort:read' => 'Weekly timesheet effort per band (no names, no salary)',
         'leave:read' => 'Leave requests',
+        'timesheets:read' => 'Weekly timesheets and their entries',
+        'board:read' => 'Board cards (work items)',
+        'tot:read' => 'TOT sessions and participation',
     ];
 
     protected $fillable = ['tenant_id', 'name', 'created_by'];
