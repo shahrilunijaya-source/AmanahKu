@@ -12,6 +12,7 @@
         'early_out' => ['Left early', 'Balik awal'],
         'short_hours' => ['Short hours', 'Jam kurang'],
         'no_location' => ['No location', 'Tiada lokasi'],
+        'auto_out' => ['Auto clock-out', 'Clock out automatik'],
     ];
     $siteTypeLabel = [
         'office' => ['Office', 'Pejabat'],

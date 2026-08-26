@@ -31,6 +31,7 @@ class AttendanceReportExportController extends Controller
     private const FLAG_LABEL = [
         'off' => 'Off-site', 'visit' => 'Site visit', 'short' => 'Short hours',
         'early' => 'Left early', 'noloc' => 'No location', 'amended' => 'Clock-out amended',
+        'auto' => 'Auto clock-out',
     ];
 
     public function download(Request $request): StreamedResponse
