@@ -33,8 +33,7 @@ link.
   - Assignee has no `user_id` (`Employee::user()` is nullable — an employee
     without a login) → same no-op path.
 - **Event shape:** all-day event on `due_at`, summary = work item title,
-  description links back to the item (`route('work-items.show', $item)` or
-  equivalent). `due_at` is a `date` cast (no time component), so an all-day
+  description links back to the item (`route('work.show', $item)`). `due_at` is a `date` cast (no time component), so an all-day
   event is the correct fit, not a timed one. Google all-day events use an
   **exclusive** end date — `end.date` must be `due_at + 1 day`, not `due_at`
   itself, or the API rejects/mis-renders the event.
