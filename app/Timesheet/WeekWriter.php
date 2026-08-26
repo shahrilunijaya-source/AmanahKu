@@ -24,10 +24,15 @@ use Illuminate\Validation\ValidationException;
  *
  * The grid is authoritative for the whole week — save() always replaces every
  * stored entry for that week with what it is given. The MCP tool's "partial
- * change" (one day or a few) is not a different save mode: mergePartialIntoExisting()
- * computes the resulting FULL week first (existing rows overlaid by the changed
- * days), and that full set is what actually gets saved — so the controller and
- * the tool can never learn two different lessons about what "save" means.
+ * change" (one day or a few) is a genuinely different shape: the developer
+ * calling it only knows about their own project, not the rest of the day, so
+ * mergePartialIntoExisting() ADDS a changed day's rows onto whatever is already
+ * stored for that day rather than replacing it (see that method's docblock for
+ * why, and how a same-line correction still behaves like an update). That
+ * merged full week is still what actually gets saved via the ordinary save()
+ * path — so the controller and the tool agree on what "save" means (whole-week
+ * replace), they just disagree on what "the changed day's rows" means before
+ * they get there.
  */
 final class WeekWriter
 {
@@ -153,8 +158,26 @@ final class WeekWriter
     /**
      * Compute the FULL resulting week from the currently stored draft's own rows
      * (source = null, i.e. never the generated locked rows) overlaid by a partial
-     * change: every date present in $partialEntries replaces that day's rows
-     * entirely, every other day keeps its stored rows untouched.
+     * change: every date present in $partialEntries ADDS its rows to whatever is
+     * already stored for that date — it does not replace the day.
+     *
+     * A row that names the same line (category + project + sub-pillar, see
+     * lineKey() — the same definition assertNoDuplicateLines() uses) as one
+     * already stored for that date is an UPSERT, not a duplicate: the caller is
+     * legitimately re-saving that exact line (typically to correct its
+     * percentage), so the new row replaces the old one and nothing is
+     * double-counted. A row naming a *different* line is purely additive — this
+     * is the fix for the split-day bug: saving Tuesday as Amanahku 50% from one
+     * project folder, then Tuesday as iGuaman 50% from another, now leaves both
+     * rows in place instead of the second silently erasing the first.
+     *
+     * $replaceDates names dates that should still get the old whole-day replace
+     * instead — the escape hatch for the one thing pure merging cannot do:
+     * *removing* a line the caller never mentions. "Actually Tuesday was all
+     * Amanahku, drop the iGuaman half" cannot be expressed by adding rows, since
+     * the tool never learns the iGuaman line's key to subtract it — the caller
+     * has to say "replace this day" instead. See SaveTimesheetDraftTool's
+     * `replace_days` argument.
      *
      * This is deliberately a pure computation with no write — its output is what
      * gets handed to resolveWeek() (by both the MCP preview and save()) and, once
@@ -165,32 +188,133 @@ final class WeekWriter
      * save from the tool is just the partial change on its own.
      *
      * @param  array<int, array{entry_date:string, category_id:int, project_id?:?int, sub_pillar_id?:?int, percentage:float|int|string, description?:?string}>  $partialEntries
+     * @param  array<int, string>  $replaceDates  dates (any parseable format) to fully replace instead of merge
      * @return array<int, array<string, mixed>> raw entries, same shape as $partialEntries, ready for save()
      */
-    public function mergePartialIntoExisting(Employee $employee, CarbonInterface|string $weekStart, array $partialEntries): array
+    public function mergePartialIntoExisting(Employee $employee, CarbonInterface|string $weekStart, array $partialEntries, array $replaceDates = []): array
     {
         $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+        $replaceDates = array_flip(array_map(fn ($d) => Carbon::parse($d)->toDateString(), $replaceDates));
 
         $byDate = [];
         foreach ($this->existingUserEntries($employee, $weekStartCarbon) as $row) {
-            $byDate[$row['entry_date']][] = $row;
+            $byDate[$row['entry_date']][self::lineKey($row)] = $row;
         }
 
         $changedByDate = [];
         foreach ($partialEntries as $row) {
             $date = Carbon::parse($row['entry_date'])->toDateString();
-            $changedByDate[$date][] = $row;
+            $changedByDate[$date][self::lineKey($row)] = $row;
         }
 
         foreach ($changedByDate as $date => $rows) {
-            // A changed day fully replaces whatever was there — the same "grid is
-            // authoritative for the day" rule save() applies to the whole week.
-            $byDate[$date] = $rows;
+            if (isset($replaceDates[$date])) {
+                $byDate[$date] = $rows;
+            } else {
+                // array_merge on these string-keyed arrays overwrites a matching line
+                // (upsert) and keeps everything else — the add-not-replace behaviour
+                // described above.
+                $byDate[$date] = array_merge($byDate[$date] ?? [], $rows);
+            }
         }
 
         ksort($byDate);
 
-        return $byDate === [] ? [] : array_merge(...array_values($byDate));
+        $out = [];
+        foreach ($byDate as $rows) {
+            foreach ($rows as $row) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Refuse when merging $partialEntries into $employee's currently stored week
+     * (via mergePartialIntoExisting(), same $replaceDates) would push any date
+     * named in $partialEntries over its capacity (DayCapacity::for — the TOT
+     * Saturday's 50%, 100% everywhere else).
+     *
+     * This is distinct from assertDayTotals(): that one demands a day hit
+     * capacity EXACTLY, but only at submit time. This blocks going OVER, at
+     * draft time, and only for SaveTimesheetDraftTool — a browser save always
+     * replaces the whole day from the capture grid (which already keeps a day at
+     * or under capacity client-side), so nothing in save()/resolveWeek() calls
+     * this and the browser path is unaffected.
+     *
+     * Queries fresh each call rather than trusting numbers computed earlier, so
+     * the same call from the tool's preview and its later confirm (which can be
+     * up to ten minutes apart — see App\Mcp\PendingWrite) each see whatever is
+     * actually stored at that moment.
+     *
+     * @param  array<int, array<string, mixed>>  $partialEntries
+     * @param  array<int, string>  $replaceDates
+     */
+    public function assertMergeWithinCapacity(Employee $employee, CarbonInterface|string $weekStart, array $partialEntries, array $replaceDates = []): void
+    {
+        $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+
+        $priorTotals = [];
+        foreach ($this->existingUserEntries($employee, $weekStartCarbon) as $row) {
+            $priorTotals[$row['entry_date']] = ($priorTotals[$row['entry_date']] ?? 0.0) + (float) $row['percentage'];
+        }
+
+        $addedTotals = [];
+        $touchedDates = [];
+        foreach ($partialEntries as $row) {
+            $date = Carbon::parse($row['entry_date'])->toDateString();
+            $addedTotals[$date] = ($addedTotals[$date] ?? 0.0) + (float) $row['percentage'];
+            $touchedDates[$date] = true;
+        }
+
+        $merged = $this->mergePartialIntoExisting($employee, $weekStartCarbon, $partialEntries, $replaceDates);
+        $resultingTotals = [];
+        foreach ($merged as $row) {
+            $resultingTotals[$row['entry_date']] = ($resultingTotals[$row['entry_date']] ?? 0.0) + (float) $row['percentage'];
+        }
+
+        $messages = [];
+        foreach (array_keys($touchedDates) as $date) {
+            $capacity = DayCapacity::for($date);
+            $resultingTotal = $resultingTotals[$date] ?? 0.0;
+
+            if ($resultingTotal - $capacity > 0.01) {
+                $messages[] = Carbon::parse($date)->format('D, j M').' already has '.
+                    self::formatPercent($priorTotals[$date] ?? 0.0).'% stored; adding '.
+                    self::formatPercent($addedTotals[$date]).'% would bring it to '.
+                    self::formatPercent($resultingTotal).'%, over the '.self::formatPercent($capacity).'% capacity for that day.';
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['entries' => $messages]);
+        }
+    }
+
+    /**
+     * The "same line" key assertNoDuplicateLines() rejects a repeat of, and
+     * mergePartialIntoExisting() uses to decide an incoming row is a correction
+     * (same key -> upsert) rather than an addition (new key -> kept alongside).
+     * One definition, reused everywhere a line's identity matters: date +
+     * category + project + sub-pillar.
+     *
+     * @param  array<string, mixed>  $entry
+     */
+    public static function lineKey(array $entry): string
+    {
+        return implode('|', [
+            Carbon::parse($entry['entry_date'])->toDateString(),
+            $entry['category_id'],
+            $entry['project_id'] ?? '',
+            $entry['sub_pillar_id'] ?? '',
+        ]);
+    }
+
+    /** Trims trailing zeros the way every percentage-in-a-message spot here wants. */
+    private static function formatPercent(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2), '0'), '.');
     }
 
     /**
@@ -200,8 +324,10 @@ final class WeekWriter
      *
      * @return array<int, array<string, mixed>>
      */
-    private function existingUserEntries(Employee $employee, CarbonInterface $weekStartCarbon): array
+    public function existingUserEntries(Employee $employee, CarbonInterface|string $weekStart): array
     {
+        $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+
         $timesheet = Timesheet::where('employee_id', $employee->id)
             ->where('week_start', $weekStartCarbon)
             ->first();
@@ -333,16 +459,10 @@ final class WeekWriter
         $seen = [];
         $days = [];
         foreach ($entries as $e) {
-            $date = Carbon::parse($e['entry_date'])->toDateString();
-            $key = implode('|', [
-                $date,
-                $e['category_id'],
-                $e['project_id'] ?? '',
-                $e['sub_pillar_id'] ?? '',
-            ]);
+            $key = self::lineKey($e);
 
             if (isset($seen[$key])) {
-                $days[$date] = true;
+                $days[Carbon::parse($e['entry_date'])->toDateString()] = true;
             }
 
             $seen[$key] = true;
@@ -391,9 +511,7 @@ final class WeekWriter
             $capacity = DayCapacity::for($date);
 
             if (abs($total - $capacity) >= 0.01) {
-                $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
-                $want = rtrim(rtrim(number_format($capacity, 2), '0'), '.');
-                $messages[] = Carbon::parse($date)->format('D, j M').' totals '.$shown.'% — that day must add up to '.$want.'% before submitting.';
+                $messages[] = Carbon::parse($date)->format('D, j M').' totals '.self::formatPercent($total).'% — that day must add up to '.self::formatPercent($capacity).'% before submitting.';
             }
         }
 

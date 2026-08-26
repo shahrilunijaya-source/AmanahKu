@@ -17,10 +17,12 @@ use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
+use App\Models\TotSession;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
@@ -657,5 +659,326 @@ class AmanahkuWriteToolsTest extends TestCase
 
         $this->assertTrue($this->toolIsError($response));
         $this->assertStringContainsString('timesheets:write', $response->json('result.content.0.text'));
+    }
+
+    // --- save_timesheet_draft: split-day merge, capacity cap, removal ------
+
+    /**
+     * The bug this whole change fixes: a Tuesday saved as project A 50% from one
+     * project folder, then project B 50% from another, must leave BOTH halves
+     * standing — not have the second call silently erase the first.
+     */
+    public function test_saving_two_different_projects_on_the_same_day_combines_them(): void
+    {
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+
+        $first = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($first));
+        $this->confirm($this->toolData($first)['confirm_token'], $headers);
+
+        $second = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($second));
+        $data = $this->toolData($second);
+        $rows = $data['changes']['resulting_week'][$tuesday];
+        $this->assertCount(2, $rows, 'both projects survive the second save');
+        $byProject = collect($rows)->keyBy('project');
+        $this->assertSame('already stored', $byProject['KPT: RMS']['status']);
+        $this->assertSame('added by this change', $byProject['iGuaman']['status']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
+        $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', $tuesday)->whereNull('source')->get();
+        $this->assertCount(2, $stored);
+        $this->assertEqualsWithDelta(100.0, $stored->sum('percentage'), 0.01);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * A day already full must refuse another line rather than quietly going over
+     * 100% — and the refusal must say what's stored, what was being added, and
+     * what the total would become.
+     */
+    public function test_a_merge_that_would_exceed_the_days_capacity_is_refused_at_preview(): void
+    {
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+
+        $full = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 100,
+            ]],
+        ], $headers);
+        $this->confirm($this->toolData($full)['confirm_token'], $headers);
+
+        $overflow = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($overflow));
+        $message = $overflow->json('result.content.0.text');
+        $this->assertStringContainsString('Tue', $message);
+        $this->assertStringContainsString('100', $message);
+        $this->assertStringContainsString('150', $message);
+    }
+
+    /**
+     * The cap is re-checked at confirm, not just trusted from the preview: a
+     * valid preview can be made stale by another save landing before confirm.
+     */
+    public function test_the_cap_is_re_checked_at_confirm_time(): void
+    {
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+
+        // Valid at preview time: the day is empty.
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview));
+        $token = $this->toolData($preview)['confirm_token'];
+
+        // Now fill the day to capacity through a different path (the browser grid)
+        // before the token is redeemed.
+        $this->actingAs($this->staffA)->withSession(['current_tenant' => $this->tenantA->id]);
+        $this->post('/app/timesheets', [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 100,
+            ]],
+        ]);
+        Auth::forgetGuards();
+
+        $confirm = $this->confirm($token, $headers);
+        $this->assertTrue($this->toolIsError($confirm));
+        $this->assertStringContainsString('150', $confirm->json('result.content.0.text'));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
+        $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', $tuesday)->whereNull('source')->get();
+        $this->assertCount(1, $stored, 'the confirm never landed');
+        $this->assertSame($this->projectA->id, $stored->first()->project_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The first Saturday of the month is the TOT half day (DayCapacity) — its cap
+     * is 50%, not 100%.
+     */
+    public function test_the_tot_saturday_caps_at_50_percent(): void
+    {
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        // The first Saturday of the CURRENT month, falling back to last month's if
+        // this month's has not happened yet — always in the past, always inside the
+        // 6-week backfill window.
+        // TotSession::firstSaturday() is the app's own rule — "first saturday of" the
+        // month, which is the 1st itself when the 1st IS a Saturday. startOfMonth()
+        // ->next(SATURDAY) is NOT the same thing: it skips a 1st that already is one,
+        // landing on the 8th, an ordinary 100% day that would never trip the cap.
+        $today = Carbon::now()->startOfDay();
+        $totSaturday = TotSession::firstSaturday((int) $today->year, (int) $today->month);
+        if ($totSaturday->greaterThan($today)) {
+            $prev = $today->copy()->subMonthNoOverflow();
+            $totSaturday = TotSession::firstSaturday((int) $prev->year, (int) $prev->month);
+        }
+        $weekStart = $totSaturday->copy()->subDays(5)->toDateString();
+        $totSaturday = $totSaturday->toDateString();
+
+        $half = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => $weekStart,
+            'entries' => [[
+                'entry_date' => $totSaturday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($half));
+        $this->confirm($this->toolData($half)['confirm_token'], $headers);
+
+        $overflow = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => $weekStart,
+            'entries' => [[
+                'entry_date' => $totSaturday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 25,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($overflow));
+        $message = $overflow->json('result.content.0.text');
+        $this->assertStringContainsString('75', $message);
+        $this->assertStringContainsString('50', $message);
+    }
+
+    /**
+     * Re-sending the same category/project/sub-pillar line is a correction
+     * (upsert), not a duplicate — assertNoDuplicateLines() would otherwise
+     * refuse it, and simple addition would double-count it.
+     */
+    public function test_identical_lines_combine_instead_of_duplicating(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $first = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->confirm($this->toolData($first)['confirm_token'], $headers);
+
+        // Same line, corrected percentage.
+        $second = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 100,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($second));
+        $data = $this->toolData($second);
+        $rows = $data['changes']['resulting_week'][self::WEEK];
+        $this->assertCount(1, $rows, 'the correction replaces the line, it does not duplicate it');
+        $this->assertEquals(100.0, $rows[0]['percentage']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
+        $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', self::WEEK)->whereNull('source')->get();
+        $this->assertCount(1, $stored);
+        $this->assertEquals(100.0, (float) $stored->first()->percentage);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The only way to drop a line the tool never typed: naming its date in
+     * replace_days, which falls back to the old whole-day replace for that date.
+     */
+    public function test_replace_days_drops_a_line_the_caller_never_typed(): void
+    {
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+
+        // Wrongly split across two projects, as in the bug report.
+        $first = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->confirm($this->toolData($first)['confirm_token'], $headers);
+
+        $second = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->confirm($this->toolData($second)['confirm_token'], $headers);
+
+        // Correction: "actually it was all Amanahku" — replace_days drops the
+        // iGuaman half the tool never mentioned this time.
+        $correction = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $this->projectA->id, 'percentage' => 100,
+            ]],
+            'replace_days' => [$tuesday],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($correction));
+        $data = $this->toolData($correction);
+        $rows = $data['changes']['resulting_week'][$tuesday];
+        $this->assertCount(1, $rows);
+        $this->assertSame('KPT: RMS', $rows[0]['project']);
+        $this->assertEquals(100.0, $rows[0]['percentage']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
+        $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', $tuesday)->whereNull('source')->get();
+        $this->assertCount(1, $stored);
+        $this->assertSame($this->projectA->id, $stored->first()->project_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The regression guard for the whole split: TimesheetController::store()
+     * (the browser grid) must keep replacing a day wholesale, exactly as before —
+     * only the MCP tool's mergePartialIntoExisting() path merges.
+     */
+    public function test_the_browser_path_still_replaces_the_whole_day(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet = Timesheet::create([
+            'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,
+            'week_start' => self::WEEK, 'status' => 'draft',
+        ]);
+        $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenantA->id, 'timesheet_id' => $timesheet->id,
+            'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+            'project_id' => $this->projectA->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+
+        $this->actingAs($this->staffA)->withSession(['current_tenant' => $this->tenantA->id]);
+        $response = $this->post('/app/timesheets', [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
+                'project_id' => $projectB->id, 'percentage' => 50,
+            ]],
+        ]);
+        $response->assertSessionHasNoErrors();
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $timesheet->refresh();
+        $stored = $timesheet->entries()->whereDate('entry_date', $tuesday)->whereNull('source')->get();
+        // The whole grid replaces the week — the old projectA row is gone, only
+        // the newly-posted projectB row remains.
+        $this->assertCount(1, $stored, 'the browser grid replaces the day, it does not merge into it');
+        $this->assertSame($projectB->id, $stored->first()->project_id);
+        $this->assertEquals(50.0, (float) $stored->first()->percentage);
+        app(CurrentTenant::class)->set(null);
     }
 }
