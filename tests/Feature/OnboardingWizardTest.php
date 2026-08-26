@@ -233,7 +233,9 @@ class OnboardingWizardTest extends TestCase
 
         $s = SalaryStructure::where('employee_id', $emp->id)->firstOrFail();
         $this->assertSame('Maybank', $s->bank_name);
-        $this->assertSame('900101015555', Crypt::decryptString($s->getRawOriginal('nric'))); // synced + encrypted
+        // NRIC lives only on the employee record now (see the reconcile migration
+        // 2026_08_25_200300) — no longer mirrored onto salary_structures.
+        $this->assertSame('900101015555', Crypt::decryptString($emp->fresh()->getRawOriginal('nric')));
     }
 
     public function test_bank_step_404s_when_payroll_is_off(): void

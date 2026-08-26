@@ -64,18 +64,21 @@ class PayrollExportController extends Controller
             fputcsv($out, [
                 'Employee', 'NRIC', 'EPF No', 'EPF (Employee)', 'EPF (Employer)',
                 'SOCSO No', 'SOCSO (Employee)', 'SOCSO (Employer)',
-                'EIS (Employee)', 'EIS (Employer)', 'PCB',
+                'EIS (Employee)', 'EIS (Employer)', 'PCB (Normal)', 'PCB (Additional)', 'Zakat', 'CP38',
             ]);
 
             $fmt = fn ($v) => number_format((float) $v, 2, '.', '');
             foreach ($payslips as $p) {
                 $s = $p->employee?->salaryStructure;
                 // Name / NRIC / EPF / SOCSO numbers are user-controlled — neutralise CSV injection.
+                // NRIC is the employee record's, not salary_structures' — see the
+                // reconcile migration (2026_08_25_200300): one source of truth.
                 fputcsv($out, Csv::safeRow([
-                    $p->employee?->name, $s?->nric, $s?->epf_no,
+                    $p->employee?->name, $p->employee?->nric, $s?->epf_no,
                     $fmt($p->epf_employee), $fmt($p->epf_employer),
                     $s?->socso_no, $fmt($p->socso_employee), $fmt($p->socso_employer),
-                    $fmt($p->eis_employee), $fmt($p->eis_employer), $fmt($p->pcb),
+                    $fmt($p->eis_employee), $fmt($p->eis_employer),
+                    $fmt($p->pcb), $fmt($p->pcb_additional), $fmt($p->zakat), $fmt($p->cp38),
                 ]));
             }
 
@@ -84,7 +87,8 @@ class PayrollExportController extends Controller
                 $fmt($payslips->sum('epf_employee')), $fmt($payslips->sum('epf_employer')),
                 '', $fmt($payslips->sum('socso_employee')), $fmt($payslips->sum('socso_employer')),
                 $fmt($payslips->sum('eis_employee')), $fmt($payslips->sum('eis_employer')),
-                $fmt($payslips->sum('pcb')),
+                $fmt($payslips->sum('pcb')), $fmt($payslips->sum('pcb_additional')),
+                $fmt($payslips->sum('zakat')), $fmt($payslips->sum('cp38')),
             ]);
             fclose($out);
         }, 'statutory-'.$run->period.'.csv', ['Content-Type' => 'text/csv']);

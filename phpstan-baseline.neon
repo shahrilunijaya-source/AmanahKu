@@ -67,12 +67,6 @@ parameters:
 			path: app/Http/Controllers/AdminController.php
 
 		-
-			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Http/Controllers/AdminController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
@@ -80,12 +74,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\LeaveRequest\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Api/V1/ApiController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Payslip\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/Api/V1/ApiController.php
@@ -111,18 +99,6 @@ parameters:
 		-
 			message: '#^Cannot call method format\(\) on string\.$#'
 			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/AppController.php
-
-		-
-			message: '#^Offset ''help'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Http/Controllers/AppController.php
-
-		-
-			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Http/Controllers/AppController.php
 
@@ -505,42 +481,6 @@ parameters:
 			path: app/Http/Controllers/OvertimeController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:allowancesTotal\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/PayrollController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isEditable\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/PayrollController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:statutoryCategory\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/PayrollController.php
-
-		-
-			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
-			identifier: larastan.noUnnecessaryCollectionCall
-			count: 1
-			path: app/Http/Controllers/PayrollController.php
-
-		-
-			message: '#^Parameter \#1 \$run of method App\\Http\\Controllers\\PayrollController\:\:recalcTotals\(\) expects App\\Models\\PayrollRun, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/PayrollController.php
-
-		-
-			message: '#^Parameter \#1 \$payslips of method App\\Services\\Payroll\\BankFile\\BankFileFormat\:\:rows\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Payslip\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/PayrollExportController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -653,12 +593,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 5
 			path: app/Http/Controllers/SuperAdmin/CompanyController.php
-
-		-
-			message: '#^Offset ''scope'' on array\{label\: ''AI assistant panel'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''The in\-app AI…''\}\|array\{label\: ''Auto PCB/MTD…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Estimate monthly…''\}\|array\{label\: ''Medical claim…'', type\: ''number'', scope\: ''tenant'', default\: 500, min\: 0, max\: 1000000, help\: ''Most one employee…''\}\|array\{label\: ''Passkey sign\-in'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional''\}, help\: ''Allow members to…''\}\|array\{label\: ''Public self…'', type\: ''bool'', scope\: ''platform'', default\: true, help\: ''Allow anyone to…''\}\|array\{label\: ''Require payroll…'', type\: ''bool'', scope\: ''tenant'', default\: false, help\: ''Block finalizing a…''\}\|array\{label\: ''Statutory…'', type\: ''enum'', scope\: ''tenant'', default\: ''brackets'', options\: array\{flat\: ''Flat percentage'', brackets\: ''Stepped brackets''\}, help\: ''How SOCSO/EIS are…''\}\|array\{label\: ''Two\-factor…'', type\: ''enum'', scope\: ''tenant'', default\: ''optional'', options\: array\{off\: ''Off'', optional\: ''Optional'', required\: ''Required''\}, help\: ''Required forces…''\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Http/Controllers/SuperAdmin/FeatureController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -847,24 +781,6 @@ parameters:
 			path: app/Models/Employee.php
 
 		-
-			message: '#^Offset ''amount'' on string on left side of \?\? does not exist\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Models/SalaryStructure.php
-
-		-
-			message: '#^Method App\\Models\\StatutoryRate\:\:defaults\(\) should return array\<string, array\<string, float\|int\>\> but returns array\<string, array\<string, bool\|float\|int\>\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Models/StatutoryRate.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>config" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Models/StatutoryRate.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -875,12 +791,6 @@ parameters:
 			identifier: method.nonObject
 			count: 1
 			path: app/Models/Tenant.php
-
-		-
-			message: '#^PHPDoc tag @var for constant App\\Services\\Payroll\\PcbCalculator\:\:BANDS with type array\<int, array\{float, float\}\> is incompatible with value array\{array\{5000, 0\}, array\{20000, 1\}, array\{35000, 3\}, array\{50000, 6\}, array\{70000, 11\}, array\{100000, 19\}, array\{400000, 25\}, array\{600000, 26\}, \.\.\.\}\.$#'
-			identifier: classConstant.phpDocType
-			count: 1
-			path: app/Services/Payroll/PcbCalculator.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$has_certificate\.$#'

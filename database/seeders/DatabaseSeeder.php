@@ -29,13 +29,15 @@ use App\Models\PolicyAcknowledgement;
 use App\Models\PublicHoliday;
 use App\Models\SalaryStructure;
 use App\Models\StaffLevel;
-use App\Models\StatutoryRate;
 use App\Models\Tenant;
 use App\Models\TrainingRecord;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkSite;
+use App\Services\Payroll\EisCalculator;
+use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
+use App\Services\Payroll\SocsoCalculator;
 use App\Support\Permissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -122,6 +124,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ResignationSeeder::class);
         $this->call(ComplianceSeeder::class);
         $this->call(TimesheetCategorySeeder::class);
+        $this->call(PayrollItemSeeder::class);
         $this->call(ProjectSeeder::class);
         $this->call(TimesheetSeeder::class);
         $this->call(LearningSeeder::class);
@@ -320,6 +323,8 @@ class DatabaseSeeder extends Seeder
             'requires_attachment' => $x[2],
             'is_unplanned' => $x[3],
             'min_notice_days' => $x[4],
+            // Payroll's unpaid-leave pull matches this flag, not the name.
+            'is_unpaid' => $x[0] === 'Unpaid',
         ])->id]);
 
         // Emergency leave is not a privilege — it spends the Annual balance.
@@ -514,15 +519,6 @@ class DatabaseSeeder extends Seeder
      */
     private function seedPayroll(int $tid, User $demo, array $emp): void
     {
-        // Statutory rate tables — seeded from current published MY defaults (editable in-app).
-        foreach (StatutoryRate::defaults() as $type => $config) {
-            // forceFill: tenant_id is set explicitly here (multi-tenant seed loop) and is
-            // not mass-assignable on the tightened payroll models.
-            (new StatutoryRate)->forceFill([
-                'tenant_id' => $tid, 'type' => $type, 'config' => $config, 'label' => strtoupper($type),
-            ])->save();
-        }
-
         // [basic, [[allowance name, amount]], manual PCB, OT hours, bonus] keyed by employee name.
         $salaries = [
             'Aisyah Rahman' => [11000, [['Transport', 400], ['Phone', 150]], 950, 0, 0],
@@ -537,8 +533,7 @@ class DatabaseSeeder extends Seeder
             'Hafiz Zulkifli' => [5800, [['Transport', 300]], 240, 6, 0],
         ];
 
-        $calculator = new PayrollCalculator;
-        $rates = StatutoryRate::defaults();
+        $calculator = new PayrollCalculator(new EpfCalculator, new SocsoCalculator, new EisCalculator);
         $banks = ['Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank'];
 
         // forceFill: tenant_id/status/finalized_at are not mass-assignable on the tightened model.
@@ -556,6 +551,14 @@ class DatabaseSeeder extends Seeder
             $allowances = collect($row[1])->map(fn ($a) => ['name' => $a[0], 'amount' => (float) $a[1]])->all();
 
             $eid = $employee->id;
+            // NRIC lives on the employee record now, not salary_structures (see the
+            // reconcile migration 2026_08_25_200300) — only fill it if this demo
+            // employee doesn't already have one.
+            if (blank($employee->nric)) {
+                $employee->forceFill([
+                    'nric' => str_pad((string) (850000 + $eid), 6, '0', STR_PAD_LEFT).'-'.str_pad((string) (10 + $eid % 14), 2, '0', STR_PAD_LEFT).'-'.str_pad((string) (1000 + $eid * 13 % 9000), 4, '0', STR_PAD_LEFT),
+                ])->save();
+            }
             // forceFill: tenant_id is set explicitly in this multi-tenant seed loop.
             (new SalaryStructure)->forceFill([
                 'tenant_id' => $tid, 'employee_id' => $eid,
@@ -565,7 +568,6 @@ class DatabaseSeeder extends Seeder
                 'bank_account_no' => '51'.str_pad((string) ($eid * 7919 % 100000000), 8, '0', STR_PAD_LEFT),
                 'epf_no' => 'EPF'.str_pad((string) (1000000 + $eid * 31), 8, '0', STR_PAD_LEFT),
                 'socso_no' => 'SOC'.str_pad((string) (2000000 + $eid * 17), 8, '0', STR_PAD_LEFT),
-                'nric' => str_pad((string) (850000 + $eid), 6, '0', STR_PAD_LEFT).'-'.str_pad((string) (10 + $eid % 14), 2, '0', STR_PAD_LEFT).'-'.str_pad((string) (1000 + $eid * 13 % 9000), 4, '0', STR_PAD_LEFT),
             ])->save();
 
             $comp = $calculator->compute([
@@ -575,7 +577,7 @@ class DatabaseSeeder extends Seeder
                 'overtime_hours' => $row[3],
                 'bonus' => $row[4],
                 'statutory_category' => $employee->statutoryCategory(Carbon::create(2026, 5, 31)),
-            ], $rates);
+            ]);
 
             // forceFill: computed amount columns + tenant_id are not mass-assignable.
             (new Payslip)->forceFill(array_merge($comp->toPayslipAttributes(), [

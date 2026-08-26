@@ -7,12 +7,14 @@ namespace App\Http\Controllers\Concerns;
 use App\Attendance\ScheduleResolver;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\FixedTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PayrollItem;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
-use App\Models\StatutoryRate;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
@@ -374,7 +376,7 @@ trait BuildsWorkData
         // A specific payslip detail: own (finalized) for everyone, any for privileged.
         $selectedPayslip = null;
         if ($request->filled('payslip')) {
-            $candidate = Payslip::with(['employee', 'payrollRun'])->find($request->query('payslip'));
+            $candidate = Payslip::with(['employee', 'payrollRun', 'lines'])->find($request->query('payslip'));
             if ($candidate) {
                 $ownIt = $employee && $candidate->employee_id === $employee->id;
                 $visible = $privileged || ($ownIt && $candidate->payrollRun?->status === 'finalized');
@@ -390,12 +392,16 @@ trait BuildsWorkData
                 'runs' => collect(),
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
+                'payrollItems' => collect(),
+                'currentPeriod' => now()->format('Y-m'),
+                'fixedTransactions' => collect(),
+                'fixedTransactionItems' => collect(),
             ];
         }
 
         $activeRun = $request->filled('run')
-            ? PayrollRun::with('payslips.employee')->find($request->query('run'))
-            : PayrollRun::with('payslips.employee')->orderByDesc('period')->first();
+            ? PayrollRun::with('payslips.employee', 'payslips.lines')->find($request->query('run'))
+            : PayrollRun::with('payslips.employee', 'payslips.lines')->orderByDesc('period')->first();
 
         return [
             'privileged' => true,
@@ -404,7 +410,22 @@ trait BuildsWorkData
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
-            'rates' => StatutoryRate::merged(),
+            'openingYear' => (int) now()->year,
+            'openingEmployees' => Employee::active()->orderBy('name')->get(),
+            'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
+            'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
+            // Fixed Transactions: every non-ended (or ended-in-the-future) one, grouped by
+            // employee, for the Salary structures tab. currentPeriod is the default
+            // start/end value the "add"/"end" forms pre-fill.
+            'currentPeriod' => now()->format('Y-m'),
+            'fixedTransactions' => FixedTransaction::with('payrollItem')
+                ->where(fn ($q) => $q->whereNull('end_period')->orWhere('end_period', '>=', now()->format('Y-m')))
+                ->orderBy('start_period')->get()->groupBy('employee_id'),
+            // A Fixed Transaction must never target an item with its own automatic
+            // source — see PayrollController::FT_FORBIDDEN_ITEM_CODES.
+            'fixedTransactionItems' => PayrollItem::where('active', true)
+                ->whereNotIn('code', ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'])
+                ->orderBy('sort_order')->get(),
         ];
     }
 }

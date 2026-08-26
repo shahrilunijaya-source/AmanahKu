@@ -45,6 +45,8 @@ class AdminController extends Controller
             'industry' => ['nullable', 'string', 'max:120'],
             'address' => ['nullable', 'string', 'max:240'],
             'contact_number' => ['nullable', 'string', 'max:40'],
+            // LHDN's Employer's TIN, stored without the "E" prefix (see EaFormPdfData).
+            'employer_tin' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:160'],
             'website' => ['nullable', 'url', 'max:160'],
             'welcome_message' => ['nullable', 'string', 'max:240'],
@@ -60,6 +62,7 @@ class AdminController extends Controller
             'industry' => $data['industry'] ?? null,
             'address' => $data['address'] ?? null,
             'contact_number' => $data['contact_number'] ?? null,
+            'employer_tin' => $data['employer_tin'] ?? null,
             'email' => $data['email'] ?? null,
             'website' => $data['website'] ?? null,
             'welcome_message' => $data['welcome_message'] ?? null,
@@ -142,7 +145,7 @@ class AdminController extends Controller
     {
         $keys = array_keys(Features::MODULES);
         foreach (Features::SETTINGS as $key => $meta) {
-            if (($meta['scope'] ?? 'tenant') === 'tenant') {
+            if ($meta['scope'] === 'tenant') {
                 $keys[] = $key;
             }
         }

@@ -13,8 +13,8 @@ use App\Models\EmploymentType;
 use App\Models\LeaveType;
 use App\Models\Position;
 use App\Models\PublicHoliday;
+use App\Models\SalaryStructure;
 use App\Models\StaffLevel;
-use App\Models\StatutoryRate;
 use App\Models\TimesheetCategory;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
@@ -96,7 +96,7 @@ class SetupController extends Controller
 
         // Payroll is only relevant when the module is enabled for the tenant.
         if ($this->payrollEnabled()) {
-            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Statutory rates (EPF/SOCSO/EIS) and salary structures.', 'screen' => 'payroll', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
+            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'screen' => 'payroll', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
         }
 
         // Review & launch — always last.
@@ -127,7 +127,7 @@ class SetupController extends Controller
         ];
 
         if ($this->payrollEnabled()) {
-            $statuses['payroll_setup'] = StatutoryRate::count() > 0;
+            $statuses['payroll_setup'] = SalaryStructure::count() > 0;
         }
 
         return $statuses;

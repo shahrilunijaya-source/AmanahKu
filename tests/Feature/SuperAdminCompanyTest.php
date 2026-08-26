@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\CompanyCategory;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\PayrollItem;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\MemberInvited;
@@ -95,6 +96,12 @@ class SuperAdminCompanyTest extends TestCase
 
         // Matching employee record exists in the tenant.
         $this->assertSame(1, Employee::where('tenant_id', $tenant->id)->where('user_id', $admin->id)->count());
+
+        // The pay-item catalogue is seeded automatically — no manual seeder run needed.
+        $this->assertSame(
+            count(PayrollItem::SYSTEM_ITEMS),
+            PayrollItem::where('tenant_id', $tenant->id)->count()
+        );
     }
 
     public function test_provisioning_emails_the_first_admin_their_credentials(): void

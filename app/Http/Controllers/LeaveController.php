@@ -322,7 +322,10 @@ class LeaveController extends Controller
             return ['spend' => $days, 'unpaid' => 0.0, 'overflow' => null];
         }
 
-        $unpaid = LeaveType::where('name', 'Unpaid')->first();
+        // is_unpaid, not a name match — a company renaming this type (or seeding it in
+        // Malay) must not silently stop overflow from converting to unpaid leave. See the
+        // 2026_08_25_210000 migration.
+        $unpaid = LeaveType::where('is_unpaid', true)->first();
 
         if (! $unpaid) {
             AuditLog::record('Leave over balance', $leaveRequest->employee->name.' · '

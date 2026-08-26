@@ -4,102 +4,239 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\Employee;
+use App\Models\SalaryStructure;
+
 /**
- * PCB / MTD (Monthly Tax Deduction) estimator — resident individual.
+ * PCB / MTD (Monthly Tax Deduction) — LHDN Computerized Calculation Method, 2026.
  *
- * ⚠️ SIMPLIFIED ANNUALISED METHOD. This annualises the month's taxable income, applies
- * the progressive resident bands less reliefs, and divides by 12. It does NOT implement
- * LHDN's full Computerised Calculation Method (accumulated remuneration, prior MTD paid,
- * zakat, optional reliefs, additional remuneration formula). Use it as an ESTIMATE that
- * HR reviews — PCB remains overridable per payslip, and auto-PCB is OFF by default.
- * Verify against the official LHDN MTD spec / PCB calculator before relying on it (I-016).
+ * Implements the full year-to-date method from docs/statutory/spesifikasi-kaedah-
+ * pengiraan-berkomputer-pcb-2026.pdf: section D for the normal- and additional-
+ * remuneration formulas, section E for rounding/truncation and the under-RM10 rule.
+ * Verified end to end against Exhibit 5's four-month worked example (see
+ * tests/Unit/PcbCalculatorTest.php) — every intermediate P and K2 value it prints
+ * is reproduced exactly.
  *
- * Bands below are the YA2024 resident individual chargeable-income rates (public LHDN
- * schedule). Editable via the rate config; treated as a default, not gospel.
+ * Only the normal-remuneration and additional-remuneration formulas (D.b.1 and D.b.2)
+ * and the non-resident flat rate (D.a) are implemented. REP, Knowledge Worker, and
+ * C-Suite categories (D.b.3–5) are separate, rarer regimes not covered here — add them
+ * the same way if a tenant needs them.
  */
 final class PcbCalculator
 {
-    public const IS_PLACEHOLDER = true;
+    /**
+     * PCB/MTD category (spec's own definitions): 1 = single; 2 = married, spouse not
+     * working; 3 = married with a working spouse, divorced, widowed, or single with an
+     * adopted child. Also the same "Category of Employee" field 4 wants on the C.P.8D
+     * text file (Cp8dData) — one derivation, reused everywhere it's needed rather than
+     * re-derived. spouse_working is genuine payroll-specific nuance (not a personal-
+     * status fact), so it stays on SalaryStructure rather than Employee.
+     */
+    public static function categoryFor(Employee $employee, ?SalaryStructure $structure): int
+    {
+        // Larastan false-positives "nullsafe.neverNull" here even though $structure is
+        // genuinely ?SalaryStructure — written as an explicit null check to sidestep it.
+        $spouseWorking = ($structure !== null ? $structure->spouse_working : null) ?? false;
 
-    /** Standard individual relief (RM9,000) used when no relief override is supplied. */
-    public const DEFAULT_INDIVIDUAL_RELIEF = 9000.0;
+        return match (true) {
+            ($employee->marital_status ?? 'single') === 'married' && ! $spouseWorking => 2,
+            ($employee->marital_status ?? 'single') === 'married',
+            ($employee->marital_status ?? 'single') === 'divorced',
+            ($employee->marital_status ?? 'single') === 'widowed' => 3,
+            default => 1,
+        };
+    }
 
-    /** EPF/life-insurance relief cap (RM4,000) applied to annual employee EPF. */
-    public const DEFAULT_EPF_RELIEF_CAP = 4000.0;
+    /** Non-resident MTD: a flat percentage of remuneration, no reliefs (spec D.a). */
+    private const NON_RESIDENT_RATE = 0.30;
+
+    /** Annual cap on EPF/approved-scheme relief that feeds K2 (spec E.14.i.d). */
+    private const EPF_RELIEF_CAP = 4000.0;
+
+    /** Fixed reliefs, spec E.14.i (a, b, e, f). Per-child (Q) is applied separately. */
+    private const INDIVIDUAL_RELIEF = 9000.0;
+
+    private const SPOUSE_RELIEF = 4000.0;
+
+    private const DISABLED_INDIVIDUAL_RELIEF = 7000.0;
+
+    private const DISABLED_SPOUSE_RELIEF = 6000.0;
+
+    private const CHILD_RELIEF = 2000.0;
+
+    /** Below this, no deduction is made at all (spec E.3/E.4). */
+    private const NO_DEDUCTION_THRESHOLD = 10.0;
 
     /**
-     * Resident individual bands: [upper chargeable-income bound, marginal rate %].
-     * The final entry uses PHP_INT_MAX as an open top band.
+     * Table 1 (spec D.b.1): [upper P bound, M, R%, B for category 1 & 3, B for category 2].
+     * The implicit band below RM5,001 has no entry — P at or under RM5,000 owes no MTD.
      *
-     * @var array<int, array{0: float, 1: float}>
+     * @var array<int, array{0: int|float, 1: int|float, 2: int|float, 3: int|float, 4: int|float}>
      */
-    public const BANDS = [
-        [5000, 0],
-        [20000, 1],
-        [35000, 3],
-        [50000, 6],
-        [70000, 11],
-        [100000, 19],
-        [400000, 25],
-        [600000, 26],
-        [2000000, 28],
-        [PHP_INT_MAX, 30],
+    private const TABLE_1 = [
+        [20000, 5000, 1, -400, -800],
+        [35000, 20000, 3, -250, -650],
+        [50000, 35000, 6, 600, 600],
+        [70000, 50000, 11, 1500, 1500],
+        [100000, 70000, 19, 3700, 3700],
+        [400000, 100000, 25, 9400, 9400],
+        [600000, 400000, 26, 84400, 84400],
+        [2000000, 600000, 28, 136400, 136400],
+        [PHP_INT_MAX, 2000000, 30, 528400, 528400],
     ];
 
-    /** Rebate for low chargeable income (RM400 when chargeable ≤ RM35,000). */
-    private const LOW_INCOME_REBATE_THRESHOLD = 35000.0;
-
-    private const LOW_INCOME_REBATE = 400.0;
-
-    /** Progressive annual tax on a chargeable income, before rebates. */
-    public function annualTax(float $chargeable): float
+    public function calculate(PcbInputs $in): PcbResult
     {
-        $chargeable = max(0.0, $chargeable);
-        $tax = 0.0;
-        $lower = 0.0;
-
-        foreach (self::BANDS as [$upper, $rate]) {
-            if ($chargeable <= $lower) {
-                break;
-            }
-            $slice = min($chargeable, (float) $upper) - $lower;
-            $tax += $slice * ($rate / 100);
-            $lower = (float) $upper;
+        if (! $in->isResident) {
+            return $this->calculateNonResident($in);
         }
 
-        return round($tax, 2);
+        $reliefs = $this->reliefs($in);
+        $n = $in->monthsRemainingAfterCurrent;
+
+        // Step 1 — MTD on normal remuneration only (Yt – Kt excluded, per the spec's own
+        // worked example: "Where (Yt – Kt) = 0"). This is the whole calculation when there
+        // is no additional remuneration this month.
+        $k2Normal = $this->k2($in->ytdEpfK, $in->currentEpfK1, 0.0, $n);
+        $pNormal = $this->truncate(
+            ($in->ytdGrossY - $in->ytdEpfK)
+            + ($in->currentGrossY1 - $in->currentEpfK1)
+            + ($in->currentGrossY1 - $k2Normal) * $n
+            - $reliefs
+        );
+        $normalMtdRaw = $this->truncate($this->taxOn($pNormal, $in->category, $n, $in->ytdZakatZ + $in->ytdMtdPaidX));
+        $normalMtd = $this->applyThreshold($normalMtdRaw);
+        $netNormalMtd = max(0.0, $normalMtd - $in->currentZakat);
+
+        if ($in->currentAdditionalGrossYt === 0.0 && $in->currentAdditionalEpfKt === 0.0) {
+            return new PcbResult($normalMtd, $netNormalMtd, 0.0, $netNormalMtd, $pNormal, $k2Normal);
+        }
+
+        // Step 1[E] — projected MTD for the year on normal remuneration alone.
+        $totalMtdForYearNormal = $in->ytdMtdPaidX + $normalMtd * ($n + 1);
+
+        // Step 2 — chargeable income for the year including this month's additional
+        // remuneration; K2 is recomputed with Kt now in the EPF pool (spec E.13.iii).
+        $k2Combined = $this->k2($in->ytdEpfK, $in->currentEpfK1, $in->currentAdditionalEpfKt, $n);
+        $pCombined = $this->truncate(
+            ($in->ytdGrossY - $in->ytdEpfK)
+            + ($in->currentGrossY1 - $in->currentEpfK1)
+            + ($in->currentGrossY1 - $k2Combined) * $n
+            + ($in->currentAdditionalGrossYt - $in->currentAdditionalEpfKt)
+            - $reliefs
+        );
+
+        // Step 3 — total tax for the year on the combined chargeable income (no ÷(n+1), no Z/X).
+        [$m, $r, $b] = $this->bandFor($pCombined, $in->category);
+        $totalTaxForYear = $this->truncate(($pCombined - $m) * $r / 100 + $b);
+
+        // Step 4 — the additional-remuneration MTD is the difference, plus zakat already paid.
+        $additionalMtdRaw = $this->truncate($totalTaxForYear - ($totalMtdForYearNormal + $in->ytdZakatZ));
+        $additionalMtd = $this->applyThreshold($additionalMtdRaw);
+
+        // Step 5 — what actually gets deducted this month.
+        $totalPayable = $netNormalMtd + $additionalMtd;
+
+        return new PcbResult($normalMtd, $netNormalMtd, $additionalMtd, $totalPayable, $pCombined, $k2Combined);
+    }
+
+    /** Non-resident: flat 30% of remuneration, no reliefs, no P/M/R/B table (spec D.a). */
+    private function calculateNonResident(PcbInputs $in): PcbResult
+    {
+        $normalMtd = round($in->currentGrossY1 * self::NON_RESIDENT_RATE, 2);
+        $additionalMtd = round($in->currentAdditionalGrossYt * self::NON_RESIDENT_RATE, 2);
+        $netNormalMtd = max(0.0, $normalMtd - $in->currentZakat);
+
+        return new PcbResult($normalMtd, $netNormalMtd, $additionalMtd, $netNormalMtd + $additionalMtd, 0.0, 0.0);
     }
 
     /**
-     * Estimated monthly PCB for a given monthly taxable income.
+     * K2 — estimated EPF/approved-scheme contribution for each of the remaining months:
+     * min( (4,000 − (K + K1 + Kt)) / n , K1 ), never negative (spec D.b.1, "Where" note).
+     */
+    private function k2(float $ytdEpfK, float $currentEpfK1, float $kt, int $n): float
+    {
+        if ($n <= 0) {
+            return 0.0;
+        }
+
+        $estimate = $this->truncate((self::EPF_RELIEF_CAP - ($ytdEpfK + $currentEpfK1 + $kt)) / $n);
+
+        return max(0.0, min($estimate, $currentEpfK1));
+    }
+
+    /** [D + S + DU + SU + QC + (∑LP + LP1)] — spec E.14.i, category rules in D.b.1. */
+    private function reliefs(PcbInputs $in): float
+    {
+        // Category 1 (single) has no spouse and, per the spec's own category definition,
+        // no child relief through this formula (S = 0, C = 0) — category 3 covers a single
+        // parent with an adopted child instead.
+        $children = $in->category === 1 ? 0 : $in->qualifyingChildren;
+        $spouse = $in->category === 2 ? self::SPOUSE_RELIEF : 0.0;
+
+        return self::INDIVIDUAL_RELIEF
+            + $spouse
+            + ($in->disabledIndividual ? self::DISABLED_INDIVIDUAL_RELIEF : 0.0)
+            + ($in->disabledSpouse ? self::DISABLED_SPOUSE_RELIEF : 0.0)
+            + self::CHILD_RELIEF * $children
+            + $in->ytdOptionalDeductions + $in->currentOptionalDeductions;
+    }
+
+    /**
+     * [(P – M) R + B – (Z + X)] / (n+1) — used for the normal MTD only.
      *
-     * @param  float  $monthlyTaxable  This month's taxable pay (e.g. gross).
-     * @param  float  $annualRelief  Total annual relief to deduct (individual + EPF + …).
-     * @param  array{rebate?: bool}  $opts
+     * The spec's own prose formula reads "[(P – M) R + B] / (n+1) – (Z + X)", which places
+     * (Z + X) outside the division. But Exhibit 5's worked examples only reproduce (e.g.
+     * February: RM47,000 P, RM110 paid in January, answer RM110) when (Z + X) is subtracted
+     * INSIDE the division — confirmed by re-deriving the fraction bar's actual span in the
+     * PDF's own layout. Followed the worked numbers over the prose per the task brief.
      */
-    public function monthlyEstimate(float $monthlyTaxable, float $annualRelief, array $opts = []): float
+    private function taxOn(float $p, int $category, int $n, float $zPlusX): float
     {
-        $annualIncome = max(0.0, $monthlyTaxable) * 12;
-        $chargeable = max(0.0, $annualIncome - max(0.0, $annualRelief));
+        [$m, $r, $b] = $this->bandFor($p, $category);
 
-        $annualTax = $this->annualTax($chargeable);
+        return (($p - $m) * $r / 100 + $b - $zPlusX) / ($n + 1);
+    }
 
-        if (($opts['rebate'] ?? true) && $chargeable > 0 && $chargeable <= self::LOW_INCOME_REBATE_THRESHOLD) {
-            $annualTax = max(0.0, $annualTax - self::LOW_INCOME_REBATE);
+    /** @return array{0: float, 1: float, 2: float} [M, R, B] */
+    private function bandFor(float $p, int $category): array
+    {
+        if ($p <= 5000.0) {
+            return [0.0, 0.0, 0.0];
         }
 
-        return round(max(0.0, $annualTax) / 12, 2);
+        foreach (self::TABLE_1 as [$upper, $m, $r, $bCat13, $bCat2]) {
+            if ($p <= $upper) {
+                return [$m, $r, $category === 2 ? $bCat2 : $bCat13];
+            }
+        }
+
+        // Unreachable: the last band's upper bound is PHP_INT_MAX.
+        return [0.0, 0.0, 0.0];
     }
 
     /**
-     * Convenience: annual relief from the standard individual relief plus capped annual
-     * employee EPF. Mirrors how HR would build the relief figure for the estimate.
+     * Spec E.3/E.4: below RM10, no deduction; at or above, round up to the nearest 5 or 10
+     * cents (spec E.2). Working in nickels (×20) turns both cent-rounding cases into one
+     * ceiling: 1–4c → 5c and 6–9c → 10c are both "round up to the next multiple of 5c".
      */
-    public function standardAnnualRelief(float $monthlyEpfEmployee, ?float $individualRelief = null, ?float $epfCap = null): float
+    private function applyThreshold(float $amount): float
     {
-        $individual = $individualRelief ?? self::DEFAULT_INDIVIDUAL_RELIEF;
-        $cap = $epfCap ?? self::DEFAULT_EPF_RELIEF_CAP;
+        if ($amount < self::NO_DEDUCTION_THRESHOLD) {
+            return 0.0;
+        }
 
-        return round($individual + min($monthlyEpfEmployee * 12, $cap), 2);
+        $nickels = round($amount * 20, 6);
+
+        return ceil($nickels - 1e-9) / 20;
+    }
+
+    /** Spec E.1: truncate to 2 decimals, don't round. 123.4534 → 123.45. */
+    private function truncate(float $value): float
+    {
+        $scaled = round($value * 100, 6);
+        $sign = $scaled < 0 ? -1.0 : 1.0;
+
+        return $sign * floor(abs($scaled) + 1e-9) / 100;
     }
 }

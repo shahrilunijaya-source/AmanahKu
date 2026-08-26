@@ -186,6 +186,9 @@ class LeaveSetupController extends Controller
             LeaveType::create([
                 'tenant_id' => $tid, 'name' => $x[0], 'entitlement' => $x[1],
                 'requires_attachment' => $x[2], 'is_unplanned' => $x[3], 'min_notice_days' => $x[4],
+                // Payroll's unpaid-leave pull matches this flag, not the name — see the
+                // 2026_08_25_210000 migration.
+                'is_unpaid' => $x[0] === 'Unpaid',
             ]);
             $added++;
         }
