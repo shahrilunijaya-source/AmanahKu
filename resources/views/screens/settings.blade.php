@@ -60,6 +60,10 @@
                 </div>
             </div>
 
+            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? \"Employer's TIN (LHDN)\" : 'TIN Majikan (LHDN)'">Employer's TIN (LHDN)</label>
+            <input name="employer_tin" value="{{ old('employer_tin', $company->employer_tin) }}" placeholder="C1234567890" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
+            @include('partials.hint', ['en' => 'Required on Form EA and Form E. Enter without the "E" prefix — it is added automatically on printed forms.', 'ms' => 'Diperlukan pada Borang EA dan Borang E. Masukkan tanpa awalan "E" — ia ditambah secara automatik pada borang yang dicetak.'])
+
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Website' : 'Laman web'">Website</label>
             <input name="website" value="{{ old('website', $company->website) }}" placeholder="https://" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
 

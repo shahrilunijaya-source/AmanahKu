@@ -17,6 +17,7 @@ use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\EaFormController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
@@ -517,6 +518,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
         // Bulk payslip PDF for a finalized run — HR/management only.
         Route::get('/app/payroll/runs/{run}/payslips-pdf', [PayrollPdfController::class, 'bulk'])->name('payroll.export.payslips-pdf');
+        // Form EA — HR-only on-screen incomplete-box preview, per-employee PDF (own for
+        // anyone, any employee for HR/management), and the bulk PDF (HR/management only).
+        Route::get('/app/payroll/employees/{employee}/ea-form/{year}', [EaFormController::class, 'show'])
+            ->whereNumber(['employee', 'year'])->name('payroll.ea-form.show');
+        Route::get('/app/payroll/employees/{employee}/ea-form/{year}/pdf', [EaFormController::class, 'pdf'])
+            ->whereNumber(['employee', 'year'])->name('payroll.ea-form.pdf');
+        Route::get('/app/payroll/ea-forms/{year}', [EaFormController::class, 'bulk'])
+            ->whereNumber('year')->name('payroll.export.ea-forms');
 
         // App shell — all screens render through one controller action. Two gates run
         // only here (the staff navigation funnel), never on write-paths: system.launched

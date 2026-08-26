@@ -1,0 +1,380 @@
+         EA & EC GUIDE NOTES
+        REMUNERATION FOR THE
+              YEAR 2024
+
+
+
+
+        Form C.P.8A (EA) &
+         Form C.P.8C (EC)
+
+
+
+
+TOGETHER WE DEVELOP THE NATION
+             GUIDE NOTES FOR COMPLETING FORMS C.P.8A (EA) AND C.P.8C (EC)
+
+
+In accordance with subsection 83(1A) of the Income Tax Act 1967 (ITA 1967), the Form C.P.8A / C.P.8C must
+be prepared and rendered to the employees on or before 28 February 2025 to enable them to complete and
+submit their respective Return Form within the stipulated period.
+
+1. If the employer is a company or a body of persons, the manager or principal officer, partner and sole
+    proprietor, is deemed as an employer for the purpose of this return.
+
+2. The amount to be specified is the gross amount paid and/or payable to the employee or on behalf of the
+    employee in respect of his employment for the year ended 31 December 2024.
+
+3. Under subsection 13(1) of ITA 1967, the gross income from employment INCLUDES:
+    (a)    Paragraph 13(1)(a)
+           Wages, salary, overtime pay / allowance, remuneration, leave pay, fee, commission, bonus,
+           gratuity, tip, perquisite, tax allowance / tax borne by the employer, award, reward or allowance
+           (whether in money or otherwise). For the purpose of Forms C.P.8A and C.P.8C, subsistence
+           allowances which are exclusively reimbursements for expenditure incurred by the employee in the
+           course of performing his duties are excluded.
+           Reference: Public Ruling No. 5/2019 - Perquisites From Employment
+                      Public Ruling No. 3/2024 - Tax Borne By Employers
+                      Public Ruling No. 9/2016 - Gratuity
+                      Public Ruling No. 11/2012 (Original and Amended)-Employee Share Scheme Benefit
+
+    (b)    Paragraph 13(1)(b)
+           Benefits in kind are benefits / amenities not convertible into money. These benefits are provided
+           by / on behalf of the employer for the personal enjoyment by the employee, wife, family, servants,
+           dependents or guests of that employee.
+            Reference: Public Ruling No. 11/2019 - Benefits In Kind
+
+    (c)    Paragraph 13(1)(c)
+           An amount in respect of the use or enjoyment by the employee of living accommodation in
+           Malaysia provided by or on behalf of the employer rent free or otherwise.
+           Reference: Guideline For Computation Of The Value Of Living Accommodation Provided For The
+                                                  Employee By The Employer (enclosed),
+                      Public Ruling No. 3/2005 (Original and Addendum) – Living Accommodation Benefit
+                                                  Provided For The Employee By The Employer
+
+    (d)    Paragraph 13(1)(d)
+           So much of any amount received by the employee from an unapproved pension or provident fund,
+           scheme or society (employer’s portion only) as would not have been so received if his employer
+           had not made contributions in respect of the employee to the fund, scheme or society or its
+           trustees.
+
+    (e)    Paragraph 13(1)(e)
+           Any amount received by the employee by way of compensation for loss of the employment,
+           whether before or after his employment ceases.
+            Reference: Public Ruling No. 1/2012      - Compensation For Loss Of Employment
+
+
+
+
+                                                    1
+4. (a)     Gross income in respect of employment includes any amount received not only for any period
+           during which the employment is exercised in Malaysia but also for any period of leave attributable
+           to the exercise of the employment in Malaysia and for any period during which the employee
+           performs outside Malaysia duties incidental to the exercise of the employment in Malaysia.
+
+   (b)     Gross income of a Malaysian citizen in respect of employment in the public service or service of a
+           statutory authority includes the amount receivable for any period during which the employment is
+           exercised outside Malaysia and for any period of leave attributable to the exercise of the
+           employment outside Malaysia.
+
+   (c)     Where gross income from an employment is not receivable in respect of any particular period and
+           first becomes receivable in the year when this return is prepared, the amount has to be included
+           in this return.
+
+5. With effect from year of assessment 2016, any gross income from employment in respect of any period
+   shall be taxed in the year in which it is received [subsection 25(1) ITA 1967]. This includes arrears and
+   any other remuneration for preceding years, employment income paid in advance for the relevant year,
+   bonus and director’s fee, which when paid in the basis year, shall be declared in Part B of Form C.P.8A /
+   C.P.8C for the basis year.
+
+6. Approved donations / gifts / contributions via salary deduction
+   Reference: Public Ruling No. 4/2024      - Taxation Of A Resident Individual Part I - Gifts Or
+                                              Contributions And Allowable Deductions
+
+7. Contribution paid by employee to Social Security Organization (SOCSO)
+   The contribution amount paid to SOCSO in accordance with Employee’s Social Security Act 1969 or
+   the Employment Insurance System Act 2017 if the contribution is made through Employemt Insurance
+   Scheme (SIP).
+
+8. Tax exempt allowances / perquisites / gifts / benefits
+   Please refer to the explanation in item O on pages 6 and 7 of the Form E Explanatory Notes.
+
+
+
+
+                                                    2
+    GUIDELINE FOR COMPUTATION OF THE VALUE OF LIVING ACCOMMODATION BENEFIT
+          PROVIDED TO THE EMPLOYEE BY THE EMPLOYER [PARAGRAPH 13(1)(c)]
+COMPUTATION OF THE VALUE OF LIVING ACCOMMODATION BENEFIT
+Where an employer provides living accommodation for the use or enjoyment by his employee, the value of
+living accommodation benefit determined is to be taken as part of his employee’s gross employment income
+under paragraph 13(1)(c) of ITA 1967.
+With effect from year of assessment 2009, gross perquisite income in respect of the right to acquire shares
+in a company shall be excluded from the gross employment income under paragraph 13(1)(a) when
+computing the value of living accommodation benefit.
+Refer to Public Ruling No. 3/2005 (Original and Addendum issued on 11th August 2005 and 5th February
+2009 respectively) regarding computation.
+The value of the living accommodation benefit is determined as follows:
+(i) Category 1 - 3% x Gross employment income under paragraph 13(1)(a) EXCLUDING gross
+                              income in respect of any right to acquire shares in a company *.
+(ii) Category 2 - 30% x Gross employment income under paragraph 13(1)(a) EXCLUDING gross
+                              income in respect of any right to acquire shares in a company * OR the Defined
+                              value, whichever is lower
+(iii) Category 3 - Defined value
+For the following examples:-
+ * Gross employment income [paragraph 13(1)(a)] EXCLUDING gross income
+    in respect of any right to acquire shares in a company                                          =     T
+    Value of the living accommodation benefit                                                       =     Z
+    Period for which the living accommodation is provided                                           =     n
+    Length of employment                                                                            =     m
+    Portion of the living accommodation provided                                                    =     X
+    Living accommodation provided as a whole                                                        =     Y
+ ** Defined value (refer to footnote on page 6)                                                     =     F
+
+CATEGORY 1: Living accommodation provided for employee (other than officer of a Government /
+            Statutory Body) or service director
+Living accommodation provided in a:
+- Hotel, hostel or similar premise; or
+- Premise on a plantation, in a forest or any premise which although in a rateable area, is not subject to public rates).
+Value of living accommodation benefit = 3% x Gross employment income under paragraph 13(1)(a)
+                                             EXCLUDING gross income in respect of any right to
+                                             acquire shares in a company *
+
+Example I:
+- Gross employment income *                                             RM36,000 (T)
+- Period for which the living accommodation is provided                 12 months (n)
+- Length of employment in the current year                              12 months (m)
+Computation of the value of living accommodation benefit:
+Value of living accommodation benefit (Z) = 3%      x    T                       x      n/m
+                                          = 3/100   x 36,000                     x     12/12
+                                          = RM1,080
+The taxable value of living accommodation benefit (Z) = RM1,080
+Transfer amount Z to item C Working Sheet HK-2
+
+
+
+
+                                                          3
+Example II:
+If the living accommodation is provided for less than 12 months in a year, the value of the living
+accommodation is calculated based on the period the living accommodation is provided.
+
+- Gross employment income *                                        RM150,000 (T)
+- Period for which the living accommodation is provided            7 months   (n)
+- Length of employment in the current year                         9 months   (m)
+
+Computation of the value of living accommodation benefit:
+Value of living accommodation benefit (Z)   =   3%            x       T       x     n/m
+                                            =   3/100         x    150,000    x     7/9
+                                            =   RM3,500
+
+The taxable value of living accommodation benefit (Z) = RM3,500
+Transfer amount Z to item C Working Sheet HK-2
+
+CATEGORY 2: Living accommodation provided for employee (other than officer of a Government /
+            Statutory Body) or service director
+
+  Value of living accommodation benefit = 30% x Gross employment income under paragraph 13(1)(a)
+                                                EXCLUDING gross income in respect of any right to
+                                                acquire shares in a company *
+ Or
+ Defined value, whichever is lower
+
+
+Example I: Living accommodation is not shared with any other employee
+- Gross employment income *                                       RM150,000         (T)
+- Period for which the living accommodation is provided           12 months         (n)
+- Length of employment in the current year                        12 months         (m)
+- Rental of the living accommodation provided                     RM2,000 per month
+- Defined value [2,000 x 12 months (m)]                           RM24,000          (F)
+
+Computation of the value of living accommodation benefit:
+                                              30%         x          T
+                                            = 30/100      x       150,000
+                                            = RM45,000                         whichever is lower
+
+OR                                          = F
+                                            = RM24,000
+
+Value of living accommodation benefit (Z) = 24,000        x         n/m
+                                          = 24,000        x        12/12
+                                          = RM24,000
+
+The taxable value of living accommodation benefit (Z) = RM24,000
+Transfer amount Z to item C Working Sheet HK-2
+
+
+
+
+                                                     4
+Example II: Living accommodation is shared equally with another employee
+- Gross employment income *                                                    RM150,000       (T)
+- Period for which the living accommodation is provided                        9 months        (n)
+- Length of employment in the current year                                     9 months        (m)
+- Rental of the living accommodation provided                                  RM3,000 per month
+- 2 persons sharing - portion of living accommodation provided                 1               (X)
+                      - living accommodation provided as a whole               2               (Y)
+- Defined value [3,000 x 9 months (m)]                                         RM27,000        (F)
+Computation of the value of living accommodation benefit:
+                                            30%            x        T
+                                          = 30/100         x     150,000
+                                          = RM45,000
+                                                                               whichever is lower
+OR                                        = F              x       X/Y
+                                          = 27,000         x       1/2
+                                          = RM13,500
+
+Value of living accommodation benefit (Z) = 13,500         x       n/m
+                                          = 13,500         x       9/9
+                                         = RM13,500
+The taxable value of living accommodation benefit (Z) = RM13,500
+Transfer amount Z to item C Working Sheet HK-2
+
+Example III:     Part of the living accommodation provided is for official use
+- Gross employment income *                                                RM100,000                 (T)
+- Period for which the living accommodation is provided                    9 months                  (n)
+- Length of employment in the current year                                 12 months                 (m)
+- Rental of the living accommodation provided                              RM4,000 per month
+- 1/3 is for official use -   Portion of living accommodation provided     2                         (X)
+                          -   Living accommodation provided as a whole     3                         (Y)
+- Defined value [4,000 x 12 months (m)]                                    RM48,000                  (F)
+
+Computation of the value of living accommodation benefit:
+                                        30%          x              T
+                                      = 30/100       x           100,000
+                                      = RM30,000
+                                                                                   whichever is lower
+OR                                       = F               x       X/Y
+                                         = 48,000          x       2/3
+                                         = RM32,000
+
+Value of living accommodation benefit (Z) = 30,000         x       n/m
+                                          = 30,000         x       9/12
+                                          = RM22,500
+The taxable value of living accommodation benefit (Z) = RM22,500
+Transfer amount Z to item C Working Sheet HK-2
+
+                                                     5
+CATEGORY 3: Living accommodation provided for directors of controlled companies
+For the director of a controlled company, the value of the living accommodation benefit shall be the defined
+value of the living accommodation provided. There is no comparison with 30% of the gross employment
+income under paragraph 13(1)(a) which EXCLUDES the amount of gross income in respect of the right to
+acquire shares in a company *.
+
+Example I: Living accommodation is not shared
+
+- Gross employment income *                                           RM200,000            (T)
+- Period for which the living accommodation is provided               9 months             (n)
+- Length of employment in the current year                            10 months            (m)
+- Rental of the living accommodation provided                         RM3,000 per month
+- Defined value [3,000 x 10 months (m)]                               RM30,000             (F)
+
+Computation of the value of living accommodation benefit:
+Value of living accommodation benefit (Z) = F                  x      n/m
+                                          = 30,000             x      9/10
+                                          = RM27,000
+
+The taxable value of living accommodation benefit (Z) = RM27,000
+Transfer amount Z to item C Working Sheet HK-2
+
+Example II:      Living accommodation is shared equally with another director / employee
+- Gross employment income *                                                  RM200,000            (T)
+- Period for which the living accommodation is provided                      12 months            (n)
+- Length of employment in the current year                                   12 months            (m)
+- Rental of the living accommodation provided                                RM3,000 per month
+- 2 persons sharing - portion of living accommodation provided               1                    (X)
+                       - living accommodation provided as a whole            2                    (Y)
+- Defined value [3,000 x 12 months (m)]                                      RM36,000             (F)
+
+Computation of the value of living accommodation provided:
+Value of living accommodation benefit (Z)   =   36,000         x     X/Y     x      n/m
+                                            =   36,000         x     1/2     x     12/12
+                                            =   RM18,000
+The taxable value of living accommodation benefit (Z) = RM18,000
+Transfer amount Z to item C Working Sheet HK-2
+
+** DEFINED VALUE:
+   (i)    where the accommodation is not affected by any written law providing for the restriction or control
+          of rents and the person so providing the accommodation holds the accommodation on lease, the
+          rent which is or would have been paid if the accommodation is or had been unfurnished and the
+          lessor and the lessee were independent persons dealing at arm’s length.
+   (ii)   in any other case, the rateable value or, in the absence of rateable value, the economic rent.
+   Where the rental includes the rental of furniture, the amount used to compute the defined value shall be
+   net of the rental of furniture. The rental of furniture is a benefit-in-kind [paragraph 13(1)(b) ITA 1967].
+
+                                                     6
+NOTES FOR PART F OF FORM EA: LIST OF TAX EXEMPT ALLOWANCES / PERQUISITES / GIFTS / BENEFITS WHICH ARE REQUIRED TO DECLARE
+
+                                                                                                                                  EXEMPTION LIMIT
+ NO.                                                          SUBJECT
+                                                                                                                                    (PER YEAR)
+ 1.       Petrol allowance, travelling allowance or toll payment or any of its combination for official duties. If the amount
+          received exceeds RM6,000 a year, the employee can make a further deduction in respect of the amount spent
+                                                                                                                                        RM6,000
+          for official duties. Records pertaining to the claim for official duties and the exempted amount must be kept for a
+          period of seven years for audit purpose.
+ 2.       Child care allowance in respect of children up to 12 years of age.                                                            RM3.000
+ 3.       (a) Gift of fixed line telephone, mobile phone, pager or Personal Digital Assistant (PDA) including the cost of
+              registration and installation registered in the name of the employee.                                             Limited to only 1 unit for
+          (b) Gift of fixed line telephone, mobile phone, pager or Personal Digital Assistant (PDA) including the cost of       each category of assets
+              registration and installation registered in the name of the employer.
+ 4.       (a) Monthly bills for fixed line telephone, mobile phone, pager, PDA or subscription of broadband including the
+              cost of registration and installation registered in the name of the employee.
+          (b) Monthly bills for fixed line telephone, mobile phone, pager, PDA or subscription of broadband including the       Limited to only 1 line for
+              cost of registration and installation registered in the name of the employer.                                     each category of assets
+          Note: Where an employee receives a fixed allowance for telephone, the full amount of the telephone allowance
+                is taxable.
+ 5.       The amount received by employees for the purpose on obtaining a smartphone or tablet or personal computer.             Limited to an amount
+          [P.U. (A) 134/2021 dan P.U. (A) 30/2021 – from year of assessment 2020]                                               not exceeding RM5,000
+ 6.       Perquisite (whether in money or otherwise) provided to the employee pursuant to his employment in respect
+          of:-
+          (i)   past achievement award;                                                                                                 RM2,000
+          (ii)  service excellence award, innovation award or productivity award; or
+          (iii) long service award (provided that the employee has exercised an employment for more than 10 years
+                with the same employer).
+ 7.       Parking rate and parking allowance. This includes parking rate paid by the employer directly to the parking
+          operator.
+                                                                                                                                       Restricted
+ 8.       Meal allowance received on a regular basis and given at the same rate to all employees. Meal allowance                 to the actual amount
+          provided for purposes such as overtime or outstation / overseas trips and other similar purposes in exercising               expended
+          an employment are only exempted if given based on the rate fixed in the internal circular or written instruction
+          of the employer.
+ 9.       Subsidised interest for housing, education or car loan is fully exempted from tax if the total amount of loan taken in aggregate does not
+          exceed RM300,000.
+          If the total amount of loan exceeds RM300,000, the amount of subsidized interest to be exempted from tax is limited in accordance with
+          the following formula:
+                                        A     x     B
+                                                    C
+          Where;
+          A =    is the difference between the amount of interest to be borne by the employee and the amount of interest payable by the
+                 employee in the basis period for a year of assessment;
+          B =    is the aggregate of the balance of the principal amount of housing, education or car loan taken by the employee in the basis
+                 period for a year of assessment or RM300, 000, whichever is lower;
+          C =    is the total aggregate of the principal amount of housing, education or car loan taken by the employee.
+      Note:-
+      Exemption of subsidised interest is applicable to:
+       any type of residential property regardless of whether the employee already owns another residential property.
+       education loan which is utilised for the employee’s own education.
+       a motor vehicle other than a motor vehicle licensed for commercial transportation of goods or passengers.
+             THE ABOVE EXEMPTIONS ARE NOT APPLICABLE TO EMPLOYEES HAVING CONTROL OVER THE COMPANY,
+                                   SOLE PROPRIETORS OR PARTNERS OF PARTNERSHIP BUSINESSES
+ Notes:
+ 1. Only tax exempt allowances / perquisites / gifts / benefits / listed above (No. 1 to 9) are required to be declared in Part F of Form EA.
+ 2. Others allowances / perquisites / gifts / benefits which are exempted from tax but not required to be declared in Part F of Form EA are as
+    follows:
+    (i) Consumable business products of the employer provided free of charge or at a partly discounted price to the employee, his spouse and
+         unmarried children. The value of the goods is based on the sales price. Benefits received by the employee from a company within the
+         same group of companies as his employer are not exempted from tax. The exemption is restricted to RM1,000.
+       (ii)  Leave passage for travel (confined only to the cost of fares for the employee and members of his immediate family).
+             (a) within Malaysia (including meals and accomodation) for travel not exceeding 3 times in any calendar year; or
+             (b) outside Malaysia not exceeding one passage in any calendar year, is limited to a maximum of RM3,000.
+       (iii) Service provided free or at a discount by the business of the employer to the employee, his spouse and unmarried children. Benefits
+             received by the employee from a company within the same group of companies as his employer are not exempted from tax.
+       (iv) Tax exempt medical benefits are extended to include traditional medicine and maternity expenses. Traditional medicine means Malay,
+             Chinese and Indian Traditional Medicine given by a medical practitioner registered with bodies which are certified or registered in
+             accordance with the rules governing traditional medicine as laid by the Ministry of Health. Example: Malay traditional massage,
+             ayurvedic or acupuncture. Complimentary medicine and homeopathy such as aromatherapy, reflexology, spa and Thai traditional
+             massage are not included in this exemption.
+       (v) Insurance premiums which are obligatory for foreign workers as a replacement to SOCSO contributions.
+       (vi) Group insurance premium to cover workers in the event of an accident.
+                                                                             7
+
