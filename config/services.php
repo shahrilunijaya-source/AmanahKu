@@ -78,6 +78,20 @@ return [
     ],
 
     /*
+    | Google Calendar sync (one-way, app -> Calendar). Separate from `oidc` above:
+    | that block is a generic OIDC login and never requests Calendar scope. This is
+    | a dedicated Google OAuth client with offline access to
+    | https://www.googleapis.com/auth/calendar.events. "Configured" only when both
+    | client_id and client_secret are present; the connect routes 404 otherwise —
+    | same gating pattern as OidcClient::configured().
+    */
+    'google_calendar' => [
+        'client_id' => env('GOOGLE_CALENDAR_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CALENDAR_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_CALENDAR_REDIRECT_URL'),
+    ],
+
+    /*
     | Sentry's browser SDK key, read by partials/pwa-head.blade.php and used in
     | resources/js/sentry.js. Kept here rather than in config/sentry.php: that file is
     | handed to the PHP SDK verbatim as its option array, so an extra key there makes the
