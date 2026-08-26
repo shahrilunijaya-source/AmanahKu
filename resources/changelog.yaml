@@ -10,7 +10,7 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
-- version: "1.7"
+- version: "1.6"
   date: "2026-08-26"
   entries:
     - tag: added
@@ -25,10 +25,6 @@
     - tag: fixed
       text: "Applying leave over the first Saturday of the month now costs half a day, not a whole day — that Saturday is already a half working day (TOT) everywhere else in the app, and leave now matches."
       text_ms: "Memohon cuti pada Sabtu pertama bulan itu kini mengambil separuh hari, bukan sehari penuh — Sabtu itu sudah pun separuh hari bekerja (TOT) di tempat lain dalam aplikasi, dan cuti kini turut sama."
-
-- version: "1.6"
-  date: "2026-08-26"
-  entries:
     - tag: added
       text: "Forgot to clock out? At the end of the night the app now closes the day for you, at your shift end time. You get a bell telling you it happened, and the day is marked as closed by the app rather than punched by you, so HR can see it and type in a truer time if you were still working. Before this, a day left open never counted at all."
       text_ms: "Terlupa clock out? Pada hujung malam, aplikasi kini menutup hari itu untuk anda, pada waktu tamat syif anda. Anda akan menerima loceng memberitahu ia berlaku, dan hari itu ditanda sebagai ditutup oleh aplikasi, bukan direkod oleh anda, jadi HR boleh melihatnya dan menaip masa yang lebih tepat jika anda masih bekerja. Sebelum ini, hari yang dibiarkan terbuka langsung tidak dikira."
