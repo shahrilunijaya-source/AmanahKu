@@ -19,14 +19,23 @@ class WorkItemObserver
 {
     public function saved(WorkItem $item): void
     {
-        $relevant = $item->wasRecentlyCreated
-            || $item->wasChanged(['employee_id', 'due_at', 'archived_at', 'status']);
+        // Check if any relevant field is currently dirty (has unsaved changes).
+        // Use isDirty() instead of wasChanged() because wasChanged() depends on original
+        // state sync timing, while isDirty() directly checks current vs original regardless
+        // of sync order. Deliberately NOT using wasRecentlyCreated: Laravel sets that flag
+        // true on insert and never resets it back to false on the same in-memory instance
+        // across later save()/update() calls, so it stays stuck true forever — wrongly
+        // treating every later unrelated update as "just created".
+        $relevant = $item->isDirty(['employee_id', 'due_at', 'archived_at', 'status']);
 
         if (! $relevant) {
             return;
         }
 
-        $reassigned = ! $item->wasRecentlyCreated && $item->wasChanged('employee_id');
+        // Genuine reassignment: the field changed (isDirty) AND it had a prior value
+        // (getOriginal is not null). On create, getOriginal('employee_id') is null so
+        // reassigned stays false; on true reassignment, both are true.
+        $reassigned = $item->isDirty('employee_id') && $item->getOriginal('employee_id') !== null;
 
         if ($reassigned) {
             $this->deleteFromOldAssignee($item);
