@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\AppNotification;
 use App\Models\PersonalAccessToken;
+use App\Models\WorkItem;
+use App\Observers\WorkItemObserver;
 use App\Services\Ai\AiProvider;
 use App\Services\Ai\CannedAiProvider;
 use App\Services\Ai\ClaudeAiProvider;
@@ -56,6 +58,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        WorkItem::observe(WorkItemObserver::class);
+
         // Use the tenant-aware token model so /api/v1 calls resolve to the token's tenant.
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
