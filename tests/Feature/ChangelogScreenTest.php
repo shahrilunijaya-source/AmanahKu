@@ -148,9 +148,9 @@ class ChangelogScreenTest extends TestCase
 
     public function test_the_newest_release_announces_the_claude_code_connection(): void
     {
-        $newest = Changelog::releases()[0];
+        $newest = collect(Changelog::releases())->firstWhere('version', '1.7');
 
-        $this->assertSame('1.7', $newest['version']);
+        $this->assertNotNull($newest, 'The 1.7 release entry is gone from the changelog.');
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])

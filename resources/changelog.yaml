@@ -10,6 +10,16 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.8"
+  date: "2026-08-26"
+  entries:
+    - tag: added
+      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
+      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
+      link: "/app/profile"
+      link_text: "Open your profile"
+      link_text_ms: "Buka profil anda"
+
 - version: "1.7"
   date: "2026-08-26"
   entries:
