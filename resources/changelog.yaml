@@ -10,6 +10,19 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
+- version: "1.6"
+  date: "2026-08-26"
+  entries:
+    - tag: added
+      text: "Forgot to clock out? At the end of the night the app now closes the day for you, at your shift end time. You get a bell telling you it happened, and the day is marked as closed by the app rather than punched by you, so HR can see it and type in a truer time if you were still working. Before this, a day left open never counted at all."
+      text_ms: "Terlupa clock out? Pada hujung malam, aplikasi kini menutup hari itu untuk anda, pada waktu tamat syif anda. Anda akan menerima loceng memberitahu ia berlaku, dan hari itu ditanda sebagai ditutup oleh aplikasi, bukan direkod oleh anda, jadi HR boleh melihatnya dan menaip masa yang lebih tepat jika anda masih bekerja. Sebelum ini, hari yang dibiarkan terbuka langsung tidak dikira."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
+    - tag: fixed
+      text: "Working past midnight no longer shows up as \"Left early\". Clocking out after 12am was being compared against the next day's finishing time, so a long night was marked as leaving early and asked you for a reason. Days already marked this way keep the label until HR clears them."
+      text_ms: "Bekerja melepasi tengah malam tidak lagi dipaparkan sebagai \"Balik awal\". Clock out selepas 12 pagi dibandingkan dengan waktu tamat hari berikutnya, jadi malam yang panjang ditanda sebagai balik awal dan meminta sebab daripada anda. Hari yang sudah ditanda begitu akan kekal sehingga HR membetulkannya."
+
 - version: "1.5"
   date: "2026-08-21"
   entries:
