@@ -36,15 +36,24 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * save() persists — locked-day filtering, the in-week date check, normalisation
  * and all — so the preview can never show a week that confirm then refuses or
  * silently stores differently. Days not mentioned in `entries` are shown
- * exactly as they are stored today; that is the whole point of the preview,
- * since a change to one day must never silently drop the rest of the week.
- * A typed row a locked day overrides is dropped from the resulting week, same
- * as save() would drop it, and named in `changes.dropped` so the model can
- * tell the user which days were overridden and why.
+ * exactly as they are stored today; a day that IS mentioned gets its rows
+ * ADDED to (not replaced by) whatever was already saved for that day — see
+ * mergePartialIntoExisting() — since this tool is called once per project
+ * folder, and each call only knows about its own project. Each row in
+ * `changes.resulting_week` is tagged so the model can tell what was already
+ * stored from what this call added. A typed row a locked day overrides is
+ * dropped from the resulting week, same as save() would drop it, and named
+ * in `changes.dropped` so the model can tell the user which days were
+ * overridden and why.
+ *
+ * A merge that would push a day over its capacity (WeekWriter::DayCapacity,
+ * 100% normally, 50% on the TOT Saturday) is refused outright at preview,
+ * and re-checked at confirm since the stored week can change inside the
+ * token's 10-minute TTL.
  */
 #[Name('save_timesheet_draft')]
 #[IsReadOnly]
-#[Description('Preview saving a change to one or more days of YOUR OWN timesheet week, as a draft. Unmentioned days keep whatever is already saved — this tool merges, it never wipes the week. Only works on a draft week (a submitted week is refused). Never submits. Requires timesheets:write. Returns a summary and a confirm_token, with the FULL resulting week shown day by day — nothing is saved until confirm_write is called.')]
+#[Description('Preview saving a change to one or more days of YOUR OWN timesheet week, as a draft. Unmentioned days keep whatever is already saved. A mentioned day gets its rows ADDED to whatever is already saved for that day — this tool merges, it never wipes the week or a day. Re-saving the exact same category/project/sub-pillar line updates that line rather than duplicating it. To deliberately remove a line you did not just type (e.g. correcting a day that was wrongly split across two projects), pass its date in replace_days to fully replace that day instead of merging into it. A day pushed over its capacity (100%, or 50% on the first Saturday of the month) is refused. Only works on a draft week (a submitted week is refused). Never submits. Requires timesheets:write. Returns a summary and a confirm_token, with the FULL resulting week shown day by day — nothing is saved until confirm_write is called.')]
 class SaveTimesheetDraftTool extends Tool
 {
     use PreviewsWrites;
@@ -75,6 +84,8 @@ class SaveTimesheetDraftTool extends Tool
             'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
             'entries.*.percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
+            'replace_days' => ['array'],
+            'replace_days.*' => ['date'],
         ]);
 
         $weekStart = Carbon::parse($data['week_start']);
@@ -87,7 +98,27 @@ class SaveTimesheetDraftTool extends Tool
             return Response::error('This week has already been submitted and cannot be edited.');
         }
 
-        $merged = $this->weekWriter->mergePartialIntoExisting($employee, $weekStart, $data['entries']);
+        $replaceDays = $data['replace_days'] ?? [];
+
+        // Refused before anything else runs — a day pushed over capacity is not
+        // a "resulting week that happens to look wrong", it is a request that
+        // must not be previewed as if it were fine.
+        $capCheck = $this->guarded(function () use ($employee, $weekStart, $data, $replaceDays) {
+            $this->weekWriter->assertMergeWithinCapacity($employee, $weekStart, $data['entries'], $replaceDays);
+
+            return ['ok' => true];
+        });
+        if (isset($capCheck['error'])) {
+            return Response::error($capCheck['error']);
+        }
+
+        $existingKeys = array_map(
+            fn (array $row) => WeekWriter::lineKey($row),
+            $this->weekWriter->existingUserEntries($employee, $weekStart),
+        );
+        $existingKeys = array_flip($existingKeys);
+
+        $merged = $this->weekWriter->mergePartialIntoExisting($employee, $weekStart, $data['entries'], $replaceDays);
 
         // resolveWeek() is the exact same pipeline save() runs (locked-day filtering,
         // the in-week date check, normalisation, the locked-row merge), so the preview
@@ -102,7 +133,8 @@ class SaveTimesheetDraftTool extends Tool
             'employee_id' => $employee->id,
             'week_start' => $weekStart->toDateString(),
             'week_label' => $existing?->week_label,
-            'entries' => $merged,
+            'partial_entries' => $data['entries'],
+            'replace_days' => $replaceDays,
         ];
 
         return $this->preview(
@@ -111,7 +143,7 @@ class SaveTimesheetDraftTool extends Tool
             'Save '.$weekStart->toDateString().' as a draft — resulting week has '.count($resulting).' '.(count($resulting) === 1 ? 'entry' : 'entries').' across '.count($this->byDate($resulting)).' day(s).',
             [
                 'week_start' => $weekStart->toDateString(),
-                'resulting_week' => $this->renderByDate($resulting, $tid),
+                'resulting_week' => $this->renderByDate($resulting, $tid, $existingKeys),
                 'dropped' => $this->renderDropped($result['dropped'], $tid),
             ],
         );
@@ -127,15 +159,27 @@ class SaveTimesheetDraftTool extends Tool
             abort_unless($employee !== null, 403, 'No employee profile in this workspace.');
             abort_unless($employee->id === $payload['employee_id'], 403, 'You can only save your own timesheet.');
 
+            $weekStart = $payload['week_start'];
+            $partialEntries = $payload['partial_entries'];
+            $replaceDays = $payload['replace_days'] ?? [];
+
+            // Re-checked against whatever is stored right now, not trusted from the
+            // preview: the confirm_token can sit for up to ten minutes, long enough
+            // for another save (from this tool, another project folder, or the
+            // browser) to have changed the day in between.
+            $this->weekWriter->assertMergeWithinCapacity($employee, $weekStart, $partialEntries, $replaceDays);
+
+            $merged = $this->weekWriter->mergePartialIntoExisting($employee, $weekStart, $partialEntries, $replaceDays);
+
             $result = $this->weekWriter->save(
                 $employee,
-                $payload['week_start'],
-                $payload['entries'],
+                $weekStart,
+                $merged,
                 $payload['week_label'],
                 false,
             );
 
-            AuditLog::record('Saved timesheet draft'.$this->keySuffix($httpRequest), $payload['week_start'].' · '.count($result['entries']).' entries');
+            AuditLog::record('Saved timesheet draft'.$this->keySuffix($httpRequest), $weekStart.' · '.count($result['entries']).' entries');
 
             return ['ok' => true, 'status' => $result['timesheet']->status, 'entries' => count($result['entries'])];
         });
@@ -153,8 +197,18 @@ class SaveTimesheetDraftTool extends Tool
         return $byDate;
     }
 
-    /** Human-readable day-by-day rendering of the resulting week, for the preview. */
-    private function renderByDate(array $entries, int $tenantId): array
+    /**
+     * Human-readable day-by-day rendering of the resulting week, for the preview.
+     * Each row is tagged so the model can point out a day that GAINED rows rather
+     * than one that merely changed — the whole point of a merge preview is making
+     * that distinction obvious, since the split-day bug this tool exists to avoid
+     * looked exactly like an ordinary, silent, one-line change.
+     *
+     * @param  array<string, int>  $existingKeys  WeekWriter::lineKey() => (irrelevant), for
+     *                                            every row that was ALREADY stored (source=null) before this call, so a row
+     *                                            can be told apart from one this call added or corrected
+     */
+    private function renderByDate(array $entries, int $tenantId, array $existingKeys): array
     {
         $categories = TimesheetCategory::whereIn('id', collect($entries)->pluck('category_id')->filter()->unique())->get()->keyBy('id');
         $projects = Project::whereIn('id', collect($entries)->pluck('project_id')->filter()->unique())->get()->keyBy('id');
@@ -169,6 +223,9 @@ class SaveTimesheetDraftTool extends Tool
                 'project' => ($e['project_id'] ?? null) ? $projects->get($e['project_id'])?->name : null,
                 'percentage' => (float) $e['percentage'],
                 'description' => $e['description'] ?? null,
+                'status' => isset($e['source'])
+                    ? 'locked (holiday/leave, generated)'
+                    : (isset($existingKeys[WeekWriter::lineKey($e)]) ? 'already stored' : 'added by this change'),
             ], $rows);
         }
 
@@ -216,7 +273,8 @@ class SaveTimesheetDraftTool extends Tool
                 'sub_pillar_id' => $schema->integer(),
                 'percentage' => $schema->number(),
                 'description' => $schema->string(),
-            ]))->description('The changed day(s) only. Any day not mentioned here keeps whatever is already saved for that day.')->required(),
+            ]))->description('The changed day(s) only. Any day not mentioned here keeps whatever is already saved for that day. A day that IS mentioned gets these rows ADDED to what is already saved for it — re-sending the same category/project/sub-pillar line updates that line, a different one is kept alongside it.')->required(),
+            'replace_days' => $schema->array()->items($schema->string())->description('Dates (YYYY-MM-DD, must also appear in entries) whose stored rows should be fully REPLACED rather than merged into — the only way to remove a line this call did not itself type, e.g. correcting a day that was wrongly split across two projects.'),
         ];
     }
 }
