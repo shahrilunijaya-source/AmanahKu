@@ -126,5 +126,6 @@ silently — see [RULES.md](RULES.md#operational-rules).
 | `digest:weekly` | Mondays 08:00 |
 | `timesheet:remind` | Fridays 17:00 |
 | `staff:archive-departed` | Daily 00:30 |
-| `attendance:remind` | Every 15 min, 06:00–22:00 |
+| `attendance:remind` | Every 5 min, 06:00–22:00 |
+| `attendance:auto-clock-out` | Daily 23:59 |
 | `tot:remind` | Daily 08:00 |
