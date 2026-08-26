@@ -289,6 +289,7 @@ class PayrollTransactionsPullTest extends TestCase
 
         $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", [
             'tx_item_id' => [$travel->id],
+            'tx_known_ids' => [],
             'tx_amount' => [300],
             'tx_remark' => ['Site visit'],
         ])->assertRedirect();
@@ -315,6 +316,7 @@ class PayrollTransactionsPullTest extends TestCase
 
         $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", [
             'tx_item_id' => [$loan->id],
+            'tx_known_ids' => [],
             'tx_amount' => [200],
         ])->assertRedirect();
 
@@ -333,6 +335,7 @@ class PayrollTransactionsPullTest extends TestCase
 
         $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", [
             'tx_item_id' => [$overtimeItem->id],
+            'tx_known_ids' => [],
             'tx_amount' => [50],
         ])->assertSessionHasErrors('tx_item_id.0');
     }

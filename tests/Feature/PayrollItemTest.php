@@ -80,6 +80,7 @@ class PayrollItemTest extends TestCase
             'bonus' => 500,
             'unpaid_days' => 1,
             'tx_item_id' => [$travelAllowance->id],
+            'tx_known_ids' => [],
             'tx_amount' => [80],
             'tx_remark' => ['Travel claim'],
         ])->assertRedirect();

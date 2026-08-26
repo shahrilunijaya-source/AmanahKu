@@ -225,7 +225,7 @@
 @else
 
     {{-- ─── Privileged view: run management ────────────────────────── --}}
-    <div x-data="{ tab: 'runs', editing: null, salaryFor: null }">
+    <div x-data="{ tab: '{{ request()->filled('itx_period') ? 'individual' : 'runs' }}', editing: null, salaryFor: null }">
         @php $latest = $activeRun?->totals ?? []; @endphp
 
         {{-- Stat row --}}
@@ -238,8 +238,8 @@
 
         {{-- Tabs --}}
         <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--hairline);">
-            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'opening' => 'Pekerjaan sebelum ini (TP3)', 'items' => 'Katalog item gaji']; @endphp
-            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'opening' => 'Previous employment (TP3)', 'items' => 'Payroll items'] as $id => $label)
+            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'individual' => 'Transaksi individu', 'opening' => 'Pekerjaan sebelum ini (TP3)', 'items' => 'Katalog item gaji']; @endphp
+            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'individual' => 'Individual transactions', 'opening' => 'Previous employment (TP3)', 'items' => 'Payroll items'] as $id => $label)
                 <button @click="tab = '{{ $id }}'" :style="tab === '{{ $id }}' ? { color:'var(--red)', borderBottom:'2px solid var(--red)' } : { color:'var(--muted)', borderBottom:'2px solid transparent' }" style="background:none;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($tabLabelsMs[$id])">{{ $label }}</button>
             @endforeach
         </div>
@@ -352,12 +352,29 @@
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB override (RM)' : 'Tindihan PCB (RM)'">PCB override (RM)</label><input name="pcb_override" type="number" step="0.01" min="0" value="{{ $p->pcb_override !== null ? number_format($p->pcb_override, 2, '.', '') : '' }}" placeholder="{{ number_format($p->pcb, 2, '.', '') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                             </div>
                                             @include('partials.hint', ['en' => 'Overtime and unpaid days are pulled automatically from approved OvertimeRequests/unpaid LeaveRequests for this month (shown as the placeholder) — leave the override blank to use the pulled figure. Overtime is entered as hours plus the rate beside it (1.5× if left blank) — the same units the pulled lines show, so the two can never be confused. PCB (income tax) is computed automatically from the LHDN method — leave that override blank too, to use it. Any override sticks until cleared.', 'ms' => 'Overtime dan hari tanpa gaji ditarik automatik daripada OvertimeRequest/LeaveRequest tanpa gaji yang diluluskan bagi bulan ini (ditunjukkan sebagai placeholder) — biarkan tindihan kosong untuk guna angka yang ditarik. Overtime dimasukkan sebagai jam campur kadar di sebelahnya (1.5× jika kosong) — unit yang sama seperti baris yang ditarik, jadi kedua-duanya tidak boleh dikelirukan. PCB (cukai pendapatan) dikira automatik mengikut kaedah LHDN — biarkan tindihan itu kosong juga untuk guna nilai itu. Sebarang tindihan kekal sehingga dikosongkan.'])
-                                            @php $individualTxLines = $p->lines->where('source', 'individual')->values(); @endphp
+                                            {{-- Pre-filled from the live individual_transactions table for this employee+period
+                                                 (not this payslip's own last-generated lines) — so a one-off added or removed via
+                                                 the standalone "Individual transactions" tab is never silently reverted by
+                                                 submitting this form for an unrelated reason (e.g. changing the bonus). See
+                                                 PayrollController::syncIndividualTransactions. --}}
+                                            @php $individualTxLines = ($individualTransactionsForActiveRun->get($p->employee_id) ?? collect())->values(); @endphp
                                             <div style="margin-top:10px;">
                                                 <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Individual transactions (one-off)' : 'Transaksi individu (sekali sahaja)'">Individual transactions (one-off)</div>
+                                                {{-- tx_known_ids: every row id this form was rendered with — the save only ever
+                                                     updates/deletes an id in this list; a row created elsewhere after the page
+                                                     loaded is never touched (see PayrollController::syncIndividualTransactions).
+                                                     Rendered even with zero rows so the key itself is always present — its
+                                                     absence on the request is what tells the controller to skip the sync
+                                                     entirely rather than treat "no rows" as "delete everything". --}}
+                                                @forelse ($individualTxLines as $knownTx)
+                                                    <input type="hidden" name="tx_known_ids[]" value="{{ $knownTx->id }}" />
+                                                @empty
+                                                    <input type="hidden" name="tx_known_ids[]" value="" />
+                                                @endforelse
                                                 @for ($i = 0; $i < max(2, $individualTxLines->count()); $i++)
                                                     @php $existingTx = $individualTxLines->get($i); @endphp
                                                     <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+                                                        <input type="hidden" name="tx_id[]" value="{{ $existingTx?->id }}" />
                                                         <select name="tx_item_id[]" style="flex:2;height:34px;padding:0 7px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;background:#fff;">
                                                             <option value="" x-text="$store.ui.lang==='en' ? '— none —' : '— tiada —'">— none —</option>
                                                             @foreach ($fixedTransactionItems as $item)
@@ -365,10 +382,10 @@
                                                             @endforeach
                                                         </select>
                                                         <input name="tx_amount[]" type="number" step="0.01" min="0" value="{{ $existingTx ? number_format($existingTx->amount, 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                                        <input name="tx_remark[]" value="{{ $existingTx?->remark }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+                                                        <input name="tx_remark[]" value="{{ $existingTx?->remarks }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
                                                     </div>
                                                 @endfor
-                                                @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula.'])
+                                                @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate. A one-off added elsewhere (another tab, or the Individual transactions screen) since this page loaded is untouched by this save.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula. Transaksi individu yang ditambah di tempat lain (tab lain, atau skrin Transaksi individu) sejak halaman ini dimuatkan tidak akan disentuh oleh simpanan ini.'])
                                             </div>
                                             <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Recalculate & save' : 'Kira semula & simpan'">Recalculate & save</button>
                                             <button type="button" @click="editing = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
@@ -548,6 +565,104 @@
         </div>
 
         {{-- ════ TAB: Previous employment (TP3) ════ --}}
+        {{-- ════ TAB: Individual transactions (one-off per-employee lines) ════ --}}
+        <div x-show="tab === 'individual'" x-cloak x-data="{ itxAdding: false, itxEditing: null }">
+            <div class="uj-card" style="max-width:820px;">
+                <div class="uj-card-head" style="padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Individual transactions' : 'Transaksi individu'">Individual transactions</h3>
+                    <form method="get" action="{{ route('app.screen', 'payroll') }}" style="display:flex;align-items:center;gap:8px;">
+                        <input name="itx_period" type="month" value="{{ $itxPeriod }}" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;" />
+                        <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Go' : 'Pergi'">Go</button>
+                    </form>
+                </div>
+
+                <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
+                    @include('partials.hint', [
+                        'en' => 'A one-off earning or deduction for one person in this month only — the payroll run picks it up automatically when it is created (or on the next recalculate, if a draft run for this month already exists). A recurring one belongs on Salary structures → Fixed transactions instead.',
+                        'ms' => 'Pendapatan atau potongan sekali sahaja untuk seorang bagi bulan ini sahaja — payroll run akan menariknya secara automatik apabila dijana (atau pada kira semula seterusnya, jika draft run bagi bulan ini sudah wujud). Yang berulang patut di Struktur gaji → Transaksi tetap.',
+                    ])
+                    @if ($itxPeriodFinalized)
+                        <div style="margin-top:8px;font-size:12px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Payroll for this month has been finalized — individual transactions can no longer be added, edited or deleted for it.' : 'Payroll bagi bulan ini telah difinalize — transaksi individu tidak boleh ditambah, disunting atau dipadam lagi untuknya.'"></div>
+                    @elseif ($itxPeriodHasDraftRun)
+                        <div style="margin-top:8px;font-size:12px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'A draft run already exists for this month. Changes here do not touch it automatically — open the affected payslip and Recalculate & save to apply them.' : 'Draft run bagi bulan ini sudah wujud. Perubahan di sini tidak menyentuhnya secara automatik — buka payslip berkenaan dan Kira semula & simpan untuk menerapkannya.'"></div>
+                    @endif
+                </div>
+
+                @if (!$itxPeriodFinalized)
+                    <div style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);display:flex;justify-content:flex-end;">
+                        <button type="button" @click="itxAdding = !itxAdding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? (itxAdding ? 'Cancel' : '+ Add') : (itxAdding ? 'Batal' : '+ Tambah')">+ Add</button>
+                    </div>
+                    <div x-show="itxAdding" x-cloak style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);background:var(--canvas);">
+                        <form method="post" action="{{ route('payroll.individual-transactions.store') }}">
+                            @csrf
+                            <input type="hidden" name="period" value="{{ $itxPeriod }}" />
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Employee' : 'Pekerja'">Employee</label>
+                                    <select name="employee_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                        @foreach ($salaryEmployees as $e)
+                                            <option value="{{ $e->id }}">{{ $e->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                    <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                        @foreach ($fixedTransactionItems as $item)
+                                            <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->type }})</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
+
+                @forelse ($itxTransactions as $employeeId => $rows)
+                    <div style="border-bottom:1px solid var(--hairline-soft);padding:12px 22px;">
+                        <div style="font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;">{{ $rows->first()->employee?->name }}</div>
+                        @foreach ($rows as $itx)
+                            <div style="border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $itx->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $itx->payrollItem?->type }})</span></div>
+                                        @if ($itx->remarks)<div style="font-size:10.5px;color:var(--muted);">{{ $itx->remarks }}</div>@endif
+                                    </div>
+                                    <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($itx->amount) }}</div>
+                                    @if (!$itxPeriodFinalized)
+                                        <button type="button" @click="itxEditing = itxEditing === {{ $itx->id }} ? null : {{ $itx->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                                        <form method="post" action="{{ route('payroll.individual-transactions.delete', $itx) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam transaksi individu ini?' : 'Delete this individual transaction?');">@csrf<button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
+                                    @endif
+                                </div>
+                                @if (!$itxPeriodFinalized)
+                                    <div x-show="itxEditing === {{ $itx->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                        <form method="post" action="{{ route('payroll.individual-transactions.update', $itx) }}">
+                                            @csrf
+                                            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                                    <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                                        @foreach ($fixedTransactionItems as $item)
+                                                            <option value="{{ $item->id }}" @selected($itx->payroll_item_id === $item->id)>{{ $item->name }} ({{ $item->type }})</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required value="{{ number_format($itx->amount, 2, '.', '') }}" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                <input name="remarks" value="{{ $itx->remarks }}" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @empty
+                    <div style="padding:20px 22px;font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js('No individual transactions queued for '.$itxPeriod.'.') : @js('Tiada transaksi individu untuk '.$itxPeriod.'.')">No individual transactions queued.</div>
+                @endforelse
+            </div>
+        </div>
+
         <div x-show="tab === 'opening'" x-cloak x-data="{ openFor: null }">
             <div class="uj-card" style="max-width:820px;">
                 <div class="uj-card-head" style="padding:16px 22px;">

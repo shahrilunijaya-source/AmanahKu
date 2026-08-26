@@ -8,6 +8,7 @@ use App\Attendance\ScheduleResolver;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\FixedTransaction;
+use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollItem;
@@ -20,6 +21,7 @@ use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Attendance, board, leave, claims and payroll screen data for
@@ -396,6 +398,11 @@ trait BuildsWorkData
                 'currentPeriod' => now()->format('Y-m'),
                 'fixedTransactions' => collect(),
                 'fixedTransactionItems' => collect(),
+                'individualTransactionsForActiveRun' => collect(),
+                'itxPeriod' => now()->format('Y-m'),
+                'itxTransactions' => collect(),
+                'itxPeriodFinalized' => false,
+                'itxPeriodHasDraftRun' => false,
             ];
         }
 
@@ -426,6 +433,46 @@ trait BuildsWorkData
             'fixedTransactionItems' => PayrollItem::where('active', true)
                 ->whereNotIn('code', ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'])
                 ->orderBy('sort_order')->get(),
+            // Individual Transactions queued for the currently displayed run's own period,
+            // grouped by employee — the payslip edit form's tx_item_id/tx_amount/tx_remark
+            // rows are pre-filled from THIS (the live table), never from the payslip's own
+            // last-generated lines, so a one-off added via the standalone Individual
+            // Transactions tab below is never silently overwritten by a later "Recalculate
+            // & save" on the payslip edit form (see PayrollController::syncIndividualTransactions).
+            'individualTransactionsForActiveRun' => $activeRun
+                ? IndividualTransaction::with('payrollItem')->forPeriod($activeRun->period)->get()->groupBy('employee_id')
+                : collect(),
+            ...$this->individualTransactionTabData($request),
+        ];
+    }
+
+    /**
+     * Data for the standalone "Individual Transactions" tab: pick a month (itx_period
+     * query param, defaults to the current month), list every one-off queued for it, and
+     * flag whether that period is still editable. A period with no run yet, or a draft
+     * run, is freely editable; a finalized run locks it (see
+     * PayrollController::assertPeriodEditable).
+     *
+     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxPeriodHasDraftRun: bool}
+     */
+    private function individualTransactionTabData(Request $request): array
+    {
+        $period = $request->filled('itx_period') && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->query('itx_period'))
+            ? (string) $request->query('itx_period')
+            : now()->format('Y-m');
+
+        $itxRun = PayrollRun::where('period', $period)->first();
+
+        return [
+            'itxPeriod' => $period,
+            'itxTransactions' => IndividualTransaction::with(['employee', 'payrollItem'])
+                ->forPeriod($period)->orderBy('employee_id')->get()->groupBy('employee_id'),
+            'itxPeriodFinalized' => $itxRun?->status === 'finalized',
+            // Surfaced so the UI can tell HR to recalculate the affected payslips — adding,
+            // editing or deleting a one-off here does not itself touch an existing draft
+            // payslip (see syncIndividualTransactions's doc comment); it becomes visible the
+            // next time that payslip is recomputed.
+            'itxPeriodHasDraftRun' => $itxRun !== null && $itxRun->status !== 'finalized',
         ];
     }
 }

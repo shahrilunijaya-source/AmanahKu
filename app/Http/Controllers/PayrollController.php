@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\FixedTransaction;
+use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\OffboardingCase;
 use App\Models\OvertimeRequest;
@@ -260,6 +261,215 @@ class PayrollController extends Controller
         ];
     }
 
+    // ── Individual Transactions (one-off per-employee pay/deduction lines) ─────────
+
+    public function storeIndividualTransaction(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $tid = app(CurrentTenant::class)->id();
+
+        $data = $this->validateIndividualTransaction($request, $tid);
+        $this->assertPeriodEditable($tid, $data['period']);
+
+        $tx = IndividualTransaction::create($data + ['created_by_id' => Auth::id()]);
+
+        $name = $tx->employee?->name;
+        AuditLog::record('Added individual transaction', $name.' · '.$tx->payrollItem?->name.' · '.$data['period'].' · RM '.number_format($tx->amount, 2));
+
+        return back()->with('ok', 'Individual transaction added for '.$name.'.');
+    }
+
+    public function updateIndividualTransaction(Request $request, IndividualTransaction $individualTransaction): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period);
+
+        $data = $this->validateIndividualTransaction($request, $individualTransaction->tenant_id, $individualTransaction->employee_id, $individualTransaction->period);
+        $individualTransaction->update($data);
+
+        AuditLog::record('Updated individual transaction', $individualTransaction->employee?->name.' · '.$individualTransaction->payrollItem?->name);
+
+        return back()->with('ok', 'Individual transaction updated for '.$individualTransaction->employee?->name.'.');
+    }
+
+    public function destroyIndividualTransaction(Request $request, IndividualTransaction $individualTransaction): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period);
+
+        $name = $individualTransaction->employee?->name;
+        $itemName = $individualTransaction->payrollItem?->name;
+        $individualTransaction->delete();
+
+        AuditLog::record('Deleted individual transaction', $name.' · '.$itemName);
+
+        return back()->with('ok', 'Individual transaction deleted for '.$name.'.');
+    }
+
+    /**
+     * @return array{employee_id: int, payroll_item_id: int, period: string, amount: float, remarks: ?string}
+     */
+    private function validateIndividualTransaction(Request $request, int $tid, ?int $lockEmployeeId = null, ?string $lockPeriod = null): array
+    {
+        $data = $request->validate([
+            'employee_id' => $lockEmployeeId !== null
+                ? ['prohibited']   // editing never reassigns the employee — same as a Fixed Transaction
+                : ['required', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            // Same forbidden list as a Fixed Transaction — basic salary, overtime,
+            // unpaid-leave and claim reimbursement already have their own automatic source.
+            'payroll_item_id' => [
+                'required',
+                Rule::exists('payroll_items', 'id')->where('tenant_id', $tid)->where('active', true)
+                    ->whereNotIn('code', self::FT_FORBIDDEN_ITEM_CODES),
+            ],
+            'period' => $lockPeriod !== null
+                ? ['prohibited']   // editing never moves a one-off to a different month
+                : ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:10000000'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return [
+            'employee_id' => $lockEmployeeId ?? $data['employee_id'],
+            'payroll_item_id' => $data['payroll_item_id'],
+            'period' => $lockPeriod ?? $data['period'],
+            'amount' => $data['amount'],
+            'remarks' => $data['remarks'] ?? null,
+        ];
+    }
+
+    /**
+     * A period whose run has been finalized is locked — that payslip has been issued and
+     * an Individual Transaction must not add, edit or delete anything against it. A
+     * period with a draft run, or no run at all yet, is freely editable.
+     */
+    private function assertPeriodEditable(int $tid, string $period): void
+    {
+        $finalized = PayrollRun::where('tenant_id', $tid)->where('period', $period)->where('status', 'finalized')->exists();
+        abort_if($finalized, 422, 'Payroll for '.$period.' has already been finalized and can no longer be changed.');
+    }
+
+    /**
+     * This employee's Individual Transactions queued for $period, resolved to
+     * {item: PayrollItem, amount: float, remark: ?string} — the single read path
+     * createRun() and updatePayslip() both use, so a one-off queued directly and one
+     * added while editing a draft payslip are built from the exact same rows.
+     *
+     * Deliberately no generic @return annotation (Collection<int, array{...}>): a
+     * nullable string key ('remark') in an array-shaped Collection generic here trips a
+     * PHPStan/Larastan TValue-invariance false positive — confirmed unrelated to this
+     * method's own logic by isolating it to a bare 3-key array{item: object, amount:
+     * float, x: ?string} shape returned as a Collection<int, that-shape>, which fails
+     * the exact same way regardless of construction method (filter+map chain, plain
+     * foreach, an explicit @var cast). Swapping the nullable key for a non-nullable one
+     * (e.g. int) makes it pass, isolating the trigger to nullability specifically. No
+     * fix short of a baseline entry/ignore comment, which CLAUDE.md rules out for this
+     * pass — see individualLineAttrs()/refreshVariableLines() below for the real shape.
+     */
+    private function individualTransactionLinesForPeriod(Employee $employee, string $period): Collection
+    {
+        $rows = IndividualTransaction::with('payrollItem')
+            ->where('employee_id', $employee->id)
+            ->forPeriod($period)
+            ->get();
+
+        $lines = [];
+        foreach ($rows as $row) {
+            $item = $row->payrollItem;
+            if ($item === null) {
+                continue;
+            }
+            $lines[] = ['item' => $item, 'amount' => (float) $row->amount, 'remark' => $row->remarks];
+        }
+
+        return new Collection($lines);
+    }
+
+    /**
+     * Merge the posted tx_id[]/tx_item_id[]/tx_amount[]/tx_remark[] Individual
+     * Transaction rows from a payslip edit into the individual_transactions table — the
+     * unification point: editing a draft payslip writes into the same table a queued
+     * one-off does, rather than staying a parallel mechanism.
+     *
+     * Deliberately id-aware, NOT delete-then-recreate: the edit form is a snapshot from
+     * whenever the page was rendered, and between then and this save someone else (a
+     * concurrent tab, another person, or the standalone Individual Transactions screen)
+     * may have added a row this form never saw. $knownIds is every row id the form WAS
+     * rendered with —
+     *   - a posted row with a tx_id updates that existing row;
+     *   - a posted row with a blank tx_id creates a new one;
+     *   - a $knownIds id that no row came back for was removed by HR and is deleted;
+     *   - any table row NOT in $knownIds is left completely alone — it didn't exist when
+     *     the form was rendered, so this save has no opinion about it.
+     * Every id in $knownIds/tx_id is re-scoped to this employee+period+tenant here rather
+     * than trusted verbatim — a stale or tampered id belonging to someone else's row (or
+     * a different period) is silently ignored, never acted on.
+     *
+     * @param  array<int, mixed>  $ids
+     * @param  array<int, mixed>  $itemIds
+     * @param  array<int, mixed>  $amounts
+     * @param  array<int, mixed>  $remarks
+     * @param  array<int, mixed>  $knownIds
+     */
+    private function syncIndividualTransactions(Employee $employee, string $period, array $ids, array $itemIds, array $amounts, array $remarks, array $knownIds): void
+    {
+        $knownIds = collect($knownIds)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v) => (int) $v)->unique()->values()->all();
+
+        // Re-derive from the DB rather than trusting the posted ids: a row that doesn't
+        // actually belong to this employee/period/tenant is dropped here, so it can never
+        // be updated or deleted by this form no matter what id was posted for it.
+        $knownRows = IndividualTransaction::where('employee_id', $employee->id)
+            ->forPeriod($period)
+            ->whereIn('id', $knownIds)
+            ->get()->keyBy('id');
+
+        $touchedIds = [];
+
+        foreach ($itemIds as $i => $itemId) {
+            $rawId = $ids[$i] ?? null;
+            $rowId = ($rawId !== null && $rawId !== '') ? (int) $rawId : null;
+            $knownRow = $rowId !== null ? $knownRows->get($rowId) : null;
+
+            if ($itemId === null || $itemId === '') {
+                // Blank row. If it maps to a known row, HR cleared that line — leave it
+                // untouched here and let it be picked up by the deletion pass below
+                // (it's simply never added to $touchedIds).
+                continue;
+            }
+            $amount = $amounts[$i] ?? null;
+            if ($amount === null || $amount === '' || (float) $amount <= 0) {
+                continue;
+            }
+            $remark = trim((string) ($remarks[$i] ?? ''));
+            $attrs = [
+                'payroll_item_id' => (int) $itemId,
+                'amount' => round((float) $amount, 2),
+                'remarks' => $remark !== '' ? $remark : null,
+            ];
+
+            if ($knownRow !== null) {
+                $knownRow->update($attrs);
+                $touchedIds[] = $knownRow->id;
+            } else {
+                // A blank tx_id, or an id this form didn't actually know about (ignored
+                // above) — either way, a brand new row.
+                $tx = IndividualTransaction::create($attrs + [
+                    'employee_id' => $employee->id,
+                    'period' => $period,
+                    'created_by_id' => Auth::id(),
+                ]);
+                $touchedIds[] = $tx->id;
+            }
+        }
+
+        $toDelete = $knownRows->keys()->diff($touchedIds);
+        if ($toDelete->isNotEmpty()) {
+            IndividualTransaction::whereIn('id', $toDelete)->delete();
+        }
+    }
+
     /**
      * This employee's Fixed Transactions active for $period, each resolved to this
      * month's amount: last_amount when the run period is exactly the transaction's
@@ -508,11 +718,26 @@ class PayrollController extends Controller
                 $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
                 $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
+                // Individual Transactions queued for this period — see
+                // individualTransactionLinesForPeriod(), the same read path updatePayslip
+                // uses, so a one-off queued before the run existed appears here exactly as
+                // it would if it had been typed into the payslip edit form instead.
+                $itLines = $this->individualTransactionLinesForPeriod($employee, $data['period']);
+                $individualEarnings = $itLines->filter(fn (array $l) => $l['item']->type === 'earning');
+                $individualDeductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+
                 $inputs = [
                     'basic' => $structure->basic_salary,
                     'allowances_total' => round($fixedEarnings->sum('amount'), 2),
                     'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
                     'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
+                        'amount' => $l['amount'],
+                        'epf_liable' => (bool) $l['item']->epf_liable,
+                        'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                    ])->values()->all(),
+                    'individual_earnings_total' => round($individualEarnings->sum('amount'), 2),
+                    'individual_deductions_total' => round($individualDeductions->sum('amount'), 2),
+                    'individual_earning_lines' => $individualEarnings->map(fn (array $l) => [
                         'amount' => $l['amount'],
                         'epf_liable' => (bool) $l['item']->epf_liable,
                         'perkeso_liable' => (bool) $l['item']->perkeso_liable,
@@ -556,7 +781,7 @@ class PayrollController extends Controller
                     'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
                     'pulled_unpaid_days' => $pulledUnpaidDays,
                 ])->save();
-                $this->writePayslipLines($payslip, $comp, $ftLines, $catalog);
+                $this->writePayslipLines($payslip, $comp, $ftLines, $itLines, $catalog);
             }
 
             $this->recalcTotals($run);
@@ -597,6 +822,14 @@ class PayrollController extends Controller
             // Individual Transactions: a one-off earning/deduction against a Payroll Item,
             // an amount, and an optional remark — replaces the old free-form add_name/
             // ded_name pairs so every payslip amount traces back to a catalogue item.
+            // tx_id/tx_known_ids make the sync id-aware (see syncIndividualTransactions):
+            // tx_id is this row's individual_transactions id if it already existed when
+            // the form was rendered (blank = a new row); tx_known_ids is every id the
+            // form was rendered with, so a row created elsewhere after the page loaded is
+            // never touched by this save. Ownership of every id is re-checked server-side
+            // (scoped to this employee/period/tenant) rather than trusted from the request.
+            'tx_id' => ['array'], 'tx_id.*' => ['nullable', 'integer'],
+            'tx_known_ids' => ['array'], 'tx_known_ids.*' => ['nullable', 'integer'],
             'tx_item_id' => ['array'], 'tx_item_id.*' => [
                 'nullable',
                 Rule::exists('payroll_items', 'id')->where('tenant_id', $payslip->tenant_id)->where('active', true)
@@ -673,13 +906,24 @@ class PayrollController extends Controller
 
             $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
 
-            // Individual Transactions: resolve each posted (item, amount, remark) row
-            // against the catalogue, split by the item's own earning/deduction type.
-            $itemsById = $catalog->values()->keyBy('id');
-            $individualLines = $this->individualTransactionLines(
-                $request->input('tx_item_id', []), $request->input('tx_amount', []),
-                $request->input('tx_remark', []), $itemsById,
-            );
+            // Individual Transactions: adding/editing/removing a one-off here writes into
+            // the same individual_transactions table the standalone Individual
+            // Transactions screen uses (syncIndividualTransactions) — never a parallel
+            // mechanism — then reads back from that same table
+            // (individualTransactionLinesForPeriod), the identical path createRun() uses.
+            // tx_known_ids must actually be present on the request — its absence means
+            // this isn't a genuine render of the edit form (a partial/hand-made request),
+            // so the sync is skipped entirely rather than reading a missing array as "the
+            // form knew about nothing" and deleting every row for this employee/period.
+            if ($request->has('tx_known_ids')) {
+                $this->syncIndividualTransactions(
+                    $payslip->employee, $payslip->payrollRun->period,
+                    $request->input('tx_id', []), $request->input('tx_item_id', []),
+                    $request->input('tx_amount', []), $request->input('tx_remark', []),
+                    $request->input('tx_known_ids', []),
+                );
+            }
+            $individualLines = $this->individualTransactionLinesForPeriod($payslip->employee, $payslip->payrollRun->period);
             $individualEarnings = $individualLines->filter(fn (array $l) => $l['item']->type === 'earning');
             $individualDeductions = $individualLines->filter(fn (array $l) => $l['item']->type === 'deduction');
             $baseInputs['individual_earnings_total'] = round($individualEarnings->sum('amount'), 2);
@@ -909,34 +1153,6 @@ class PayrollController extends Controller
         ]])->save();
     }
 
-    /**
-     * Zip parallel tx_item_id[]/tx_amount[]/tx_remark[] Individual Transaction form arrays
-     * into resolved {item, amount, remark} rows, dropping blank/invalid rows. $itemsById
-     * is the tenant's Payroll Item catalogue keyed by id — each id has already been
-     * validated tenant-scoped/active/not-forbidden by updatePayslip's request rules, so a
-     * miss here only happens for a genuinely blank row.
-     *
-     * @param  array<int, mixed>  $itemIds
-     * @param  array<int, mixed>  $amounts
-     * @param  array<int, mixed>  $remarks
-     * @return Collection<int, array{item: PayrollItem, amount: float, remark: ?string}>
-     */
-    private function individualTransactionLines(array $itemIds, array $amounts, array $remarks, Collection $itemsById): Collection
-    {
-        $lines = collect();
-        foreach ($itemIds as $i => $itemId) {
-            $item = $itemId !== null && $itemId !== '' ? $itemsById->get((int) $itemId) : null;
-            $amount = (float) ($amounts[$i] ?? 0);
-            if ($item === null || $amount <= 0) {
-                continue;
-            }
-            $remark = trim((string) ($remarks[$i] ?? ''));
-            $lines->push(['item' => $item, 'amount' => round($amount, 2), 'remark' => $remark !== '' ? $remark : null]);
-        }
-
-        return $lines;
-    }
-
     // ── Payroll item catalogue ──────────────────────────────────────
 
     /**
@@ -1016,10 +1232,10 @@ class PayrollController extends Controller
 
     /**
      * Attributes for this payslip's Individual Transaction lines — one per resolved
-     * {item, amount, remark} row (individualTransactionLines()), source 'individual'.
+     * {item, amount, remark} row (individualTransactionLinesForPeriod()), source 'individual'.
      *
      * Typed as iterable, not Collection, purely to sidestep Collection's TValue being
-     * invariant — passing the Collection individualTransactionLines() returns into a
+     * invariant — passing the Collection individualTransactionLinesForPeriod() returns into a
      * Collection-typed param here fails PHPStan's invariance check even though the
      * array shape is identical; iterable doesn't have that restriction and this
      * function only ever foreach()es the argument.
@@ -1078,7 +1294,7 @@ class PayrollController extends Controller
      * against its own Payroll Item, earning or deduction, source 'fixed-transaction' so
      * a later payslip edit (refreshVariableLines) never touches or deletes it.
      */
-    private function writePayslipLines(Payslip $payslip, PayslipComputation $comp, Collection $ftLines, Collection $catalog): void
+    private function writePayslipLines(Payslip $payslip, PayslipComputation $comp, Collection $ftLines, Collection $itLines, Collection $catalog): void
     {
         $sort = 0;
         $lines = [
@@ -1090,7 +1306,8 @@ class PayrollController extends Controller
         if ($comp->claimsReimbursement > 0) {
             $lines[] = $this->lineAttrs($catalog, 'claim-reimbursement', 'Claim Reimbursement', 'earning', $comp->claimsReimbursement, null, 'claim', $sort++);
         }
-        $lines = array_merge($lines, $this->variableLineAttrs($comp, $catalog, $sort));
+        $variableLines = $this->variableLineAttrs($comp, $catalog, $sort);
+        $lines = array_merge($lines, $variableLines, $this->individualLineAttrs($itLines, $sort + count($variableLines)));
 
         $payslip->lines()->createMany($lines);
     }
