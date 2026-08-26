@@ -12,6 +12,7 @@ use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\MoveCardTool;
 use App\Mcp\Tools\RestoreCardTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
+use App\Mcp\Tools\TimesheetOptionsTool;
 use App\Mcp\Tools\TimesheetWeekTool;
 use App\Mcp\Tools\TotSessionsTool;
 use App\Mcp\Tools\UpdateCardTool;
@@ -28,8 +29,9 @@ use Laravel\Mcp\Server\Attributes\Version;
  * tenant the caller's token is bound to, and each tool checks its own scope
  * before doing anything.
  *
- * Reads are direct: TimesheetWeekTool, WorkItemsTool and TotSessionsTool
- * return data straight away, gated by timesheets:read / board:read / tot:read.
+ * Reads are direct: TimesheetWeekTool, TimesheetOptionsTool, WorkItemsTool and
+ * TotSessionsTool return data straight away, gated by timesheets:read / board:read
+ * / tot:read.
  *
  * Writes are two-step. Every other tool except ConfirmWriteTool is a PREVIEW:
  * it validates and authorizes a change, describes exactly what would happen,
@@ -49,6 +51,12 @@ use Laravel\Mcp\Server\Attributes\Version;
     privileged caller (management or HR role) sees the whole tenant. Everyone else
     sees only their own timesheet and only board cards assigned to them or
     unassigned. TOT sessions are company-wide and are never narrowed by role.
+
+    Before drafting timesheet entries for a week that has no existing entries to
+    copy the shape from, call timesheet_options first — it lists the real
+    category, project and sub-pillar ids the tenant offers (reference data,
+    same for everyone, never narrowed by role) so save_timesheet_draft is never
+    given a guessed id.
 
     WRITES are always two steps, and require their own scope (board:write,
     timesheets:write, tot:write) — separate from the read scopes:
@@ -76,6 +84,7 @@ class AmanahkuServer extends Server
 {
     protected array $tools = [
         TimesheetWeekTool::class,
+        TimesheetOptionsTool::class,
         WorkItemsTool::class,
         TotSessionsTool::class,
         CreateCardTool::class,

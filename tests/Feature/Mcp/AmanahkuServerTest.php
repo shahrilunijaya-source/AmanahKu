@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mcp;
 
+use App\Mcp\Tools\TimesheetOptionsTool;
 use App\Mcp\Tools\TimesheetWeekTool;
 use App\Mcp\Tools\TotSessionsTool;
 use App\Mcp\Tools\WorkItemsTool;
@@ -11,6 +12,7 @@ use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\TotParticipation;
 use App\Models\TotSession;
@@ -240,6 +242,66 @@ class AmanahkuServerTest extends TestCase
         $names = collect($this->toolData($response)['timesheets'])->pluck('employee')->all();
         $this->assertContains('Staff Sam', $names);
         $this->assertNotContains('Beta Bob', $names);
+    }
+
+    // --- TimesheetOptionsTool -----------------------------------------------------
+
+    public function test_timesheet_options_tool_returns_categories_and_projects_for_the_tenant(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Meeting', 'requires_project' => false, 'is_active' => true]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']));
+
+        $this->assertFalse($this->toolIsError($response));
+        $data = $this->toolData($response);
+        $categoryNames = collect($data['categories'])->pluck('name')->all();
+        $this->assertContains('Development', $categoryNames);
+        $this->assertContains('Meeting', $categoryNames);
+        $projectNames = collect($data['projects'])->pluck('name')->all();
+        $this->assertContains('KPT: RMS', $projectNames);
+    }
+
+    public function test_timesheet_options_tool_reports_requires_project_correctly(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Meeting', 'requires_project' => false, 'is_active' => true]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']));
+
+        $categories = collect($this->toolData($response)['categories'])->keyBy('name');
+        $this->assertTrue($categories['Development']['requires_project']);
+        $this->assertFalse($categories['Meeting']['requires_project']);
+    }
+
+    public function test_timesheet_options_tool_is_tenant_isolated(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        app(CurrentTenant::class)->set($this->tenantB);
+        TimesheetCategory::create(['tenant_id' => $this->tenantB->id, 'name' => 'Beta Only Category', 'requires_project' => false, 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenantB->id, 'code' => 'B1', 'name' => 'Beta Project', 'is_active' => true]);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']));
+
+        $data = $this->toolData($response);
+        $categoryNames = collect($data['categories'])->pluck('name')->all();
+        $this->assertNotContains('Beta Only Category', $categoryNames);
+        $projectNames = collect($data['projects'])->pluck('name')->all();
+        $this->assertNotContains('Beta Project', $projectNames);
+    }
+
+    public function test_timesheet_options_tool_refuses_a_token_missing_its_scope(): void
+    {
+        $response = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['board:read']));
+
+        $this->assertTrue($this->toolIsError($response));
+        $this->assertStringContainsString('timesheets:read', $response->json('result.content.0.text'));
     }
 
     // --- WorkItemsTool -----------------------------------------------------

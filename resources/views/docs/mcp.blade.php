@@ -265,7 +265,21 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 2-3 4M12 17h.01"/></svg>
           <span x-data x-text="$store.ui.lang==='en' ? '“What TOT sessions were there last month, and who presented?”' : '“Sesi TOT apa yang berlangsung bulan lepas, dan siapa penyampainya?”'">"What TOT sessions were there last month, and who presented?"</span>
         </div>
+        <div class="q">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 2-3 4M12 17h.01"/></svg>
+          <span x-data x-text="$store.ui.lang==='en' ? '“Draft my timesheet for the week starting 3 August”' : '“Rangka lembaran masa saya untuk minggu bermula 3 Ogos”'">"Draft my timesheet for the week starting 3 August"</span>
+        </div>
       </div>
+      <p class="sub" style="margin-top:16px;" x-data x-text="$store.ui.lang==='en'
+              ? 'Ask this and it will ask what you worked on each day — or read it from wherever you point it, like a doc or a chat log — then show you the full week it has worked out, day by day, for you to approve or correct before anything is saved. This only works if you\'ve also let it make changes (see below).'
+              : 'Tanya ini dan ia akan bertanya apa yang anda buat setiap hari — atau membacanya dari mana-mana yang anda tunjukkan, seperti dokumen atau log chat — kemudian menunjukkan minggu penuh yang telah ia susun, hari demi hari, untuk anda luluskan atau betulkan sebelum apa-apa disimpan. Ini hanya berfungsi jika anda juga telah membenarkan ia membuat perubahan (lihat di bawah).'">
+        Ask this and it will ask what you worked on each day — or read it from wherever you point it, like a doc or a chat log — then show you the full week it has worked out, day by day, for you to approve or correct before anything is saved. This only works if you've also let it make changes (see below).
+      </p>
+      <p class="sub" x-data x-text="$store.ui.lang==='en'
+              ? 'What it draws up is an estimate for you to check, not a measurement — it is only as good as what you told it. And even once you approve, it only saves a DRAFT; you still submit your timesheet yourself, same as always.'
+              : 'Apa yang ia hasilkan adalah anggaran untuk anda semak, bukan ukuran tepat — ia sebaik apa yang anda beritahu sahaja. Dan walaupun selepas anda meluluskan, ia hanya menyimpan sebagai DRAF; anda masih perlu hantar lembaran masa anda sendiri, seperti biasa.'">
+        What it draws up is an estimate for you to check, not a measurement — it is only as good as what you told it. And even once you approve, it only saves a DRAFT; you still submit your timesheet yourself, same as always.
+      </p>
     </section>
 
     <section id="writes">
