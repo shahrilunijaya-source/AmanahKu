@@ -4,6 +4,12 @@
     $u = auth()->user();
     $enabled = ! is_null($u->two_factor_secret);
     $confirmed = ! is_null($u->two_factor_confirmed_at);
+    $aiKey = app(\App\Tenancy\CurrentTenant::class)->id()
+        ? $u->tokens()
+            ->where('tenant_id', app(\App\Tenancy\CurrentTenant::class)->id())
+            ->where('name', \App\Http\Controllers\SecurityController::AI_KEY_NAME)
+            ->first()
+        : null;
 @endphp
 
 @section('screen')
@@ -118,5 +124,63 @@
         </div>
     </div>
     @endif
+
+    <div class="uj-card" style="padding:24px;">
+        <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'AI access key' : 'Kunci akses AI'">AI access key</h3>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en'
+                ? 'Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions — nothing else, and it can only read, never change anything. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.'
+                : 'Benarkan Claude Code pada komputer anda sendiri membaca timesheet, kad board dan sesi TOT anda — tiada yang lain, dan ia hanya boleh membaca, tidak boleh ubah apa-apa. Jangan commit kunci ini ke dalam kod atau kongsi dengan sesiapa; layan seperti password. Menjana kunci baharu terus mematikan kunci lama.'">
+            Let a Claude Code assistant on your own computer read your timesheets, board cards and TOT sessions — nothing else, and it can only read, never change anything. Do not commit this key to code or share it with anyone; treat it like a password. Generating a new key immediately switches off the old one.
+        </p>
+
+        @if (session('aiKeyPlaintext'))
+            <div style="background:#fbeaeb;border:1px solid #f3c6c8;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
+                <div style="font-weight:600;color:#a81820;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'Copy this key now — it will not be shown again' : 'Salin kunci ini sekarang — ia tidak akan dipaparkan lagi'">Copy this key now — it will not be shown again</div>
+                <div id="ai-key-plaintext" style="font-family:var(--font-mono);font-size:12.5px;word-break:break-all;background:#fff;border:1px solid #f3c6c8;border-radius:8px;padding:11px;margin-top:9px;">{{ session('aiKeyPlaintext') }}</div>
+                <button type="button" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;margin-top:8px;" onclick="navigator.clipboard.writeText(document.getElementById('ai-key-plaintext').textContent.trim());this.querySelector('span').textContent='Copied';">
+                    <span x-text="$store.ui.lang==='en' ? 'Copy key' : 'Salin kunci'">Copy key</span>
+                </button>
+
+                <div style="font-size:11.5px;color:#a81820;margin:14px 0 5px;" x-text="$store.ui.lang==='en' ? 'Ready-to-paste command for Claude Code:' : 'Arahan sedia-tampal untuk Claude Code:'">Ready-to-paste command for Claude Code:</div>
+                <div id="ai-key-command" style="font-family:var(--font-mono);font-size:11.5px;word-break:break-all;background:#fff;border:1px solid #f3c6c8;border-radius:8px;padding:11px;">{{ session('aiKeyCommand') }}</div>
+                <button type="button" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;margin-top:8px;" onclick="navigator.clipboard.writeText(document.getElementById('ai-key-command').textContent.trim());this.querySelector('span').textContent='Copied';">
+                    <span x-text="$store.ui.lang==='en' ? 'Copy command' : 'Salin arahan'">Copy command</span>
+                </button>
+            </div>
+        @endif
+
+        @if ($aiKey)
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">
+                <span x-text="$store.ui.lang==='en' ? 'Created' : 'Dijana'">Created</span> {{ $aiKey->created_at?->diffForHumans() }}
+                · <span x-text="$store.ui.lang==='en' ? 'last used' : 'guna terakhir'">last used</span>
+                @if ($aiKey->last_used_at)
+                    {{ $aiKey->last_used_at->diffForHumans() }}
+                @else
+                    <span x-text="$store.ui.lang==='en' ? 'never' : 'tidak pernah'">never</span>
+                @endif
+            </div>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+                <form method="post" action="{{ route('security.ai-key.revoke') }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Revoke your AI access key?' : 'Batalkan kunci akses AI anda?')) $event.preventDefault()">
+                    @csrf
+                    <button type="submit" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Revoke key' : 'Batalkan kunci'">Revoke key</span></button>
+                </form>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline-soft);">
+                <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+                    @csrf
+                    <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to replace it' : 'Sahkan password anda untuk gantikannya'">Confirm your password to replace it</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
+                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate new key' : 'Jana kunci baharu'">Generate new key</span></button>
+                    @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+                </form>
+            </div>
+        @else
+            <form method="post" action="{{ route('security.ai-key.generate') }}" style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+                @csrf
+                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Confirm your password to generate' : 'Sahkan password anda untuk jana'">Confirm your password to generate</label><input type="password" name="password" required autocomplete="current-password" style="height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;width:200px;outline:none;" /></div>
+                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Generate key' : 'Jana kunci'">Generate key</span></button>
+                @error('password')<div style="flex-basis:100%;color:var(--red);font-size:12.5px;">{{ $message }}</div>@enderror
+            </form>
+        @endif
+    </div>
 </div>
 @endsection
