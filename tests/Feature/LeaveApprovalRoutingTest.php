@@ -7,6 +7,9 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
+use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -371,6 +374,34 @@ class LeaveApprovalRoutingTest extends TestCase
             ->assertRedirect()->assertSessionHas('ok');
 
         $this->assertSame('cancelled', $req->fresh()->status);
+        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
+    }
+
+    public function test_cancelling_an_approved_future_leave_strips_the_on_leave_timesheet_row(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false]);
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 10]);
+        Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'week_start' => '2026-12-14', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-12-16', 'date_to' => '2026-12-16',
+            'days' => 1, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        // Approve through the real route (as TimesheetTest does), which reconciles the
+        // draft week and seeds the "On Leave" row.
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$leave->id}/approve")->assertRedirect();
+        $this->assertSame('leave', TimesheetEntry::whereDate('entry_date', '2026-12-16')->first()?->source);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$leave->id}/cancel")->assertRedirect();
+
+        $this->assertNull(TimesheetEntry::whereDate('entry_date', '2026-12-16')->first());
         $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
     }
 
