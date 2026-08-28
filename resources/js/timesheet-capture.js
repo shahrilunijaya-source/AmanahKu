@@ -388,6 +388,17 @@ export function registerTimesheetCapture(Alpine) {
         },
         chooseSource(source) {
             this.picker.step = source === 'board' ? 'board' : 'category';
+            if (source !== 'board') {
+                // Choosing (or re-choosing, after Back/Back out of an abandoned card pick)
+                // "Enter manually" must not leave a previous chooseBoardTask() call's state
+                // behind — otherwise the typed row that follows gets silently stamped with
+                // that abandoned card's work_item_id/project/notes.
+                this.picker.viaBoard = false;
+                this.picker.boardWorkItemId = null;
+                this.picker.boardProject = null;
+                this.picker.boardDesc = '';
+                this.picker.boardTaskTitle = null;
+            }
         },
         projectName(id) {
             const p = this.projects.find((p) => String(p.id) === String(id));

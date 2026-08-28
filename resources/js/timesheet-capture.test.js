@@ -375,3 +375,46 @@ test('a genuinely blank typed row still blocks dayState() and reads as partial, 
     expect(c.hasBlankRows(THURSDAY)).toBe(true);
     expect(c.dayState(THURSDAY)).toBe('partial');
 });
+
+// ---- Finding 2: abandoned board state must not stamp a manual row -------------------
+
+test('choosing "Enter manually" straight from the source step never carries board state (baseline)', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openPicker();
+    c.chooseSource('manual');
+
+    expect(c.picker.viaBoard).toBe(false);
+    expect(c.picker.boardWorkItemId).toBeNull();
+});
+
+test('Add > Pull from board > pick card > Back > Back > Enter manually clears the abandoned card before a row is added', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.selected = THURSDAY;
+    c.openPicker();
+    c.chooseSource('board');
+    c.chooseBoardTask(BOARD_TASKS[0]); // lands on 'category', viaBoard true, boardWorkItemId 100
+
+    c.pickerBack(); // category -> board
+    expect(c.picker.step).toBe('board');
+    c.pickerBack(); // board -> source
+    expect(c.picker.step).toBe('source');
+
+    // Stale state is still sitting there right up until the source choice is (re-)made.
+    expect(c.picker.viaBoard).toBe(true);
+    expect(c.picker.boardWorkItemId).toBe(100);
+
+    c.chooseSource('manual');
+    expect(c.picker.viaBoard).toBe(false);
+    expect(c.picker.boardWorkItemId).toBeNull();
+    expect(c.picker.boardProject).toBeNull();
+    expect(c.picker.boardDesc).toBe('');
+
+    // Typing a manual line through to the end must not pick up card 100's id or project.
+    c.chooseStep({ c: CATEGORIES[1], label: 'Sales', item: c.pickerItem(CATEGORIES[1], null, null) });
+    c.picker.pendingPct = 100;
+    c.confirmEntry();
+
+    const row = c.rows[c.selected][0];
+    expect(row.work_item_id).toBeNull();
+    expect(row.project_id).toBe('');
+});
