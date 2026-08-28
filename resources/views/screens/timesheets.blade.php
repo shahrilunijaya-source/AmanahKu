@@ -359,13 +359,6 @@
                 class="uj-ts-add-btn">
                 <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
             </button>
-            {{-- Pulls an In Progress board card's title/description/project straight into
-                 the same add flow below, so the staffer doesn't retype what the card
-                 already says — see timesheet-capture.js's openBoardPicker()/chooseBoardTask(). --}}
-            <button type="button" x-show="boardTasks.length" x-cloak @click="openBoardPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
-                class="uj-ts-add-btn">
-                <span x-text="$store.ui.lang==='en' ? '+ Pull from T.A.A' : '+ Tarik dari papan tugasan'"></span>
-            </button>
         </div>
 
         {{-- ---- Add-entry popup: same header/back arrow/trail per Alpine picker step, but the
@@ -387,11 +380,11 @@
                      already chosen so the staffer knows where they are. --}}
                 <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                     <button type="button" x-ref="pickerCloseBtn" @click="pickerBack()" class="uj-btn-ghost"
-                        :aria-label="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard))
+                        :aria-label="(picker.step === 'source' || (picker.step === 'category' && !picker.viaBoard && !boardTasks.length))
                             ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal')
                             : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
                         style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
-                        x-text="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard)) ? '×' : '←'"></button>
+                        x-text="(picker.step === 'source' || (picker.step === 'category' && !picker.viaBoard && !boardTasks.length)) ? '×' : '←'"></button>
                     <div style="flex:1;min-width:0;">
                         {{-- tabindex=-1 + outline:none: a script-focus target only, so a screen
                              reader/keyboard user's position moves with each step instead of
@@ -399,15 +392,17 @@
                              row — see chooseStep()/chooseItem()/pickerBack() in
                              timesheet-capture.js, which all focus this after changing step. --}}
                         <strong id="ts-picker-title" tabindex="-1" style="display:block;outline:none;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
-                            x-text="picker.step === 'board'
-                                ? ($store.ui.lang==='en' ? 'Pull which card?' : 'Tarik kad yang mana?')
-                                : (picker.step === 'category'
-                                    ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
-                                    : (picker.step === 'project'
-                                        ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
-                                        : (picker.step === 'sub'
-                                            ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
-                                            : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?'))))"></strong>
+                            x-text="picker.step === 'source'
+                                ? ($store.ui.lang==='en' ? 'Add what you worked on' : 'Tambah apa yang anda kerjakan')
+                                : (picker.step === 'board'
+                                    ? ($store.ui.lang==='en' ? 'Pull which card?' : 'Tarik kad yang mana?')
+                                    : (picker.step === 'category'
+                                        ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
+                                        : (picker.step === 'project'
+                                            ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
+                                            : (picker.step === 'sub'
+                                                ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
+                                                : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?')))))"></strong>
                         <span x-show="picker.step !== 'details' && pickerTrail()" x-cloak
                             style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                             x-text="pickerTrail()"></span>
@@ -418,6 +413,30 @@
                 </div>
 
                 <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:5px;">
+
+                    {{-- Source step: the one question two side-by-side buttons used to imply
+                         was a difference in what got added. Skipped entirely when there are no
+                         In Progress cards to pull from — see openPicker() in
+                         timesheet-capture.js — so a manual-only staffer opens straight on the
+                         category list below. --}}
+                    <template x-if="picker.step === 'source'">
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <div @click="chooseSource('board')" role="button" tabindex="0"
+                                @keydown.enter="chooseSource('board')" @keydown.space.prevent="chooseSource('board')"
+                                class="uj-ts-opt"
+                                style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="$store.ui.lang==='en' ? 'Pull from T.A.A' : 'Tarik dari papan tugasan'"></span>
+                                <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                            </div>
+                            <div @click="chooseSource('manual')" role="button" tabindex="0"
+                                @keydown.enter="chooseSource('manual')" @keydown.space.prevent="chooseSource('manual')"
+                                class="uj-ts-opt"
+                                style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="$store.ui.lang==='en' ? 'Enter manually' : 'Isi sendiri'"></span>
+                                <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                            </div>
+                        </div>
+                    </template>
 
                     {{-- Board step: the employee's own In Progress cards. Picking one carries
                          its title/description/project into the same category → (project) →

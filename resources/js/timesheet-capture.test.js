@@ -251,9 +251,10 @@ const BOARD_TASKS = [
     { id: 101, title: 'No project card', description: '', project_id: null },
 ];
 
-test('openBoardPicker() opens the picker on the board step', () => {
+test("chooseSource('board') opens the picker on the board step", () => {
     const c = makeComponent({ days: 5, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
 
     expect(c.picker.open).toBe(true);
     expect(c.picker.step).toBe('board');
@@ -261,7 +262,8 @@ test('openBoardPicker() opens the picker on the board step', () => {
 
 test('chooseBoardTask() carries the card into a category step, pre-filling its project and description', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
 
     expect(c.picker.step).toBe('category');
@@ -271,7 +273,8 @@ test('chooseBoardTask() carries the card into a category step, pre-filling its p
 
 test('chooseBoardTask() falls back to the card title when it has no description', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[1]);
 
     expect(c.picker.boardProject).toBeNull();
@@ -280,7 +283,8 @@ test('chooseBoardTask() falls back to the card title when it has no description'
 
 test('picking a project-requiring category after a board pull skips straight to sub-pillar, project already set', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]); // project 5 has a sub-pillar
     c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null }); // requires_project: true
 
@@ -294,7 +298,8 @@ test('a board-pulled project with no sub-pillars lands straight on the details s
         projects: [{ id: 6, name: 'Legacy Project', category_ids: [], sub_pillars: [] }],
         boardTasks: [{ id: 102, title: 'Quick fix', description: 'Patch the thing', project_id: 6 }],
     });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(c.boardTasks[0]);
     c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null });
 
@@ -305,7 +310,8 @@ test('a board-pulled project with no sub-pillars lands straight on the details s
 
 test('a category that does not require a project ignores a board-pulled project and stays terminal', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
     // requires_project: false, so pickerCategories() would hand this option a terminal item.
     c.chooseStep({ c: CATEGORIES[1], label: 'Sales', item: c.pickerItem(CATEGORIES[1], null, null) });
@@ -316,7 +322,8 @@ test('a category that does not require a project ignores a board-pulled project 
 
 test('manually adding an entry never carries a leftover board description from an earlier pull', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
     c.closePicker();
 
@@ -328,7 +335,8 @@ test('manually adding an entry never carries a leftover board description from a
 
 test('pickerBack() from category returns to the board list when the flow started there', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
 
     c.pickerBack();

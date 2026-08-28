@@ -285,6 +285,7 @@ export function registerTimesheetCapture(Alpine) {
                 sub_pillar_id: item.sub_pillar_id || '',
                 description: description || '',
                 percentage: percentage != null ? percentage : this.remainder(iso),
+                work_item_id: this.picker.boardWorkItemId || null,
             });
         },
         removeRow(i) {
@@ -369,25 +370,24 @@ export function registerTimesheetCapture(Alpine) {
         picker: {
             open: false, step: 'category', category: null, project: null,
             pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '', boardWorkItemId: null,
         },
 
+        // One way in. The staffer says "add what I worked on", then chooses whether it
+        // comes from a board card or gets typed. Two buttons side by side made the
+        // difference look like a difference in what is being added, which it is not.
+        // With no In Progress cards there is nothing to choose between, so the source
+        // step is skipped entirely and the picker opens straight on the category list.
         openPicker() {
             this.picker = {
-                open: true, step: 'category', category: null, project: null,
+                open: true, step: this.boardTasks.length ? 'source' : 'category',
+                category: null, project: null,
                 pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '', boardWorkItemId: null,
             };
         },
-        // "Pull from board": same popup, but starts on a list of the employee's own In
-        // Progress cards instead of the category step. Category is still asked (a card
-        // carries no category), so this only pre-fills what the card already knows.
-        openBoardPicker() {
-            this.picker = {
-                open: true, step: 'board', category: null, project: null,
-                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
-            };
+        chooseSource(source) {
+            this.picker.step = source === 'board' ? 'board' : 'category';
         },
         projectName(id) {
             const p = this.projects.find((p) => String(p.id) === String(id));
@@ -395,6 +395,7 @@ export function registerTimesheetCapture(Alpine) {
         },
         chooseBoardTask(task) {
             this.picker.viaBoard = true;
+            this.picker.boardWorkItemId = task.id;
             const proj = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
             this.picker.boardProject = proj;
             this.picker.boardDesc = escapeForNotes(task.description || task.title || '');
@@ -463,11 +464,22 @@ export function registerTimesheetCapture(Alpine) {
             } else if (this.picker.step === 'project') {
                 this.picker.step = 'category';
                 this.picker.category = null;
+            } else if (this.picker.step === 'board') {
+                this.picker.step = 'source';
             } else if (this.picker.step === 'category' && this.picker.viaBoard) {
                 // A board pull's first step is the card list, not category — back goes
                 // there instead of closing, so re-picking a card doesn't reopen the popup.
                 this.picker.step = 'board';
                 this.picker.category = null;
+            } else if (this.picker.step === 'category') {
+                // Typed entry: the source question is the only thing behind this.
+                if (this.boardTasks.length) {
+                    this.picker.step = 'source';
+                } else {
+                    this.closePicker();
+
+                    return;
+                }
             } else {
                 this.closePicker();
 
