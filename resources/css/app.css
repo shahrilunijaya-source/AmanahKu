@@ -4150,6 +4150,12 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
     transform: none;
     max-height: 220px;
 }
+/* A row proposed from the board, not yet costed by the staffer. Dashed, dimmed: it is
+   an offer, not a claim, and must not read as something already filled in. */
+.uj-ts-row--suggested {
+    border-style: dashed;
+    opacity: .72;
+}
 @media (prefers-reduced-motion: reduce) {
     .uj-ts-tools { transition-duration: .01ms; }
 }

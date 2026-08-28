@@ -234,7 +234,7 @@
             <template x-if="!isFullyLocked(selected) && !isFuture(selected) && !isOffDay(selected)">
                 <div>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
-                        <div class="uj-ts-row" :data-blank="isBlank(r) ? '1' : '0'"
+                        <div class="uj-ts-row" :class="{ 'uj-ts-row--suggested': r.suggested }" :data-blank="isBlank(r) ? '1' : '0'"
                             style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">
                             <div class="uj-ts-row-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                                 <span class="uj-ts-row-label" style="min-width:0;display:flex;align-items:center;gap:10px;">
@@ -282,7 +282,7 @@
                                 <span style="font-size:11px;color:var(--muted);margin-right:2px;"
                                     x-text="$store.ui.lang==='en' ? 'Set to' : 'Tetapkan'"></span>
                                 <template x-for="pct in [100, 50, 25]" :key="pct">
-                                    <button type="button" @click="r.percentage = pct; save()" class="uj-ts-pill"
+                                    <button type="button" @click="r.percentage = pct; r.suggested = false; save()" class="uj-ts-pill"
                                         style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
                                         x-text="pct + '%'"></button>
                                 </template>

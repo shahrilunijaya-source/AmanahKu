@@ -114,6 +114,27 @@ export function registerTimesheetCapture(Alpine) {
                     work_item_id: e.work_item_id || null,
                 }));
             }
+
+            // Rows proposed from the board's In Progress cards. Appended after the saved
+            // rows so what the staffer actually typed always comes first, and skipped on
+            // fully locked days for the same reason the seed above skips them. The
+            // `suggested` flag is client-only: it marks a row as not-yet-real, and is
+            // cleared the moment the staffer gives it a percentage.
+            const suggested = cfg.suggested || {};
+            for (const iso of Object.keys(suggested)) {
+                if (this.isFullyLocked(iso) || !this.isEditable(iso)) continue;
+                this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
+                    id: null,
+                    work_item_id: s.work_item_id,
+                    category_id: s.category_id || '',
+                    project_id: s.project_id || '',
+                    sub_pillar_id: s.sub_pillar_id || '',
+                    description: s.description || '',
+                    percentage: '',
+                    suggested: true,
+                })));
+            }
+
             // Land on today when it falls in the visible week, so the screen opens focused
             // on the day the user is most likely filling. Fall back to the first day still
             // needing work when today is out of range (viewing a past/future week, or today
@@ -284,6 +305,8 @@ export function registerTimesheetCapture(Alpine) {
             }
             const n = parseFloat(raw);
             row.percentage = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+            // A suggestion the staffer has costed is an ordinary row.
+            if (row.percentage !== '') row.suggested = false;
         },
         // A line the staffer added but has not costed yet. It is kept and flagged rather than
         // dropped: the day cannot be submitted while one exists, but it survives a reload.
@@ -300,6 +323,7 @@ export function registerTimesheetCapture(Alpine) {
             const rest = this.remainder(this.selected);
             if (rest <= 0) return;
             row.percentage = Math.round(((parseFloat(row.percentage) || 0) + rest) * 100) / 100;
+            row.suggested = false;
             this.save();
         },
         // True when this day already carries the exact Category · Project · Sub-pillar the
@@ -616,6 +640,7 @@ export function registerTimesheetCapture(Alpine) {
                 const r = this.rows[this.selected][this.picker.editingIndex];
                 r.percentage = this.picker.pendingPct;
                 r.description = this.picker.pendingDesc;
+                if (r.percentage !== '') r.suggested = false;
             } else {
                 this.addRow(this.picker.pendingItem, this.picker.pendingPct, this.picker.pendingDesc);
             }
@@ -800,7 +825,12 @@ export function registerTimesheetCapture(Alpine) {
                 // which the server rejects (D2). A stale future row seeded from an existing
                 // draft would otherwise poison every save with "… has not happened yet."
                 if (!this.isEditable(iso)) continue;
-                for (const r of this.rows[iso]) {
+                // A suggestion nobody costed is not a claim — it must not reach the
+                // server, where a 0% line would block the week's submit
+                // (WeekWriter::assertNoBlankLines) and clutter the draft.
+                const dayRows = this.rows[iso]
+                    .filter((r) => !(r.suggested && (r.percentage === '' || r.percentage === null)));
+                for (const r of dayRows) {
                     // A 0% line IS sent. It used to be dropped here, which meant a line the
                     // staffer had added but not yet costed vanished on the next reload with
                     // nothing said. The server accepts 0 in a draft and refuses it at submit,
