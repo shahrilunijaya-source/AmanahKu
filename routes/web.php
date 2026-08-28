@@ -448,6 +448,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
         Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
+        Route::post('/app/projects/{project}/archive', [ProjectController::class, 'archiveProject'])->name('projects.archive');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
         Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
         Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');

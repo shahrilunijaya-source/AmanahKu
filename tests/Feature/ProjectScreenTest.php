@@ -177,6 +177,34 @@ class ProjectScreenTest extends TestCase
         $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => false]);
     }
 
+    public function test_a_manager_can_archive_and_restore_a_project(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.archive', $project))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => false]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.archive', $project))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => true]);
+    }
+
+    public function test_an_employee_cannot_archive_a_project(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+
+        $this->actingAsRole('employee')
+            ->post(route('projects.archive', $project))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => true]);
+    }
+
     public function test_project_ajax_add_returns_a_rendered_row(): void
     {
         $res = $this->actingAsRole('hr')->postJson(route('projects.store'), [
