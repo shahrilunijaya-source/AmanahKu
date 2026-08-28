@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\PayrollItem;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Notifications\MemberInvited;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -101,6 +102,14 @@ class SuperAdminCompanyTest extends TestCase
         $this->assertSame(
             count(PayrollItem::SYSTEM_ITEMS),
             PayrollItem::where('tenant_id', $tenant->id)->count()
+        );
+
+        // So are the timesheet's effort types. The capture screen has no category picker
+        // of its own any more, so a company starting with none could not cost an hour.
+        $this->assertSame(
+            collect(TimesheetCategory::DEFAULTS)->pluck(0)->sort()->values()->all(),
+            TimesheetCategory::withoutGlobalScope('tenant')
+                ->where('tenant_id', $tenant->id)->pluck('name')->sort()->values()->all()
         );
     }
 

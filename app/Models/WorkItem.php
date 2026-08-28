@@ -57,6 +57,12 @@ class WorkItem extends Model
         return $this->belongsTo(Project::class, 'project_id');
     }
 
+    /** The effort type this card's hours are costed as once they reach a timesheet. */
+    public function timesheetCategory(): BelongsTo
+    {
+        return $this->belongsTo(TimesheetCategory::class);
+    }
+
     /** The superior who assigned this task. Null for self-created cards. */
     /** @return BelongsTo<Employee, $this> */
     public function assignedBy(): BelongsTo

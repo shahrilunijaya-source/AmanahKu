@@ -13,6 +13,7 @@
                                 false = team board (view + comment only).
     @param array $priLabel     value => label, e.g. ['high' => 'High', ...]
     @param \Illuminate\Support\Collection $projects  Only used when $interactive.
+    @param \Illuminate\Support\Collection $timesheetCategories  Only used when $interactive.
 
     Note: the label palette itself (WorkItem::LABELS) is NOT a Blade param here —
     it's read from Alpine's `labels` data property, already bound on the host
@@ -143,6 +144,24 @@
                                 </select>
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.project ? drawer.card.project.name : ($store.ui.lang==='en' ? 'No project' : 'Tiada projek')"></span>
+                            @endif
+                        </span>
+
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Costed as' : 'Dikira sebagai'">Costed as</span>
+                        <span class="wd-pval">
+                            @if ($interactive)
+                                {{-- The effort type this card's hours land under in the timesheet.
+                                     Set once here, because the capture screen has no category
+                                     picker: its rows come from these cards. Left blank, the
+                                     timesheet falls back to the project's own category, then to
+                                     Others. --}}
+                                <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
+                                        @change="commitField('timesheet_category_id', drawer.card.timesheet_category_id === '' ? null : drawer.card.timesheet_category_id)">
+                                    <option value="" x-text="$store.ui.lang==='en' ? 'From the project' : 'Ikut projek'"></option>
+                                    @foreach ($timesheetCategories ?? [] as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach
+                                </select>
+                            @else
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.timesheet_category_name || ($store.ui.lang==='en' ? 'From the project' : 'Ikut projek')"></span>
                             @endif
                         </span>
 

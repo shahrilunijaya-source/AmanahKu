@@ -15,12 +15,10 @@ use App\Models\SubPillar;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
-use App\Models\TimesheetTemplate;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Services\MandayRateService;
-use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\BoardSuggestions;
@@ -135,57 +133,10 @@ class TimesheetController extends Controller
             }
         }
 
-        // The picker offers ready-made "Category · Project · Sub-pillar" combinations rather
-        // than three sequential pill choices. Saved templates first, then recent
-        // combinations, most recent first.
-        $tsItems = [];
-
-        if ($employee) {
-            $recent = TimesheetEntry::with(['category', 'projectRef', 'subPillar'])
-                ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id))
-                ->whereNull('source')
-                ->where('entry_date', '>=', $weekStart->copy()->subWeeks(8)->toDateString())
-                ->latest('entry_date')
-                ->get();
-
-            foreach ($recent as $e) {
-                $key = $e->category_id.'|'.($e->project_id ?: '').'|'.($e->sub_pillar_id ?: '');
-
-                if (isset($tsItems[$key])) {
-                    continue;
-                }
-
-                $label = implode(' · ', array_filter([
-                    $e->category?->name,
-                    $e->projectRef?->name,
-                    $e->subPillar?->name,
-                ]));
-
-                $tsItems[$key] = [
-                    'key' => $key,
-                    'category_id' => (int) $e->category_id,
-                    'project_id' => $e->project_id ? (int) $e->project_id : null,
-                    'sub_pillar_id' => $e->sub_pillar_id ? (int) $e->sub_pillar_id : null,
-                    'label' => $label,
-                ];
-            }
-        }
-
-        $tsItems = array_values($tsItems);
-
-        // The employee's own In Progress board cards, for the capture screen's "Pull
-        // from board" picker step — never another employee's card, and never a card
-        // sitting in a different column.
-        $tsBoardTasks = $employee
-            ? WorkItem::where('employee_id', $employee->id)
-                ->where('status', 'prog')
-                ->orderBy('due_at')
-                ->get(['id', 'title', 'description', 'project_id'])
-            : new Collection;
-
-        // Rows proposed from the board's In Progress cards, one per card per day it was
-        // worked. Suggestions only: nothing is stored until the staffer gives a row a
-        // percentage and saves. A failure here must never take the capture screen down —
+        // Rows proposed from the board's In Progress and In Review cards, one per card
+        // per day it was worked. With no Add button on the capture screen, this is the
+        // only way work reaches a timesheet: nothing is stored until the staffer gives a
+        // row a percentage and saves. A failure here must never take the screen down —
         // an empty map just means the grid opens the way it always did.
         try {
             $tsSuggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : [];
@@ -203,9 +154,10 @@ class TimesheetController extends Controller
             // Week-by-week view of the signed-in staff's own entries (Review tab).
             'myWeeks' => $myWeeks,
             // Capture grid inputs.
-            'tsCategories' => $this->categoryOptions(),
+            'tsCategories' => $this->categoryOptions(
+                collect($existingGrid)->flatten(1)->pluck('category_id')->filter()->map(fn ($id) => (int) $id)->unique()->all(),
+            ),
             'tsProjects' => $this->projectOptions(),
-            'tsTemplates' => $this->templateOptions($employee),
             'weekStart' => $weekStart->toDateString(),
             'weekLabel' => $weekTimesheet?->week_label ?? '',
             'weekStatus' => $weekTimesheet?->status,
@@ -213,9 +165,9 @@ class TimesheetController extends Controller
             'existingGrid' => $existingGrid,
             // Day-first capture screen inputs (Tasks 7-8).
             'tsLocked' => $locked,
-            'tsItems' => $tsItems,
-            'tsBoardTasks' => $tsBoardTasks,
             'tsSuggested' => $tsSuggested,
+            'tsSubPillars' => SubPillar::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
+            'tsDismissed' => $this->dismissedRows($weekTimesheet),
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];
@@ -248,13 +200,22 @@ class TimesheetController extends Controller
             'entries.*.percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
             'entries.*.work_item_id' => ['nullable', 'integer'],
+            // Board cards the staffer struck off a day, keyed by ISO date. Absent means
+            // "this caller knows nothing about dismissals" — see WeekWriter::save().
+            'dismissed' => ['nullable', 'array'],
+            'dismissed.*' => ['array'],
+            'dismissed.*.*' => ['integer'],
         ]);
 
         $this->assertOwnedWorkItems($data['entries'], $employee);
 
+        $dismissed = $request->has('dismissed')
+            ? $this->cleanDismissed($data['dismissed'] ?? [], $data['week_start'], $employee)
+            : null;
+
         $submitNow = $request->boolean('submit_now');
 
-        $result = $this->weekWriter->save($employee, $data['week_start'], $data['entries'], $data['week_label'] ?? null, $submitNow);
+        $result = $this->weekWriter->save($employee, $data['week_start'], $data['entries'], $data['week_label'] ?? null, $submitNow, $dismissed);
         $timesheet = $result['timesheet'];
         $entries = $result['entries'];
         $locked = $result['locked'];
@@ -291,6 +252,93 @@ class TimesheetController extends Controller
      *
      * @param  array<int, array<string, mixed>>  $entries
      */
+    /**
+     * The cards struck off each day of this week, with enough of the card left to offer
+     * them back: the capture screen shows them greyed under the day with a Restore link,
+     * so a mis-tapped remove is one click to undo rather than a trip to the board.
+     *
+     * @return array<string, array<int, array{work_item_id:int, title:string, category_id:?int, project_id:?int, description:string}>>
+     */
+    private function dismissedRows(?Timesheet $timesheet): array
+    {
+        $stored = $timesheet === null ? [] : ($timesheet->dismissed_suggestions ?? []);
+
+        $cards = WorkItem::whereIn('id', collect($stored)->flatten()->unique()->all())
+            ->get(['id', 'title', 'description', 'project_id', 'timesheet_category_id'])
+            ->keyBy('id');
+
+        $categories = app(BoardSuggestions::class)->categoryFor($cards);
+
+        $out = [];
+        foreach ($stored as $iso => $ids) {
+            foreach ((array) $ids as $id) {
+                $card = $cards[(int) $id] ?? null;
+
+                if ($card === null) {
+                    continue;
+                }
+
+                $out[(string) $iso][] = [
+                    'work_item_id' => (int) $card->id,
+                    'title' => $card->title,
+                    'category_id' => $categories[(int) $card->id] ?? null,
+                    'project_id' => $card->project_id ? (int) $card->project_id : null,
+                    'description' => (string) ($card->description ?: $card->title),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Keep only dismissals this staffer may actually make: dates inside the week being
+     * saved, and cards that are theirs. A dismissal hides work from the cost report by
+     * keeping it off the grid, so it is a claim like any other and gets the same guard
+     * the entries themselves get.
+     *
+     * @param  array<string, array<int, int>>  $dismissed
+     * @return array<string, array<int, int>>
+     */
+    private function cleanDismissed(array $dismissed, string $weekStart, Employee $employee): array
+    {
+        $start = Carbon::parse($weekStart)->startOfDay();
+        $ids = collect($dismissed)->flatten()->map(fn ($id) => (int) $id)->unique();
+
+        $allowed = $ids->isEmpty() ? [] : WorkItem::whereIn('id', $ids)
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $out = [];
+        foreach ($dismissed as $iso => $cardIds) {
+            // The keys are dates the browser put there, so garbage is possible: a bad key
+            // is dropped, not allowed to 500 the save behind it.
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $iso)) {
+                continue;
+            }
+
+            $date = Carbon::parse((string) $iso)->startOfDay();
+
+            if ($date->lt($start) || $date->gt($start->copy()->addDays(6))) {
+                continue;
+            }
+
+            $kept = array_values(array_unique(array_filter(
+                array_map(fn ($id) => (int) $id, (array) $cardIds),
+                fn (int $id) => in_array($id, $allowed, true),
+            )));
+
+            if ($kept !== []) {
+                $out[$date->toDateString()] = $kept;
+            }
+        }
+
+        return $out;
+    }
+
     private function assertOwnedWorkItems(array $entries, Employee $employee): void
     {
         $ids = collect($entries)->pluck('work_item_id')->filter()->map(fn ($id) => (int) $id)->unique();
@@ -333,48 +381,6 @@ class TimesheetController extends Controller
         AuditLog::record('Recalled timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
 
         return back()->with('ok', 'Week reopened. Fix it and submit again.');
-    }
-
-    // ---- Per-staff templates ---------------------------------------------
-
-    public function storeTemplate(Request $request): RedirectResponse
-    {
-        $employee = $request->attributes->get('employee');
-        abort_unless($employee, 403, 'No employee profile in this workspace.');
-        $tid = app(CurrentTenant::class)->id();
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:80'],
-            'category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
-            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
-            'sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
-            'percentage' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
-            'description' => ['nullable', 'string', 'max:10000'],
-        ]);
-
-        TimesheetTemplate::updateOrCreate(
-            ['employee_id' => $employee->id, 'name' => $data['name']],
-            [
-                'category_id' => $data['category_id'],
-                'project_id' => $data['project_id'] ?? null,
-                'sub_pillar_id' => $data['sub_pillar_id'] ?? null,
-                'percentage' => $data['percentage'] ?? null,
-                'description' => HtmlSanitizer::clean($data['description'] ?? null),
-            ],
-        );
-
-        return back()->with('ok', 'Template "'.$data['name'].'" saved.');
-    }
-
-    public function deleteTemplate(Request $request, TimesheetTemplate $template): RedirectResponse
-    {
-        $employee = $request->attributes->get('employee');
-        abort_unless($employee && $template->employee_id === $employee->id, 403, 'You can only remove your own templates.');
-
-        $name = $template->name;
-        $template->delete();
-
-        return back()->with('ok', 'Template "'.$name.'" removed.');
     }
 
     // ---- Reports ----------------------------------------------------------
@@ -866,12 +872,19 @@ class TimesheetController extends Controller
      * auto-generates those rows, so staff need the manual option to log leave at all. The
      * categories themselves always stay in the table, because LockedDays files its
      * generated rows under them whenever the module is on.
+     *
+     * @param  array<int, int>  $keepIds  categories a stored draft already uses, kept even
+     *                                    when deactivated: the grid labels its rows from this
+     *                                    list, so dropping them would leave a saved line with
+     *                                    no name on it. Nothing new can be filed under them —
+     *                                    the capture screen has no category picker at all.
      */
-    private function categoryOptions(): Collection
+    private function categoryOptions(array $keepIds = []): Collection
     {
         $leaveModuleOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave');
 
-        return TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
+        return TimesheetCategory::where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $keepIds))
+            ->orderBy('sort')->orderBy('name')->get()
             ->map(fn (TimesheetCategory $c) => [
                 'id' => $c->id,
                 'name' => $c->name,
@@ -904,25 +917,6 @@ class TimesheetController extends Controller
                 'name' => $p->name,
                 'category_ids' => $p->categories->pluck('id')->values(),
                 'sub_pillars' => $subPillars,
-            ])->values();
-    }
-
-    /** The acting employee's saved allocation templates as plain arrays. */
-    private function templateOptions(?Employee $employee): Collection
-    {
-        if (! $employee) {
-            return new Collection;
-        }
-
-        return TimesheetTemplate::where('employee_id', $employee->id)->orderBy('name')->get()
-            ->map(fn (TimesheetTemplate $t) => [
-                'id' => $t->id,
-                'name' => $t->name,
-                'category_id' => $t->category_id,
-                'project_id' => $t->project_id,
-                'sub_pillar_id' => $t->sub_pillar_id,
-                'percentage' => $t->percentage !== null ? (float) $t->percentage : null,
-                'description' => $t->description ?? '',
             ])->values();
     }
 

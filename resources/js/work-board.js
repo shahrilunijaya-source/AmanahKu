@@ -89,7 +89,7 @@ export function registerWorkBoard(Alpine) {
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
                 due_at: '', due_label: '', status: 'todo', labels: [], participants: [],
-                project_id: '', project: null, comments_count: 0, mentionable: [],
+                project_id: '', project: null, timesheet_category_id: '', comments_count: 0, mentionable: [],
             },
             comments: [],
             // "@" mention picker state, scoped to the comment composer. See
@@ -573,6 +573,7 @@ export function registerWorkBoard(Alpine) {
                     participants: card.participants ?? [],
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
+                    timesheet_category_id: card.timesheet_category_id ?? '',
                 };
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's

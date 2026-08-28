@@ -176,18 +176,73 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([], $this->idsOn($result, '2026-08-24'));
     }
 
-    public function test_the_category_comes_from_the_cards_last_logged_entry(): void
+    public function test_the_category_comes_from_the_card(): void
     {
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Apollo']);
-        $card = $this->card(['project_id' => $project->id]);
-        $this->stint($card, '2026-08-24 09:00:00', null);
-        $this->logEntry($card, '2026-08-24', $project->id);
+        $card = $this->card(['project_id' => $project->id, 'timesheet_category_id' => $this->work->id]);
+        $this->stint($card, '2026-08-25 09:00:00', null);
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
         $row = $result['2026-08-25'][0];
 
         $this->assertSame($this->work->id, $row['category_id']);
         $this->assertSame($project->id, $row['project_id']);
+    }
+
+    public function test_the_cards_own_category_beats_its_projects_one(): void
+    {
+        $admin = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Admin', 'requires_project' => false,
+        ]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Apollo']);
+        $project->categories()->attach($this->work->id);
+        $card = $this->card(['project_id' => $project->id, 'timesheet_category_id' => $admin->id]);
+        $this->stint($card, '2026-08-25 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame($admin->id, $result['2026-08-25'][0]['category_id']);
+    }
+
+    public function test_a_card_with_nothing_to_go_on_lands_in_the_overhead_bucket(): void
+    {
+        $others = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false,
+        ]);
+        $card = $this->card();
+        $this->stint($card, '2026-08-25 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame($others->id, $result['2026-08-25'][0]['category_id']);
+    }
+
+    public function test_a_card_struck_off_a_day_is_not_offered_again(): void
+    {
+        $card = $this->card();
+        $this->stint($card, '2026-08-24 09:00:00', null);
+
+        Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => self::WEEK, 'status' => 'draft', 'total_hours' => 0,
+            'dismissed_suggestions' => ['2026-08-25' => [$card->id]],
+        ]);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
+    }
+
+    public function test_a_card_in_review_keeps_being_suggested(): void
+    {
+        $card = $this->card();
+        $this->stint($card, '2026-08-24 09:00:00', null);
+        $card->update(['status' => 'review']);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_the_category_falls_back_to_the_projects_only_category(): void
@@ -217,7 +272,7 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-28'));
     }
 
-    public function test_a_card_with_no_project_is_suggested_with_a_blank_category(): void
+    public function test_a_card_with_no_project_and_no_overhead_bucket_is_suggested_uncategorised(): void
     {
         $card = $this->card();
         $this->stint($card, '2026-08-25 09:00:00', null);
@@ -228,25 +283,6 @@ class BoardSuggestionsTest extends TestCase
         $this->assertNull($row['category_id']);
         $this->assertNull($row['project_id']);
         $this->assertSame('Build the thing', $row['description']);
-    }
-
-    public function test_two_entries_on_the_same_date_carry_forward_the_later_created_one(): void
-    {
-        $admin = TimesheetCategory::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Admin', 'requires_project' => false,
-        ]);
-        $card = $this->card();
-        $this->stint($card, '2026-08-24 09:00:00', null);
-
-        // Same entry_date, different categories — a day split across categories. The
-        // second one created (higher id) is the "most recent" one and must win.
-        $this->logEntry($card, '2026-08-24', null, $this->work->id);
-        $this->logEntry($card, '2026-08-24', null, $admin->id);
-
-        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
-        $row = $result['2026-08-25'][0];
-
-        $this->assertSame($admin->id, $row['category_id']);
     }
 
     /** Log a real timesheet entry for a card, so the "already logged" and carry-forward paths have data. */

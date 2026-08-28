@@ -273,15 +273,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
    value), so a flex row written as inline style silently collapses to block the
    moment isEditable(selected) flips true. The class survives because Alpine only
    ever touches el.style, never classList. */
-.uj-ts-add-row { display: flex; flex-direction: row; gap: 8px; margin-top: 12px; }
-/* Base look lives here, not inline, so :hover below can actually win — an inline
-   style on the element beats any class selector, hover included. */
-.uj-ts-add-btn {
-    flex: 1; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px;
-    background: none; cursor: pointer; font-size: 12.5px; color: var(--muted);
-    transition: background .15s, border-color .15s, color .15s;
-}
-.uj-ts-add-btn:hover { background: var(--red); border-color: var(--red); border-style: solid; color: #fff; }
 
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
@@ -4169,9 +4160,6 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    binding — an inline style (even a reactive :style-bound one) always outranks a stylesheet
    :hover rule, so setting background:#fff inline made this hover rule a no-op until that
    binding was narrowed to the disabled case only (see timesheets.blade.php). */
-.uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
-.uj-ts-opt:not([data-disabled="1"]):hover { background: var(--canvas); border-color: var(--muted-soft); }
-.uj-ts-opt:not([data-disabled="1"]):active { transform: scale(0.98); }
 
 .uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-pill:hover { border-color: var(--muted-soft); }
@@ -4185,8 +4173,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ts-step-enter-start { opacity: 0; transform: translateY(4px); }
 .uj-ts-step-enter-end { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-    .uj-ts-opt, .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
-    .uj-ts-opt:active, .uj-ts-pill:active { transform: none; }
+    .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
+    .uj-ts-pill:active { transform: none; }
     .uj-ts-step-enter { transition: opacity .15s ease; }
     .uj-ts-step-enter-start, .uj-ts-step-enter-end { transform: none; }
 }

@@ -26,6 +26,59 @@ class TimesheetCategory extends Model
     public const PROJECT_LINKABLE = ['Development', 'Maintenance', 'InHouse Project', 'Sales'];
 
     /**
+     * What a new company starts with: the four effort types the director costs work
+     * against, Others for everything not billed to a project, and the two rows
+     * LockedDays files approved leave and public holidays under (matched by name —
+     * see LockedDays::CATEGORY_NAME — and hidden from the staffer's own picker while
+     * the leave module is on, so nobody logs leave HR never approved).
+     *
+     * A company with no categories has no way to cost anything at all now that the
+     * capture screen has no category picker of its own: its rows come from board
+     * cards, and a card with nothing behind it is held back rather than saved.
+     *
+     * @var list<array{0:string, 1:string, 2:bool}> name, name_ms, requires_project
+     */
+    public const DEFAULTS = [
+        ['Development', 'Pembangunan', true],
+        ['Maintenance', 'Penyelenggaraan', true],
+        ['InHouse Project', 'Projek Dalaman', true],
+        ['Sales', 'Jualan', true],
+        ['Others', 'Lain-lain', false],
+        ['Public Holiday', 'Cuti Umum', false],
+        ['On Leave', 'Bercuti', false],
+    ];
+
+    /**
+     * Give a tenant the default categories. Idempotent by name, so it is safe on a
+     * company that already has some of them — an existing row is left exactly as the
+     * company edited it.
+     */
+    public static function seedFor(Tenant $tenant): void
+    {
+        $existing = self::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenant->id)
+            ->pluck('name')
+            ->all();
+
+        $sort = (int) self::withoutGlobalScope('tenant')->where('tenant_id', $tenant->id)->max('sort');
+
+        foreach (self::DEFAULTS as [$name, $nameMs, $requiresProject]) {
+            if (in_array($name, $existing, true)) {
+                continue;
+            }
+
+            self::create([
+                'tenant_id' => $tenant->id,
+                'name' => $name,
+                'name_ms' => $nameMs,
+                'requires_project' => $requiresProject,
+                'sort' => $sort++,
+                'is_active' => true,
+            ]);
+        }
+    }
+
+    /**
      * One colour per project-linkable category, so a category reads the same
      * everywhere it appears — the dot in the timesheet picker and the pill on
      * the Projects register. Hexes are dark enough to sit as text on their own
