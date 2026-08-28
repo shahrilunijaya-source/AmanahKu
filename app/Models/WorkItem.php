@@ -81,6 +81,16 @@ class WorkItem extends Model
     }
 
     /**
+     * Every visit this card has made to the In Progress column, oldest first.
+     *
+     * @return HasMany<WorkItemProgressStint, $this>
+     */
+    public function progressStints(): HasMany
+    {
+        return $this->hasMany(WorkItemProgressStint::class)->orderBy('started_at');
+    }
+
+    /**
      * People included on this card beyond its owner. The same shared card appears
      * on every participant's board; they may view / move / comment but not edit.
      *
