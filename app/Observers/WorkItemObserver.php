@@ -96,7 +96,15 @@ class WorkItemObserver
         // still close, or an archived card keeps being suggested for every later day.
         $justArchived = $item->isDirty('archived_at') && $item->archived_at !== null;
 
-        if ($isProg && ! $justArchived && ! $wasProg) {
+        // A card moving between the two worked columns is not entering either of them, so
+        // nothing here would open a stint — including the cards that were already parked in
+        // In Review when In Review started counting, whose stint was closed on the way out
+        // of In Progress. Treat a move within the worked columns with no stint running as an
+        // entry, so those cards heal themselves rather than staying invisible to the
+        // timesheet forever.
+        $healing = $isProg && $wasProg && $item->isDirty('status') && ! $this->hasOpenStint($item);
+
+        if ($isProg && ! $justArchived && (! $wasProg || $healing)) {
             $this->closeOpenStints($item);
 
             WorkItemProgressStint::create([
@@ -117,6 +125,14 @@ class WorkItemObserver
         if ($isProg && $justArchived) {
             $this->closeOpenStints($item);
         }
+    }
+
+    private function hasOpenStint(WorkItem $item): bool
+    {
+        return WorkItemProgressStint::withoutGlobalScope('tenant')
+            ->where('work_item_id', $item->id)
+            ->whereNull('ended_at')
+            ->exists();
     }
 
     /**

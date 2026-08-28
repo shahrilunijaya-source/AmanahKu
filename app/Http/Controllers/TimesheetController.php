@@ -312,6 +312,12 @@ class TimesheetController extends Controller
 
         $out = [];
         foreach ($dismissed as $iso => $cardIds) {
+            // The keys are dates the browser put there, so garbage is possible: a bad key
+            // is dropped, not allowed to 500 the save behind it.
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $iso)) {
+                continue;
+            }
+
             $date = Carbon::parse((string) $iso)->startOfDay();
 
             if ($date->lt($start) || $date->gt($start->copy()->addDays(6))) {

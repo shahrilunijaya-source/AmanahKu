@@ -115,6 +115,39 @@ class WorkItemProgressStintTest extends TestCase
         $this->assertNull($stints[1]->ended_at);
     }
 
+    /**
+     * The cards already sitting In Review when In Review started counting: their stint was
+     * closed under the old rule when they left In Progress. Moving between the two worked
+     * columns is not "entering" either of them, so nothing would reopen a stint and the card
+     * would stay invisible to the timesheet forever. A move within the worked columns with
+     * no stint running self-heals, the same way closeOpenStints() heals a dangling one.
+     */
+    public function test_a_move_between_the_worked_columns_with_no_stint_running_opens_one(): void
+    {
+        $card = $this->card(['status' => 'review']);
+        WorkItemProgressStint::where('work_item_id', $card->id)->delete();
+
+        Carbon::setTestNow('2026-08-28 09:00:00');
+        $card->update(['status' => 'prog']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertNull($stint->ended_at);
+        $this->assertSame('2026-08-28 09:00:00', $stint->started_at->toDateTimeString());
+    }
+
+    public function test_a_move_between_the_worked_columns_does_not_split_a_running_stint(): void
+    {
+        $card = $this->card(['status' => 'prog']);
+
+        Carbon::setTestNow('2026-08-28 09:00:00');
+        $card->update(['status' => 'review']);
+        $card->update(['status' => 'prog']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertNull($stint->ended_at);
+        $this->assertSame('2026-08-26 09:00:00', $stint->started_at->toDateTimeString());
+    }
+
     public function test_creating_a_card_straight_into_in_progress_opens_a_stint(): void
     {
         $card = $this->card(['status' => 'prog']);

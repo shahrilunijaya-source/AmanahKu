@@ -232,6 +232,16 @@
 
             <template x-if="!isFullyLocked(selected) && !isFuture(selected) && !isOffDay(selected)">
                 <div>
+                    {{-- A day with nothing on it used to have the Add button standing there as
+                         the obvious next move. Without it, an empty day has to say where its
+                         lines come from, or it just reads as broken. --}}
+                    <template x-if="!(rows[selected] || []).length && !dismissedFor(selected).length">
+                        <div style="padding:16px 0 4px;font-size:12.5px;color:var(--muted);line-height:1.5;">
+                            <span x-text="$store.ui.lang==='en'
+                                ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
+                                : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.'"></span>
+                        </div>
+                    </template>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
                         <div class="uj-ts-row" :class="{ 'uj-ts-row--suggested': r.suggested }" :data-blank="isBlank(r) ? '1' : '0'"
                             style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">

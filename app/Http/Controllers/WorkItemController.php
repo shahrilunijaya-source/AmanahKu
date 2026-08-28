@@ -550,6 +550,9 @@ class WorkItemController extends Controller
             // Which effort type this card's hours are costed as once they reach a
             // timesheet. Null falls back to the project's category, then to Others.
             'timesheet_category_id' => $item->timesheet_category_id,
+            // Named as well as numbered: the team board's drawer is read-only and has no
+            // category list of its own to resolve the id against.
+            'timesheet_category_name' => $item->timesheetCategory?->name,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->display_name,
