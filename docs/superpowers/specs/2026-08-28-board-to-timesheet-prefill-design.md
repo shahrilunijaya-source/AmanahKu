@@ -1,6 +1,6 @@
 # Prefill the timesheet week from In Progress board cards
 
-Branch: `dev` (no feature branch, per project convention).
+Branch: `feature/board-timesheet-prefill` (off `dev`).
 
 ## Problem
 
