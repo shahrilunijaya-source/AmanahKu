@@ -127,5 +127,22 @@ export function registerExternalTotPaste(Alpine) {
                 if (field) field.value = value;
             }
         },
+
+        /**
+         * Reset the form back to its rendered defaults, then — if editing an existing
+         * event — refill it from that event's own fields. Bound to a $watch, not an
+         * x-effect: an effect fires immediately on mount too, which would wipe out the
+         * old()-value prefill Blade already renders after a failed post.
+         */
+        sync(event) {
+            this.$refs.extForm.reset();
+            this.pasteText = '';
+            if (!event) return;
+
+            for (const [name, value] of Object.entries(event)) {
+                const field = this.$refs.extForm.elements.namedItem(name);
+                if (field) field.value = value ?? '';
+            }
+        },
     }));
 }

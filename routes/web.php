@@ -396,6 +396,7 @@ Route::middleware('auth')->group(function () {
         // Static "external" segment must be registered ahead of the /app/tot/{session}
         // wildcard routes below, or "external" would bind as a {session} id instead.
         Route::post('/app/tot/external', [TotController::class, 'storeExternal'])->name('tot.external.store');
+        Route::post('/app/tot/external/{event}/update', [TotController::class, 'updateExternal'])->name('tot.external.update');
         Route::post('/app/tot/external/{event}/delete', [TotController::class, 'destroyExternal'])->name('tot.external.destroy');
         Route::delete('/app/tot/comments/{comment}', [TotController::class, 'deleteComment'])->name('tot.comments.delete');
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');

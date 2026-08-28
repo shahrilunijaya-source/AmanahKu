@@ -679,6 +679,61 @@ class TotController extends Controller
             ->values();
     }
 
+    /**
+     * Edit an external training/event. Poster-only, unlike post/remove: the wider
+     * EXTERNAL_PRIVILEGED_ROLES trio can still delete a bad post, but only the person who
+     * wrote it may change what it says.
+     */
+    public function updateExternal(Request $request, ExternalTotEvent $event): RedirectResponse
+    {
+        $this->assertSameTenant($event);
+
+        $employee = $request->attributes->get('employee');
+        abort_unless(
+            $employee && $event->posted_by === $employee->id,
+            403,
+            'Only the person who posted this event can edit it.'
+        );
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:200'],
+            'host' => ['nullable', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'event_date' => ['required', 'date'],
+            'time_label' => ['nullable', 'string', 'max:60'],
+            'venue' => ['nullable', 'string', 'max:200'],
+            'venue_map_url' => ['nullable', 'url', 'max:2000'],
+            'registration_url' => ['nullable', 'url', 'max:2000'],
+            'tagged' => ['nullable', 'array', 'max:20'],
+            'tagged.*' => ['integer'],
+        ]);
+
+        $previouslyTagged = $event->taggedIds();
+        $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
+        unset($data['tagged']);
+
+        $event->update([
+            ...$data,
+            'tagged_employee_ids' => $tagged->pluck('id')->all(),
+        ]);
+
+        // Only somebody newly tagged gets a summons — re-saving the same @mentions must
+        // not re-mail everyone who was already told.
+        $newlyTagged = $tagged->reject(fn (Employee $person) => in_array($person->id, $previouslyTagged, true));
+
+        AppNotification::sendMany(
+            $newlyTagged->pluck('user_id')->filter()->all(),
+            "You're required to attend: {$event->title}",
+            collect([$event->host, $event->event_date->format('D, j M Y'), $event->time_label])->filter()->implode(' · '),
+            route('app.screen', 'tot').'?tab=external',
+            mail: true,
+        );
+
+        AuditLog::record('Updated external TOT event', $event->title);
+
+        return back()->with('ok', 'External event updated.');
+    }
+
     /** The External tab's privileged trio: remove an external training/event. */
     public function destroyExternal(Request $request, ExternalTotEvent $event): RedirectResponse
     {

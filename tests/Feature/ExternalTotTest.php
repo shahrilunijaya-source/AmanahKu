@@ -129,6 +129,94 @@ class ExternalTotTest extends TestCase
         $this->assertDatabaseHas('external_tot_events', ['id' => $foreignEvent->id]);
     }
 
+    public function test_the_poster_can_update_their_own_external_event(): void
+    {
+        $user = $this->seedWorkspace('manager');
+        $poster = Employee::where('user_id', $user->id)->firstOrFail();
+        $event = ExternalTotEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $this->tenant->id,
+            'posted_by' => $poster->id,
+        ]));
+
+        $this->actingInTenant($user)
+            ->post("/app/tot/external/{$event->id}/update", $this->payload(['title' => 'Updated Title']))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('external_tot_events', [
+            'id' => $event->id,
+            'title' => 'Updated Title',
+        ]);
+    }
+
+    public function test_a_privileged_role_who_did_not_post_it_cannot_update_an_external_event(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $posterEmployee = Employee::where('user_id', $poster->id)->firstOrFail();
+        $event = ExternalTotEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $this->tenant->id,
+            'posted_by' => $posterEmployee->id,
+        ]));
+
+        $otherHr = User::create([
+            'name' => 'Other HR', 'email' => 'otherhr@example.com', 'password' => Hash::make('password'),
+        ]);
+        $otherHr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $otherHr->id,
+            'name' => 'Other HR', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingInTenant($otherHr)
+            ->post("/app/tot/external/{$event->id}/update", $this->payload(['title' => 'Hijacked Title']))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('external_tot_events', [
+            'id' => $event->id,
+            'title' => 'Cybersecurity in the Age of NeoCloud',
+        ]);
+    }
+
+    public function test_updating_a_foreign_tenants_event_404s(): void
+    {
+        $user = $this->seedWorkspace('manager');
+        $poster = Employee::where('user_id', $user->id)->firstOrFail();
+
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreignEvent = ExternalTotEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $otherTenant->id,
+            'posted_by' => $poster->id,
+        ]));
+
+        $this->actingInTenant($user)
+            ->post("/app/tot/external/{$foreignEvent->id}/update", $this->payload(['title' => 'Nope']))
+            ->assertNotFound();
+    }
+
+    public function test_updating_notifies_a_newly_tagged_person_but_not_one_already_tagged(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $posterEmployee = Employee::where('user_id', $poster->id)->firstOrFail();
+        $already = $this->colleague('Aminah');
+        $new = $this->colleague('Kamal');
+
+        $event = ExternalTotEvent::create(array_merge($this->payload([
+            'description' => 'Ops team, @Aminah is expected there.',
+        ]), [
+            'tenant_id' => $this->tenant->id,
+            'posted_by' => $posterEmployee->id,
+            'tagged_employee_ids' => [$already->id],
+        ]));
+
+        $this->actingInTenant($poster)->post("/app/tot/external/{$event->id}/update", $this->payload([
+            'description' => 'Ops team, @Aminah and @Kamal are expected there.',
+            'tagged' => [$already->id, $new->id],
+        ]))->assertRedirect();
+
+        $this->assertEqualsCanonicalizing([$already->id, $new->id], $event->fresh()->taggedIds());
+        $this->assertDatabaseHas('app_notifications', ['user_id' => $new->user_id]);
+        $this->assertDatabaseMissing('app_notifications', ['user_id' => $already->user_id]);
+    }
+
     public function test_the_board_shows_a_posted_external_event_to_a_plain_employee(): void
     {
         $user = $this->seedWorkspace('employee');
@@ -216,6 +304,43 @@ class ExternalTotTest extends TestCase
 
         $this->assertSame([], ExternalTotEvent::first()->taggedIds());
         $this->assertDatabaseCount('app_notifications', 0);
+    }
+
+    public function test_the_poster_sees_an_edit_button_for_their_own_event(): void
+    {
+        $user = $this->seedWorkspace('manager');
+        $poster = Employee::where('user_id', $user->id)->firstOrFail();
+        ExternalTotEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $this->tenant->id,
+            'posted_by' => $poster->id,
+        ]));
+
+        $this->actingInTenant($user)->get('/app/tot')
+            ->assertOk()
+            ->assertSee('editEvent = JSON.parse(', false);
+    }
+
+    public function test_a_non_poster_does_not_see_an_edit_button_for_someone_elses_event(): void
+    {
+        $poster = $this->seedWorkspace('manager');
+        $posterEmployee = Employee::where('user_id', $poster->id)->firstOrFail();
+        ExternalTotEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $this->tenant->id,
+            'posted_by' => $posterEmployee->id,
+        ]));
+
+        $otherManager = User::create([
+            'name' => 'Other Manager', 'email' => 'othermanager@example.com', 'password' => Hash::make('password'),
+        ]);
+        $otherManager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $otherManager->id,
+            'name' => 'Other Manager', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingInTenant($otherManager)->get('/app/tot')
+            ->assertOk()
+            ->assertDontSee('editEvent = JSON.parse(', false);
     }
 
     public function test_a_tagged_viewer_is_told_on_the_board_that_they_must_register(): void

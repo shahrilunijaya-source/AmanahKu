@@ -19,16 +19,21 @@
     $mentionChosen = $mentionRoster->whereIn('id', array_map('intval', (array) old('tagged', [])))->values();
     $mentionNames = $assignableEmployees->keyBy('id');
     $viewerId = request()->attributes->get('employee')?->id;
+    // A poster who has since lost the posting role (a demotion) still needs the drawer in
+    // the DOM to edit their own past event, even though they can no longer post a new one.
+    $canOpenDrawer = $canPostExternal || $externalEvents->contains('posted_by', $viewerId);
 @endphp
 <div class="uj-card" style="padding:20px;"
-     x-data="{ postOpen: {{ ($errors->any() && old('_extform')) ? 'true' : 'false' }} }">
-    @if ($canPostExternal)
-        <div class="tot-rule" style="border-top:0;padding-top:0;margin-top:0;margin-bottom:18px;">
-            <button type="button" class="tot-pillbtn" @click="postOpen = true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                <span x-text="$store.ui.lang==='en' ? 'Post an external training / event' : 'Siar latihan / acara luaran'">Post an external training / event</span>
-            </button>
-        </div>
+     x-data="{ postOpen: {{ ($errors->any() && old('_extform')) ? 'true' : 'false' }}, editEvent: null }">
+    @if ($canOpenDrawer)
+        @if ($canPostExternal)
+            <div class="tot-rule" style="border-top:0;padding-top:0;margin-top:0;margin-bottom:18px;">
+                <button type="button" class="tot-pillbtn" @click="postOpen = true; editEvent = null">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    <span x-text="$store.ui.lang==='en' ? 'Post an external training / event' : 'Siar latihan / acara luaran'">Post an external training / event</span>
+                </button>
+            </div>
+        @endif
 
         <template x-teleport="body">
             <div x-show="postOpen" x-cloak>
@@ -36,10 +41,11 @@
                 <aside class="wd" :data-open="postOpen ? '' : null" role="dialog" aria-modal="true"
                        @keydown.escape.window="postOpen = false"
                        :aria-label="$store.ui.lang==='en' ? 'Post an external training or event' : 'Siar latihan atau acara luaran'"
-                       x-data="extPasteFill()">
+                       x-data="extPasteFill()" x-init="$watch('editEvent', (event) => sync(event))">
 
                     <div class="wd-head">
-                        <span style="font:600 13.5px var(--font-sans);color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Post an external event' : 'Siar acara luaran'">Post an external event</span>
+                        <span style="font:600 13.5px var(--font-sans);color:var(--ink);"
+                              x-text="editEvent ? ($store.ui.lang==='en' ? 'Edit external event' : 'Sunting acara luaran') : ($store.ui.lang==='en' ? 'Post an external event' : 'Siar acara luaran')">Post an external event</span>
                         <button type="button" class="wd-ico" style="margin-left:auto;" @click="postOpen = false"
                                 :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -64,7 +70,9 @@
 
                         <hr class="wd-rule" style="margin:0 0 16px;">
 
-                        <form method="post" action="{{ route('tot.external.store') }}" x-ref="extForm">
+                        <form method="post"
+                              :action="editEvent ? '{{ url('/app/tot/external') }}/' + editEvent.id + '/update' : '{{ route('tot.external.store') }}'"
+                              x-ref="extForm">
                             @csrf
                             <input type="hidden" name="_extform" value="1">
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -112,7 +120,10 @@
                                         this.query = '';
                                         el.focus();
                                     },
-                                }" @click.outside="open = false">
+                                }" @click.outside="open = false"
+                                   x-init="$watch('editEvent', (event) => {
+                                       chosen = event ? roster.filter((p) => (event.tagged || []).includes(p.id)) : [];
+                                   })">
                                     <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Description — type @ to tag someone' : 'Penerangan — taip @ untuk tag seseorang'">Description — type @ to tag someone</label>
                                     <textarea class="tot-field" name="description" x-ref="desc" style="height:72px;padding-top:9px;resize:vertical;"
                                               @input="scan($event.target)" @keydown.escape.stop="open = false">{{ old('description') }}</textarea>
@@ -134,7 +145,8 @@
                                        x-text="($store.ui.lang==='en' ? 'Notified as required to attend: ' : 'Dimaklumkan wajib hadir: ') + chosen.map((p) => p.name).join(', ')"></p>
                                 </div>
                             </div>
-                            <button type="submit" class="tot-btn-p" style="margin-top:14px;" x-text="$store.ui.lang==='en' ? 'Post event' : 'Siarkan acara'">Post event</button>
+                            <button type="submit" class="tot-btn-p" style="margin-top:14px;"
+                                    x-text="editEvent ? ($store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan') : ($store.ui.lang==='en' ? 'Post event' : 'Siarkan acara')">Post event</button>
                         </form>
                     </div>
                 </aside>
@@ -151,12 +163,29 @@
                         <p class="ext-host"><span x-text="$store.ui.lang==='en' ? 'Hosted by' : 'Dianjurkan oleh'">Hosted by</span> {{ $event->host }}</p>
                     @endif
                 </div>
-                @if ($canPostExternal)
-                    <form method="post" action="{{ route('tot.external.destroy', $event) }}" onsubmit="return confirm('{{ $event->title }}?')">
-                        @csrf
-                        <button type="submit" class="ext-del" x-text="$store.ui.lang==='en' ? 'Remove' : 'Buang'">Remove</button>
-                    </form>
-                @endif
+                <div style="display:flex;gap:10px;align-items:start;">
+                    @if ($event->posted_by === $viewerId)
+                        <button type="button" class="ext-del" @click="editEvent = {{ \Illuminate\Support\Js::from([
+                                'id' => $event->id,
+                                'title' => $event->title,
+                                'host' => $event->host,
+                                'event_date' => $event->event_date->format('Y-m-d'),
+                                'time_label' => $event->time_label,
+                                'venue' => $event->venue,
+                                'venue_map_url' => $event->venue_map_url,
+                                'registration_url' => $event->registration_url,
+                                'description' => $event->description,
+                                'tagged' => $event->taggedIds(),
+                            ]) }}; postOpen = true"
+                                x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                    @endif
+                    @if ($canPostExternal)
+                        <form method="post" action="{{ route('tot.external.destroy', $event) }}" onsubmit="return confirm('{{ $event->title }}?')">
+                            @csrf
+                            <button type="submit" class="ext-del" x-text="$store.ui.lang==='en' ? 'Remove' : 'Buang'">Remove</button>
+                        </form>
+                    @endif
+                </div>
             </div>
 
             <div class="ext-meta">
