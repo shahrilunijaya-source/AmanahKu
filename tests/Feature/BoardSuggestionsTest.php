@@ -230,17 +230,44 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame('Build the thing', $row['description']);
     }
 
-    /** Log a real timesheet entry for a card, so the "already logged" and carry-forward paths have data. */
-    private function logEntry(WorkItem $card, string $day, ?int $projectId = null): void
+    public function test_two_entries_on_the_same_date_carry_forward_the_later_created_one(): void
     {
-        $timesheet = Timesheet::firstOrCreate(
-            ['tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'week_start' => self::WEEK],
-            ['status' => 'draft', 'total_hours' => 0],
-        );
+        $admin = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Admin', 'requires_project' => false,
+        ]);
+        $card = $this->card();
+        $this->stint($card, '2026-08-24 09:00:00', null);
+
+        // Same entry_date, different categories — a day split across categories. The
+        // second one created (higher id) is the "most recent" one and must win.
+        $this->logEntry($card, '2026-08-24', null, $this->work->id);
+        $this->logEntry($card, '2026-08-24', null, $admin->id);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+        $row = $result['2026-08-25'][0];
+
+        $this->assertSame($admin->id, $row['category_id']);
+    }
+
+    /** Log a real timesheet entry for a card, so the "already logged" and carry-forward paths have data. */
+    private function logEntry(WorkItem $card, string $day, ?int $projectId = null, ?int $categoryId = null): void
+    {
+        // Not firstOrCreate([week_start => ...]): sqlite stores the `date`-cast column
+        // with a " 00:00:00" suffix, so a plain equality search for the bare date never
+        // matches an existing row and a second call in the same test would collide on
+        // the (employee_id, week_start) unique index instead of reusing the first row.
+        $timesheet = Timesheet::query()
+            ->forWeek(self::WEEK)
+            ->where('tenant_id', $this->tenant->id)
+            ->where('employee_id', $this->employee->id)
+            ->first() ?? Timesheet::create([
+                'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+                'week_start' => self::WEEK, 'status' => 'draft', 'total_hours' => 0,
+            ]);
 
         TimesheetEntry::create([
             'tenant_id' => $this->tenant->id, 'timesheet_id' => $timesheet->id,
-            'entry_date' => $day, 'category_id' => $this->work->id, 'project_id' => $projectId,
+            'entry_date' => $day, 'category_id' => $categoryId ?? $this->work->id, 'project_id' => $projectId,
             'percentage' => 100, 'hours' => 8, 'work_item_id' => $card->id,
         ]);
     }

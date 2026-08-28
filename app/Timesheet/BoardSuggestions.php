@@ -177,9 +177,12 @@ final class BoardSuggestions
             ->whereIn('work_item_id', $cards->keys()->all())
             ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id))
             ->orderBy('entry_date')
+            ->orderBy('id')
             ->get(['work_item_id', 'category_id', 'project_id', 'sub_pillar_id']);
 
-        // Ordered oldest first, so the last write per card wins — its most recent logging.
+        // Ordered oldest first (ties broken by id, since two entries can share a date
+        // when a day is split across categories), so the last write per card wins — its
+        // most recent logging.
         foreach ($previous as $entry) {
             $out[(int) $entry->work_item_id] = [
                 'category_id' => $entry->category_id ? (int) $entry->category_id : null,
