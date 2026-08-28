@@ -53,6 +53,7 @@ class LeaveRequest extends Model
         return $this->belongsTo(Employee::class, 'rejected_by_id');
     }
 
+    /** @return BelongsTo<LeaveType, $this> */
     public function leaveType(): BelongsTo
     {
         return $this->belongsTo(LeaveType::class);
