@@ -10,9 +10,33 @@
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
 # cadence.
-- version: "1.6"
-  date: "2026-08-26"
+- version: "1.7"
+  date: "2026-09-01"
   entries:
+    - tag: added
+      text: "Your timesheet now fills itself in from the T.A.A. board, and the Add button is gone. Every card you had in In Progress or In Review shows up on the days you worked it, already carrying its project and what it is costed as \u2014 all you set is how much of the day it took. Did something you were not actually on? Remove the line and it stays removed. A mis-tap is one click back, from the \"Removed\" line under the day. Work that is not on the board never reaches your timesheet, so put it on the board first."
+      text_ms: "Lembaran masa anda kini mengisi dirinya sendiri daripada papan T.A.A., dan butang Tambah telah dibuang. Setiap kad anda yang berada dalam In Progress atau In Review akan muncul pada hari-hari anda mengusahakannya, lengkap dengan projek dan jenis kosnya \u2014 anda hanya menetapkan berapa banyak hari itu digunakan. Ada baris yang anda tidak kerjakan? Buang ia dan ia kekal dibuang. Tersalah tekan pula satu klik untuk kembali, melalui baris \"Dibuang\" di bawah hari itu. Kerja yang tiada di papan tidak akan sampai ke lembaran masa, jadi letakkannya di papan dahulu."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Lembaran Masa"
+    - tag: added
+      text: "A card now says what it is costed as. One \"Costed as\" picker on the card \u2014 Development, Maintenance, InHouse Project, Sales or Others \u2014 and every timesheet line that card produces is filed under it, so the choice is made once where the work is defined instead of again on every line of every day. Leave it alone and the card follows its project."
+      text_ms: "Sesebuah kad kini menyatakan jenis kosnya. Satu pemilih \"Dikira sebagai\" pada kad \u2014 Development, Maintenance, InHouse Project, Sales atau Others \u2014 dan setiap baris lembaran masa daripada kad itu difailkan di bawahnya, jadi pilihan dibuat sekali di tempat kerja itu ditakrifkan, bukan berulang pada setiap baris setiap hari. Biarkan sahaja dan kad itu mengikut projeknya."
+      link: "/app/board"
+      link_text: "Open T.A.A."
+      link_text_ms: "Buka T.A.A."
+    - tag: improved
+      text: "Editing a line asks the three things a card cannot answer for you: what you were doing (Management, Meeting, Technical and the rest, one tap), how much of the day it took, and any notes. Category and project sit at the top for you to see, not to pick \u2014 they belong to the card."
+      text_ms: "Menyunting satu baris kini bertanya tiga perkara yang tidak boleh dijawab oleh kad: anda buat apa (Management, Meeting, Technical dan selebihnya, satu ketukan), berapa banyak hari itu digunakan, dan sebarang nota. Kategori dan projek dipaparkan di bahagian atas untuk dilihat, bukan dipilih \u2014 ia milik kad itu."
+    - tag: improved
+      text: "The timesheet category list is down to five: Development, Maintenance, InHouse Project, Sales, and Others for everything that is not billed to a project. The rest are switched off rather than deleted, so old weeks still read exactly as they were filed. On Leave and Medical Leave are gone from the list too \u2014 approved leave already fills those days in for you, and picking it by hand only ever made a second, less reliable copy."
+      text_ms: "Senarai kategori lembaran masa kini tinggal lima: Development, Maintenance, InHouse Project, Sales, dan Others untuk segala yang tidak dicaj kepada projek. Selebihnya dimatikan, bukan dipadam, jadi minggu lama masih terbaca tepat seperti asal difailkan. On Leave dan Medical Leave juga dibuang daripada senarai \u2014 cuti yang diluluskan sudah pun mengisi hari-hari itu untuk anda, dan memilihnya sendiri hanya menghasilkan salinan kedua yang kurang tepat."
+    - tag: added
+      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
+      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
+      link: "/app/profile"
+      link_text: "Open your profile"
+      link_text_ms: "Buka profil anda"
     - tag: added
       text: "You can now connect Claude on your own computer to AmanahKu and ask it about your work — \"what did I log on my timesheet last week?\", \"what's on my board?\", \"when's the next TOT session?\" — instead of clicking through screens to find out. Get your own key from Account & security; it only ever shows you what you can already see in the app, so a normal staff member sees their own records, and HR and management see the company, exactly as on screen."
       text_ms: "Anda kini boleh menyambungkan Claude pada komputer anda sendiri ke AmanahKu dan bertanya tentang kerja anda — \"apa yang saya log pada lembaran masa minggu lepas?\", \"apa yang ada pada board saya?\", \"bila sesi TOT seterusnya?\" — tanpa perlu mengklik melalui skrin untuk mengetahuinya. Dapatkan kunci anda sendiri daripada Akaun & keselamatan; ia hanya memaparkan apa yang anda sendiri sudah boleh lihat dalam app, jadi kakitangan biasa melihat rekod sendiri, manakala HR dan pengurusan melihat syarikat, sama seperti pada skrin."
@@ -25,6 +49,10 @@
     - tag: fixed
       text: "Applying leave over the first Saturday of the month now costs half a day, not a whole day — that Saturday is already a half working day (TOT) everywhere else in the app, and leave now matches."
       text_ms: "Memohon cuti pada Sabtu pertama bulan itu kini mengambil separuh hari, bukan sehari penuh — Sabtu itu sudah pun separuh hari bekerja (TOT) di tempat lain dalam aplikasi, dan cuti kini turut sama."
+
+- version: "1.6"
+  date: "2026-08-26"
+  entries:
     - tag: added
       text: "Forgot to clock out? At the end of the night the app now closes the day for you, at your shift end time. You get a bell telling you it happened, and the day is marked as closed by the app rather than punched by you, so HR can see it and type in a truer time if you were still working. Before this, a day left open never counted at all."
       text_ms: "Terlupa clock out? Pada hujung malam, aplikasi kini menutup hari itu untuk anda, pada waktu tamat syif anda. Anda akan menerima loceng memberitahu ia berlaku, dan hari itu ditanda sebagai ditutup oleh aplikasi, bukan direkod oleh anda, jadi HR boleh melihatnya dan menaip masa yang lebih tepat jika anda masih bekerja. Sebelum ini, hari yang dibiarkan terbuka langsung tidak dikira."
@@ -34,18 +62,6 @@
     - tag: fixed
       text: "Working past midnight no longer shows up as \"Left early\". Clocking out after 12am was being compared against the next day's finishing time, so a long night was marked as leaving early and asked you for a reason. Days already marked this way keep the label until HR clears them."
       text_ms: "Bekerja melepasi tengah malam tidak lagi dipaparkan sebagai \"Balik awal\". Clock out selepas 12 pagi dibandingkan dengan waktu tamat hari berikutnya, jadi malam yang panjang ditanda sebagai balik awal dan meminta sebab daripada anda. Hari yang sudah ditanda begitu akan kekal sehingga HR membetulkannya."
-    - tag: added
-      text: "Work items with a due date can now put themselves on your Google Calendar. Connect your Google account from the Work & Tasks tab on your profile, and any task assigned to you — or its due date changing — shows up as an all-day event automatically. Unassigned from it, marked done, or the due date cleared, and the event goes away too. It only ever writes to your calendar, so anything you do inside Google Calendar itself stays untouched."
-      text_ms: "Item kerja yang mempunyai tarikh akhir kini boleh memaparkan diri pada Kalendar Google anda. Sambungkan akaun Google anda dari tab Kerja & Tugas pada profil anda, dan sebarang tugas yang ditugaskan kepada anda — atau tarikh akhirnya berubah — akan muncul secara automatik sebagai acara sepanjang hari. Apabila ditugaskan semula kepada orang lain, ditanda selesai, atau tarikh akhir dikosongkan, acara itu turut hilang. Ia hanya menulis ke kalendar anda, jadi apa sahaja yang anda buat dalam Kalendar Google sendiri kekal tidak tersentuh."
-      link: "/app/profile"
-      link_text: "Open your profile"
-      link_text_ms: "Buka profil anda"
-    - tag: added
-      text: "Your timesheet now fills itself in from the task board. Cards you had in In Progress show up on the days you worked them, with the project and category already set — you just add what you did and the percentage. Pick a category once for a card and it's remembered for the rest of that week. The two \"add\" buttons on a day are now one — \"+ Add what you worked on\" — which then asks if it's from the board or typed in yourself. Weeks before this shipped stay blank, since there's nothing to prefill from."
-      text_ms: "Lembaran masa anda kini mengisi dirinya sendiri daripada papan tugasan. Kad yang anda letakkan pada Sedang Dijalankan akan muncul pada hari-hari anda mengusahakannya, dengan projek dan kategori sudah ditetapkan — anda hanya perlu menambah apa yang anda buat dan peratusannya. Pilih kategori sekali untuk sesuatu kad dan ia akan diingati untuk baki minggu itu. Dua butang \"tambah\" pada setiap hari kini menjadi satu — \"+ Tambah apa yang anda kerjakan\" — yang kemudian bertanya sama ada ia daripada papan atau ditaip sendiri. Minggu sebelum ciri ini dilancarkan kekal kosong, kerana tiada rekod untuk diisi terlebih dahulu."
-      link: "/app/timesheets"
-      link_text: "Open Timesheet"
-      link_text_ms: "Buka Lembaran Masa"
 
 - version: "1.5"
   date: "2026-08-21"
