@@ -14,6 +14,9 @@
   date: "2026-09-01"
   entries:
     - tag: added
+      text: "You can now cancel a claim or leave application yourself even after it has been approved \u2014 as long as it has not started (leave) or been paid out (claim) yet. Balance and your timesheet are put back the way they were."
+      text_ms: "Anda kini boleh membatalkan tuntutan atau permohonan cuti sendiri walaupun selepas ia diluluskan \u2014 selagi ia belum bermula (cuti) atau belum dibayar (tuntutan). Baki dan lembaran masa anda dikembalikan seperti sedia kala."
+    - tag: added
       text: "Your timesheet now fills itself in from the T.A.A. board, and the Add button is gone. Every card you had in In Progress or In Review shows up on the days you worked it, already carrying its project and what it is costed as \u2014 all you set is how much of the day it took. Did something you were not actually on? Remove the line and it stays removed. A mis-tap is one click back, from the \"Removed\" line under the day. Work that is not on the board never reaches your timesheet, so put it on the board first."
       text_ms: "Lembaran masa anda kini mengisi dirinya sendiri daripada papan T.A.A., dan butang Tambah telah dibuang. Setiap kad anda yang berada dalam In Progress atau In Review akan muncul pada hari-hari anda mengusahakannya, lengkap dengan projek dan jenis kosnya \u2014 anda hanya menetapkan berapa banyak hari itu digunakan. Ada baris yang anda tidak kerjakan? Buang ia dan ia kekal dibuang. Tersalah tekan pula satu klik untuk kembali, melalui baris \"Dibuang\" di bawah hari itu. Kerja yang tiada di papan tidak akan sampai ke lembaran masa, jadi letakkannya di papan dahulu."
       link: "/app/timesheets"

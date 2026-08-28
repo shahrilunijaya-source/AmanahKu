@@ -367,19 +367,48 @@ class LeaveController extends Controller
         return ['spend' => $covered, 'unpaid' => $days - $covered, 'overflow' => $overflow];
     }
 
-    /** The requester withdraws their own application before anyone approves it. */
+    /**
+     * The requester withdraws their own application. Before approval this is a plain
+     * withdrawal. An already-approved request can still be withdrawn as long as it hasn't
+     * started yet and hasn't been pulled into a finalised payslip — cancelling restores the
+     * balance it decremented and strips the "On Leave" rows it pushed into any stored
+     * (not-yet-approved) timesheet week.
+     */
     public function cancel(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
         $this->assertSameTenant($leaveRequest->tenant_id);
         $actor = $request->attributes->get('employee');
         abort_unless($actor && $actor->id === $leaveRequest->employee_id, 403);
 
-        // Compare-and-set so a cancel can never race past an approval that already
-        // decremented the balance — only a still-pending row flips.
-        $flipped = LeaveRequest::whereKey($leaveRequest->id)
-            ->whereIn('status', ['submitted', 'verified'])
-            ->update(['status' => 'cancelled']);
-        abort_if($flipped === 0, 422, 'Only an application still awaiting approval can be cancelled.');
+        $cancelled = DB::transaction(function () use ($leaveRequest) {
+            // Row lock so a cancel can never race past an approval that already decremented
+            // the balance — the eligibility check and the flip happen against the same row.
+            $fresh = LeaveRequest::whereKey($leaveRequest->id)->lockForUpdate()->first();
+
+            $wasApproved = $fresh->status === 'approved';
+            $eligible = in_array($fresh->status, ['submitted', 'verified'], true)
+                || ($wasApproved && $fresh->paid_at === null && $fresh->date_from->isFuture());
+
+            if (! $eligible) {
+                return false;
+            }
+
+            $fresh->update(['status' => 'cancelled']);
+
+            if ($wasApproved) {
+                $balanceTypeId = $fresh->leaveType?->effectiveBalanceTypeId() ?? $fresh->leave_type_id;
+                $fresh->employee->leaveBalances()
+                    ->where('leave_type_id', $balanceTypeId)
+                    ->lockForUpdate()
+                    ->increment('balance', (float) $fresh->days);
+
+                app(WeekReconciler::class)->reconcileForLeave($fresh);
+            }
+
+            return true;
+        });
+
+        abort_unless($cancelled, 422, 'Only an application still awaiting approval, or an approved leave that hasn\'t started yet, can be cancelled.');
 
         AuditLog::record('Cancelled leave', $actor->name.' · '.$leaveRequest->days.'d');
 

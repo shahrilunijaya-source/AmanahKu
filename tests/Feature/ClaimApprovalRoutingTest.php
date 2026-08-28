@@ -544,14 +544,39 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->assertSame('cancelled', $claim->fresh()->status);
     }
 
-    public function test_an_approved_claim_cannot_be_cancelled(): void
+    public function test_claimant_cancels_their_own_approved_claim(): void
     {
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
         $claim = $this->claim($report, 'approved', $manager->id);
 
+        $this->actingAsEmployee($report)->post("/app/claims/{$claim->id}/cancel")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertSame('cancelled', $claim->fresh()->status);
+    }
+
+    public function test_a_paid_claim_cannot_be_cancelled(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $claim = $this->claim($report, 'paid', $manager->id);
+        $claim->update(['paid_at' => now()]);
+
         $this->actingAsEmployee($report)->post("/app/claims/{$claim->id}/cancel")->assertStatus(422);
-        $this->assertSame('approved', $claim->fresh()->status);
+        $this->assertSame('paid', $claim->fresh()->status);
+    }
+
+    public function test_claims_screen_shows_cancel_for_approved_but_not_paid_claims(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->claim($report, 'approved', $manager->id, 'Cancellable');
+        $this->claim($report, 'paid', $manager->id, 'Already paid')->update(['paid_at' => now()]);
+
+        $html = $this->actingAsEmployee($report)->get('/app/claims')->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, '/cancel"'));
     }
 
     public function test_nobody_else_can_cancel_someone_elses_claim(): void

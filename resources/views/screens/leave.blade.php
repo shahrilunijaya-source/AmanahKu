@@ -206,7 +206,7 @@
                             <div><div class="uj-lv-rw-in">
                                 @if ($r->reason)<div class="uj-lv-quote">“{{ $r->reason }}”</div>@endif
                                 @include('partials.leave-timeline', ['r' => $r, 'assignedVerifiers' => $leaveVerifiers])
-                                @if (in_array($r->status, ['submitted', 'verified'], true))
+                                @if (in_array($r->status, ['submitted', 'verified'], true) || ($r->status === 'approved' && ! $r->paid_at && $r->date_from->isFuture()))
                                     <form method="post" action="{{ route('leave.cancel', $r) }}" style="margin-top:11px;">
                                         @csrf
                                         <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">

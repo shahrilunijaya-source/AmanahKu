@@ -238,7 +238,7 @@
                                     </div>
                                 @endif
                                 @include('partials.claims-timeline', ['c' => $c])
-                                @if (in_array($c->status, ['submitted', 'verified'], true))
+                                @if (in_array($c->status, ['submitted', 'verified', 'approved'], true) && ! $c->paid_at)
                                     <form method="post" action="{{ route('claims.cancel', $c) }}" style="margin-top:11px;">
                                         @csrf
                                         <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
