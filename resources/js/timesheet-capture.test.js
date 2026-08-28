@@ -345,3 +345,25 @@ test('pickerBack() from category still closes the picker for a manually-started 
 
     expect(c.picker.open).toBe(false);
 });
+
+test('an uncosted suggestion does not block dayState() from reading done, or count as a blank row', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+
+    expect(c.hasBlankRows(THURSDAY)).toBe(false);
+    expect(c.dayState(THURSDAY)).toBe('done');
+});
+
+test('a genuinely blank typed row still blocks dayState() and reads as partial, suggestion or not', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: '' },
+    ];
+
+    expect(c.hasBlankRows(THURSDAY)).toBe(true);
+    expect(c.dayState(THURSDAY)).toBe('partial');
+});

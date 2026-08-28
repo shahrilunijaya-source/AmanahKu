@@ -313,8 +313,12 @@ export function registerTimesheetCapture(Alpine) {
         isBlank(row) {
             return !(parseFloat(row.percentage) > 0);
         },
+        // Gates dayState() and the submit blockers. An uncosted suggestion is excluded here
+        // (but stays `isBlank()` for its own row styling) — it is never sent (flatRows()),
+        // so it must never be able to stop the week from being sent either. A row the
+        // staffer actually typed is never `suggested: true`, so this changes nothing for it.
         hasBlankRows(iso) {
-            return (this.rows[iso] || []).some((r) => this.isBlank(r));
+            return (this.rows[iso] || []).some((r) => !r.suggested && this.isBlank(r));
         },
         // Give this line whatever is unallocated. Shown only while something is left, so it
         // can never subtract — the old day-level "give the rest to the last line" set the
