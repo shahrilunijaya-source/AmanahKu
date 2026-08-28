@@ -1233,6 +1233,11 @@ select.wd-inline {
 }
 .wd-inline:hover { background: var(--hairline-soft); }
 .wd-inline:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); outline: none; }
+/* The due-date field's real <input type="date"> sits on top of this button so a tap
+   opens the native picker directly (see work-drawer.blade.php) — the input, not the
+   button, receives focus. Forward its focus ring onto the button so tapping the due
+   field still shows the same press feedback as every other .wd-inline control. */
+.wd-pval:has(input:focus) > .wd-inline { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .wd-inline--empty { color: var(--muted-soft); font-weight: 400; }
 /* A read-only card still shows its values at full strength, because it is the card's
    truth, not disabled chrome. Only the affordance goes away. */

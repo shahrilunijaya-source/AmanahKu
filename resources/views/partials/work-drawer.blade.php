@@ -123,12 +123,15 @@
                             @if ($interactive)
                                 {{-- Dates render as "30 Jul 2026" everywhere, matching the card face — a bare
                                      date input shows locale format (07/30/2026 here). The visible control is a
-                                     formatted button; the real <input type="date"> underneath collects the value. --}}
+                                     formatted button; the real <input type="date"> sits on top of it full-size and
+                                     transparent, so the tap itself lands on the native control — iOS only raises its
+                                     date wheel from a direct tap, a synthetic .click()/.focus() on a hidden 1px
+                                     input (the old approach) is silently ignored on iOS Safari without showPicker(). --}}
                                 <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
                                 <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked"
-                                       @change="commitField('due_at', $event.target.value || null)" tabindex="-1" aria-hidden="true"
-                                       style="position:absolute;inset:0;opacity:0;width:1px;height:1px;pointer-events:none;" />
+                                       @change="commitField('due_at', $event.target.value || null)"
+                                       style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir')"></span>
                             @endif

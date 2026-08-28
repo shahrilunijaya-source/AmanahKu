@@ -67,6 +67,7 @@
      data-priority="{{ $c->priority }}"
      data-labels="{{ implode(',', $c->labels ?? []) }}"
      data-project="{{ $c->project_id }}"
+     data-due-at="{{ $c->due_at?->toDateString() }}"
      @if ($owner ?? null) data-owner-id="{{ $owner['id'] }}" @endif
      @if ($c->assigned_by_id) data-assigned="1" @endif
      {{-- Keyboard path to the drawer — both the personal board and the team board's

@@ -81,7 +81,21 @@
             @endforeach
         </div>
 
-        {{-- Third filter row: narrow the board to one project. "All" clears it. --}}
+        {{-- Third filter row: narrow the board to a due-date bucket. Click again to clear. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
+            @foreach (['overdue' => ['Overdue', 'Tertunggak'], 'today' => ['Today', 'Hari ini'], 'week' => ['This week', 'Minggu ini'], 'none' => ['No due date', 'Tiada tarikh akhir']] as $dk => $dl)
+                <button type="button" @click="setDueFilter('{{ $dk }}')"
+                        :style="dueFilter === '{{ $dk }}'
+                            ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
+                            : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">
+                    <span x-text="$store.ui.lang==='en' ? @js($dl[0]) : @js($dl[1])">{{ $dl[0] }}</span>
+                </button>
+            @endforeach
+        </div>
+
+        {{-- Fourth filter row: narrow the board to one project. "All" clears it. --}}
         <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
             <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
             <select x-model="projectFilter" @change="applyFilter()"

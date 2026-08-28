@@ -39,6 +39,8 @@ export function registerWorkBoard(Alpine) {
         labelFilter: null,
         // Active project id as a string, or '' for "any project". ANDs with type + label.
         projectFilter: '',
+        // Active due-date bucket ('overdue' | 'today' | 'week' | 'none'), or null for "any due date".
+        dueFilter: null,
         // Whether the collapsible secondary-filter panel (label + project) is open.
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
@@ -177,15 +179,22 @@ export function registerWorkBoard(Alpine) {
             this.applyFilter();
         },
 
-        // Count of active SECONDARY filters (label + project). Drives the toggle badge.
+        // Toggle the due-date filter: click an active bucket to clear it.
+        setDueFilter(key) {
+            this.dueFilter = this.dueFilter === key ? null : key;
+            this.applyFilter();
+        },
+
+        // Count of active SECONDARY filters (label + project + due). Drives the toggle badge.
         get activeFilterCount() {
-            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0);
+            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0) + (this.dueFilter ? 1 : 0);
         },
 
         // Reset the secondary filters and repaint.
         clearFilters() {
             this.labelFilter = null;
             this.projectFilter = '';
+            this.dueFilter = null;
             this.applyFilter();
         },
 
@@ -197,6 +206,26 @@ export function registerWorkBoard(Alpine) {
         projectInFilter(el) {
             if (!this.projectFilter) return true;
             return (el.dataset.project || '') === this.projectFilter;
+        },
+
+        // Buckets are computed from the card's own due-date string (YYYY-MM-DD, local
+        // to the browser) against "today" at call time — cheap enough to redo per card.
+        dueInFilter(el) {
+            if (!this.dueFilter) return true;
+            const due = el.dataset.dueAt || '';
+            if (this.dueFilter === 'none') return due === '';
+            if (due === '') return false;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(due + 'T00:00:00');
+            if (this.dueFilter === 'overdue') return dueDate < today;
+            if (this.dueFilter === 'today') return dueDate.getTime() === today.getTime();
+            if (this.dueFilter === 'week') {
+                const weekEnd = new Date(today);
+                weekEnd.setDate(weekEnd.getDate() + 7);
+                return dueDate >= today && dueDate < weekEnd;
+            }
+            return true;
         },
 
         // Full recompute: every card's visibility, plus the type-chip counts and the
@@ -215,7 +244,7 @@ export function registerWorkBoard(Alpine) {
         // filter) so autosave never has to re-touch the other cards on the board.
         applyFilterTo(node) {
             if (!node) return;
-            node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) ? '' : 'none';
+            node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
         },
 
         recount() {
