@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\StaffLevel;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkItem;
 use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -107,6 +108,24 @@ class ProfileVisibilityTest extends TestCase
         // No Money tab for a manager, even on a direct report.
         $response->assertDontSee('Money</button>', false);
         $response->assertSee('Work & Tasks');
+    }
+
+    public function test_work_items_list_only_shows_in_progress_items(): void
+    {
+        $manager = $this->actor('manager');
+        $report = $this->staff('Direct Report', $manager->id);
+
+        WorkItem::create(['tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'title' => 'Todo item', 'type' => 'task', 'priority' => 'medium', 'status' => 'todo']);
+        WorkItem::create(['tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'title' => 'In progress item', 'type' => 'task', 'priority' => 'medium', 'status' => 'prog']);
+        WorkItem::create(['tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'title' => 'In review item', 'type' => 'task', 'priority' => 'medium', 'status' => 'review']);
+        WorkItem::create(['tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'title' => 'Done item', 'type' => 'task', 'priority' => 'medium', 'status' => 'done']);
+
+        $response = $this->get("/app/profile?emp={$report->id}")->assertOk();
+
+        $response->assertSee('In progress item');
+        $response->assertDontSee('Todo item');
+        $response->assertDontSee('In review item');
+        $response->assertDontSee('Done item');
     }
 
     public function test_manager_opening_a_non_report_gets_a_slim_card(): void
