@@ -111,6 +111,7 @@ export function registerTimesheetCapture(Alpine) {
                     sub_pillar_id: e.sub_pillar_id || '',
                     description: e.description || '',
                     percentage: e.percentage,
+                    work_item_id: e.work_item_id || null,
                 }));
             }
             // Land on today when it falls in the visible week, so the screen opens focused
@@ -812,6 +813,7 @@ export function registerTimesheetCapture(Alpine) {
                         sub_pillar_id: r.sub_pillar_id || null,
                         percentage: pct,
                         description: r.description || null,
+                        work_item_id: r.work_item_id || null,
                     });
                 }
             }
