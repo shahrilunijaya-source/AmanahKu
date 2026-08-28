@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\DB;
  * bucket. Everything else is deactivated, not deleted — old entries keep resolving
  * their category name in past reports, they just cannot be chosen again.
  *
- * Leave categories go for a second reason: approved leave already arrives as a locked
- * row written by HR, so a staffer picking "On Leave" was a second, unreliable copy of
- * a fact the system owns.
+ * Medical Leave goes for a second reason: approved leave already arrives as a locked
+ * row written by HR, so picking a leave category by hand was a second, unreliable copy
+ * of a fact the system owns. "On Leave" itself stays active — TimesheetController's
+ * categoryOptions() already hides it from the picker while the leave module is on, and
+ * a tenant with that module off still needs it to log leave at all.
  */
 return new class extends Migration
 {
@@ -23,7 +25,6 @@ return new class extends Migration
         'Charity',
         'Marketing',
         'Continuous Improvement (CI)',
-        'On Leave',
         'Medical Leave',
     ];
 
