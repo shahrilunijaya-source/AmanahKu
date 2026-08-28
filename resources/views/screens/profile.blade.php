@@ -85,17 +85,18 @@
             <div x-show="edit" x-cloak @click.self="edit = false"
                  style="position:fixed;inset:0;z-index:120;display:flex;padding:40px 16px;background:rgba(18,18,30,.42);overflow-y:auto;"
                  @keydown.escape.window="edit = false">
-                <form method="post" action="{{ route('employees.update', $p) }}" class="uj-card"
+                <div class="uj-card" style="width:100%;max-width:560px;margin:auto;padding:0;overflow:hidden;max-height:calc(100vh - 80px);display:flex;flex-direction:column;">
+                <form method="post" action="{{ route('employees.update', $p) }}"
                       x-data="{ pid: '{{ old('position_id', $p->position_id) }}', max: @js($allPositions->mapWithKeys(fn ($pos) => [$pos->id => (float) $pos->max_salary])) }"
-                      style="width:100%;max-width:560px;margin:auto;padding:0;overflow:hidden;">
+                      style="display:contents;">
                     @csrf
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--hairline);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                         <span style="font-size:13px;font-weight:600;color:var(--ink);">
                             <span x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</span> {{ $p->name }}
                         </span>
                         <button type="button" @click="edit = false" style="font-size:20px;line-height:1;color:var(--muted);background:transparent;cursor:pointer;">×</button>
                     </div>
-                    <div style="padding:20px;max-height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+                    <div style="padding:20px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;">
                         @if ($errors->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;">{{ $errors->first() }}</div>@endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Full name' : 'Nama penuh'">Full name</span></label><input name="name" type="text" value="{{ old('name', $p->name) }}" required maxlength="120" style="{{ $fs }}" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Nickname' : 'Nama panggilan'">Nickname</span></label><input name="nickname" type="text" value="{{ old('nickname', $p->nickname) }}" maxlength="60" style="{{ $fs }}" />@include('partials.hint', ['en' => 'The short name colleagues use, such as "Hakime". Used instead of the full name in every list and picker.', 'ms' => 'Nama pendek yang digunakan rakan sekerja, contohnya "Hakime". Digunakan sebagai ganti nama penuh dalam setiap senarai dan pemilih.'])</div>
@@ -116,7 +117,7 @@
                 </form>
 
                 {{-- Login/password/archive actions — separate forms so they never nest inside the edit form above. --}}
-                <div style="padding:0 20px 20px;">
+                <div style="padding:16px 20px 20px;border-top:1px solid var(--hairline);flex-shrink:0;">
                     @if ($p->email && ! $p->user_id)
                         <form method="post" action="{{ route('members.create-login', $p) }}" style="margin-top:8px;">
                             @csrf
@@ -150,6 +151,7 @@
                         <button type="submit" class="uj-btn-ghost" style="height:38px;font-size:12.5px;width:100%;color:var(--red);border-color:var(--red);"><span x-text="$store.ui.lang==='en' ? 'Archive staff' : 'Arkib staf'">Archive staff</span></button>
                     </form>
                 </div>
+                </div>
             </div>
             </template>
         @endif
@@ -169,8 +171,7 @@
             $wTag    = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
             $wStatus = ['todo' => ['To Do', 'var(--muted)'], 'prog' => ['In Progress', 'var(--info)'], 'review' => ['In Review', 'var(--amber)'], 'done' => ['Done', 'var(--success)']];
             $wPri    = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
-            $wOrder  = ['todo' => 0, 'prog' => 1, 'review' => 2, 'done' => 3];
-            $wItems  = $p->workItems->sortBy(fn ($w) => $wOrder[$w->status] ?? 9)->values();
+            $wItems  = $p->workItems->where('status', 'prog')->values();
             $aIcon   = ['laptop' => '💻', 'phone' => '📱', 'vehicle' => '🚗', 'furniture' => '🪑', 'other' => '📦'];
             $aSc     = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted)'];
             $tSc     = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted)'];
@@ -304,7 +305,7 @@
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $scol }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $scol }};"></span>{{ $sl }}</span>
                     </div>
                 @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No work items assigned.' : 'Tiada item kerja ditugaskan.'">No work items assigned.</div>
+                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No work items in progress.' : 'Tiada item kerja sedang berjalan.'">No work items in progress.</div>
                 @endforelse
 
                 @if (($canAssign ?? false) && ! $p->isArchived())
