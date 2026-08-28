@@ -156,6 +156,45 @@ class TimesheetScreenDataTest extends TestCase
         $this->assertSame($this->category->id, $dismissed['2026-06-16'][0]['category_id']);
     }
 
+    /**
+     * A category switched off after a draft was filed still has to reach the grid, or the
+     * line it names renders with no name on it. Nothing new can be filed under it — the
+     * capture screen has no category picker any more.
+     */
+    public function test_a_deactivated_category_a_draft_still_uses_reaches_the_view(): void
+    {
+        $retired = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'HR and Admin',
+            'requires_project' => false, 'is_active' => false,
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $retired->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $names = collect($response->viewData('tsCategories'))->pluck('name');
+        $this->assertTrue($names->contains('HR and Admin'));
+    }
+
+    public function test_a_deactivated_category_no_draft_uses_stays_out_of_the_view(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Charity',
+            'requires_project' => false, 'is_active' => false,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $names = collect($response->viewData('tsCategories'))->pluck('name');
+        $this->assertFalse($names->contains('Charity'));
+    }
+
     public function test_existing_grid_excludes_source_tagged_rows(): void
     {
         $sheet = Timesheet::create([

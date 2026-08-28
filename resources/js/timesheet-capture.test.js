@@ -454,3 +454,26 @@ test('confirmEntry() clears suggested when editing an existing suggested row in 
     expect(row.suggested).toBe(false);
     expect(row.percentage).toBe(80);
 });
+
+test('a board row with no category is held back from the save and blocks the week', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+    ];
+
+    expect(c.needsCategory(c.rows[THURSDAY][0])).toBe(true);
+    expect(c.flatRows()).toEqual([]);
+    expect(c.hasBlankRows(THURSDAY)).toBe(true);
+});
+
+test('a board row that has a category is sent as usual', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: 4, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+    ];
+
+    expect(c.flatRows()).toHaveLength(1);
+    expect(c.hasBlankRows(THURSDAY)).toBe(false);
+});

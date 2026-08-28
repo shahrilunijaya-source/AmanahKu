@@ -16,13 +16,15 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * Which In Progress board cards belong on which day of a capture week.
+ * Which board cards belong on which day of a capture week: the ones that sat in In
+ * Progress or In Review, which is what the card's stints record.
  *
  * Sits beside LockedDays: both turn a fact the staffer did not type into rows for the
  * capture grid. The difference is ownership. LockedDays rows are HR's (approved leave,
- * public holidays) — locked, regenerated on every save. These are suggestions: offered
- * once, editable, deletable, and never written unless the staffer gives them a
- * percentage and saves. Read-only; this class never writes.
+ * public holidays) — locked, regenerated on every save. These are the staffer's own: with
+ * no Add button on the capture screen they are the only way work reaches a timesheet, but
+ * nothing is written until a row is given a percentage and saved, and a row struck off a
+ * day is not offered again. Read-only; this class never writes.
  */
 final class BoardSuggestions
 {

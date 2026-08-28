@@ -154,7 +154,9 @@ class TimesheetController extends Controller
             // Week-by-week view of the signed-in staff's own entries (Review tab).
             'myWeeks' => $myWeeks,
             // Capture grid inputs.
-            'tsCategories' => $this->categoryOptions(),
+            'tsCategories' => $this->categoryOptions(
+                collect($existingGrid)->flatten(1)->pluck('category_id')->filter()->map(fn ($id) => (int) $id)->unique()->all(),
+            ),
             'tsProjects' => $this->projectOptions(),
             'weekStart' => $weekStart->toDateString(),
             'weekLabel' => $weekTimesheet?->week_label ?? '',
@@ -870,12 +872,19 @@ class TimesheetController extends Controller
      * auto-generates those rows, so staff need the manual option to log leave at all. The
      * categories themselves always stay in the table, because LockedDays files its
      * generated rows under them whenever the module is on.
+     *
+     * @param  array<int, int>  $keepIds  categories a stored draft already uses, kept even
+     *                                    when deactivated: the grid labels its rows from this
+     *                                    list, so dropping them would leave a saved line with
+     *                                    no name on it. Nothing new can be filed under them —
+     *                                    the capture screen has no category picker at all.
      */
-    private function categoryOptions(): Collection
+    private function categoryOptions(array $keepIds = []): Collection
     {
         $leaveModuleOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave');
 
-        return TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
+        return TimesheetCategory::where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $keepIds))
+            ->orderBy('sort')->orderBy('name')->get()
             ->map(fn (TimesheetCategory $c) => [
                 'id' => $c->id,
                 'name' => $c->name,

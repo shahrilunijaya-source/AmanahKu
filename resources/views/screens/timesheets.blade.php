@@ -278,9 +278,18 @@
 
                             {{-- A line with no percentage says so, and blocks the week, instead of
                                  being dropped on the next save with nothing said. --}}
-                            <div x-show="isBlank(r) && isEditable(selected)" x-cloak
+                            <div x-show="isBlank(r) && !needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en' ? 'Needs a percentage — how much of this day went here?' : 'Perlukan peratus — berapa banyak hari ini pergi ke sini?'"></div>
+
+                            {{-- A card that arrived with nothing to cost it against. The fix is on
+                                 the card, not here, so the line says so rather than offering a
+                                 picker the screen no longer has. --}}
+                            <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
+                                style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
+                                x-text="$store.ui.lang==='en'
+                                    ? 'This card has no effort type — open it on the board and set \'Costed as\'. Until then this line is not saved.'
+                                    : 'Kad ini tiada jenis usaha — buka di papan dan tetapkan \'Dikira sebagai\'. Sehingga itu baris ini tidak disimpan.'"></div>
 
                             {{-- The amount controls sit INSIDE the line they change, revealed by
                                  hovering or focusing that line. They used to be one strip pinned
