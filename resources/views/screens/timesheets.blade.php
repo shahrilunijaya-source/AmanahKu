@@ -96,6 +96,7 @@
             projects: @js($tsProjects),
             templates: @js($tsTemplates),
             boardTasks: @js($tsBoardTasks),
+            suggested: @js($tsSuggested),
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),

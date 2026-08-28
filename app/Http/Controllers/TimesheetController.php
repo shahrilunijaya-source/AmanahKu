@@ -23,6 +23,7 @@ use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\BoardSuggestions;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekWriter;
@@ -182,6 +183,17 @@ class TimesheetController extends Controller
                 ->get(['id', 'title', 'description', 'project_id'])
             : new Collection;
 
+        // Rows proposed from the board's In Progress cards, one per card per day it was
+        // worked. Suggestions only: nothing is stored until the staffer gives a row a
+        // percentage and saves. A failure here must never take the capture screen down —
+        // an empty map just means the grid opens the way it always did.
+        try {
+            $tsSuggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : [];
+        } catch (\Throwable $e) {
+            report($e);
+            $tsSuggested = [];
+        }
+
         return [
             'myTimesheets' => $myTimesheets,
             'canSeeCost' => $canSeeCost,
@@ -203,6 +215,7 @@ class TimesheetController extends Controller
             'tsLocked' => $locked,
             'tsItems' => $tsItems,
             'tsBoardTasks' => $tsBoardTasks,
+            'tsSuggested' => $tsSuggested,
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];
