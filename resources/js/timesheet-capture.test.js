@@ -418,3 +418,139 @@ test('Add > Pull from board > pick card > Back > Back > Enter manually clears th
     expect(row.work_item_id).toBeNull();
     expect(row.project_id).toBe('');
 });
+
+// ---- Finding 3: init() seed from cfg.suggested -------------------------------------
+
+test('init() appends cfg.suggested rows after saved rows, flagged suggested with a blank percentage', () => {
+    const c = makeComponent({
+        days: 5,
+        existing: { [THURSDAY]: [{ id: 9, category_id: 1, percentage: 40 }] },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 2, project_id: '', sub_pillar_id: '', description: 'Card X' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY].length).toBe(2);
+    expect(c.rows[THURSDAY][0].id).toBe(9);
+    expect(c.rows[THURSDAY][1].work_item_id).toBe(42);
+    expect(c.rows[THURSDAY][1].suggested).toBe(true);
+    expect(c.rows[THURSDAY][1].percentage).toBe('');
+});
+
+test('init() skips a cfg.suggested row on a fully locked day', () => {
+    const c = makeComponent({
+        days: 5,
+        locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 1, description: '' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+test('init() skips a cfg.suggested row on a non-editable day (before the earliest editable week)', () => {
+    const c = makeComponent({
+        days: 5,
+        earliestWeek: '2026-09-01', // pushes THURSDAY (2026-08-06) out of the editable window
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 1, description: '' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+// ---- Finding 3: flatRows() drops an uncosted suggestion -----------------------------
+
+test('flatRows() drops an uncosted suggestion so it can never block the week submit', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+
+    const out = c.flatRows();
+
+    expect(out.length).toBe(1);
+    expect(out[0].percentage).toBe(100);
+});
+
+test('flatRows() sends a costed (formerly suggested) row, including its work_item_id', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 60, work_item_id: 42, suggested: false },
+    ];
+
+    const out = c.flatRows();
+
+    expect(out.length).toBe(1);
+    expect(out[0].work_item_id).toBe(42);
+});
+
+// ---- Finding 3: percentage-write paths clear the suggested flag ---------------------
+
+test('clampPct() clears suggested once the row is given a real percentage', () => {
+    const c = makeComponent({ days: 5 });
+    const row = { category_id: 1, percentage: '55', suggested: true };
+
+    c.clampPct(row);
+
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(55);
+});
+
+test('giveRemainder() clears suggested when it fills a suggestion with the day\'s leftover', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 70 },
+        { work_item_id: 42, category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+    const row = c.rows[THURSDAY][1];
+
+    c.giveRemainder(row);
+
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(30);
+});
+
+test('confirmEntry() clears suggested when editing an existing suggested row in place', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+    c.picker.editingIndex = 0;
+    c.picker.pendingItem = c.pickerItem(CATEGORIES[0], null, null);
+    c.picker.pendingPct = 80;
+    c.picker.pendingDesc = 'Filled it in';
+
+    c.confirmEntry();
+
+    const row = c.rows[THURSDAY][0];
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(80);
+});
+
+// ---- Finding 3: work_item_id reaches the save payload via addRow() ------------------
+
+test('addRow() stamps the new row with the picker\'s boardWorkItemId, which flatRows() then sends', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.selected = THURSDAY;
+    c.openPicker();
+    c.chooseSource('board');
+    c.chooseBoardTask(BOARD_TASKS[1]); // no project, lands on category
+
+    c.addRow({ category_id: 2 }, 45, 'From the card');
+
+    expect(c.rows[THURSDAY][0].work_item_id).toBe(101);
+    expect(c.flatRows()[0].work_item_id).toBe(101);
+});
+
+test('addRow() outside a board pull leaves work_item_id null', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.openPicker();
+
+    c.addRow({ category_id: 2 }, 45, '');
+
+    expect(c.rows[THURSDAY][0].work_item_id).toBeNull();
+});
