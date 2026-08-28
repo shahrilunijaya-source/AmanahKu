@@ -15,6 +15,7 @@ use App\Models\KnowledgeRead;
 use App\Models\KnowledgeSegment;
 use App\Models\KnowledgeStar;
 use App\Services\FeatureManager;
+use App\Support\Amanahku;
 use App\Support\ImageCompressor;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
@@ -364,6 +365,7 @@ class KnowledgeController extends Controller
             return response()->json([
                 'title' => $entry->title,
                 'body' => $entry->body,
+                'bodyHtml' => Amanahku::linkify($entry->body),
                 'tags' => $entry->tags,
                 'attachments' => $entry->attachments()->get()->map(fn (KnowledgeAttachment $a) => [
                     'id' => $a->id,
