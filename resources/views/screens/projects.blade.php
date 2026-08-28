@@ -42,7 +42,7 @@
                style="flex:1;min-width:200px;max-width:320px;height:40px;padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:9px;font-size:14px;outline:none;" />
         <label style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);cursor:pointer;">
             <input type="checkbox" x-model="showOff" />
-            <span x-text="$store.ui.lang==='en' ? 'Show inactive' : 'Tunjuk tidak aktif'">Show inactive</span>
+            <span x-text="$store.ui.lang==='en' ? 'Show archived' : 'Tunjuk diarkibkan'">Show archived</span>
         </label>
     </div>
 

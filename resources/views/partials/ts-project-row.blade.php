@@ -25,7 +25,7 @@
             @if (! $project->is_active || $project->categories->isNotEmpty())
                 <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:5px;">
                     @unless ($project->is_active)
-                        <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span></span>
+                        <span class="uj-stamp"><span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkibkan'">Archived</span></span>
                     @endunless
                     @foreach ($project->categories as $cat)
                         <span class="uj-pill" style="background:color-mix(in srgb, {{ $cat->colour() }} 13%, var(--card));color:{{ $cat->colour() }};">{{ $cat->name }}</span>
@@ -35,6 +35,16 @@
         </div>
         @if ($canEdit)
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
+            <form method="post" action="{{ route('projects.archive', $project) }}">
+                @csrf
+                <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;">
+                    @if ($project->is_active)
+                        <span x-text="$store.ui.lang==='en' ? 'Archive' : 'Arkibkan'">Archive</span>
+                    @else
+                        <span x-text="$store.ui.lang==='en' ? 'Restore' : 'Pulihkan'">Restore</span>
+                    @endif
+                </button>
+            </form>
             <form method="post" action="{{ route('projects.delete', $project) }}" onsubmit="return confirm('Delete or deactivate this project?')">
                 @csrf
                 <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>

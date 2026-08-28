@@ -108,6 +108,20 @@ class ProjectController extends Controller
         return back()->with('ok', $name.' removed.');
     }
 
+    /** Toggles a project's is_active flag — one click, no need to open the edit form. */
+    public function archiveProject(Request $request, Project $project): RedirectResponse
+    {
+        $this->authorizeEditor($request);
+        $this->assertTenant($project->tenant_id);
+
+        $project->update(['is_active' => ! $project->is_active]);
+
+        $action = $project->is_active ? 'Restored' : 'Archived';
+        AuditLog::record($action.' project', $project->name);
+
+        return back()->with('ok', $project->name.' '.($project->is_active ? 'restored.' : 'archived.'));
+    }
+
     // ---- Sub-pillars ------------------------------------------------------
 
     public function storeSubPillar(Request $request): JsonResponse|RedirectResponse
