@@ -40,6 +40,12 @@
       link: "/app/profile"
       link_text: "Open your profile"
       link_text_ms: "Buka profil anda"
+    - tag: added
+      text: "Your timesheet now fills itself in from the task board. Cards you had in In Progress show up on the days you worked them, with the project and category already set — you just add what you did and the percentage. Pick a category once for a card and it's remembered for the rest of that week. The two \"add\" buttons on a day are now one — \"+ Add what you worked on\" — which then asks if it's from the board or typed in yourself. Weeks before this shipped stay blank, since there's nothing to prefill from."
+      text_ms: "Lembaran masa anda kini mengisi dirinya sendiri daripada papan tugasan. Kad yang anda letakkan pada Sedang Dijalankan akan muncul pada hari-hari anda mengusahakannya, dengan projek dan kategori sudah ditetapkan — anda hanya perlu menambah apa yang anda buat dan peratusannya. Pilih kategori sekali untuk sesuatu kad dan ia akan diingati untuk baki minggu itu. Dua butang \"tambah\" pada setiap hari kini menjadi satu — \"+ Tambah apa yang anda kerjakan\" — yang kemudian bertanya sama ada ia daripada papan atau ditaip sendiri. Minggu sebelum ciri ini dilancarkan kekal kosong, kerana tiada rekod untuk diisi terlebih dahulu."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Lembaran Masa"
 
 - version: "1.5"
   date: "2026-08-21"

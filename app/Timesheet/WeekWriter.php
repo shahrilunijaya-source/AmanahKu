@@ -308,6 +308,12 @@ final class WeekWriter
             $entry['category_id'],
             $entry['project_id'] ?? '',
             $entry['sub_pillar_id'] ?? '',
+            // Two different board cards are two different lines even when they share a
+            // category and project — which they usually do, since most projects map to a
+            // single category. Without this, a day with two cards from one project is
+            // rejected as "the same work listed twice". A typed row carries no card and
+            // keys exactly as it did before.
+            $entry['work_item_id'] ?? '',
         ]);
     }
 
@@ -346,6 +352,7 @@ final class WeekWriter
                 'sub_pillar_id' => $e->sub_pillar_id,
                 'percentage' => (float) $e->percentage,
                 'description' => $e->description,
+                'work_item_id' => $e->work_item_id,
             ])
             ->all();
     }
@@ -405,6 +412,7 @@ final class WeekWriter
                 'sub_pillar_id' => $subId,
                 'percentage' => $percentage,
                 'description' => HtmlSanitizer::clean($e['description'] ?? null),
+                'work_item_id' => $e['work_item_id'] ?? null,
                 // Legacy readable fallback for any code still reading the string column.
                 'project' => trim($category->name.($projectName ? ' — '.$projectName : '')),
                 // Hours derived from percentage so manday RM costing keeps working.

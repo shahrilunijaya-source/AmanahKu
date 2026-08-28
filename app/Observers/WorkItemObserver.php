@@ -7,6 +7,7 @@ namespace App\Observers;
 use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\Employee;
 use App\Models\WorkItem;
+use App\Models\WorkItemProgressStint;
 
 /**
  * Detects the WorkItem changes that matter for Google Calendar sync and
@@ -19,6 +20,8 @@ class WorkItemObserver
 {
     public function saved(WorkItem $item): void
     {
+        $this->recordProgressStint($item);
+
         // isDirty() works here because Eloquent's `saved` event fires BEFORE
         // syncOriginal() runs (see Model::finishSave()) — so at this point $original
         // still holds the pre-save values, and isDirty() correctly reflects what this
@@ -66,6 +69,64 @@ class WorkItemObserver
         }
 
         $this->deleteCurrentEvent($item);
+    }
+
+    /**
+     * Keep work_item_progress_stints in step with the card's column. This is the only
+     * record of which days a card was worked — the timesheet prefill reads nothing else,
+     * and nothing can reconstruct it after the fact.
+     *
+     * Runs on every save, ahead of the calendar-sync early return: a status move is
+     * relevant here even when it changes nothing the calendar cares about.
+     *
+     * tenant_id is passed explicitly rather than left to BelongsToTenant: this observer
+     * fires on paths with no active tenant context (the MCP tools, console commands),
+     * where the trait's fail-closed guard would throw.
+     */
+    private function recordProgressStint(WorkItem $item): void
+    {
+        $wasProg = $item->getOriginal('status') === 'prog';
+        $isProg = $item->status === 'prog';
+
+        // Archiving parks a card without moving it out of the column; the stint must
+        // still close, or an archived card keeps being suggested for every later day.
+        $justArchived = $item->isDirty('archived_at') && $item->archived_at !== null;
+
+        if ($isProg && ! $justArchived && ! $wasProg) {
+            $this->closeOpenStints($item);
+
+            WorkItemProgressStint::create([
+                'tenant_id' => $item->tenant_id,
+                'work_item_id' => $item->id,
+                'started_at' => now(),
+            ]);
+
+            return;
+        }
+
+        if ($wasProg && ! $isProg) {
+            $this->closeOpenStints($item);
+
+            return;
+        }
+
+        if ($isProg && $justArchived) {
+            $this->closeOpenStints($item);
+        }
+    }
+
+    /**
+     * Close every stint still open on a card. Normally there is at most one; the loop
+     * is what makes a dangling stint (a status change that somehow bypassed this
+     * observer) self-heal on the card's next move rather than leaving the card
+     * suggested forever.
+     */
+    private function closeOpenStints(WorkItem $item): void
+    {
+        WorkItemProgressStint::withoutGlobalScope('tenant')
+            ->where('work_item_id', $item->id)
+            ->whereNull('ended_at')
+            ->update(['ended_at' => now()]);
     }
 
     private function deleteFromOldAssignee(WorkItem $item): void

@@ -23,6 +23,7 @@ use App\Services\MandayRateService;
 use App\Support\HtmlSanitizer;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\BoardSuggestions;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekWriter;
@@ -33,6 +34,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TimesheetController extends Controller
@@ -128,6 +130,7 @@ class TimesheetController extends Controller
                     'sub_pillar_id' => $e->sub_pillar_id,
                     'percentage' => (float) $e->percentage,
                     'description' => $e->description ?? '',
+                    'work_item_id' => $e->work_item_id,
                 ];
             }
         }
@@ -180,6 +183,17 @@ class TimesheetController extends Controller
                 ->get(['id', 'title', 'description', 'project_id'])
             : new Collection;
 
+        // Rows proposed from the board's In Progress cards, one per card per day it was
+        // worked. Suggestions only: nothing is stored until the staffer gives a row a
+        // percentage and saves. A failure here must never take the capture screen down —
+        // an empty map just means the grid opens the way it always did.
+        try {
+            $tsSuggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : [];
+        } catch (\Throwable $e) {
+            report($e);
+            $tsSuggested = [];
+        }
+
         return [
             'myTimesheets' => $myTimesheets,
             'canSeeCost' => $canSeeCost,
@@ -201,6 +215,7 @@ class TimesheetController extends Controller
             'tsLocked' => $locked,
             'tsItems' => $tsItems,
             'tsBoardTasks' => $tsBoardTasks,
+            'tsSuggested' => $tsSuggested,
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
         ];
@@ -232,7 +247,10 @@ class TimesheetController extends Controller
             // still never carries a 0% entry into the cost report.
             'entries.*.percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
+            'entries.*.work_item_id' => ['nullable', 'integer'],
         ]);
+
+        $this->assertOwnedWorkItems($data['entries'], $employee);
 
         $submitNow = $request->boolean('submit_now');
 
@@ -259,6 +277,45 @@ class TimesheetController extends Controller
         }
 
         return back()->with('ok', $message);
+    }
+
+    /**
+     * work_item_id arrives from the browser, so it is a trust boundary. An `exists` rule
+     * is not enough here: model lookups in this app are not tenant-scoped, so a bare
+     * existence check would happily accept another tenant's — or another colleague's —
+     * card id. A foreign id would corrupt the prefill's "already logged" check, hand the
+     * staffer a category read off somebody else's entry, and skew per-card figures.
+     *
+     * Accepted: a card in the active tenant that this employee owns or participates in —
+     * the same membership rule BoardSuggestions applies.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertOwnedWorkItems(array $entries, Employee $employee): void
+    {
+        $ids = collect($entries)->pluck('work_item_id')->filter()->map(fn ($id) => (int) $id)->unique();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        $allowed = WorkItem::whereIn('id', $ids)
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
+            ->pluck('id')
+            ->all();
+
+        $problems = [];
+        foreach ($entries as $i => $entry) {
+            $id = $entry['work_item_id'] ?? null;
+            if ($id !== null && ! in_array((int) $id, $allowed, true)) {
+                $problems["entries.$i.work_item_id"] = 'That task is not yours.';
+            }
+        }
+
+        if ($problems !== []) {
+            throw ValidationException::withMessages($problems);
+        }
     }
 
     /**

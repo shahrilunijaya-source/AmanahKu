@@ -251,9 +251,10 @@ const BOARD_TASKS = [
     { id: 101, title: 'No project card', description: '', project_id: null },
 ];
 
-test('openBoardPicker() opens the picker on the board step', () => {
+test("chooseSource('board') opens the picker on the board step", () => {
     const c = makeComponent({ days: 5, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
 
     expect(c.picker.open).toBe(true);
     expect(c.picker.step).toBe('board');
@@ -261,7 +262,8 @@ test('openBoardPicker() opens the picker on the board step', () => {
 
 test('chooseBoardTask() carries the card into a category step, pre-filling its project and description', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
 
     expect(c.picker.step).toBe('category');
@@ -271,7 +273,8 @@ test('chooseBoardTask() carries the card into a category step, pre-filling its p
 
 test('chooseBoardTask() falls back to the card title when it has no description', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[1]);
 
     expect(c.picker.boardProject).toBeNull();
@@ -280,7 +283,8 @@ test('chooseBoardTask() falls back to the card title when it has no description'
 
 test('picking a project-requiring category after a board pull skips straight to sub-pillar, project already set', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]); // project 5 has a sub-pillar
     c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null }); // requires_project: true
 
@@ -294,7 +298,8 @@ test('a board-pulled project with no sub-pillars lands straight on the details s
         projects: [{ id: 6, name: 'Legacy Project', category_ids: [], sub_pillars: [] }],
         boardTasks: [{ id: 102, title: 'Quick fix', description: 'Patch the thing', project_id: 6 }],
     });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(c.boardTasks[0]);
     c.chooseStep({ c: CATEGORIES[0], label: 'Development', item: null });
 
@@ -305,7 +310,8 @@ test('a board-pulled project with no sub-pillars lands straight on the details s
 
 test('a category that does not require a project ignores a board-pulled project and stays terminal', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
     // requires_project: false, so pickerCategories() would hand this option a terminal item.
     c.chooseStep({ c: CATEGORIES[1], label: 'Sales', item: c.pickerItem(CATEGORIES[1], null, null) });
@@ -316,7 +322,8 @@ test('a category that does not require a project ignores a board-pulled project 
 
 test('manually adding an entry never carries a leftover board description from an earlier pull', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
     c.closePicker();
 
@@ -328,7 +335,8 @@ test('manually adding an entry never carries a leftover board description from a
 
 test('pickerBack() from category returns to the board list when the flow started there', () => {
     const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
-    c.openBoardPicker();
+    c.openPicker();
+    c.chooseSource('board');
     c.chooseBoardTask(BOARD_TASKS[0]);
 
     c.pickerBack();
@@ -344,4 +352,205 @@ test('pickerBack() from category still closes the picker for a manually-started 
     c.pickerBack();
 
     expect(c.picker.open).toBe(false);
+});
+
+test('an uncosted suggestion does not block dayState() from reading done, or count as a blank row', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+
+    expect(c.hasBlankRows(THURSDAY)).toBe(false);
+    expect(c.dayState(THURSDAY)).toBe('done');
+});
+
+test('a genuinely blank typed row still blocks dayState() and reads as partial, suggestion or not', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: '' },
+    ];
+
+    expect(c.hasBlankRows(THURSDAY)).toBe(true);
+    expect(c.dayState(THURSDAY)).toBe('partial');
+});
+
+// ---- Finding 2: abandoned board state must not stamp a manual row -------------------
+
+test('choosing "Enter manually" straight from the source step never carries board state (baseline)', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.openPicker();
+    c.chooseSource('manual');
+
+    expect(c.picker.viaBoard).toBe(false);
+    expect(c.picker.boardWorkItemId).toBeNull();
+});
+
+test('Add > Pull from board > pick card > Back > Back > Enter manually clears the abandoned card before a row is added', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.selected = THURSDAY;
+    c.openPicker();
+    c.chooseSource('board');
+    c.chooseBoardTask(BOARD_TASKS[0]); // lands on 'category', viaBoard true, boardWorkItemId 100
+
+    c.pickerBack(); // category -> board
+    expect(c.picker.step).toBe('board');
+    c.pickerBack(); // board -> source
+    expect(c.picker.step).toBe('source');
+
+    // Stale state is still sitting there right up until the source choice is (re-)made.
+    expect(c.picker.viaBoard).toBe(true);
+    expect(c.picker.boardWorkItemId).toBe(100);
+
+    c.chooseSource('manual');
+    expect(c.picker.viaBoard).toBe(false);
+    expect(c.picker.boardWorkItemId).toBeNull();
+    expect(c.picker.boardProject).toBeNull();
+    expect(c.picker.boardDesc).toBe('');
+
+    // Typing a manual line through to the end must not pick up card 100's id or project.
+    c.chooseStep({ c: CATEGORIES[1], label: 'Sales', item: c.pickerItem(CATEGORIES[1], null, null) });
+    c.picker.pendingPct = 100;
+    c.confirmEntry();
+
+    const row = c.rows[c.selected][0];
+    expect(row.work_item_id).toBeNull();
+    expect(row.project_id).toBe('');
+});
+
+// ---- Finding 3: init() seed from cfg.suggested -------------------------------------
+
+test('init() appends cfg.suggested rows after saved rows, flagged suggested with a blank percentage', () => {
+    const c = makeComponent({
+        days: 5,
+        existing: { [THURSDAY]: [{ id: 9, category_id: 1, percentage: 40 }] },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 2, project_id: '', sub_pillar_id: '', description: 'Card X' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY].length).toBe(2);
+    expect(c.rows[THURSDAY][0].id).toBe(9);
+    expect(c.rows[THURSDAY][1].work_item_id).toBe(42);
+    expect(c.rows[THURSDAY][1].suggested).toBe(true);
+    expect(c.rows[THURSDAY][1].percentage).toBe('');
+});
+
+test('init() skips a cfg.suggested row on a fully locked day', () => {
+    const c = makeComponent({
+        days: 5,
+        locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 1, description: '' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+test('init() skips a cfg.suggested row on a non-editable day (before the earliest editable week)', () => {
+    const c = makeComponent({
+        days: 5,
+        earliestWeek: '2026-09-01', // pushes THURSDAY (2026-08-06) out of the editable window
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 1, description: '' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+// ---- Finding 3: flatRows() drops an uncosted suggestion -----------------------------
+
+test('flatRows() drops an uncosted suggestion so it can never block the week submit', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+
+    const out = c.flatRows();
+
+    expect(out.length).toBe(1);
+    expect(out[0].percentage).toBe(100);
+});
+
+test('flatRows() sends a costed (formerly suggested) row, including its work_item_id', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 60, work_item_id: 42, suggested: false },
+    ];
+
+    const out = c.flatRows();
+
+    expect(out.length).toBe(1);
+    expect(out[0].work_item_id).toBe(42);
+});
+
+// ---- Finding 3: percentage-write paths clear the suggested flag ---------------------
+
+test('clampPct() clears suggested once the row is given a real percentage', () => {
+    const c = makeComponent({ days: 5 });
+    const row = { category_id: 1, percentage: '55', suggested: true };
+
+    c.clampPct(row);
+
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(55);
+});
+
+test('giveRemainder() clears suggested when it fills a suggestion with the day\'s leftover', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 70 },
+        { work_item_id: 42, category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+    const row = c.rows[THURSDAY][1];
+
+    c.giveRemainder(row);
+
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(30);
+});
+
+test('confirmEntry() clears suggested when editing an existing suggested row in place', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+    c.picker.editingIndex = 0;
+    c.picker.pendingItem = c.pickerItem(CATEGORIES[0], null, null);
+    c.picker.pendingPct = 80;
+    c.picker.pendingDesc = 'Filled it in';
+
+    c.confirmEntry();
+
+    const row = c.rows[THURSDAY][0];
+    expect(row.suggested).toBe(false);
+    expect(row.percentage).toBe(80);
+});
+
+// ---- Finding 3: work_item_id reaches the save payload via addRow() ------------------
+
+test('addRow() stamps the new row with the picker\'s boardWorkItemId, which flatRows() then sends', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, boardTasks: BOARD_TASKS });
+    c.selected = THURSDAY;
+    c.openPicker();
+    c.chooseSource('board');
+    c.chooseBoardTask(BOARD_TASKS[1]); // no project, lands on category
+
+    c.addRow({ category_id: 2 }, 45, 'From the card');
+
+    expect(c.rows[THURSDAY][0].work_item_id).toBe(101);
+    expect(c.flatRows()[0].work_item_id).toBe(101);
+});
+
+test('addRow() outside a board pull leaves work_item_id null', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.openPicker();
+
+    c.addRow({ category_id: 2 }, 45, '');
+
+    expect(c.rows[THURSDAY][0].work_item_id).toBeNull();
 });

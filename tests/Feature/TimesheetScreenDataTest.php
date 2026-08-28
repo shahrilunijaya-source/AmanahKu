@@ -12,6 +12,8 @@ use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Services\FeatureManager;
+use App\Timesheet\BoardSuggestions;
+use App\Timesheet\LockedDays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -198,5 +200,43 @@ class TimesheetScreenDataTest extends TestCase
         $grid = $response->viewData('existingGrid');
         $this->assertArrayHasKey('2026-06-15', $grid);
         $this->assertArrayNotHasKey('2026-06-16', $grid);
+    }
+
+    /**
+     * `tsSuggested` feeds the capture screen's per-day board prefill (Task 4): the week's
+     * In Progress board cards, one row per card per day it was worked, keyed by ISO date.
+     * The observer that opens a WorkItemProgressStint when a card lands on 'prog' is what
+     * gives BoardSuggestions a stint to work from.
+     */
+    public function test_the_capture_payload_carries_the_days_board_suggestions(): void
+    {
+        $card = $this->employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Build the thing', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $suggested = $response->viewData('tsSuggested');
+        $today = Carbon::now()->toDateString();
+
+        $this->assertArrayHasKey($today, $suggested);
+        $this->assertSame($card->id, $suggested[$today][0]['work_item_id']);
+    }
+
+    public function test_a_failure_building_suggestions_does_not_take_the_screen_down(): void
+    {
+        // BoardSuggestions is final, so it cannot be mocked as a subclass — Mockery only
+        // supports partial-mocking an already-instantiated object of a final class.
+        $real = new BoardSuggestions(app(LockedDays::class));
+        $mock = \Mockery::mock($real);
+        $mock->shouldReceive('forWeek')->andThrow(new \RuntimeException('boom'));
+        $this->app->instance(BoardSuggestions::class, $mock);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $this->assertSame([], $response->viewData('tsSuggested'));
     }
 }

@@ -111,8 +111,30 @@ export function registerTimesheetCapture(Alpine) {
                     sub_pillar_id: e.sub_pillar_id || '',
                     description: e.description || '',
                     percentage: e.percentage,
+                    work_item_id: e.work_item_id || null,
                 }));
             }
+
+            // Rows proposed from the board's In Progress cards. Appended after the saved
+            // rows so what the staffer actually typed always comes first, and skipped on
+            // fully locked days for the same reason the seed above skips them. The
+            // `suggested` flag is client-only: it marks a row as not-yet-real, and is
+            // cleared the moment the staffer gives it a percentage.
+            const suggested = cfg.suggested || {};
+            for (const iso of Object.keys(suggested)) {
+                if (this.isFullyLocked(iso) || !this.isEditable(iso)) continue;
+                this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
+                    id: null,
+                    work_item_id: s.work_item_id,
+                    category_id: s.category_id || '',
+                    project_id: s.project_id || '',
+                    sub_pillar_id: s.sub_pillar_id || '',
+                    description: s.description || '',
+                    percentage: '',
+                    suggested: true,
+                })));
+            }
+
             // Land on today when it falls in the visible week, so the screen opens focused
             // on the day the user is most likely filling. Fall back to the first day still
             // needing work when today is out of range (viewing a past/future week, or today
@@ -263,6 +285,7 @@ export function registerTimesheetCapture(Alpine) {
                 sub_pillar_id: item.sub_pillar_id || '',
                 description: description || '',
                 percentage: percentage != null ? percentage : this.remainder(iso),
+                work_item_id: this.picker.boardWorkItemId || null,
             });
         },
         removeRow(i) {
@@ -283,14 +306,20 @@ export function registerTimesheetCapture(Alpine) {
             }
             const n = parseFloat(raw);
             row.percentage = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+            // A suggestion the staffer has costed is an ordinary row.
+            if (row.percentage !== '') row.suggested = false;
         },
         // A line the staffer added but has not costed yet. It is kept and flagged rather than
         // dropped: the day cannot be submitted while one exists, but it survives a reload.
         isBlank(row) {
             return !(parseFloat(row.percentage) > 0);
         },
+        // Gates dayState() and the submit blockers. An uncosted suggestion is excluded here
+        // (but stays `isBlank()` for its own row styling) — it is never sent (flatRows()),
+        // so it must never be able to stop the week from being sent either. A row the
+        // staffer actually typed is never `suggested: true`, so this changes nothing for it.
         hasBlankRows(iso) {
-            return (this.rows[iso] || []).some((r) => this.isBlank(r));
+            return (this.rows[iso] || []).some((r) => !r.suggested && this.isBlank(r));
         },
         // Give this line whatever is unallocated. Shown only while something is left, so it
         // can never subtract — the old day-level "give the rest to the last line" set the
@@ -299,6 +328,7 @@ export function registerTimesheetCapture(Alpine) {
             const rest = this.remainder(this.selected);
             if (rest <= 0) return;
             row.percentage = Math.round(((parseFloat(row.percentage) || 0) + rest) * 100) / 100;
+            row.suggested = false;
             this.save();
         },
         // True when this day already carries the exact Category · Project · Sub-pillar the
@@ -340,25 +370,35 @@ export function registerTimesheetCapture(Alpine) {
         picker: {
             open: false, step: 'category', category: null, project: null,
             pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '', boardWorkItemId: null,
         },
 
+        // One way in. The staffer says "add what I worked on", then chooses whether it
+        // comes from a board card or gets typed. Two buttons side by side made the
+        // difference look like a difference in what is being added, which it is not.
+        // With no In Progress cards there is nothing to choose between, so the source
+        // step is skipped entirely and the picker opens straight on the category list.
         openPicker() {
             this.picker = {
-                open: true, step: 'category', category: null, project: null,
+                open: true, step: this.boardTasks.length ? 'source' : 'category',
+                category: null, project: null,
                 pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '', boardWorkItemId: null,
             };
         },
-        // "Pull from board": same popup, but starts on a list of the employee's own In
-        // Progress cards instead of the category step. Category is still asked (a card
-        // carries no category), so this only pre-fills what the card already knows.
-        openBoardPicker() {
-            this.picker = {
-                open: true, step: 'board', category: null, project: null,
-                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
-            };
+        chooseSource(source) {
+            this.picker.step = source === 'board' ? 'board' : 'category';
+            if (source !== 'board') {
+                // Choosing (or re-choosing, after Back/Back out of an abandoned card pick)
+                // "Enter manually" must not leave a previous chooseBoardTask() call's state
+                // behind — otherwise the typed row that follows gets silently stamped with
+                // that abandoned card's work_item_id/project/notes.
+                this.picker.viaBoard = false;
+                this.picker.boardWorkItemId = null;
+                this.picker.boardProject = null;
+                this.picker.boardDesc = '';
+                this.picker.boardTaskTitle = null;
+            }
         },
         projectName(id) {
             const p = this.projects.find((p) => String(p.id) === String(id));
@@ -366,6 +406,7 @@ export function registerTimesheetCapture(Alpine) {
         },
         chooseBoardTask(task) {
             this.picker.viaBoard = true;
+            this.picker.boardWorkItemId = task.id;
             const proj = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
             this.picker.boardProject = proj;
             this.picker.boardDesc = escapeForNotes(task.description || task.title || '');
@@ -434,11 +475,22 @@ export function registerTimesheetCapture(Alpine) {
             } else if (this.picker.step === 'project') {
                 this.picker.step = 'category';
                 this.picker.category = null;
+            } else if (this.picker.step === 'board') {
+                this.picker.step = 'source';
             } else if (this.picker.step === 'category' && this.picker.viaBoard) {
                 // A board pull's first step is the card list, not category — back goes
                 // there instead of closing, so re-picking a card doesn't reopen the popup.
                 this.picker.step = 'board';
                 this.picker.category = null;
+            } else if (this.picker.step === 'category') {
+                // Typed entry: the source question is the only thing behind this.
+                if (this.boardTasks.length) {
+                    this.picker.step = 'source';
+                } else {
+                    this.closePicker();
+
+                    return;
+                }
             } else {
                 this.closePicker();
 
@@ -615,6 +667,7 @@ export function registerTimesheetCapture(Alpine) {
                 const r = this.rows[this.selected][this.picker.editingIndex];
                 r.percentage = this.picker.pendingPct;
                 r.description = this.picker.pendingDesc;
+                if (r.percentage !== '') r.suggested = false;
             } else {
                 this.addRow(this.picker.pendingItem, this.picker.pendingPct, this.picker.pendingDesc);
             }
@@ -799,7 +852,12 @@ export function registerTimesheetCapture(Alpine) {
                 // which the server rejects (D2). A stale future row seeded from an existing
                 // draft would otherwise poison every save with "… has not happened yet."
                 if (!this.isEditable(iso)) continue;
-                for (const r of this.rows[iso]) {
+                // A suggestion nobody costed is not a claim — it must not reach the
+                // server, where a 0% line would block the week's submit
+                // (WeekWriter::assertNoBlankLines) and clutter the draft.
+                const dayRows = this.rows[iso]
+                    .filter((r) => !(r.suggested && (r.percentage === '' || r.percentage === null)));
+                for (const r of dayRows) {
                     // A 0% line IS sent. It used to be dropped here, which meant a line the
                     // staffer had added but not yet costed vanished on the next reload with
                     // nothing said. The server accepts 0 in a draft and refuses it at submit,
@@ -812,6 +870,7 @@ export function registerTimesheetCapture(Alpine) {
                         sub_pillar_id: r.sub_pillar_id || null,
                         percentage: pct,
                         description: r.description || null,
+                        work_item_id: r.work_item_id || null,
                     });
                 }
             }
