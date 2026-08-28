@@ -14,9 +14,10 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * A card's time in the In Progress column is the only record of which days it was
- * worked — the timesheet's prefill reads nothing else. Each move in opens a stint,
- * each move out closes it, and a card that bounces back in gets a second one.
+ * A card's time in the In Progress and In Review columns is the only record of which
+ * days it was worked — the timesheet's prefill reads nothing else. In Review counts:
+ * the card is out of the writer's hands, but reviewing it is still work. Moving between
+ * those two columns changes nothing; only To Do, Done and archive stop the clock.
  */
 class WorkItemProgressStintTest extends TestCase
 {
@@ -68,7 +69,18 @@ class WorkItemProgressStintTest extends TestCase
         $this->assertSame('2026-08-26 09:00:00', $stints->first()->started_at->toDateTimeString());
     }
 
-    public function test_moving_a_card_out_of_in_progress_closes_the_stint(): void
+    public function test_moving_a_card_out_of_the_worked_columns_closes_the_stint(): void
+    {
+        $card = $this->card(['status' => 'prog']);
+
+        Carbon::setTestNow('2026-08-27 17:00:00');
+        $card->update(['status' => 'done']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertSame('2026-08-27 17:00:00', $stint->ended_at->toDateTimeString());
+    }
+
+    public function test_moving_a_card_into_in_review_keeps_its_stint_open(): void
     {
         $card = $this->card(['status' => 'prog']);
 
@@ -76,13 +88,23 @@ class WorkItemProgressStintTest extends TestCase
         $card->update(['status' => 'review']);
 
         $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
-        $this->assertSame('2026-08-27 17:00:00', $stint->ended_at->toDateTimeString());
+        $this->assertNull($stint->ended_at);
+    }
+
+    public function test_moving_a_card_straight_into_in_review_opens_a_stint(): void
+    {
+        $card = $this->card();
+
+        $card->update(['status' => 'review']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertNull($stint->ended_at);
     }
 
     public function test_a_card_that_bounces_back_gets_a_second_stint(): void
     {
         $card = $this->card(['status' => 'prog']);
-        $card->update(['status' => 'review']);
+        $card->update(['status' => 'todo']);
 
         Carbon::setTestNow('2026-08-28 09:00:00');
         $card->update(['status' => 'prog']);
@@ -111,11 +133,11 @@ class WorkItemProgressStintTest extends TestCase
         $this->assertSame('2026-08-28 12:00:00', $stint->ended_at->toDateTimeString());
     }
 
-    public function test_a_status_change_that_never_touches_in_progress_writes_no_stint(): void
+    public function test_a_status_change_that_never_touches_a_worked_column_writes_no_stint(): void
     {
         $card = $this->card();
 
-        $card->update(['status' => 'review']);
+        $card->update(['status' => 'done']);
 
         $this->assertSame(0, WorkItemProgressStint::where('work_item_id', $card->id)->count());
     }

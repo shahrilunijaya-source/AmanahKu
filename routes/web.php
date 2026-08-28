@@ -441,9 +441,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
-        // Per-staff reusable allocation templates (owned by the acting employee)
-        Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
-        Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');
         // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');
         Route::post('/app/timesheet-setup/categories/{category}', [TimesheetAdminController::class, 'updateCategory'])->name('timesheet.admin.categories.update');

@@ -37,6 +37,7 @@ class WorkItemController extends Controller
             'status' => ['nullable', 'in:'.implode(',', self::STATUSES)],
             'due_label' => ['nullable', 'string', 'max:60'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
         ]);
 
         $status = $data['status'] ?? 'todo';
@@ -47,6 +48,7 @@ class WorkItemController extends Controller
             'priority' => $data['priority'],
             'due_label' => $data['due_label'] ?? null,
             'project_id' => $data['project_id'] ?? null,
+            'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
             'status' => $status,
             'progress' => 0,
             'done_at' => $status === 'done' ? now() : null,
@@ -197,6 +199,7 @@ class WorkItemController extends Controller
             'due_label' => ['sometimes', 'nullable', 'string', 'max:60'],
             'estimate_hours' => ['prohibited'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'timesheet_category_id' => ['sometimes', 'nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'labels' => ['sometimes', 'array'],
             'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
             'links' => ['sometimes', 'array', 'max:12'],
@@ -543,6 +546,10 @@ class WorkItemController extends Controller
             'labels' => $item->labels ?? [],
             'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
+            'project_id' => $item->project_id,
+            // Which effort type this card's hours are costed as once they reach a
+            // timesheet. Null falls back to the project's category, then to Others.
+            'timesheet_category_id' => $item->timesheet_category_id,
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->display_name,

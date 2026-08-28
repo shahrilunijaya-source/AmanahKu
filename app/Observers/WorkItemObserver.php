@@ -85,8 +85,12 @@ class WorkItemObserver
      */
     private function recordProgressStint(WorkItem $item): void
     {
-        $wasProg = $item->getOriginal('status') === 'prog';
-        $isProg = $item->status === 'prog';
+        // In Review is worked time too: the card is out of the writer's hands but the
+        // work happened, and reviewing it is itself work. Only To Do, Done and archive
+        // stop the clock.
+        $active = ['prog', 'review'];
+        $wasProg = in_array($item->getOriginal('status'), $active, true);
+        $isProg = in_array($item->status, $active, true);
 
         // Archiving parks a card without moving it out of the column; the stint must
         // still close, or an archived card keeps being suggested for every later day.

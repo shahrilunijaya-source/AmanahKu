@@ -6,6 +6,8 @@ namespace App\Timesheet;
 
 use App\Models\Employee;
 use App\Models\Project;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
@@ -24,6 +26,9 @@ use Illuminate\Support\Collection;
  */
 final class BoardSuggestions
 {
+    /** Where work with no project (and no card-level choice) is costed. */
+    private const OVERHEAD_CATEGORY = 'Others';
+
     public function __construct(private LockedDays $lockedDays) {}
 
     /**
@@ -45,7 +50,8 @@ final class BoardSuggestions
         $earliest = CarbonImmutable::now()->startOfWeek()->subWeeks(WeekWriter::BACKFILL_WEEKS);
         $locked = $this->lockedDays->forWeek($employee, $start);
         $logged = $this->loggedCardDays($employee, $start, $end);
-        $defaults = $this->defaultsFor($employee, $cards);
+        $dismissed = $this->dismissedCardDays($employee, $start);
+        $categories = $this->categoryFor($cards);
 
         $out = [];
 
@@ -80,21 +86,23 @@ final class BoardSuggestions
 
                 $cardId = (int) $stint->work_item_id;
 
-                // Already logged that day, or already suggested by an earlier stint of
-                // the same card (a card can bounce in and out twice in one day).
-                if (isset($logged[$iso][$cardId]) || isset($out[$iso][$cardId])) {
+                // Already logged that day, struck off by the staffer, or already
+                // suggested by an earlier stint of the same card (a card can bounce in
+                // and out twice in one day).
+                if (isset($logged[$iso][$cardId]) || isset($dismissed[$iso][$cardId]) || isset($out[$iso][$cardId])) {
                     continue;
                 }
 
                 $card = $cards[$cardId];
-                $default = $defaults[$cardId] ?? ['category_id' => null, 'project_id' => null, 'sub_pillar_id' => null];
 
                 $out[$iso][$cardId] = [
                     'work_item_id' => $cardId,
                     'title' => $card->title,
-                    'category_id' => $default['category_id'],
-                    'project_id' => $default['project_id'],
-                    'sub_pillar_id' => $default['sub_pillar_id'],
+                    'category_id' => $categories[$cardId] ?? null,
+                    'project_id' => $card->project_id ? (int) $card->project_id : null,
+                    // The staffer tags what they were doing (Technical, Meeting, ...) in
+                    // the row's own overlay; the card does not carry it.
+                    'sub_pillar_id' => null,
                     'description' => (string) ($card->description ?: $card->title),
                 ];
             }
@@ -117,7 +125,7 @@ final class BoardSuggestions
             ->whereNull('archived_at')
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
-            ->get(['id', 'title', 'description', 'project_id'])
+            ->get(['id', 'title', 'description', 'project_id', 'timesheet_category_id'])
             ->keyBy('id');
     }
 
@@ -161,54 +169,70 @@ final class BoardSuggestions
     }
 
     /**
-     * The category / project / sub-pillar a card's row should arrive with: whatever it was
-     * logged as last time, so the staffer picks once and the rest of the week is filled in
-     * for them. Falling back to the card's own project plus that project's category when it
-     * has exactly one — and to nothing at all otherwise, which the picker then asks for.
+     * The effort type each card's rows are costed as: the card's own choice, else its
+     * project's category when that project has exactly one, else the standing overhead
+     * bucket. Never null in practice — a row with no category cannot be submitted, and
+     * the staffer has no picker to fix it with, so the fallback has to hold.
+     *
+     * Public because the capture screen's "restore a struck-off card" list has to offer
+     * the row back with the same category the prefill would have given it.
      *
      * @param  Collection<int, WorkItem>  $cards
-     * @return array<int, array{category_id:?int, project_id:?int, sub_pillar_id:?int}>
+     * @return array<int, int|null>
      */
-    private function defaultsFor(Employee $employee, Collection $cards): array
+    public function categoryFor(Collection $cards): array
     {
+        $projects = Project::with('categories:id')
+            ->whereIn('id', $cards->pluck('project_id')->filter()->unique()->all())
+            ->get();
+
+        $fallback = TimesheetCategory::where('is_active', true)
+            ->where('name', self::OVERHEAD_CATEGORY)
+            ->value('id');
+
         $out = [];
 
-        $previous = TimesheetEntry::query()
-            ->whereIn('work_item_id', $cards->keys()->all())
-            ->whereHas('timesheet', fn ($q) => $q->where('employee_id', $employee->id))
-            ->orderBy('entry_date')
-            ->orderBy('id')
-            ->get(['work_item_id', 'category_id', 'project_id', 'sub_pillar_id']);
+        foreach ($cards as $card) {
+            if ($card->timesheet_category_id) {
+                $out[(int) $card->id] = (int) $card->timesheet_category_id;
 
-        // Ordered oldest first (ties broken by id, since two entries can share a date
-        // when a day is split across categories), so the last write per card wins — its
-        // most recent logging.
-        foreach ($previous as $entry) {
-            $out[(int) $entry->work_item_id] = [
-                'category_id' => $entry->category_id ? (int) $entry->category_id : null,
-                'project_id' => $entry->project_id ? (int) $entry->project_id : null,
-                'sub_pillar_id' => $entry->sub_pillar_id ? (int) $entry->sub_pillar_id : null,
-            ];
+                continue;
+            }
+
+            $project = $projects->firstWhere('id', $card->project_id);
+            $categories = $project ? $project->categories : collect();
+
+            // Only an unambiguous project answers this. Two categories and the card's
+            // own field is what settles it; guessing would file work under the wrong
+            // heading, which is the one number the director reads.
+            $out[(int) $card->id] = $categories->count() === 1
+                ? (int) $categories->first()->id
+                : ($fallback ? (int) $fallback : null);
         }
 
-        $needProject = $cards->filter(fn (WorkItem $c) => ! isset($out[$c->id]) && $c->project_id !== null);
+        return $out;
+    }
 
-        if ($needProject->isNotEmpty()) {
-            $projects = Project::with('categories:id')
-                ->whereIn('id', $needProject->pluck('project_id')->unique()->all())
-                ->get();
+    /**
+     * Cards the staffer struck off a given day of this week. A removed row must stay
+     * removed: the prefill rebuilds itself from the card's stints on every load, so
+     * without this the card would be back the moment the page is opened again.
+     *
+     * @return array<string, array<int, true>>
+     */
+    private function dismissedCardDays(Employee $employee, CarbonImmutable $start): array
+    {
+        $stored = Timesheet::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('week_start', $start->toDateString())
+            ->value('dismissed_suggestions');
 
-            foreach ($needProject as $card) {
-                $project = $projects->firstWhere('id', $card->project_id);
-                $categories = $project?->categories ?? collect();
+        $stored = is_string($stored) ? json_decode($stored, true) : $stored;
 
-                $out[(int) $card->id] = [
-                    // Only an unambiguous project answers this. Two categories and the
-                    // picker asks; guessing one would file work under the wrong heading.
-                    'category_id' => $categories->count() === 1 ? (int) $categories->first()->id : null,
-                    'project_id' => (int) $card->project_id,
-                    'sub_pillar_id' => null,
-                ];
+        $out = [];
+        foreach ((array) $stored as $iso => $cardIds) {
+            foreach ((array) $cardIds as $cardId) {
+                $out[(string) $iso][(int) $cardId] = true;
             }
         }
 

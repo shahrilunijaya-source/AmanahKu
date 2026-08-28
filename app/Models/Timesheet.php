@@ -19,7 +19,11 @@ use Illuminate\Support\Carbon;
  * a Carbon instance. Without this, static analysis takes the raw column type and
  * reports ->toDateString() as a call on a string.
  *
+ * `dismissed_suggestions` is a json column with an `array` cast: the board cards the
+ * staffer struck off each day of the week, keyed by ISO date.
+ *
  * @property Carbon $week_start
+ * @property array<string, array<int, int>>|null $dismissed_suggestions
  */
 class Timesheet extends Model
 {
@@ -48,6 +52,7 @@ class Timesheet extends Model
             'total_hours' => 'decimal:2',
             'submitted_at' => 'datetime',
             'decided_at' => 'datetime',
+            'dismissed_suggestions' => 'array',
         ];
     }
 

@@ -123,23 +123,6 @@ class TimesheetScreenDataTest extends TestCase
         $this->assertSame('holiday', $response->viewData('tsLocked')['2026-06-17']['source']);
     }
 
-    public function test_recent_combinations_become_work_items(): void
-    {
-        $sheet = Timesheet::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'week_start' => '2026-06-08', 'status' => 'submitted', 'total_hours' => 8,
-        ]);
-        TimesheetEntry::create([
-            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-08',
-            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
-        ]);
-
-        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
-
-        $labels = collect($response->viewData('tsItems'))->pluck('label');
-        $this->assertTrue($labels->contains('Others'));
-    }
-
     /**
      * Regression for the "existingGrid re-seeds stale locked rows" finding: a source-tagged
      * row (generated from approved leave/holiday) must never be seeded back into the editable
@@ -149,33 +132,28 @@ class TimesheetScreenDataTest extends TestCase
      * On Leave / Public Holiday from the picker) is meant to prevent.
      */
     /**
-     * `tsBoardTasks` feeds the timesheet screen's "Pull from board" picker step
-     * (docs/superpowers/specs/2026-08-24-timesheet-pull-from-board-design.md):
-     * only the signed-in employee's own In Progress cards, never another
-     * employee's or a card sitting in a different column.
+     * `tsDismissed` feeds the capture screen's "Removed: <card> · Restore" line. It
+     * carries enough of the card to offer the row back, so a mis-tapped remove is one
+     * click to undo rather than a trip to the board.
      */
-    public function test_in_progress_board_cards_reach_the_view(): void
+    public function test_struck_off_cards_reach_the_view(): void
     {
-        WorkItem::create([
+        $card = WorkItem::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
             'title' => 'Tender ISCAF', 'type' => 'task', 'status' => 'prog',
+            'timesheet_category_id' => $this->category->id,
         ]);
-        WorkItem::create([
+        Timesheet::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'title' => 'Done already', 'type' => 'task', 'status' => 'done',
-        ]);
-        $other = Employee::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else', 'status' => 'active', 'workload' => 'green',
-        ]);
-        WorkItem::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
-            'title' => 'Not mine', 'type' => 'task', 'status' => 'prog',
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+            'dismissed_suggestions' => ['2026-06-16' => [$card->id]],
         ]);
 
         $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
 
-        $titles = collect($response->viewData('tsBoardTasks'))->pluck('title');
-        $this->assertSame(['Tender ISCAF'], $titles->all());
+        $dismissed = $response->viewData('tsDismissed');
+        $this->assertSame('Tender ISCAF', $dismissed['2026-06-16'][0]['title']);
+        $this->assertSame($this->category->id, $dismissed['2026-06-16'][0]['category_id']);
     }
 
     public function test_existing_grid_excludes_source_tagged_rows(): void

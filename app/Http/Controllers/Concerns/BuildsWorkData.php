@@ -16,6 +16,7 @@ use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
+use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
@@ -145,6 +146,10 @@ trait BuildsWorkData
             // Active projects for the card editor's optional project picker. Tenant
             // scope is applied automatically by BelongsToTenant in a request context.
             'projects' => Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
+            // Effort types for the card's "costed as" picker. The board is where work is
+            // classified now — the timesheet has no category picker of its own.
+            'timesheetCategories' => TimesheetCategory::where('is_active', true)
+                ->orderBy('sort')->orderBy('name')->get(['id', 'name']),
             'people' => $employee
                 ? Employee::active()->where('id', '!=', $employee->id)
                     // `nickname` is selected because display_name falls back to the

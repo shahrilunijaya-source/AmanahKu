@@ -55,7 +55,7 @@ final class WeekWriter
      * @param  array<int, array{entry_date:string, category_id:int, project_id?:?int, sub_pillar_id?:?int, percentage:float|int|string, description?:?string}>  $rawEntries  validated, not yet normalised
      * @return array{timesheet: Timesheet, entries: array<int, array<string, mixed>>, locked: array<string, mixed>}
      */
-    public function save(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries, ?string $weekLabel, bool $submitNow): array
+    public function save(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries, ?string $weekLabel, bool $submitNow, ?array $dismissed = null): array
     {
         $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
 
@@ -83,8 +83,17 @@ final class WeekWriter
             'This week has already been submitted and cannot be edited.'
         );
 
-        DB::transaction(function () use ($timesheet, $weekLabel, $entries, $submitNow) {
+        DB::transaction(function () use ($timesheet, $weekLabel, $entries, $submitNow, $dismissed) {
             $timesheet->fill(['week_label' => $weekLabel, 'status' => 'draft'])->save();
+
+            // Null means "whoever called me does not know about dismissals" — the MCP
+            // tool and the leave/holiday reconcile both save whole weeks without ever
+            // seeing the capture grid's struck-off cards, and must not wipe them.
+            if ($dismissed !== null) {
+                $timesheet->dismissed_suggestions = $dismissed ?: null;
+                $timesheet->save();
+            }
+
             // The grid represents the entire week — replace, don't append.
             $timesheet->entries()->delete();
             foreach ($entries as $entry) {
