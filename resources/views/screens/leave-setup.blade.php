@@ -187,7 +187,11 @@
                         @foreach ($leaveTypes as $type)
                             <th style="text-align:right;padding:11px 14px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;vertical-align:top;">
                                 {{ $type->name }}
-                                @if ($type->deducts_from_leave_type_id)
+                                @if ($type->is_hr_granted_only)
+                                    {{-- Booked outright on the Record card below, so it keeps no running total. --}}
+                                    <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
+                                         x-text="$store.ui.lang==='en' ? 'granted, no balance' : 'diberi, tiada baki'">granted, no balance</div>
+                                @elseif ($type->deducts_from_leave_type_id)
                                     {{-- Spends another type's balance, so there is nothing to open here. --}}
                                     <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
                                          x-text="$store.ui.lang==='en' ? 'off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}' : 'dari {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}'">off {{ $leaveTypes->firstWhere('id', $type->deducts_from_leave_type_id)?->name ?? 'Annual' }}</div>
@@ -214,7 +218,9 @@
                             @foreach ($leaveTypes as $type)
                                 @php $cell = $row?->get($type->id); @endphp
                                 <td style="padding:7px 14px;text-align:right;">
-                                    @if ($type->deducts_from_leave_type_id)
+                                    @if ($type->is_hr_granted_only)
+                                        <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">—</span>
+                                    @elseif ($type->deducts_from_leave_type_id)
                                         @php $src = $row?->get($type->deducts_from_leave_type_id); @endphp
                                         <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $src === null ? '—' : ($src == (int) $src ? (int) $src : $src) }}</span>
                                     @else
@@ -252,7 +258,7 @@
     <div style="display:flex;align-items:center;gap:9px;margin:0 0 6px;">
         <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Record granted leave' : 'Rekod cuti yang diberi'">Record granted leave</span></h2>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Staff cannot apply for these types — book the day here and it is approved straight away, off their balance.' : 'Staf tidak boleh memohon jenis ini — tempah hari di sini dan ia diluluskan terus, ditolak dari baki mereka.'"></span></p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Staff cannot apply for these types — book the day here and it is approved straight away. There is no balance to keep: the day is granted, not spent.' : 'Staf tidak boleh memohon jenis ini — tempah hari di sini dan ia diluluskan terus. Tiada baki disimpan: hari itu diberi, bukan ditolak.'"></span></p>
 
     <div class="uj-card" style="padding:18px 22px;">
         <form method="post" action="{{ route('leave.record') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -280,6 +286,17 @@
             <div style="width:160px;">
                 <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To *' : 'Hingga *'">To *</span></label>
                 <input type="date" name="date_to" required value="{{ old('date_to') }}" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+            </div>
+            <div style="width:150px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Half day' : 'Setengah hari'">Half day</span></label>
+                {{-- A half day cannot span a range, so the server rejects it unless the two
+                     dates match. Left to the server rather than mirrored in Alpine: this is
+                     an HR form used a few times a month, not the employee Apply flow. --}}
+                <select name="half_day_period" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;background:#fff;">
+                    <option value="" x-text="$store.ui.lang==='en' ? 'Full day' : 'Sehari penuh'">Full day</option>
+                    <option value="am" @selected(old('half_day_period') === 'am') x-text="$store.ui.lang==='en' ? 'Morning' : 'Pagi'">Morning</option>
+                    <option value="pm" @selected(old('half_day_period') === 'pm') x-text="$store.ui.lang==='en' ? 'Afternoon' : 'Petang'">Afternoon</option>
+                </select>
             </div>
             <div style="flex:1;min-width:180px;">
                 <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>

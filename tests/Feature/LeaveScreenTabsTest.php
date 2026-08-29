@@ -208,100 +208,114 @@ class LeaveScreenTabsTest extends TestCase
         $this->assertSame(0, LeaveRequest::where('leave_type_id', $replacement->id)->count());
     }
 
-    /** An HR-granted type plus an opening balance for one employee. */
-    private function replacementFor(Employee $e, float $balance = 4): LeaveType
+    /** A granted type. It carries no balance by design — HR books the days outright. */
+    private function replacement(): LeaveType
     {
-        $type = LeaveType::create([
+        return LeaveType::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
             'is_hr_granted_only' => true,
         ]);
-        LeaveBalance::create(['employee_id' => $e->id, 'leave_type_id' => $type->id, 'balance' => $balance]);
+    }
 
-        return $type;
+    private function recordAsHr(Employee $hr, array $payload)
+    {
+        return $this->actingAs($hr->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave-setup')
+            ->post(route('leave.record'), $payload);
     }
 
     /**
      * The other half of the same rule: nobody can apply for Replacement, so HR books the
-     * day itself. It must land approved with the balance already spent — a recorded day
-     * that stopped at 'verified' would sit in a queue no one is meant to review.
+     * day itself. It must land approved — a recorded day that stopped at 'verified' would
+     * sit in a queue no one is meant to review.
      */
-    public function test_hr_records_a_granted_leave_and_the_balance_is_spent(): void
+    public function test_hr_records_a_granted_leave_and_it_lands_approved(): void
     {
         $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
-        $type = $this->replacementFor($staff);
+        $type = $this->replacement();
 
-        $this->actingAs($hr->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->from('/app/leave-setup')
-            ->post(route('leave.record'), [
-                'employee_id' => $staff->id,
-                'leave_type_id' => $type->id,
-                // A plain Monday: countDays() only discounts the first Saturday of a month.
-                'date_from' => '2026-09-07',
-                'date_to' => '2026-09-07',
-            ])
-            ->assertRedirect();
+        $this->recordAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            // A plain Monday: countDays() only discounts the first Saturday of a month.
+            'date_from' => '2026-09-07',
+            'date_to' => '2026-09-07',
+        ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
         $this->assertSame('approved', $leave->status);
         $this->assertSame($staff->id, $leave->employee_id);
         $this->assertSame($hr->id, $leave->approved_by_id);
         $this->assertEquals(1.0, (float) $leave->days);
+    }
 
-        $this->assertEquals(3.0, (float) LeaveBalance::where('employee_id', $staff->id)
-            ->where('leave_type_id', $type->id)->value('balance'));
+    /** HR can book half a granted day. */
+    public function test_hr_can_record_half_a_granted_day(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->recordAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07',
+            'date_to' => '2026-09-07',
+            'half_day_period' => 'am',
+        ])->assertRedirect();
+
+        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->assertEquals(0.5, (float) $leave->days);
+        $this->assertSame('am', $leave->half_day_period);
+    }
+
+    /** Half a day cannot span a range, the same rule the Apply form enforces. */
+    public function test_a_recorded_half_day_must_be_one_date(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->recordAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07',
+            'date_to' => '2026-09-08',
+            'half_day_period' => 'am',
+        ])->assertSessionHasErrors('half_day_period');
+
+        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
     }
 
     /**
-     * The grant has to come before the booking. With no balance row applyApproval() has
-     * nothing to decrement, so letting this through would be a paid day off the books.
+     * A granted day is handed over, not spent, so no balance is consulted and none is
+     * touched — including a stale row left behind before the type became HR-granted.
+     * Getting this wrong would spill the day onto Unpaid leave once the row hit zero.
      */
-    public function test_hr_cannot_record_leave_the_employee_has_no_balance_for(): void
+    public function test_recording_a_granted_leave_never_touches_a_balance(): void
     {
         $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
-        $type = LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
-            'is_hr_granted_only' => true,
-        ]);
+        $type = $this->replacement();
+        LeaveBalance::create(['employee_id' => $staff->id, 'leave_type_id' => $type->id, 'balance' => 0]);
 
-        $this->actingAs($hr->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->from('/app/leave-setup')
-            ->post(route('leave.record'), [
-                'employee_id' => $staff->id,
-                'leave_type_id' => $type->id,
-                'date_from' => '2026-09-07',
-                'date_to' => '2026-09-07',
-            ])
-            ->assertRedirect('/app/leave-setup')
-            ->assertSessionHasErrors('employee_id');
+        $this->recordAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07',
+            'date_to' => '2026-09-09',
+        ])->assertRedirect();
 
-        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
-    }
+        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->assertSame('approved', $leave->status);
+        $this->assertEquals(3.0, (float) $leave->days);
 
-    /** Booking more than was granted must not quietly spill onto Unpaid leave. */
-    public function test_hr_cannot_record_more_days_than_were_granted(): void
-    {
-        $staff = $this->member('employee', 'Staff');
-        $hr = $this->member('hr', 'Hana');
-        $type = $this->replacementFor($staff, 1);
-
-        $this->actingAs($hr->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->from('/app/leave-setup')
-            ->post(route('leave.record'), [
-                'employee_id' => $staff->id,
-                'leave_type_id' => $type->id,
-                'date_from' => '2026-09-07',
-                'date_to' => '2026-09-09',
-            ])
-            ->assertSessionHasErrors('employee_id');
-
-        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
-        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
+        // The stale row is left exactly as it was, and nothing was moved onto Unpaid.
+        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
             ->where('leave_type_id', $type->id)->value('balance'));
+        $this->assertSame(1, LeaveRequest::where('employee_id', $staff->id)->count());
     }
 
     /** Recording is an HR/management power — an ordinary employee cannot reach it. */
@@ -309,7 +323,7 @@ class LeaveScreenTabsTest extends TestCase
     {
         $staff = $this->member('employee', 'Staff');
         $other = $this->member('employee', 'Other');
-        $type = $this->replacementFor($other);
+        $type = $this->replacement();
 
         $this->actingAs($staff->user)
             ->withSession(['current_tenant' => $this->tenant->id])

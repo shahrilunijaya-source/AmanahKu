@@ -83,6 +83,29 @@ class LeaveSetupTest extends TestCase
     }
 
     /**
+     * A granted type keeps no running total: HR books those days outright, so the grid
+     * offers no cell to open one and a forged figure in the payload writes nothing.
+     */
+    public function test_a_granted_type_gets_no_opening_balance(): void
+    {
+        $replacement = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'is_hr_granted_only' => true,
+        ]);
+
+        $this->asHr()->post('/app/leave-setup', [
+            'balances' => [$this->staff->id => [$this->annual->id => 12, $replacement->id => 4]],
+        ])->assertRedirect();
+
+        $this->assertEqualsWithDelta(12.0, (float) LeaveBalance::where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+        $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $replacement->id]);
+
+        $html = $this->asHr()->get('/app/leave-setup')->assertOk()->getContent();
+        $this->assertStringContainsString('granted, no balance', $html);
+        $this->assertStringNotContainsString('balances['.$this->staff->id.']['.$replacement->id.']', $html);
+    }
+
+    /**
      * An HR-granted type (Replacement) is missing from the employee's Apply form, so the
      * only way the day gets booked is the Record card here. It appears only once such a
      * type exists — a tenant without one has nothing to record.

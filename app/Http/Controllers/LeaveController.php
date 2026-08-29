@@ -137,9 +137,9 @@ class LeaveController extends Controller
      * HR books a day off that was granted rather than applied for (Replacement). There is
      * no application and no reporting line to consult — HR decides it — so the request
      * opens already verified and goes straight through applyApproval(). That is the method
-     * that decrements the balance, moves any days beyond it onto Unpaid, pushes the absence
-     * into already-saved timesheet weeks and tells the employee; inserting an approved row
-     * by hand here would silently skip all four.
+     * that pushes the absence into already-saved timesheet weeks, writes the audit trail
+     * and tells the employee; inserting an approved row by hand here would skip all three.
+     * A granted type carries no quota, so nothing is decremented — see applyApproval().
      */
     public function record(Request $request): RedirectResponse
     {
@@ -150,6 +150,7 @@ class LeaveController extends Controller
             'leave_type_id' => ['required', 'integer'],
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'half_day_period' => ['nullable', 'in:am,pm'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -167,24 +168,16 @@ class LeaveController extends Controller
         // same bypass approve() and bulkApprove() take care to block.
         abort_unless($type->is_hr_granted_only, 422, 'That leave type is applied for, not recorded.');
 
-        $days = LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
-
-        // The grant has to exist before it is spent. applyApproval() skips the decrement
-        // entirely when there is no balance row, so booking against a blank grid cell
-        // would hand out a paid day nothing ever paid for; booking against too small a
-        // balance would spill the excess onto Unpaid leave, which a granted day never
-        // means. Both are a mistake on the HR side, so say so instead of absorbing it.
-        $balance = (float) ($employee->leaveBalances()
-            ->where('leave_type_id', $type->effectiveBalanceTypeId())
-            ->value('balance') ?? 0);
-
-        if ($balance < $days) {
+        // Same rule the Apply form enforces: you cannot take "the morning off" across a
+        // range, so reject the combination rather than silently ignoring the marker.
+        $isHalfDay = ($data['half_day_period'] ?? null) !== null;
+        if ($isHalfDay && ! Carbon::parse($data['date_from'])->isSameDay(Carbon::parse($data['date_to']))) {
             return back()->withInput()->withErrors([
-                'employee_id' => $employee->name.' has '.$balance.' day(s) of '.$type->name
-                    .' leave, not '.$days.'. Grant the days on the balance grid first.',
+                'half_day_period' => 'Half day leave must start and end on the same day.',
             ]);
         }
 
+        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
         $actorId = $request->attributes->get('employee')?->id;
 
         // Opens at 'verified' because applyApproval()'s compare-and-set only moves a row
@@ -194,6 +187,7 @@ class LeaveController extends Controller
             'leave_type_id' => $type->id,
             'date_from' => $data['date_from'],
             'date_to' => $data['date_to'],
+            'half_day_period' => $data['half_day_period'] ?? null,
             'days' => $days,
             'reason' => $data['reason'] ?? null,
             'status' => 'verified',
@@ -338,11 +332,16 @@ class LeaveController extends Controller
             // another type (Annual). effectiveBalanceTypeId() resolves that redirection.
             $balanceTypeId = $leaveRequest->leaveType?->effectiveBalanceTypeId() ?? $leaveRequest->leave_type_id;
 
-            $balance = $leaveRequest->employee
-                ->leaveBalances()
-                ->where('leave_type_id', $balanceTypeId)
-                ->lockForUpdate()
-                ->first();
+            // A granted type (Replacement) has no quota at all: HR hands the day over, it
+            // is not spent from anything. So there is nothing to draw down, and nothing
+            // may spill onto Unpaid either — the day was granted, so it is paid.
+            $balance = $leaveRequest->leaveType?->is_hr_granted_only
+                ? null
+                : $leaveRequest->employee
+                    ->leaveBalances()
+                    ->where('leave_type_id', $balanceTypeId)
+                    ->lockForUpdate()
+                    ->first();
 
             $overflow = null;
 

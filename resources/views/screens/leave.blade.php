@@ -51,7 +51,9 @@
     // Ledger: every type the person carries a real entitlement in, with the days
     // already spent and the days still awaiting a decision.
     $pendingByType = $pending->groupBy('leave_type_id')->map(fn ($g) => (float) $g->sum('days'));
-    $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0)
+    // A granted type (Replacement) keeps no running total — HR books those days outright —
+    // so it has no line here even where an old balance row survives.
+    $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0 && ! $b->leaveType->is_hr_granted_only)
         ->sortByDesc(fn ($b) => $b->leaveType->entitlement);
 
     $statusTone = ['cancelled' => 'muted', 'approved' => 'success', 'verified' => 'amber', 'submitted' => 'amber', 'rejected' => 'error', 'draft' => 'muted'];

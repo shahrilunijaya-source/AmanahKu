@@ -71,9 +71,13 @@ class LeaveSetupController extends Controller
 
         // Whitelist writable ids from the tenant's own data (both models are tenant-scoped).
         // A type that spends another type's balance (Emergency off Annual) has no balance
-        // of its own — writing one would create a row nothing ever reads or deducts.
+        // of its own — writing one would create a row nothing ever reads or deducts. Nor
+        // does a granted type (Replacement): HR books those days outright, so there is no
+        // running total to open.
         $staffIds = Employee::active()->pluck('id')->flip();
-        $typeIds = LeaveType::whereNull('deducts_from_leave_type_id')->pluck('id')->flip();
+        $typeIds = LeaveType::whereNull('deducts_from_leave_type_id')
+            ->where('is_hr_granted_only', false)
+            ->pluck('id')->flip();
 
         $updated = 0;
 

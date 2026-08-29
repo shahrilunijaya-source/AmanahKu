@@ -333,8 +333,9 @@ class DatabaseSeeder extends Seeder
         LeaveType::whereKey($types['Emergency'])->update(['deducts_from_leave_type_id' => $types['Annual']]);
 
         // Opening balances only for types with an entitlement of their own (Emergency
-        // has none — it draws down Annual).
-        foreach ([['Annual', 12.5], ['Medical', 14], ['Replacement', 2]] as $b) {
+        // has none — it draws down Annual; Replacement has none either — HR books those
+        // days outright and no total is kept).
+        foreach ([['Annual', 12.5], ['Medical', 14]] as $b) {
             LeaveBalance::create(['employee_id' => $aisyah, 'leave_type_id' => $types[$b[0]], 'balance' => $b[1]]);
         }
         LeaveRequest::create(['tenant_id' => $tid, 'employee_id' => $aisyah, 'leave_type_id' => $types['Annual'], 'date_from' => Carbon::create(2026, 7, 1), 'date_to' => Carbon::create(2026, 7, 3), 'days' => 3, 'reason' => 'Family trip — Hari Raya Haji long weekend.', 'status' => 'submitted']);
