@@ -169,6 +169,8 @@ Route::middleware('auth')->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
+        // HR books a granted day (Replacement) for someone else — see LeaveController::record.
+        Route::post('/app/leave/record', [LeaveController::class, 'record'])->name('leave.record');
         Route::post('/app/leave/{leaveRequest}/verify', [LeaveController::class, 'verify'])->name('leave.verify');
         Route::post('/app/leave/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leave.approve');
         Route::post('/app/leave/{leaveRequest}/reject', [LeaveController::class, 'reject'])->name('leave.reject');

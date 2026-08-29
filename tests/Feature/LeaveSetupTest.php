@@ -82,6 +82,25 @@ class LeaveSetupTest extends TestCase
         $this->asHr()->get('/app/leave-setup')->assertOk();
     }
 
+    /**
+     * An HR-granted type (Replacement) is missing from the employee's Apply form, so the
+     * only way the day gets booked is the Record card here. It appears only once such a
+     * type exists — a tenant without one has nothing to record.
+     */
+    public function test_the_record_card_appears_only_for_hr_granted_types(): void
+    {
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertDontSee('Record granted leave');
+
+        LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'is_hr_granted_only' => true,
+        ]);
+
+        $this->asHr()->get('/app/leave-setup')->assertOk()
+            ->assertSee('Record granted leave')
+            ->assertSee(route('leave.record'), false);
+    }
+
     public function test_the_balance_grid_is_searchable_by_nickname(): void
     {
         $this->staff->update(['nickname' => 'wory']);

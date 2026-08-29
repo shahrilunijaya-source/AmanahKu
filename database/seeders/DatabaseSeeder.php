@@ -325,6 +325,8 @@ class DatabaseSeeder extends Seeder
             'min_notice_days' => $x[4],
             // Payroll's unpaid-leave pull matches this flag, not the name.
             'is_unpaid' => $x[0] === 'Unpaid',
+            // Replacement is granted by HR (opening balance), not applied for.
+            'is_hr_granted_only' => $x[0] === 'Replacement',
         ])->id]);
 
         // Emergency leave is not a privilege — it spends the Annual balance.

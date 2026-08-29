@@ -320,6 +320,7 @@ class Employee extends Model
             ?->balance ?? 0);
     }
 
+    /** @return HasMany<LeaveRequest, $this> */
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(LeaveRequest::class);

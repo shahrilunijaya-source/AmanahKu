@@ -240,4 +240,53 @@
         </div>
     </form>
 @endif
+
+{{-- Record granted leave — a type flagged "HR grants only" (Replacement) never appears on
+     the employee's Apply form, so the day off has to be booked from here. It goes in
+     already approved: the balance is decremented and the timesheet reconciled by the very
+     same code an ordinary approval runs (LeaveController::record). --}}
+@php $grantedTypes = $leaveTypes->where('is_hr_granted_only', true); @endphp
+@if ($grantedTypes->isNotEmpty() && $setupStaff->isNotEmpty())
+    <div style="height:1px;background:var(--hairline);margin:22px 0;"></div>
+
+    <div style="display:flex;align-items:center;gap:9px;margin:0 0 6px;">
+        <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Record granted leave' : 'Rekod cuti yang diberi'">Record granted leave</span></h2>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Staff cannot apply for these types — book the day here and it is approved straight away, off their balance.' : 'Staf tidak boleh memohon jenis ini — tempah hari di sini dan ia diluluskan terus, ditolak dari baki mereka.'"></span></p>
+
+    <div class="uj-card" style="padding:18px 22px;">
+        <form method="post" action="{{ route('leave.record') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            @csrf
+            <div style="flex:2;min-width:200px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Staff *' : 'Staf *'">Staff *</span></label>
+                <select name="employee_id" required style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;background:#fff;">
+                    @foreach ($setupStaff as $e)
+                        <option value="{{ $e->id }}" @selected(old('employee_id') == $e->id)>{{ $e->display_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div style="width:170px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Leave type *' : 'Jenis cuti *'">Leave type *</span></label>
+                <select name="leave_type_id" required style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;background:#fff;">
+                    @foreach ($grantedTypes as $t)
+                        <option value="{{ $t->id }}" @selected(old('leave_type_id') == $t->id)>{{ $t->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div style="width:160px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From *' : 'Dari *'">From *</span></label>
+                <input type="date" name="date_from" required value="{{ old('date_from') }}" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+            </div>
+            <div style="width:160px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To *' : 'Hingga *'">To *</span></label>
+                <input type="date" name="date_to" required value="{{ old('date_to') }}" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+            </div>
+            <div style="flex:1;min-width:180px;">
+                <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>
+                <input name="reason" maxlength="500" value="{{ old('reason') }}" placeholder="Worked on 31 Aug" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+            </div>
+            <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span></button>
+        </form>
+    </div>
+@endif
 @endsection

@@ -327,10 +327,10 @@ trait BuildsDashboardData
             foreach ($employee->leaveRequests()->with('leaveType')->whereIn('status', ['submitted', 'verified'])->latest()->take(5)->get() as $r) {
                 $stage = $r->status === 'submitted' ? 'step1' : 'step2';
                 $rows->push([
-                    'month' => $r->date_from?->format('M') ?? '', 'day' => $r->date_from?->format('d') ?? '',
+                    'month' => $r->date_from->format('M'), 'day' => $r->date_from->format('d'),
                     'kind' => ($r->leaveType?->name ?? 'Leave').' leave', 'stage' => $stage,
                     'label' => $stage === 'step1' ? 'With your manager' : 'With management',
-                    'title' => trim($r->date_from?->format('j M').'–'.$r->date_to?->format('j M').', '.$this->trimNumber((float) $r->days).' days'),
+                    'title' => trim($r->date_from->format('j M').'–'.$r->date_to->format('j M').', '.$this->trimNumber((float) $r->days).' days'),
                     'sub' => 'Submitted '.($r->created_at?->format('j M') ?? ''),
                     'body' => RequestGuidance::for('leave', 'waiting'),
                     'actions' => [],

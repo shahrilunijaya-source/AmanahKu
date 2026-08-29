@@ -51,6 +51,10 @@
             <input type="checkbox" name="is_unplanned" value="1" @checked(old('is_unplanned', $lt->is_unplanned ?? false)) />
             <span x-text="$store.ui.lang==='en' ? 'Unplanned (emergency-style)' : 'Tidak dirancang (kecemasan)'">Unplanned</span>
         </label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--body);cursor:pointer;">
+            <input type="checkbox" name="is_hr_granted_only" value="1" @checked(old('is_hr_granted_only', $lt->is_hr_granted_only ?? false)) />
+            <span x-text="$store.ui.lang==='en' ? 'HR grants only (not applied for)' : 'HR beri sahaja (tidak dipohon)'">HR grants only</span>
+        </label>
     </div>
     <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">{{ $submitLabel }}</button></div>
 </form>

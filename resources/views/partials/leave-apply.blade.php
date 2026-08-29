@@ -8,6 +8,11 @@
      Params: $leaveTypes, $balances, $leaveMeta (see screens/leave.blade.php),
      $teamLeave, $approvalChain. --}}
 @php
+    // Types HR grants outright (Replacement) are never applied for — the balance shows
+    // on the Balances tab, but the Apply form must not offer them. LeaveController::store()
+    // rejects them too, so a forged post cannot get past the hidden button.
+    $leaveTypes = $leaveTypes->reject(fn ($t) => $t->is_hr_granted_only);
+
     $balByType = $balances->keyBy('leave_type_id');
 
     /**

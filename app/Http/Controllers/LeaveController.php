@@ -52,6 +52,14 @@ class LeaveController extends Controller
         $type = LeaveType::find($data['leave_type_id']);
         abort_unless($type, 422);
 
+        // Granted by HR as an opening balance, never applied for — the Apply form hides
+        // these, so reaching here means a forged or stale post.
+        if ($type->is_hr_granted_only) {
+            return back()->withInput()->withErrors([
+                'leave_type_id' => $type->name.' leave is granted by HR and cannot be applied for.',
+            ]);
+        }
+
         // Planned leave (e.g. Annual) must be applied for a set number of days ahead.
         // Unplanned/emergency leave is the escape hatch and bypasses the notice rule.
         if (! $type->is_unplanned && $type->min_notice_days > 0) {
@@ -123,6 +131,64 @@ class LeaveController extends Controller
         }
 
         return back()->with('ok', "Leave application submitted ({$days} day".($days == 1 ? '' : 's').').');
+    }
+
+    /**
+     * HR books a day off that was granted rather than applied for (Replacement). There is
+     * no application and no reporting line to consult — HR decides it — so the request
+     * opens already verified and goes straight through applyApproval(). That is the method
+     * that decrements the balance, moves any days beyond it onto Unpaid, pushes the absence
+     * into already-saved timesheet weeks and tells the employee; inserting an approved row
+     * by hand here would silently skip all four.
+     */
+    public function record(Request $request): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'leave_type_id' => ['required', 'integer'],
+            'date_from' => ['required', 'date'],
+            'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        // Both models are tenant-scoped, so an id from another tenant simply finds nothing.
+        // whereKey()->first() rather than find(): it resolves to one model, not the
+        // model-or-collection union find() carries, so the guards below stay typed.
+        $employee = Employee::active()->whereKey($data['employee_id'])->first();
+        abort_unless($employee !== null, 422);
+
+        $type = LeaveType::whereKey($data['leave_type_id'])->first();
+        abort_unless($type !== null, 422);
+
+        // Only HR-granted types are recorded this way. Letting an ordinary type through
+        // would hand HR a one-click approval of leave the reporting line never saw — the
+        // same bypass approve() and bulkApprove() take care to block.
+        abort_unless($type->is_hr_granted_only, 422, 'That leave type is applied for, not recorded.');
+
+        $days = LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
+        $actorId = $request->attributes->get('employee')?->id;
+
+        // Opens at 'verified' because applyApproval()'s compare-and-set only moves a row
+        // from verified to approved. For a granted day HR is both verifier and approver.
+        // tenant_id is auto-filled by the BelongsToTenant trait.
+        $leave = $employee->leaveRequests()->create([
+            'leave_type_id' => $type->id,
+            'date_from' => $data['date_from'],
+            'date_to' => $data['date_to'],
+            'days' => $days,
+            'reason' => $data['reason'] ?? null,
+            'status' => 'verified',
+            'verified_by_id' => $actorId,
+            'verified_at' => now(),
+        ]);
+
+        $this->applyApproval($leave, $actorId);
+        AuditLog::record('Recorded granted leave', $employee->name.' · '.$type->name.' · '.$days.'d');
+
+        return back()->with('ok', $type->name.' leave recorded for '.$employee->name
+            .' ('.$days.' day'.($days == 1 ? '' : 's').').');
     }
 
     /** Step 1: the immediate superior verifies, moving the request on to management. */

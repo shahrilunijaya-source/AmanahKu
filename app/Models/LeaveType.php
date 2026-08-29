@@ -20,6 +20,7 @@ class LeaveType extends Model
             'requires_attachment' => 'boolean',
             'is_unplanned' => 'boolean',
             'is_unpaid' => 'boolean',
+            'is_hr_granted_only' => 'boolean',
             'min_notice_days' => 'integer',
             'monthly_accrual_days' => 'float',
             'max_balance' => 'float',

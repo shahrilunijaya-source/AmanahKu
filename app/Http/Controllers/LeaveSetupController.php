@@ -155,7 +155,8 @@ class LeaveSetupController extends Controller
     /**
      * One-click Malaysian starter set (Employment Act 2022 shape). Idempotent — skips any
      * type whose name already exists — so it is safe to run on a partly-populated tenant.
-     * Emergency carries no entitlement of its own and spends the Annual balance.
+     * Emergency carries no entitlement of its own and spends the Annual balance. Replacement
+     * is HR-granted only — its balance is set on this screen, never applied for.
      */
     public function loadStandardTypes(Request $request): RedirectResponse
     {
@@ -189,6 +190,8 @@ class LeaveSetupController extends Controller
                 // Payroll's unpaid-leave pull matches this flag, not the name — see the
                 // 2026_08_25_210000 migration.
                 'is_unpaid' => $x[0] === 'Unpaid',
+                // Replacement is granted by HR (opening balance on this screen), not applied for.
+                'is_hr_granted_only' => $x[0] === 'Replacement',
             ]);
             $added++;
         }
@@ -339,6 +342,7 @@ class LeaveSetupController extends Controller
             'deducts_from_leave_type_id' => ['nullable', Rule::exists('leave_types', 'id')->where('tenant_id', $tid)],
             'requires_attachment' => ['nullable', 'boolean'],
             'is_unplanned' => ['nullable', 'boolean'],
+            'is_hr_granted_only' => ['nullable', 'boolean'],
         ]);
 
         $data['entitlement'] = $data['entitlement'] ?? 0;
@@ -346,6 +350,7 @@ class LeaveSetupController extends Controller
         $data['monthly_accrual_days'] = $data['monthly_accrual_days'] ?? 0;
         $data['requires_attachment'] = $request->boolean('requires_attachment');
         $data['is_unplanned'] = $request->boolean('is_unplanned');
+        $data['is_hr_granted_only'] = $request->boolean('is_hr_granted_only');
         $data['deducts_from_leave_type_id'] = $data['deducts_from_leave_type_id'] ?? null;
 
         return $data;
