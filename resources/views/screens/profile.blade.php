@@ -395,7 +395,9 @@
                 <div>
                     <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave balances' : 'Baki cuti'">Leave balances</span></div>
                     <div style="display:flex;flex-wrap:wrap;gap:10px;">
-                        @forelse ($p->leaveBalances as $b)
+                        {{-- A granted type (Replacement) keeps no running total, so it has no
+                             card here even where an old balance row survives. --}}
+                        @forelse ($p->leaveBalances->reject(fn ($b) => $b->leaveType?->is_hr_granted_only) as $b)
                             <div style="min-width:130px;flex:1;border:1px solid var(--hairline-soft);border-radius:8px;padding:10px 12px;">
                                 <div style="font-size:11.5px;color:var(--muted);">{{ $b->leaveType?->name ?? '—' }}</div>
                                 <div style="font-size:16px;color:var(--ink);font-weight:600;font-family:var(--font-mono);">{{ rtrim(rtrim(number_format((float) $b->balance, 1), '0'), '.') }} <span style="font-size:11px;color:var(--muted);font-weight:400;">/ {{ rtrim(rtrim(number_format((float) ($b->leaveType?->entitlement ?? 0), 1), '0'), '.') }}</span></div>

@@ -318,6 +318,37 @@ class LeaveScreenTabsTest extends TestCase
         $this->assertSame(1, LeaveRequest::where('employee_id', $staff->id)->count());
     }
 
+    /**
+     * Cancelling an approved leave hands the days back. Nothing was taken for a granted
+     * type, so nothing may be handed back either — a refund would top up a quota that is
+     * not supposed to exist. The timesheet still gets put right.
+     */
+    public function test_cancelling_a_granted_leave_refunds_nothing(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+        LeaveBalance::create(['employee_id' => $staff->id, 'leave_type_id' => $type->id, 'balance' => 0]);
+
+        $this->recordAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'date_from' => now()->addDays(10)->toDateString(),
+            'date_to' => now()->addDays(10)->toDateString(),
+        ])->assertRedirect();
+
+        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+
+        $this->actingAs($staff->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.cancel', $leave))
+            ->assertRedirect();
+
+        $this->assertSame('cancelled', $leave->fresh()->status);
+        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
     /** Recording is an HR/management power — an ordinary employee cannot reach it. */
     public function test_an_employee_cannot_record_leave_for_someone(): void
     {

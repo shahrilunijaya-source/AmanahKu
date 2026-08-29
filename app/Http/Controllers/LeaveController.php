@@ -478,11 +478,16 @@ class LeaveController extends Controller
             $fresh->update(['status' => 'cancelled']);
 
             if ($wasApproved) {
-                $balanceTypeId = $fresh->leaveType?->effectiveBalanceTypeId() ?? $fresh->leave_type_id;
-                $fresh->employee->leaveBalances()
-                    ->where('leave_type_id', $balanceTypeId)
-                    ->lockForUpdate()
-                    ->increment('balance', (float) $fresh->days);
+                // Nothing was decremented for a granted type (see applyApproval), so there
+                // is nothing to hand back — crediting one would top up a quota that is not
+                // supposed to exist. The timesheet still has to be put right either way.
+                if (! $fresh->leaveType?->is_hr_granted_only) {
+                    $balanceTypeId = $fresh->leaveType?->effectiveBalanceTypeId() ?? $fresh->leave_type_id;
+                    $fresh->employee->leaveBalances()
+                        ->where('leave_type_id', $balanceTypeId)
+                        ->lockForUpdate()
+                        ->increment('balance', (float) $fresh->days);
+                }
 
                 app(WeekReconciler::class)->reconcileForLeave($fresh);
             }
