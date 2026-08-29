@@ -151,7 +151,7 @@
          Markup lives in partials.work-drawer, shared with the team board's
          view-only copy (see resources/views/screens/team-board.blade.php). --}}
     @if ($employee)
-    @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel, 'projects' => $projects ?? [], 'timesheetCategories' => $timesheetCategories ?? []])
+    @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel, 'projects' => $projects ?? []])
 
     {{-- Archived-cards panel: reached only from the Done column's "Archived (N)"
          link. A card lands here via archiveCard() (shake + fade, see work-board.js)

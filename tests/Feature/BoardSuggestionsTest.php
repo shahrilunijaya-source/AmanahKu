@@ -259,6 +259,43 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame($project->id, $row['project_id']);
     }
 
+    /**
+     * JBG: iGuaman is tagged both Development and Maintenance, and its cards really do
+     * split between them. Others is the bucket for work not billed to a project, so
+     * dropping ambiguous project work there would put delivery hours in the overhead
+     * column. The row comes back uncategorised instead, and the capture screen sends the
+     * staffer to the card, where the project's own two are the only options.
+     */
+    public function test_a_card_on_a_project_tagged_several_ways_is_left_for_the_card_to_settle(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false]);
+        $second = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman']);
+        $project->categories()->attach([$this->work->id, $second->id]);
+        $card = $this->card(['project_id' => $project->id]);
+        $this->stint($card, '2026-08-25 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertNull($result['2026-08-25'][0]['category_id']);
+    }
+
+    /** The bulk prefill and the single-card drawer must never disagree about a card. */
+    public function test_the_prefill_and_the_cards_own_resolver_agree(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Apollo']);
+        $project->categories()->attach($this->work->id);
+        $card = $this->card(['project_id' => $project->id]);
+        $this->stint($card, '2026-08-25 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame(
+            $card->fresh()->effectiveTimesheetCategory()?->id,
+            $result['2026-08-25'][0]['category_id'],
+        );
+    }
+
     public function test_a_stint_spanning_the_weekend_suggests_no_saturday_or_sunday(): void
     {
         // 2026-08-29 is the last Saturday of August, not the first — not a working day.

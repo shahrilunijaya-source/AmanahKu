@@ -17,7 +17,6 @@ use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Services\DataScope;
-use App\Services\FeatureManager;
 use App\Services\MandayRateService;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
@@ -881,7 +880,7 @@ class TimesheetController extends Controller
      */
     private function categoryOptions(array $keepIds = []): Collection
     {
-        $leaveModuleOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave');
+        $generated = TimesheetCategory::generatedNames();
 
         return TimesheetCategory::where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $keepIds))
             ->orderBy('sort')->orderBy('name')->get()
@@ -892,7 +891,7 @@ class TimesheetController extends Controller
                 'requires_project' => (bool) $c->requires_project,
                 'colour' => $c->colour(),
             ])
-            ->reject(fn (array $c) => $leaveModuleOn && in_array($c['name'], ['On Leave', 'Public Holiday'], true))
+            ->reject(fn (array $c) => in_array($c['name'], $generated, true))
             ->values();
     }
 

@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Project;
 use App\Models\SubPillar;
 use App\Models\TimesheetCategory;
+use App\Models\WorkItem;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -85,9 +86,34 @@ class ProjectController extends Controller
 
         $project->update($data);
         $project->categories()->sync($categories);
+        $this->dropCardCategoriesThisProjectNoLongerOffers($project, $categories);
         AuditLog::record('Updated project', $project->name);
 
         return back()->with('ok', $project->name.' updated.');
+    }
+
+    /**
+     * Retagging a project is the source-of-truth edit: this screen decides which
+     * categories a project falls under. Any board card booked to it that still carries
+     * a category no longer on the list is cleared, because the card's drawer stops
+     * offering that value the moment it leaves this list — it would sit there unseen and
+     * unfixable while still costing every timesheet line the card produces.
+     *
+     * Untagging a project entirely leaves cards alone: an untagged project has said
+     * nothing rather than said "none", and its cards go back to the full pickable list.
+     *
+     * @param  list<int|string>  $categories
+     */
+    private function dropCardCategoriesThisProjectNoLongerOffers(Project $project, array $categories): void
+    {
+        if ($categories === []) {
+            return;
+        }
+
+        WorkItem::where('project_id', $project->id)
+            ->whereNotNull('timesheet_category_id')
+            ->whereNotIn('timesheet_category_id', $categories)
+            ->update(['timesheet_category_id' => null]);
     }
 
     public function deleteProject(Request $request, Project $project): RedirectResponse

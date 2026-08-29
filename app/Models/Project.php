@@ -23,7 +23,13 @@ class Project extends Model
         ];
     }
 
-    /** Timesheet categories this project falls under (e.g. Development, Maintenance). */
+    /**
+     * Timesheet categories this project falls under (e.g. Development, Maintenance).
+     * This screen is the source of truth: a board card booked to the project is offered
+     * exactly these, and inherits the answer outright when there is only one.
+     *
+     * @return BelongsToMany<TimesheetCategory, $this>
+     */
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(TimesheetCategory::class, 'project_timesheet_category');

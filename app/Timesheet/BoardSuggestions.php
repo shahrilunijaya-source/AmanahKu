@@ -172,9 +172,14 @@ final class BoardSuggestions
 
     /**
      * The effort type each card's rows are costed as: the card's own choice, else its
-     * project's category when that project has exactly one, else the standing overhead
-     * bucket. Never null in practice — a row with no category cannot be submitted, and
-     * the staffer has no picker to fix it with, so the fallback has to hold.
+     * project's category when that project has exactly one, else — for a card with no
+     * project at all — the standing overhead bucket.
+     *
+     * A card booked to a project tagged with several categories is the one case that
+     * comes back null. Others is the bucket for work not billed to a project, so filing
+     * project work there to avoid a blank would put real delivery hours in the overhead
+     * column, which is the one number the director reads. The row is held back instead
+     * and the capture screen points at the card, where the picker is.
      *
      * Public because the capture screen's "restore a struck-off card" list has to offer
      * the row back with the same category the prefill would have given it.
@@ -204,12 +209,16 @@ final class BoardSuggestions
             $project = $projects->firstWhere('id', $card->project_id);
             $categories = $project ? $project->categories : collect();
 
-            // Only an unambiguous project answers this. Two categories and the card's
-            // own field is what settles it; guessing would file work under the wrong
-            // heading, which is the one number the director reads.
-            $out[(int) $card->id] = $categories->count() === 1
-                ? (int) $categories->first()->id
-                : ($fallback ? (int) $fallback : null);
+            if ($categories->count() === 1) {
+                $out[(int) $card->id] = (int) $categories->first()->id;
+
+                continue;
+            }
+
+            // Only an unambiguous project answers this. A project tagged several ways
+            // leaves the card's own field to settle it, and until it does the row is
+            // held back rather than dropped into the overhead bucket.
+            $out[(int) $card->id] = $card->project_id ? null : ($fallback ? (int) $fallback : null);
         }
 
         return $out;

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -51,16 +52,62 @@ class WorkItem extends Model
      * The project this card is planned under. Optional. Named projectRef (not
      * project) to match TimesheetEntry and stay clear of any future `project`
      * column that would shadow the relation.
+     *
+     * @return BelongsTo<Project, $this>
      */
     public function projectRef(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'project_id');
     }
 
-    /** The effort type this card's hours are costed as once they reach a timesheet. */
+    /**
+     * The effort type this card's hours are costed as once they reach a timesheet.
+     *
+     * @return BelongsTo<TimesheetCategory, $this>
+     */
     public function timesheetCategory(): BelongsTo
     {
         return $this->belongsTo(TimesheetCategory::class);
+    }
+
+    /**
+     * The categories this card may be costed as. The project screen is the source of
+     * truth for which categories a project falls under, so a booked card is offered
+     * exactly what that project was tagged with — nothing else. A card with no project
+     * (46% of the live board) has no project to inherit from, so it gets the full
+     * pickable list; so does a project nobody has tagged yet, because an untagged
+     * project has said nothing rather than said "none".
+     *
+     * @return Collection<int, TimesheetCategory>
+     */
+    public function timesheetCategoryOptions(): Collection
+    {
+        $tagged = $this->projectRef?->categories()->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+
+        if ($tagged && $tagged->isNotEmpty()) {
+            return $tagged;
+        }
+
+        return TimesheetCategory::where('is_active', true)
+            ->whereNotIn('name', TimesheetCategory::generatedNames())
+            ->orderBy('sort')->orderBy('name')->get();
+    }
+
+    /**
+     * What this card is actually costed as: its own choice, or the project's category
+     * when that project has exactly one. Mirrors BoardSuggestions::categoryFor(), which
+     * resolves the same rule in bulk for a whole week of rows — see the test that holds
+     * the two in step. Null means the card still owes an answer.
+     */
+    public function effectiveTimesheetCategory(): ?TimesheetCategory
+    {
+        if ($this->timesheet_category_id) {
+            return $this->timesheetCategory;
+        }
+
+        $tagged = $this->projectRef?->categories;
+
+        return $tagged && $tagged->count() === 1 ? $tagged->first() : null;
     }
 
     /** The superior who assigned this task. Null for self-created cards. */

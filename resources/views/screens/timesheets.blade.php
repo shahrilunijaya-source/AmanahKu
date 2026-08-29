@@ -288,8 +288,8 @@
                             <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en'
-                                    ? 'This card has no effort type — open it on the board and set \'Costed as\'. Until then this line is not saved.'
-                                    : 'Kad ini tiada jenis usaha — buka di papan dan tetapkan \'Dikira sebagai\'. Sehingga itu baris ini tidak disimpan.'"></div>
+                                    ? 'This card has no category — open it on the board and set one. Until then this line is not saved.'
+                                    : 'Kad ini tiada kategori — buka di papan dan tetapkan satu. Sehingga itu baris ini tidak disimpan.'"></div>
 
                             {{-- The amount controls sit INSIDE the line they change, revealed by
                                  hovering or focusing that line. They used to be one strip pinned

@@ -1215,9 +1215,15 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-sub { font-size: var(--t-micro); color: var(--muted); margin: 0 0 18px; min-height: 1em; }
 
 /* Property rows: label left, live control right. Every one autosaves. */
-.wd-props { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
+.wd-props { display: grid; grid-template-columns: 108px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
 .wd-plabel { font-size: var(--t-sm); color: var(--muted); }
 .wd-pval { min-width: 0; }
+/* Project and Category sit on one row: two controls, one decision. The pair carries
+   the row's usual -8px pull so its first control still lines up with every other
+   .wd-inline, and the children drop theirs so they read as a path, not two rows. */
+.wd-ppair { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-left: -8px; }
+.wd-ppair > .wd-inline { margin-left: 0; }
+.wd-psep { font-size: var(--t-sm); color: var(--muted-soft); }
 .wd-inline {
     border: 1px solid transparent; background: none; border-radius: 7px;
     font-size: var(--t-sm); font-weight: 500; color: var(--ink); cursor: pointer;

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Services\FeatureManager;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -24,6 +26,31 @@ class TimesheetCategory extends Model
      * @var list<string>
      */
     public const PROJECT_LINKABLE = ['Development', 'Maintenance', 'InHouse Project', 'Sales'];
+
+    /**
+     * Rows nobody picks by hand: LockedDays generates them from approved leave and the
+     * public-holiday calendar (matched by name — see LockedDays::CATEGORY_NAME). While
+     * the leave module is on they are filled in for the staffer, so offering them in a
+     * picker only ever produces a second, unapproved copy of a day HR already decided.
+     *
+     * @var list<string>
+     */
+    public const GENERATED = ['On Leave', 'Public Holiday'];
+
+    /**
+     * The GENERATED names to hide from a picker right now — none when the leave module
+     * is off, because such a tenant has no approved-leave source and needs to log leave
+     * some other way. Request context only: it reads the current tenant's feature flags,
+     * which observers and console commands deliberately run without.
+     *
+     * @return list<string>
+     */
+    public static function generatedNames(): array
+    {
+        return app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave')
+            ? self::GENERATED
+            : [];
+    }
 
     /**
      * What a new company starts with: the four effort types the director costs work

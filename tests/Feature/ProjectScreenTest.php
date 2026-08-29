@@ -34,6 +34,60 @@ class ProjectScreenTest extends TestCase
         $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
     }
 
+    /**
+     * This screen is the source of truth for which categories a project falls under, so
+     * retagging it has to reach the board cards booked to it. A card left holding a
+     * category the project no longer offers would be invisible — its drawer stops
+     * offering that value — while still costing every timesheet line the card produces.
+     */
+    public function test_retagging_a_project_clears_card_categories_it_no_longer_offers(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id, $sales->id]);
+
+        $employee = Employee::where('user_id', $this->actorWithRole('manager')->id)->sole();
+        $stale = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Sold work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $sales->id,
+        ]);
+        $kept = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Built work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $dev->id,
+        ]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.update', $project), ['name' => 'SPA: IRIS', 'categories' => [$dev->id]])
+            ->assertRedirect();
+
+        $this->assertNull($stale->fresh()->timesheet_category_id);
+        $this->assertSame($dev->id, $kept->fresh()->timesheet_category_id);
+    }
+
+    /** Untagging a project says nothing, not "none" — its cards keep what they had. */
+    public function test_untagging_a_project_leaves_its_cards_alone(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+
+        $employee = Employee::where('user_id', $this->actorWithRole('manager')->id)->sole();
+        $card = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Built work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $dev->id,
+        ]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.update', $project), ['name' => 'SPA: IRIS'])
+            ->assertRedirect();
+
+        $this->assertSame($dev->id, $card->fresh()->timesheet_category_id);
+    }
+
     /** Idempotent: a test may act as the same role more than once in one case. */
     private function actorWithRole(string $role): User
     {

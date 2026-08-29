@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
 use App\Models\Employee;
+use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
 use App\Support\BoardRules;
@@ -222,12 +223,38 @@ class WorkItemController extends Controller
         }
 
         $workItem->update($data);
+
+        // Moving a card to another project can leave behind a category that project was
+        // never tagged with. The drawer would stop offering it, so it would sit on the
+        // card invisibly and still cost every timesheet line it produces. Drop it and let
+        // the new project answer instead.
+        if (array_key_exists('project_id', $data)) {
+            $this->dropCategoryTheProjectDisallows($workItem);
+        }
+
         $workItem->load('participants');
 
         return response()->json([
             'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    /** Clear a category the card's current project does not offer. No-op when it does. */
+    private function dropCategoryTheProjectDisallows(WorkItem $workItem): void
+    {
+        if (! $workItem->timesheet_category_id) {
+            return;
+        }
+
+        $workItem->unsetRelation('projectRef');
+
+        if ($workItem->timesheetCategoryOptions()->contains('id', $workItem->timesheet_category_id)) {
+            return;
+        }
+
+        $workItem->update(['timesheet_category_id' => null]);
+        $workItem->unsetRelation('timesheetCategory');
     }
 
     /**
@@ -550,9 +577,16 @@ class WorkItemController extends Controller
             // Which effort type this card's hours are costed as once they reach a
             // timesheet. Null falls back to the project's category, then to Others.
             'timesheet_category_id' => $item->timesheet_category_id,
-            // Named as well as numbered: the team board's drawer is read-only and has no
-            // category list of its own to resolve the id against.
-            'timesheet_category_name' => $item->timesheetCategory?->name,
+            // Named as well as numbered: the team board's drawer is read-only, and even
+            // the editable one shows a name rather than a picker when the project pins
+            // the answer. This is the EFFECTIVE category, so an unset card booked to a
+            // single-category project still reads as that category.
+            'timesheet_category_name' => $item->effectiveTimesheetCategory()?->name,
+            // What this card may be costed as, resolved from its project. One entry plus
+            // a project means the project screen already decided and the drawer shows
+            // text instead of a picker.
+            'timesheet_category_options' => $item->timesheetCategoryOptions()
+                ->map(fn (TimesheetCategory $c) => ['id' => $c->id, 'name' => $c->name])->values(),
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->display_name,

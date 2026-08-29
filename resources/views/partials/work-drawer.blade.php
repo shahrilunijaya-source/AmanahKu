@@ -13,7 +13,6 @@
                                 false = team board (view + comment only).
     @param array $priLabel     value => label, e.g. ['high' => 'High', ...]
     @param \Illuminate\Support\Collection $projects  Only used when $interactive.
-    @param \Illuminate\Support\Collection $timesheetCategories  Only used when $interactive.
 
     Note: the label palette itself (WorkItem::LABELS) is NOT a Blade param here —
     it's read from Alpine's `labels` data property, already bound on the host
@@ -137,34 +136,46 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
-                        <span class="wd-pval">
+                        {{-- Category and Project are one decision with two halves, and the old
+                             capture screen asked for both on every line — what kind of work, and
+                             which job it is on. Kept on a single row, category first, in the order
+                             the timesheet used to ask.
+
+                             The project screen owns which categories a project falls under, so the
+                             category here is not a free choice: a card booked to a project tagged
+                             with exactly one category shows that category as text, with nothing to
+                             pick. Only a card with no project, or one on a project tagged with
+                             several, is asked — and then only from that project's own list. See
+                             WorkItem::timesheetCategoryOptions(). --}}
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-pval wd-ppair">
                             @if ($interactive)
+                                <template x-if="categoryIsPinned()">
+                                    <span class="wd-inline" style="margin:0;padding-left:0;cursor:default;"
+                                          :title="$store.ui.lang==='en' ? 'Set on the project, not the card' : 'Ditetapkan pada projek, bukan kad'"
+                                          x-text="drawer.card.timesheet_category_name"></span>
+                                </template>
+                                <template x-if="!categoryIsPinned()">
+                                    <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
+                                            :aria-label="$store.ui.lang==='en' ? 'Category' : 'Kategori'"
+                                            @change="commitField('timesheet_category_id', drawer.card.timesheet_category_id === '' ? null : drawer.card.timesheet_category_id)">
+                                        <option value="" x-text="$store.ui.lang==='en' ? 'No category' : 'Tiada kategori'"></option>
+                                        <template x-for="c in (drawer.card.timesheet_category_options || [])" :key="c.id">
+                                            <option :value="c.id" x-text="c.name"></option>
+                                        </template>
+                                    </select>
+                                </template>
+                                <span class="wd-psep" aria-hidden="true">·</span>
                                 <select class="wd-inline" x-model="drawer.card.project_id" :disabled="drawer.locked"
+                                        :aria-label="$store.ui.lang==='en' ? 'Project' : 'Projek'"
                                         @change="commitField('project_id', drawer.card.project_id === '' ? null : drawer.card.project_id)">
                                     <option value="" x-text="$store.ui.lang==='en' ? 'No project' : 'Tiada projek'"></option>
                                     @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
                                 </select>
                             @else
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.timesheet_category_name || ($store.ui.lang==='en' ? 'No category' : 'Tiada kategori')"></span>
+                                <span class="wd-psep" aria-hidden="true">·</span>
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.project ? drawer.card.project.name : ($store.ui.lang==='en' ? 'No project' : 'Tiada projek')"></span>
-                            @endif
-                        </span>
-
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Costed as' : 'Dikira sebagai'">Costed as</span>
-                        <span class="wd-pval">
-                            @if ($interactive)
-                                {{-- The effort type this card's hours land under in the timesheet.
-                                     Set once here, because the capture screen has no category
-                                     picker: its rows come from these cards. Left blank, the
-                                     timesheet falls back to the project's own category, then to
-                                     Others. --}}
-                                <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
-                                        @change="commitField('timesheet_category_id', drawer.card.timesheet_category_id === '' ? null : drawer.card.timesheet_category_id)">
-                                    <option value="" x-text="$store.ui.lang==='en' ? 'From the project' : 'Ikut projek'"></option>
-                                    @foreach ($timesheetCategories ?? [] as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach
-                                </select>
-                            @else
-                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.timesheet_category_name || ($store.ui.lang==='en' ? 'From the project' : 'Ikut projek')"></span>
                             @endif
                         </span>
 

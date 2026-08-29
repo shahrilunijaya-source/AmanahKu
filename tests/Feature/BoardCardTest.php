@@ -6,8 +6,10 @@ use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -270,6 +272,122 @@ class BoardCardTest extends TestCase
         $res->assertSee('wc-when--over', false);
         // Exactly one overdue marker — the Done card is excluded.
         $this->assertSame(1, substr_count($res->getContent(), 'wc-when--over'));
+    }
+
+    /**
+     * The project screen owns which categories a project falls under, so a card booked
+     * to a project tagged with exactly one is offered nothing — it inherits that answer,
+     * and the drawer renders it as text rather than a picker.
+     */
+    public function test_a_card_on_a_single_category_project_inherits_that_category(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+        $item = $this->card(['project_id' => $project->id]);
+
+        $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
+
+        $this->assertNull($card['timesheet_category_id']);
+        $this->assertSame('Development', $card['timesheet_category_name']);
+        $this->assertSame(['Development'], array_column($card['timesheet_category_options'], 'name'));
+    }
+
+    /** JBG: iGuaman is genuinely both. The card decides, but only between the project's own two. */
+    public function test_a_card_on_a_multi_category_project_may_only_pick_from_that_project(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman', 'is_active' => true]);
+        $project->categories()->sync([$dev->id, $maint->id]);
+        $item = $this->card(['project_id' => $project->id]);
+
+        $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
+
+        $names = array_column($card['timesheet_category_options'], 'name');
+        sort($names);
+        $this->assertSame(['Development', 'Maintenance'], $names);
+        // Nothing inherited: two answers is not an answer, so the card still owes one.
+        $this->assertNull($card['timesheet_category_name']);
+    }
+
+    /**
+     * The non-project card is what the picker is really for — 40 of the 87 live cards
+     * carry no project, so there is nothing to inherit from. On Leave and Public Holiday
+     * stay out: LockedDays writes those days from approved leave and the holiday calendar.
+     */
+    public function test_a_card_with_no_project_gets_the_full_pickable_list(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false, 'is_active' => true]);
+        $item = $this->card(['project_id' => null]);
+
+        $names = array_column(
+            $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card.timesheet_category_options'),
+            'name',
+        );
+
+        $this->assertContains('Development', $names);
+        $this->assertContains('Others', $names);
+        $this->assertNotContains('On Leave', $names);
+        $this->assertNotContains('Public Holiday', $names);
+    }
+
+    /** With no leave module there is no approved-leave source, so the card is the only route. */
+    public function test_the_card_category_picker_keeps_the_generated_pair_when_leave_is_off(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.leave', false);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false, 'is_active' => true]);
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Public Holiday', 'requires_project' => false, 'is_active' => true]);
+        $item = $this->card(['project_id' => null]);
+
+        $names = array_column(
+            $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card.timesheet_category_options'),
+            'name',
+        );
+
+        $this->assertContains('On Leave', $names);
+        $this->assertContains('Public Holiday', $names);
+    }
+
+    /**
+     * Moving a card to a project that was never tagged with its category leaves a value
+     * the drawer no longer offers — invisible on screen, but still costing every timesheet
+     * line the card produces. It is dropped so the new project answers instead.
+     */
+    public function test_moving_a_card_clears_a_category_the_new_project_does_not_offer(): void
+    {
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $sales->id]);
+
+        $card = $this->actingInTenant()
+            ->patchJson("/app/board/{$item->id}", ['project_id' => $project->id])
+            ->assertOk()->json('card');
+
+        $this->assertNull($card['timesheet_category_id']);
+        $this->assertSame('Development', $card['timesheet_category_name']);
+        $this->assertNull($item->fresh()->timesheet_category_id);
+    }
+
+    /** A category the project does offer survives the move untouched. */
+    public function test_moving_a_card_keeps_a_category_the_new_project_offers(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman', 'is_active' => true]);
+        $project->categories()->sync([$dev->id, $maint->id]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['project_id' => $project->id])->assertOk();
+
+        $this->assertSame($dev->id, $item->fresh()->timesheet_category_id);
     }
 
     public function test_board_emits_project_data_attribute_for_filtering(): void

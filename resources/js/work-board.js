@@ -25,7 +25,12 @@
 // already holds the correct one. See the design doc's "Race guard".
 const FIELD_DERIVED = {
     due_at: ['due_label'],
-    project_id: ['project'],
+    // The project screen decides which categories a project falls under, so moving a
+    // card to another project re-resolves all three: the list it may pick from, the
+    // name shown when that list has one entry, and the stored id when the old one is
+    // no longer on offer (the server clears it).
+    project_id: ['project', 'timesheet_category_id', 'timesheet_category_name', 'timesheet_category_options'],
+    timesheet_category_id: ['timesheet_category_name'],
     participant_ids: ['participants'],
 };
 
@@ -91,7 +96,8 @@ export function registerWorkBoard(Alpine) {
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
                 due_at: '', due_label: '', status: 'todo', labels: [], participants: [],
-                project_id: '', project: null, timesheet_category_id: '', comments_count: 0, mentionable: [],
+                project_id: '', project: null, timesheet_category_id: '', timesheet_category_name: '',
+                timesheet_category_options: [], comments_count: 0, mentionable: [],
             },
             comments: [],
             // "@" mention picker state, scoped to the comment composer. See
@@ -543,6 +549,18 @@ export function registerWorkBoard(Alpine) {
             list.appendChild(node);
         },
 
+        /**
+         * True when the card's project already answers the category question — booked to
+         * a project the project screen tagged with exactly one category. The drawer then
+         * shows that category as text: there is nothing to choose, and offering a picker
+         * would invite someone to contradict the project screen from the wrong place.
+         */
+        categoryIsPinned() {
+            const opts = this.drawer.card.timesheet_category_options || [];
+
+            return !!this.drawer.card.project_id && opts.length === 1;
+        },
+
         lockedReasonText(card) {
             const who = card.owner_name || this.t('Someone else', 'Orang lain');
             return this.t(
@@ -603,6 +621,8 @@ export function registerWorkBoard(Alpine) {
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
                     timesheet_category_id: card.timesheet_category_id ?? '',
+                    timesheet_category_name: card.timesheet_category_name ?? '',
+                    timesheet_category_options: card.timesheet_category_options ?? [],
                 };
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
