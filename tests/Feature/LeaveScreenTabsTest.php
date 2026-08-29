@@ -253,6 +253,57 @@ class LeaveScreenTabsTest extends TestCase
             ->where('leave_type_id', $type->id)->value('balance'));
     }
 
+    /**
+     * The grant has to come before the booking. With no balance row applyApproval() has
+     * nothing to decrement, so letting this through would be a paid day off the books.
+     */
+    public function test_hr_cannot_record_leave_the_employee_has_no_balance_for(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'is_hr_granted_only' => true,
+        ]);
+
+        $this->actingAs($hr->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave-setup')
+            ->post(route('leave.record'), [
+                'employee_id' => $staff->id,
+                'leave_type_id' => $type->id,
+                'date_from' => '2026-09-07',
+                'date_to' => '2026-09-07',
+            ])
+            ->assertRedirect('/app/leave-setup')
+            ->assertSessionHasErrors('employee_id');
+
+        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
+    }
+
+    /** Booking more than was granted must not quietly spill onto Unpaid leave. */
+    public function test_hr_cannot_record_more_days_than_were_granted(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacementFor($staff, 1);
+
+        $this->actingAs($hr->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave-setup')
+            ->post(route('leave.record'), [
+                'employee_id' => $staff->id,
+                'leave_type_id' => $type->id,
+                'date_from' => '2026-09-07',
+                'date_to' => '2026-09-09',
+            ])
+            ->assertSessionHasErrors('employee_id');
+
+        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
+        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
     /** Recording is an HR/management power — an ordinary employee cannot reach it. */
     public function test_an_employee_cannot_record_leave_for_someone(): void
     {

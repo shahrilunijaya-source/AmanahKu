@@ -168,6 +168,23 @@ class LeaveController extends Controller
         abort_unless($type->is_hr_granted_only, 422, 'That leave type is applied for, not recorded.');
 
         $days = LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
+
+        // The grant has to exist before it is spent. applyApproval() skips the decrement
+        // entirely when there is no balance row, so booking against a blank grid cell
+        // would hand out a paid day nothing ever paid for; booking against too small a
+        // balance would spill the excess onto Unpaid leave, which a granted day never
+        // means. Both are a mistake on the HR side, so say so instead of absorbing it.
+        $balance = (float) ($employee->leaveBalances()
+            ->where('leave_type_id', $type->effectiveBalanceTypeId())
+            ->value('balance') ?? 0);
+
+        if ($balance < $days) {
+            return back()->withInput()->withErrors([
+                'employee_id' => $employee->name.' has '.$balance.' day(s) of '.$type->name
+                    .' leave, not '.$days.'. Grant the days on the balance grid first.',
+            ]);
+        }
+
         $actorId = $request->attributes->get('employee')?->id;
 
         // Opens at 'verified' because applyApproval()'s compare-and-set only moves a row
