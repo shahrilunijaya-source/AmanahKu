@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
 use App\Models\Employee;
+use App\Models\Project;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
@@ -57,6 +58,11 @@ class WorkItemController extends Controller
             'sort_order' => (int) $employee->workItems()->where('status', $status)->max('sort_order') + 1,
         ]);
 
+        // Same guard update() runs: a project the chosen category does not offer never
+        // sticks, however the card was created. store() used to skip it entirely, so an
+        // API caller could pair any category with any project.
+        $this->dropProjectTheCategoryDisallows($item);
+
         if ($request->expectsJson()) {
             return response()->json(['card' => $this->cardPayload($item), 'html' => $this->cardHtml($item)], 201);
         }
@@ -92,6 +98,12 @@ class WorkItemController extends Controller
             // resulting-state guard in update() for the other half of the rule.
             'due_at' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:5000'],
+            // Asked here as well as in the drawer. Work handed to someone else is still
+            // work that has to be costed, and an assigned card whose category nobody set
+            // produces no timesheet row at all — the assignee would have to open it on
+            // their own board to find out why their week will not add up.
+            'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'links' => ['sometimes', 'array', 'max:12'],
             'links.*.label' => ['required_with:links', 'string', 'max:60'],
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
@@ -104,6 +116,8 @@ class WorkItemController extends Controller
             'due_at' => $data['due_at'] ?? null,
             'description' => $data['description'] ?? null,
             'links' => $data['links'] ?? [],
+            'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
+            'project_id' => $data['project_id'] ?? null,
             'status' => 'todo',
             'progress' => 0,
             'assigned_by_id' => $assigner->id,
@@ -111,6 +125,8 @@ class WorkItemController extends Controller
             // Bottom of the assignee's To Do column.
             'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
         ]);
+
+        $this->dropProjectTheCategoryDisallows($item);
 
         AppNotification::send(
             $employee->user_id,
@@ -224,12 +240,12 @@ class WorkItemController extends Controller
 
         $workItem->update($data);
 
-        // Moving a card to another project can leave behind a category that project was
-        // never tagged with. The drawer would stop offering it, so it would sit on the
-        // card invisibly and still cost every timesheet line it produces. Drop it and let
-        // the new project answer instead.
-        if (array_key_exists('project_id', $data)) {
-            $this->dropCategoryTheProjectDisallows($workItem);
+        // Changing either half of the pair can leave the other one stranded: a category
+        // that needs no project at all, or one tagged to a different set of projects than
+        // the card is booked to. The drawer would stop offering that project, so it would
+        // sit on the card invisibly and still label every timesheet line it produces.
+        if (array_key_exists('project_id', $data) || array_key_exists('timesheet_category_id', $data)) {
+            $this->dropProjectTheCategoryDisallows($workItem);
         }
 
         $workItem->load('participants');
@@ -240,21 +256,28 @@ class WorkItemController extends Controller
         ]);
     }
 
-    /** Clear a category the card's current project does not offer. No-op when it does. */
-    private function dropCategoryTheProjectDisallows(WorkItem $workItem): void
+    /**
+     * Clear a project the card's current category does not offer. No-op when it does, and
+     * when the card has no project to begin with.
+     *
+     * The card owns the category, so the project is the half that gives way: a category
+     * needing no project drops it outright, and a delivery category drops a project it was
+     * never tagged with.
+     */
+    private function dropProjectTheCategoryDisallows(WorkItem $workItem): void
     {
-        if (! $workItem->timesheet_category_id) {
+        if (! $workItem->project_id) {
             return;
         }
 
-        $workItem->unsetRelation('projectRef');
-
-        if ($workItem->timesheetCategoryOptions()->contains('id', $workItem->timesheet_category_id)) {
-            return;
-        }
-
-        $workItem->update(['timesheet_category_id' => null]);
         $workItem->unsetRelation('timesheetCategory');
+
+        if ($workItem->projectOptions()->contains('id', $workItem->project_id)) {
+            return;
+        }
+
+        $workItem->update(['project_id' => null]);
+        $workItem->unsetRelation('projectRef');
     }
 
     /**
@@ -575,18 +598,20 @@ class WorkItemController extends Controller
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'project_id' => $item->project_id,
             // Which effort type this card's hours are costed as once they reach a
-            // timesheet. Null falls back to the project's category, then to Others.
+            // timesheet. Null means the card still owes an answer and its rows are held
+            // back — see BoardSuggestions::categoryFor().
             'timesheet_category_id' => $item->timesheet_category_id,
-            // Named as well as numbered: the team board's drawer is read-only, and even
-            // the editable one shows a name rather than a picker when the project pins
-            // the answer. This is the EFFECTIVE category, so an unset card booked to a
-            // single-category project still reads as that category.
+            // Named as well as numbered: the team board's drawer is read-only and has no
+            // picker to read the name off.
             'timesheet_category_name' => $item->effectiveTimesheetCategory()?->name,
-            // What this card may be costed as, resolved from its project. One entry plus
-            // a project means the project screen already decided and the drawer shows
-            // text instead of a picker.
+            // Every category a person may pick. Not narrowed by the project — the card
+            // owns the category, and it is the project list below that the choice narrows.
             'timesheet_category_options' => $item->timesheetCategoryOptions()
                 ->map(fn (TimesheetCategory $c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            // The projects this card's category allows. Empty for a category that needs
+            // no project at all, which is how the drawer knows not to ask.
+            'project_options' => $item->projectOptions()
+                ->map(fn (Project $p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->display_name,

@@ -275,11 +275,11 @@ class BoardCardTest extends TestCase
     }
 
     /**
-     * The project screen owns which categories a project falls under, so a card booked
-     * to a project tagged with exactly one is offered nothing — it inherits that answer,
-     * and the drawer renders it as text rather than a picker.
+     * The card owns its category, so nothing is inherited from the project it happens to
+     * be booked to. A card that has not been asked yet reads as having no category, and
+     * the drawer shows the full picker rather than a project's answer.
      */
-    public function test_a_card_on_a_single_category_project_inherits_that_category(): void
+    public function test_a_card_on_a_project_still_owes_its_own_category(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
         TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false, 'is_active' => true]);
@@ -290,35 +290,64 @@ class BoardCardTest extends TestCase
         $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
 
         $this->assertNull($card['timesheet_category_id']);
-        $this->assertSame('Development', $card['timesheet_category_name']);
-        $this->assertSame(['Development'], array_column($card['timesheet_category_options'], 'name'));
+        $this->assertNull($card['timesheet_category_name']);
+        $names = array_column($card['timesheet_category_options'], 'name');
+        sort($names);
+        $this->assertSame(['Development', 'Others'], $names);
     }
 
-    /** JBG: iGuaman is genuinely both. The card decides, but only between the project's own two. */
-    public function test_a_card_on_a_multi_category_project_may_only_pick_from_that_project(): void
+    /** The chosen category decides which projects are offered, not the other way round. */
+    public function test_the_project_list_is_the_one_the_chosen_category_is_tagged_with(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
-        $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true, 'is_active' => true]);
-        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
-        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman', 'is_active' => true]);
-        $project->categories()->sync([$dev->id, $maint->id]);
-        $item = $this->card(['project_id' => $project->id]);
+        $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $rms = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $iris->categories()->sync([$dev->id]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
 
         $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
 
-        $names = array_column($card['timesheet_category_options'], 'name');
-        sort($names);
-        $this->assertSame(['Development', 'Maintenance'], $names);
-        // Nothing inherited: two answers is not an answer, so the card still owes one.
-        $this->assertNull($card['timesheet_category_name']);
+        $this->assertSame(['SPA: IRIS'], array_column($card['project_options'], 'name'));
+        $this->assertNotContains($rms->name, array_column($card['project_options'], 'name'));
+    }
+
+    /** A category that needs no project is not asked for one — the drawer hides the picker. */
+    public function test_a_category_that_needs_no_project_offers_none(): void
+    {
+        $hr = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'HR and Admin', 'requires_project' => false, 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $hr->id]);
+
+        $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
+
+        $this->assertSame([], $card['project_options']);
     }
 
     /**
-     * The non-project card is what the picker is really for — 40 of the 87 live cards
-     * carry no project, so there is nothing to inherit from. On Leave and Public Holiday
-     * stay out: LockedDays writes those days from approved leave and the holiday calendar.
+     * A delivery category nobody has tagged a project with has said nothing, not "no
+     * project fits". Offering an empty list would strand the card with a question it
+     * cannot answer, so every active project is offered instead.
      */
-    public function test_a_card_with_no_project_gets_the_full_pickable_list(): void
+    public function test_an_untagged_category_offers_every_project(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
+
+        $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
+
+        $names = array_column($card['project_options'], 'name');
+        sort($names);
+        $this->assertSame(['KPT: RMS', 'SPA: IRIS'], $names);
+    }
+
+    /**
+     * Every card gets the full pickable list, project or no project. On Leave and Public
+     * Holiday stay out: LockedDays writes those days from approved leave and the holiday
+     * calendar, so picking them by hand only produces a second, unapproved copy.
+     */
+    public function test_a_card_gets_the_full_pickable_list(): void
     {
         TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
         TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false, 'is_active' => true]);
@@ -355,39 +384,58 @@ class BoardCardTest extends TestCase
     }
 
     /**
-     * Moving a card to a project that was never tagged with its category leaves a value
-     * the drawer no longer offers — invisible on screen, but still costing every timesheet
-     * line the card produces. It is dropped so the new project answers instead.
+     * Changing the category to one the card's project was never tagged with leaves a
+     * project the drawer no longer offers — invisible on screen, but still labelling
+     * every timesheet line the card produces. The project is the half that gives way,
+     * because the category is the half a person actually chose.
      */
-    public function test_moving_a_card_clears_a_category_the_new_project_does_not_offer(): void
+    public function test_changing_the_category_clears_a_project_it_does_not_offer(): void
     {
         $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
-        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
-        $project->categories()->sync([$dev->id]);
-        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $sales->id]);
+        $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $rms = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $iris->categories()->sync([$dev->id]);
+        $rms->categories()->sync([$sales->id]);
+        $item = $this->card(['project_id' => $rms->id, 'timesheet_category_id' => $sales->id]);
 
         $card = $this->actingInTenant()
-            ->patchJson("/app/board/{$item->id}", ['project_id' => $project->id])
+            ->patchJson("/app/board/{$item->id}", ['timesheet_category_id' => $dev->id])
             ->assertOk()->json('card');
 
-        $this->assertNull($card['timesheet_category_id']);
-        $this->assertSame('Development', $card['timesheet_category_name']);
-        $this->assertNull($item->fresh()->timesheet_category_id);
+        $this->assertNull($card['project']);
+        $this->assertSame($dev->id, $item->fresh()->timesheet_category_id);
+        $this->assertNull($item->fresh()->project_id);
     }
 
-    /** A category the project does offer survives the move untouched. */
-    public function test_moving_a_card_keeps_a_category_the_new_project_offers(): void
+    /** A category needing no project at all drops the one the card was carrying. */
+    public function test_switching_to_an_overhead_category_unbooks_the_card(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $hr = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'HR and Admin', 'requires_project' => false, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+        $item = $this->card(['project_id' => $project->id, 'timesheet_category_id' => $dev->id]);
+
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['timesheet_category_id' => $hr->id])->assertOk();
+
+        $this->assertNull($item->fresh()->project_id);
+        $this->assertSame($hr->id, $item->fresh()->timesheet_category_id);
+    }
+
+    /** A project the category does offer survives the change untouched. */
+    public function test_changing_the_category_keeps_a_project_it_still_offers(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
         $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true, 'is_active' => true]);
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman', 'is_active' => true]);
         $project->categories()->sync([$dev->id, $maint->id]);
-        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
+        $item = $this->card(['project_id' => $project->id, 'timesheet_category_id' => $dev->id]);
 
-        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['project_id' => $project->id])->assertOk();
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['timesheet_category_id' => $maint->id])->assertOk();
 
-        $this->assertSame($dev->id, $item->fresh()->timesheet_category_id);
+        $this->assertSame($project->id, (int) $item->fresh()->project_id);
+        $this->assertSame($maint->id, $item->fresh()->timesheet_category_id);
     }
 
     public function test_board_emits_project_data_attribute_for_filtering(): void
@@ -417,8 +465,12 @@ class BoardCardTest extends TestCase
 
     public function test_owner_books_a_card_to_a_project(): void
     {
+        // The card needs a delivery category first: the project it may be booked to is
+        // resolved from that category, and an overhead card is offered no project at all.
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
-        $item = $this->card();
+        $project->categories()->sync([$dev->id]);
+        $item = $this->card(['timesheet_category_id' => $dev->id]);
 
         $this->actingInTenant()->patchJson("/app/board/{$item->id}", [
             'title' => 'X', 'type' => 'task', 'priority' => 'low', 'project_id' => $project->id,
@@ -535,6 +587,72 @@ class BoardCardTest extends TestCase
 
         $this->assertDatabaseHas('work_items', [
             'employee_id' => $this->employee->id, 'assigned_by_id' => $director->id, 'title' => 'Board paper',
+        ]);
+    }
+
+    /**
+     * Work handed to someone else still has to be costed. An assigned card whose category
+     * nobody set produces no timesheet row at all, and the assignee would have to open it
+     * on their own board to find out why their week will not add up.
+     */
+    public function test_an_assigned_card_carries_the_category_and_project_it_was_given(): void
+    {
+        $mgr = $this->manager('manager');
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+
+        $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
+            'title' => 'Build the module', 'type' => 'assignment', 'priority' => 'high', 'due_at' => '2026-07-01',
+            'timesheet_category_id' => $dev->id, 'project_id' => $project->id,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('work_items', [
+            'title' => 'Build the module',
+            'timesheet_category_id' => $dev->id,
+            'project_id' => $project->id,
+        ]);
+    }
+
+    /** The same pairing guard the drawer runs: a project the category does not offer never sticks. */
+    public function test_an_assigned_card_drops_a_project_its_category_does_not_offer(): void
+    {
+        $mgr = $this->manager('manager');
+        $hr = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'HR and Admin', 'requires_project' => false, 'is_active' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+
+        $this->actingAsManager($mgr)->postJson("/app/board/assign/{$this->employee->id}", [
+            'title' => 'Payroll filing', 'type' => 'task', 'priority' => 'low', 'due_at' => '2026-07-01',
+            'timesheet_category_id' => $hr->id, 'project_id' => $project->id,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('work_items', [
+            'title' => 'Payroll filing', 'timesheet_category_id' => $hr->id, 'project_id' => null,
+        ]);
+    }
+
+    /**
+     * store() used to skip the pairing guard update() runs, so an API caller could pair any
+     * category with any project and leave a value the drawer never offers.
+     */
+    public function test_creating_a_card_drops_a_project_its_category_does_not_offer(): void
+    {
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $rms = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $iris->categories()->sync([$dev->id]);
+        // Sales has a list of its own, so the "untagged category offers everything"
+        // fallback does not apply and IRIS is genuinely off it.
+        $rms->categories()->sync([$sales->id]);
+
+        $this->actingInTenant()->postJson('/app/board', [
+            'title' => 'Sold work', 'type' => 'task', 'priority' => 'low',
+            'timesheet_category_id' => $sales->id, 'project_id' => $iris->id,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('work_items', [
+            'title' => 'Sold work', 'timesheet_category_id' => $sales->id, 'project_id' => null,
         ]);
     }
 

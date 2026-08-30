@@ -204,9 +204,15 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame($admin->id, $result['2026-08-25'][0]['category_id']);
     }
 
-    public function test_a_card_with_nothing_to_go_on_lands_in_the_overhead_bucket(): void
+    /**
+     * There is no automatic overhead bucket any more. Others is where work the company
+     * does for itself belongs, and dropping an unanswered card there would quietly put
+     * whatever it was into the one column the director reads as overhead. The row comes
+     * back uncategorised and the capture screen points at the card, where the picker is.
+     */
+    public function test_a_card_with_no_category_is_held_back_rather_than_filed_under_others(): void
     {
-        $others = TimesheetCategory::create([
+        TimesheetCategory::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false,
         ]);
         $card = $this->card();
@@ -214,7 +220,7 @@ class BoardSuggestionsTest extends TestCase
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
-        $this->assertSame($others->id, $result['2026-08-25'][0]['category_id']);
+        $this->assertNull($result['2026-08-25'][0]['category_id']);
     }
 
     public function test_a_card_struck_off_a_day_is_not_offered_again(): void
@@ -245,7 +251,12 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
     }
 
-    public function test_the_category_falls_back_to_the_projects_only_category(): void
+    /**
+     * A project no longer answers for its cards. The project screen decides which
+     * projects a category may be booked to, not which category a card is costed as, so a
+     * card booked to a single-category project and never asked still owes an answer.
+     */
+    public function test_the_project_does_not_answer_for_the_card(): void
     {
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Apollo']);
         $project->categories()->attach($this->work->id);
@@ -255,29 +266,8 @@ class BoardSuggestionsTest extends TestCase
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
         $row = $result['2026-08-25'][0];
 
-        $this->assertSame($this->work->id, $row['category_id']);
+        $this->assertNull($row['category_id']);
         $this->assertSame($project->id, $row['project_id']);
-    }
-
-    /**
-     * JBG: iGuaman is tagged both Development and Maintenance, and its cards really do
-     * split between them. Others is the bucket for work not billed to a project, so
-     * dropping ambiguous project work there would put delivery hours in the overhead
-     * column. The row comes back uncategorised instead, and the capture screen sends the
-     * staffer to the card, where the project's own two are the only options.
-     */
-    public function test_a_card_on_a_project_tagged_several_ways_is_left_for_the_card_to_settle(): void
-    {
-        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false]);
-        $second = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
-        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JBG: iGuaman']);
-        $project->categories()->attach([$this->work->id, $second->id]);
-        $card = $this->card(['project_id' => $project->id]);
-        $this->stint($card, '2026-08-25 09:00:00', null);
-
-        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
-
-        $this->assertNull($result['2026-08-25'][0]['category_id']);
     }
 
     /** The bulk prefill and the single-card drawer must never disagree about a card. */
@@ -285,7 +275,7 @@ class BoardSuggestionsTest extends TestCase
     {
         $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Apollo']);
         $project->categories()->attach($this->work->id);
-        $card = $this->card(['project_id' => $project->id]);
+        $card = $this->card(['project_id' => $project->id, 'timesheet_category_id' => $this->work->id]);
         $this->stint($card, '2026-08-25 09:00:00', null);
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);

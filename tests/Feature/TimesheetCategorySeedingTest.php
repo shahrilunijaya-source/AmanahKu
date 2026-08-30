@@ -34,18 +34,29 @@ class TimesheetCategorySeedingTest extends TestCase
             ->all();
     }
 
-    public function test_a_fresh_tenant_gets_the_five_pickable_types_and_the_two_generated_ones(): void
+    /**
+     * The delivery types, the overhead types, Others, and the two LockedDays writes. The
+     * overhead half is seeded because the board asks every card for a category, including
+     * the audits, payment vouchers and hiring that belong to no project — a company given
+     * only the delivery types would have to file all of that under Others.
+     */
+    public function test_a_fresh_tenant_gets_the_pickable_types_and_the_two_generated_ones(): void
     {
         TimesheetCategory::seedFor($this->tenant);
 
         $this->assertSame([
-            'Development', 'Maintenance', 'InHouse Project', 'Sales', 'Others',
-            'Public Holiday', 'On Leave',
+            'Development', 'Maintenance', 'InHouse Project', 'Sales', 'Continuous Improvement (CI)',
+            'Account and Finance', 'HR and Admin', 'Administration', 'Study & Research',
+            'Marketing', 'Charity', 'Others', 'Public Holiday', 'On Leave',
         ], $this->names());
     }
 
-    /** The four the director costs project work against carry a project; the rest stand alone. */
-    public function test_the_project_linkable_types_require_a_project(): void
+    /**
+     * The types the director costs against a job carry a project; the overhead ones stand
+     * alone. `requires_project` is what the board reads to decide whether to ask for a
+     * project at all, and what the project screen's tagging picker offers.
+     */
+    public function test_only_the_delivery_types_require_a_project(): void
     {
         TimesheetCategory::seedFor($this->tenant);
 
@@ -57,7 +68,9 @@ class TimesheetCategorySeedingTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertSame(collect(TimesheetCategory::PROJECT_LINKABLE)->sort()->values()->all(), $requiresProject);
+        $this->assertSame([
+            'Continuous Improvement (CI)', 'Development', 'InHouse Project', 'Maintenance', 'Sales',
+        ], $requiresProject);
     }
 
     public function test_seeding_twice_adds_nothing_and_keeps_what_the_company_edited(): void

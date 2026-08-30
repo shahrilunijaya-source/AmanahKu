@@ -35,12 +35,16 @@ class ProjectScreenTest extends TestCase
     }
 
     /**
-     * This screen is the source of truth for which categories a project falls under, so
-     * retagging it has to reach the board cards booked to it. A card left holding a
-     * category the project no longer offers would be invisible — its drawer stops
-     * offering that value — while still costing every timesheet line the card produces.
+     * This screen is the source of truth for which categories a project answers for, so
+     * retagging it has to reach the board cards booked to it. A card left booked to a
+     * project its category no longer offers would be invisible — its drawer stops
+     * offering that project — while still labelling every timesheet line it produces.
+     *
+     * The project is dropped, not the category: the staffer picked the category on the
+     * card, and wiping it because someone else retagged a project would throw away a real
+     * answer and stop the card's rows reaching the timesheet at all.
      */
-    public function test_retagging_a_project_clears_card_categories_it_no_longer_offers(): void
+    public function test_retagging_a_project_unbooks_cards_it_no_longer_fits(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
         $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true]);
@@ -63,7 +67,9 @@ class ProjectScreenTest extends TestCase
             ->post(route('projects.update', $project), ['name' => 'SPA: IRIS', 'categories' => [$dev->id]])
             ->assertRedirect();
 
-        $this->assertNull($stale->fresh()->timesheet_category_id);
+        $this->assertNull($stale->fresh()->project_id);
+        $this->assertSame($sales->id, $stale->fresh()->timesheet_category_id);
+        $this->assertSame($project->id, (int) $kept->fresh()->project_id);
         $this->assertSame($dev->id, $kept->fresh()->timesheet_category_id);
     }
 
@@ -86,6 +92,7 @@ class ProjectScreenTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame($dev->id, $card->fresh()->timesheet_category_id);
+        $this->assertSame($project->id, (int) $card->fresh()->project_id);
     }
 
     /** Idempotent: a test may act as the same role more than once in one case. */

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace App\Timesheet;
 
 use App\Models\Employee;
-use App\Models\Project;
 use App\Models\Timesheet;
-use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
@@ -28,9 +26,6 @@ use Illuminate\Support\Collection;
  */
 final class BoardSuggestions
 {
-    /** Where work with no project (and no card-level choice) is costed. */
-    private const OVERHEAD_CATEGORY = 'Others';
-
     public function __construct(private LockedDays $lockedDays) {}
 
     /**
@@ -171,15 +166,14 @@ final class BoardSuggestions
     }
 
     /**
-     * The effort type each card's rows are costed as: the card's own choice, else its
-     * project's category when that project has exactly one, else — for a card with no
-     * project at all — the standing overhead bucket.
+     * The effort type each card's rows are costed as: the card's own choice, and nothing
+     * else. The board asks for the category on the card, so there is no project to infer
+     * one from — and no automatic overhead bucket either.
      *
-     * A card booked to a project tagged with several categories is the one case that
-     * comes back null. Others is the bucket for work not billed to a project, so filing
-     * project work there to avoid a blank would put real delivery hours in the overhead
-     * column, which is the one number the director reads. The row is held back instead
-     * and the capture screen points at the card, where the picker is.
+     * A card that has not answered comes back null and its row is held back: Others is
+     * where work the company does for itself belongs, and filing an unanswered card there
+     * would quietly put whatever it was into the one column the director reads as
+     * overhead. The capture screen points at the card instead, where the picker is.
      *
      * Public because the capture screen's "restore a struck-off card" list has to offer
      * the row back with the same category the prefill would have given it.
@@ -189,39 +183,9 @@ final class BoardSuggestions
      */
     public function categoryFor(Collection $cards): array
     {
-        $projects = Project::with('categories:id')
-            ->whereIn('id', $cards->pluck('project_id')->filter()->unique()->all())
-            ->get();
-
-        $fallback = TimesheetCategory::where('is_active', true)
-            ->where('name', self::OVERHEAD_CATEGORY)
-            ->value('id');
-
-        $out = [];
-
-        foreach ($cards as $card) {
-            if ($card->timesheet_category_id) {
-                $out[(int) $card->id] = (int) $card->timesheet_category_id;
-
-                continue;
-            }
-
-            $project = $projects->firstWhere('id', $card->project_id);
-            $categories = $project ? $project->categories : collect();
-
-            if ($categories->count() === 1) {
-                $out[(int) $card->id] = (int) $categories->first()->id;
-
-                continue;
-            }
-
-            // Only an unambiguous project answers this. A project tagged several ways
-            // leaves the card's own field to settle it, and until it does the row is
-            // held back rather than dropped into the overhead bucket.
-            $out[(int) $card->id] = $card->project_id ? null : ($fallback ? (int) $fallback : null);
-        }
-
-        return $out;
+        return $cards->mapWithKeys(fn (WorkItem $card) => [
+            (int) $card->id => $card->timesheet_category_id ? (int) $card->timesheet_category_id : null,
+        ])->all();
     }
 
     /**

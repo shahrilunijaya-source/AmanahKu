@@ -19,15 +19,6 @@ class TimesheetCategory extends Model
     protected $guarded = [];
 
     /**
-     * Category names meaningful to tag a Project with. Most timesheet categories
-     * describe non-delivery work (HR, Leave, Marketing…) and never apply to a
-     * project, so the project-tagging picker offers only this subset.
-     *
-     * @var list<string>
-     */
-    public const PROJECT_LINKABLE = ['Development', 'Maintenance', 'InHouse Project', 'Sales'];
-
-    /**
      * Rows nobody picks by hand: LockedDays generates them from approved leave and the
      * public-holiday calendar (matched by name — see LockedDays::CATEGORY_NAME). While
      * the leave module is on they are filled in for the staffer, so offering them in a
@@ -53,11 +44,16 @@ class TimesheetCategory extends Model
     }
 
     /**
-     * What a new company starts with: the four effort types the director costs work
-     * against, Others for everything not billed to a project, and the two rows
-     * LockedDays files approved leave and public holidays under (matched by name —
-     * see LockedDays::CATEGORY_NAME — and hidden from the staffer's own picker while
-     * the leave module is on, so nobody logs leave HR never approved).
+     * What a new company starts with: the five effort types that name a job (and so
+     * carry `requires_project`), the overhead types for work the company does for
+     * itself, Others as the catch-all, and the two rows LockedDays files approved leave
+     * and public holidays under (matched by name — see LockedDays::CATEGORY_NAME — and
+     * hidden from the staffer's own picker while the leave module is on, so nobody logs
+     * leave HR never approved).
+     *
+     * The overhead half is here because the board asks for a category on every card,
+     * including the audits, payment vouchers and hiring that belong to no project. A
+     * company given only the delivery types would have to file all of that under Others.
      *
      * A company with no categories has no way to cost anything at all now that the
      * capture screen has no category picker of its own: its rows come from board
@@ -70,6 +66,13 @@ class TimesheetCategory extends Model
         ['Maintenance', 'Penyelenggaraan', true],
         ['InHouse Project', 'Projek Dalaman', true],
         ['Sales', 'Jualan', true],
+        ['Continuous Improvement (CI)', 'Penambahbaikan Berterusan (CI)', true],
+        ['Account and Finance', 'Akaun dan Kewangan', false],
+        ['HR and Admin', 'HR dan Pentadbiran', false],
+        ['Administration', 'Pentadbiran', false],
+        ['Study & Research', 'Kajian & Penyelidikan', false],
+        ['Marketing', 'Pemasaran', false],
+        ['Charity', 'Kebajikan', false],
         ['Others', 'Lain-lain', false],
         ['Public Holiday', 'Cuti Umum', false],
         ['On Leave', 'Bercuti', false],
@@ -166,8 +169,17 @@ class TimesheetCategory extends Model
         return $this->belongsToMany(Project::class, 'project_timesheet_category');
     }
 
+    /**
+     * The categories it is meaningful to tag a Project with: the ones that cannot be
+     * costed without naming a job. Everything else (HR and Admin, Account and Finance,
+     * Charity…) describes work the company does for itself, so a project would have
+     * nothing to say about it.
+     *
+     * Was a hardcoded list of four names. `requires_project` is the same statement made
+     * once, on the row, where a company that adds its own delivery category can set it.
+     */
     public function scopeProjectLinkable(Builder $query): Builder
     {
-        return $query->whereIn('name', self::PROJECT_LINKABLE);
+        return $query->where('requires_project', true);
     }
 }

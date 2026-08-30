@@ -71,43 +71,57 @@ class WorkItem extends Model
     }
 
     /**
-     * The categories this card may be costed as. The project screen is the source of
-     * truth for which categories a project falls under, so a booked card is offered
-     * exactly what that project was tagged with — nothing else. A card with no project
-     * (46% of the live board) has no project to inherit from, so it gets the full
-     * pickable list; so does a project nobody has tagged yet, because an untagged
-     * project has said nothing rather than said "none".
+     * The categories this card may be costed as: every active one a person may pick.
+     * The card owns this answer now, so the list is not narrowed by the card's project —
+     * the dependency runs the other way, and it is the project picker that a chosen
+     * category narrows (see projectOptions()).
      *
      * @return Collection<int, TimesheetCategory>
      */
     public function timesheetCategoryOptions(): Collection
     {
-        $tagged = $this->projectRef?->categories()->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
-
-        if ($tagged && $tagged->isNotEmpty()) {
-            return $tagged;
-        }
-
         return TimesheetCategory::where('is_active', true)
             ->whereNotIn('name', TimesheetCategory::generatedNames())
             ->orderBy('sort')->orderBy('name')->get();
     }
 
     /**
-     * What this card is actually costed as: its own choice, or the project's category
-     * when that project has exactly one. Mirrors BoardSuggestions::categoryFor(), which
-     * resolves the same rule in bulk for a whole week of rows — see the test that holds
-     * the two in step. Null means the card still owes an answer.
+     * The projects this card may be booked to, given the category it carries. A category
+     * that needs no project (HR and Admin, Charity, Others) offers none at all — the
+     * question does not arise. A delivery category offers the projects the project screen
+     * tagged with it.
+     *
+     * A category nobody has tagged a project with yet offers every active project rather
+     * than an empty list: an untagged category has said nothing, not "no project fits",
+     * and stranding the card would be the worse reading. Mirrors the same rule on the
+     * timesheet's own project picker (TimesheetController::projectOptions()).
+     *
+     * @return Collection<int, Project>
+     */
+    public function projectOptions(): Collection
+    {
+        $category = $this->timesheetCategory;
+
+        if (! $category || ! $category->requires_project) {
+            return new Collection;
+        }
+
+        $tagged = $category->projects()->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+
+        return $tagged->isNotEmpty()
+            ? $tagged
+            : Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+    }
+
+    /**
+     * What this card is costed as. Its own field, and nothing else: the category is asked
+     * for on the card, so there is no project to infer it from any more. Null means the
+     * card still owes an answer, and BoardSuggestions holds its rows back until it has
+     * one rather than filing real work under an overhead bucket nobody chose.
      */
     public function effectiveTimesheetCategory(): ?TimesheetCategory
     {
-        if ($this->timesheet_category_id) {
-            return $this->timesheetCategory;
-        }
-
-        $tagged = $this->projectRef?->categories;
-
-        return $tagged && $tagged->count() === 1 ? $tagged->first() : null;
+        return $this->timesheet_category_id ? $this->timesheetCategory : null;
     }
 
     /** The superior who assigned this task. Null for self-created cards. */

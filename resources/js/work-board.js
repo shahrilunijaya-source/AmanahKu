@@ -25,12 +25,12 @@
 // already holds the correct one. See the design doc's "Race guard".
 const FIELD_DERIVED = {
     due_at: ['due_label'],
-    // The project screen decides which categories a project falls under, so moving a
-    // card to another project re-resolves all three: the list it may pick from, the
-    // name shown when that list has one entry, and the stored id when the old one is
-    // no longer on offer (the server clears it).
-    project_id: ['project', 'timesheet_category_id', 'timesheet_category_name', 'timesheet_category_options'],
-    timesheet_category_id: ['timesheet_category_name'],
+    // The card owns its category, and the category decides which projects it may be
+    // booked to. So changing it re-resolves the project list, the name shown beside it,
+    // and the stored project id when the old one is no longer on offer (the server
+    // clears it — a category needing no project clears it outright).
+    timesheet_category_id: ['timesheet_category_name', 'project_options', 'project_id', 'project'],
+    project_id: ['project'],
     participant_ids: ['participants'],
 };
 
@@ -96,8 +96,8 @@ export function registerWorkBoard(Alpine) {
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
                 due_at: '', due_label: '', status: 'todo', labels: [], participants: [],
-                project_id: '', project: null, timesheet_category_id: '', timesheet_category_name: '',
-                timesheet_category_options: [], comments_count: 0, mentionable: [],
+                project_id: '', project: null, project_options: [], timesheet_category_id: '',
+                timesheet_category_name: '', timesheet_category_options: [], comments_count: 0, mentionable: [],
             },
             comments: [],
             // "@" mention picker state, scoped to the comment composer. See
@@ -555,10 +555,11 @@ export function registerWorkBoard(Alpine) {
          * shows that category as text: there is nothing to choose, and offering a picker
          * would invite someone to contradict the project screen from the wrong place.
          */
-        categoryIsPinned() {
-            const opts = this.drawer.card.timesheet_category_options || [];
-
-            return !!this.drawer.card.project_id && opts.length === 1;
+        // Whether this card's category needs a project named. An empty project list is
+        // the server saying the question does not arise (HR and Admin, Charity, Others),
+        // so the drawer hides the picker rather than offering an empty select.
+        categoryNeedsProject() {
+            return (this.drawer.card.project_options || []).length > 0;
         },
 
         lockedReasonText(card) {
@@ -620,6 +621,7 @@ export function registerWorkBoard(Alpine) {
                     participants: card.participants ?? [],
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
+                    project_options: card.project_options ?? [],
                     timesheet_category_id: card.timesheet_category_id ?? '',
                     timesheet_category_name: card.timesheet_category_name ?? '',
                     timesheet_category_options: card.timesheet_category_options ?? [],

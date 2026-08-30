@@ -16,6 +16,7 @@ use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
+use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
@@ -275,6 +276,25 @@ trait BuildsWorkData
                 ->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
                 ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
                 ->values(),
+            // The assign form asks for the category the same way the card drawer does, so
+            // work handed to someone else arrives costed. `project_ids` is what lets the
+            // form show or hide its project picker without a round trip; an empty list on
+            // a category that needs a project means nobody has tagged one yet, so every
+            // project is offered rather than none (WorkItem::projectOptions() applies the
+            // same reading server-side).
+            'assignCategories' => TimesheetCategory::where('is_active', true)
+                ->whereNotIn('name', TimesheetCategory::generatedNames())
+                ->with('projects:id')
+                ->orderBy('sort')->orderBy('name')->get()
+                ->map(fn (TimesheetCategory $c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'requires_project' => (bool) $c->requires_project,
+                    'project_ids' => $c->projects->pluck('id')->all(),
+                ])->values(),
+            'assignProjects' => Project::where('is_active', true)
+                ->orderBy('sort')->orderBy('name')->get(['id', 'name'])
+                ->map(fn (Project $p) => ['id' => $p->id, 'name' => $p->name])->values(),
         ];
     }
 

@@ -86,25 +86,29 @@ class ProjectController extends Controller
 
         $project->update($data);
         $project->categories()->sync($categories);
-        $this->dropCardCategoriesThisProjectNoLongerOffers($project, $categories);
+        $this->unbookCardsThisProjectNoLongerFits($project, $categories);
         AuditLog::record('Updated project', $project->name);
 
         return back()->with('ok', $project->name.' updated.');
     }
 
     /**
-     * Retagging a project is the source-of-truth edit: this screen decides which
-     * categories a project falls under. Any board card booked to it that still carries
-     * a category no longer on the list is cleared, because the card's drawer stops
-     * offering that value the moment it leaves this list — it would sit there unseen and
-     * unfixable while still costing every timesheet line the card produces.
+     * Retagging a project decides which categories that project answers for. A board card
+     * booked to it under a category no longer on the list is unbooked — the project is
+     * dropped, not the category.
+     *
+     * This used to run the other way and clear the card's category instead. That is now
+     * the wrong half to take: the staffer picks the category on the card, so wiping it
+     * because someone else edited a project throws away an answer a person actually gave,
+     * and the card's rows stop reaching the timesheet at all. The project is the derived
+     * half, and it is the one that gives way.
      *
      * Untagging a project entirely leaves cards alone: an untagged project has said
-     * nothing rather than said "none", and its cards go back to the full pickable list.
+     * nothing rather than said "none".
      *
      * @param  list<int|string>  $categories
      */
-    private function dropCardCategoriesThisProjectNoLongerOffers(Project $project, array $categories): void
+    private function unbookCardsThisProjectNoLongerFits(Project $project, array $categories): void
     {
         if ($categories === []) {
             return;
@@ -113,7 +117,7 @@ class ProjectController extends Controller
         WorkItem::where('project_id', $project->id)
             ->whereNotNull('timesheet_category_id')
             ->whereNotIn('timesheet_category_id', $categories)
-            ->update(['timesheet_category_id' => null]);
+            ->update(['project_id' => null]);
     }
 
     public function deleteProject(Request $request, Project $project): RedirectResponse
@@ -234,13 +238,20 @@ class ProjectController extends Controller
     }
 
     /**
-     * The project-linkable categories, for the project form's category chips. Not
-     * filtered to active-only — a project already tied to a deactivated category
-     * must keep showing that chip, or re-syncing the form would silently drop it.
+     * The project-linkable categories, for the project form's category chips: the ones
+     * flagged `requires_project`, since those are exactly the categories that cannot be
+     * costed without naming a job.
+     *
+     * A deactivated category is kept only when some project is still tagged with it — that
+     * project must keep showing its chip, or re-syncing the form would silently drop it.
+     * A deactivated category nobody uses is left out: it can no longer be picked, so a
+     * chip for it would filter the register down to nothing.
      */
     private function projectCategories(): Collection
     {
-        return TimesheetCategory::projectLinkable()->orderBy('sort')->orderBy('name')->get();
+        return TimesheetCategory::projectLinkable()
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereHas('projects'))
+            ->orderBy('sort')->orderBy('name')->get();
     }
 
     private function authorizeEditor(Request $request): void
