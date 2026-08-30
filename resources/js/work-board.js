@@ -44,8 +44,20 @@ export function registerWorkBoard(Alpine) {
         labelFilter: null,
         // Active project id as a string, or '' for "any project". ANDs with type + label.
         projectFilter: '',
-        // Active due-date bucket ('overdue' | 'today' | 'week' | 'none'), or null for "any due date".
+        // Active due-date bucket ('overdue' | 'today' | 'week' | 'none' | 'range'), or null for "any due date".
         dueFilter: null,
+        // Bounds for the 'range' bucket, each an ISO date string or '' (unset).
+        dueRangeFrom: '',
+        dueRangeTo: '',
+        // Sort order within each column: 'manual' (drag order, the default),
+        // 'due_at', or 'priority'. Drag is disabled while a non-manual sort is
+        // active — see setSortMode() — because Sortable reads DOM order as the
+        // new manual order on every drop, and a date/priority sort would get
+        // written back as sort_order the instant a card is dragged.
+        sortMode: 'manual',
+        // [data-list] key => Sortable instance, so setSortMode() can toggle
+        // `disabled` on them. Populated in init().
+        sortables: {},
         // Whether the collapsible secondary-filter panel (label + project) is open.
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
@@ -135,7 +147,7 @@ export function registerWorkBoard(Alpine) {
             const root = this.$root;
             // Drag-and-drop per column.
             root.querySelectorAll('[data-list]').forEach((list) => {
-                window.Sortable.create(list, {
+                this.sortables[list.dataset.list] = window.Sortable.create(list, {
                     group: 'board',
                     animation: 150,
                     ghostClass: 'uj-drag-ghost',
@@ -188,6 +200,10 @@ export function registerWorkBoard(Alpine) {
         // Toggle the due-date filter: click an active bucket to clear it.
         setDueFilter(key) {
             this.dueFilter = this.dueFilter === key ? null : key;
+            if (this.dueFilter !== 'range') {
+                this.dueRangeFrom = '';
+                this.dueRangeTo = '';
+            }
             this.applyFilter();
         },
 
@@ -201,6 +217,8 @@ export function registerWorkBoard(Alpine) {
             this.labelFilter = null;
             this.projectFilter = '';
             this.dueFilter = null;
+            this.dueRangeFrom = '';
+            this.dueRangeTo = '';
             this.applyFilter();
         },
 
@@ -231,6 +249,14 @@ export function registerWorkBoard(Alpine) {
                 weekEnd.setDate(weekEnd.getDate() + 7);
                 return dueDate >= today && dueDate < weekEnd;
             }
+            if (this.dueFilter === 'range') {
+                // Both bounds empty means the range is inactive — don't hide
+                // cards with no due date over an unset range.
+                if (!this.dueRangeFrom && !this.dueRangeTo) return true;
+                if (this.dueRangeFrom && due < this.dueRangeFrom) return false;
+                if (this.dueRangeTo && due > this.dueRangeTo) return false;
+                return true;
+            }
             return true;
         },
 
@@ -251,6 +277,42 @@ export function registerWorkBoard(Alpine) {
         applyFilterTo(node) {
             if (!node) return;
             node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
+        },
+
+        // Switches the column ordering. Manual is the drag order already on the
+        // DOM; due_at/priority re-sort every card (visible or filter-hidden —
+        // otherwise hidden cards clump at one end and reappear out of order once
+        // the filter clears) and disable drag, since Sortable would otherwise
+        // read the sorted DOM as the new manual order on the next drop and
+        // permanently overwrite sort_order. Re-enabling on 'manual' is safe
+        // because sort_order was never touched.
+        setSortMode(mode) {
+            this.sortMode = mode;
+            Object.values(this.sortables).forEach((s) => s.option('disabled', mode !== 'manual'));
+            this.applySort();
+        },
+
+        applySort() {
+            if (this.sortMode === 'manual') return;
+            this.$root.querySelectorAll('[data-list]').forEach((list) => {
+                const cards = [...list.querySelectorAll('[data-card]')];
+                const rank = { high: 0, medium: 1, low: 2 };
+                cards.sort((a, b) => {
+                    if (this.sortMode === 'priority') {
+                        const pa = rank[a.dataset.priority] ?? 3;
+                        const pb = rank[b.dataset.priority] ?? 3;
+                        return pa - pb;
+                    }
+                    // due_at: soonest first, no due date last.
+                    const da = a.dataset.dueAt || '';
+                    const db = b.dataset.dueAt || '';
+                    if (!da && !db) return 0;
+                    if (!da) return 1;
+                    if (!db) return -1;
+                    return da < db ? -1 : da > db ? 1 : 0;
+                });
+                cards.forEach((el) => list.appendChild(el));
+            });
         },
 
         recount() {
@@ -331,6 +393,7 @@ export function registerWorkBoard(Alpine) {
                 this.recount();
                 this.applyFilterTo(this.drawer.node);
             }
+            if (field === this.sortMode) this.applySort();
         },
 
         nextSeq() {
@@ -533,6 +596,7 @@ export function registerWorkBoard(Alpine) {
                 // to Done must clear the red date — repainting is what applies that).
                 this.repaintNode(html);
                 this.moveNodeToList(status);
+                this.applySort();
                 this.refreshCounts();
                 this.flashSaved();
             } catch (err) {
@@ -795,6 +859,7 @@ export function registerWorkBoard(Alpine) {
                     if (empty) empty.remove();
                     list.insertAdjacentHTML('afterbegin', html);
                     this.playEnter(list.firstElementChild);
+                    this.applySort();
                 }
                 this.recount();
                 this.refreshCounts();
@@ -956,6 +1021,7 @@ export function registerWorkBoard(Alpine) {
                 // one of the few autosave-adjacent paths that legitimately needs the
                 // full applyFilter() rather than the single-card applyFilterTo().
                 this.applyFilter();
+                this.applySort();
                 await this.openCardCore(String(card.id), list.lastElementChild);
             } finally {
                 this.busy = false;
