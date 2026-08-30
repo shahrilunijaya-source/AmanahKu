@@ -327,8 +327,8 @@
                             get needsProject() { return !!this.category && this.category.requires_project },
                             get projectOptions() {
                                 if (!this.needsProject) return [];
-                                const ids = this.category.project_ids || [];
-                                return ids.length ? this.projects.filter((p) => ids.includes(p.id)) : this.projects;
+                                const id = this.category.id;
+                                return this.projects.filter((p) => !p.category_ids.length || p.category_ids.includes(id));
                             },
                          }">
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Assign to' : 'Beri kepada'">Assign to</span>

@@ -277,24 +277,30 @@ trait BuildsWorkData
                 ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
                 ->values(),
             // The assign form asks for the category the same way the card drawer does, so
-            // work handed to someone else arrives costed. `project_ids` is what lets the
-            // form show or hide its project picker without a round trip; an empty list on
-            // a category that needs a project means nobody has tagged one yet, so every
-            // project is offered rather than none (WorkItem::projectOptions() applies the
-            // same reading server-side).
+            // work handed to someone else arrives costed. `requires_project` is what lets
+            // the form show or hide its project picker without a round trip.
             'assignCategories' => TimesheetCategory::where('is_active', true)
                 ->whereNotIn('name', TimesheetCategory::generatedNames())
-                ->with('projects:id')
                 ->orderBy('sort')->orderBy('name')->get()
                 ->map(fn (TimesheetCategory $c) => [
                     'id' => $c->id,
                     'name' => $c->name,
                     'requires_project' => (bool) $c->requires_project,
-                    'project_ids' => $c->projects->pluck('id')->all(),
                 ])->values(),
-            'assignProjects' => Project::where('is_active', true)
-                ->orderBy('sort')->orderBy('name')->get(['id', 'name'])
-                ->map(fn (Project $p) => ['id' => $p->id, 'name' => $p->name])->values(),
+            // `category_ids` narrows that picker. Read from the project end, exactly as
+            // WorkItem::projectOptions() reads it server-side: a project tagged with
+            // nothing is offered under every category, and a category nobody has tagged a
+            // project with is offered only those. Reading it from the category end instead
+            // would open every project up to an untagged category — see the docblock on
+            // projectOptions() for why that quietly switches the pairing guard off.
+            'assignProjects' => Project::with('categories:id')
+                ->where('is_active', true)
+                ->orderBy('sort')->orderBy('name')->get()
+                ->map(fn (Project $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'category_ids' => $p->categories->pluck('id')->all(),
+                ])->values(),
         ];
     }
 

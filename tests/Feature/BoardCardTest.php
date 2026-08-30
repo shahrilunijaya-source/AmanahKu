@@ -300,9 +300,11 @@ class BoardCardTest extends TestCase
     public function test_the_project_list_is_the_one_the_chosen_category_is_tagged_with(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
         $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
         $rms = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
         $iris->categories()->sync([$dev->id]);
+        $rms->categories()->sync([$sales->id]);
         $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
 
         $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
@@ -324,22 +326,48 @@ class BoardCardTest extends TestCase
     }
 
     /**
-     * A delivery category nobody has tagged a project with has said nothing, not "no
-     * project fits". Offering an empty list would strand the card with a question it
-     * cannot answer, so every active project is offered instead.
+     * A project tagged with nothing at all has said nothing, not "no category fits", so it
+     * stays offered under every category — the same rule the timesheet's own project
+     * picker applies, so the two can never disagree about a card.
      */
-    public function test_an_untagged_category_offers_every_project(): void
+    public function test_an_untagged_project_is_offered_under_every_category(): void
     {
         $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
-        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
-        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true, 'is_active' => true]);
+        $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $iris->categories()->sync([$dev->id]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Tender: iLPF', 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true])->categories()->sync([$sales->id]);
         $item = $this->card(['project_id' => null, 'timesheet_category_id' => $dev->id]);
 
         $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
 
         $names = array_column($card['project_options'], 'name');
         sort($names);
-        $this->assertSame(['KPT: RMS', 'SPA: IRIS'], $names);
+        // The project tagged Sales is out; the one tagged nothing is in.
+        $this->assertSame(['SPA: IRIS', 'Tender: iLPF'], $names);
+    }
+
+    /**
+     * Reading the pivot from the category end would switch the pairing guard off: a
+     * category nobody has tagged would pair with every project, including ones the guard
+     * had just unbooked. It offers only the untagged projects instead.
+     */
+    public function test_a_category_with_no_tagged_projects_does_not_open_up_every_project(): void
+    {
+        $ci = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Continuous Improvement (CI)', 'requires_project' => true, 'is_active' => true]);
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true, 'is_active' => true]);
+        $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $iris->categories()->sync([$dev->id]);
+        $item = $this->card(['project_id' => null, 'timesheet_category_id' => $ci->id]);
+
+        $card = $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->json('card');
+
+        $this->assertSame([], $card['project_options']);
+
+        // And the guard actually bites: booking it to IRIS anyway does not stick.
+        $this->actingInTenant()->patchJson("/app/board/{$item->id}", ['project_id' => $iris->id])->assertOk();
+        $this->assertNull($item->fresh()->project_id);
     }
 
     /**
@@ -642,8 +670,6 @@ class BoardCardTest extends TestCase
         $iris = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
         $rms = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
         $iris->categories()->sync([$dev->id]);
-        // Sales has a list of its own, so the "untagged category offers everything"
-        // fallback does not apply and IRIS is genuinely off it.
         $rms->categories()->sync([$sales->id]);
 
         $this->actingInTenant()->postJson('/app/board', [

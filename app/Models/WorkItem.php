@@ -91,10 +91,18 @@ class WorkItem extends Model
      * question does not arise. A delivery category offers the projects the project screen
      * tagged with it.
      *
-     * A category nobody has tagged a project with yet offers every active project rather
-     * than an empty list: an untagged category has said nothing, not "no project fits",
-     * and stranding the card would be the worse reading. Mirrors the same rule on the
-     * timesheet's own project picker (TimesheetController::projectOptions()).
+     * A project tagged with nothing at all is offered under every category: it has said
+     * nothing, not "no category fits", and dropping it would make existing projects
+     * disappear the moment tagging starts. That is the same rule the timesheet's own
+     * project picker applies (TimesheetController::projectOptions()), read from the same
+     * pivot, so the prefilled row and the card's drawer can never disagree.
+     *
+     * The tagged/untagged test is on the PROJECT, never on the category: "a category with
+     * no tagged projects offers all of them" would read the pivot from the wrong end and
+     * quietly switch the pairing guard off for that category — every project would pair
+     * with it, including ones the guard had just unbooked. A category nobody has tagged a
+     * project with offers only the untagged projects, and the fix for that is to tag one
+     * on the Projects screen.
      *
      * @return Collection<int, Project>
      */
@@ -106,11 +114,11 @@ class WorkItem extends Model
             return new Collection;
         }
 
-        $tagged = $category->projects()->where('is_active', true)->orderBy('sort')->orderBy('name')->get();
-
-        return $tagged->isNotEmpty()
-            ? $tagged
-            : Project::where('is_active', true)->orderBy('sort')->orderBy('name')->get();
+        return Project::where('is_active', true)
+            ->where(fn ($q) => $q
+                ->whereHas('categories', fn ($c) => $c->where('timesheet_categories.id', $category->id))
+                ->orWhereDoesntHave('categories'))
+            ->orderBy('sort')->orderBy('name')->get();
     }
 
     /**
