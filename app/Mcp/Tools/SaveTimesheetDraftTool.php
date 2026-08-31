@@ -253,34 +253,41 @@ class SaveTimesheetDraftTool extends Tool
             ->get(['id', 'title', 'project_id', 'timesheet_category_id'])
             ->keyBy(fn (WorkItem $c) => (int) $c->id);
 
-        $missing = $cardIds->first(fn ($id) => ! $cards->has($id));
-        if ($missing !== null) {
-            throw ValidationException::withMessages([
-                'entries' => ["Card id {$missing} is not yours to log time against."],
-            ]);
+        // Every offending card, not the first — the same reasoning
+        // WeekWriter::assertDatesInWindow() and assertNoBlankLines() spell out. A
+        // developer drafting a week from a project folder can easily be holding three
+        // cards nobody has given an effort type; reporting one at a time costs them
+        // three trips to the board and three retries to learn what a single message
+        // could have told them.
+        $problems = [];
+
+        foreach ($cardIds as $id) {
+            if (! $cards->has($id)) {
+                $problems[] = "Card id {$id} is not yours to log time against.";
+            }
         }
 
         $categories = app(BoardSuggestions::class)->categoryFor($cards);
-
-        $uncategorized = $cards->first(fn (WorkItem $c) => $categories[(int) $c->id] === null);
-        if ($uncategorized !== null) {
-            throw ValidationException::withMessages([
-                'entries' => ["'{$uncategorized->title}' has no effort type set — set its category on the card in the board first, then try saving this again."],
-            ]);
-        }
-
         $categoryModels = TimesheetCategory::whereIn('id', collect($categories)->filter()->unique())->get()->keyBy('id');
 
-        $missingProject = $cards->first(function (WorkItem $c) use ($categories, $categoryModels) {
-            $category = $categoryModels->get($categories[(int) $c->id]);
+        foreach ($cards as $card) {
+            $categoryId = $categories[(int) $card->id];
 
-            return $category && $category->requires_project && ! $c->project_id;
-        });
-        if ($missingProject !== null) {
-            $categoryName = $categoryModels->get($categories[(int) $missingProject->id])->name;
-            throw ValidationException::withMessages([
-                'entries' => ["'{$missingProject->title}' is booked to {$categoryName}, which needs a project — set one on the card in the board first, then try saving this again."],
-            ]);
+            if ($categoryId === null) {
+                $problems[] = "'{$card->title}' has no effort type set — set its category on the card in the board first, then try saving this again.";
+
+                continue;
+            }
+
+            $category = $categoryModels->get($categoryId);
+
+            if ($category && $category->requires_project && ! $card->project_id) {
+                $problems[] = "'{$card->title}' is booked to {$category->name}, which needs a project — set one on the card in the board first, then try saving this again.";
+            }
+        }
+
+        if ($problems !== []) {
+            throw ValidationException::withMessages(['entries' => $problems]);
         }
 
         return array_map(function (array $e) use ($cards, $categories) {

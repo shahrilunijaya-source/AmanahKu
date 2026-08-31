@@ -848,6 +848,34 @@ class AmanahkuWriteToolsTest extends TestCase
     }
 
     /**
+     * EVERY offending card is named, not just the first. Drafting a week from a
+     * project folder routinely touches several cards at once, and reporting one
+     * problem per attempt costs the developer a trip to the board and a retry for
+     * each — the same round-trip cost WeekWriter::assertDatesInWindow() and
+     * assertNoBlankLines() gather their messages to avoid.
+     */
+    public function test_every_unusable_card_is_named_in_one_refusal(): void
+    {
+        $uncategorized = $this->card(categoryId: null, projectId: null);
+        $projectless = $this->card(projectId: null);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [
+                ['entry_date' => self::WEEK, 'work_item_id' => $uncategorized->id, 'percentage' => 50],
+                ['entry_date' => self::WEEK, 'work_item_id' => $projectless->id, 'percentage' => 50],
+            ],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString($uncategorized->title, $text);
+        $this->assertStringContainsString($projectless->title, $text, 'the second bad card is reported in the same refusal, not on a retry');
+    }
+
+    /**
      * A card whose category DOES require a project (categoryA — 'Project Work') but
      * carries none of its own is refused with a message pointing at the board, not
      * normaliseEntries()'s raw "Choose a project for X" — this tool has no project_id
