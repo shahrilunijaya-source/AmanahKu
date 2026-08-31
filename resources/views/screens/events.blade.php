@@ -85,28 +85,7 @@
                             <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $e->title }}</span>
                         </div>
                         <div style="display:flex;gap:10px;align-items:start;flex-shrink:0;">
-                            @if ($e->created_by_employee_id === $viewerId)
-                                <button type="button" class="ext-del" @click="editEvent = {{ \Illuminate\Support\Js::from([
-                                        'id' => $e->id,
-                                        'title' => $e->title,
-                                        'type' => $e->type,
-                                        'host' => $e->host,
-                                        'event_date' => $e->event_date->format('Y-m-d'),
-                                        'start_time' => $e->start_time,
-                                        'location' => $e->location,
-                                        'venue_map_url' => $e->venue_map_url,
-                                        'registration_url' => $e->registration_url,
-                                        'description' => $e->description,
-                                        'tagged' => $e->taggedIds(),
-                                    ]) }}; external = {{ \Illuminate\Support\Js::from($e->isExternal()) }}; postOpen = true"
-                                        x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
-                            @endif
-                            @if ($privileged)
-                                <form method="post" action="{{ route('events.destroy', $e) }}" onsubmit="return confirm('{{ $e->title }}?')">
-                                    @csrf
-                                    <button type="submit" class="ext-del" x-text="$store.ui.lang==='en' ? 'Remove' : 'Buang'">Remove</button>
-                                </form>
-                            @endif
+                            @include('partials.event-edit-buttons', ['e' => $e])
                         </div>
                     </div>
                     <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">
@@ -124,22 +103,7 @@
                             @endif
                         @endif
                     </div>
-                    @if ($e->description)
-                        @php
-                            // Escaped first, then the known @names are wrapped — a description can
-                            // never inject markup, only the names this event actually tagged get marked.
-                            $desc = e($e->description);
-                            foreach ($e->taggedIds() as $taggedId) {
-                                $person = $mentionNames->get($taggedId);
-                                if (! $person) {
-                                    continue;
-                                }
-                                $handle = '@'.e($person->display_name);
-                                $desc = str_replace($handle, '<span class="ext-mention"'.($taggedId === $viewerId ? ' data-me' : '').'>'.$handle.'</span>', $desc);
-                            }
-                        @endphp
-                        <p style="font-size:13px;color:var(--muted);margin:0 0 12px;white-space:pre-line;">{!! $desc !!}</p>
-                    @endif
+                    @include('partials.event-description', ['e' => $e])
 
                     @if ($e->isExternal())
                         @if (in_array($viewerId, $e->taggedIds(), true))

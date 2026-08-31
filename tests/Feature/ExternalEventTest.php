@@ -332,6 +332,22 @@ class ExternalEventTest extends TestCase
             ->assertSee('editEvent = JSON.parse(', false);
     }
 
+    public function test_a_past_event_still_shows_its_description_and_an_edit_button_to_its_poster(): void
+    {
+        $user = $this->seedWorkspace('manager');
+        $poster = Employee::where('user_id', $user->id)->firstOrFail();
+        CompanyEvent::create(array_merge($this->payload(), [
+            'tenant_id' => $this->tenant->id,
+            'created_by_employee_id' => $poster->id,
+            'event_date' => now()->subDays(3)->toDateString(),
+        ]));
+
+        $this->actingInTenant($user)->get('/app/events')
+            ->assertOk()
+            ->assertSee('How AI, Cloud, and Cybersecurity come together.')
+            ->assertSee('editEvent = JSON.parse(', false);
+    }
+
     public function test_a_non_poster_does_not_see_an_edit_button_for_someone_elses_event(): void
     {
         $poster = $this->seedWorkspace('manager');
