@@ -15,6 +15,7 @@ use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -133,6 +134,26 @@ class PayrollTransactionsPullTest extends TestCase
         $this->assertEqualsWithDelta(4.0, (float) $lines[1]->quantity, 0.001);
         $this->assertEqualsWithDelta(300.00, (float) $lines[1]->amount, 0.001);
         $this->assertEqualsWithDelta(525.00, (float) $lines->sum('amount'), 0.001);
+    }
+
+    public function test_a_run_created_on_the_31st_still_uses_its_own_period(): void
+    {
+        // "2026-06" parsed without a day borrows today's day-of-month. On a 31st that
+        // overflows a 30-day period into the next month and every window shifts forward:
+        // June's overtime vanished and July's got paid. Freeze the clock on a 31st.
+        Carbon::setTestNow('2026-08-31 09:00:00');
+
+        $this->overtimeRequest(['ot_date' => '2026-06-15', 'hours' => 4, 'rate_multiplier' => 1.50]);
+        $this->overtimeRequest(['ot_date' => '2026-07-01', 'hours' => 4, 'rate_multiplier' => 1.50]);
+
+        $run = $this->createRun('2026-06');
+        $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->assertSame('June 2026', $run->label);
+        $this->assertEqualsWithDelta(4.0, (float) $slip->overtime_hours, 0.001);
+        $this->assertEqualsWithDelta(150.00, (float) $slip->overtime_amount, 0.001);
+
+        Carbon::setTestNow();
     }
 
     public function test_overtime_outside_the_run_period_is_not_pulled(): void

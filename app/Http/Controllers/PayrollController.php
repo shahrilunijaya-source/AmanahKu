@@ -522,10 +522,23 @@ class PayrollController extends Controller
      * "Archive staff" action) has no such signal and is treated as employed the full
      * month here.
      */
+    /**
+     * First day of a "YYYY-MM" pay period.
+     *
+     * Carbon::createFromFormat('Y-m', ...) fills the missing day from TODAY, so on the
+     * 31st a 30-day period parses as the 31st, overflows into the next month, and every
+     * period window silently shifts forward — a run created on 31 August for June pulled
+     * July's overtime. Always give the parser a day.
+     */
+    private function periodStart(string $period): Carbon
+    {
+        return Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfDay();
+    }
+
     private function prorationFactor(Employee $employee, string $period): float
     {
-        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
-        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+        $periodStart = $this->periodStart($period);
+        $periodEnd = $this->periodStart($period)->endOfMonth();
         $daysInMonth = $periodEnd->day;
 
         $employedFrom = $periodStart;
@@ -590,8 +603,8 @@ class PayrollController extends Controller
      */
     private function pullableOvertimeFor(Employee $employee, string $period, array $usedIds): Collection
     {
-        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
-        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+        $periodStart = $this->periodStart($period);
+        $periodEnd = $this->periodStart($period)->endOfMonth();
 
         return OvertimeRequest::where('employee_id', $employee->id)
             ->where('status', 'approved')->whereNull('paid_at')
@@ -636,8 +649,8 @@ class PayrollController extends Controller
      */
     private function pullableUnpaidLeaveFor(Employee $employee, string $period, array $usedIds): Collection
     {
-        $periodStart = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
-        $periodEnd = Carbon::createFromFormat('Y-m', $period)->endOfMonth();
+        $periodStart = $this->periodStart($period);
+        $periodEnd = $this->periodStart($period)->endOfMonth();
 
         return LeaveRequest::where('employee_id', $employee->id)
             ->where('status', 'approved')->whereNull('paid_at')
@@ -673,7 +686,7 @@ class PayrollController extends Controller
         }
 
         // Contribution category is assessed at the pay period's end.
-        $periodEnd = Carbon::createFromFormat('Y-m', $data['period'])->endOfMonth();
+        $periodEnd = $this->periodStart($data['period'])->endOfMonth();
         $missingDob = $employees->whereNull('date_of_birth')->count();
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
@@ -681,7 +694,7 @@ class PayrollController extends Controller
         DB::transaction(function () use ($data, $employees, $periodEnd, $catalog) {
             $run = new PayrollRun([
                 'period' => $data['period'],
-                'label' => Carbon::createFromFormat('Y-m', $data['period'])->format('F Y'),
+                'label' => $this->periodStart($data['period'])->format('F Y'),
                 'run_by_id' => Auth::id(),
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
@@ -791,7 +804,7 @@ class PayrollController extends Controller
             AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips');
         });
 
-        $msg = 'Draft payroll run created for '.Carbon::createFromFormat('Y-m', $data['period'])->format('F Y').'.';
+        $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
         if ($missingDob > 0) {
             $msg .= ' Note: '.$missingDob.' employee(s) have no date of birth and were treated as below 60 (SOCSO Category 1) — set their DOB and recompute to confirm their contribution category.';
         }
@@ -844,7 +857,7 @@ class PayrollController extends Controller
 
         // Basic, allowances/Fixed Transactions and claims reimbursement stay as generated;
         // only variable inputs are editable here. Recompute the full payslip from those.
-        $periodEnd = Carbon::createFromFormat('Y-m', $payslip->payrollRun->period)->endOfMonth();
+        $periodEnd = $this->periodStart($payslip->payrollRun->period)->endOfMonth();
         $age = $payslip->employee->date_of_birth === null ? null : (int) $payslip->employee->date_of_birth->diffInYears($periodEnd);
         $structure = $payslip->employee->salaryStructure;
         // electedBefore1998 has no column — see the same note in createRun(). $structure
