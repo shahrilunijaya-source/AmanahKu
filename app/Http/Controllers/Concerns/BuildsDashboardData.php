@@ -7,9 +7,9 @@ namespace App\Http\Controllers\Concerns;
 use App\Models\Achievement;
 use App\Models\Announcement;
 use App\Models\Claim;
+use App\Models\CompanyEvent;
 use App\Models\Department;
 use App\Models\Employee;
-use App\Models\ExternalTotEvent;
 use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeRead;
 use App\Models\LeaveRequest;
@@ -374,10 +374,10 @@ trait BuildsDashboardData
 
     /**
      * Recent announcements, shared by both scopes' "news" rail card (flat rail-row
-     * shape), merged with upcoming External TOT events tagged separately. An External
-     * TOT row drops off the moment its event_date passes — it's an invite, not a
+     * shape), merged with upcoming external events tagged separately. An external
+     * event row drops off the moment its event_date passes — it's an invite, not a
      * record, and a finished workshop lingering as a "brief" is stale noise once
-     * nobody can register anymore. Gated behind the `tot` screen so a tenant with
+     * nobody can register anymore. Gated behind the `events` screen so a tenant with
      * the module off never gets a row linking to a screen it can't open (same rule
      * companyQueueRows() already follows for QUEUE_SOURCES).
      */
@@ -392,19 +392,20 @@ trait BuildsDashboardData
         ]);
 
         $tenant = app(CurrentTenant::class)->get();
-        if (app(FeatureManager::class)->screenAllowed($tenant, 'tot')) {
+        if (app(FeatureManager::class)->screenAllowed($tenant, 'events')) {
             $rows = $rows->concat(
-                ExternalTotEvent::where('event_date', '>=', now()->toDateString())
+                CompanyEvent::whereNotNull('host')
+                    ->where('event_date', '>=', now()->toDateString())
                     ->orderByDesc('event_date')->take(5)->get()
-                    ->map(fn (ExternalTotEvent $e) => [
+                    ->map(fn (CompanyEvent $e) => [
                         'title' => $e->title,
                         'sub' => collect([$e->host, $e->event_date->isoFormat('ddd, D MMM')])->filter()->implode(' · '),
                         // How long you have left, not what the calendar says — a date the
                         // reader has to subtract from today is a date they skim past.
                         'meta' => $this->daysAway($e->event_date),
-                        'tag' => 'External TOT',
+                        'tag' => 'External event',
                         'flag' => $employee && in_array($employee->id, $e->taggedIds(), true) ? 'Required' : null,
-                        'url' => route('app.screen', 'tot').'?tab=external',
+                        'url' => route('app.screen', 'events'),
                         '_sort' => $e->event_date,
                     ])
             );

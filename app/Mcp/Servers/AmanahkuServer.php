@@ -87,8 +87,11 @@ use Laravel\Mcp\Server\Attributes\Version;
     save_timesheet_draft only ever merges into a draft week — a day you don't
     mention keeps whatever is already saved, and a submitted week is refused.
     assign_task and its confirm step WILL email and in-app notify the assignee;
-    the preview says so plainly. create_external_tot_event never tags anyone,
-    on any run, so it never sends a "you're required to attend" email.
+    the preview says so plainly. create_external_tot_event posts onto the Events
+    screen (External TOT is no longer a screen of its own) and always requires a
+    host, since the host is what marks an event External rather than internal. It
+    never tags anyone, on any run, so it never sends a "you're required to
+    attend" email.
     MARKDOWN
 )]
 class AmanahkuServer extends Server

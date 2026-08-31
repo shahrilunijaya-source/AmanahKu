@@ -10,8 +10,8 @@ use App\Mcp\Tools\CreateCardTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
 use App\Mcp\Tools\UpdateCardTool;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
-use App\Models\ExternalTotEvent;
 use App\Models\Project;
 use App\Models\PublicHoliday;
 use App\Models\Tenant;
@@ -612,7 +612,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->hrA, $this->tenantA, ['tot:write']);
 
         $preview = $this->callTool(CreateExternalTotEventTool::class, [
-            'title' => 'Conference', 'event_date' => '2026-09-01', 'description' => 'Feat @Other Omar',
+            'title' => 'Conference', 'host' => 'Acme Events Co', 'event_date' => '2026-09-01', 'description' => 'Feat @Other Omar',
         ], $headers);
 
         $this->assertFalse($this->toolIsError($preview));
@@ -623,9 +623,30 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertFalse($this->toolIsError($confirm));
 
         app(CurrentTenant::class)->set($this->tenantA);
-        $event = ExternalTotEvent::first();
+        $event = CompanyEvent::whereNotNull('host')->first();
         $this->assertNotNull($event);
         $this->assertSame([], $event->tagged_employee_ids);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * host is what CompanyEvent::isExternal() reads, so an event posted without one
+     * is an ordinary INTERNAL event -- RSVP instead of the organiser's sign-up link.
+     * The browser cannot produce that (the "External" tick makes the field required);
+     * this tool has no tick, so the rule lives in its validation instead.
+     */
+    public function test_an_event_posted_without_a_host_is_refused(): void
+    {
+        $headers = $this->bearer($this->hrA, $this->tenantA, ['tot:write']);
+
+        $response = $this->callTool(CreateExternalTotEventTool::class, [
+            'title' => 'Conference', 'event_date' => '2026-09-01',
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, CompanyEvent::count(), 'nothing is posted when the host is missing');
         app(CurrentTenant::class)->set(null);
     }
 

@@ -112,6 +112,12 @@ export function parseExternalTotInvite(text) {
     return result;
 }
 
+// parseExternalTotInvite()'s own field names (time_label, venue) predate the merge onto
+// the Events screen's form, whose inputs are named after company_events' own columns
+// (start_time, location). Remapped here, at the DOM-filling edge, so the parser itself —
+// and the unit tests pinned to its return shape — stay untouched.
+const FORM_FIELD_NAMES = { time_label: 'start_time', venue: 'location' };
+
 export function registerExternalTotPaste(Alpine) {
     Alpine.data('extPasteFill', () => ({
         pasteText: '',
@@ -121,8 +127,9 @@ export function registerExternalTotPaste(Alpine) {
 
             const parsed = parseExternalTotInvite(this.pasteText);
             const form = this.$refs.extForm;
-            for (const [name, value] of Object.entries(parsed)) {
+            for (const [parsedName, value] of Object.entries(parsed)) {
                 if (!value) continue;
+                const name = FORM_FIELD_NAMES[parsedName] ?? parsedName;
                 const field = form.elements.namedItem(name);
                 if (field) field.value = value;
             }

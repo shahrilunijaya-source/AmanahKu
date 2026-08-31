@@ -163,18 +163,6 @@ parameters:
 			path: app/Http/Controllers/CalendarController.php
 
 		-
-			message: '#^Cannot call method betweenIncluded\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Http/Controllers/CalendarController.php
-
-		-
-			message: '#^Cannot call method isSameDay\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Http/Controllers/CalendarController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Claim\:\:\$verified_by_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -377,12 +365,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/LeaveReportController.php
-
-		-
-			message: '#^Cannot call method toDateString\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Http/Controllers/LeaveSetupController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
