@@ -110,6 +110,7 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
     <div class="grp" x-data x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</div>
     <a href="#what" class="on" x-data x-text="$store.ui.lang==='en' ? 'What this is' : 'Apa ini'">What this is</a>
     <a href="#see" x-data x-text="$store.ui.lang==='en' ? 'What it can see' : 'Apa yang boleh dilihat'">What it can see</a>
+    <a href="#which" x-data x-text="$store.ui.lang==='en' ? 'Which Claude this works with' : 'Claude yang mana berfungsi'">Which Claude this works with</a>
     <a href="#need" x-data x-text="$store.ui.lang==='en' ? 'What you need' : 'Apa yang diperlukan'">What you need</a>
     <div class="grp" x-data x-text="$store.ui.lang==='en' ? 'Set up' : 'Persediaan'">Set up</div>
     <a href="#key" x-data x-text="$store.ui.lang==='en' ? 'Getting your key' : 'Dapatkan kunci anda'">Getting your key</a>
@@ -171,12 +172,47 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
       </p>
     </section>
 
+    <section id="which">
+      <h2 x-data x-text="$store.ui.lang==='en' ? 'Which Claude this works with' : 'Claude yang mana berfungsi'">Which Claude this works with</h2>
+      <p class="sub" x-data x-text="$store.ui.lang==='en'
+              ? 'This guide is about Claude Code specifically — not every version of Claude can connect to AmanahKu.'
+              : 'Panduan ini adalah khusus tentang Claude Code — bukan semua versi Claude boleh disambungkan ke AmanahKu.'">
+        This guide is about Claude Code specifically — not every version of Claude can connect to AmanahKu.
+      </p>
+      <div class="caps">
+        <div class="cap">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Claude Code — yes' : 'Claude Code — ya'">Claude Code — yes</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'In a terminal, in the Claude desktop app, or in your code editor — all the same underneath, so you set it up once and it works everywhere.'
+                  : 'Dalam terminal, dalam app desktop Claude, atau dalam editor kod anda — semuanya sama di bawahnya, jadi anda hanya perlu sediakan sekali dan ia berfungsi di mana-mana.'">
+            In a terminal, in the Claude desktop app, or in your code editor — all the same underneath, so you set it up once and it works everywhere.
+          </p>
+        </div>
+        <div class="cap">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Normal chat — no' : 'Chat biasa — tidak'">Normal chat — no</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'The ordinary chat window, in the desktop app or on the website, can\'t be connected — it needs a sign-in flow that AmanahKu doesn\'t offer, so use Claude Code instead.'
+                  : 'Tetingkap chat biasa, dalam app desktop atau di laman web, tidak boleh disambungkan — ia memerlukan aliran log masuk yang AmanahKu tidak sediakan, jadi gunakan Claude Code sebaliknya.'">
+            The ordinary chat window, in the desktop app or on the website, can't be connected — it needs a sign-in flow that AmanahKu doesn't offer, so use Claude Code instead.
+          </p>
+        </div>
+        <div class="cap">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Claude Code on the web — developers only' : 'Claude Code di web — untuk pembangun sahaja'">Claude Code on the web — developers only</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'This version runs on Anthropic\'s servers, not your computer, so it can\'t see the key saved on your machine. It only works inside the AmanahKu codebase — fine for developers, not for everyday staff.'
+                  : 'Versi ini berjalan pada server Anthropic, bukan komputer anda, jadi ia tidak dapat melihat kunci yang disimpan pada mesin anda. Ia hanya berfungsi di dalam kod sumber AmanahKu — sesuai untuk pembangun, bukan untuk kakitangan biasa.'">
+            This version runs on Anthropic's servers, not your computer, so it can't see the key saved on your machine. It only works inside the AmanahKu codebase — fine for developers, not for everyday staff.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <section id="need">
       <h2 x-data x-text="$store.ui.lang==='en' ? 'What you need' : 'Apa yang diperlukan'">What you need</h2>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
-              ? 'Claude Code is a program you install on your own computer — it is not something that runs inside your browser. Install it from claude.com/product/claude-code and follow its own setup steps first — the rest of this guide picks up once it\'s installed.'
-              : 'Claude Code adalah program yang anda pasang pada komputer anda sendiri — ia bukan sesuatu yang berjalan di dalam pelayar anda. Pasang dari claude.com/product/claude-code dan ikut langkah persediaannya sendiri dahulu — selebihnya panduan ini bermula selepas ia dipasang.'">
-        Claude Code is a program you install on your own computer — it is not something that runs inside your browser. Install it from claude.com/product/claude-code and follow its own setup steps first — the rest of this guide picks up once it's installed.
+              ? 'Claude Code runs in a terminal, in the Claude desktop app, or in your code editor — install it from claude.com/product/claude-code and follow its own setup steps first. The rest of this guide picks up once it\'s installed.'
+              : 'Claude Code berjalan dalam terminal, dalam app desktop Claude, atau dalam editor kod anda — pasang dari claude.com/product/claude-code dan ikut langkah persediaannya sendiri dahulu. Selebihnya panduan ini bermula selepas ia dipasang.'">
+        Claude Code runs in a terminal, in the Claude desktop app, or in your code editor — install it from claude.com/product/claude-code and follow its own setup steps first. The rest of this guide picks up once it's installed.
       </p>
       <a href="https://claude.com/product/claude-code" target="_blank" rel="noopener" x-data x-text="$store.ui.lang==='en' ? 'claude.com/product/claude-code →' : 'claude.com/product/claude-code →'">claude.com/product/claude-code →</a>
     </section>
@@ -215,25 +251,35 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
           </p>
         </div>
       </div>
+      <p class="sub" style="margin-top:16px;" x-data x-text="$store.ui.lang==='en'
+              ? 'Once pasted, your key sits in a settings file on that computer, in plain text — anyone who can get into that computer can read it. Keep it to machines you trust.'
+              : 'Setelah ditampal, kunci anda disimpan dalam fail tetapan pada komputer itu, dalam teks biasa — sesiapa yang boleh masuk ke komputer itu boleh membacanya. Simpan hanya pada komputer yang anda percaya.'">
+        Once pasted, your key sits in a settings file on that computer, in plain text — anyone who can get into that computer can read it. Keep it to machines you trust.
+      </p>
     </section>
 
     <section id="connect">
       <h2 x-data x-text="$store.ui.lang==='en' ? 'Connecting' : 'Menyambung'">Connecting</h2>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
-              ? 'That same page also gives you a ready-made command, with your key already filled in. Copy it and paste it into a terminal window (the plain black text window Claude Code opens on your computer) — you don\'t need to understand it, just paste it and press Enter.'
-              : 'Halaman yang sama juga memberikan anda arahan sedia dibuat, dengan kunci anda sudah diisi. Salin dan tampalkannya ke dalam tetingkap terminal (tetingkap teks hitam ringkas yang dibuka oleh Claude Code pada komputer anda) — anda tidak perlu memahaminya, cuma tampal dan tekan Enter.'">
-        That same page also gives you a ready-made command, with your key already filled in. Copy it and paste it into a terminal window (the plain black text window Claude Code opens on your computer) — you don't need to understand it, just paste it and press Enter.
+              ? 'That same page also gives you a ready-made command, with your key already filled in. Copy it and paste it into a terminal window — you don\'t need to understand it, just paste it and press Enter. If you use Claude Code inside the desktop app or a code editor, there\'s usually a terminal panel built in; otherwise open your computer\'s own terminal app.'
+              : 'Halaman yang sama juga memberikan anda arahan sedia dibuat, dengan kunci anda sudah diisi. Salin dan tampalkannya ke dalam tetingkap terminal — anda tidak perlu memahaminya, cuma tampal dan tekan Enter. Jika anda menggunakan Claude Code di dalam app desktop atau editor kod, biasanya ada panel terminal terbina dalam; jika tidak, buka app terminal komputer anda sendiri.'">
+        That same page also gives you a ready-made command, with your key already filled in. Copy it and paste it into a terminal window — you don't need to understand it, just paste it and press Enter. If you use Claude Code inside the desktop app or a code editor, there's usually a terminal panel built in; otherwise open your computer's own terminal app.
       </p>
       {{-- Shape only, no Copy button here on purpose: "<your key>" is a placeholder, not
            a real key, and copying it would hand someone a command that fails. The real,
            ready-to-paste command (with an actual key filled in) lives on the key page. --}}
       <div class="codewrap">
-        <pre>claude mcp add --transport http amanahku {{ url('/mcp/amanahku') }} --header <span class="ph">"Authorization: Bearer &lt;your key&gt;"</span></pre>
+        <pre>claude mcp add --scope user --transport http amanahku {{ url('/mcp/amanahku') }} --header <span class="ph">"Authorization: Bearer &lt;your key&gt;"</span></pre>
       </div>
       <p class="sub" style="margin-top:12px;" x-data x-text="$store.ui.lang==='en'
-              ? 'Pasting this tells Claude Code where AmanahKu is and hands it your key so it can sign in as you. It does not open AmanahKu in a browser or change anything by itself — you talk to Claude Code, and it fetches your data in the background.'
-              : 'Menampal ini memberitahu Claude Code di mana AmanahKu berada dan memberikannya kunci anda supaya ia boleh log masuk sebagai anda. Ia tidak membuka AmanahKu dalam pelayar atau mengubah apa-apa dengan sendirinya — anda bercakap dengan Claude Code, dan ia mengambil data anda di latar belakang.'">
-        Pasting this tells Claude Code where AmanahKu is and hands it your key so it can sign in as you. It does not open AmanahKu in a browser or change anything by itself — you talk to Claude Code, and it fetches your data in the background.
+              ? 'Pasting this tells Claude Code where AmanahKu is and hands it your key so it can sign in as you. The --scope user part makes AmanahKu available everywhere on your computer, not just the one folder you happened to be standing in — so it\'s there whether you\'re in a terminal, the desktop app, or your code editor. It does not open AmanahKu in a browser or change anything by itself — you talk to Claude Code, and it fetches your data in the background.'
+              : 'Menampal ini memberitahu Claude Code di mana AmanahKu berada dan memberikannya kunci anda supaya ia boleh log masuk sebagai anda. Bahagian --scope user menjadikan AmanahKu tersedia di mana-mana sahaja pada komputer anda, bukan hanya dalam satu folder yang anda kebetulan berada — jadi ia ada sama ada anda dalam terminal, app desktop, atau editor kod anda. Ia tidak membuka AmanahKu dalam pelayar atau mengubah apa-apa dengan sendirinya — anda bercakap dengan Claude Code, dan ia mengambil data anda di latar belakang.'">
+        Pasting this tells Claude Code where AmanahKu is and hands it your key so it can sign in as you. The --scope user part makes AmanahKu available everywhere on your computer, not just the one folder you happened to be standing in — so it's there whether you're in a terminal, the desktop app, or your code editor. It does not open AmanahKu in a browser or change anything by itself — you talk to Claude Code, and it fetches your data in the background.
+      </p>
+      <p class="sub" style="margin-top:12px;" x-data x-text="$store.ui.lang==='en'
+              ? 'If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there\'s no automatic re-login. Generate a new key on the Account & security screen and paste the updated command again.'
+              : 'Jika kunci anda dibatalkan atau anda menjana kunci baharu, Claude Code akan berhenti sahaja daripada dapat mencapai AmanahKu — tiada log masuk semula secara automatik. Jana kunci baharu pada skrin Akaun & keselamatan dan tampal semula arahan yang dikemas kini.'">
+        If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there's no automatic re-login. Generate a new key on the Account &amp; security screen and paste the updated command again.
       </p>
     </section>
 

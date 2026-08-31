@@ -78,8 +78,14 @@ class SecurityController extends Controller
 
         AuditLog::record('Generated an AI access key'.(($data['allow_writes'] ?? false) ? ' (with write access)' : ''));
 
+        // --scope user, not the CLI's default of --scope local. Local scope ties the
+        // server to whichever folder the person happened to be standing in when they
+        // pasted this, so it would silently vanish the next time they opened Claude
+        // Code somewhere else. Most people holding one of these keys are HR or a
+        // manager who has no notion of a "project folder" at all, and would read that
+        // disappearance as the key having stopped working.
         $command = sprintf(
-            'claude mcp add --transport http amanahku %s --header "Authorization: Bearer %s"',
+            'claude mcp add --scope user --transport http amanahku %s --header "Authorization: Bearer %s"',
             url('/mcp/amanahku'),
             $token->plainTextToken
         );
