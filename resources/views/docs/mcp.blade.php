@@ -285,9 +285,9 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
     <section id="writes">
       <h2 x-data x-text="$store.ui.lang==='en' ? 'Letting it make changes' : 'Membenarkan ia membuat perubahan'">Letting it make changes</h2>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
-              ? 'The checkbox on the AI access key card — \'Also let it make changes\' — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.'
-              : 'Kotak semak pada kad kunci akses AI — \'Juga benarkan ia membuat perubahan\' — dimatikan secara lalai. Tandakannya dan Claude Code juga boleh mencipta, mengedit, memindah, dan mengarkibkan kad board anda, menyimpan draf lembaran masa anda, dan, jika anda pengurus atau HR, menugaskan tugasan kepada seseorang atau menyiarkan acara TOT luaran.'">
-        The checkbox on the AI access key card — "Also let it make changes" — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.
+              ? 'The checkbox on the AI access key card — \'Also let it make changes\' — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external event.'
+              : 'Kotak semak pada kad kunci akses AI — \'Juga benarkan ia membuat perubahan\' — dimatikan secara lalai. Tandakannya dan Claude Code juga boleh mencipta, mengedit, memindah, dan mengarkibkan kad board anda, menyimpan draf lembaran masa anda, dan, jika anda pengurus atau HR, menugaskan tugasan kepada seseorang atau menyiarkan acara luaran.'">
+        The checkbox on the AI access key card — "Also let it make changes" — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external event.
       </p>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
               ? 'Every one of those changes works the same way, in two steps:'

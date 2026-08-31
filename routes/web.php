@@ -342,7 +342,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/shared-resources/{resource}/delete', [SharedResourceController::class, 'destroy'])->name('shared-resources.destroy');
         // Company events
         Route::post('/app/events', [EventController::class, 'store'])->name('events.store');
+        // Static "rsvp" segment registered ahead of the /app/events/{event} wildcard
+        // routes below, or it would bind as {event}'s trailing segment instead.
         Route::post('/app/events/{event}/rsvp', [EventController::class, 'rsvp'])->name('events.rsvp');
+        Route::post('/app/events/{event}', [EventController::class, 'update'])->name('events.update');
+        Route::post('/app/events/{event}/delete', [EventController::class, 'destroy'])->name('events.destroy');
         // Offboarding / exit clearance
         Route::post('/app/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
         Route::post('/app/offboarding/items/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.toggle');
@@ -395,11 +399,6 @@ Route::middleware('auth')->group(function () {
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
-        // Static "external" segment must be registered ahead of the /app/tot/{session}
-        // wildcard routes below, or "external" would bind as a {session} id instead.
-        Route::post('/app/tot/external', [TotController::class, 'storeExternal'])->name('tot.external.store');
-        Route::post('/app/tot/external/{event}/update', [TotController::class, 'updateExternal'])->name('tot.external.update');
-        Route::post('/app/tot/external/{event}/delete', [TotController::class, 'destroyExternal'])->name('tot.external.destroy');
         Route::delete('/app/tot/comments/{comment}', [TotController::class, 'deleteComment'])->name('tot.comments.delete');
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');
         Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');
