@@ -4,30 +4,34 @@
     marked `major: true` in changelog.yaml; everything else in the release is one
     click away on the Changelog screen.
 
+    Only the version number is rendered into the page. The notes themselves are
+    fetched from /whats-new the moment the popup decides to show, so no screen
+    carries release prose it never displays (see partials/whats-new-body).
+
     Remembered per browser in localStorage `amanahku-changelog-seen`, holding the
     version already read. A brand-new user never sees it — the welcome popup is
     already speaking to them, and to someone on their first day the whole app is new.
 --}}
-@php
-    $latest = \App\Support\Changelog::releases()[0] ?? null;
-    $major = array_values(array_filter($latest['entries'] ?? [], fn (array $e): bool => $e['major']));
-    $rest = count($latest['entries'] ?? []) - count($major);
-    /** The first line of an entry is its headline — the rest is detail for the Changelog screen. */
-    $headline = fn (string $text): string => explode("\n", $text)[0];
-    $tagLabel = [
-        'added' => ['en' => 'Added', 'ms' => 'Ditambah'],
-        'improved' => ['en' => 'Improved', 'ms' => 'Ditambah baik'],
-        'fixed' => ['en' => 'Fixed', 'ms' => 'Dibaiki'],
-    ];
-    $tagTone = ['added' => 'success', 'fixed' => 'error'];
-@endphp
-@if ($latest && $major)
-<div x-data="{ show: false, version: @js($latest['version']) }"
-     x-init="if (! localStorage.getItem('amanahku-welcomed')) {
+<div x-data="{ show: false, version: @js(\App\Support\Changelog::releases()[0]['version'] ?? ''), body: '', rest: 0 }"
+     x-init="if (! version) {
+                 return;
+             }
+             if (! localStorage.getItem('amanahku-welcomed')) {
                  localStorage.setItem('amanahku-changelog-seen', version);
-             } else if (localStorage.getItem('amanahku-changelog-seen') !== version) {
-                 show = true;
-             }"
+                 return;
+             }
+             if (localStorage.getItem('amanahku-changelog-seen') === version) {
+                 return;
+             }
+             fetch(@js(route('whats-new')), { headers: { Accept: 'application/json' } })
+                 .then((res) => res.ok ? res.json() : null)
+                 .then((data) => {
+                     if (! data || ! data.html) { return; }
+                     body = data.html;
+                     rest = data.rest;
+                     show = true;
+                 })
+                 .catch(() => {});"
      @keydown.escape.window="localStorage.setItem('amanahku-changelog-seen', version); show = false">
 <template x-teleport="body">
 <div x-show="show" x-cloak class="uj-modal-scrim">
@@ -48,18 +52,9 @@
                    : 'Amanahku baru dikemas kini. Ini yang besar-besar.'"></p>
         </div>
 
-        {{-- The top three --}}
-        <div style="padding:20px 26px 8px;display:flex;flex-direction:column;gap:15px;overflow-y:auto;">
-            @foreach ($major as $entry)
-                @php $tone = $tagTone[$entry['tag']] ?? null; @endphp
-                <div style="display:flex;gap:12px;align-items:flex-start;">
-                    <span class="uj-stamp"@if ($tone) data-tone="{{ $tone }}" @endif style="flex-shrink:0;margin-top:1px;"
-                          x-text="$store.ui.lang==='en' ? @js($tagLabel[$entry['tag']]['en']) : @js($tagLabel[$entry['tag']]['ms'])">{{ $tagLabel[$entry['tag']]['en'] }}</span>
-                    <div class="uj-whatsnew-line" style="min-width:0;font-size:13px;color:var(--body);line-height:1.55;"
-                         x-text="$store.ui.lang==='en' ? @js($headline($entry['text'])) : @js($headline($entry['text_ms']))">{{ $headline($entry['text']) }}</div>
-                </div>
-            @endforeach
-        </div>
+        {{-- The headline changes, fetched as markup so the language toggle keeps working. --}}
+        <div x-html="body"
+             style="padding:20px 26px 8px;display:flex;flex-direction:column;gap:15px;overflow-y:auto;"></div>
 
         {{-- Footer --}}
         <div style="padding:16px 26px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-shrink:0;">
@@ -71,8 +66,8 @@
                @click="localStorage.setItem('amanahku-changelog-seen', version); show = false"
                style="margin-left:auto;font-size:13px;font-weight:600;color:var(--red);text-decoration:none;"
                x-text="$store.ui.lang==='en'
-                   ? @js($rest ? "Read more ({$rest} more) →" : 'Read more →')
-                   : @js($rest ? "Baca lagi ({$rest} lagi) →" : 'Baca lagi →')">Read more &rarr;</a>
+                   ? (rest ? `Read more (${rest} more) →` : 'Read more →')
+                   : (rest ? `Baca lagi (${rest} lagi) →` : 'Baca lagi →')">Read more &rarr;</a>
             <button @click="localStorage.setItem('amanahku-changelog-seen', version); show = false"
                     class="uj-btn-primary" style="margin-left:auto;height:42px;padding:0 22px;font-size:13.5px;"
                     x-text="$store.ui.lang==='en' ? 'Got it' : 'Faham'"></button>
@@ -81,4 +76,3 @@
 </div>
 </template>
 </div>
-@endif

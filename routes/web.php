@@ -81,6 +81,7 @@ use App\Http\Controllers\WelcomeWizardController;
 use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
+use App\Support\Changelog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
@@ -122,6 +123,18 @@ Route::middleware('auth')->group(function () {
     // manifest hash; the app shell polls this and offers a reload so nobody keeps
     // clicking a page whose assets no longer match the server. Outside the tenant group
     // on purpose — a redirect from those gates would come back as HTML, not JSON.
+    // The What's new popup's contents. Fetched only when the popup is about to show,
+    // so release notes stay off every other page (see partials/whats-new.blade.php).
+    Route::get('/whats-new', function () {
+        $latest = Changelog::releases()[0] ?? null;
+        $major = array_values(array_filter($latest['entries'] ?? [], fn (array $entry): bool => $entry['major']));
+
+        return response()->json([
+            'html' => $major ? view('partials.whats-new-body', ['major' => $major])->render() : '',
+            'rest' => count($latest['entries'] ?? []) - count($major),
+        ])->header('Cache-Control', 'no-store');
+    })->middleware('throttle:60,1,whats-new')->name('whats-new');
+
     Route::get('/build-id', fn () => response()
         ->json(['id' => Vite::manifestHash()])
         ->header('Cache-Control', 'no-store'))

@@ -30,7 +30,34 @@ class WhatsNewPopupTest extends TestCase
         $this->assertLessThan(count($latest['entries']), count($major), 'Everything being major leaves nothing behind Read more.');
     }
 
-    public function test_the_shell_shows_the_major_entries_and_hides_the_rest(): void
+    public function test_the_endpoint_returns_the_major_entries_and_nothing_else(): void
+    {
+        $latest = Changelog::releases()[0];
+        $this->seed(DatabaseSeeder::class);
+        $hr = User::where('email', 'aisyah.rahman@unijaya.example')->firstOrFail();
+
+        $response = $this->actingAs($hr)->getJson(route('whats-new'));
+
+        $response->assertOk();
+        $html = $response->json('html');
+
+        foreach ($latest['entries'] as $entry) {
+            // The opening of the entry's first line, which the popup shows verbatim.
+            $needle = e(Str::limit(explode("\n", $entry['text'])[0], 60, ''));
+
+            $entry['major']
+                ? $this->assertStringContainsString($needle, $html)
+                : $this->assertStringNotContainsString($needle, $html);
+        }
+
+        $this->assertSame(
+            count($latest['entries']) - count(array_filter($latest['entries'], fn (array $e): bool => $e['major'])),
+            $response->json('rest'),
+        );
+    }
+
+    /** No screen carries the release notes — only the version the popup compares against. */
+    public function test_a_screen_does_not_carry_the_release_notes(): void
     {
         $latest = Changelog::releases()[0];
         $this->seed(DatabaseSeeder::class);
@@ -45,14 +72,7 @@ class WhatsNewPopupTest extends TestCase
         $response->assertSee($latest['version'], escape: false);
 
         foreach ($latest['entries'] as $entry) {
-            // The opening of the entry's first line, which the popup shows verbatim.
-            $needle = Str::limit(explode("\n", $entry['text'])[0], 60, '');
-
-            if ($entry['major']) {
-                $response->assertSee($needle, escape: false);
-            } else {
-                $response->assertDontSee($needle, escape: false);
-            }
+            $response->assertDontSee(Str::limit(explode("\n", $entry['text'])[0], 60, ''));
         }
     }
 }
