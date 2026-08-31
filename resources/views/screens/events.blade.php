@@ -177,7 +177,7 @@
             @empty
                 <div style="padding:28px 20px;text-align:center;">
                     <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'No upcoming events' : 'Tiada acara akan datang'">No upcoming events</div>
-                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">@if ($privileged)<span x-text="$store.ui.lang==='en' ? 'Use the &quot;New event&quot; form on the right to publish your first event — staff will then be able to RSVP.' : 'Guna borang &quot;New event&quot; di sebelah kanan untuk terbitkan acara pertama anda — staf kemudian boleh RSVP.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'Nothing is scheduled right now. New events will appear here for you to RSVP.' : 'Tiada apa dijadualkan sekarang. Acara baru akan muncul di sini untuk anda RSVP.'"></span>@endif</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">@if ($privileged)<span x-text="$store.ui.lang==='en' ? 'Use &quot;+ New event&quot; on the right to publish your first one — an internal event staff can RSVP to, or an external training they can register for.' : 'Guna &quot;+ New event&quot; di sebelah kanan untuk terbitkan yang pertama — acara dalaman untuk staf RSVP, atau latihan luaran untuk mereka daftar.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'Nothing is scheduled right now. New events will appear here for you to RSVP.' : 'Tiada apa dijadualkan sekarang. Acara baru akan muncul di sini untuk anda RSVP.'"></span>@endif</div>
                 </div>
             @endforelse
         </div>
