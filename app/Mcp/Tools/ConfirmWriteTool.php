@@ -78,7 +78,7 @@ class ConfirmWriteTool extends Tool
     {
         $httpRequest = request();
 
-        $data = $request->validate(['token' => ['required', 'string']]);
+        $data = $request->validate(['confirm_token' => ['required', 'string']]);
 
         $userId = $httpRequest->user()?->getAuthIdentifier();
         $tenantId = app(CurrentTenant::class)->id();
@@ -99,7 +99,7 @@ class ConfirmWriteTool extends Tool
         }
         RateLimiter::hit($limitKey, 60);
 
-        $entry = app(PendingWrite::class)->consume($data['token'], (int) $userId, (int) $tenantId);
+        $entry = app(PendingWrite::class)->consume($data['confirm_token'], (int) $userId, (int) $tenantId);
 
         if ($entry === null) {
             return Response::error('This confirm_token is invalid, already used, or has expired (tokens last 10 minutes). Run the preview tool again.');
@@ -132,7 +132,12 @@ class ConfirmWriteTool extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'token' => $schema->string()
+            // Named to match the key the preview tools actually return, and the
+            // name every one of their descriptions uses. Calling it 'token' here read
+            // as a second name for one thing and cost a wasted round trip: a caller
+            // following the preview's own instructions sent confirm_token and was told
+            // "The token field is required."
+            'confirm_token' => $schema->string()
                 ->description('The confirm_token returned by a preview tool.')
                 ->required(),
         ];

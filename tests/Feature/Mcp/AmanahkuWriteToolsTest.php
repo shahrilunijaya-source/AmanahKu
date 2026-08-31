@@ -127,7 +127,7 @@ class AmanahkuWriteToolsTest extends TestCase
 
     private function confirm(string $token, array $headers): TestResponse
     {
-        return $this->callTool(ConfirmWriteTool::class, ['token' => $token], $headers);
+        return $this->callTool(ConfirmWriteTool::class, ['confirm_token' => $token], $headers);
     }
 
     private function toolData(TestResponse $response): array
