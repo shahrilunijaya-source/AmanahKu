@@ -6,8 +6,8 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Models\AuditLog;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
-use App\Models\ExternalTotEvent;
 use App\Support\ApiCaller;
 use App\Support\Permissions;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -20,15 +20,18 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 /**
- * Preview-only: posts an External TOT event, the same role gate
- * TotController::storeExternal() uses (manager/management/hr). Requires
- * tot:write.
+ * Preview-only: posts an external event (a training/workshop hosted outside the
+ * company) onto the Events screen, the same role gate EventController::store()
+ * uses (manager/management/hr). Requires tot:write. Kept as its own class and
+ * tool key — "create_external_tot_event" — even though the feature now lives
+ * on company_events; renaming would ripple through AmanahkuServer,
+ * ConfirmWriteTool's map, docs/mcp.blade.php and their tests for no gain.
  *
  * Always creates with tagged_employee_ids EMPTY — this tool never tags
- * anyone, on purpose, so it can never trigger storeExternal()'s
- * "You're required to attend" email. Filling title/host/event_date/etc.
- * from a pasted invite is the entire point of this tool; tagging staff to
- * summon them is not something an AI key should ever do unattended.
+ * anyone, on purpose, so it can never trigger store()'s "You're required to
+ * attend" email. Filling title/host/event_date/etc. from a pasted invite is
+ * the entire point of this tool; tagging staff to summon them is not
+ * something an AI key should ever do unattended.
  */
 #[Name('create_external_tot_event')]
 #[IsReadOnly]
@@ -90,22 +93,23 @@ class CreateExternalTotEventTool extends Tool
             $role = Permissions::effectiveRole($httpRequest->attributes->get('tenantRole', 'employee'));
             abort_unless(in_array($role, self::PRIVILEGED_ROLES, true), 403, 'Your role cannot post an External TOT event.');
 
-            $event = ExternalTotEvent::create([
+            $event = CompanyEvent::create([
                 'title' => $payload['title'],
+                'type' => 'training',
                 'host' => $payload['host'] ?? null,
                 'description' => $payload['description'] ?? null,
                 'event_date' => $payload['event_date'],
-                'time_label' => $payload['time_label'] ?? null,
-                'venue' => $payload['venue'] ?? null,
+                'start_time' => $payload['time_label'] ?? null,
+                'location' => $payload['venue'] ?? null,
                 'venue_map_url' => $payload['venue_map_url'] ?? null,
                 'registration_url' => $payload['registration_url'] ?? null,
                 // Always empty — see the class docblock. Never tagged from this path.
                 'tagged_employee_ids' => [],
                 'tenant_id' => $tenantId,
-                'posted_by' => $poster->id,
+                'created_by_employee_id' => $poster->id,
             ]);
 
-            AuditLog::record('Posted external TOT event'.$this->keySuffix($httpRequest), $event->title);
+            AuditLog::record('Posted external event'.$this->keySuffix($httpRequest), $event->title);
 
             return ['ok' => true, 'event' => ['id' => $event->id, 'title' => $event->title]];
         });

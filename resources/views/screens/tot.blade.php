@@ -110,19 +110,6 @@
     ],
 ])
 
-{{-- Internal/external tab. Reads ?tab= first so a dashboard link can deep-link
-     straight into External; falls back to whatever this browser last had open. --}}
-<div x-data="{ tab: (new URLSearchParams(location.search).get('tab') === 'external')
-        ? 'external'
-        : (['internal','external'].includes(localStorage.getItem('totTab')) ? localStorage.getItem('totTab') : 'internal') }"
-     x-init="$watch('tab', v => localStorage.setItem('totTab', v))">
-
-<div class="uj-seg" style="margin-bottom:20px;width:max-content;max-width:100%;">
-    <button type="button" @click="tab='internal'" :data-on="tab==='internal'" x-text="$store.ui.lang==='en' ? 'Internal' : 'Dalaman'">Internal</button>
-    <button type="button" @click="tab='external'" :data-on="tab==='external'" x-text="$store.ui.lang==='en' ? 'External' : 'Luaran'">External</button>
-</div>
-
-<div x-show="tab==='internal'" x-cloak>
 <div class="tot-screen">
     <div class="tot-mast">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;">
@@ -258,12 +245,5 @@
             </div>
         @endforeach
     </div>
-</div>
-</div>
-
-<div x-show="tab==='external'" x-cloak>
-    @include('partials.tot-external', ['externalEvents' => $externalEvents, 'canPostExternal' => $canPostExternal, 'assignableEmployees' => $assignableEmployees])
-</div>
-
 </div>
 @endsection

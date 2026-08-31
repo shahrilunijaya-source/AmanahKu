@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Announcement;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
-use App\Models\ExternalTotEvent;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
@@ -16,11 +16,11 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * The dashboard's "Announcements" rail card merges recent External TOT events
- * alongside real announcements (BuildsDashboardData::newsRows). See
- * TotController for the External tab itself — this only covers the dashboard brief.
+ * The dashboard's "Announcements" rail card merges recent external events (any
+ * CompanyEvent with a host) alongside real announcements (BuildsDashboardData::newsRows).
+ * See EventController for the Events screen itself — this only covers the dashboard brief.
  */
-class DashboardExternalTotTest extends TestCase
+class DashboardExternalEventTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -48,11 +48,12 @@ class DashboardExternalTotTest extends TestCase
             ->get('/app/dash?scope=me');
     }
 
-    private function event(array $overrides = []): ExternalTotEvent
+    private function event(array $overrides = []): CompanyEvent
     {
-        return ExternalTotEvent::create(array_merge([
+        return CompanyEvent::create(array_merge([
             'tenant_id' => $this->tenant->id,
             'title' => 'Cybersecurity in the Age of NeoCloud',
+            'type' => 'training',
             'host' => 'Techdata Systems',
             'event_date' => now()->addDays(4)->toDateString(),
         ], $overrides));
@@ -64,7 +65,7 @@ class DashboardExternalTotTest extends TestCase
 
         $this->dash()->assertOk()
             ->assertSee('Cybersecurity in the Age of NeoCloud')
-            ->assertSee('External TOT');
+            ->assertSee('External event');
     }
 
     public function test_the_brief_does_not_carry_the_full_description(): void
@@ -82,20 +83,20 @@ class DashboardExternalTotTest extends TestCase
         $this->dash()->assertOk()->assertDontSee('Cybersecurity in the Age of NeoCloud');
     }
 
-    public function test_the_brief_is_hidden_when_the_tot_module_is_off(): void
+    public function test_the_brief_is_hidden_when_the_events_module_is_off(): void
     {
         $this->event();
-        app(FeatureManager::class)->setTenant($this->tenant, 'module.knowledge', false);
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.events', false);
 
         $this->dash()->assertOk()->assertDontSee('Cybersecurity in the Age of NeoCloud');
     }
 
-    public function test_announcements_still_show_when_the_tot_module_is_off(): void
+    public function test_announcements_still_show_when_the_events_module_is_off(): void
     {
         Announcement::create([
             'tenant_id' => $this->tenant->id, 'title' => 'Q3 town hall recap', 'date' => now()->toDateString(),
         ]);
-        app(FeatureManager::class)->setTenant($this->tenant, 'module.knowledge', false);
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.events', false);
 
         $this->dash()->assertOk()->assertSee('Q3 town hall recap');
     }
