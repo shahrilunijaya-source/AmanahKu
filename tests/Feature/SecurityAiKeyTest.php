@@ -115,6 +115,26 @@ class SecurityAiKeyTest extends TestCase
         $this->assertNotSame($first->id, $tokens->first()->id);
     }
 
+    /**
+     * The setup command must register the server at USER scope. `claude mcp add`
+     * defaults to local scope, which ties the server to whichever folder the person
+     * was standing in when they pasted it -- so it would quietly disappear the next
+     * time they opened Claude Code anywhere else. Most holders of one of these keys
+     * are HR or a manager with no notion of a project folder, and would read that as
+     * the key having stopped working.
+     */
+    public function test_the_setup_command_registers_the_server_for_the_whole_machine(): void
+    {
+        $redirect = $this->actingInTenant()->from(route('app.screen', 'security'))
+            ->post('/app/security/ai-key/generate', ['password' => 'password']);
+
+        $command = $redirect->getSession()->get('aiKeyCommand');
+
+        $this->assertStringContainsString('--scope user', $command);
+        $this->assertStringContainsString('--transport http', $command);
+        $this->assertStringContainsString('/mcp/amanahku', $command);
+    }
+
     public function test_plaintext_shows_once_then_is_gone_on_next_load(): void
     {
         $securityUrl = route('app.screen', 'security');
