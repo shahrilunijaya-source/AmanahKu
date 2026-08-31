@@ -155,10 +155,36 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 @keyframes uj-toast-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
 @keyframes uj-toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
+/* A What's new headline runs to three lines and the browser adds the ellipsis —
+   cutting the sentence in PHP only ever landed mid-word on one language or the other. */
+.uj-whatsnew-line {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Centred full-screen modal backdrop (welcome, what's new).
+   The display lives here rather than inline because x-show wipes an inline
+   `display` when it reveals an element — a scrim styled inline comes back as
+   `block` and stops centring its panel. */
+.uj-modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(31, 30, 26, .55);
+    backdrop-filter: blur(2px);
+}
+
 .uj-toast-host {
     position: fixed;
     z-index: 120;
-    bottom: 20px;
+    /* --uj-dock-h is 0 above 900px, so this clears the phone dock without a media query. */
+    bottom: calc(20px + var(--uj-dock-h));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -213,6 +239,19 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     color: var(--ink);
     word-break: break-word;
 }
+.uj-toast-action {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--info);
+    background: color-mix(in srgb, var(--info) 12%, transparent);
+    cursor: pointer;
+    transition: background .12s;
+}
+.uj-toast-action:hover { background: color-mix(in srgb, var(--info) 22%, transparent); }
+
 .uj-toast-close {
     flex-shrink: 0;
     width: 22px;

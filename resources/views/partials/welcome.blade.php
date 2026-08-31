@@ -8,8 +8,7 @@
      @welcome-open.window="show = true"
      @keydown.escape.window="show = false">
 <template x-teleport="body">
-<div x-show="show" x-cloak
-     style="position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(31,30,26,.55);backdrop-filter:blur(2px);">
+<div x-show="show" x-cloak class="uj-modal-scrim">
 
     <div @click.outside="show = false"
          style="width:100%;max-width:460px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);">

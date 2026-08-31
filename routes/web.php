@@ -83,6 +83,7 @@ use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Vite;
 
 // Entry: guests → Fortify login (custom view), authed users → tenant select.
 Route::get('/', fn () => Auth::check() ? redirect()->route('tenant.select') : redirect('/login'));
@@ -116,6 +117,16 @@ Route::middleware('auth')->group(function () {
     // behind login. Outside the tenant group on purpose — the content doesn't
     // depend on tenant state and stays reachable from anywhere in the app.
     Route::get('/docs/mcp', [McpDocsController::class, 'show'])->name('docs.mcp');
+
+    // Build fingerprint for open tabs. A deploy that ships new JS/CSS changes the Vite
+    // manifest hash; the app shell polls this and offers a reload so nobody keeps
+    // clicking a page whose assets no longer match the server. Outside the tenant group
+    // on purpose — a redirect from those gates would come back as HTML, not JSON.
+    Route::get('/build-id', fn () => response()
+        ->json(['id' => Vite::manifestHash()])
+        ->header('Cache-Control', 'no-store'))
+        ->middleware('throttle:120,1,build-id')
+        ->name('build.id');
 
     // First-sign-in password rotation for invited members (I-008). Outside the tenant
     // group so a freshly-invited user can rotate before selecting a tenant. The

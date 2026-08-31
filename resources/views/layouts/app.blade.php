@@ -210,6 +210,11 @@
             @include('partials.messages-panel')
         @endif
         @include('partials.welcome')
+        {{-- Not on the Changelog screen itself: whoever is reading it has already come
+             looking for exactly what the popup would tell them. --}}
+        @if (($screen ?? null) !== 'changelog')
+            @include('partials.whats-new')
+        @endif
         @include('partials.ticket-raise')
     @endunless
 </div>
@@ -471,6 +476,33 @@
         @if (session('info'))
         Alpine.store('toast').info(@js(session('info')));
         @endif
+
+        // Deploy watcher. A release that ships new JS/CSS changes the Vite manifest hash,
+        // which leaves an already-open tab running code the server no longer serves. Poll
+        // the hash and offer a reload; the toast stays until acted on (timeout 0).
+        (() => {
+            const running = @js(\Illuminate\Support\Facades\Vite::manifestHash());
+            if (! running) { return; }
+            // No latch: someone who dismisses the toast is still running stale code, so the
+            // next tick offers again. The queue check just avoids stacking duplicates.
+            const check = async () => {
+                if (document.hidden || Alpine.store('toast').items.some((t) => t.action)) { return; }
+                try {
+                    const res = await fetch(@js(route('build.id')), { headers: { Accept: 'application/json' } });
+                    if (! res.ok) { return; }
+                    const { id } = await res.json();
+                    if (! id || id === running) { return; }
+                    const en = Alpine.store('ui').lang === 'en';
+                    Alpine.store('toast').info(
+                        en ? 'A new version of Amanahku is ready.' : 'Versi baharu Amanahku sudah sedia.',
+                        0,
+                        { label: en ? 'Update' : 'Kemas kini', run: () => window.location.reload() },
+                    );
+                } catch (e) { /* offline or mid-deploy — the next tick tries again */ }
+            };
+            setInterval(check, 300000);
+            document.addEventListener('visibilitychange', () => { if (! document.hidden) { check(); } });
+        })();
     });
 </script>
 @include('partials.toast-host')
