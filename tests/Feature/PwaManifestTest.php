@@ -77,6 +77,13 @@ class PwaManifestTest extends TestCase
                 continue;
             }
 
+            // resources/views/pdf/** are rendered by dompdf into a PDF file, never served
+            // to a browser as HTML — a PWA install partial (manifest link, service worker
+            // registration) has no meaning there and dompdf does not need it.
+            if (str_starts_with($file->getPathname(), resource_path('views/pdf'))) {
+                continue;
+            }
+
             $source = (string) file_get_contents($file->getPathname());
 
             if (str_contains($source, '</head>') && ! str_contains($source, 'partials.pwa-head')) {

@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Project;
 use App\Models\SubPillar;
 use App\Models\TimesheetCategory;
+use App\Models\WorkItem;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -85,9 +86,38 @@ class ProjectController extends Controller
 
         $project->update($data);
         $project->categories()->sync($categories);
+        $this->unbookCardsThisProjectNoLongerFits($project, $categories);
         AuditLog::record('Updated project', $project->name);
 
         return back()->with('ok', $project->name.' updated.');
+    }
+
+    /**
+     * Retagging a project decides which categories that project answers for. A board card
+     * booked to it under a category no longer on the list is unbooked — the project is
+     * dropped, not the category.
+     *
+     * This used to run the other way and clear the card's category instead. That is now
+     * the wrong half to take: the staffer picks the category on the card, so wiping it
+     * because someone else edited a project throws away an answer a person actually gave,
+     * and the card's rows stop reaching the timesheet at all. The project is the derived
+     * half, and it is the one that gives way.
+     *
+     * Untagging a project entirely leaves cards alone: an untagged project has said
+     * nothing rather than said "none".
+     *
+     * @param  list<int|string>  $categories
+     */
+    private function unbookCardsThisProjectNoLongerFits(Project $project, array $categories): void
+    {
+        if ($categories === []) {
+            return;
+        }
+
+        WorkItem::where('project_id', $project->id)
+            ->whereNotNull('timesheet_category_id')
+            ->whereNotIn('timesheet_category_id', $categories)
+            ->update(['project_id' => null]);
     }
 
     public function deleteProject(Request $request, Project $project): RedirectResponse
@@ -106,6 +136,20 @@ class ProjectController extends Controller
         AuditLog::record('Removed project', $name);
 
         return back()->with('ok', $name.' removed.');
+    }
+
+    /** Toggles a project's is_active flag — one click, no need to open the edit form. */
+    public function archiveProject(Request $request, Project $project): RedirectResponse
+    {
+        $this->authorizeEditor($request);
+        $this->assertTenant($project->tenant_id);
+
+        $project->update(['is_active' => ! $project->is_active]);
+
+        $action = $project->is_active ? 'Restored' : 'Archived';
+        AuditLog::record($action.' project', $project->name);
+
+        return back()->with('ok', $project->name.' '.($project->is_active ? 'restored.' : 'archived.'));
     }
 
     // ---- Sub-pillars ------------------------------------------------------
@@ -194,13 +238,20 @@ class ProjectController extends Controller
     }
 
     /**
-     * The project-linkable categories, for the project form's category chips. Not
-     * filtered to active-only — a project already tied to a deactivated category
-     * must keep showing that chip, or re-syncing the form would silently drop it.
+     * The project-linkable categories, for the project form's category chips: the ones
+     * flagged `requires_project`, since those are exactly the categories that cannot be
+     * costed without naming a job.
+     *
+     * A deactivated category is kept only when some project is still tagged with it — that
+     * project must keep showing its chip, or re-syncing the form would silently drop it.
+     * A deactivated category nobody uses is left out: it can no longer be picked, so a
+     * chip for it would filter the register down to nothing.
      */
     private function projectCategories(): Collection
     {
-        return TimesheetCategory::projectLinkable()->orderBy('sort')->orderBy('name')->get();
+        return TimesheetCategory::projectLinkable()
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereHas('projects'))
+            ->orderBy('sort')->orderBy('name')->get();
     }
 
     private function authorizeEditor(Request $request): void

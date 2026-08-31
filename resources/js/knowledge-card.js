@@ -213,7 +213,7 @@ export function registerKnowledgeCard(Alpine) {
                 const payload = await res.json();
                 this.title = payload.title;
                 this.body = payload.body;
-                this.bodyHtml = document.createElement('div').appendChild(document.createTextNode(payload.body)).parentElement.innerHTML;
+                this.bodyHtml = payload.bodyHtml;
                 this.attachments = payload.attachments;
                 this.editing = false;
             } catch (e) {

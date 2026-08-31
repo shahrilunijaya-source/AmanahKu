@@ -12,6 +12,8 @@ use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WorkItem;
 use App\Services\FeatureManager;
+use App\Timesheet\BoardSuggestions;
+use App\Timesheet\LockedDays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -121,23 +123,6 @@ class TimesheetScreenDataTest extends TestCase
         $this->assertSame('holiday', $response->viewData('tsLocked')['2026-06-17']['source']);
     }
 
-    public function test_recent_combinations_become_work_items(): void
-    {
-        $sheet = Timesheet::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'week_start' => '2026-06-08', 'status' => 'submitted', 'total_hours' => 8,
-        ]);
-        TimesheetEntry::create([
-            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-08',
-            'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
-        ]);
-
-        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
-
-        $labels = collect($response->viewData('tsItems'))->pluck('label');
-        $this->assertTrue($labels->contains('Others'));
-    }
-
     /**
      * Regression for the "existingGrid re-seeds stale locked rows" finding: a source-tagged
      * row (generated from approved leave/holiday) must never be seeded back into the editable
@@ -147,33 +132,67 @@ class TimesheetScreenDataTest extends TestCase
      * On Leave / Public Holiday from the picker) is meant to prevent.
      */
     /**
-     * `tsBoardTasks` feeds the timesheet screen's "Pull from board" picker step
-     * (docs/superpowers/specs/2026-08-24-timesheet-pull-from-board-design.md):
-     * only the signed-in employee's own In Progress cards, never another
-     * employee's or a card sitting in a different column.
+     * `tsDismissed` feeds the capture screen's "Removed: <card> · Restore" line. It
+     * carries enough of the card to offer the row back, so a mis-tapped remove is one
+     * click to undo rather than a trip to the board.
      */
-    public function test_in_progress_board_cards_reach_the_view(): void
+    public function test_struck_off_cards_reach_the_view(): void
     {
-        WorkItem::create([
+        $card = WorkItem::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
             'title' => 'Tender ISCAF', 'type' => 'task', 'status' => 'prog',
+            'timesheet_category_id' => $this->category->id,
         ]);
-        WorkItem::create([
+        Timesheet::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
-            'title' => 'Done already', 'type' => 'task', 'status' => 'done',
-        ]);
-        $other = Employee::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Someone Else', 'status' => 'active', 'workload' => 'green',
-        ]);
-        WorkItem::create([
-            'tenant_id' => $this->tenant->id, 'employee_id' => $other->id,
-            'title' => 'Not mine', 'type' => 'task', 'status' => 'prog',
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 0,
+            'dismissed_suggestions' => ['2026-06-16' => [$card->id]],
         ]);
 
         $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
 
-        $titles = collect($response->viewData('tsBoardTasks'))->pluck('title');
-        $this->assertSame(['Tender ISCAF'], $titles->all());
+        $dismissed = $response->viewData('tsDismissed');
+        $this->assertSame('Tender ISCAF', $dismissed['2026-06-16'][0]['title']);
+        $this->assertSame($this->category->id, $dismissed['2026-06-16'][0]['category_id']);
+    }
+
+    /**
+     * A category switched off after a draft was filed still has to reach the grid, or the
+     * line it names renders with no name on it. Nothing new can be filed under it — the
+     * capture screen has no category picker any more.
+     */
+    public function test_a_deactivated_category_a_draft_still_uses_reaches_the_view(): void
+    {
+        $retired = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'HR and Admin',
+            'requires_project' => false, 'is_active' => false,
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $retired->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $names = collect($response->viewData('tsCategories'))->pluck('name');
+        $this->assertTrue($names->contains('HR and Admin'));
+    }
+
+    public function test_a_deactivated_category_no_draft_uses_stays_out_of_the_view(): void
+    {
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Charity',
+            'requires_project' => false, 'is_active' => false,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $names = collect($response->viewData('tsCategories'))->pluck('name');
+        $this->assertFalse($names->contains('Charity'));
     }
 
     public function test_existing_grid_excludes_source_tagged_rows(): void
@@ -198,5 +217,43 @@ class TimesheetScreenDataTest extends TestCase
         $grid = $response->viewData('existingGrid');
         $this->assertArrayHasKey('2026-06-15', $grid);
         $this->assertArrayNotHasKey('2026-06-16', $grid);
+    }
+
+    /**
+     * `tsSuggested` feeds the capture screen's per-day board prefill (Task 4): the week's
+     * In Progress board cards, one row per card per day it was worked, keyed by ISO date.
+     * The observer that opens a WorkItemProgressStint when a card lands on 'prog' is what
+     * gives BoardSuggestions a stint to work from.
+     */
+    public function test_the_capture_payload_carries_the_days_board_suggestions(): void
+    {
+        $card = $this->employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Build the thing', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $suggested = $response->viewData('tsSuggested');
+        $today = Carbon::now()->toDateString();
+
+        $this->assertArrayHasKey($today, $suggested);
+        $this->assertSame($card->id, $suggested[$today][0]['work_item_id']);
+    }
+
+    public function test_a_failure_building_suggestions_does_not_take_the_screen_down(): void
+    {
+        // BoardSuggestions is final, so it cannot be mocked as a subclass — Mockery only
+        // supports partial-mocking an already-instantiated object of a final class.
+        $real = new BoardSuggestions(app(LockedDays::class));
+        $mock = \Mockery::mock($real);
+        $mock->shouldReceive('forWeek')->andThrow(new \RuntimeException('boom'));
+        $this->app->instance(BoardSuggestions::class, $mock);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $this->assertSame([], $response->viewData('tsSuggested'));
     }
 }

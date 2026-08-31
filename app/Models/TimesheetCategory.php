@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Services\FeatureManager;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -17,13 +19,94 @@ class TimesheetCategory extends Model
     protected $guarded = [];
 
     /**
-     * Category names meaningful to tag a Project with. Most timesheet categories
-     * describe non-delivery work (HR, Leave, Marketing…) and never apply to a
-     * project, so the project-tagging picker offers only this subset.
+     * Rows nobody picks by hand: LockedDays generates them from approved leave and the
+     * public-holiday calendar (matched by name — see LockedDays::CATEGORY_NAME). While
+     * the leave module is on they are filled in for the staffer, so offering them in a
+     * picker only ever produces a second, unapproved copy of a day HR already decided.
      *
      * @var list<string>
      */
-    public const PROJECT_LINKABLE = ['Development', 'Maintenance', 'InHouse Project', 'Sales'];
+    public const GENERATED = ['On Leave', 'Public Holiday'];
+
+    /**
+     * The GENERATED names to hide from a picker right now — none when the leave module
+     * is off, because such a tenant has no approved-leave source and needs to log leave
+     * some other way. Request context only: it reads the current tenant's feature flags,
+     * which observers and console commands deliberately run without.
+     *
+     * @return list<string>
+     */
+    public static function generatedNames(): array
+    {
+        return app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave')
+            ? self::GENERATED
+            : [];
+    }
+
+    /**
+     * What a new company starts with: the five effort types that name a job (and so
+     * carry `requires_project`), the overhead types for work the company does for
+     * itself, Others as the catch-all, and the two rows LockedDays files approved leave
+     * and public holidays under (matched by name — see LockedDays::CATEGORY_NAME — and
+     * hidden from the staffer's own picker while the leave module is on, so nobody logs
+     * leave HR never approved).
+     *
+     * The overhead half is here because the board asks for a category on every card,
+     * including the audits, payment vouchers and hiring that belong to no project. A
+     * company given only the delivery types would have to file all of that under Others.
+     *
+     * A company with no categories has no way to cost anything at all now that the
+     * capture screen has no category picker of its own: its rows come from board
+     * cards, and a card with nothing behind it is held back rather than saved.
+     *
+     * @var list<array{0:string, 1:string, 2:bool}> name, name_ms, requires_project
+     */
+    public const DEFAULTS = [
+        ['Development', 'Pembangunan', true],
+        ['Maintenance', 'Penyelenggaraan', true],
+        ['InHouse Project', 'Projek Dalaman', true],
+        ['Sales', 'Jualan', true],
+        ['Continuous Improvement (CI)', 'Penambahbaikan Berterusan (CI)', true],
+        ['Account and Finance', 'Akaun dan Kewangan', false],
+        ['HR and Admin', 'HR dan Pentadbiran', false],
+        ['Administration', 'Pentadbiran', false],
+        ['Study & Research', 'Kajian & Penyelidikan', false],
+        ['Marketing', 'Pemasaran', false],
+        ['Charity', 'Kebajikan', false],
+        ['Others', 'Lain-lain', false],
+        ['Public Holiday', 'Cuti Umum', false],
+        ['On Leave', 'Bercuti', false],
+    ];
+
+    /**
+     * Give a tenant the default categories. Idempotent by name, so it is safe on a
+     * company that already has some of them — an existing row is left exactly as the
+     * company edited it.
+     */
+    public static function seedFor(Tenant $tenant): void
+    {
+        $existing = self::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenant->id)
+            ->pluck('name')
+            ->all();
+
+        $sort = (int) self::withoutGlobalScope('tenant')->where('tenant_id', $tenant->id)->max('sort');
+
+        foreach (self::DEFAULTS as [$name, $nameMs, $requiresProject]) {
+            if (in_array($name, $existing, true)) {
+                continue;
+            }
+
+            self::create([
+                'tenant_id' => $tenant->id,
+                'name' => $name,
+                'name_ms' => $nameMs,
+                'requires_project' => $requiresProject,
+                'sort' => $sort++,
+                'is_active' => true,
+            ]);
+        }
+    }
 
     /**
      * One colour per project-linkable category, so a category reads the same
@@ -86,8 +169,17 @@ class TimesheetCategory extends Model
         return $this->belongsToMany(Project::class, 'project_timesheet_category');
     }
 
+    /**
+     * The categories it is meaningful to tag a Project with: the ones that cannot be
+     * costed without naming a job. Everything else (HR and Admin, Account and Finance,
+     * Charity…) describes work the company does for itself, so a project would have
+     * nothing to say about it.
+     *
+     * Was a hardcoded list of four names. `requires_project` is the same statement made
+     * once, on the row, where a company that adds its own delivery category can set it.
+     */
     public function scopeProjectLinkable(Builder $query): Builder
     {
-        return $query->whereIn('name', self::PROJECT_LINKABLE);
+        return $query->where('requires_project', true);
     }
 }

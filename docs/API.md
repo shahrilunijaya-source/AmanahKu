@@ -347,3 +347,45 @@ filtered response — there is no partial access to an endpoint.
 system's cost or billing calculations (Track's staff-dedication rows), so
 handing it to an app with no use for that number is scope creep, not
 convenience.
+
+## 7. MCP server (not this HTTP API)
+
+AmanahKu also exposes an [MCP](https://modelcontextprotocol.io) server at
+`POST /mcp/amanahku`, for AI clients (e.g. Claude Code) rather than
+application integrations. It runs behind the same bearer-token stack as this
+API — same key, same tenant binding — but is a separate protocol (JSON-RPC
+over HTTP, not the `{data, error}` envelope above) with its own scopes,
+checked per tool:
+
+| Scope | Grants |
+|---|---|
+| `timesheets:read` | Weekly timesheets and their entries |
+| `board:read` | Board cards (work items) |
+| `tot:read` | TOT sessions and participation |
+| `board:write` | Create and edit board cards, assign tasks |
+| `timesheets:write` | Save timesheet drafts |
+| `tot:write` | Post external TOT events |
+
+These six scopes are minted the same way as the ones above
+(`php artisan api:token ... --ability=timesheets:read`) but have no
+corresponding `/api/v1` route — they exist only for the MCP tools.
+
+The three `:write` scopes are separate from their matching `:read` scope, so
+a key can browse a tenant's board, timesheets and TOT sessions without ever
+being able to change any of it. Every write tool behind them is two-step: a
+preview tool validates and authorizes the change and returns a short-lived
+`confirm_token` without writing anything, and only a second call to
+`confirm_write` with that token actually applies it — the MCP client is
+expected to show the preview to a person and wait for approval in between.
+The self-service AI key screen (Account & security) mints the three `:write`
+scopes only when its "allow this key to make changes" box is ticked;
+unticked (the default) mints the three `:read` scopes only, same as before
+this flow existed.
+
+Every tool shares one route (`POST /mcp/amanahku`, `throttle:60,1`), since
+the MCP protocol carries the tool name inside the request body rather than
+the URL — a route-level throttle can't single out writes. `confirm_write`
+(the only tool that actually applies a change) enforces its own tighter
+budget in code: 20 applied writes per minute per caller, well under the
+route's shared 60/min. The preview tools carry no extra limit — they only
+read and cache a token, the same cost as a read tool.

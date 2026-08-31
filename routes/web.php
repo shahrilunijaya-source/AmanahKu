@@ -17,11 +17,14 @@ use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\EaFormController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForcePasswordChangeController;
+use App\Http\Controllers\FormEController;
 use App\Http\Controllers\GoalController;
+use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\HandbookController;
 use App\Http\Controllers\HelpdeskController;
 use App\Http\Controllers\IdeaController;
@@ -31,6 +34,7 @@ use App\Http\Controllers\LearningController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\McpDocsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
@@ -42,6 +46,7 @@ use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollExportController;
+use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
@@ -76,8 +81,10 @@ use App\Http\Controllers\WelcomeWizardController;
 use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
+use App\Support\Changelog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Vite;
 
 // Entry: guests → Fortify login (custom view), authed users → tenant select.
 Route::get('/', fn () => Auth::check() ? redirect()->route('tenant.select') : redirect('/login'));
@@ -105,6 +112,35 @@ Route::post('/activate/{user}', [ActivationController::class, 'update'])->middle
 Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
 
 Route::middleware('auth')->group(function () {
+    // Staff-facing guide for the self-service AI access key (Account & security).
+    // Authenticated, unlike /docs/api above: this page walks one signed-in person
+    // through generating a key that reads their own account's data, so it belongs
+    // behind login. Outside the tenant group on purpose — the content doesn't
+    // depend on tenant state and stays reachable from anywhere in the app.
+    Route::get('/docs/mcp', [McpDocsController::class, 'show'])->name('docs.mcp');
+
+    // Build fingerprint for open tabs. A deploy that ships new JS/CSS changes the Vite
+    // manifest hash; the app shell polls this and offers a reload so nobody keeps
+    // clicking a page whose assets no longer match the server. Outside the tenant group
+    // on purpose — a redirect from those gates would come back as HTML, not JSON.
+    // The What's new popup's contents. Fetched only when the popup is about to show,
+    // so release notes stay off every other page (see partials/whats-new.blade.php).
+    Route::get('/whats-new', function () {
+        $latest = Changelog::releases()[0] ?? null;
+        $major = array_values(array_filter($latest['entries'] ?? [], fn (array $entry): bool => $entry['major']));
+
+        return response()->json([
+            'html' => $major ? view('partials.whats-new-body', ['major' => $major])->render() : '',
+            'rest' => count($latest['entries'] ?? []) - count($major),
+        ])->header('Cache-Control', 'no-store');
+    })->middleware('throttle:60,1,whats-new')->name('whats-new');
+
+    Route::get('/build-id', fn () => response()
+        ->json(['id' => Vite::manifestHash()])
+        ->header('Cache-Control', 'no-store'))
+        ->middleware('throttle:120,1,build-id')
+        ->name('build.id');
+
     // First-sign-in password rotation for invited members (I-008). Outside the tenant
     // group so a freshly-invited user can rotate before selecting a tenant. The
     // ForcePasswordChange middleware funnels every other route here until done.
@@ -157,6 +193,8 @@ Route::middleware('auth')->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
+        // HR books a granted day (Replacement) for someone else — see LeaveController::record.
+        Route::post('/app/leave/record', [LeaveController::class, 'record'])->name('leave.record');
         Route::post('/app/leave/{leaveRequest}/verify', [LeaveController::class, 'verify'])->name('leave.verify');
         Route::post('/app/leave/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leave.approve');
         Route::post('/app/leave/{leaveRequest}/reject', [LeaveController::class, 'reject'])->name('leave.reject');
@@ -237,6 +275,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/workload/apply', [WorkforceController::class, 'apply'])->name('workforce.apply');
         Route::post('/app/board/{workItem}/comments', [WorkItemController::class, 'comment'])->name('work.comment');
         Route::delete('/app/board/comments/{comment}', [WorkItemController::class, 'commentDestroy'])->name('work.comment.destroy');
+        Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
+        Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
+        Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
@@ -325,7 +366,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/shared-resources/{resource}/delete', [SharedResourceController::class, 'destroy'])->name('shared-resources.destroy');
         // Company events
         Route::post('/app/events', [EventController::class, 'store'])->name('events.store');
+        // Static "rsvp" segment registered ahead of the /app/events/{event} wildcard
+        // routes below, or it would bind as {event}'s trailing segment instead.
         Route::post('/app/events/{event}/rsvp', [EventController::class, 'rsvp'])->name('events.rsvp');
+        Route::post('/app/events/{event}', [EventController::class, 'update'])->name('events.update');
+        Route::post('/app/events/{event}/delete', [EventController::class, 'destroy'])->name('events.destroy');
         // Offboarding / exit clearance
         Route::post('/app/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
         Route::post('/app/offboarding/items/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.toggle');
@@ -378,10 +423,6 @@ Route::middleware('auth')->group(function () {
         // TOT sessions — the monthly Transfer of Technology board. Paths share the `tot`
         // first segment so EnsureModuleEnabled gates them under module.knowledge.
         Route::post('/app/tot', [TotController::class, 'store'])->name('tot.store');
-        // Static "external" segment must be registered ahead of the /app/tot/{session}
-        // wildcard routes below, or "external" would bind as a {session} id instead.
-        Route::post('/app/tot/external', [TotController::class, 'storeExternal'])->name('tot.external.store');
-        Route::post('/app/tot/external/{event}/delete', [TotController::class, 'destroyExternal'])->name('tot.external.destroy');
         Route::delete('/app/tot/comments/{comment}', [TotController::class, 'deleteComment'])->name('tot.comments.delete');
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');
         Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');
@@ -425,9 +466,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
-        // Per-staff reusable allocation templates (owned by the acting employee)
-        Route::post('/app/timesheets/templates', [TimesheetController::class, 'storeTemplate'])->name('timesheets.templates.store');
-        Route::delete('/app/timesheets/templates/{template}', [TimesheetController::class, 'deleteTemplate'])->name('timesheets.templates.delete');
         // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');
         Route::post('/app/timesheet-setup/categories/{category}', [TimesheetAdminController::class, 'updateCategory'])->name('timesheet.admin.categories.update');
@@ -437,6 +475,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
         Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
+        Route::post('/app/projects/{project}/archive', [ProjectController::class, 'archiveProject'])->name('projects.archive');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
         Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
         Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');
@@ -474,11 +513,20 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/wellness/resources', [WellnessController::class, 'storeResource'])->name('wellness.resources');
         Route::middleware('throttle:30,1,payroll')->group(function () {
             Route::post('/app/payroll/salary', [PayrollController::class, 'storeSalary'])->name('payroll.salary');
-            Route::post('/app/payroll/rates', [PayrollController::class, 'updateRates'])->name('payroll.rates');
+            Route::post('/app/payroll/opening', [PayrollController::class, 'storeOpening'])->name('payroll.opening');
+            Route::post('/app/payroll/fixed-transactions', [PayrollController::class, 'storeFixedTransaction'])->name('payroll.fixed-transactions.store');
+            Route::post('/app/payroll/fixed-transactions/{fixedTransaction}', [PayrollController::class, 'updateFixedTransaction'])->name('payroll.fixed-transactions.update');
+            Route::post('/app/payroll/fixed-transactions/{fixedTransaction}/end', [PayrollController::class, 'endFixedTransaction'])->name('payroll.fixed-transactions.end');
+            Route::post('/app/payroll/individual-transactions', [PayrollController::class, 'storeIndividualTransaction'])->name('payroll.individual-transactions.store');
+            Route::post('/app/payroll/individual-transactions/{individualTransaction}', [PayrollController::class, 'updateIndividualTransaction'])->name('payroll.individual-transactions.update');
+            Route::post('/app/payroll/individual-transactions/{individualTransaction}/delete', [PayrollController::class, 'destroyIndividualTransaction'])->name('payroll.individual-transactions.delete');
             Route::post('/app/payroll/runs', [PayrollController::class, 'createRun'])->name('payroll.runs.create');
             Route::post('/app/payroll/runs/{run}/approve', [PayrollController::class, 'approveRun'])->name('payroll.runs.approve');
             Route::post('/app/payroll/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->name('payroll.runs.finalize');
+            Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
+            Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
+            Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });
 
         // GET endpoints — before the catch-all so they aren't swallowed by /app/{screen?}.
@@ -509,6 +557,28 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
+        // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
+        Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
+        // Bulk payslip PDF for a finalized run — HR/management only.
+        Route::get('/app/payroll/runs/{run}/payslips-pdf', [PayrollPdfController::class, 'bulk'])->name('payroll.export.payslips-pdf');
+        // Form EA — HR-only on-screen incomplete-box preview, per-employee PDF (own for
+        // anyone, any employee for HR/management), and the bulk PDF (HR/management only).
+        Route::get('/app/payroll/employees/{employee}/ea-form/{year}', [EaFormController::class, 'show'])
+            ->whereNumber(['employee', 'year'])->name('payroll.ea-form.show');
+        Route::get('/app/payroll/employees/{employee}/ea-form/{year}/pdf', [EaFormController::class, 'pdf'])
+            ->whereNumber(['employee', 'year'])->name('payroll.ea-form.pdf');
+        Route::get('/app/payroll/ea-forms/{year}', [EaFormController::class, 'bulk'])
+            ->whereNumber('year')->name('payroll.export.ea-forms');
+
+        // Employer's annual return — Form E (C.P.8) and its C.P.8D employee schedule.
+        // Company-wide export of everyone's tax data — HR/management only, no
+        // employee-facing route at all (unlike Form EA above).
+        Route::get('/app/payroll/form-e/{year}', [FormEController::class, 'show'])
+            ->whereNumber('year')->name('payroll.form-e.show');
+        Route::get('/app/payroll/form-e/{year}/pdf', [FormEController::class, 'pdf'])
+            ->whereNumber('year')->name('payroll.form-e.pdf');
+        Route::get('/app/payroll/form-e/{year}/cp8d', [FormEController::class, 'cp8d'])
+            ->whereNumber('year')->name('payroll.form-e.cp8d');
 
         // App shell — all screens render through one controller action. Two gates run
         // only here (the staff navigation funnel), never on write-paths: system.launched

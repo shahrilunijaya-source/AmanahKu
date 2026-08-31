@@ -26,28 +26,28 @@
     'key' => 'timesheets',
     'en'  => [
         'title' => 'Weekly timesheets',
-        'body'  => 'Pick the week, then work through it one day at a time. Tap a day in the strip to open it, add what you worked on, and set each entry\'s percentage — every working day must reach 100% before the week can be submitted.',
+        'body'  => 'Pick the week, then work through it one day at a time. Each day already lists the board cards you had In Progress or In Review, so all you set is how much of the day each one took — every working day must reach 100% before the week can be submitted.',
         'who'   => 'Staff fill & submit · Managers & HR approve',
         'steps' => [
             'Pick the week using the arrows at the top — the strip shows each weekday with a fill bar for how much of that day is planned.',
-            'Tap a day in the strip to open it. Press "+ Add what you worked on", then answer one question at a time — category, then project, then which part of it — and set the line\'s percentage. Repeat until the day reads 100%.',
+            'Tap a day in the strip to open it. The cards you have In Progress or In Review are already listed. Set each line\'s percentage until the day reads 100%, and remove anything you did not actually work on.',
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
             'Touch a line to show its own amount buttons: 100%, 50%, 25%, or "Give it the rest". A line left without a percentage stays on screen and blocks the week until you fill it in or remove it.',
             'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit week" once every day reads 100%.',
-            'Doing the same work every week? On a line, tap "Save this line as a template" and name it — it becomes a one-tap shortcut at the top of the list in every future week.',
+            'Nothing is added by hand any more: a line appears because a card of yours was In Progress or In Review that day. Work with no card on the board never reaches here, so put it on the board first.',
         ],
     ],
     'ms'  => [
         'title' => 'Timesheet mingguan',
-        'body'  => 'Pilih minggu, kemudian kerjakan satu hari pada satu masa. Ketik satu hari dalam jalur untuk membukanya, tambah apa yang anda kerjakan, dan tetapkan peratus setiap entri — setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.',
+        'body'  => 'Pilih minggu, kemudian kerjakan satu hari pada satu masa. Setiap hari sudah menyenaraikan kad papan anda yang berada dalam In Progress atau In Review, jadi anda hanya tetapkan berapa banyak hari itu digunakan — setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.',
         'who'   => 'Staf isi & hantar · Pengurus & HR luluskan',
         'steps' => [
             'Pilih minggu menggunakan anak panah di atas — jalur memaparkan setiap hari minggu dengan bar pengisian menunjukkan berapa banyak hari itu telah dirancang.',
-            'Ketik satu hari dalam jalur untuk membukanya. Tekan "+ Tambah apa yang anda kerjakan", kemudian jawab satu soalan pada satu masa — kategori, projek, dan bahagiannya — kemudian tetapkan peratus baris itu. Ulang sehingga hari itu membaca 100%.',
+            'Ketik satu hari dalam jalur untuk membukanya. Kad anda yang In Progress atau In Review sudah tersenarai. Tetapkan peratus setiap baris sehingga hari itu membaca 100%, dan buang apa yang anda tidak kerjakan.',
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
             'Sentuh satu baris untuk memaparkan butang amaunnya sendiri: 100%, 50%, 25%, atau "Beri baki". Baris tanpa peratus kekal di skrin dan menghalang minggu itu sehingga anda mengisinya atau membuangnya.',
             'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
-            'Buat kerja sama setiap minggu? Pada satu baris, tekan "Simpan baris ini sebagai templat" dan namakannya — ia menjadi pintasan satu ketik di bahagian atas senarai pada setiap minggu akan datang.',
+            'Tiada lagi tambah secara manual: satu baris muncul kerana kad anda berada dalam In Progress atau In Review pada hari itu. Kerja tanpa kad di papan tidak akan sampai ke sini, jadi letakkan di papan dahulu.',
         ],
     ],
 ])
@@ -91,11 +91,11 @@
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),
-            items: @js($tsItems),
             categories: @js($tsCategories),
             projects: @js($tsProjects),
-            templates: @js($tsTemplates),
-            boardTasks: @js($tsBoardTasks),
+            subPillars: @js($tsSubPillars),
+            suggested: @js($tsSuggested),
+            dismissed: @js($tsDismissed),
             existing: @js($existingGrid),
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
@@ -232,8 +232,18 @@
 
             <template x-if="!isFullyLocked(selected) && !isFuture(selected) && !isOffDay(selected)">
                 <div>
+                    {{-- A day with nothing on it used to have the Add button standing there as
+                         the obvious next move. Without it, an empty day has to say where its
+                         lines come from, or it just reads as broken. --}}
+                    <template x-if="!(rows[selected] || []).length && !dismissedFor(selected).length">
+                        <div style="padding:16px 0 4px;font-size:12.5px;color:var(--muted);line-height:1.5;">
+                            <span x-text="$store.ui.lang==='en'
+                                ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
+                                : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.'"></span>
+                        </div>
+                    </template>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
-                        <div class="uj-ts-row" :data-blank="isBlank(r) ? '1' : '0'"
+                        <div class="uj-ts-row" :class="{ 'uj-ts-row--suggested': r.suggested }" :data-blank="isBlank(r) ? '1' : '0'"
                             style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">
                             <div class="uj-ts-row-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                                 <span class="uj-ts-row-label" style="min-width:0;display:flex;align-items:center;gap:10px;">
@@ -268,9 +278,18 @@
 
                             {{-- A line with no percentage says so, and blocks the week, instead of
                                  being dropped on the next save with nothing said. --}}
-                            <div x-show="isBlank(r) && isEditable(selected)" x-cloak
+                            <div x-show="isBlank(r) && !needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en' ? 'Needs a percentage — how much of this day went here?' : 'Perlukan peratus — berapa banyak hari ini pergi ke sini?'"></div>
+
+                            {{-- A card that arrived with nothing to cost it against. The fix is on
+                                 the card, not here, so the line says so rather than offering a
+                                 picker the screen no longer has. --}}
+                            <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
+                                style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
+                                x-text="$store.ui.lang==='en'
+                                    ? 'This card has no category — open it on the board and set one. Until then this line is not saved.'
+                                    : 'Kad ini tiada kategori — buka di papan dan tetapkan satu. Sehingga itu baris ini tidak disimpan.'"></div>
 
                             {{-- The amount controls sit INSIDE the line they change, revealed by
                                  hovering or focusing that line. They used to be one strip pinned
@@ -281,7 +300,7 @@
                                 <span style="font-size:11px;color:var(--muted);margin-right:2px;"
                                     x-text="$store.ui.lang==='en' ? 'Set to' : 'Tetapkan'"></span>
                                 <template x-for="pct in [100, 50, 25]" :key="pct">
-                                    <button type="button" @click="r.percentage = pct; save()" class="uj-ts-pill"
+                                    <button type="button" @click="r.percentage = pct; r.suggested = false; save()" class="uj-ts-pill"
                                         style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline);background:#fff;color:var(--body);font-family:var(--font-mono);font-size:11px;cursor:pointer;"
                                         x-text="pct + '%'"></button>
                                 </template>
@@ -291,45 +310,27 @@
                                 <button type="button" x-show="remainder(selected) > 0" @click="giveRemainder(r)" class="uj-ts-pill"
                                     style="min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--success);background:color-mix(in srgb, var(--success) 8%, #fff);color:var(--success-ink);font-size:11px;cursor:pointer;"
                                     x-text="($store.ui.lang==='en' ? 'Give it the ' : 'Beri baki ') + remainder(selected) + ($store.ui.lang==='en' ? '% left' : '%')"></button>
-                                <button type="button" @click="startSaveTemplate(r)" class="uj-ts-pill"
-                                    style="min-height:30px;padding:0 12px;margin-left:auto;border:1px dashed var(--hairline);border-radius:999px;background:none;color:var(--muted);font-size:11px;cursor:pointer;">
-                                    <span x-text="$store.ui.lang==='en' ? 'Save this line as a template' : 'Simpan baris ini sebagai templat'"></span>
-                                </button>
                             </div>
                         </div>
                     </template>
 
-                    {{-- Task 8: save-as-template. @submit.prevent awaits save() (autosaving the
-                         day) before submitting for real via $event.target.submit(), so the
-                         redirect + page reload from the store route never drops in-progress
-                         work. project_id/sub_pillar_id are OMITTED (via x-if) rather than
-                         posted at all when a template has no project, so a template with no
-                         project cleanly satisfies storeTemplate()'s nullable|integer rules
-                         for those two fields — no "" ever hits the validator. ---- --}}
-                    <div x-show="savingTemplate" x-cloak style="display:flex;gap:6px;align-items:flex-start;margin-top:10px;padding:10px;border:1px solid var(--hairline);border-radius:8px;background:var(--canvas);flex-wrap:wrap;">
-                        <form method="post" action="{{ route('timesheets.templates.store') }}"
-                            @submit.prevent="await save(); $event.target.submit()"
-                            style="display:flex;gap:6px;flex:1;min-width:200px;flex-wrap:wrap;">
-                            @csrf
-                            <input type="text" name="name" x-model="templateDraft.name" required maxlength="80"
-                                :placeholder="$store.ui.lang==='en' ? 'Name this template' : 'Namakan templat ini'"
-                                style="flex:1;min-width:140px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
-                            <input type="hidden" name="category_id" :value="templateDraft.category_id" />
-                            <template x-if="templateDraft.project_id">
-                                <input type="hidden" name="project_id" :value="templateDraft.project_id" />
+                    {{-- Cards struck off this day. Removing one sticks (it is saved with the
+                         day), so a mis-tapped × needs a way back that is not a trip to the
+                         board — this is it. --}}
+                    <template x-if="dismissedFor(selected).length && isEditable(selected)">
+                        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--hairline-soft);display:flex;flex-direction:column;gap:6px;">
+                            <template x-for="d in dismissedFor(selected)" :key="d.work_item_id">
+                                <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);">
+                                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                        x-text="($store.ui.lang==='en' ? 'Removed: ' : 'Dibuang: ') + d.title"></span>
+                                    <button type="button" @click="restoreRow(selected, d.work_item_id)" class="uj-btn-ghost"
+                                        style="height:26px;padding:0 10px;font-size:11px;flex-shrink:0;">
+                                        <span x-text="$store.ui.lang==='en' ? 'Restore' : 'Kembalikan'"></span>
+                                    </button>
+                                </div>
                             </template>
-                            <template x-if="templateDraft.sub_pillar_id">
-                                <input type="hidden" name="sub_pillar_id" :value="templateDraft.sub_pillar_id" />
-                            </template>
-                            <input type="hidden" name="percentage" :value="templateDraft.percentage" />
-                            <button type="submit" :disabled="saving" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:12px;">
-                                <span x-text="$store.ui.lang==='en' ? 'Save template' : 'Simpan templat'"></span>
-                            </button>
-                        </form>
-                        <button type="button" @click="savingTemplate = false" class="uj-btn-ghost" style="height:32px;padding:0 10px;font-size:11px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></span>
-                        </button>
-                    </div>
+                        </div>
+                    </template>
 
                     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
                         <button type="button" @click="copyPreviousDay()" x-show="previousWorkday(selected)"
@@ -341,38 +342,11 @@
             </template>
         </div>
 
-        {{-- ---- Add affordance: opens the picker as a popup, one question at a time.
-
-             Category, then project, then sub-pillar. A flat list of all ~31 combinations was
-             tried in between and rejected: it is too much to read when the staffer already
-             knows the category they want. A step the data does not need is skipped, so a
-             standalone category is one tap and a project with no sub-pillar is two. Work the
-             day already carries is greyed rather than hidden, so the staffer can see it is
-             there instead of adding an indistinguishable twin.
-
-             The picker itself lives in a popup (below), not inline here, so opening it never
-             reflows the day's rows underneath — the #1 complaint on the old inline-expanding
-             panel, worst on a phone where the expansion pushed "Submit week" off screen. ---- --}}
-        <div x-show="isEditable(selected)" x-cloak class="uj-ts-add-row">
-            <button type="button" x-ref="addEntryBtn" @click="openPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
-                class="uj-ts-add-btn">
-                <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
-            </button>
-            {{-- Pulls an In Progress board card's title/description/project straight into
-                 the same add flow below, so the staffer doesn't retype what the card
-                 already says — see timesheet-capture.js's openBoardPicker()/chooseBoardTask(). --}}
-            <button type="button" x-show="boardTasks.length" x-cloak @click="openBoardPicker(); $nextTick(() => $refs.pickerCloseBtn?.focus())"
-                class="uj-ts-add-btn">
-                <span x-text="$store.ui.lang==='en' ? '+ Pull from T.A.A' : '+ Tarik dari papan tugasan'"></span>
-            </button>
-        </div>
-
-        {{-- ---- Add-entry popup: same header/back arrow/trail per Alpine picker step, but the
-             list of options now sits over the page instead of inside it. Same shell (fixed
-             backdrop, centred card, .uj-slide entrance) as partials/ticket-raise.blade.php, so
-             every popup in the app opens the same way. Padding around the backdrop plus an
-             internally-scrolling body keeps it usable on a phone without a separate bottom-sheet
-             variant — a step's option list is what grows, not the dialog's position. ---- --}}
+        {{-- ---- Row overlay: what you were doing, how much of the day, and any notes.
+             Category and project are shown, not asked — they ride in from the board card,
+             and the card is where they are corrected. Same shell (fixed backdrop, centred
+             card) as partials/ticket-raise.blade.php, so every popup in the app opens the
+             same way. ---- --}}
         <div x-show="picker.open" x-cloak class="uj-dialog-overlay"
              @click.self="closePicker()"
              @keydown.escape.window="if (picker.open) closePicker()"
@@ -386,31 +360,17 @@
                      already chosen so the staffer knows where they are. --}}
                 <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                     <button type="button" x-ref="pickerCloseBtn" @click="pickerBack()" class="uj-btn-ghost"
-                        :aria-label="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard))
-                            ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal')
-                            : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
-                        style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
-                        x-text="(picker.step === 'board' || (picker.step === 'category' && !picker.viaBoard)) ? '×' : '←'"></button>
+                        :aria-label="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"
+                        style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;">×</button>
                     <div style="flex:1;min-width:0;">
                         {{-- tabindex=-1 + outline:none: a script-focus target only, so a screen
                              reader/keyboard user's position moves with each step instead of
                              silently dropping to <body> when x-if swaps out the focused option
-                             row — see chooseStep()/chooseItem()/pickerBack() in
-                             timesheet-capture.js, which all focus this after changing step. --}}
+                             row — see openEditRow()/pickerBack() in timesheet-capture.js,
+                             which focus this whenever the overlay opens. --}}
                         <strong id="ts-picker-title" tabindex="-1" style="display:block;outline:none;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
-                            x-text="picker.step === 'board'
-                                ? ($store.ui.lang==='en' ? 'Pull which card?' : 'Tarik kad yang mana?')
-                                : (picker.step === 'category'
-                                    ? ($store.ui.lang==='en' ? 'Which category?' : 'Kategori yang mana?')
-                                    : (picker.step === 'project'
-                                        ? ($store.ui.lang==='en' ? 'Which project?' : 'Projek yang mana?')
-                                        : (picker.step === 'sub'
-                                            ? ($store.ui.lang==='en' ? 'Which part of it?' : 'Bahagian yang mana?')
-                                            : ($store.ui.lang==='en' ? 'How much, and any notes?' : 'Berapa banyak, dan sebarang nota?'))))"></strong>
-                        <span x-show="picker.step !== 'details' && pickerTrail()" x-cloak
-                            style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-                            x-text="pickerTrail()"></span>
-                        <span x-show="picker.step === 'details'" x-cloak class="uj-pill"
+                            x-text="$store.ui.lang==='en' ? 'What were you doing, and how much of the day?' : 'Anda buat apa, dan berapa banyak hari?'"></strong>
+                        <span class="uj-pill"
                             style="display:inline-block;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--hairline-soft);color:var(--muted);"
                             x-text="picker.pendingItem?.label"></span>
                     </div>
@@ -418,99 +378,8 @@
 
                 <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:5px;">
 
-                    {{-- Board step: the employee's own In Progress cards. Picking one carries
-                         its title/description/project into the same category → (project) →
-                         details flow below — see chooseBoardTask() in timesheet-capture.js. --}}
-                    <template x-if="picker.step === 'board'">
-                        <div style="display:flex;flex-direction:column;gap:5px;">
-                            <template x-for="task in boardTasks" :key="task.id">
-                                <div @click="chooseBoardTask(task)" role="button" tabindex="0"
-                                    @keydown.enter="chooseBoardTask(task)" @keydown.space.prevent="chooseBoardTask(task)"
-                                    class="uj-ts-opt"
-                                    style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
-                                    <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="task.title"></span>
-                                    <span x-show="projectName(task.project_id)" x-cloak style="font-size:11px;color:var(--muted);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%;" x-text="projectName(task.project_id)"></span>
-                                    <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-
-                    {{-- Saved templates and recent work, pinned above the first step only:
-                         a one-tap shortcut straight past the drill-down. --}}
-                    <template x-if="picker.step === 'category' && pinnedItems().length">
-                        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:2px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Saved and recent' : 'Disimpan dan terkini'"></span>
-                        </div>
-                    </template>
-                    <template x-if="picker.step === 'category'">
-                        <div style="display:flex;flex-direction:column;gap:5px;">
-                            <template x-for="item in pinnedItems()" :key="item.key">
-                                <div @click="chooseItem(item)" role="button" :tabindex="isOnDay(item) ? -1 : 0"
-                                    @keydown.enter="chooseItem(item)" @keydown.space.prevent="chooseItem(item)"
-                                    class="uj-ts-opt" :data-disabled="isOnDay(item) ? '1' : '0'"
-                                    x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
-                                    style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
-                                    :style="isOnDay(item) ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' } : {}">
-                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: categoryColour(item.category_id) }"></span>
-                                    <span style="flex:1;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="item.label"></span>
-                                    <span x-show="isOnDay(item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
-                                        x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
-                                    <span x-show="item.isTemplate && !isOnDay(item)" x-cloak style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--success);background:var(--canvas);padding:2px 8px;border-radius:999px;flex-shrink:0;">
-                                        <span x-text="$store.ui.lang==='en' ? 'saved' : 'disimpan'"></span>
-                                    </span>
-                                    {{-- Delete a template: DELETE /app/timesheets/templates/{template}
-                                         (timesheets.templates.delete). @click.stop keeps this from
-                                         also triggering the row's chooseItem(); @keydown.enter.stop
-                                         does the same for a keyboard user tabbing to the delete
-                                         button and pressing Enter — without it, Enter both submits
-                                         the delete AND bubbles up to fire the row's chooseItem(),
-                                         adding a spurious row. The button's native Enter-to-submit
-                                         is unaffected, since .stop only stops propagation. The
-                                         confirm() guard uses $event.preventDefault() (not "return
-                                         false", which Alpine's expression evaluator cannot parse
-                                         as a statement). --}}
-                                    <template x-if="item.isTemplate">
-                                        <form method="post" :action="'/app/timesheets/templates/' + item.template_id" @click.stop @keydown.enter.stop
-                                            @submit="if (!confirm($store.ui.lang==='en' ? 'Delete this template?' : 'Padam templat ini?')) $event.preventDefault()"
-                                            style="flex-shrink:0;line-height:0;">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" :aria-label="$store.ui.lang==='en' ? 'Delete template' : 'Padam templat'"
-                                                style="height:22px;width:22px;padding:0;border:0;background:none;color:var(--error);cursor:pointer;font-size:14px;line-height:1;">&times;</button>
-                                        </form>
-                                    </template>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-
-                    {{-- The current step's options. An option that completes a line is taken
-                         straight away; one that still needs a project or a sub-pillar shows a
-                         chevron and opens the next step. --}}
-                    <template x-if="picker.step === 'category' && pinnedItems().length">
-                        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 2px 0;">
-                            <span x-text="$store.ui.lang==='en' ? 'All categories' : 'Semua kategori'"></span>
-                        </div>
-                    </template>
-                    <template x-for="opt in pickerOptions()" :key="opt.label">
-                        <div @click="chooseStep(opt)" role="button" :tabindex="opt.item && isOnDay(opt.item) ? -1 : 0"
-                            @keydown.enter="chooseStep(opt)" @keydown.space.prevent="chooseStep(opt)"
-                            class="uj-ts-opt" :data-disabled="opt.item && isOnDay(opt.item) ? '1' : '0'"
-                            x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
-                            style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);"
-                            :style="opt.item && isOnDay(opt.item) ? { background:'var(--hairline-soft)', color:'var(--muted)', cursor:'default' } : {}">
-                            <span x-show="picker.step === 'category'" x-cloak style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: categoryColour(opt.c?.id) }"></span>
-                            <span style="flex:1;font-size:12.5px;min-width:0;" x-text="opt.label"></span>
-                            <span x-show="opt.item && isOnDay(opt.item)" x-cloak style="font-size:10px;color:var(--muted);flex-shrink:0;"
-                                x-text="$store.ui.lang==='en' ? 'already on this day' : 'sudah ada pada hari ini'"></span>
-                            <span x-show="!opt.item" x-cloak style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
-                        </div>
-                    </template>
-
-                    {{-- Final step: percentage + a rich-text note, then Submit adds (or
-                         saves, when editing an existing row) the line. Everything the add
-                         flow needs now happens inside this one popup. ---- --}}
+                    {{-- What the staffer was doing, how much of the day it took, and any
+                         notes — the three things a board card cannot answer for them. ---- --}}
                     <template x-if="picker.step === 'details'">
                         <div x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
                             style="display:flex;flex-direction:column;gap:14px;">
@@ -519,6 +388,26 @@
                                  screen exists to report" (docs/DESIGN.md), not the small 13px
                                  row-editing size, so it reads as the decision this step asks for
                                  rather than a form field lost among buttons. --}}
+                            {{-- The quick "what kind of work was this" tag. Optional, one tap,
+                                 and the only classification the staffer still makes: category
+                                 and project arrive with the card. --}}
+                            <div x-show="subPillars.length" x-cloak>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
+                                    x-text="$store.ui.lang==='en' ? 'What were you doing?' : 'Anda buat apa?'"></label>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    <template x-for="sp in subPillars" :key="sp.id">
+                                        <button type="button" @click="picker.pendingSub = (String(picker.pendingSub) === String(sp.id) ? '' : sp.id)"
+                                            class="uj-ts-pill"
+                                            style="min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;cursor:pointer;"
+                                            :style="String(picker.pendingSub) === String(sp.id)
+                                                ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                                : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }"
+                                            :aria-pressed="String(picker.pendingSub) === String(sp.id) ? 'true' : 'false'"
+                                            x-text="sp.name"></button>
+                                    </template>
+                                </div>
+                            </div>
+
                             <div style="background:var(--canvas);border-radius:10px;padding:14px 16px;">
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:9px;"
                                     x-text="$store.ui.lang==='en' ? 'Percentage of the day' : 'Peratus hari'"></label>
@@ -555,9 +444,7 @@
                             </div>
 
                             <button type="button" @click="confirmEntry()" class="uj-btn-primary" style="height:42px;font-size:13px;">
-                                <span x-text="picker.editingIndex != null
-                                    ? ($store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan')
-                                    : ($store.ui.lang==='en' ? 'Add entry' : 'Tambah entri')"></span>
+                                <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'"></span>
                             </button>
                         </div>
                     </template>

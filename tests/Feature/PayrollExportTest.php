@@ -39,11 +39,13 @@ class PayrollExportTest extends TestCase
         $this->emp = Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $this->empUser->id,
             'name' => 'Worker', 'staff_id' => 'AC-0007', 'status' => 'active', 'workload' => 'green',
+            // NRIC lives on the employee record (see the reconcile migration 2026_08_25_200300).
+            'nric' => '880101-14-5500',
         ]);
         SalaryStructure::forceCreate([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp->id, 'basic_salary' => 5000,
             'bank_name' => 'Maybank', 'bank_account_no' => '514999001122',
-            'epf_no' => 'EPF12345678', 'socso_no' => 'SOC99001122', 'nric' => '880101-14-5500',
+            'epf_no' => 'EPF12345678', 'socso_no' => 'SOC99001122',
         ]);
     }
 

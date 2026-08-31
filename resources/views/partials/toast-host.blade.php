@@ -15,6 +15,8 @@
                 <svg x-show="t.type === 'info'" viewBox="0 0 20 20" fill="none"><path d="M10 9.3v5.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="10" cy="5.7" r="1.15" fill="currentColor"/></svg>
             </span>
             <span class="uj-toast-msg" x-text="t.message"></span>
+            <button type="button" class="uj-toast-action" x-show="t.action" @click="t.action.run()"
+                    x-text="t.action?.label"></button>
             <button type="button" class="uj-toast-close" @click="$store.toast.dismiss(t.id)"
                     :aria-label="$store.ui.lang === 'en' ? 'Dismiss' : 'Tutup'">
                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5.6 5.6l8.8 8.8M14.4 5.6l-8.8 8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

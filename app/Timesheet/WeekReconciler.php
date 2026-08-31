@@ -160,6 +160,7 @@ final class WeekReconciler
                 'description' => $e->description,
                 'project' => $e->project,
                 'hours' => (float) $e->hours,
+                'work_item_id' => $e->work_item_id,
             ])
             ->all();
 

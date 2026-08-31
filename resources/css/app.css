@@ -155,10 +155,36 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 @keyframes uj-toast-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
 @keyframes uj-toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
+/* A What's new headline runs to three lines and the browser adds the ellipsis —
+   cutting the sentence in PHP only ever landed mid-word on one language or the other. */
+.uj-whatsnew-line {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Centred full-screen modal backdrop (welcome, what's new).
+   The display lives here rather than inline because x-show wipes an inline
+   `display` when it reveals an element — a scrim styled inline comes back as
+   `block` and stops centring its panel. */
+.uj-modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(31, 30, 26, .55);
+    backdrop-filter: blur(2px);
+}
+
 .uj-toast-host {
     position: fixed;
     z-index: 120;
-    bottom: 20px;
+    /* --uj-dock-h is 0 above 900px, so this clears the phone dock without a media query. */
+    bottom: calc(20px + var(--uj-dock-h));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -213,6 +239,19 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     color: var(--ink);
     word-break: break-word;
 }
+.uj-toast-action {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--info);
+    background: color-mix(in srgb, var(--info) 12%, transparent);
+    cursor: pointer;
+    transition: background .12s;
+}
+.uj-toast-action:hover { background: color-mix(in srgb, var(--info) 22%, transparent); }
+
 .uj-toast-close {
     flex-shrink: 0;
     width: 22px;
@@ -273,15 +312,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
    value), so a flex row written as inline style silently collapses to block the
    moment isEditable(selected) flips true. The class survives because Alpine only
    ever touches el.style, never classList. */
-.uj-ts-add-row { display: flex; flex-direction: row; gap: 8px; margin-top: 12px; }
-/* Base look lives here, not inline, so :hover below can actually win — an inline
-   style on the element beats any class selector, hover included. */
-.uj-ts-add-btn {
-    flex: 1; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px;
-    background: none; cursor: pointer; font-size: 12.5px; color: var(--muted);
-    transition: background .15s, border-color .15s, color .15s;
-}
-.uj-ts-add-btn:hover { background: var(--red); border-color: var(--red); border-style: solid; color: #fff; }
 
 /* Focus ring for form fields (login + feedback modal). Inline styles can't express :focus. */
 .uj-fb-input:focus,
@@ -1224,9 +1254,15 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-sub { font-size: var(--t-micro); color: var(--muted); margin: 0 0 18px; min-height: 1em; }
 
 /* Property rows: label left, live control right. Every one autosaves. */
-.wd-props { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
+.wd-props { display: grid; grid-template-columns: 108px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
 .wd-plabel { font-size: var(--t-sm); color: var(--muted); }
 .wd-pval { min-width: 0; }
+/* Project and Category sit on one row: two controls, one decision. The pair carries
+   the row's usual -8px pull so its first control still lines up with every other
+   .wd-inline, and the children drop theirs so they read as a path, not two rows. */
+.wd-ppair { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-left: -8px; }
+.wd-ppair > .wd-inline { margin-left: 0; }
+.wd-psep { font-size: var(--t-sm); color: var(--muted-soft); }
 .wd-inline {
     border: 1px solid transparent; background: none; border-radius: 7px;
     font-size: var(--t-sm); font-weight: 500; color: var(--ink); cursor: pointer;
@@ -1242,6 +1278,11 @@ select.wd-inline {
 }
 .wd-inline:hover { background: var(--hairline-soft); }
 .wd-inline:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); outline: none; }
+/* The due-date field's real <input type="date"> sits on top of this button so a tap
+   opens the native picker directly (see work-drawer.blade.php) — the input, not the
+   button, receives focus. Forward its focus ring onto the button so tapping the due
+   field still shows the same press feedback as every other .wd-inline control. */
+.wd-pval:has(input:focus) > .wd-inline { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .wd-inline--empty { color: var(--muted-soft); font-weight: 400; }
 /* A read-only card still shows its values at full strength, because it is the card's
    truth, not disabled chrome. Only the affordance goes away. */
@@ -4150,6 +4191,12 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
     transform: none;
     max-height: 220px;
 }
+/* A row proposed from the board, not yet costed by the staffer. Dashed, dimmed: it is
+   an offer, not a claim, and must not read as something already filled in. */
+.uj-ts-row--suggested {
+    border-style: dashed;
+    opacity: .72;
+}
 @media (prefers-reduced-motion: reduce) {
     .uj-ts-tools { transition-duration: .01ms; }
 }
@@ -4163,9 +4210,6 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    binding — an inline style (even a reactive :style-bound one) always outranks a stylesheet
    :hover rule, so setting background:#fff inline made this hover rule a no-op until that
    binding was narrowed to the disabled case only (see timesheets.blade.php). */
-.uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
-.uj-ts-opt:not([data-disabled="1"]):hover { background: var(--canvas); border-color: var(--muted-soft); }
-.uj-ts-opt:not([data-disabled="1"]):active { transform: scale(0.98); }
 
 .uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-pill:hover { border-color: var(--muted-soft); }
@@ -4179,8 +4223,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ts-step-enter-start { opacity: 0; transform: translateY(4px); }
 .uj-ts-step-enter-end { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-    .uj-ts-opt, .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
-    .uj-ts-opt:active, .uj-ts-pill:active { transform: none; }
+    .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
+    .uj-ts-pill:active { transform: none; }
     .uj-ts-step-enter { transition: opacity .15s ease; }
     .uj-ts-step-enter-start, .uj-ts-step-enter-end { transform: none; }
 }

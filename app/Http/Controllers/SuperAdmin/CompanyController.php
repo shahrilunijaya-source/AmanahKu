@@ -10,7 +10,9 @@ use App\Models\Branch;
 use App\Models\CompanyCategory;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\PayrollItem;
 use App\Models\Tenant;
+use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Notifications\MemberInvited;
 use App\Services\FeatureManager;
@@ -151,6 +153,17 @@ class CompanyController extends Controller
             // Seed the feature entitlement from the chosen category package. From here
             // the resolved entitlement — not the category — is the source of truth.
             app(FeatureManager::class)->applyCategoryPackage($tenant, $category->level);
+
+            // Every tenant needs the statutory pay-item catalogue for payroll to work —
+            // no deploy step is guaranteed to run PayrollItemSeeder for a company created
+            // after that deploy, so seed it here instead.
+            PayrollItem::seedFor($tenant);
+
+            // Same reasoning for the timesheet's effort types: the capture screen has no
+            // category picker any more (its rows arrive from board cards), so a company
+            // with no categories could not cost a single hour until someone added them by
+            // hand on Timesheet Setup.
+            TimesheetCategory::seedFor($tenant);
 
             $branch = Branch::create([
                 'tenant_id' => $tenant->id,

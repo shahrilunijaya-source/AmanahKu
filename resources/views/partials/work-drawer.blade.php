@@ -12,7 +12,6 @@
     @param bool $interactive   true = personal board (full edit surface),
                                 false = team board (view + comment only).
     @param array $priLabel     value => label, e.g. ['high' => 'High', ...]
-    @param \Illuminate\Support\Collection $projects  Only used when $interactive.
 
     Note: the label palette itself (WorkItem::LABELS) is NOT a Blade param here —
     it's read from Alpine's `labels` data property, already bound on the host
@@ -122,27 +121,63 @@
                             @if ($interactive)
                                 {{-- Dates render as "30 Jul 2026" everywhere, matching the card face — a bare
                                      date input shows locale format (07/30/2026 here). The visible control is a
-                                     formatted button; the real <input type="date"> underneath collects the value. --}}
+                                     formatted button; the real <input type="date"> sits on top of it full-size and
+                                     transparent, so the tap itself lands on the native control — iOS only raises its
+                                     date wheel from a direct tap, a synthetic .click()/.focus() on a hidden 1px
+                                     input (the old approach) is silently ignored on iOS Safari without showPicker(). --}}
                                 <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
                                 <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked"
-                                       @change="commitField('due_at', $event.target.value || null)" tabindex="-1" aria-hidden="true"
-                                       style="position:absolute;inset:0;opacity:0;width:1px;height:1px;pointer-events:none;" />
+                                       @change="commitField('due_at', $event.target.value || null)"
+                                       style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir')"></span>
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
-                        <span class="wd-pval">
+                        {{-- Category and Project are one decision with two halves, and the old
+                             capture screen asked for both on every line — what kind of work, and
+                             which job it is on. Kept on a single row, category first, in the order
+                             the timesheet used to ask.
+
+                             Category is always asked, because the board is the only way work
+                             reaches a timesheet and a card with no category produces no row at
+                             all. Project is asked only when the chosen category needs one:
+                             Development and Maintenance are done on a job, HR and Admin, Charity
+                             and Others are not. An empty project list is the server saying the
+                             question does not arise — see WorkItem::projectOptions(). --}}
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-pval wd-ppair">
                             @if ($interactive)
+                                <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
+                                        :aria-label="$store.ui.lang==='en' ? 'Category' : 'Kategori'"
+                                        @change="commitField('timesheet_category_id', drawer.card.timesheet_category_id === '' ? null : drawer.card.timesheet_category_id)">
+                                    <option value="" x-text="$store.ui.lang==='en' ? 'No category' : 'Tiada kategori'"></option>
+                                    <template x-for="c in (drawer.card.timesheet_category_options || [])" :key="c.id">
+                                        <option :value="c.id" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                {{-- x-show, not x-if wrapped in a span: .wd-ppair styles its
+                                     direct children (see .wd-ppair > .wd-inline in app.css), so a
+                                     wrapper element would double the negative margin. Neither of
+                                     these carries an inline `display`, so x-show has nothing to
+                                     wipe on reveal. --}}
+                                <span class="wd-psep" aria-hidden="true" x-show="categoryNeedsProject()" x-cloak>·</span>
                                 <select class="wd-inline" x-model="drawer.card.project_id" :disabled="drawer.locked"
+                                        x-show="categoryNeedsProject()" x-cloak
+                                        :aria-label="$store.ui.lang==='en' ? 'Project' : 'Projek'"
                                         @change="commitField('project_id', drawer.card.project_id === '' ? null : drawer.card.project_id)">
                                     <option value="" x-text="$store.ui.lang==='en' ? 'No project' : 'Tiada projek'"></option>
-                                    @foreach ($projects ?? [] as $p)<option value="{{ $p->id }}">{{ $p->name }}</option>@endforeach
+                                    <template x-for="p in (drawer.card.project_options || [])" :key="p.id">
+                                        <option :value="p.id" x-text="p.name"></option>
+                                    </template>
                                 </select>
                             @else
-                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.project ? drawer.card.project.name : ($store.ui.lang==='en' ? 'No project' : 'Tiada projek')"></span>
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.timesheet_category_name || ($store.ui.lang==='en' ? 'No category' : 'Tiada kategori')"></span>
+                                <span class="wd-psep" aria-hidden="true" x-show="drawer.card.project" x-cloak>·</span>
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;"
+                                      x-show="drawer.card.project" x-cloak
+                                      x-text="drawer.card.project ? drawer.card.project.name : ''"></span>
                             @endif
                         </span>
 

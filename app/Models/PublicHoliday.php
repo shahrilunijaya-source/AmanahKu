@@ -4,7 +4,11 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $date
+ */
 class PublicHoliday extends Model
 {
     use BelongsToTenant;

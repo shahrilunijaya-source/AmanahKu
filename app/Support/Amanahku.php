@@ -508,28 +508,19 @@ class Amanahku
     }
 
     /**
-     * Render user-entered text safe for the page with bare URLs turned into
-     * clickable links. HTML is escaped FIRST (XSS-safe), then http(s) URLs are
-     * wrapped in anchors and newlines become <br>. Output is meant for {!! !!}.
+     * Render user-entered text safe for the page, with GitHub-flavored markdown
+     * (bold/italic/headings/lists/links) and bare URLs turned into clickable
+     * links. Raw HTML in the input is escaped, not executed, and links can't
+     * carry unsafe schemes like javascript: — same config as ticket/timesheet
+     * descriptions (see .uj-markdown usages). Output is meant for {!! !!}.
      */
     public static function linkify(string $text): string
     {
-        $escaped = e($text);
-
-        $linked = preg_replace_callback(
-            '~\bhttps?://[^\s<]+~i',
-            function (array $m): string {
-                // Don't swallow trailing sentence punctuation into the href.
-                $url = rtrim($m[0], '.,;:!?)]}\'"');
-                $tail = substr($m[0], strlen($url));
-
-                return '<a href="'.$url.'" target="_blank" rel="noopener noreferrer nofollow" '
-                    .'style="color:var(--info);text-decoration:underline;word-break:break-all;">'.$url.'</a>'.$tail;
-            },
-            $escaped
-        );
-
-        return nl2br($linked, false);
+        return Str::markdown($text, [
+            'html_input' => 'escape',
+            'allow_unsafe_links' => false,
+            'renderer' => ['soft_break' => "<br>\n"],
+        ]);
     }
 
     /**

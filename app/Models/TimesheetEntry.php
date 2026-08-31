@@ -58,4 +58,11 @@ class TimesheetEntry extends Model
     {
         return $this->belongsTo(SubPillar::class, 'sub_pillar_id');
     }
+
+    /** The board card this row was logged against, if it came from one. */
+    /** @return BelongsTo<WorkItem, $this> */
+    public function workItem(): BelongsTo
+    {
+        return $this->belongsTo(WorkItem::class);
+    }
 }

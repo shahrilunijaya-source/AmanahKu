@@ -85,17 +85,18 @@
             <div x-show="edit" x-cloak @click.self="edit = false"
                  style="position:fixed;inset:0;z-index:120;display:flex;padding:40px 16px;background:rgba(18,18,30,.42);overflow-y:auto;"
                  @keydown.escape.window="edit = false">
-                <form method="post" action="{{ route('employees.update', $p) }}" class="uj-card"
+                <div class="uj-card" style="width:100%;max-width:560px;margin:auto;padding:0;overflow:hidden;max-height:calc(100vh - 80px);display:flex;flex-direction:column;">
+                <form method="post" action="{{ route('employees.update', $p) }}"
                       x-data="{ pid: '{{ old('position_id', $p->position_id) }}', max: @js($allPositions->mapWithKeys(fn ($pos) => [$pos->id => (float) $pos->max_salary])) }"
-                      style="width:100%;max-width:560px;margin:auto;padding:0;overflow:hidden;">
+                      style="display:contents;">
                     @csrf
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--hairline);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                         <span style="font-size:13px;font-weight:600;color:var(--ink);">
                             <span x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</span> {{ $p->name }}
                         </span>
                         <button type="button" @click="edit = false" style="font-size:20px;line-height:1;color:var(--muted);background:transparent;cursor:pointer;">×</button>
                     </div>
-                    <div style="padding:20px;max-height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+                    <div style="padding:20px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;">
                         @if ($errors->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;">{{ $errors->first() }}</div>@endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Full name' : 'Nama penuh'">Full name</span></label><input name="name" type="text" value="{{ old('name', $p->name) }}" required maxlength="120" style="{{ $fs }}" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Nickname' : 'Nama panggilan'">Nickname</span></label><input name="nickname" type="text" value="{{ old('nickname', $p->nickname) }}" maxlength="60" style="{{ $fs }}" />@include('partials.hint', ['en' => 'The short name colleagues use, such as "Hakime". Used instead of the full name in every list and picker.', 'ms' => 'Nama pendek yang digunakan rakan sekerja, contohnya "Hakime". Digunakan sebagai ganti nama penuh dalam setiap senarai dan pemilih.'])</div>
@@ -116,7 +117,7 @@
                 </form>
 
                 {{-- Login/password/archive actions — separate forms so they never nest inside the edit form above. --}}
-                <div style="padding:0 20px 20px;">
+                <div style="padding:16px 20px 20px;border-top:1px solid var(--hairline);flex-shrink:0;">
                     @if ($p->email && ! $p->user_id)
                         <form method="post" action="{{ route('members.create-login', $p) }}" style="margin-top:8px;">
                             @csrf
@@ -150,6 +151,7 @@
                         <button type="submit" class="uj-btn-ghost" style="height:38px;font-size:12.5px;width:100%;color:var(--red);border-color:var(--red);"><span x-text="$store.ui.lang==='en' ? 'Archive staff' : 'Arkib staf'">Archive staff</span></button>
                     </form>
                 </div>
+                </div>
             </div>
             </template>
         @endif
@@ -169,8 +171,7 @@
             $wTag    = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
             $wStatus = ['todo' => ['To Do', 'var(--muted)'], 'prog' => ['In Progress', 'var(--info)'], 'review' => ['In Review', 'var(--amber)'], 'done' => ['Done', 'var(--success)']];
             $wPri    = ['high' => 'var(--error)', 'medium' => 'var(--amber)', 'low' => 'var(--muted)'];
-            $wOrder  = ['todo' => 0, 'prog' => 1, 'review' => 2, 'done' => 3];
-            $wItems  = $p->workItems->sortBy(fn ($w) => $wOrder[$w->status] ?? 9)->values();
+            $wItems  = $p->workItems->where('status', 'prog')->values();
             $aIcon   = ['laptop' => '💻', 'phone' => '📱', 'vehicle' => '🚗', 'furniture' => '🪑', 'other' => '📦'];
             $aSc     = ['assigned' => 'var(--info)', 'available' => 'var(--success)', 'maintenance' => 'var(--amber)', 'retired' => 'var(--muted)'];
             $tSc     = ['completed' => 'var(--success)', 'in_progress' => 'var(--info)', 'not_started' => 'var(--muted)'];
@@ -271,6 +272,34 @@
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
+                @if ($isOwn)
+                <div style="padding:0 20px 12px;">
+                    <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Google Calendar' : 'Kalendar Google'">Google Calendar</span>
+                    @if ($errors->has('google_calendar'))
+                        <div style="width:100%;font-size:12px;color:var(--red);margin-top:8px;">{{ $errors->first('google_calendar') }}</div>
+                    @endif
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+                    @if ($googleCalendarConnected ?? false)
+                        <form method="post" action="{{ route('google-calendar.disconnect') }}">
+                            @csrf
+                            <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
+                                <span x-text="$store.ui.lang==='en' ? 'Disconnect' : 'Putuskan'">Disconnect</span>
+                            </button>
+                        </form>
+                    @else
+                        <a href="{{ route('google-calendar.redirect') }}" style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px 0 8px;font-size:12px;font-weight:500;color:#3c4043;text-decoration:none;background:#fff;border:1px solid #dadce0;border-radius:6px;">
+                            <svg width="16" height="16" viewBox="0 0 18 18" style="flex-shrink:0;">
+                                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+                                <path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/>
+                                <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
+                            </svg>
+                            <span x-text="$store.ui.lang==='en' ? 'Connect' : 'Sambung'">Connect</span>
+                        </a>
+                    @endif
+                </div>
+                </div>
+                @endif
                 @forelse ($wItems as $w)
                     @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted)']; @endphp
                     <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
@@ -282,10 +311,10 @@
                         <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $scol }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $scol }};"></span>{{ $sl }}</span>
                     </div>
                 @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No work items assigned.' : 'Tiada item kerja ditugaskan.'">No work items assigned.</div>
+                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No work items in progress.' : 'Tiada item kerja sedang berjalan.'">No work items in progress.</div>
                 @endforelse
 
-                @if (($canAssign ?? false) && ! $p->isArchived())
+                @if (($canAssign ?? false) && ! $isOwn && ! $p->isArchived())
                 <div style="padding:18px 20px 4px;" x-data="{ assign: {{ $errors->getBag('assign')->any() ? 'true' : 'false' }} }">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-top:1px solid var(--hairline-soft);padding-top:16px;">
                         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">
@@ -372,7 +401,9 @@
                 <div>
                     <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave balances' : 'Baki cuti'">Leave balances</span></div>
                     <div style="display:flex;flex-wrap:wrap;gap:10px;">
-                        @forelse ($p->leaveBalances as $b)
+                        {{-- A granted type (Replacement) keeps no running total, so it has no
+                             card here even where an old balance row survives. --}}
+                        @forelse ($p->leaveBalances->reject(fn ($b) => $b->leaveType?->is_hr_granted_only) as $b)
                             <div style="min-width:130px;flex:1;border:1px solid var(--hairline-soft);border-radius:8px;padding:10px 12px;">
                                 <div style="font-size:11.5px;color:var(--muted);">{{ $b->leaveType?->name ?? '—' }}</div>
                                 <div style="font-size:16px;color:var(--ink);font-weight:600;font-family:var(--font-mono);">{{ rtrim(rtrim(number_format((float) $b->balance, 1), '0'), '.') }} <span style="font-size:11px;color:var(--muted);font-weight:400;">/ {{ rtrim(rtrim(number_format((float) ($b->leaveType?->entitlement ?? 0), 1), '0'), '.') }}</span></div>

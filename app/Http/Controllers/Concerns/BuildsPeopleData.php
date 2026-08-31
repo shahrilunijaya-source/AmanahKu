@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\EmployeeSkill;
 use App\Models\EmploymentType;
 use App\Models\Goal;
+use App\Models\GoogleCalendarConnection;
 use App\Models\HandbookSection;
 use App\Models\LeaveRequest;
 use App\Models\LoanRequest;
@@ -237,6 +238,9 @@ trait BuildsPeopleData
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
             'canSeeMoney' => $canSeeMoney,
             'assignedTasks' => $assignedTasks,
+            'googleCalendarConnected' => ($own && $e && $own->id === $e->id)
+                ? GoogleCalendarConnection::where('user_id', $own->user_id)->exists()
+                : false,
             'canSeeAttendance' => $leaveGate,
             'attendance' => $attendance,
             'leaveGate' => $leaveGate,

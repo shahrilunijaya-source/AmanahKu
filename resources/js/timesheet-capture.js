@@ -65,11 +65,14 @@ export function registerTimesheetCapture(Alpine) {
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
         locked: cfg.locked || {},
-        items: cfg.items || [],
         categories: cfg.categories || [],
         projects: cfg.projects || [],
-        templates: cfg.templates || [],
-        boardTasks: cfg.boardTasks || [],
+        // What the staffer was doing on a line (Technical, Meeting, ...) — the one thing
+        // a board card cannot say for them, asked in the row's own edit overlay.
+        subPillars: cfg.subPillars || [],
+        // Board cards struck off a day, keyed by ISO date. Seeded from what the last save
+        // stored, so a removed row stays removed across a reload.
+        dismissed: {},
         readonly: cfg.readonly || false,
         editEntryId: cfg.editEntryId || null,
         rows: {},
@@ -111,8 +114,35 @@ export function registerTimesheetCapture(Alpine) {
                     sub_pillar_id: e.sub_pillar_id || '',
                     description: e.description || '',
                     percentage: e.percentage,
+                    work_item_id: e.work_item_id || null,
                 }));
             }
+
+            // Rows proposed from the board's In Progress cards. Appended after the saved
+            // rows so what the staffer actually typed always comes first, and skipped on
+            // fully locked days for the same reason the seed above skips them. The
+            // `suggested` flag is client-only: it marks a row as not-yet-real, and is
+            // cleared the moment the staffer gives it a percentage.
+            const suggested = cfg.suggested || {};
+            for (const iso of Object.keys(suggested)) {
+                if (this.isFullyLocked(iso) || !this.isEditable(iso)) continue;
+                this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
+                    id: null,
+                    work_item_id: s.work_item_id,
+                    category_id: s.category_id || '',
+                    project_id: s.project_id || '',
+                    sub_pillar_id: s.sub_pillar_id || '',
+                    description: s.description || '',
+                    percentage: '',
+                    suggested: true,
+                })));
+            }
+
+            const dismissed = cfg.dismissed || {};
+            for (const iso of Object.keys(dismissed)) {
+                this.dismissed[iso] = dismissed[iso].map((d) => ({ ...d }));
+            }
+
             // Land on today when it falls in the visible week, so the screen opens focused
             // on the day the user is most likely filling. Fall back to the first day still
             // needing work when today is out of range (viewing a past/future week, or today
@@ -253,20 +283,53 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- rows ----------------------------------------------------------
-        addRow(item, percentage, description) {
+        // Rows are not added by hand any more: they arrive from the board's In Progress
+        // and In Review cards. Removing one is therefore a decision that has to stick —
+        // the prefill rebuilds itself from the card's stints on every load, so a plain
+        // splice would bring the row straight back. The card is remembered as dismissed
+        // (sent with the next save) and offered back under the day.
+        removeRow(i) {
             const iso = this.selected;
-            if (!this.isEditable(iso)) return;
-            if (!this.rows[iso]) this.rows[iso] = [];
-            this.rows[iso].push({
-                category_id: item.category_id,
-                project_id: item.project_id || '',
-                sub_pillar_id: item.sub_pillar_id || '',
-                description: description || '',
-                percentage: percentage != null ? percentage : this.remainder(iso),
+            const [row] = this.rows[iso].splice(i, 1);
+
+            if (!row || !row.work_item_id) return;
+
+            if (!this.dismissed[iso]) this.dismissed[iso] = [];
+            if (this.dismissed[iso].some((d) => String(d.work_item_id) === String(row.work_item_id))) return;
+
+            this.dismissed[iso].push({
+                work_item_id: row.work_item_id,
+                title: this.rowLabel(row),
+                category_id: row.category_id || '',
+                project_id: row.project_id || '',
+                description: row.description || '',
             });
         },
-        removeRow(i) {
-            this.rows[this.selected].splice(i, 1);
+        // Put a struck-off card back on its day, exactly as the prefill would have offered
+        // it: uncosted, so it still has to be given a percentage before the week can go.
+        restoreRow(iso, workItemId) {
+            const list = this.dismissed[iso] || [];
+            const at = list.findIndex((d) => String(d.work_item_id) === String(workItemId));
+            if (at === -1) return;
+
+            const [card] = list.splice(at, 1);
+            if (!list.length) delete this.dismissed[iso];
+            if (!this.rows[iso]) this.rows[iso] = [];
+
+            this.rows[iso].push({
+                id: null,
+                work_item_id: card.work_item_id,
+                category_id: card.category_id || '',
+                project_id: card.project_id || '',
+                sub_pillar_id: '',
+                description: card.description || '',
+                percentage: '',
+                suggested: true,
+            });
+            this.save();
+        },
+        dismissedFor(iso) {
+            return this.dismissed[iso] || [];
         },
         remainder(iso) {
             return Math.max(0, Math.round((100 - this.dayTotal(iso)) * 100) / 100);
@@ -283,14 +346,27 @@ export function registerTimesheetCapture(Alpine) {
             }
             const n = parseFloat(raw);
             row.percentage = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+            // A suggestion the staffer has costed is an ordinary row.
+            if (row.percentage !== '') row.suggested = false;
         },
         // A line the staffer added but has not costed yet. It is kept and flagged rather than
         // dropped: the day cannot be submitted while one exists, but it survives a reload.
         isBlank(row) {
             return !(parseFloat(row.percentage) > 0);
         },
+        // A card that reached the grid with no category behind it: its own choice is unset,
+        // its project is ambiguous or absent, and the overhead bucket the fallback wants is
+        // missing. The row cannot be costed and the server would refuse the whole week's
+        // save over it, so it is held back and named instead — the fix is on the card.
+        needsCategory(row) {
+            return !row.category_id;
+        },
+        // Gates dayState() and the submit blockers. An uncosted suggestion is excluded here
+        // (but stays `isBlank()` for its own row styling) — it is never sent (flatRows()),
+        // so it must never be able to stop the week from being sent either. A row the
+        // staffer actually typed is never `suggested: true`, so this changes nothing for it.
         hasBlankRows(iso) {
-            return (this.rows[iso] || []).some((r) => this.isBlank(r));
+            return (this.rows[iso] || []).some((r) => (!r.suggested && this.isBlank(r)) || this.needsCategory(r));
         },
         // Give this line whatever is unallocated. Shown only while something is left, so it
         // can never subtract — the old day-level "give the rest to the last line" set the
@@ -299,14 +375,8 @@ export function registerTimesheetCapture(Alpine) {
             const rest = this.remainder(this.selected);
             if (rest <= 0) return;
             row.percentage = Math.round(((parseFloat(row.percentage) || 0) + rest) * 100) / 100;
+            row.suggested = false;
             this.save();
-        },
-        // True when this day already carries the exact Category · Project · Sub-pillar the
-        // picker item would add, so the picker can grey it out instead of making a twin line.
-        isOnDay(item) {
-            return (this.rows[this.selected] || []).some((r) => String(r.category_id) === String(item.category_id)
-                && String(r.project_id || '') === String(item.project_id || '')
-                && String(r.sub_pillar_id || '') === String(item.sub_pillar_id || ''));
         },
         // Four repeating line colours, shared by a row's dot and its slice of the day bar so
         // the bar can be read back to the lines without a legend. Days rarely hold more than
@@ -330,106 +400,34 @@ export function registerTimesheetCapture(Alpine) {
             return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
 
-        // ---- picker: one question at a time --------------------------------------------
-        // Category, then project, then sub-pillar — each step a short list of full-width
-        // rows, with a back arrow and a breadcrumb of what is already chosen. A flat list of
-        // every combination was tried and rejected: ~31 lines is too much to read when the
-        // staffer already knows which category they want. Steps the data does not need are
-        // skipped, so a standalone category is still one tap and a project with no
-        // sub-pillars is still two.
+        // ---- the row overlay ------------------------------------------------------
+        // One popup, one job: the row already knows its category and project (they come
+        // from the board card), so this asks the three things the card cannot answer —
+        // what the staffer was doing, how much of the day it took, and any notes.
         picker: {
-            open: false, step: 'category', category: null, project: null,
-            pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-            viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
+            open: false, step: 'category', pendingItem: null, pendingPct: null,
+            pendingDesc: '', pendingSub: '', editingIndex: null,
         },
 
-        openPicker() {
-            this.picker = {
-                open: true, step: 'category', category: null, project: null,
-                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
-            };
-        },
-        // "Pull from board": same popup, but starts on a list of the employee's own In
-        // Progress cards instead of the category step. Category is still asked (a card
-        // carries no category), so this only pre-fills what the card already knows.
-        openBoardPicker() {
-            this.picker = {
-                open: true, step: 'board', category: null, project: null,
-                pendingItem: null, pendingPct: null, pendingDesc: '', detailsFrom: null, editingIndex: null,
-                viaBoard: false, boardProject: null, boardDesc: '', boardTaskTitle: '',
-            };
-        },
-        projectName(id) {
-            const p = this.projects.find((p) => String(p.id) === String(id));
-            return p ? p.name : '';
-        },
-        chooseBoardTask(task) {
-            this.picker.viaBoard = true;
-            this.picker.boardProject = task.project_id ? (this.projects.find((p) => String(p.id) === String(task.project_id)) || null) : null;
-            this.picker.boardDesc = escapeForNotes(task.description || task.title || '');
-            this.picker.boardTaskTitle = task.title;
-            this.picker.step = 'category';
-            this.focusPickerTitle();
-        },
-        // A category picked with a board-pulled project already in hand: skip the project
-        // step it would otherwise ask for, same terminal rule pickerProjects() uses (a
-        // project with no sub-pillars is terminal, one with sub-pillars asks that step).
-        advanceFromProject() {
-            const c = this.picker.category;
-            const p = this.picker.project;
-            if ((p.sub_pillars || []).length) {
-                this.picker.step = 'sub';
-            } else {
-                this.chooseItem(this.pickerItem(c, p, null));
-            }
-        },
-        // Reopens the picker straight on the details step, pre-filled from an existing row,
-        // so editing a rich-text note goes through the same Quill instance that wrote it
-        // rather than a plain input that would show its raw HTML tags. Re-picking the
-        // category/project/sub-pillar is out of scope here — Back just cancels (see
-        // pickerBack()) rather than dropping the staffer into a re-pick of an item identity.
+        // Opens the row's overlay, pre-filled from the row itself, so a rich-text note is
+        // edited through the same Quill instance that wrote it rather than a plain input
+        // showing its raw HTML tags. Category and project are shown, not asked: they come
+        // from the board card, and the card is where they get corrected.
         openEditRow(i) {
             const r = this.rows[this.selected][i];
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
-            const sub = proj && (proj.sub_pillars || []).find((s) => String(s.id) === String(r.sub_pillar_id));
             this.picker = {
-                open: true, step: 'details', category: null, project: null,
-                pendingItem: this.pickerItem(cat, proj, sub),
+                open: true, step: 'details',
+                pendingItem: cat ? this.pickerItem(cat, proj, null) : { label: this.rowLabel(r), category_id: r.category_id, project_id: r.project_id || '' },
                 pendingPct: r.percentage, pendingDesc: r.description || '',
-                detailsFrom: null, editingIndex: i,
+                pendingSub: r.sub_pillar_id || '', editingIndex: i,
             };
             this.focusPickerTitle();
         },
-        // One step back, or shut the picker when there is nowhere further back to go.
+        // The overlay is one step deep now, so Back is simply Cancel.
         pickerBack() {
-            if (this.picker.step === 'details') {
-                // Editing an existing row has no drill-down to return to — Back cancels.
-                if (this.picker.editingIndex != null) {
-                    this.closePicker();
-
-                    return;
-                }
-                this.picker.step = this.picker.detailsFrom || 'category';
-                this.picker.pendingItem = null;
-            } else if (this.picker.step === 'sub') {
-                this.picker.step = 'project';
-                this.picker.project = null;
-            } else if (this.picker.step === 'project') {
-                this.picker.step = 'category';
-                this.picker.category = null;
-            } else if (this.picker.step === 'category' && this.picker.viaBoard) {
-                // A board pull's first step is the card list, not category — back goes
-                // there instead of closing, so re-picking a card doesn't reopen the popup.
-                this.picker.step = 'board';
-                this.picker.category = null;
-            } else {
-                this.closePicker();
-
-                return;
-            }
-            this.focusPickerTitle();
+            this.closePicker();
         },
         // Shared by every way the popup can shut (pick, back-out, Escape, backdrop click) so
         // keyboard/screen-reader focus always lands back on the button that opened it, instead
@@ -442,18 +440,12 @@ export function registerTimesheetCapture(Alpine) {
             // would make that a same-value no-op, so the next edit's Quill instance keeps
             // showing the previous row's notes instead of the new row's.
             this.picker.step = 'category';
-            this.$nextTick(() => this.$refs.addEntryBtn?.focus());
-        },
-        // What the staffer has chosen so far, for the panel's breadcrumb.
-        pickerTrail() {
-            return [this.picker.category && this.categoryName(this.picker.category), this.picker.project && this.picker.project.name]
-                .filter(Boolean).join(' · ');
         },
         categoryName(c) {
             return this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
         },
-        // The line a set of choices adds up to — the same shape isOnDay() and chooseItem()
-        // already take, so a step's options can be greyed the moment they are terminal.
+        // How a row names itself in the overlay's header: its category, and its project
+        // when it has one.
         pickerItem(category, project, sub) {
             return {
                 key: `c${category.id}-${project ? project.id : ''}-${sub ? sub.id : ''}`,
@@ -463,113 +455,11 @@ export function registerTimesheetCapture(Alpine) {
                 sub_pillar_id: sub ? sub.id : '',
             };
         },
-        // Step 1. A category that needs no project is terminal here, so it can already be
-        // greyed as "already on this day"; one that needs a project only opens step 2.
-        pickerCategories() {
-            return this.categories.map((c) => ({
-                c,
-                label: this.categoryName(c),
-                item: c.requires_project ? null : this.pickerItem(c, null, null),
-            }));
-        },
-        // Step 2. Every project under the chosen category, terminal only when the project
-        // carries no sub-pillar. A project with no categories of its own is uncategorized
-        // and shows under every category, so projects never disappear until someone opts
-        // them into a category on the Timesheet Setup screen.
-        pickerProjects() {
-            const c = this.picker.category;
-
-            return this.projects
-                .filter((p) => !(p.category_ids || []).length || p.category_ids.includes(c.id))
-                .map((p) => ({
-                    p,
-                    label: p.name,
-                    item: (p.sub_pillars || []).length ? null : this.pickerItem(c, p, null),
-                }));
-        },
-        // Step 3. The whole project first, then each sub-pillar. All terminal.
-        pickerSubs() {
-            const c = this.picker.category;
-            const p = this.picker.project;
-            const whole = this.$store.ui.lang === 'en' ? 'The whole project' : 'Keseluruhan projek';
-
-            return [
-                { label: whole, item: this.pickerItem(c, p, null) },
-                ...(p.sub_pillars || []).map((s) => ({ label: s.name, item: this.pickerItem(c, p, s) })),
-            ];
-        },
-        // The rows the current step offers. Explicitly empty outside the three drill-down
-        // steps — the details step reads picker.project itself and would throw on a
-        // terminal category (no project chosen at all) if this fell through to pickerSubs().
-        pickerOptions() {
-            if (this.picker.step === 'category') return this.pickerCategories();
-            if (this.picker.step === 'project') return this.pickerProjects();
-            if (this.picker.step === 'sub') return this.pickerSubs();
-
-            return [];
-        },
-        // A row in any step: take the line if the choice is terminal, else go one step in.
-        // Alpine's x-if destroys the option row that had focus every time the step advances;
-        // without moving focus onward, a keyboard/screen-reader user's position silently
-        // drops to <body>. focusPickerTitle() re-anchors it on the new step's own heading.
-        chooseStep(option) {
-            if (option.item) {
-                this.chooseItem(option.item);
-            } else if (this.picker.step === 'category') {
-                this.picker.category = option.c;
-                if (this.picker.boardProject && option.c.requires_project) {
-                    this.picker.project = this.picker.boardProject;
-                    this.advanceFromProject();
-                } else {
-                    this.picker.step = 'project';
-                }
-            } else {
-                this.picker.project = option.p;
-                this.picker.step = 'sub';
-            }
-            this.focusPickerTitle();
-        },
         // Moves focus to the picker dialog's own step heading (tabindex="-1", script-focus
         // only) — called after any step change so focus tracks the step instead of dropping
         // to <body> when the previously-focused element is removed from the DOM.
         focusPickerTitle() {
             this.$nextTick(() => document.getElementById('ts-picker-title')?.focus());
-        },
-        // Saved templates (named, deletable) then recent combinations, pinned above the
-        // first step as a one-tap shortcut past the whole drill-down.
-        pinnedItems() {
-            const templates = (this.templates || []).map((t) => ({
-                key: 'tpl-' + t.id,
-                template_id: t.id,
-                category_id: t.category_id,
-                project_id: t.project_id || '',
-                sub_pillar_id: t.sub_pillar_id || '',
-                percentage: t.percentage,
-                label: t.name,
-                isTemplate: true,
-            }));
-
-            return [...templates, ...(this.items || [])];
-        },
-        // Picking an item no longer adds the row straight away — it moves the picker to the
-        // details step (percentage + note), so the whole add flow lives in the one popup
-        // instead of leaving the staffer to fill percentage/description inline afterwards.
-        chooseItem(item) {
-            if (this.isOnDay(item)) return;
-            // A template carries its own default percentage. Everything else takes whatever
-            // is unallocated — including 0, which shows as a blank line asking to be filled
-            // rather than silently claiming a whole day that is already full.
-            const pct = item.isTemplate && item.percentage != null
-                ? item.percentage
-                : this.remainder(this.selected);
-            this.picker.detailsFrom = this.picker.step;
-            this.picker.pendingItem = item;
-            this.picker.pendingPct = pct;
-            // A board-pulled card's description (or its title, if it has none) rides along
-            // into the notes field — empty for every other path into this step.
-            this.picker.pendingDesc = this.picker.boardDesc || '';
-            this.picker.step = 'details';
-            this.focusPickerTitle();
         },
         // Percentage field on the details step is the same free-typed value as a row's own
         // (clampPct works on a row object; this is the same clamp against picker.pendingPct).
@@ -583,18 +473,15 @@ export function registerTimesheetCapture(Alpine) {
             const n = parseFloat(raw);
             this.picker.pendingPct = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
         },
-        // Details step Submit: either commits a new row (add flow) or writes back into the
-        // row being edited in place (openEditRow()), so one popup and one Quill instance
-        // serve both add and edit.
+        // Overlay Submit: writes what the staffer was doing, how much of the day it took
+        // and any notes back into the row it was opened from.
         confirmEntry() {
-            if (!this.picker.pendingItem) return;
-            if (this.picker.editingIndex != null) {
-                const r = this.rows[this.selected][this.picker.editingIndex];
-                r.percentage = this.picker.pendingPct;
-                r.description = this.picker.pendingDesc;
-            } else {
-                this.addRow(this.picker.pendingItem, this.picker.pendingPct, this.picker.pendingDesc);
-            }
+            if (this.picker.editingIndex == null) return;
+            const r = this.rows[this.selected][this.picker.editingIndex];
+            r.percentage = this.picker.pendingPct;
+            r.description = this.picker.pendingDesc;
+            r.sub_pillar_id = this.picker.pendingSub || '';
+            if (r.percentage !== '') r.suggested = false;
             this.closePicker();
             this.save();
         },
@@ -659,27 +546,6 @@ export function registerTimesheetCapture(Alpine) {
             // it here, last, is what actually wins: a keyboard/screen-reader user's focus
             // should land on the new step, not get yanked into an editor they didn't ask for.
             this.focusPickerTitle();
-        },
-
-        // ---- templates: save-as-template and delete, through the existing routes -------
-        // (routes/web.php: timesheets.templates.store / .delete). Both redirect rather than
-        // return JSON, so the Blade posts real <form>s instead of using save()'s fetch.
-        templateDraft: { name: '', category_id: '', project_id: '', sub_pillar_id: '', percentage: null },
-        savingTemplate: false,
-        // Copies a row's fields into templateDraft and opens the save-as-template form.
-        // The form's own submit handler autosaves the day first, so the page reload from
-        // the store route's redirect never drops in-progress work. name is reset to '' every
-        // time (the panel uses x-show so it stays in the DOM) so a name typed for one row
-        // can never survive to mismatch a different row's allocation.
-        startSaveTemplate(row) {
-            this.templateDraft = {
-                name: '',
-                category_id: row.category_id,
-                project_id: row.project_id || '',
-                sub_pillar_id: row.sub_pillar_id || '',
-                percentage: row.percentage,
-            };
-            this.savingTemplate = true;
         },
 
         // ---- accelerators --------------------------------------------------
@@ -768,6 +634,18 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- persistence ---------------------------------------------------
+        // Dismissals as the server wants them: ISO date => card ids, editable days only,
+        // for the same reason flatRows() skips the rest.
+        dismissedPayload() {
+            const out = {};
+            for (const iso of Object.keys(this.dismissed)) {
+                if (!this.isEditable(iso)) continue;
+                const ids = this.dismissed[iso].map((d) => d.work_item_id).filter(Boolean);
+                if (ids.length) out[iso] = ids;
+            }
+
+            return out;
+        },
         flatRows() {
             const out = [];
             for (const iso of Object.keys(this.rows)) {
@@ -776,7 +654,15 @@ export function registerTimesheetCapture(Alpine) {
                 // which the server rejects (D2). A stale future row seeded from an existing
                 // draft would otherwise poison every save with "… has not happened yet."
                 if (!this.isEditable(iso)) continue;
-                for (const r of this.rows[iso]) {
+                // A suggestion nobody costed is not a claim — it must not reach the
+                // server, where a 0% line would block the week's submit
+                // (WeekWriter::assertNoBlankLines) and clutter the draft.
+                const dayRows = this.rows[iso]
+                    .filter((r) => !(r.suggested && (r.percentage === '' || r.percentage === null)))
+                    // A row with no category cannot be stored (the server requires one) and
+                    // would take the whole week's save down with it.
+                    .filter((r) => !this.needsCategory(r));
+                for (const r of dayRows) {
                     // A 0% line IS sent. It used to be dropped here, which meant a line the
                     // staffer had added but not yet costed vanished on the next reload with
                     // nothing said. The server accepts 0 in a draft and refuses it at submit,
@@ -789,6 +675,7 @@ export function registerTimesheetCapture(Alpine) {
                         sub_pillar_id: r.sub_pillar_id || null,
                         percentage: pct,
                         description: r.description || null,
+                        work_item_id: r.work_item_id || null,
                     });
                 }
             }
@@ -826,6 +713,10 @@ export function registerTimesheetCapture(Alpine) {
                             week_label: cfg.weekLabel || null,
                             submit_now: submitNow,
                             entries,
+                            // Always sent (even empty): this screen owns the dismissals, so
+                            // clearing the last one has to clear it on the server too. Other
+                            // callers of the save endpoint omit the key and keep what is stored.
+                            dismissed: this.dismissedPayload(),
                         }),
                     });
                     const body = await res.json();

@@ -38,7 +38,8 @@
                 <template x-if="editing">
                     <div style="margin:0 0 14px;">
                         <input x-model="editTitle" maxlength="200" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:15px;font-weight:600;margin-bottom:8px;outline:none;" />
-                        <textarea x-model="editBody" maxlength="5000" rows="5" style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;resize:vertical;outline:none;font-family:inherit;line-height:1.6;margin-bottom:8px;"></textarea>
+                        <textarea x-model="editBody" maxlength="5000" rows="5" style="width:100%;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;resize:vertical;outline:none;font-family:inherit;line-height:1.6;margin-bottom:4px;"></textarea>
+                        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" x-text="$store.ui.lang==='en' ? 'Supports **bold**, _italic_, # headings, - lists, links' : 'Sokong **tebal**, _condong_, # tajuk, - senarai, pautan'"></div>
 
                         <div x-show="editError" x-cloak style="font-size:11.5px;color:var(--red);margin-bottom:6px;">
                             <span x-show="editError==='type'" x-text="$store.ui.lang==='en' ? 'Only JPG, PNG, GIF, or WebP pictures.' : 'Hanya gambar JPG, PNG, GIF, atau WebP.'"></span>
@@ -81,7 +82,7 @@
                     </div>
                 </div>
 
-                <div x-show="!editing" x-html="bodyHtml" style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;white-space:pre-wrap;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
+                <div x-show="!editing" x-html="bodyHtml" class="uj-markdown" style="font-size:14.5px;line-height:1.7;color:#3f3e38;text-wrap:pretty;">{!! \App\Support\Amanahku::linkify($e->body) !!}</div>
 
                 <div x-show="!editing && attachments.length" x-cloak class="kb-attach-strip" style="gap:10px;margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
                     <template x-for="(a, i) in attachments" :key="a.id">

@@ -11,6 +11,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Models\WorkItem;
 use App\Timesheet\LockedDays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -212,6 +213,54 @@ class HalfDayLeaveTest extends TestCase
         $this->assertEqualsWithDelta(50.0, (float) $dayEntries->firstWhere('source', null)->percentage, 0.001);
     }
 
+    /**
+     * Regression: WeekReconciler::reconcile() must carry work_item_id through when it
+     * rebuilds a week's user rows, the same way WeekWriter::existingUserEntries() and
+     * normaliseEntries() already do. Before the fix, the map dropped the column, so any
+     * board-linked row lost its card on the very next leave approval in that week.
+     */
+    public function test_reconciling_for_leave_keeps_the_board_card_link(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+
+        $card = WorkItem::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'title' => 'Fix the widget', 'type' => 'task', 'priority' => 'medium', 'status' => 'in_progress',
+        ]);
+
+        // Verified (not yet approved) half day for Wed 2026-07-22, so the day is not locked
+        // when the staffer saves a board-linked row against the other half.
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-07-22', 'date_to' => '2026-07-22', 'half_day_period' => 'am',
+            'days' => 0.5, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        $this->actingAsEmployee($report)->post('/app/timesheets', [
+            'week_start' => '2026-07-20',
+            'entries' => [
+                ['entry_date' => '2026-07-22', 'category_id' => $this->work->id, 'percentage' => 50, 'work_item_id' => $card->id],
+            ],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $sheet = Timesheet::firstWhere('employee_id', $report->id);
+        $row = TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->whereNull('source')->first();
+        $this->assertSame($card->id, $row->work_item_id);
+
+        // Approval runs WeekReconciler::reconcile() over the saved week (same live path as
+        // LeaveController::applyApproval). The board-linked row must survive with its link.
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        // reconcile() deletes and recreates the week's rows, so the original id is gone —
+        // re-query by the same identifying fields rather than $row->fresh().
+        $row = TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->whereNull('source')->first();
+        $this->assertNotNull($row);
+        $this->assertSame($card->id, $row->work_item_id);
+    }
+
     /** A half-day marker is rejected on a multi-day range — you cannot half-day a span. */
     public function test_half_day_rejected_for_multi_day_range(): void
     {
@@ -225,5 +274,26 @@ class HalfDayLeaveTest extends TestCase
         ])->assertSessionHasErrors('half_day_period');
 
         $this->assertDatabaseCount('leave_requests', 0);
+    }
+
+    /**
+     * A multi-day range spanning the TOT Saturday (first Saturday of the month) discounts
+     * that day to 0.5, same as timesheet capacity does elsewhere. Ordinary weekend days in
+     * the range stay full.
+     */
+    public function test_multi_day_range_discounts_the_tot_saturday(): void
+    {
+        $report = $this->member('employee', 'Reportee');
+
+        // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday.
+        $this->actingAsEmployee($report)->post('/app/leave', [
+            'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-07-31',
+            'date_to' => '2026-08-03',
+        ])->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::firstWhere('employee_id', $report->id);
+        $this->assertNotNull($req);
+        $this->assertEqualsWithDelta(3.5, (float) $req->days, 0.001);
     }
 }

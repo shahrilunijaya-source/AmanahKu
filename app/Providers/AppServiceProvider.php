@@ -4,10 +4,13 @@ namespace App\Providers;
 
 use App\Models\AppNotification;
 use App\Models\PersonalAccessToken;
+use App\Models\WorkItem;
+use App\Observers\WorkItemObserver;
 use App\Services\Ai\AiProvider;
 use App\Services\Ai\CannedAiProvider;
 use App\Services\Ai\ClaudeAiProvider;
 use App\Services\FeatureManager;
+use App\Services\GoogleCalendarClient;
 use App\Services\OidcClient;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Auth\Events\Authenticated;
@@ -34,6 +37,9 @@ class AppServiceProvider extends ServiceProvider
         // Enterprise SSO relying-party, built from config/services.php oidc block.
         $this->app->bind(OidcClient::class, fn () => OidcClient::fromConfig());
 
+        // Personal Google Calendar sync, built from config/services.php google_calendar block.
+        $this->app->bind(GoogleCalendarClient::class, fn () => GoogleCalendarClient::fromConfig());
+
         // Resolve the workforce assistant: live Claude when configured, canned otherwise.
         $this->app->singleton(AiProvider::class, function () {
             $canned = new CannedAiProvider;
@@ -52,6 +58,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        WorkItem::observe(WorkItemObserver::class);
+
         // Use the tenant-aware token model so /api/v1 calls resolve to the token's tenant.
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 

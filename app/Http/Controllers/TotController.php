@@ -7,7 +7,6 @@ namespace App\Http\Controllers;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
-use App\Models\ExternalTotEvent;
 use App\Models\KnowledgeContribution;
 use App\Models\TotComment;
 use App\Models\TotParticipation;
@@ -25,13 +24,6 @@ class TotController extends Controller
 {
     /** HR and management own the roster; everyone else reads, reacts, comments and rates. */
     private const PRIVILEGED_ROLES = ['management', 'hr'];
-
-    /**
-     * Who may post/remove an External TOT entry — one tier wider than the internal
-     * roster's PRIVILEGED_ROLES, because a manager is often the one actually forwarded
-     * the invite and shouldn't have to route it through HR first.
-     */
-    private const EXTERNAL_PRIVILEGED_ROLES = ['manager', 'management', 'hr'];
 
     /**
      * The year lineup. Always twelve slots, even for months nobody has filled: an absent
@@ -78,9 +70,6 @@ class TotController extends Controller
             'watchedCounts' => $this->watchedCounts($ids),
             'scores' => $this->visibleScores($saved, $employee, $privileged),
             'commentCounts' => $this->commentCounts($ids),
-            // External tab: everyone reads, only the wider EXTERNAL_PRIVILEGED_ROLES trio posts.
-            'externalEvents' => ExternalTotEvent::orderByDesc('event_date')->get(),
-            'canPostExternal' => $this->hasTenantRole($request, self::EXTERNAL_PRIVILEGED_ROLES),
         ];
     }
 
@@ -618,81 +607,6 @@ class TotController extends Controller
         ];
     }
 
-    /** The External tab's privileged trio: post an external training/event. */
-    public function storeExternal(Request $request): RedirectResponse
-    {
-        $this->authorizeTenantRole($request, self::EXTERNAL_PRIVILEGED_ROLES);
-
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:200'],
-            'host' => ['nullable', 'string', 'max:120'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'event_date' => ['required', 'date'],
-            'time_label' => ['nullable', 'string', 'max:60'],
-            'venue' => ['nullable', 'string', 'max:200'],
-            'venue_map_url' => ['nullable', 'url', 'max:2000'],
-            'registration_url' => ['nullable', 'url', 'max:2000'],
-            'tagged' => ['nullable', 'array', 'max:20'],
-            'tagged.*' => ['integer'],
-        ]);
-
-        $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
-        unset($data['tagged']);
-
-        $event = ExternalTotEvent::create([
-            ...$data,
-            'tagged_employee_ids' => $tagged->pluck('id')->all(),
-            'tenant_id' => app(CurrentTenant::class)->id(),
-            'posted_by' => $request->attributes->get('employee')?->id,
-        ]);
-
-        AppNotification::sendMany(
-            $tagged->pluck('user_id')->filter()->all(),
-            "You're required to attend: {$event->title}",
-            collect([$event->host, $event->event_date->format('D, j M Y'), $event->time_label])->filter()->implode(' · '),
-            route('app.screen', 'tot').'?tab=external',
-            mail: true,
-        );
-
-        AuditLog::record('Posted external TOT event', $event->title);
-
-        return back()->with('ok', 'External event posted.');
-    }
-
-    /**
-     * The employees a poster actually @mentioned: ids they picked, narrowed to active
-     * employees of this tenant (a raw id from the form is never trusted), and narrowed
-     * again to the ones whose name is still written in the description — a mention the
-     * poster deleted from the text before posting should not send anybody a summons.
-     *
-     * @param  list<int>  $ids
-     * @return Collection<int, Employee>
-     */
-    private function taggedFromDescription(array $ids, ?string $description): Collection
-    {
-        if ($ids === [] || $description === null) {
-            return collect();
-        }
-
-        return Employee::active()->whereIn('id', $ids)->get()
-            ->filter(fn (Employee $person) => str_contains($description, '@'.$person->display_name))
-            ->values();
-    }
-
-    /** The External tab's privileged trio: remove an external training/event. */
-    public function destroyExternal(Request $request, ExternalTotEvent $event): RedirectResponse
-    {
-        $this->assertSameTenant($event);
-        $this->authorizeTenantRole($request, self::EXTERNAL_PRIVILEGED_ROLES);
-
-        $title = $event->title;
-        $event->delete();
-
-        AuditLog::record('Removed external TOT event', $title);
-
-        return back()->with('ok', 'External event removed.');
-    }
-
     /** Privileged-only: remove a slot entirely. */
     public function destroy(Request $request, TotSession $session): RedirectResponse
     {
@@ -792,7 +706,7 @@ class TotController extends Controller
      * first. 404, not 403: a foreign id must look indistinguishable from one that does not
      * exist at all, and must never leave the record reachable to write through.
      */
-    private function assertSameTenant(TotSession|TotComment|ExternalTotEvent $record): void
+    private function assertSameTenant(TotSession|TotComment $record): void
     {
         abort_unless($record->tenant_id === app(CurrentTenant::class)->id(), 404);
     }

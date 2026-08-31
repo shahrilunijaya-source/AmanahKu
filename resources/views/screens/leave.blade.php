@@ -51,7 +51,9 @@
     // Ledger: every type the person carries a real entitlement in, with the days
     // already spent and the days still awaiting a decision.
     $pendingByType = $pending->groupBy('leave_type_id')->map(fn ($g) => (float) $g->sum('days'));
-    $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0)
+    // A granted type (Replacement) keeps no running total — HR books those days outright —
+    // so it has no line here even where an old balance row survives.
+    $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0 && ! $b->leaveType->is_hr_granted_only)
         ->sortByDesc(fn ($b) => $b->leaveType->entitlement);
 
     $statusTone = ['cancelled' => 'muted', 'approved' => 'success', 'verified' => 'amber', 'submitted' => 'amber', 'rejected' => 'error', 'draft' => 'muted'];
@@ -206,7 +208,7 @@
                             <div><div class="uj-lv-rw-in">
                                 @if ($r->reason)<div class="uj-lv-quote">“{{ $r->reason }}”</div>@endif
                                 @include('partials.leave-timeline', ['r' => $r, 'assignedVerifiers' => $leaveVerifiers])
-                                @if (in_array($r->status, ['submitted', 'verified'], true))
+                                @if (in_array($r->status, ['submitted', 'verified'], true) || ($r->status === 'approved' && ! $r->paid_at && $r->date_from->isFuture()))
                                     <form method="post" action="{{ route('leave.cancel', $r) }}" style="margin-top:11px;">
                                         @csrf
                                         <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">

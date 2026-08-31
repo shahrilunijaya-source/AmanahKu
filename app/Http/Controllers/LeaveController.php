@@ -52,6 +52,14 @@ class LeaveController extends Controller
         $type = LeaveType::find($data['leave_type_id']);
         abort_unless($type, 422);
 
+        // Granted by HR as an opening balance, never applied for — the Apply form hides
+        // these, so reaching here means a forged or stale post.
+        if ($type->is_hr_granted_only) {
+            return back()->withInput()->withErrors([
+                'leave_type_id' => $type->name.' leave is granted by HR and cannot be applied for.',
+            ]);
+        }
+
         // Planned leave (e.g. Annual) must be applied for a set number of days ahead.
         // Unplanned/emergency leave is the escape hatch and bypasses the notice rule.
         if (! $type->is_unplanned && $type->min_notice_days > 0) {
@@ -74,10 +82,11 @@ class LeaveController extends Controller
             'attachment.required' => $type->name.' leave needs a supporting document (e.g. medical certificate).',
         ]);
 
-        // A half day counts as 0.5; otherwise the inclusive whole-day span. `days` flows
-        // straight into the balance decrement at approval, so this is the only place the
-        // 0.5 originates.
-        $days = $isHalfDay ? 0.5 : Carbon::parse($data['date_from'])->diffInDays(Carbon::parse($data['date_to'])) + 1;
+        // A half day counts as 0.5; otherwise the inclusive whole-day span, with Unijaya's
+        // TOT Saturday (first Saturday of the month) counted as 0.5 like everywhere else it
+        // appears. `days` flows straight into the balance decrement at approval, so this is
+        // the only place the 0.5 originates.
+        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
 
         $attachmentPath = null;
         $attachmentName = null;
@@ -122,6 +131,75 @@ class LeaveController extends Controller
         }
 
         return back()->with('ok', "Leave application submitted ({$days} day".($days == 1 ? '' : 's').').');
+    }
+
+    /**
+     * HR books a day off that was granted rather than applied for (Replacement). There is
+     * no application and no reporting line to consult — HR decides it — so the request
+     * opens already verified and goes straight through applyApproval(). That is the method
+     * that pushes the absence into already-saved timesheet weeks, writes the audit trail
+     * and tells the employee; inserting an approved row by hand here would skip all three.
+     * A granted type carries no quota, so nothing is decremented — see applyApproval().
+     */
+    public function record(Request $request): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'leave_type_id' => ['required', 'integer'],
+            'date_from' => ['required', 'date'],
+            'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'half_day_period' => ['nullable', 'in:am,pm'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        // Both models are tenant-scoped, so an id from another tenant simply finds nothing.
+        // whereKey()->first() rather than find(): it resolves to one model, not the
+        // model-or-collection union find() carries, so the guards below stay typed.
+        $employee = Employee::active()->whereKey($data['employee_id'])->first();
+        abort_unless($employee !== null, 422);
+
+        $type = LeaveType::whereKey($data['leave_type_id'])->first();
+        abort_unless($type !== null, 422);
+
+        // Only HR-granted types are recorded this way. Letting an ordinary type through
+        // would hand HR a one-click approval of leave the reporting line never saw — the
+        // same bypass approve() and bulkApprove() take care to block.
+        abort_unless($type->is_hr_granted_only, 422, 'That leave type is applied for, not recorded.');
+
+        // Same rule the Apply form enforces: you cannot take "the morning off" across a
+        // range, so reject the combination rather than silently ignoring the marker.
+        $isHalfDay = ($data['half_day_period'] ?? null) !== null;
+        if ($isHalfDay && ! Carbon::parse($data['date_from'])->isSameDay(Carbon::parse($data['date_to']))) {
+            return back()->withInput()->withErrors([
+                'half_day_period' => 'Half day leave must start and end on the same day.',
+            ]);
+        }
+
+        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
+        $actorId = $request->attributes->get('employee')?->id;
+
+        // Opens at 'verified' because applyApproval()'s compare-and-set only moves a row
+        // from verified to approved. For a granted day HR is both verifier and approver.
+        // tenant_id is auto-filled by the BelongsToTenant trait.
+        $leave = $employee->leaveRequests()->create([
+            'leave_type_id' => $type->id,
+            'date_from' => $data['date_from'],
+            'date_to' => $data['date_to'],
+            'half_day_period' => $data['half_day_period'] ?? null,
+            'days' => $days,
+            'reason' => $data['reason'] ?? null,
+            'status' => 'verified',
+            'verified_by_id' => $actorId,
+            'verified_at' => now(),
+        ]);
+
+        $this->applyApproval($leave, $actorId);
+        AuditLog::record('Recorded granted leave', $employee->name.' · '.$type->name.' · '.$days.'d');
+
+        return back()->with('ok', $type->name.' leave recorded for '.$employee->name
+            .' ('.$days.' day'.($days == 1 ? '' : 's').').');
     }
 
     /** Step 1: the immediate superior verifies, moving the request on to management. */
@@ -254,11 +332,16 @@ class LeaveController extends Controller
             // another type (Annual). effectiveBalanceTypeId() resolves that redirection.
             $balanceTypeId = $leaveRequest->leaveType?->effectiveBalanceTypeId() ?? $leaveRequest->leave_type_id;
 
-            $balance = $leaveRequest->employee
-                ->leaveBalances()
-                ->where('leave_type_id', $balanceTypeId)
-                ->lockForUpdate()
-                ->first();
+            // A granted type (Replacement) has no quota at all: HR hands the day over, it
+            // is not spent from anything. So there is nothing to draw down, and nothing
+            // may spill onto Unpaid either — the day was granted, so it is paid.
+            $balance = $leaveRequest->leaveType?->is_hr_granted_only
+                ? null
+                : $leaveRequest->employee
+                    ->leaveBalances()
+                    ->where('leave_type_id', $balanceTypeId)
+                    ->lockForUpdate()
+                    ->first();
 
             $overflow = null;
 
@@ -322,7 +405,10 @@ class LeaveController extends Controller
             return ['spend' => $days, 'unpaid' => 0.0, 'overflow' => null];
         }
 
-        $unpaid = LeaveType::where('name', 'Unpaid')->first();
+        // is_unpaid, not a name match — a company renaming this type (or seeding it in
+        // Malay) must not silently stop overflow from converting to unpaid leave. See the
+        // 2026_08_25_210000 migration.
+        $unpaid = LeaveType::where('is_unpaid', true)->first();
 
         if (! $unpaid) {
             AuditLog::record('Leave over balance', $leaveRequest->employee->name.' · '
@@ -363,19 +449,53 @@ class LeaveController extends Controller
         return ['spend' => $covered, 'unpaid' => $days - $covered, 'overflow' => $overflow];
     }
 
-    /** The requester withdraws their own application before anyone approves it. */
+    /**
+     * The requester withdraws their own application. Before approval this is a plain
+     * withdrawal. An already-approved request can still be withdrawn as long as it hasn't
+     * started yet and hasn't been pulled into a finalised payslip — cancelling restores the
+     * balance it decremented and strips the "On Leave" rows it pushed into any stored
+     * (not-yet-approved) timesheet week.
+     */
     public function cancel(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
         $this->assertSameTenant($leaveRequest->tenant_id);
         $actor = $request->attributes->get('employee');
         abort_unless($actor && $actor->id === $leaveRequest->employee_id, 403);
 
-        // Compare-and-set so a cancel can never race past an approval that already
-        // decremented the balance — only a still-pending row flips.
-        $flipped = LeaveRequest::whereKey($leaveRequest->id)
-            ->whereIn('status', ['submitted', 'verified'])
-            ->update(['status' => 'cancelled']);
-        abort_if($flipped === 0, 422, 'Only an application still awaiting approval can be cancelled.');
+        $cancelled = DB::transaction(function () use ($leaveRequest) {
+            // Row lock so a cancel can never race past an approval that already decremented
+            // the balance — the eligibility check and the flip happen against the same row.
+            $fresh = LeaveRequest::whereKey($leaveRequest->id)->lockForUpdate()->first();
+
+            $wasApproved = $fresh->status === 'approved';
+            $eligible = in_array($fresh->status, ['submitted', 'verified'], true)
+                || ($wasApproved && $fresh->paid_at === null && $fresh->date_from->isFuture());
+
+            if (! $eligible) {
+                return false;
+            }
+
+            $fresh->update(['status' => 'cancelled']);
+
+            if ($wasApproved) {
+                // Nothing was decremented for a granted type (see applyApproval), so there
+                // is nothing to hand back — crediting one would top up a quota that is not
+                // supposed to exist. The timesheet still has to be put right either way.
+                if (! $fresh->leaveType?->is_hr_granted_only) {
+                    $balanceTypeId = $fresh->leaveType?->effectiveBalanceTypeId() ?? $fresh->leave_type_id;
+                    $fresh->employee->leaveBalances()
+                        ->where('leave_type_id', $balanceTypeId)
+                        ->lockForUpdate()
+                        ->increment('balance', (float) $fresh->days);
+                }
+
+                app(WeekReconciler::class)->reconcileForLeave($fresh);
+            }
+
+            return true;
+        });
+
+        abort_unless($cancelled, 422, 'Only an application still awaiting approval, or an approved leave that hasn\'t started yet, can be cancelled.');
 
         AuditLog::record('Cancelled leave', $actor->name.' · '.$leaveRequest->days.'d');
 

@@ -28,9 +28,10 @@ lerd service start mysql      # start a stopped service
 
 `resources/views/auth/login.blade.php` renders quick-login buttons when `app()->isLocal()`, tracked in git (not gitignored). Each button fills the normal login form and submits with password `password` — no `/dev/login` route, no gitignored route file (removed, was redundant with this).
 
-- Buttons: `hr@amanahku.test` (HR), `manager@amanahku.test` (Manager), `management@amanahku.test` (Management), `employee@amanahku.test` (Employee), `superadmin@amanahku.com` (Super Admin).
-- Reporting line seeded employee → manager → management = the two-step approval chain: **manager** *verifies* a request, then **management** (the only account in `Permissions::MANAGEMENT_TIER`) gives *final approval*. Use these three to drive a claim/leave/overtime request through submit → verify → approve. No other dev account can approve (hr/employee lack the management-tier role).
-- Accounts are seeded by `database/seeders/DevLoginSeeder.php`, which is **gitignored** (never committed). Missing on a fresh machine: `lerd artisan db:seed --class=DevLoginSeeder`.
+- Buttons: `hidayahsuffya.unijaya@gmail.com` (HR), `kussairi.unijaya@gmail.com` (Manager), `haryati.unijaya@gmail.com` (Sr Manager, Kussairi's own manager, `branch` data scope), `shahril.unijaya@gmail.com` (Director), `shazwanshah.unijaya@gmail.com` (Employee), `superadmin@amanahku.com` (Super Admin).
+- Reporting line Shazwan → Kussairi → Haryati → Shahrilnizam = the two-step approval chain: **manager** *verifies* a request, then a **director** gives *final approval* (`Permissions::MANAGEMENT_TIER` = `management`, `director`; the real data only has directors, no `management` role). Use these three to drive a claim/leave/overtime request through submit → verify → approve. No other quick-login account can approve (hr/employee lack the management-tier role).
+- The local DB is a copy of the production dump (`amanahku20260828.sql`, imported 2026-08-28) with **every** password reset to `password`, 2FA cleared, and the encrypted `nric` columns nulled — prod ciphertext can't be decrypted under the local `APP_KEY`. `database/seeders/DevLoginSeeder.php` is now obsolete: it creates `@amanahku.test` accounts that don't exist in this data and collides with `superadmin@amanahku.com`. Don't run it.
+- Re-importing a fresh dump: back the local DB up, `DROP DATABASE amanahku; CREATE DATABASE amanahku`, load the dump, null `employees.nric` and `salary_structures.nric` (otherwise `2026_08_25_200300_reconcile_nric...` dies with `The MAC is invalid.`), then `lerd artisan migrate` and reset the passwords.
 
 ### Git worktrees (Claude-created branches included)
 

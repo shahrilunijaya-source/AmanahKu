@@ -12,18 +12,20 @@ export function registerToast(Alpine) {
         // Push a toast. `type` (success | error | info) drives colour + icon. Errors linger
         // a little longer because a failure is worth reading twice; pass an explicit
         // `timeout` (ms) to override, or 0 to make it stay until manually dismissed.
-        show(message, type = 'success', timeout = null) {
+        // `action` is optional: `{ label, run }` renders a button beside the message, so a
+        // toast can offer the one thing it is telling you about (e.g. "Reload").
+        show(message, type = 'success', timeout = null, action = null) {
             if (!message) return null;
             if (timeout === null) timeout = type === 'error' ? 5000 : 3200;
             const id = ++this._seq;
-            const item = { id, message, type, timeout, remaining: timeout, started: this._now(), leaving: false };
+            const item = { id, message, type, timeout, action, remaining: timeout, started: this._now(), leaving: false };
             this.items.push(item);
             if (timeout > 0) this._arm(item);
             return id;
         },
-        success(message, timeout = null) { return this.show(message, 'success', timeout); },
-        error(message, timeout = null) { return this.show(message, 'error', timeout); },
-        info(message, timeout = null) { return this.show(message, 'info', timeout); },
+        success(message, timeout = null, action = null) { return this.show(message, 'success', timeout, action); },
+        error(message, timeout = null, action = null) { return this.show(message, 'error', timeout, action); },
+        info(message, timeout = null, action = null) { return this.show(message, 'info', timeout, action); },
 
         // Play the leave transition, then drop the item from the queue.
         dismiss(id) {

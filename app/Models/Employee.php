@@ -16,14 +16,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
- * `date_of_birth` and `joined_at` have a `date` cast, so they read back as Carbon
- * instances. Without this, static analysis takes the raw column type and reports
- * ->format() or ->gt() as a call on a string.
+ * `date_of_birth` and `joined_at` have a `date` cast, and `archived_at` a `datetime`
+ * cast, so they read back as Carbon instances. Without this, static analysis takes the
+ * raw column type and reports ->format() or ->gt() as a call on a string.
  *
  * `position`, `workload`, `workload_label` and `display_name` are accessors, not columns.
  *
  * @property Carbon|null $date_of_birth
  * @property Carbon|null $joined_at
+ * @property Carbon|null $archived_at
  * @property-read string $display_name
  * @property-read string|null $position
  * @property-read string $workload
@@ -319,6 +320,7 @@ class Employee extends Model
             ?->balance ?? 0);
     }
 
+    /** @return HasMany<LeaveRequest, $this> */
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(LeaveRequest::class);
@@ -375,11 +377,13 @@ class Employee extends Model
         return $this->hasMany(Achievement::class);
     }
 
+    /** @return HasOne<SalaryStructure, $this> */
     public function salaryStructure(): HasOne
     {
         return $this->hasOne(SalaryStructure::class);
     }
 
+    /** @return HasMany<Payslip, $this> */
     public function payslips(): HasMany
     {
         return $this->hasMany(Payslip::class);

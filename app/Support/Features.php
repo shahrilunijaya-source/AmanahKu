@@ -81,17 +81,6 @@ class Features
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,
             'help' => 'The in-app AI assistant slide-over.',
         ],
-        'payroll.auto_pcb' => [
-            'label' => 'Auto PCB/MTD estimate',
-            'type' => 'bool', 'scope' => 'tenant', 'default' => false,
-            'help' => 'Estimate monthly tax automatically (HR still reviews).',
-        ],
-        'payroll.statutory_mode' => [
-            'label' => 'Statutory calculation mode',
-            'type' => 'enum', 'scope' => 'tenant', 'default' => 'brackets',
-            'options' => ['flat' => 'Flat percentage', 'brackets' => 'Stepped brackets'],
-            'help' => 'How SOCSO/EIS are computed.',
-        ],
         'payroll.four_eyes' => [
             'label' => 'Require payroll approval before finalize',
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,

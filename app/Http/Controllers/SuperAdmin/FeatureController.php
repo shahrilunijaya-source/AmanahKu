@@ -85,7 +85,7 @@ class FeatureController extends Controller
         $platformSettings = [];
         foreach (Features::SETTINGS as $key => $meta) {
             $row = $this->row($tenant, $key, $meta['label'], $meta['type'], $meta['options'] ?? null);
-            if (($meta['scope'] ?? 'tenant') === 'platform') {
+            if ($meta['scope'] === 'platform') {
                 $platformSettings[] = $row;
             } else {
                 $tenantSettings[] = $row;

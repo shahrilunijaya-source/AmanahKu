@@ -25,6 +25,11 @@
 // already holds the correct one. See the design doc's "Race guard".
 const FIELD_DERIVED = {
     due_at: ['due_label'],
+    // The card owns its category, and the category decides which projects it may be
+    // booked to. So changing it re-resolves the project list, the name shown beside it,
+    // and the stored project id when the old one is no longer on offer (the server
+    // clears it — a category needing no project clears it outright).
+    timesheet_category_id: ['timesheet_category_name', 'project_options', 'project_id', 'project'],
     project_id: ['project'],
     participant_ids: ['participants'],
 };
@@ -39,6 +44,20 @@ export function registerWorkBoard(Alpine) {
         labelFilter: null,
         // Active project id as a string, or '' for "any project". ANDs with type + label.
         projectFilter: '',
+        // Active due-date bucket ('overdue' | 'today' | 'week' | 'none' | 'range'), or null for "any due date".
+        dueFilter: null,
+        // Bounds for the 'range' bucket, each an ISO date string or '' (unset).
+        dueRangeFrom: '',
+        dueRangeTo: '',
+        // Sort order within each column: 'manual' (drag order, the default),
+        // 'due_at', or 'priority'. Drag is disabled while a non-manual sort is
+        // active — see setSortMode() — because Sortable reads DOM order as the
+        // new manual order on every drop, and a date/priority sort would get
+        // written back as sort_order the instant a card is dragged.
+        sortMode: 'manual',
+        // [data-list] key => Sortable instance, so setSortMode() can toggle
+        // `disabled` on them. Populated in init().
+        sortables: {},
         // Whether the collapsible secondary-filter panel (label + project) is open.
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
@@ -89,7 +108,8 @@ export function registerWorkBoard(Alpine) {
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
                 due_at: '', due_label: '', status: 'todo', labels: [], participants: [],
-                project_id: '', project: null, comments_count: 0, mentionable: [],
+                project_id: '', project: null, project_options: [], timesheet_category_id: '',
+                timesheet_category_name: '', timesheet_category_options: [], comments_count: 0, mentionable: [],
             },
             comments: [],
             // "@" mention picker state, scoped to the comment composer. See
@@ -127,7 +147,7 @@ export function registerWorkBoard(Alpine) {
             const root = this.$root;
             // Drag-and-drop per column.
             root.querySelectorAll('[data-list]').forEach((list) => {
-                window.Sortable.create(list, {
+                this.sortables[list.dataset.list] = window.Sortable.create(list, {
                     group: 'board',
                     animation: 150,
                     ghostClass: 'uj-drag-ghost',
@@ -177,15 +197,28 @@ export function registerWorkBoard(Alpine) {
             this.applyFilter();
         },
 
-        // Count of active SECONDARY filters (label + project). Drives the toggle badge.
+        // Toggle the due-date filter: click an active bucket to clear it.
+        setDueFilter(key) {
+            this.dueFilter = this.dueFilter === key ? null : key;
+            if (this.dueFilter !== 'range') {
+                this.dueRangeFrom = '';
+                this.dueRangeTo = '';
+            }
+            this.applyFilter();
+        },
+
+        // Count of active SECONDARY filters (label + project + due). Drives the toggle badge.
         get activeFilterCount() {
-            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0);
+            return (this.labelFilter ? 1 : 0) + (this.projectFilter ? 1 : 0) + (this.dueFilter ? 1 : 0);
         },
 
         // Reset the secondary filters and repaint.
         clearFilters() {
             this.labelFilter = null;
             this.projectFilter = '';
+            this.dueFilter = null;
+            this.dueRangeFrom = '';
+            this.dueRangeTo = '';
             this.applyFilter();
         },
 
@@ -197,6 +230,34 @@ export function registerWorkBoard(Alpine) {
         projectInFilter(el) {
             if (!this.projectFilter) return true;
             return (el.dataset.project || '') === this.projectFilter;
+        },
+
+        // Buckets are computed from the card's own due-date string (YYYY-MM-DD, local
+        // to the browser) against "today" at call time — cheap enough to redo per card.
+        dueInFilter(el) {
+            if (!this.dueFilter) return true;
+            const due = el.dataset.dueAt || '';
+            if (this.dueFilter === 'none') return due === '';
+            if (due === '') return false;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(due + 'T00:00:00');
+            if (this.dueFilter === 'overdue') return dueDate < today;
+            if (this.dueFilter === 'today') return dueDate.getTime() === today.getTime();
+            if (this.dueFilter === 'week') {
+                const weekEnd = new Date(today);
+                weekEnd.setDate(weekEnd.getDate() + 7);
+                return dueDate >= today && dueDate < weekEnd;
+            }
+            if (this.dueFilter === 'range') {
+                // Both bounds empty means the range is inactive — don't hide
+                // cards with no due date over an unset range.
+                if (!this.dueRangeFrom && !this.dueRangeTo) return true;
+                if (this.dueRangeFrom && due < this.dueRangeFrom) return false;
+                if (this.dueRangeTo && due > this.dueRangeTo) return false;
+                return true;
+            }
+            return true;
         },
 
         // Full recompute: every card's visibility, plus the type-chip counts and the
@@ -215,7 +276,43 @@ export function registerWorkBoard(Alpine) {
         // filter) so autosave never has to re-touch the other cards on the board.
         applyFilterTo(node) {
             if (!node) return;
-            node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) ? '' : 'none';
+            node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
+        },
+
+        // Switches the column ordering. Manual is the drag order already on the
+        // DOM; due_at/priority re-sort every card (visible or filter-hidden —
+        // otherwise hidden cards clump at one end and reappear out of order once
+        // the filter clears) and disable drag, since Sortable would otherwise
+        // read the sorted DOM as the new manual order on the next drop and
+        // permanently overwrite sort_order. Re-enabling on 'manual' is safe
+        // because sort_order was never touched.
+        setSortMode(mode) {
+            this.sortMode = mode;
+            Object.values(this.sortables).forEach((s) => s.option('disabled', mode !== 'manual'));
+            this.applySort();
+        },
+
+        applySort() {
+            if (this.sortMode === 'manual') return;
+            this.$root.querySelectorAll('[data-list]').forEach((list) => {
+                const cards = [...list.querySelectorAll('[data-card]')];
+                const rank = { high: 0, medium: 1, low: 2 };
+                cards.sort((a, b) => {
+                    if (this.sortMode === 'priority') {
+                        const pa = rank[a.dataset.priority] ?? 3;
+                        const pb = rank[b.dataset.priority] ?? 3;
+                        return pa - pb;
+                    }
+                    // due_at: soonest first, no due date last.
+                    const da = a.dataset.dueAt || '';
+                    const db = b.dataset.dueAt || '';
+                    if (!da && !db) return 0;
+                    if (!da) return 1;
+                    if (!db) return -1;
+                    return da < db ? -1 : da > db ? 1 : 0;
+                });
+                cards.forEach((el) => list.appendChild(el));
+            });
         },
 
         recount() {
@@ -296,6 +393,7 @@ export function registerWorkBoard(Alpine) {
                 this.recount();
                 this.applyFilterTo(this.drawer.node);
             }
+            if (field === this.sortMode) this.applySort();
         },
 
         nextSeq() {
@@ -498,6 +596,7 @@ export function registerWorkBoard(Alpine) {
                 // to Done must clear the red date — repainting is what applies that).
                 this.repaintNode(html);
                 this.moveNodeToList(status);
+                this.applySort();
                 this.refreshCounts();
                 this.flashSaved();
             } catch (err) {
@@ -512,6 +611,19 @@ export function registerWorkBoard(Alpine) {
             const empty = list.querySelector('[data-empty]');
             if (empty) empty.remove();
             list.appendChild(node);
+        },
+
+        /**
+         * True when the card's project already answers the category question — booked to
+         * a project the project screen tagged with exactly one category. The drawer then
+         * shows that category as text: there is nothing to choose, and offering a picker
+         * would invite someone to contradict the project screen from the wrong place.
+         */
+        // Whether this card's category needs a project named. An empty project list is
+        // the server saying the question does not arise (HR and Admin, Charity, Others),
+        // so the drawer hides the picker rather than offering an empty select.
+        categoryNeedsProject() {
+            return (this.drawer.card.project_options || []).length > 0;
         },
 
         lockedReasonText(card) {
@@ -573,6 +685,10 @@ export function registerWorkBoard(Alpine) {
                     participants: card.participants ?? [],
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
+                    project_options: card.project_options ?? [],
+                    timesheet_category_id: card.timesheet_category_id ?? '',
+                    timesheet_category_name: card.timesheet_category_name ?? '',
+                    timesheet_category_options: card.timesheet_category_options ?? [],
                 };
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
@@ -743,6 +859,7 @@ export function registerWorkBoard(Alpine) {
                     if (empty) empty.remove();
                     list.insertAdjacentHTML('afterbegin', html);
                     this.playEnter(list.firstElementChild);
+                    this.applySort();
                 }
                 this.recount();
                 this.refreshCounts();
@@ -904,6 +1021,7 @@ export function registerWorkBoard(Alpine) {
                 // one of the few autosave-adjacent paths that legitimately needs the
                 // full applyFilter() rather than the single-card applyFilterTo().
                 this.applyFilter();
+                this.applySort();
                 await this.openCardCore(String(card.id), list.lastElementChild);
             } finally {
                 this.busy = false;

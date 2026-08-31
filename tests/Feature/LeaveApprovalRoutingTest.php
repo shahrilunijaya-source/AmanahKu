@@ -7,6 +7,9 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
+use App\Models\Timesheet;
+use App\Models\TimesheetCategory;
+use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -345,14 +348,91 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->assertSame('cancelled', $req->fresh()->status);
     }
 
-    public function test_an_approved_request_cannot_be_cancelled(): void
+    public function test_an_approved_leave_that_already_started_cannot_be_cancelled(): void
     {
+        // request() defaults to 2026-07-01, before "today" (2026-08-28) in this test suite.
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
         $req = $this->request($report, 'approved', $manager->id);
 
         $this->actingAsEmployee($report)->post("/app/leave/{$req->id}/cancel")->assertStatus(422);
         $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    public function test_requester_cancels_their_own_approved_future_leave_and_balance_is_restored(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 8]);
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-12-01', 'date_to' => '2026-12-02',
+            'days' => 2, 'status' => 'approved', 'verified_by_id' => $manager->id,
+        ]);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$req->id}/cancel")
+            ->assertRedirect()->assertSessionHas('ok');
+
+        $this->assertSame('cancelled', $req->fresh()->status);
+        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
+    }
+
+    public function test_cancelling_an_approved_future_leave_strips_the_on_leave_timesheet_row(): void
+    {
+        TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'On Leave', 'requires_project' => false]);
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 10]);
+        Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'week_start' => '2026-12-14', 'status' => 'draft', 'total_hours' => 0,
+        ]);
+        $leave = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-12-16', 'date_to' => '2026-12-16',
+            'days' => 1, 'status' => 'verified', 'verified_by_id' => $manager->id,
+        ]);
+
+        // Approve through the real route (as TimesheetTest does), which reconciles the
+        // draft week and seeds the "On Leave" row.
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$leave->id}/approve")->assertRedirect();
+        $this->assertSame('leave', TimesheetEntry::whereDate('entry_date', '2026-12-16')->first()?->source);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$leave->id}/cancel")->assertRedirect();
+
+        $this->assertNull(TimesheetEntry::whereDate('entry_date', '2026-12-16')->first());
+        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
+    }
+
+    public function test_a_leave_already_pulled_into_a_payslip_cannot_be_cancelled(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-12-01', 'date_to' => '2026-12-02',
+            'days' => 2, 'status' => 'approved', 'verified_by_id' => $manager->id, 'paid_at' => now(),
+        ]);
+
+        $this->actingAsEmployee($report)->post("/app/leave/{$req->id}/cancel")->assertStatus(422);
+        $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    public function test_leave_screen_shows_cancel_only_for_a_still_future_approved_request(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->request($report, 'approved', $manager->id); // default dates are in the past
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-12-01', 'date_to' => '2026-12-02',
+            'days' => 2, 'status' => 'approved', 'verified_by_id' => $manager->id,
+        ]);
+
+        $html = $this->actingAsEmployee($report)->get('/app/leave')->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, '/cancel"'));
     }
 
     public function test_nobody_else_can_cancel_someone_elses_request(): void

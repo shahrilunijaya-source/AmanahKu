@@ -314,4 +314,28 @@ class ApiTokenTest extends TestCase
 
         $this->assertSame(0, PersonalAccessToken::where('tokenable_id', $this->staffA->id)->count());
     }
+
+    public function test_command_mints_a_token_restricted_to_given_abilities(): void
+    {
+        $this->artisan('api:token', [
+            'user_email' => 'hr.a@example.com',
+            'tenant_slug' => 'alpha',
+            '--ability' => ['timesheets:read', 'board:read'],
+        ])->assertSuccessful();
+
+        $token = PersonalAccessToken::where('tokenable_id', $this->hrA->id)->latest('id')->first();
+        $this->assertNotNull($token);
+        $this->assertSame(['timesheets:read', 'board:read'], $token->abilities);
+    }
+
+    public function test_command_rejects_an_unknown_ability(): void
+    {
+        $this->artisan('api:token', [
+            'user_email' => 'hr.a@example.com',
+            'tenant_slug' => 'alpha',
+            '--ability' => ['not-a-real-scope'],
+        ])->assertFailed();
+
+        $this->assertSame(0, PersonalAccessToken::where('tokenable_id', $this->hrA->id)->count());
+    }
 }

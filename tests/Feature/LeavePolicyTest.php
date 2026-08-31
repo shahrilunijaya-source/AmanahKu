@@ -90,7 +90,7 @@ class LeavePolicyTest extends TestCase
     private function unpaidType(): LeaveType
     {
         return LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Unpaid', 'entitlement' => 0,
+            'tenant_id' => $this->tenant->id, 'name' => 'Unpaid', 'entitlement' => 0, 'is_unpaid' => true,
         ]);
     }
 

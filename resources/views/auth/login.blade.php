@@ -231,10 +231,11 @@
     {{-- Quick login (demo) — local development only; never rendered in staging/production. --}}
     <div class="lg-quick-label">Quick login · demo</div>
     <div class="lg-quick-grid">
-        <button type="button" class="lg-quick" onclick="quickLogin('hr.unijaya@gmail.com')"><b>HR</b><span>Unijaya HR</span></button>
-        <button type="button" class="lg-quick" onclick="quickLogin('kussairi.unijaya@gmail.com')"><b>Manager</b><span>Verifies requests</span></button>
-        <button type="button" class="lg-quick" onclick="quickLogin('shahril.unijaya@gmail.com')"><b>Management</b><span>Final approver</span></button>
-        <button type="button" class="lg-quick" onclick="quickLogin('shzwnx04@gmail.com')"><b>Employee</b><span>Dev employee</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('hidayahsuffya.unijaya@gmail.com')"><b>HR</b><span>Nur Hidayah Suffiah</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('kussairi.unijaya@gmail.com')"><b>Manager</b><span>Kussairi, verifies</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('haryati.unijaya@gmail.com')"><b>Sr Manager</b><span>Haryati, branch scope</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('shahril.unijaya@gmail.com')"><b>Director</b><span>Shahrilnizam, approves</span></button>
+        <button type="button" class="lg-quick" onclick="quickLogin('shazwanshah.unijaya@gmail.com')"><b>Employee</b><span>Shazwan, reports to Kussairi</span></button>
         <button type="button" class="lg-quick" onclick="quickLogin('superadmin@amanahku.com')"><b>Super Admin</b><span>Platform console</span></button>
     </div>
     <p class="lg-quick-hint">One click signs you in.</p>

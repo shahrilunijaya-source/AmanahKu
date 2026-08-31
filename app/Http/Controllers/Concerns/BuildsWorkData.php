@@ -7,17 +7,23 @@ namespace App\Http\Controllers\Concerns;
 use App\Attendance\ScheduleResolver;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\FixedTransaction;
+use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PayrollItem;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
-use App\Models\StatutoryRate;
+use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Attendance, board, leave, claims and payroll screen data for
@@ -270,6 +276,31 @@ trait BuildsWorkData
                 ->get(['id', 'name', 'nickname', 'initials', 'avatar_color'])
                 ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color])
                 ->values(),
+            // The assign form asks for the category the same way the card drawer does, so
+            // work handed to someone else arrives costed. `requires_project` is what lets
+            // the form show or hide its project picker without a round trip.
+            'assignCategories' => TimesheetCategory::where('is_active', true)
+                ->whereNotIn('name', TimesheetCategory::generatedNames())
+                ->orderBy('sort')->orderBy('name')->get()
+                ->map(fn (TimesheetCategory $c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'requires_project' => (bool) $c->requires_project,
+                ])->values(),
+            // `category_ids` narrows that picker. Read from the project end, exactly as
+            // WorkItem::projectOptions() reads it server-side: a project tagged with
+            // nothing is offered under every category, and a category nobody has tagged a
+            // project with is offered only those. Reading it from the category end instead
+            // would open every project up to an untagged category — see the docblock on
+            // projectOptions() for why that quietly switches the pairing guard off.
+            'assignProjects' => Project::with('categories:id')
+                ->where('is_active', true)
+                ->orderBy('sort')->orderBy('name')->get()
+                ->map(fn (Project $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'category_ids' => $p->categories->pluck('id')->all(),
+                ])->values(),
         ];
     }
 
@@ -374,7 +405,7 @@ trait BuildsWorkData
         // A specific payslip detail: own (finalized) for everyone, any for privileged.
         $selectedPayslip = null;
         if ($request->filled('payslip')) {
-            $candidate = Payslip::with(['employee', 'payrollRun'])->find($request->query('payslip'));
+            $candidate = Payslip::with(['employee', 'payrollRun', 'lines'])->find($request->query('payslip'));
             if ($candidate) {
                 $ownIt = $employee && $candidate->employee_id === $employee->id;
                 $visible = $privileged || ($ownIt && $candidate->payrollRun?->status === 'finalized');
@@ -385,26 +416,94 @@ trait BuildsWorkData
         if (! $privileged) {
             return [
                 'privileged' => false,
+                'isManagementTier' => false,
                 'myPayslips' => $myPayslips,
                 'selectedPayslip' => $selectedPayslip,
                 'runs' => collect(),
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
+                'payrollItems' => collect(),
+                'currentPeriod' => now()->format('Y-m'),
+                'fixedTransactions' => collect(),
+                'fixedTransactionItems' => collect(),
+                'individualTransactionsForActiveRun' => collect(),
+                'itxPeriod' => now()->format('Y-m'),
+                'itxTransactions' => collect(),
+                'itxPeriodFinalized' => false,
+                'itxPeriodHasDraftRun' => false,
             ];
         }
 
         $activeRun = $request->filled('run')
-            ? PayrollRun::with('payslips.employee')->find($request->query('run'))
-            : PayrollRun::with('payslips.employee')->orderByDesc('period')->first();
+            ? PayrollRun::with('payslips.employee', 'payslips.lines')->find($request->query('run'))
+            : PayrollRun::with('payslips.employee', 'payslips.lines')->orderByDesc('period')->first();
 
         return [
             'privileged' => true,
+            // Deleting a FINALIZED run is a step above the usual HR/management payroll
+            // gate — see PayrollController::destroyRun() and Permissions::MANAGEMENT_TIER.
+            'isManagementTier' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
             'myPayslips' => $myPayslips,
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
-            'rates' => StatutoryRate::merged(),
+            'openingYear' => (int) now()->year,
+            'openingEmployees' => Employee::active()->orderBy('name')->get(),
+            'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
+            'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
+            // Fixed Transactions: every non-ended (or ended-in-the-future) one, grouped by
+            // employee, for the Salary structures tab. currentPeriod is the default
+            // start/end value the "add"/"end" forms pre-fill.
+            'currentPeriod' => now()->format('Y-m'),
+            'fixedTransactions' => FixedTransaction::with('payrollItem')
+                ->where(fn ($q) => $q->whereNull('end_period')->orWhere('end_period', '>=', now()->format('Y-m')))
+                ->orderBy('start_period')->get()->groupBy('employee_id'),
+            // A Fixed Transaction must never target an item with its own automatic
+            // source — see PayrollController::FT_FORBIDDEN_ITEM_CODES.
+            'fixedTransactionItems' => PayrollItem::where('active', true)
+                ->whereNotIn('code', ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'])
+                ->orderBy('sort_order')->get(),
+            // Individual Transactions queued for the currently displayed run's own period,
+            // grouped by employee — the payslip edit form's tx_item_id/tx_amount/tx_remark
+            // rows are pre-filled from THIS (the live table), never from the payslip's own
+            // last-generated lines, so a one-off added via the standalone Individual
+            // Transactions tab below is never silently overwritten by a later "Recalculate
+            // & save" on the payslip edit form (see PayrollController::syncIndividualTransactions).
+            'individualTransactionsForActiveRun' => $activeRun
+                ? IndividualTransaction::with('payrollItem')->forPeriod($activeRun->period)->get()->groupBy('employee_id')
+                : collect(),
+            ...$this->individualTransactionTabData($request),
+        ];
+    }
+
+    /**
+     * Data for the standalone "Individual Transactions" tab: pick a month (itx_period
+     * query param, defaults to the current month), list every one-off queued for it, and
+     * flag whether that period is still editable. A period with no run yet, or a draft
+     * run, is freely editable; a finalized run locks it (see
+     * PayrollController::assertPeriodEditable).
+     *
+     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxPeriodHasDraftRun: bool}
+     */
+    private function individualTransactionTabData(Request $request): array
+    {
+        $period = $request->filled('itx_period') && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->query('itx_period'))
+            ? (string) $request->query('itx_period')
+            : now()->format('Y-m');
+
+        $itxRun = PayrollRun::where('period', $period)->first();
+
+        return [
+            'itxPeriod' => $period,
+            'itxTransactions' => IndividualTransaction::with(['employee', 'payrollItem'])
+                ->forPeriod($period)->orderBy('employee_id')->get()->groupBy('employee_id'),
+            'itxPeriodFinalized' => $itxRun?->status === 'finalized',
+            // Surfaced so the UI can tell HR to recalculate the affected payslips — adding,
+            // editing or deleting a one-off here does not itself touch an existing draft
+            // payslip (see syncIndividualTransactions's doc comment); it becomes visible the
+            // next time that payslip is recomputed.
+            'itxPeriodHasDraftRun' => $itxRun !== null && $itxRun->status !== 'finalized',
         ];
     }
 }

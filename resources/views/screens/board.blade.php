@@ -81,7 +81,42 @@
             @endforeach
         </div>
 
-        {{-- Third filter row: narrow the board to one project. "All" clears it. --}}
+        {{-- Third filter row: narrow the board to a due-date bucket. Click again to clear. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
+            @foreach (['overdue' => ['Overdue', 'Tertunggak'], 'today' => ['Today', 'Hari ini'], 'week' => ['This week', 'Minggu ini'], 'none' => ['No due date', 'Tiada tarikh akhir'], 'range' => ['Custom range', 'Julat tersuai']] as $dk => $dl)
+                <button type="button" @click="setDueFilter('{{ $dk }}')"
+                        :style="dueFilter === '{{ $dk }}'
+                            ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
+                            : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                        style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">
+                    <span x-text="$store.ui.lang==='en' ? @js($dl[0]) : @js($dl[1])">{{ $dl[0] }}</span>
+                </button>
+            @endforeach
+            <template x-if="dueFilter === 'range'">
+                <span style="display:inline-flex;align-items:center;gap:6px;">
+                    <input type="date" x-model="dueRangeFrom" @change="applyFilter()"
+                           style="padding:5px 8px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--body);">
+                    <span style="font-size:11px;color:var(--muted);">–</span>
+                    <input type="date" x-model="dueRangeTo" @change="applyFilter()"
+                           style="padding:5px 8px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:8px;background:#fff;color:var(--body);">
+                </span>
+            </template>
+        </div>
+
+        {{-- Sort row: reorders cards within each column. Manual is the drag order;
+             switching to Due date/Priority disables drag until back to Manual. --}}
+        <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Sort' : 'Susun'">Sort</span>
+            <select x-model="sortMode" @change="setSortMode(sortMode)"
+                    style="padding:6px 12px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;background:#fff;color:var(--body);">
+                <option value="manual" x-text="$store.ui.lang==='en' ? 'Manual' : 'Manual'"></option>
+                <option value="due_at" x-text="$store.ui.lang==='en' ? 'Due date' : 'Tarikh akhir'"></option>
+                <option value="priority" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'"></option>
+            </select>
+        </div>
+
+        {{-- Fourth filter row: narrow the board to one project. "All" clears it. --}}
         <div style="display:flex;align-items:center;gap:7px;margin:-6px 0 16px;flex-wrap:wrap;">
             <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span>
             <select x-model="projectFilter" @change="applyFilter()"
@@ -137,7 +172,7 @@
          Markup lives in partials.work-drawer, shared with the team board's
          view-only copy (see resources/views/screens/team-board.blade.php). --}}
     @if ($employee)
-    @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel, 'projects' => $projects ?? []])
+    @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel])
 
     {{-- Archived-cards panel: reached only from the Done column's "Archived (N)"
          link. A card lands here via archiveCard() (shake + fade, see work-board.js)

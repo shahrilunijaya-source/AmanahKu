@@ -127,7 +127,7 @@ class LeaveReportController extends Controller
         $from = $leave->date_from->greaterThan($start) ? $leave->date_from : $start;
         $to = $leave->date_to->lessThan($end) ? $leave->date_to : $end;
 
-        return (float) max(0, $from->diffInDays($to) + 1);
+        return $from->gt($to) ? 0.0 : LeaveRequest::countDays($from, $to);
     }
 
     /**

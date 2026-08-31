@@ -18,8 +18,9 @@
         'who'   => empty($privileged) ? 'Your own payslips' : 'HR & management only',
         'steps' => empty($privileged) ? [] : [
             'Make sure every active employee has a Salary structure set (Salary structures tab).',
-            'On Payroll runs, pick the pay month and "Generate draft run" — a draft payslip is created per employee.',
-            'Open each payslip and Edit to enter overtime, bonus, unpaid days and PCB (income tax). PCB is entered by hand.',
+            'If anyone joined partway through the year (or your company switched to AmanahKu mid-year), set their Opening figures first — otherwise their PCB for the rest of the year will be wrong.',
+            'On Payroll runs, pick the pay month and "Generate draft run" — a draft payslip is created per employee. PCB (income tax) is computed automatically from each employee\'s statutory profile and year-to-date figures.',
+            'Open each payslip and Edit to enter overtime, bonus or unpaid days. PCB can be overridden by hand if needed — the override sticks until cleared.',
             'When every figure is verified, "Finalize & issue". This locks payslips, notifies staff, and marks claims paid — it cannot be undone.',
         ],
     ],
@@ -31,8 +32,9 @@
         'who'   => empty($privileged) ? 'Payslip anda sendiri' : 'HR & pengurusan sahaja',
         'steps' => empty($privileged) ? [] : [
             'Pastikan setiap pekerja aktif ada Salary structure ditetapkan (tab Salary structures).',
-            'Di Payroll runs, pilih bulan gaji dan "Generate draft run" — satu draft payslip dibuat bagi setiap pekerja.',
-            'Buka setiap payslip dan Edit untuk masukkan overtime, bonus, hari tanpa gaji dan PCB (cukai pendapatan). PCB dimasukkan secara manual.',
+            'Jika ada pekerja yang menyertai di tengah tahun (atau syarikat anda bertukar ke AmanahKu di tengah tahun), tetapkan Opening figures dahulu — jika tidak, PCB mereka untuk baki tahun itu akan salah.',
+            'Di Payroll runs, pilih bulan gaji dan "Generate draft run" — satu draft payslip dibuat bagi setiap pekerja. PCB (cukai pendapatan) dikira automatik daripada profil berkanun dan angka tahun-ke-tarikh setiap pekerja.',
+            'Buka setiap payslip dan Edit untuk masukkan overtime, bonus atau hari tanpa gaji. PCB boleh ditindih secara manual jika perlu — tindihan itu kekal sehingga dikosongkan.',
             'Apabila setiap angka disahkan, "Finalize & issue". Ini kunci payslip, maklumkan staf, dan tanda claim sebagai paid — ia tidak boleh dibatalkan.',
         ],
     ],
@@ -54,27 +56,86 @@
                 <div style="font-size:12.5px;color:var(--muted);">{{ $p->employee?->position }} · <span x-text="$store.ui.lang==='en' ? 'Payslip for' : 'Payslip untuk'">Payslip for</span> {{ $run?->label }}</div>
             </div>
             <span class="uj-pill" style="background:#fff;border:1px solid var(--hairline);color:{{ $statusColor[$run?->status] ?? 'var(--muted)' }};text-transform:capitalize;" x-text="$store.ui.lang==='en' ? @js(ucfirst((string) $run?->status)) : @js($statusMs[$run?->status] ?? ucfirst((string) $run?->status))">{{ $run?->status }}</span>
+            @if ($run?->status === 'finalized')
+                <a href="{{ route('payroll.payslips.pdf', $p) }}" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Download PDF' : 'Muat turun PDF'">Download PDF</a>
+                @if (!empty($privileged) && $p->employee_id && $run->period)
+                    <a href="{{ route('payroll.ea-form.show', ['employee' => $p->employee_id, 'year' => substr($run->period, 0, 4)]) }}" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Form EA' : 'Borang EA'">Form EA</a>
+                @endif
+            @endif
         </div>
 
         <div style="display:flex;flex-wrap:wrap;">
             {{-- Earnings --}}
             <div style="flex:1;min-width:300px;padding:22px 26px;border-right:1px solid var(--hairline-soft);">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;" x-text="$store.ui.lang==='en' ? 'Earnings' : 'Pendapatan'">Earnings</div>
-                @php $otSuffix = $p->overtime_hours > 0 ? ' ('.rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.').'h)' : ''; @endphp
                 @foreach ([
                     ['Basic salary', 'Gaji pokok', $p->basic],
-                    ['Allowances', 'Elaun', $p->allowances_total],
-                    ['Overtime'.$otSuffix, 'Kerja lebih masa'.$otSuffix, $p->overtime_amount],
-                    ['Bonus / one-off', 'Bonus / sekali', $p->bonus],
                 ] as $line)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line[2]) }}</span></div>
                 @endforeach
-                @foreach (($p->additions ?? []) as $add)
-                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $add['name'] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($add['amount']) }}</span></div>
-                @endforeach
+                {{-- Fixed Transactions (earning side): itemised by Payroll Item name when
+                     this payslip has them, else the lumped legacy total for payslips issued
+                     before Fixed Transactions existed. --}}
+                @php $fixedEarningLines = $p->lines->where('type', 'earning')->where('source', 'fixed-transaction'); @endphp
+                @forelse ($fixedEarningLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                @empty
+                    @if ($p->allowances_total > 0)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Allowances' : 'Elaun'">Allowances</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->allowances_total) }}</span></div>
+                    @endif
+                @endforelse
+                {{-- Overtime: one line per rate multiplier (e.g. "Overtime 1.5×" and
+                     "Overtime 3×" as separate lines) so a pull mixing an ordinary and a
+                     public-holiday request is never flattened into one ambiguous figure —
+                     the total below is just their sum. Legacy payslips predating this
+                     breakdown fall back to the single lumped overtime_amount column. --}}
+                @php $overtimeLines = $p->lines->where('source', 'overtime'); @endphp
+                @forelse ($overtimeLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->quantity) <span style="color:var(--muted);font-weight:400;"> ({{ rtrim(rtrim(number_format($line->quantity, 2), '0'), '.') }}h)</span>@endif</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                @empty
+                    @if ($p->overtime_amount > 0)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Overtime' : 'Kerja lebih masa'">Overtime</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->overtime_amount) }}</span></div>
+                    @endif
+                @endforelse
+                <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? 'Bonus / one-off' : 'Bonus / sekali'">Bonus / one-off</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($p->bonus) }}</span></div>
+                {{-- Where the overtime figure came from: pulled from approved OvertimeRequests
+                     (count + hours, per rate — see the lines above), or typed by HR. --}}
+                @if ($p->overtime_amount > 0 || ($p->overtime_request_ids ?? null))
+                    @php $otCount = count($p->overtime_request_ids ?? []); @endphp
+                    <div style="font-size:11px;color:var(--muted);padding:0 0 4px;">
+                        @if ($p->overtime_overridden)
+                            <span x-text="$store.ui.lang==='en' ? 'Entered by hand — overrides the pulled figure' : 'Dimasukkan secara manual — menindih angka yang ditarik'">Entered by hand — overrides the pulled figure</span>
+                            @if ($otCount > 0)
+                                <span x-text="$store.ui.lang==='en' ? @js(' ('.$otCount.' approved OT request(s), '.number_format($p->pulled_overtime_hours, 2).' hrs pulled but not used)') : @js(' ('.$otCount.' permintaan OT diluluskan, '.number_format($p->pulled_overtime_hours, 2).' jam ditarik tetapi tidak digunakan)')"></span>
+                            @endif
+                        @elseif ($otCount > 0)
+                            <span x-text="$store.ui.lang==='en' ? @js($otCount.' approved OT request(s) · '.number_format($p->pulled_overtime_hours, 2).' hours pulled automatically') : @js($otCount.' permintaan OT diluluskan · '.number_format($p->pulled_overtime_hours, 2).' jam ditarik automatik')"></span>
+                        @endif
+                    </div>
+                @endif
+                {{-- Individual Transactions (earning side) and, for a payslip predating this
+                     feature, the legacy free-form additions JSON. --}}
+                @php $individualEarningLines = $p->lines->where('type', 'earning')->where('source', 'individual'); @endphp
+                @forelse ($individualEarningLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->remark) <span style="color:var(--muted);font-weight:400;">— {{ $line->remark }}</span>@endif</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($line->amount) }}</span></div>
+                @empty
+                    @foreach (($p->additions ?? []) as $add)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $add['name'] }}</span><span style="font-family:var(--font-mono);color:var(--ink);">{{ $money($add['amount']) }}</span></div>
+                    @endforeach
+                @endforelse
                 @if ($p->unpaid_deduction > 0)
                     @php $unpaidDays = rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.'); @endphp
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--error);"><span x-text="$store.ui.lang==='en' ? @js('Unpaid leave ('.$unpaidDays.' days)') : @js('Cuti tanpa gaji ('.$unpaidDays.' hari)')">Unpaid leave ({{ $unpaidDays }} days)</span><span style="font-family:var(--font-mono);">−{{ $money($p->unpaid_deduction) }}</span></div>
+                @endif
+                @if ($p->unpaid_deduction > 0 || ($p->unpaid_leave_request_ids ?? null))
+                    @php $leaveCount = count($p->unpaid_leave_request_ids ?? []); @endphp
+                    <div style="font-size:11px;color:var(--muted);padding:0 0 4px;">
+                        @if ($p->unpaid_days_overridden)
+                            <span x-text="$store.ui.lang==='en' ? 'Entered by hand — overrides the pulled figure' : 'Dimasukkan secara manual — menindih angka yang ditarik'">Entered by hand — overrides the pulled figure</span>
+                        @elseif ($leaveCount > 0)
+                            <span x-text="$store.ui.lang==='en' ? @js($leaveCount.' approved unpaid-leave request(s) pulled automatically') : @js($leaveCount.' permintaan cuti tanpa gaji diluluskan ditarik automatik')"></span>
+                        @endif
+                    </div>
                 @endif
                 <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--hairline);color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span><span style="font-family:var(--font-mono);">{{ $money($p->gross) }}</span></div>
             </div>
@@ -82,16 +143,36 @@
             {{-- Deductions --}}
             <div style="flex:1;min-width:300px;padding:22px 26px;">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;" x-text="$store.ui.lang==='en' ? 'Deductions' : 'Potongan'">Deductions</div>
-                @foreach ([
+                @foreach (array_filter([
                     ['EPF (employee)', 'EPF (pekerja)', $p->epf_employee],
                     ['SOCSO (employee)', 'SOCSO (pekerja)', $p->socso_employee],
                     ['EIS (employee)', 'EIS (pekerja)', $p->eis_employee],
+                    $p->skbbk_employee > 0 ? ['SKBBK (Lindung 24 Jam)', 'SKBBK (Lindung 24 Jam)', $p->skbbk_employee] : null,
                     ['PCB / income tax', 'PCB / cukai pendapatan', $p->pcb],
-                ] as $line)
+                    $p->pcb_additional > 0 ? ['PCB — bonus / additional', 'PCB — bonus / tambahan', $p->pcb_additional] : null,
+                    $p->zakat > 0 ? ['Zakat', 'Zakat', $p->zakat] : null,
+                    $p->cp38 > 0 ? ['CP38 instalment', 'Ansuran CP38', $p->cp38] : null,
+                ]) as $line)
                     <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span x-text="$store.ui.lang==='en' ? @js($line[0]) : @js($line[1])">{{ $line[0] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line[2]) }}</span></div>
                 @endforeach
-                @foreach (($p->other_deductions ?? []) as $ded)
-                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $ded['name'] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($ded['amount']) }}</span></div>
+                @if ($p->pcb_override !== null)
+                    <div style="font-size:11px;color:var(--muted);padding:2px 0 0;"><span x-text="$store.ui.lang==='en' ? 'PCB figure was overridden by HR, not computed' : 'Angka PCB ditindih oleh HR, bukan dikira'">PCB figure was overridden by HR, not computed</span></div>
+                @endif
+                {{-- Fixed Transactions (deduction side), itemised by Payroll Item name. --}}
+                @foreach ($p->lines->where('type', 'deduction')->where('source', 'fixed-transaction') as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
+                @endforeach
+                @php $deductionLines = $p->lines->where('type', 'deduction')->where('source', 'manual'); @endphp
+                @forelse ($deductionLines as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
+                @empty
+                    @foreach (($p->other_deductions ?? []) as $ded)
+                        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $ded['name'] }}</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($ded['amount']) }}</span></div>
+                    @endforeach
+                @endforelse
+                {{-- Individual Transactions (deduction side). --}}
+                @foreach ($p->lines->where('type', 'deduction')->where('source', 'individual') as $line)
+                    <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;color:var(--body);"><span>{{ $line->name }}@if($line->remark) <span style="color:var(--muted);font-weight:400;">— {{ $line->remark }}</span>@endif</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($line->amount) }}</span></div>
                 @endforeach
                 <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--hairline);color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Total deductions' : 'Jumlah potongan'">Total deductions</span><span style="font-family:var(--font-mono);color:var(--error);">−{{ $money($p->total_deductions) }}</span></div>
                 @if ($p->claims_reimbursement > 0)
@@ -144,8 +225,13 @@
 @else
 
     {{-- ─── Privileged view: run management ────────────────────────── --}}
-    <div x-data="{ tab: 'runs', editing: null, salaryFor: null }">
-        @php $latest = $activeRun?->totals ?? []; @endphp
+    <div x-data="{ tab: '{{ request()->filled('itx_period') ? 'individual' : 'runs' }}', editing: null, salaryFor: null }">
+        @php
+            $latest = $activeRun?->totals ?? [];
+            // Kept as its own collection (not the raw $activeRun->payslips->sortBy() call inline)
+            // so the search haystack below and the @foreach loop stay index-aligned.
+            $payslipRows = $activeRun ? $activeRun->payslips->sortBy('employee.name')->values() : collect();
+        @endphp
 
         {{-- Stat row --}}
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
@@ -157,8 +243,8 @@
 
         {{-- Tabs --}}
         <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--hairline);">
-            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'rates' => 'Kadar berkanun']; @endphp
-            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'rates' => 'Statutory rates'] as $id => $label)
+            @php $tabLabelsMs = ['runs' => 'Payroll run', 'salaries' => 'Struktur gaji', 'individual' => 'Transaksi individu', 'opening' => 'Pekerjaan sebelum ini (TP3)', 'items' => 'Katalog item gaji']; @endphp
+            @foreach (['runs' => 'Payroll runs', 'salaries' => 'Salary structures', 'individual' => 'Individual transactions', 'opening' => 'Previous employment (TP3)', 'items' => 'Payroll items'] as $id => $label)
                 <button @click="tab = '{{ $id }}'" :style="tab === '{{ $id }}' ? { color:'var(--red)', borderBottom:'2px solid var(--red)' } : { color:'var(--muted)', borderBottom:'2px solid transparent' }" style="background:none;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px;" x-text="$store.ui.lang==='en' ? @js($label) : @js($tabLabelsMs[$id])">{{ $label }}</button>
             @endforeach
         </div>
@@ -195,7 +281,13 @@
                 </div>
 
                 {{-- Active run detail --}}
-                <div class="uj-card" style="flex:2;min-width:420px;padding:0;">
+                <div class="uj-card" style="flex:2;min-width:420px;padding:0;"
+                     x-data="{
+                         q: '',
+                         rows: @js($payslipRows->map(fn ($p) => mb_strtolower(trim($p->employee?->display_name.' '.$p->employee?->name.' '.$p->employee?->position)))->values()),
+                         hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                         get shown() { return this.rows.filter(h => this.hit(h)).length; },
+                     }">
                     @if ($activeRun)
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 22px;border-bottom:1px solid var(--hairline);">
                             <div>
@@ -203,42 +295,69 @@
                                 <div style="font-size:12px;color:var(--muted);margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($latest['gross'] ?? 0) }} · <span x-text="$store.ui.lang==='en' ? 'Deductions' : 'Potongan'">Deductions</span> {{ $money($latest['deductions'] ?? 0) }} · <span x-text="$store.ui.lang==='en' ? 'Net' : 'Bersih'">Net</span> {{ $money($latest['net'] ?? 0) }}</div>
                                 @if ($activeRun->status === 'finalized')
                                     @php $ps = $activeRun->payslips; @endphp
-                                    <div style="font-size:11.5px;color:var(--muted);margin-top:3px;"><span x-text="$store.ui.lang==='en' ? 'Employer' : 'Majikan'">Employer</span> — EPF {{ $money($ps->sum('epf_employer')) }} · SOCSO {{ $money($ps->sum('socso_employer')) }} · EIS {{ $money($ps->sum('eis_employer')) }} · <span x-text="$store.ui.lang==='en' ? 'PCB collected' : 'PCB dikutip'">PCB collected</span> {{ $money($ps->sum('pcb')) }}</div>
+                                    <div style="font-size:11.5px;color:var(--muted);margin-top:3px;"><span x-text="$store.ui.lang==='en' ? 'Employer' : 'Majikan'">Employer</span> — EPF {{ $money($ps->sum('epf_employer')) }} · SOCSO {{ $money($ps->sum('socso_employer')) }} · EIS {{ $money($ps->sum('eis_employer')) }} · <span x-text="$store.ui.lang==='en' ? 'PCB collected' : 'PCB dikutip'">PCB collected</span> {{ $money($ps->sum('pcb') + $ps->sum('pcb_additional')) }}</div>
                                 @endif
                             </div>
-                            <div style="display:flex;align-items:center;gap:8px;">
-                                @if ($activeRun->status === 'draft')
-                                    <form method="post" action="{{ route('payroll.runs.approve', $activeRun) }}">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button></form>
-                                @endif
-                                @if (in_array($activeRun->status, ['draft', 'approved'], true))
-                                    <form method="post" action="{{ route('payroll.runs.finalize', $activeRun) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$activeRun->label.'? Payslip dikunci, pekerja dimaklumkan, dan tuntutan yang dibayar balik ditanda sebagai paid.') : @js('Finalize '.$activeRun->label.'? Payslips lock, employees are notified, and reimbursed claims are marked paid.'));">@csrf<button class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Finalize & issue' : 'Finalize & keluarkan'">Finalize & issue</button></form>
-                                @else
-                                    <span class="uj-pill" style="background:var(--red-tint);color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Finalized' : 'Difinalize'">Finalized</span> {{ $activeRun->finalized_at?->format('j M') }}</span>
-                                @endif
-                                @if ($activeRun->status === 'finalized')
-                                    <form method="get" action="{{ route('payroll.export.bank', $activeRun) }}" style="display:inline-flex;align-items:center;gap:6px;">
-                                        <select name="format" style="height:36px;padding:0 8px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;background:#fff;color:var(--ink);">
-                                            @foreach (\App\Services\Payroll\BankFile\BankFileRegistry::options() as $k => $lbl)<option value="{{ $k }}">{{ $lbl }}</option>@endforeach
-                                        </select>
-                                        <button type="submit" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Bank file' : 'Fail bank'">Bank file</button>
-                                    </form>
-                                    <a href="{{ route('payroll.export.statutory', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Statutory report' : 'Laporan berkanun'">Statutory report</a>
+                            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:100%;">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                                    @if ($activeRun->status === 'draft')
+                                        <form method="post" action="{{ route('payroll.runs.approve', $activeRun) }}">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button></form>
+                                    @endif
+                                    @if (in_array($activeRun->status, ['draft', 'approved'], true))
+                                        <form method="post" action="{{ route('payroll.runs.finalize', $activeRun) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$activeRun->label.'? Payslip dikunci, pekerja dimaklumkan, dan tuntutan yang dibayar balik ditanda sebagai paid.') : @js('Finalize '.$activeRun->label.'? Payslips lock, employees are notified, and reimbursed claims are marked paid.'));">@csrf<button class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Finalize & issue' : 'Finalize & keluarkan'">Finalize & issue</button></form>
+                                        <form method="post" action="{{ route('payroll.runs.delete', $activeRun) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam draft run '.$activeRun->label.'? Semua payslip draf dalamnya turut dipadam. Tindakan ini tidak boleh dibatalkan.') : @js('Delete draft run '.$activeRun->label.'? Every draft payslip in it is deleted too. This cannot be undone.'));">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete run' : 'Padam run'">Delete run</button></form>
+                                    @else
+                                        <span class="uj-pill" style="background:var(--red-tint);color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Finalized' : 'Difinalize'">Finalized</span> {{ $activeRun->finalized_at?->format('j M') }}</span>
+                                    @endif
+                                    @if ($activeRun->status === 'finalized')
+                                        <form method="get" action="{{ route('payroll.export.bank', $activeRun) }}" style="display:inline-flex;align-items:center;gap:6px;">
+                                            <select name="format" style="height:36px;padding:0 8px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;background:#fff;color:var(--ink);">
+                                                @foreach (\App\Services\Payroll\BankFile\BankFileRegistry::options() as $k => $lbl)<option value="{{ $k }}">{{ $lbl }}</option>@endforeach
+                                            </select>
+                                            <button type="submit" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Bank file' : 'Fail bank'">Bank file</button>
+                                        </form>
+                                        <a href="{{ route('payroll.export.statutory', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Statutory report' : 'Laporan berkanun'">Statutory report</a>
+                                        <a href="{{ route('payroll.export.payslips-pdf', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Payslips (PDF)' : 'Payslip (PDF)'">Payslips (PDF)</a>
+                                        <a href="{{ route('payroll.export.ea-forms', ['year' => substr($activeRun->period, 0, 4)]) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'EA forms (PDF)' : 'Borang EA (PDF)'">EA forms (PDF)</a>
+                                        <a href="{{ route('payroll.form-e.show', ['year' => substr($activeRun->period, 0, 4)]) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Form E / C.P.8D' : 'Borang E / C.P.8D'">Form E / C.P.8D</a>
+                                    @endif
+                                </div>
+                                @if ($activeRun->status === 'finalized' && $isManagementTier)
+                                    <div x-data="{ deleting: false }" style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button" @click="deleting = !deleting" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? (deleting ? 'Cancel' : 'Delete finalized run…') : (deleting ? 'Batal' : 'Padam run difinalize…')">Delete finalized run…</button>
+                                        <form x-show="deleting" x-cloak method="post" action="{{ route('payroll.runs.delete', $activeRun) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam run yang telah difinalize? Ini akan menyahtandakan tuntutan yang dibayar dan permintaan OT/cuti tanpa gaji sebagai belum dibayar, supaya ia boleh diambil semula oleh run akan datang. Tidak boleh dibatalkan.') : @js('Delete a FINALIZED run? This un-marks paid claims and OT/unpaid-leave requests as unpaid again so a future run can pick them up. Cannot be undone.'));" style="display:flex;align-items:center;gap:6px;">
+                                            @csrf
+                                            <input name="confirm_period" required placeholder="{{ $activeRun->period }}" style="height:28px;width:110px;padding:0 8px;border:1px solid var(--error);border-radius:6px;font-size:11.5px;font-family:var(--font-mono);" />
+                                            <button type="submit" class="uj-btn-primary" style="height:28px;padding:0 10px;font-size:11px;background:var(--error);border-color:var(--error);" x-text="$store.ui.lang==='en' ? 'Confirm delete' : 'Sahkan padam'">Confirm delete</button>
+                                        </form>
+                                    </div>
+                                    @include('partials.hint', ['tone' => 'warn', 'en' => 'Type the period exactly (e.g. '.$activeRun->period.') to confirm. This reverses what finalizing consumed — claims go back to approved, and pulled overtime/unpaid-leave requests become pullable again.', 'ms' => 'Taip tempoh dengan tepat (cth. '.$activeRun->period.') untuk sahkan. Ini membalikkan apa yang finalize telah guna — tuntutan kembali ke approved, dan permintaan OT/cuti tanpa gaji yang ditarik boleh ditarik semula.'])
                                 @endif
                             </div>
                         </div>
 
                         @if ($activeRun->status !== 'finalized')
-                            <div style="padding:10px 22px;background:#fff7ed;border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Draft figures. PCB (income tax) is entered manually per employee. Verify statutory amounts before finalizing.' : 'Angka draf. PCB (cukai pendapatan) dimasukkan secara manual bagi setiap pekerja. Sahkan jumlah berkanun sebelum finalize.'">Draft figures. PCB (income tax) is entered manually per employee. Verify statutory amounts before finalizing.</div>
+                            <div style="padding:10px 22px;background:#fff7ed;border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.' : 'Angka draf. PCB (cukai pendapatan) dikira automatik dan boleh ditindih bagi setiap pekerja jika perlu. Sahkan jumlah berkanun sebelum finalize.'">Draft figures. PCB (income tax) is computed automatically and can be overridden per employee if needed. Verify statutory amounts before finalizing.</div>
                         @endif
 
+                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:10px 22px;border-bottom:1px solid var(--hairline-soft);">
+                            <span x-show="q.trim() !== ''" x-cloak style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;"><span x-text="shown"></span> <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span> {{ $payslipRows->count() }} <span x-text="$store.ui.lang==='en' ? 'shown' : 'dipaparkan'">shown</span></span>
+                            <div style="position:relative;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                                <input type="search" x-model="q" @keydown.escape="q = ''"
+                                       :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                                       style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                            </div>
+                        </div>
+
                         {{-- Payslip rows --}}
-                        @foreach ($activeRun->payslips->sortBy('employee.name') as $p)
-                            <div style="border-bottom:1px solid var(--hairline-soft);">
+                        @foreach ($payslipRows as $p)
+                            <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                                 <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $p->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $p->employee?->initials }}</div>
                                     <div style="flex:1;min-width:0;">
                                         <a href="{{ route('app.screen', ['screen' => 'payroll', 'payslip' => $p->id]) }}" style="font-size:13px;color:var(--ink);font-weight:500;text-decoration:none;">{{ $p->employee?->name }}</a>
-                                        <div style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($p->gross) }} · <span x-text="$store.ui.lang==='en' ? 'Deduct' : 'Potong'">Deduct</span> {{ $money($p->total_deductions) }}@if ($p->pcb <= 0) · <span style="color:var(--amber);" x-text="$store.ui.lang==='en' ? 'PCB not set' : 'PCB belum ditetapkan'">PCB not set</span>@endif</div>
+                                        <div style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'">Gross</span> {{ $money($p->gross) }} · <span x-text="$store.ui.lang==='en' ? 'Deduct' : 'Potong'">Deduct</span> {{ $money($p->total_deductions) }}@if ($p->pcb_override !== null) · <span style="color:var(--info);" x-text="$store.ui.lang==='en' ? 'PCB overridden' : 'PCB ditindih'">PCB overridden</span>@endif</div>
                                     </div>
                                     <div style="text-align:right;"><div style="font-size:13.5px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($p->net_pay) }}</div><div style="font-size:10.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'net' : 'bersih'">net</div></div>
                                     @if ($activeRun->status !== 'finalized')
@@ -251,35 +370,68 @@
                                     <div x-show="editing === {{ $p->id }}" x-cloak style="padding:4px 22px 18px 64px;">
                                         <form method="post" action="{{ route('payroll.payslips.update', $p) }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
                                             @csrf
-                                            <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:12px;">
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Overtime (hrs)' : 'Kerja lebih masa (jam)'">Overtime (hrs)</label><input name="overtime_hours" type="number" step="0.5" min="0" value="{{ rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                            @php
+                                                $otPulled = rtrim(rtrim(number_format($p->pulled_overtime_hours, 2), '0'), '.') ?: '0';
+                                                $unpaidPulled = rtrim(rtrim(number_format($p->pulled_unpaid_days, 2), '0'), '.') ?: '0';
+                                            @endphp
+                                            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;margin-bottom:4px;">
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Overtime hours (override)' : 'Jam OT (tindihan)'">Overtime hours (override)</label><input name="overtime_hours" type="number" step="0.5" min="0" value="{{ $p->overtime_overridden ? rtrim(rtrim(number_format($p->overtime_hours, 2), '0'), '.') : '' }}" placeholder="{{ $otPulled }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                {{-- Same unit as the pulled figure's per-rate lines above — hours here always need a
+                                                     multiplier alongside them, never a bare number that could be mistaken for one
+                                                     unit or the other. Offered as the three Employment Act minimums (1.5x normal
+                                                     day, 2x rest day, 3x public holiday) via the datalist, but not restricted to
+                                                     them — the day type isn't known here, and a company may pay above the minimum. --}}
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Multiplier (×)' : 'Gandaan (×)'">Multiplier (×)</label><input name="overtime_multiplier" type="number" step="0.1" min="1" list="ot-mult-{{ $p->id }}" value="{{ $p->overtime_overridden && $p->overtime_multiplier !== null ? rtrim(rtrim(number_format($p->overtime_multiplier, 2), '0'), '.') : '' }}" placeholder="1.5" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /><datalist id="ot-mult-{{ $p->id }}"><option value="1.5"></option><option value="2.0"></option><option value="3.0"></option></datalist></div>
                                                 <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Bonus (RM)</label><input name="bonus" type="number" step="0.01" min="0" value="{{ $p->bonus > 0 ? number_format($p->bonus, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Unpaid days' : 'Hari tanpa gaji'">Unpaid days</label><input name="unpaid_days" type="number" step="0.5" min="0" max="31" value="{{ $p->unpaid_days > 0 ? rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.') : '' }}" placeholder="0" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB / tax (RM)' : 'PCB / cukai (RM)'">PCB / tax (RM)</label><input name="pcb" type="number" step="0.01" min="0" value="{{ $p->pcb > 0 ? number_format($p->pcb, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Unpaid days override' : 'Tindihan hari tanpa gaji'">Unpaid days override</label><input name="unpaid_days" type="number" step="0.5" min="0" max="31" value="{{ $p->unpaid_days_overridden ? rtrim(rtrim(number_format($p->unpaid_days, 2), '0'), '.') : '' }}" placeholder="{{ $unpaidPulled }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
+                                                <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'PCB override (RM)' : 'Tindihan PCB (RM)'">PCB override (RM)</label><input name="pcb_override" type="number" step="0.01" min="0" value="{{ $p->pcb_override !== null ? number_format($p->pcb_override, 2, '.', '') : '' }}" placeholder="{{ number_format($p->pcb, 2, '.', '') }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
                                             </div>
-                                            @include('partials.hint', ['tone' => 'warn', 'en' => 'These change take-home pay. PCB (income tax) is not auto-calculated — look it up in the LHDN PCB table and enter it per employee. Unpaid days reduce pay; overtime and bonus add to it.', 'ms' => 'Ini ubah gaji bersih. PCB (cukai pendapatan) tidak dikira automatik — rujuk jadual PCB LHDN dan masukkan bagi setiap pekerja. Hari tanpa gaji kurangkan gaji; overtime dan bonus tambah pada gaji.'])
-                                            @php $adds = array_values($p->additions ?? []); $deds = array_values($p->other_deductions ?? []); @endphp
-                                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
-                                                <div>
-                                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Additions' : 'Tambahan'">Additions</div>
-                                                    @for ($i = 0; $i < 2; $i++)
-                                                        <div style="display:flex;gap:6px;margin-bottom:6px;"><input name="add_name[]" value="{{ $adds[$i]['name'] ?? '' }}" placeholder="e.g. Travel allowance" :placeholder="$store.ui.lang==='en' ? 'e.g. Travel allowance' : 'cth. Elaun perjalanan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="add_amount[]" type="number" step="0.01" min="0" value="{{ isset($adds[$i]) ? number_format($adds[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                                    @endfor
-                                                </div>
-                                                <div>
-                                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Other deductions' : 'Potongan lain'">Other deductions</div>
-                                                    @for ($i = 0; $i < 2; $i++)
-                                                        <div style="display:flex;gap:6px;margin-bottom:6px;"><input name="ded_name[]" value="{{ $deds[$i]['name'] ?? '' }}" placeholder="e.g. Salary advance" :placeholder="$store.ui.lang==='en' ? 'e.g. Salary advance' : 'cth. Pendahuluan gaji'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="ded_amount[]" type="number" step="0.01" min="0" value="{{ isset($deds[$i]) ? number_format($deds[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                                    @endfor
-                                                </div>
+                                            @include('partials.hint', ['en' => 'Overtime and unpaid days are pulled automatically from approved OvertimeRequests/unpaid LeaveRequests for this month (shown as the placeholder) — leave the override blank to use the pulled figure. Overtime is entered as hours plus the rate beside it (1.5× if left blank) — the same units the pulled lines show, so the two can never be confused. PCB (income tax) is computed automatically from the LHDN method — leave that override blank too, to use it. Any override sticks until cleared.', 'ms' => 'Overtime dan hari tanpa gaji ditarik automatik daripada OvertimeRequest/LeaveRequest tanpa gaji yang diluluskan bagi bulan ini (ditunjukkan sebagai placeholder) — biarkan tindihan kosong untuk guna angka yang ditarik. Overtime dimasukkan sebagai jam campur kadar di sebelahnya (1.5× jika kosong) — unit yang sama seperti baris yang ditarik, jadi kedua-duanya tidak boleh dikelirukan. PCB (cukai pendapatan) dikira automatik mengikut kaedah LHDN — biarkan tindihan itu kosong juga untuk guna nilai itu. Sebarang tindihan kekal sehingga dikosongkan.'])
+                                            {{-- Pre-filled from the live individual_transactions table for this employee+period
+                                                 (not this payslip's own last-generated lines) — so a one-off added or removed via
+                                                 the standalone "Individual transactions" tab is never silently reverted by
+                                                 submitting this form for an unrelated reason (e.g. changing the bonus). See
+                                                 PayrollController::syncIndividualTransactions. --}}
+                                            @php $individualTxLines = ($individualTransactionsForActiveRun->get($p->employee_id) ?? collect())->values(); @endphp
+                                            <div style="margin-top:10px;">
+                                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Individual transactions (one-off)' : 'Transaksi individu (sekali sahaja)'">Individual transactions (one-off)</div>
+                                                {{-- tx_known_ids: every row id this form was rendered with — the save only ever
+                                                     updates/deletes an id in this list; a row created elsewhere after the page
+                                                     loaded is never touched (see PayrollController::syncIndividualTransactions).
+                                                     Rendered even with zero rows so the key itself is always present — its
+                                                     absence on the request is what tells the controller to skip the sync
+                                                     entirely rather than treat "no rows" as "delete everything". --}}
+                                                @forelse ($individualTxLines as $knownTx)
+                                                    <input type="hidden" name="tx_known_ids[]" value="{{ $knownTx->id }}" />
+                                                @empty
+                                                    <input type="hidden" name="tx_known_ids[]" value="" />
+                                                @endforelse
+                                                @for ($i = 0; $i < max(2, $individualTxLines->count()); $i++)
+                                                    @php $existingTx = $individualTxLines->get($i); @endphp
+                                                    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+                                                        <input type="hidden" name="tx_id[]" value="{{ $existingTx?->id }}" />
+                                                        <select name="tx_item_id[]" style="flex:2;height:34px;padding:0 7px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;background:#fff;">
+                                                            <option value="" x-text="$store.ui.lang==='en' ? '— none —' : '— tiada —'">— none —</option>
+                                                            @foreach ($fixedTransactionItems as $item)
+                                                                <option value="{{ $item->id }}" @selected($existingTx?->payroll_item_id === $item->id)>{{ $item->name }} ({{ $item->type }})</option>
+                                                            @endforeach
+                                                        </select>
+                                                        <input name="tx_amount[]" type="number" step="0.01" min="0" value="{{ $existingTx ? number_format($existingTx->amount, 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                                                        <input name="tx_remark[]" value="{{ $existingTx?->remarks }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+                                                    </div>
+                                                @endfor
+                                                @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate. A one-off added elsewhere (another tab, or the Individual transactions screen) since this page loaded is untouched by this save.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula. Transaksi individu yang ditambah di tempat lain (tab lain, atau skrin Transaksi individu) sejak halaman ini dimuatkan tidak akan disentuh oleh simpanan ini.'])
                                             </div>
-                                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Recalculate & save' : 'Kira semula & simpan'">Recalculate & save</button>
+                                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Recalculate & save' : 'Kira semula & simpan'">Recalculate & save</button>
                                             <button type="button" @click="editing = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
                                         </form>
                                     </div>
                                 @endif
                             </div>
                         @endforeach
+                        <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                        </div>
                     @else
                         <div style="padding:40px 24px;text-align:center;color:var(--muted);">
                             <div style="font-size:15px;color:var(--ink);font-weight:500;margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'No payroll run selected' : 'Tiada payroll run dipilih'"></span></div>
@@ -291,123 +443,464 @@
         </div>
 
         {{-- ════ TAB: Salary structures ════ --}}
-        <div x-show="tab === 'salaries'" x-cloak>
+        <div x-show="tab === 'salaries'" x-cloak
+             x-data="{
+                 q: '',
+                 rows: @js($salaryEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                 hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                 get shown() { return this.rows.filter(h => this.hit(h)).length; },
+             }">
             <div class="uj-card" style="padding:0;">
                 @php $setCount = $salaryEmployees->whereNotNull('salaryStructure')->count(); $totalCount = $salaryEmployees->count(); @endphp
-                <div class="uj-card-head" style="padding:16px 22px;"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Salary structures' : 'Struktur gaji'">Salary structures</h3><span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($setCount.' of '.$totalCount.' set') : @js($setCount.' daripada '.$totalCount.' ditetapkan')">{{ $setCount }} of {{ $totalCount }} set</span></div>
+                <div class="uj-card-head" style="padding:16px 22px;flex-wrap:wrap;gap:10px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Salary structures' : 'Struktur gaji'">Salary structures</h3>
+                    <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($setCount.' of '.$totalCount.' set') : @js($setCount.' daripada '.$totalCount.' ditetapkan')">{{ $setCount }} of {{ $totalCount }} set</span>
+                    <span x-show="q.trim() !== ''" x-cloak style="font-size:11px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--hairline);padding:2px 9px;border-radius:9999px;"><span x-text="shown"></span> <span x-text="$store.ui.lang==='en' ? 'shown' : 'dipaparkan'">shown</span></span>
+                    <div style="margin-left:auto;position:relative;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" x-model="q" @keydown.escape="q = ''"
+                               :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                               style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                    </div>
+                </div>
                 @foreach ($salaryEmployees as $e)
-                    @php $s = $e->salaryStructure; @endphp
-                    <div style="border-bottom:1px solid var(--hairline-soft);">
+                    @php
+                        $s = $e->salaryStructure;
+                        $empFt = $fixedTransactions->get($e->id, collect());
+                        $empFtEarnings = $empFt->filter(fn ($ft) => $ft->payrollItem?->type === 'earning')->sum('amount');
+                        $empFtDeductions = $empFt->filter(fn ($ft) => $ft->payrollItem?->type === 'deduction')->sum('amount');
+                        $formId = 'salary-form-'.$e->id;
+                    @endphp
+                    <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
                         <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
                             <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
                             <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
                             <div style="text-align:right;">
-                                @if ($s)<div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($s->basic_salary) }}</div><div style="font-size:10.5px;color:var(--muted);">+ {{ $money($s->allowancesTotal()) }} <span x-text="$store.ui.lang==='en' ? 'allowances' : 'elaun'">allowances</span></div>
+                                @if ($s)
+                                    <div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($s->basic_salary) }}</div>
+                                    @if ($empFt->isNotEmpty())
+                                        <div style="font-size:10.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($empFt->count().' fixed transaction(s) · +RM '.number_format($empFtEarnings, 2).($empFtDeductions > 0 ? ' / −RM '.number_format($empFtDeductions, 2) : '')) : @js($empFt->count().' transaksi tetap · +RM '.number_format($empFtEarnings, 2).($empFtDeductions > 0 ? ' / −RM '.number_format($empFtDeductions, 2) : ''))"></div>
+                                    @endif
                                 @else<span class="uj-pill" style="background:var(--red-tint);color:var(--amber);" x-text="$store.ui.lang==='en' ? 'Not set' : 'Belum ditetapkan'">Not set</span>@endif
                             </div>
                             <button @click="salaryFor === {{ $e->id }} ? salaryFor = null : salaryFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? @js($s ? 'Edit' : 'Set') : @js($s ? 'Sunting' : 'Tetapkan')">{{ $s ? 'Edit' : 'Set' }}</button>
                         </div>
                         <div x-show="salaryFor === {{ $e->id }}" x-cloak style="padding:4px 22px 18px 64px;">
-                            <form method="post" action="{{ route('payroll.salary') }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
+                            {{-- This form covers only basic salary + effective date. The rest of the
+                                 salary structure's fields live further down (payment identifiers,
+                                 statutory profile) but submit into THIS SAME form via the form="{{ $formId }}"
+                                 attribute — Fixed Transactions needs to sit visually between the two
+                                 (see below), and a <form> cannot itself contain another <form>. --}}
+                            <form id="{{ $formId }}" method="post" action="{{ route('payroll.salary') }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
                                 @csrf
                                 <input type="hidden" name="employee_id" value="{{ $e->id }}" />
-                                @php $alw = array_values($s->allowances ?? []); @endphp
-                                <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;">
+                                <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
                                     <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Basic salary (RM / month)' : 'Gaji pokok (RM / bulan)'">Basic salary (RM / month)</label><input name="basic_salary" type="number" step="0.01" min="0" required value="{{ $s ? number_format($s->basic_salary, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" />@include('partials.hint', ['tone' => 'warn', 'en' => 'Gross monthly basic. This drives every payslip and all EPF / SOCSO / EIS amounts — double-check before saving.', 'ms' => 'Gaji pokok bulanan kasar. Ini mempengaruhi setiap payslip dan semua jumlah EPF / SOCSO / EIS — semak dua kali sebelum simpan.'])</div>
                                     <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Effective from' : 'Berkuat kuasa dari'">Effective from</label><input name="effective_from" type="date" value="{{ $s?->effective_from?->toDateString() ?? now()->toDateString() }}" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" /></div>
                                 </div>
-                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Fixed allowances' : 'Elaun tetap'">Fixed allowances</div>
-                                @for ($i = 0; $i < 3; $i++)
-                                    <div style="display:flex;gap:6px;margin-bottom:6px;max-width:420px;"><input name="alw_name[]" value="{{ $alw[$i]['name'] ?? '' }}" placeholder="e.g. Transport" :placeholder="$store.ui.lang==='en' ? 'e.g. Transport' : 'cth. Pengangkutan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /><input name="alw_amount[]" type="number" step="0.01" min="0" value="{{ isset($alw[$i]) ? number_format($alw[$i]['amount'], 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
-                                @endfor
-                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:14px 0 6px;"><span x-text="$store.ui.lang==='en' ? 'Payment & statutory identifiers' : 'Pengenalan bayaran & berkanun'">Payment &amp; statutory identifiers</span> <span style="font-weight:400;color:var(--muted);" x-text="$store.ui.lang==='en' ? '— used for the bank file & EPF/SOCSO/EIS reports' : '— digunakan untuk fail bank & laporan EPF/SOCSO/EIS'">— used for the bank file &amp; EPF/SOCSO/EIS reports</span></div>
-                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
-                                    <input name="bank_name" value="{{ $s?->bank_name }}" placeholder="Bank (e.g. Maybank)" :placeholder="$store.ui.lang==='en' ? 'Bank (e.g. Maybank)' : 'Bank (cth. Maybank)'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
-                                    <input name="bank_account_no" value="{{ $s?->bank_account_no }}" placeholder="Bank account no" :placeholder="$store.ui.lang==='en' ? 'Bank account no' : 'No akaun bank'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                    <input name="epf_no" value="{{ $s?->epf_no }}" placeholder="EPF / KWSP no" :placeholder="$store.ui.lang==='en' ? 'EPF / KWSP no' : 'No EPF / KWSP'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                    <input name="socso_no" value="{{ $s?->socso_no }}" placeholder="SOCSO / PERKESO no" :placeholder="$store.ui.lang==='en' ? 'SOCSO / PERKESO no' : 'No SOCSO / PERKESO'" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                    <input name="nric" value="{{ $s?->nric }}" placeholder="NRIC" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                            </form>
+
+                            {{-- ── Fixed Transactions: recurring earnings/deductions against the Payroll
+                                 Item catalogue. Raised here, right under basic pay, because this is per-
+                                 person work HR touches when someone's package changes — not the once-set
+                                 payment identifiers below it. (An Individual Transaction, by contrast, is
+                                 entered month-first for several people at once, so it keeps its own tab.) ── --}}
+                            <div x-data="{ ftAdding: false, ftEditing: null, ftEnding: null }" style="margin-top:14px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                    <div style="font-size:11.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fixed transactions' : 'Transaksi tetap'">Fixed transactions</div>
+                                    <button type="button" @click="ftAdding = !ftAdding" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? (ftAdding ? 'Cancel' : '+ Add') : (ftAdding ? 'Batal' : '+ Tambah')">+ Add</button>
                                 </div>
-                                <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save structure' : 'Simpan struktur'">Save structure</button><button type="button" @click="salaryFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
+                                <p style="font-size:11px;color:var(--muted);margin:0 0 8px;" x-text="$store.ui.lang==='en' ? 'A recurring allowance or deduction that appears on every payslip between its start and end months.' : 'Elaun atau potongan berulang yang muncul pada setiap payslip antara bulan mula dan tamatnya.'">A recurring allowance or deduction that appears on every payslip between its start and end months.</p>
+
+                                @forelse ($empFt as $ft)
+                                    <div style="border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+                                        <div style="display:flex;align-items:center;gap:10px;">
+                                            <div style="flex:1;min-width:0;">
+                                                <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $ft->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $ft->payrollItem?->type }})</span></div>
+                                                <div style="font-size:10.5px;color:var(--muted);">
+                                                    {{ $ft->start_period }} →
+                                                    @if($ft->end_period)
+                                                        {{ $ft->end_period }}
+                                                    @else
+                                                        <span x-text="$store.ui.lang==='en' ? 'open-ended' : 'tiada had'">open-ended</span>
+                                                    @endif
+                                                    @if($ft->prorate)
+                                                        · <span x-text="$store.ui.lang==='en' ? 'prorated' : 'prorata'">prorated</span>
+                                                    @endif
+                                                    @if($ft->remarks)
+                                                        · {{ $ft->remarks }}
+                                                    @endif
+                                                </div>
+                                            </div>
+                                            <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($ft->amount) }}</div>
+                                            <button type="button" @click="ftEditing = ftEditing === {{ $ft->id }} ? null : {{ $ft->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                                            <button type="button" @click="ftEnding = ftEnding === {{ $ft->id }} ? null : {{ $ft->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'End' : 'Tamat'">End</button>
+                                        </div>
+                                        <div x-show="ftEditing === {{ $ft->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                            <form method="post" action="{{ route('payroll.fixed-transactions.update', $ft) }}">
+                                                @csrf
+                                                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required value="{{ number_format($ft->amount, 2, '.', '') }}" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</label><input name="start_period" type="month" required value="{{ $ft->start_period }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'End (blank = open)' : 'Tamat (kosong = tiada had)'">End (blank = open)</label><input name="end_period" type="month" value="{{ $ft->end_period }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                    <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last month RM (optional)' : 'RM bulan akhir (pilihan)'">Last month RM (optional)</label><input name="last_amount" type="number" step="0.01" min="0" value="{{ $ft->last_amount !== null ? number_format($ft->last_amount, 2, '.', '') : '' }}" placeholder="—" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                    <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" @checked($ft->prorate) /> <span x-text="$store.ui.lang==='en' ? 'Prorate part-months' : 'Prorata bulan separuh'">Prorate part-months</span></label>
+                                                    <input name="remarks" value="{{ $ft->remarks }}" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                                    <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div x-show="ftEnding === {{ $ft->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                            <form method="post" action="{{ route('payroll.fixed-transactions.end', $ft) }}" style="display:flex;gap:8px;align-items:flex-end;">
+                                                @csrf
+                                                <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last period it still applies' : 'Tempoh terakhir ia masih terpakai'">Last period it still applies</label><input name="end_period" type="month" required value="{{ $currentPeriod }}" style="width:130px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;background:var(--error);border-color:var(--error);" x-text="$store.ui.lang==='en' ? 'Confirm end' : 'Sahkan tamat'">Confirm end</button>
+                                            </form>
+                                            @include('partials.hint', ['en' => 'This never deletes the row — it sets the last period it still applies, so past payslips stay explainable.', 'ms' => 'Ini tidak memadam rekod — ia menetapkan tempoh terakhir ia masih terpakai, supaya payslip lepas kekal boleh dijelaskan.'])
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div style="font-size:11.5px;color:var(--muted);padding:6px 0;" x-text="$store.ui.lang==='en' ? 'No fixed transactions.' : 'Tiada transaksi tetap.'">No fixed transactions.</div>
+                                @endforelse
+
+                                <div x-show="ftAdding" x-cloak style="border:1px dashed var(--hairline);border-radius:8px;padding:10px;margin-top:6px;">
+                                    <form method="post" action="{{ route('payroll.fixed-transactions.store') }}">
+                                        @csrf
+                                        <input type="hidden" name="employee_id" value="{{ $e->id }}" />
+                                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                            <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                                <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                                    @foreach ($fixedTransactionItems as $item)
+                                                        <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->type }})</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Start' : 'Mula'">Start</label><input name="start_period" type="month" required value="{{ $currentPeriod }}" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'End (blank = open)' : 'Tamat (kosong = tiada had)'">End (blank = open)</label><input name="end_period" type="month" style="width:110px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" /></div>
+                                            <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last month RM (optional)' : 'RM bulan akhir (pilihan)'">Last month RM (optional)</label><input name="last_amount" type="number" step="0.01" min="0" placeholder="—" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                            <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" /> <span x-text="$store.ui.lang==='en' ? 'Prorate part-months' : 'Prorata bulan separuh'">Prorate part-months</span></label>
+                                            <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                            <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
+                                        </div>
+                                        @include('partials.hint', [
+                                            'en' => 'A joiner or leaver is paid for the days they were employed, counted on the real days in that month. (Unpaid leave and overtime use the 26-day rule instead — that difference is deliberate.)',
+                                            'ms' => 'Pekerja baru atau yang keluar dibayar mengikut hari mereka bekerja, dikira atas hari sebenar dalam bulan itu. (Cuti tanpa gaji dan kerja lebih masa guna peraturan 26 hari — perbezaan itu memang disengajakan.)',
+                                        ])
+                                    </form>
+                                </div>
+                            </div>
+
+                            {{-- The rest of the salary structure's fields — set once, rarely touched — sit
+                                 below Fixed Transactions and submit into the SAME form via form="{{ $formId }}"
+                                 (see the note on that form's opening tag above). --}}
+                            <div style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;margin-top:14px;">
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:0 0 6px;"><span x-text="$store.ui.lang==='en' ? 'Payment & statutory identifiers' : 'Pengenalan bayaran & berkanun'">Payment &amp; statutory identifiers</span> <span style="font-weight:400;color:var(--muted);" x-text="$store.ui.lang==='en' ? '— used for the bank file & EPF/SOCSO/EIS reports' : '— digunakan untuk fail bank & laporan EPF/SOCSO/EIS'">— used for the bank file &amp; EPF/SOCSO/EIS reports</span></div>
+                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Bank' : 'Bank'">Bank</label><input form="{{ $formId }}" name="bank_name" value="{{ $s?->bank_name }}" placeholder="e.g. Maybank" :placeholder="$store.ui.lang==='en' ? 'e.g. Maybank' : 'cth. Maybank'" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Bank account no.' : 'No. akaun bank'">Bank account no.</label><input form="{{ $formId }}" name="bank_account_no" value="{{ $s?->bank_account_no }}" placeholder="0000000000" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'EPF / KWSP no.' : 'No. EPF / KWSP'">EPF / KWSP no.</label><input form="{{ $formId }}" name="epf_no" value="{{ $s?->epf_no }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'SOCSO / PERKESO no.' : 'No. SOCSO / PERKESO'">SOCSO / PERKESO no.</label><input form="{{ $formId }}" name="socso_no" value="{{ $s?->socso_no }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                </div>
+                                <div style="margin-top:8px;max-width:560px;">
+                                    <div style="font-size:10.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'NRIC' : 'No. K/P (NRIC)'">NRIC</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $e->nric ?: '—' }}</span> <span x-text="$store.ui.lang==='en' ? '— from the employee record, not editable here' : '— daripada rekod pekerja, tidak boleh sunting di sini'">— from the employee record, not editable here</span></div>
+                                </div>
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--hairline-soft);" x-text="$store.ui.lang==='en' ? 'Statutory profile' : 'Profil berkanun'">Statutory profile</div>
+                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:560px;">
+                                    <div>
+                                        <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Nationality' : 'Kewarganegaraan'">Nationality</label>
+                                        <select form="{{ $formId }}" name="nationality" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;">
+                                            @foreach (['citizen' => ['Citizen', 'Warganegara'], 'pr' => ['Permanent resident', 'Penduduk tetap'], 'foreign' => ['Foreign worker', 'Pekerja asing']] as $val => $lbl)
+                                                <option value="{{ $val }}" @selected(($s?->nationality ?? 'citizen') === $val) x-text="$store.ui.lang==='en' ? @js($lbl[0]) : @js($lbl[1])">{{ $lbl[0] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Marital status' : 'Status perkahwinan'">Marital status</label>
+                                        <div style="height:34px;display:flex;align-items:center;font-size:12.5px;color:var(--ink);">{{ ucfirst((string) ($e->marital_status ?? 'single')) }}</div>
+                                        @include('partials.hint', ['en' => 'From the employee record (set at first login) — edit it on the employee\'s own profile, not here. It drives PCB category.', 'ms' => 'Daripada rekod pekerja (ditetapkan semasa log masuk pertama) — sunting di profil pekerja itu sendiri, bukan di sini. Ia mempengaruhi kategori PCB.'])
+                                    </div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'LHDN tax reference no.' : 'No. rujukan cukai LHDN'">LHDN tax reference no.</label><input form="{{ $formId }}" name="tax_no" value="{{ $s?->tax_no }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Child relief units' : 'Unit pelepasan anak'">Child relief units</label><input form="{{ $formId }}" name="children_relief_count" type="number" step="1" min="0" max="20" value="{{ $s?->children_relief_count ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />@include('partials.hint', ['en' => 'Not a headcount — each unit is RM2,000 relief. An ordinary child under 18 is 1 unit. A child 18+ still in full-time education, or a disabled child, counts as 4 units (8 if both apply). Add up every child\'s units and enter the total.', 'ms' => 'Bukan bilangan anak — setiap unit bersamaan pelepasan RM2,000. Anak biasa bawah 18 tahun = 1 unit. Anak 18+ yang masih dalam pengajian sepenuh masa, atau anak OKU, dikira 4 unit (8 unit jika kedua-duanya). Jumlahkan unit semua anak dan masukkan jumlahnya.'])</div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Zakat (RM / month)' : 'Zakat (RM / bulan)'">Zakat (RM / month)</label><input form="{{ $formId }}" name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $s?->zakat_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'CP38 instalment (RM / month)' : 'Ansuran CP38 (RM / bulan)'">CP38 instalment (RM / month)</label><input form="{{ $formId }}" name="cp38_monthly" type="number" step="0.01" min="0" value="{{ $s?->cp38_monthly ?? 0 }}" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;">
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input form="{{ $formId }}" type="checkbox" name="spouse_working" value="1" @checked($s?->spouse_working) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Spouse working' : 'Pasangan bekerja'">Spouse working</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input form="{{ $formId }}" type="checkbox" name="disabled_self" value="1" @checked($s?->disabled_self) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (self)' : 'OKU (diri sendiri)'">Disabled (self)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input form="{{ $formId }}" type="checkbox" name="disabled_spouse" value="1" @checked($s?->disabled_spouse) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Disabled (spouse)' : 'OKU (pasangan)'">Disabled (spouse)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input form="{{ $formId }}" type="checkbox" name="skbbk_opt_in" value="1" @checked($s?->skbbk_opt_in) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Lindung 24 Jam (SKBBK)' : 'Lindung 24 Jam (SKBBK)'">Lindung 24 Jam (SKBBK)</span></label>
+                                </div>
+                                {{-- Names the box it belongs to: it sits under a row of four checkboxes and
+                                     described only the last one, which read as if it covered all of them. --}}
+                                @include('partials.hint', [
+                                    'en' => 'Lindung 24 Jam (SKBBK) only — voluntary since 8 July 2026, paid by the employee: 0.75% of wages, capped at RM45/month. The other three boxes above affect tax relief, not a deduction.',
+                                    'ms' => 'Lindung 24 Jam (SKBBK) sahaja — pilihan (voluntari) sejak 8 Julai 2026, dibayar oleh pekerja: 0.75% gaji, had siling RM45/bulan. Tiga kotak lain di atas mempengaruhi pelepasan cukai, bukan potongan.',
+                                ])
+                                <div style="margin-top:12px;"><button type="submit" form="{{ $formId }}" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save structure' : 'Simpan struktur'">Save structure</button><button type="button" @click="salaryFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+                <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                </div>
+            </div>
+        </div>
+
+        {{-- ════ TAB: Previous employment (TP3) ════ --}}
+        {{-- ════ TAB: Individual transactions (one-off per-employee lines) ════ --}}
+        <div x-show="tab === 'individual'" x-cloak x-data="{ itxAdding: false, itxEditing: null }">
+            <div class="uj-card" style="max-width:820px;">
+                <div class="uj-card-head" style="padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Individual transactions' : 'Transaksi individu'">Individual transactions</h3>
+                    <form method="get" action="{{ route('app.screen', 'payroll') }}" style="display:flex;align-items:center;gap:8px;">
+                        <input name="itx_period" type="month" value="{{ $itxPeriod }}" style="height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;" />
+                        <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Go' : 'Pergi'">Go</button>
+                    </form>
+                </div>
+
+                <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
+                    @include('partials.hint', [
+                        'en' => 'A one-off earning or deduction for one person in this month only — the payroll run picks it up automatically when it is created (or on the next recalculate, if a draft run for this month already exists). A recurring one belongs on Salary structures → Fixed transactions instead.',
+                        'ms' => 'Pendapatan atau potongan sekali sahaja untuk seorang bagi bulan ini sahaja — payroll run akan menariknya secara automatik apabila dijana (atau pada kira semula seterusnya, jika draft run bagi bulan ini sudah wujud). Yang berulang patut di Struktur gaji → Transaksi tetap.',
+                    ])
+                    @if ($itxPeriodFinalized)
+                        <div style="margin-top:8px;font-size:12px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Payroll for this month has been finalized — individual transactions can no longer be added, edited or deleted for it.' : 'Payroll bagi bulan ini telah difinalize — transaksi individu tidak boleh ditambah, disunting atau dipadam lagi untuknya.'"></div>
+                    @elseif ($itxPeriodHasDraftRun)
+                        <div style="margin-top:8px;font-size:12px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'A draft run already exists for this month. Changes here do not touch it automatically — open the affected payslip and Recalculate & save to apply them.' : 'Draft run bagi bulan ini sudah wujud. Perubahan di sini tidak menyentuhnya secara automatik — buka payslip berkenaan dan Kira semula & simpan untuk menerapkannya.'"></div>
+                    @endif
+                </div>
+
+                @if (!$itxPeriodFinalized)
+                    <div style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);display:flex;justify-content:flex-end;">
+                        <button type="button" @click="itxAdding = !itxAdding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? (itxAdding ? 'Cancel' : '+ Add') : (itxAdding ? 'Batal' : '+ Tambah')">+ Add</button>
+                    </div>
+                    <div x-show="itxAdding" x-cloak
+                         x-data="{
+                             q: '',
+                             rows: @js($salaryEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                             hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                         }"
+                         style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);background:var(--canvas);">
+                        <form method="post" action="{{ route('payroll.individual-transactions.store') }}">
+                            @csrf
+                            <input type="hidden" name="period" value="{{ $itxPeriod }}" />
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                <div style="flex:1;min-width:160px;position:relative;">
+                                    <label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'">Search name or nickname</label>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:7px;bottom:9px;pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                                    <input type="search" x-model="q" @keydown.escape="q = ''"
+                                           :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                                           style="width:100%;height:30px;padding:0 7px 0 24px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;outline:none;" />
+                                </div>
+                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Employee' : 'Pekerja'">Employee</label>
+                                    <select name="employee_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                        @foreach ($salaryEmployees as $e)
+                                            <option value="{{ $e->id }}" x-show="hit(rows[{{ $loop->index }}])">{{ $e->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                    <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                        @foreach ($fixedTransactionItems as $item)
+                                            <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->type }})</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
+
+                @forelse ($itxTransactions as $employeeId => $rows)
+                    <div style="border-bottom:1px solid var(--hairline-soft);padding:12px 22px;">
+                        <div style="font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;">{{ $rows->first()->employee?->name }}</div>
+                        @foreach ($rows as $itx)
+                            <div style="border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $itx->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $itx->payrollItem?->type }})</span></div>
+                                        @if ($itx->remarks)<div style="font-size:10.5px;color:var(--muted);">{{ $itx->remarks }}</div>@endif
+                                    </div>
+                                    <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($itx->amount) }}</div>
+                                    @if (!$itxPeriodFinalized)
+                                        <button type="button" @click="itxEditing = itxEditing === {{ $itx->id }} ? null : {{ $itx->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                                        <form method="post" action="{{ route('payroll.individual-transactions.delete', $itx) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam transaksi individu ini?' : 'Delete this individual transaction?');">@csrf<button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
+                                    @endif
+                                </div>
+                                @if (!$itxPeriodFinalized)
+                                    <div x-show="itxEditing === {{ $itx->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                                        <form method="post" action="{{ route('payroll.individual-transactions.update', $itx) }}">
+                                            @csrf
+                                            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+                                                <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
+                                                    <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                                                        @foreach ($fixedTransactionItems as $item)
+                                                            <option value="{{ $item->id }}" @selected($itx->payroll_item_id === $item->id)>{{ $item->name }} ({{ $item->type }})</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div><label style="display:block;font-size:10px;color:var(--muted);">RM</label><input name="amount" type="number" step="0.01" min="0.01" required value="{{ number_format($itx->amount, 2, '.', '') }}" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
+                                                <input name="remarks" value="{{ $itx->remarks }}" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @empty
+                    <div style="padding:20px 22px;font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js('No individual transactions queued for '.$itxPeriod.'.') : @js('Tiada transaksi individu untuk '.$itxPeriod.'.')">No individual transactions queued.</div>
+                @endforelse
+            </div>
+        </div>
+
+        <div x-show="tab === 'opening'" x-cloak
+             x-data="{
+                 openFor: null,
+                 q: '',
+                 rows: @js($openingEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                 hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+                 get shown() { return this.rows.filter(h => this.hit(h)).length; },
+             }">
+            <div class="uj-card" style="max-width:820px;">
+                <div class="uj-card-head" style="padding:16px 22px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Previous employment (TP3)' : 'Pekerjaan sebelum ini (TP3)'">Previous employment (TP3)</h3>
+                    <span style="font-size:12px;color:var(--muted);">{{ $openingYear }}</span>
+                    <div style="margin-left:auto;position:relative;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" x-model="q" @keydown.escape="q = ''"
+                               :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
+                               style="width:230px;height:32px;padding:0 12px 0 30px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);" />
+                    </div>
+                </div>
+                <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
+                    @include('partials.hint', [
+                        'tone' => 'warn',
+                        'en' => 'Gross, PCB, EPF, zakat and the optional-deductions figures come from the employee\'s Form TP3 (or the payroll system the company used earlier this year) and must be entered before that person\'s first payroll run — getting them wrong makes both the monthly tax and the year-end EA form wrong. SOCSO and EIS are not part of Form TP3 itself; they come from the previous payroll system\'s own take-on screen and are kept here for the EA form and your own reconciliation. Leave everything at 0 for anyone who has been paid through AmanahKu since January.',
+                        'ms' => 'Angka kasar, PCB, EPF, zakat dan potongan pilihan datang daripada Borang TP3 pekerja (atau sistem payroll yang syarikat guna lebih awal tahun ini) dan mesti dimasukkan sebelum payroll run pertama pekerja itu — jika salah, cukai bulanan dan Borang EA akhir tahun turut salah. SOCSO dan EIS bukan sebahagian daripada Borang TP3 itu sendiri; ia datang daripada skrin take-on sistem payroll sebelumnya dan disimpan di sini untuk Borang EA dan rekonsiliasi anda sendiri. Biarkan semua pada 0 bagi sesiapa yang telah dibayar melalui AmanahKu sejak Januari.',
+                    ])
+                </div>
+                @foreach ($openingEmployees as $e)
+                    @php $o = $openingFigures->get($e->id); @endphp
+                    <div x-show="hit(rows[{{ $loop->index }}])" style="border-bottom:1px solid var(--hairline-soft);">
+                        <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
+                            <div style="width:30px;height:30px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
+                            <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
+                            <div style="text-align:right;">
+                                @if ($o)<div style="font-size:12.5px;color:var(--ink);">{{ $money($o->gross) }} <span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'gross' : 'kasar'">gross</span></div>
+                                @else<span class="uj-pill" style="background:var(--canvas);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'None (0)' : 'Tiada (0)'">None (0)</span>@endif
+                            </div>
+                            <button @click="openFor === {{ $e->id }} ? openFor = null : openFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                        </div>
+                        <div x-show="openFor === {{ $e->id }}" x-cloak style="padding:4px 22px 18px 64px;">
+                            <form method="post" action="{{ route('payroll.opening') }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
+                                @csrf
+                                <input type="hidden" name="employee_id" value="{{ $e->id }}" />
+                                <input type="hidden" name="year" value="{{ $openingYear }}" />
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Pay & statutory (feeds PCB)' : 'Gaji & berkanun (mempengaruhi PCB)'">Pay &amp; statutory (feeds PCB)</div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
+                                    @foreach ([
+                                        ['gross', 'Gross paid (RM)', 'Kasar dibayar (RM)', $o?->gross],
+                                        ['pcb_paid', 'PCB (income tax) paid (RM)', 'PCB (cukai pendapatan) dibayar (RM)', $o?->pcb_paid],
+                                        ['epf', 'EPF paid (RM)', 'EPF dibayar (RM)', $o?->epf],
+                                        ['socso', 'SOCSO paid (RM)', 'SOCSO dibayar (RM)', $o?->socso],
+                                        ['eis', 'EIS paid (RM)', 'EIS dibayar (RM)', $o?->eis],
+                                        ['zakat_paid', 'Zakat paid (RM)', 'Zakat dibayar (RM)', $o?->zakat_paid],
+                                    ] as $f)
+                                        <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] !== null ? number_format((float) $f[3], 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    @endforeach
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
+                                    @foreach ([
+                                        ['additional_gross', 'Additional (bonus) gross (RM)', 'Kasar tambahan (bonus) (RM)', $o?->additional_gross],
+                                        ['additional_epf', 'EPF on additional (RM)', 'EPF atas tambahan (RM)', $o?->additional_epf],
+                                        ['optional_deductions', 'Optional deductions claimed (RM)', 'Potongan pilihan dituntut (RM)', $o?->optional_deductions],
+                                    ] as $f)
+                                        <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] !== null ? number_format((float) $f[3], 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    @endforeach
+                                </div>
+                                <div style="font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Record-keeping only (EA form)' : 'Untuk rekod sahaja (Borang EA)'">Record-keeping only (EA form)</div>
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:520px;margin-bottom:12px;">
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Exempt allowances (RM)' : 'Elaun dikecualikan cukai (RM)'">Exempt allowances (RM)</label><input name="exempt_allowances" type="number" step="0.01" min="0" value="{{ $o?->exempt_allowances !== null ? number_format((float) $o?->exempt_allowances, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                    <div style="grid-column:span 2;"><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Previous employer' : 'Majikan sebelum ini'">Previous employer</label><input name="previous_employer" value="{{ $o?->previous_employer }}" placeholder="Company name" :placeholder="$store.ui.lang==='en' ? 'Company name' : 'Nama syarikat'" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" /></div>
+                                    <div><label style="display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'Previous employer TIN' : 'TIN majikan sebelum ini'">Previous employer TIN</label><input name="previous_employer_tin" value="{{ $o?->previous_employer_tin }}" placeholder="Tax ID no." :placeholder="$store.ui.lang==='en' ? 'Tax ID no.' : 'No. rujukan cukai'" style="width:100%;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" /></div>
+                                </div>
+                                <div style="margin-top:12px;"><button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save opening figures' : 'Simpan angka permulaan'">Save opening figures</button><button type="button" @click="openFor = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button></div>
                             </form>
                         </div>
                     </div>
                 @endforeach
+                <div x-show="shown === 0" x-cloak style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Nobody matches that name.' : 'Tiada nama yang sepadan.'">Nobody matches that name.</span>
+                </div>
             </div>
         </div>
 
-        {{-- ════ TAB: Statutory rates ════ --}}
-        <div x-show="tab === 'rates'" x-cloak>
-            <div class="uj-card" style="max-width:720px;padding:24px;">
-                <h3 class="uj-card-title" style="margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Statutory contribution rates' : 'Kadar caruman berkanun'">Statutory contribution rates</h3>
-                @php $brackets = \App\Services\Payroll\StatutoryBrackets::class; @endphp
-                <div style="display:flex;gap:8px;align-items:flex-start;background:#fff7ed;border:1px solid #f1c98a;border-radius:9px;padding:11px 14px;margin-bottom:18px;font-size:12px;color:#9a5b14;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-                    <span x-show="$store.ui.lang==='en'">SOCSO &amp; EIS now use the PERKESO <strong>stepped bracket schedule</strong> (effective {{ $brackets::SCHEDULE_EFFECTIVE }}), split by contribution category from each employee's date of birth (≥60 → SOCSO Category 2, no EIS). The percentage fields below are the <strong>fallback</strong> only — used if bracket mode is cleared.
-                        @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Bracket amounts are PLACEHOLDER (generated, not the official figures) — transcribe the official PERKESO Jadual Caruman before any real statutory filing.</strong>@endif
-                        EPF is an exact percentage. <strong>Verify against the official KWSP / PERKESO tables before running real payroll.</strong></span>
-                    <span x-show="$store.ui.lang==='ms'" x-cloak>SOCSO &amp; EIS kini guna <strong>jadual bracket berperingkat</strong> PERKESO (berkuat kuasa {{ $brackets::SCHEDULE_EFFECTIVE }}), dibahagi mengikut kategori caruman daripada tarikh lahir setiap pekerja (≥60 → SOCSO Kategori 2, tiada EIS). Medan peratus di bawah ialah <strong>sandaran</strong> sahaja — digunakan jika mod bracket dikosongkan.
-                        @if ($brackets::IS_PLACEHOLDER)<strong style="color:#b91c1c;"> Amaun bracket ialah PLACEHOLDER (dijana, bukan angka rasmi) — salin Jadual Caruman PERKESO rasmi sebelum sebarang pemfailan berkanun sebenar.</strong>@endif
-                        EPF ialah peratusan tepat. <strong>Sahkan dengan jadual KWSP / PERKESO rasmi sebelum menjalankan payroll sebenar.</strong></span>
+        {{-- ════ TAB: Payroll items ════ --}}
+        <div x-show="tab === 'items'" x-cloak x-data="{ editItem: null }">
+            <div class="uj-card" style="max-width:900px;">
+                <div class="uj-card-head" style="padding:16px 22px;">
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Payroll items' : 'Katalog item gaji'">Payroll items</h3>
                 </div>
-                <form method="post" action="{{ route('payroll.rates') }}">
-                    @csrf
-                    <div style="margin-bottom:18px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EPF (KWSP)</div>
-                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-                            @foreach ([
-                                ['epf_employee_pct', 'Employee %', 'Pekerja %', $rates['epf']['employee_pct']],
-                                ['epf_employer_pct_below', 'Employer % (≤ threshold)', 'Majikan % (≤ ambang)', $rates['epf']['employer_pct_below']],
-                                ['epf_employer_pct_above', 'Employer % (> threshold)', 'Majikan % (> ambang)', $rates['epf']['employer_pct_above']],
-                                ['epf_threshold', 'Threshold (RM)', 'Ambang (RM)', $rates['epf']['threshold']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" />@error($f[0])<div style="font-size:10.5px;color:var(--error);margin-top:3px;">{{ $message }}</div>@enderror</div>
-                            @endforeach
+                <div style="padding:14px 22px;border-bottom:1px solid var(--hairline-soft);">
+                    @include('partials.hint', [
+                        'en' => 'Every amount on a payslip comes from one of these named items. The EPF / SOCSO+EIS / taxable flags decide what an item does to statutory contributions — a company can genuinely treat an allowance differently, so flags are editable on any item. System items (seeded defaults) cannot be deleted, but their flags and names can still be changed.',
+                        'ms' => 'Setiap jumlah pada payslip datang daripada salah satu item bernama ini. Penanda EPF / SOCSO+EIS / boleh cukai menentukan kesan item itu terhadap caruman berkanun — sesebuah syarikat mungkin benar-benar melayan sesuatu elaun secara berbeza, jadi penanda boleh disunting pada mana-mana item. Item sistem (lalai yang disediakan) tidak boleh dipadam, tetapi nama dan penandanya masih boleh diubah.',
+                    ])
+                </div>
+                @forelse ($payrollItems as $item)
+                    <div style="border-bottom:1px solid var(--hairline-soft);">
+                        <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;color:var(--ink);font-weight:500;">
+                                    {{ $item->name }}
+                                    @if ($item->is_system)<span class="uj-pill" style="background:var(--canvas);color:var(--muted);font-size:9.5px;margin-left:6px;" x-text="$store.ui.lang==='en' ? 'System' : 'Sistem'">System</span>@endif
+                                    @if (! $item->active)<span class="uj-pill" style="background:var(--red-tint);color:var(--muted);font-size:9.5px;margin-left:6px;" x-text="$store.ui.lang==='en' ? 'Inactive' : 'Tidak aktif'">Inactive</span>@endif
+                                </div>
+                                <div style="font-size:11px;color:var(--muted);text-transform:capitalize;">{{ $item->type }} · {{ $item->code }}</div>
+                            </div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <span class="uj-pill" style="background:{{ $item->epf_liable ? 'var(--red-tint)' : 'var(--canvas)' }};color:{{ $item->epf_liable ? 'var(--success)' : 'var(--muted)' }};font-size:10.5px;">EPF {{ $item->epf_liable ? '✓' : '—' }}</span>
+                                <span class="uj-pill" style="background:{{ $item->perkeso_liable ? 'var(--red-tint)' : 'var(--canvas)' }};color:{{ $item->perkeso_liable ? 'var(--success)' : 'var(--muted)' }};font-size:10.5px;">SOCSO/EIS {{ $item->perkeso_liable ? '✓' : '—' }}</span>
+                                <span class="uj-pill" style="background:{{ $item->pcb_taxable ? 'var(--red-tint)' : 'var(--canvas)' }};color:{{ $item->pcb_taxable ? 'var(--success)' : 'var(--muted)' }};font-size:10.5px;" x-text="($store.ui.lang==='en' ? 'PCB ' : 'PCB ') + ('{{ $item->pcb_taxable ? '✓' : '—' }}')">PCB {{ $item->pcb_taxable ? '✓' : '—' }}</span>
+                            </div>
+                            <button @click="editItem === {{ $item->id }} ? editItem = null : editItem = {{ $item->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
+                        </div>
+                        <div x-show="editItem === {{ $item->id }}" x-cloak style="padding:4px 22px 18px 22px;">
+                            <form method="post" action="{{ route('payroll.items.update', $item) }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
+                                @csrf
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                                    <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Name (EN)' : 'Nama (EN)'">Name (EN)</label><input name="name" value="{{ $item->name }}" required style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" /></div>
+                                    <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Nama (BM)</label><input name="name_ms" value="{{ $item->name_ms }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" /></div>
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;">
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="epf_liable" value="1" @checked($item->epf_liable) style="width:15px;height:15px;" /><span>EPF liable</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="perkeso_liable" value="1" @checked($item->perkeso_liable) style="width:15px;height:15px;" /><span>SOCSO/EIS liable</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="pcb_taxable" value="1" @checked($item->pcb_taxable) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Taxable (PCB)' : 'Boleh cukai (PCB)'">Taxable (PCB)</span></label>
+                                    <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer;"><input type="checkbox" name="active" value="1" @checked($item->active) style="width:15px;height:15px;" /><span x-text="$store.ui.lang==='en' ? 'Active' : 'Aktif'">Active</span></label>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                                    <button type="button" @click="editItem = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                                    @unless ($item->is_system)
+                                        <span style="flex:1;"></span>
+                                        <button type="submit" formaction="{{ route('payroll.items.delete', $item) }}" onclick="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam item ini?' : 'Delete this item?');" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
+                                    @endunless
+                                </div>
+                            </form>
                         </div>
                     </div>
-                    <div style="margin-bottom:18px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">SOCSO (PERKESO)</div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                            @foreach ([
-                                ['socso_employer_pct', 'Employer %', 'Majikan %', $rates['socso']['employer_pct']],
-                                ['socso_employee_pct', 'Employee %', 'Pekerja %', $rates['socso']['employee_pct']],
-                                ['socso_ceiling', 'Wage ceiling (RM)', 'Siling gaji (RM)', $rates['socso']['wage_ceiling']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
-                        </div>
+                @empty
+                    <div style="padding:28px 20px;text-align:center;color:var(--muted);">
+                        <div style="font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'No payroll items yet — they seed automatically the first time this tenant is set up.' : 'Belum ada item payroll — ia disediakan secara automatik apabila tenant ini disediakan.'"></span></div>
                     </div>
-                    <div style="margin-bottom:20px;">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">EIS (SIP)</div>
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                            @foreach ([
-                                ['eis_employer_pct', 'Employer %', 'Majikan %', $rates['eis']['employer_pct']],
-                                ['eis_employee_pct', 'Employee %', 'Pekerja %', $rates['eis']['employee_pct']],
-                                ['eis_ceiling', 'Wage ceiling (RM)', 'Siling gaji (RM)', $rates['eis']['wage_ceiling']],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" required value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
-                        </div>
-                    </div>
-                    <div style="margin-bottom:20px;padding-top:6px;border-top:1px solid var(--hairline-soft);">
-                        <div style="font-size:12px;font-weight:700;color:var(--ink);margin:12px 0 8px;" x-text="$store.ui.lang==='en' ? 'PCB / income tax (MTD)' : 'PCB / cukai pendapatan (MTD)'">PCB / income tax (MTD)</div>
-                        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink);margin-bottom:10px;cursor:pointer;">
-                            <input type="checkbox" name="pcb_auto" value="1" @checked(! empty($rates['pcb']['auto'])) style="width:16px;height:16px;" />
-                            <span x-text="$store.ui.lang==='en' ? 'Auto-calculate PCB on new runs (estimate — overridable per payslip)' : 'Kira PCB automatik pada run baharu (anggaran — boleh ditindih setiap payslip)'">Auto-calculate PCB on new runs (estimate — overridable per payslip)</span>
-                        </label>
-                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:360px;">
-                            @foreach ([
-                                ['pcb_individual_relief', 'Annual individual relief (RM)', 'Pelepasan individu tahunan (RM)', $rates['pcb']['individual_relief'] ?? 9000],
-                                ['pcb_epf_relief_cap', 'Annual EPF relief cap (RM)', 'Had pelepasan EPF tahunan (RM)', $rates['pcb']['epf_relief_cap'] ?? 4000],
-                            ] as $f)
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? @js($f[1]) : @js($f[2])">{{ $f[1] }}</label><input name="{{ $f[0] }}" type="number" step="0.01" min="0" value="{{ $f[3] }}" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" /></div>
-                            @endforeach
-                        </div>
-                        <div style="font-size:11px;color:#9a5b14;margin-top:8px;"><span x-text="$store.ui.lang==='en' ? 'Estimate only — simplified annualised method, not LHDN\'s full MTD computation. HR must review each PCB before finalizing.' : 'Anggaran sahaja — kaedah tahunan ringkas, bukan pengiraan MTD penuh LHDN. HR mesti semak setiap PCB sebelum finalize.'">Estimate only — simplified annualised method, not LHDN's full MTD computation. HR must review each PCB before finalizing.</span>@if (\App\Services\Payroll\PcbCalculator::IS_PLACEHOLDER) <span x-text="$store.ui.lang==='en' ? 'Verify the tax bands against the current LHDN schedule.' : 'Sahkan jaluran cukai dengan jadual LHDN semasa.'">Verify the tax bands against the current LHDN schedule.</span>@endif</div>
-                    </div>
-                    <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 20px;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'Save rates' : 'Simpan kadar'">Save rates</button>
-                    <span style="font-size:12px;color:var(--muted);margin-left:10px;" x-text="$store.ui.lang==='en' ? 'Applies to the next recalculation, not already-finalized runs.' : 'Terpakai pada pengiraan semula seterusnya, bukan run yang sudah difinalize.'">Applies to the next recalculation, not already-finalized runs.</span>
-                </form>
+                @endforelse
             </div>
         </div>
     </div>

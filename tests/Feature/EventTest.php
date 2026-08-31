@@ -151,4 +151,43 @@ class EventTest extends TestCase
         $this->assertSame('declined', EventRsvp::where('company_event_id', $event->id)
             ->where('employee_id', $this->employee->id)->first()->response);
     }
+
+    // ── Past events ───────────────────────────────────────────────
+
+    public function test_a_plain_employee_sees_past_events(): void
+    {
+        CompanyEvent::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Last Week Standup', 'type' => 'meeting',
+            'event_date' => now()->subDays(5)->toDateString(),
+        ]);
+
+        $this->actingInTenant()->get('/app/events')
+            ->assertOk()
+            ->assertSee('Last Week Standup');
+    }
+
+    public function test_an_event_older_than_30_days_lands_in_the_collapsed_bucket_while_a_recent_one_does_not(): void
+    {
+        CompanyEvent::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Ancient Kickoff', 'type' => 'meeting',
+            'event_date' => now()->subDays(45)->toDateString(),
+        ]);
+        CompanyEvent::create([
+            'tenant_id' => $this->tenant->id,
+            'title' => 'Last Week Standup', 'type' => 'meeting',
+            'event_date' => now()->subDays(5)->toDateString(),
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/events')->assertOk();
+
+        // The recent one is rendered inline in the normal past-events rows.
+        $response->assertSee('Last Week Standup');
+        // The older one is still in the response (the collapsed bucket), just behind
+        // the toggle rather than the visible recent rows — both are present in markup,
+        // Alpine's x-show only hides it client-side.
+        $response->assertSee('Ancient Kickoff');
+        $response->assertSee('Older events (1)');
+    }
 }

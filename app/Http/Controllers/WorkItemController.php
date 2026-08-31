@@ -6,9 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
 use App\Models\Employee;
+use App\Models\Project;
+use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
-use App\Services\DataScope;
+use App\Support\BoardRules;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +18,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class WorkItemController extends Controller
 {
@@ -24,13 +25,7 @@ class WorkItemController extends Controller
 
     private const STATUS_LABELS = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
 
-    /**
-     * Roles permitted to assign a tac onto another employee's board. Compared
-     * against Permissions::effectiveRole(), which collapses `director` into
-     * `management` — a director outranks a manager, so listing the raw roles here
-     * would silently lock out the one role above them all.
-     */
-    private const ASSIGNER_ROLES = ['manager', 'management', 'hr'];
+    public function __construct(private BoardRules $boardRules) {}
 
     /** The current employee adds a work item to their own board. */
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -44,6 +39,7 @@ class WorkItemController extends Controller
             'status' => ['nullable', 'in:'.implode(',', self::STATUSES)],
             'due_label' => ['nullable', 'string', 'max:60'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
         ]);
 
         $status = $data['status'] ?? 'todo';
@@ -54,12 +50,18 @@ class WorkItemController extends Controller
             'priority' => $data['priority'],
             'due_label' => $data['due_label'] ?? null,
             'project_id' => $data['project_id'] ?? null,
+            'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
             'status' => $status,
             'progress' => 0,
             'done_at' => $status === 'done' ? now() : null,
             // Place new cards at the bottom of their column.
             'sort_order' => (int) $employee->workItems()->where('status', $status)->max('sort_order') + 1,
         ]);
+
+        // Same guard update() runs: a project the chosen category does not offer never
+        // sticks, however the card was created. store() used to skip it entirely, so an
+        // API caller could pair any category with any project.
+        BoardRules::dropProjectTheCategoryDisallows($item);
 
         if ($request->expectsJson()) {
             return response()->json(['card' => $this->cardPayload($item), 'html' => $this->cardHtml($item)], 201);
@@ -73,7 +75,7 @@ class WorkItemController extends Controller
     {
         $assigner = $this->employee($request);
         $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
-        abort_unless(in_array($role, self::ASSIGNER_ROLES, true), 403, 'Your role cannot assign tasks.');
+        abort_unless(in_array($role, BoardRules::ASSIGNER_ROLES, true), 403, 'Your role cannot assign tasks.');
         abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
         // No new work onto an archived person — they hold no live responsibility (H8).
         abort_if($employee->isArchived(), 422, 'You cannot assign a task to an archived staff member.');
@@ -96,6 +98,12 @@ class WorkItemController extends Controller
             // resulting-state guard in update() for the other half of the rule.
             'due_at' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:5000'],
+            // Asked here as well as in the drawer. Work handed to someone else is still
+            // work that has to be costed, and an assigned card whose category nobody set
+            // produces no timesheet row at all — the assignee would have to open it on
+            // their own board to find out why their week will not add up.
+            'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'links' => ['sometimes', 'array', 'max:12'],
             'links.*.label' => ['required_with:links', 'string', 'max:60'],
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
@@ -108,6 +116,8 @@ class WorkItemController extends Controller
             'due_at' => $data['due_at'] ?? null,
             'description' => $data['description'] ?? null,
             'links' => $data['links'] ?? [],
+            'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
+            'project_id' => $data['project_id'] ?? null,
             'status' => 'todo',
             'progress' => 0,
             'assigned_by_id' => $assigner->id,
@@ -115,6 +125,8 @@ class WorkItemController extends Controller
             // Bottom of the assignee's To Do column.
             'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
         ]);
+
+        BoardRules::dropProjectTheCategoryDisallows($item);
 
         AppNotification::send(
             $employee->user_id,
@@ -138,14 +150,14 @@ class WorkItemController extends Controller
     public function show(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($request, $workItem, $employee);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
         $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee']);
 
         // The same call the write gate makes, so the drawer's read-only state can
         // never disagree with what the server will accept. A participant opens the
         // card read-only and may still move it and comment.
-        $canManage = $this->canManage($request, $workItem, $employee);
+        $canManage = $this->boardRules->canManage($request, $workItem, $employee);
 
         return response()->json([
             'card' => $this->cardPayload($workItem) + [
@@ -183,7 +195,7 @@ class WorkItemController extends Controller
     public function update(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($request, $workItem, $employee);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
 
         // The drawer's link editor keeps a blank "+ Add a link" row in local state
         // until it's filled in — drop rows nobody touched before validating, same
@@ -204,6 +216,7 @@ class WorkItemController extends Controller
             'due_label' => ['sometimes', 'nullable', 'string', 'max:60'],
             'estimate_hours' => ['prohibited'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'timesheet_category_id' => ['sometimes', 'nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'labels' => ['sometimes', 'array'],
             'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
             'links' => ['sometimes', 'array', 'max:12'],
@@ -214,22 +227,10 @@ class WorkItemController extends Controller
         ]);
 
         // A card that involves anyone but its owner (a tac, or a card with
-        // participants) must carry a due date. Checked against the state the
-        // request would LEAVE BEHIND, not the body, because the drawer autosaves
-        // one field at a time: a participant-add PATCH carries no due_at, and a
-        // due_at-clearing PATCH carries no participants. One check covers both
-        // directions — adding people to a due-less card, and clearing the due off
-        // a shared one. due_label doesn't count; it's free display text.
-        $due = array_key_exists('due_at', $data) ? $data['due_at'] : $workItem->due_at;
-        $hasOthers = array_key_exists('participant_ids', $data)
-            ? $data['participant_ids'] !== []
-            : $workItem->participants()->exists();
-
-        if (! $due && ($hasOthers || $workItem->assigned_by_id)) {
-            throw ValidationException::withMessages([
-                'due_at' => 'A task shared with someone else needs a due date.',
-            ]);
-        }
+        // participants) must carry a due date. See BoardRules::assertDueDateRetained()
+        // for the full reasoning — checked against the state the request would leave
+        // behind, not the raw body, because the drawer autosaves one field at a time.
+        $this->boardRules->assertDueDateRetained($workItem, $data);
 
         // Participants are a relation, not a column — pull them out before the fill.
         if (array_key_exists('participant_ids', $data)) {
@@ -238,6 +239,15 @@ class WorkItemController extends Controller
         }
 
         $workItem->update($data);
+
+        // Changing either half of the pair can leave the other one stranded: a category
+        // that needs no project at all, or one tagged to a different set of projects than
+        // the card is booked to. The drawer would stop offering that project, so it would
+        // sit on the card invisibly and still label every timesheet line it produces.
+        if (array_key_exists('project_id', $data) || array_key_exists('timesheet_category_id', $data)) {
+            BoardRules::dropProjectTheCategoryDisallows($workItem);
+        }
+
         $workItem->load('participants');
 
         return response()->json([
@@ -266,7 +276,7 @@ class WorkItemController extends Controller
     public function move(Request $request, WorkItem $workItem): RedirectResponse|JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($request, $workItem, $employee);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', self::STATUSES)],
@@ -314,7 +324,7 @@ class WorkItemController extends Controller
     public function destroy(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($request, $workItem, $employee);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
 
         $workItem->delete();
 
@@ -329,7 +339,7 @@ class WorkItemController extends Controller
     public function archive(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($request, $workItem, $employee);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
         abort_unless($workItem->status === 'done', 422, 'Only a Done card can be archived.');
 
         $workItem->update(['archived_at' => now()]);
@@ -341,7 +351,7 @@ class WorkItemController extends Controller
     public function restore(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeManage($request, $workItem, $employee);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
 
         $workItem->update([
             'archived_at' => null,
@@ -377,7 +387,7 @@ class WorkItemController extends Controller
     public function comment(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
-        $this->authorizeAccess($request, $workItem, $employee);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
         $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
 
@@ -424,38 +434,6 @@ class WorkItemController extends Controller
     }
 
     /**
-     * View / comment / move: the owner, a (tac) assigner, an included participant, a
-     * manager whose data scope covers the card's owner, or anyone whose role passes
-     * Permissions::canSeeAll() (management, HR, or an immediate superior) — bounded,
-     * same as the manager clause, by coversCardOwner().
-     *
-     * The canSeeAll() clause is what lets a director (or HR, or any employee with a
-     * direct report) open a card from the team board without a 403 — see the design
-     * doc's "Permissions" section. It is deliberately strictly wider than canManage():
-     * canSeeAll() decides *whether* someone oversees people, coversCardOwner() decides
-     * *whose* records, and without that second half a team-scoped manager (or anyone
-     * else canSeeAll() admits) could open any card in the tenant by putting its id in
-     * the URL — the same hole AK-AUTHZ-01 exists to close, reintroduced through a
-     * different door.
-     */
-    private function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
-    {
-        abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $role = $request->attributes->get('tenantRole', 'employee');
-        abort_unless(
-            $item->employee_id === $employee->id
-            || $this->isAssigner($item, $employee)
-            || $item->participants()->whereKey($employee->id)->exists()
-            // A manager who may edit the card must also be able to open it. Without
-            // this they hold edit rights they can never reach: show() would 403 and
-            // the drawer would never render.
-            || $this->isManagerOver($request, $item, $employee)
-            || (Permissions::canSeeAll($employee, $role) && $this->coversCardOwner($request, $item, $employee)),
-            403,
-        );
-    }
-
-    /**
      * Set the people included on a shared card. Open to every role: including
      * someone is collaboration on a card you already manage, not an assignment,
      * so it is bounded by canManage() (checked in update() before this runs)
@@ -483,81 +461,6 @@ class WorkItemController extends Controller
                 mail: true,
             );
         }
-    }
-
-    /**
-     * Edit fields / delete: the owner of a self-made card, or the assigner of a tac.
-     * The assignee of a tac is deliberately locked out — their intent stays the
-     * assigner's; they can only move it and comment.
-     */
-    private function authorizeManage(Request $request, WorkItem $item, Employee $employee): void
-    {
-        abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
-        abort_unless($this->canManage($request, $item, $employee), 403);
-    }
-
-    /**
-     * May this viewer edit the card's fields, set its participants, or delete it?
-     *
-     * Three ways in: the owner of a self-made card, the assigner of a tac, or a
-     * manager whose data scope covers the card's owner. Moving and commenting are
-     * a wider grant handled by authorizeAccess() — a participant does both without
-     * ever passing this check.
-     *
-     * The manager grant is deliberately bounded by DataScope. A bare role check
-     * would let any manager in the tenant edit any card, including one belonging
-     * to another branch or department they cannot otherwise see (AK-AUTHZ-01). A
-     * company-scoped manager still reaches every card, which is the point of that
-     * scope; a team-scoped one reaches only their reporting line.
-     *
-     * This is the single source for both the 403 gate and the drawer's read-only
-     * state, so the lock a viewer sees can never disagree with what the server
-     * will accept.
-     */
-    private function canManage(Request $request, WorkItem $item, Employee $employee): bool
-    {
-        $owns = $item->assigned_by_id === null
-            ? $item->employee_id === $employee->id
-            : $this->isAssigner($item, $employee);
-
-        return $owns || $this->isManagerOver($request, $item, $employee);
-    }
-
-    /**
-     * A `manager` whose data scope includes the employee whose board this card sits
-     * on. The edit grant: role check plus the DataScope leg (coversCardOwner()). Kept
-     * as its own method — rather than inlined at its one call site in canManage() —
-     * because its name documents what it means there; behaviour is unchanged from
-     * before the DataScope leg was split out.
-     */
-    private function isManagerOver(Request $request, WorkItem $item, Employee $employee): bool
-    {
-        $role = $request->attributes->get('tenantRole', 'employee');
-
-        return Permissions::effectiveRole($role) === 'manager'
-            && $this->coversCardOwner($request, $item, $employee);
-    }
-
-    /**
-     * Whether $employee's data scope reaches the card's owner — the DataScope leg
-     * alone, no role check. Shared by the edit grant (isManagerOver(), above) and the
-     * wider view grant in authorizeAccess(): canSeeAll() decides *whether* a viewer
-     * oversees people at all, this decides *whose* records that reaches.
-     */
-    private function coversCardOwner(Request $request, WorkItem $item, Employee $employee): bool
-    {
-        // A null return means company scope — every employee is in reach.
-        $visible = app(DataScope::class)->visibleEmployeeIds(
-            $request->attributes->get('tenantScope', 'company'),
-            $employee,
-        );
-
-        return $visible === null || in_array($item->employee_id, $visible, true);
-    }
-
-    private function isAssigner(WorkItem $item, Employee $employee): bool
-    {
-        return $item->assigned_by_id !== null && $item->assigned_by_id === $employee->id;
     }
 
     /**
@@ -669,6 +572,22 @@ class WorkItemController extends Controller
             'labels' => $item->labels ?? [],
             'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
+            'project_id' => $item->project_id,
+            // Which effort type this card's hours are costed as once they reach a
+            // timesheet. Null means the card still owes an answer and its rows are held
+            // back — see BoardSuggestions::categoryFor().
+            'timesheet_category_id' => $item->timesheet_category_id,
+            // Named as well as numbered: the team board's drawer is read-only and has no
+            // picker to read the name off.
+            'timesheet_category_name' => $item->effectiveTimesheetCategory()?->name,
+            // Every category a person may pick. Not narrowed by the project — the card
+            // owns the category, and it is the project list below that the choice narrows.
+            'timesheet_category_options' => $item->timesheetCategoryOptions()
+                ->map(fn (TimesheetCategory $c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            // The projects this card's category allows. Empty for a category that needs
+            // no project at all, which is how the drawer knows not to ask.
+            'project_options' => $item->projectOptions()
+                ->map(fn (Project $p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'comments_count' => $item->comments_count ?? $item->comments()->count(),
             'assigned_by' => $item->assigned_by_id ? [
                 'name' => $item->assignedBy?->display_name,

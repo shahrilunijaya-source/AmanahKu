@@ -198,6 +198,7 @@ class TotSession extends Model
         return $this->hasMany(TotReaction::class, 'session_id');
     }
 
+    /** @return HasMany<TotParticipation, $this> */
     public function participations(): HasMany
     {
         return $this->hasMany(TotParticipation::class, 'session_id');

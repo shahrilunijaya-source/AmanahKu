@@ -172,18 +172,23 @@ class ClaimController extends Controller
         return back()->with('ok', 'Claim approved for '.$claim->employee->name.'.');
     }
 
-    /** The claimant withdraws their own claim before anyone approves it. */
+    /**
+     * The claimant withdraws their own claim, before or after approval. Once it's been
+     * pulled into a payslip (status 'paid', or paid_at stamped) it's locked — payroll has
+     * already accounted for it.
+     */
     public function cancel(Request $request, Claim $claim): RedirectResponse
     {
         $this->assertSameTenant($claim->tenant_id);
         $actor = $request->attributes->get('employee');
         abort_unless($actor && $actor->id === $claim->employee_id, 403);
 
-        // Compare-and-set so a cancel can never overtake an approval already in flight.
+        // Compare-and-set so a cancel can never overtake payroll finalising the claim.
         $flipped = Claim::whereKey($claim->id)
-            ->whereIn('status', ['submitted', 'verified'])
+            ->whereIn('status', ['submitted', 'verified', 'approved'])
+            ->whereNull('paid_at')
             ->update(['status' => 'cancelled']);
-        abort_if($flipped === 0, 422, 'Only a claim still awaiting approval can be cancelled.');
+        abort_if($flipped === 0, 422, 'A claim already paid cannot be cancelled.');
 
         AuditLog::record('Cancelled claim', $actor->name.' · RM '.number_format($claim->amount, 2));
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -51,10 +52,84 @@ class WorkItem extends Model
      * The project this card is planned under. Optional. Named projectRef (not
      * project) to match TimesheetEntry and stay clear of any future `project`
      * column that would shadow the relation.
+     *
+     * @return BelongsTo<Project, $this>
      */
     public function projectRef(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    /**
+     * The effort type this card's hours are costed as once they reach a timesheet.
+     *
+     * @return BelongsTo<TimesheetCategory, $this>
+     */
+    public function timesheetCategory(): BelongsTo
+    {
+        return $this->belongsTo(TimesheetCategory::class);
+    }
+
+    /**
+     * The categories this card may be costed as: every active one a person may pick.
+     * The card owns this answer now, so the list is not narrowed by the card's project —
+     * the dependency runs the other way, and it is the project picker that a chosen
+     * category narrows (see projectOptions()).
+     *
+     * @return Collection<int, TimesheetCategory>
+     */
+    public function timesheetCategoryOptions(): Collection
+    {
+        return TimesheetCategory::where('is_active', true)
+            ->whereNotIn('name', TimesheetCategory::generatedNames())
+            ->orderBy('sort')->orderBy('name')->get();
+    }
+
+    /**
+     * The projects this card may be booked to, given the category it carries. A category
+     * that needs no project (HR and Admin, Charity, Others) offers none at all — the
+     * question does not arise. A delivery category offers the projects the project screen
+     * tagged with it.
+     *
+     * A project tagged with nothing at all is offered under every category: it has said
+     * nothing, not "no category fits", and dropping it would make existing projects
+     * disappear the moment tagging starts. That is the same rule the timesheet's own
+     * project picker applies (TimesheetController::projectOptions()), read from the same
+     * pivot, so the prefilled row and the card's drawer can never disagree.
+     *
+     * The tagged/untagged test is on the PROJECT, never on the category: "a category with
+     * no tagged projects offers all of them" would read the pivot from the wrong end and
+     * quietly switch the pairing guard off for that category — every project would pair
+     * with it, including ones the guard had just unbooked. A category nobody has tagged a
+     * project with offers only the untagged projects, and the fix for that is to tag one
+     * on the Projects screen.
+     *
+     * @return Collection<int, Project>
+     */
+    public function projectOptions(): Collection
+    {
+        $category = $this->timesheetCategory;
+
+        if (! $category || ! $category->requires_project) {
+            return new Collection;
+        }
+
+        return Project::where('is_active', true)
+            ->where(fn ($q) => $q
+                ->whereHas('categories', fn ($c) => $c->where('timesheet_categories.id', $category->id))
+                ->orWhereDoesntHave('categories'))
+            ->orderBy('sort')->orderBy('name')->get();
+    }
+
+    /**
+     * What this card is costed as. Its own field, and nothing else: the category is asked
+     * for on the card, so there is no project to infer it from any more. Null means the
+     * card still owes an answer, and BoardSuggestions holds its rows back until it has
+     * one rather than filing real work under an overhead bucket nobody chose.
+     */
+    public function effectiveTimesheetCategory(): ?TimesheetCategory
+    {
+        return $this->timesheet_category_id ? $this->timesheetCategory : null;
     }
 
     /** The superior who assigned this task. Null for self-created cards. */
@@ -78,6 +153,16 @@ class WorkItem extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(WorkItemComment::class)->oldest();
+    }
+
+    /**
+     * Every visit this card has made to the In Progress column, oldest first.
+     *
+     * @return HasMany<WorkItemProgressStint, $this>
+     */
+    public function progressStints(): HasMany
+    {
+        return $this->hasMany(WorkItemProgressStint::class)->orderBy('started_at');
     }
 
     /**

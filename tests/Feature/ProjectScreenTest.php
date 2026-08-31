@@ -34,6 +34,67 @@ class ProjectScreenTest extends TestCase
         $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
     }
 
+    /**
+     * This screen is the source of truth for which categories a project answers for, so
+     * retagging it has to reach the board cards booked to it. A card left booked to a
+     * project its category no longer offers would be invisible — its drawer stops
+     * offering that project — while still labelling every timesheet line it produces.
+     *
+     * The project is dropped, not the category: the staffer picked the category on the
+     * card, and wiping it because someone else retagged a project would throw away a real
+     * answer and stop the card's rows reaching the timesheet at all.
+     */
+    public function test_retagging_a_project_unbooks_cards_it_no_longer_fits(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $sales = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Sales', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id, $sales->id]);
+
+        $employee = Employee::where('user_id', $this->actorWithRole('manager')->id)->sole();
+        $stale = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Sold work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $sales->id,
+        ]);
+        $kept = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Built work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $dev->id,
+        ]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.update', $project), ['name' => 'SPA: IRIS', 'categories' => [$dev->id]])
+            ->assertRedirect();
+
+        $this->assertNull($stale->fresh()->project_id);
+        $this->assertSame($sales->id, $stale->fresh()->timesheet_category_id);
+        $this->assertSame($project->id, (int) $kept->fresh()->project_id);
+        $this->assertSame($dev->id, $kept->fresh()->timesheet_category_id);
+    }
+
+    /** Untagging a project says nothing, not "none" — its cards keep what they had. */
+    public function test_untagging_a_project_leaves_its_cards_alone(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'SPA: IRIS', 'is_active' => true]);
+        $project->categories()->sync([$dev->id]);
+
+        $employee = Employee::where('user_id', $this->actorWithRole('manager')->id)->sole();
+        $card = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Built work', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'project_id' => $project->id, 'timesheet_category_id' => $dev->id,
+        ]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.update', $project), ['name' => 'SPA: IRIS'])
+            ->assertRedirect();
+
+        $this->assertSame($dev->id, $card->fresh()->timesheet_category_id);
+        $this->assertSame($project->id, (int) $card->fresh()->project_id);
+    }
+
     /** Idempotent: a test may act as the same role more than once in one case. */
     private function actorWithRole(string $role): User
     {
@@ -175,6 +236,34 @@ class ProjectScreenTest extends TestCase
         $this->actingAsRole('hr')->post(route('projects.delete', $project))->assertRedirect();
 
         $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => false]);
+    }
+
+    public function test_a_manager_can_archive_and_restore_a_project(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.archive', $project))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => false]);
+
+        $this->actingAsRole('manager')
+            ->post(route('projects.archive', $project))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => true]);
+    }
+
+    public function test_an_employee_cannot_archive_a_project(): void
+    {
+        $project = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
+
+        $this->actingAsRole('employee')
+            ->post(route('projects.archive', $project))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'is_active' => true]);
     }
 
     public function test_project_ajax_add_returns_a_rendered_row(): void

@@ -313,7 +313,24 @@
                            class="wd-title" style="width:100%;border-color:var(--hairline);"
                            x-bind:placeholder="$store.ui.lang==='en' ? 'Task title' : 'Tajuk tugas'" />
 
-                    <div class="wd-props" style="margin-top:14px;">
+                    {{-- Its own x-data, the same technique the link rows below use: this is a
+                         plain POST form, not the autosaving drawer, so the category/project
+                         pairing is resolved in the browser off the lists the controller sent
+                         rather than by asking the server on every change. --}}
+                    <div class="wd-props" style="margin-top:14px;"
+                         x-data="{
+                            categoryId: '{{ old('timesheet_category_id') }}',
+                            projectId: '{{ old('project_id') }}',
+                            categories: @js($assignCategories ?? []),
+                            projects: @js($assignProjects ?? []),
+                            get category() { return this.categories.find((c) => String(c.id) === String(this.categoryId)) || null },
+                            get needsProject() { return !!this.category && this.category.requires_project },
+                            get projectOptions() {
+                                if (!this.needsProject) return [];
+                                const id = this.category.id;
+                                return this.projects.filter((p) => !p.category_ids.length || p.category_ids.includes(id));
+                            },
+                         }">
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Assign to' : 'Beri kepada'">Assign to</span>
                         <span class="wd-pval">
                             <select class="wd-inline" x-model.number="assign.employeeId" required>
@@ -344,6 +361,31 @@
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
                         <span class="wd-pval">
                             <input type="date" name="due_at" value="{{ old('due_at') }}" class="wd-inline" required />
+                        </span>
+
+                        {{-- Asked here for the same reason the drawer asks it: a card with no
+                             category produces no timesheet row, and the assignee would have to
+                             open it on their own board to find out why their week does not add
+                             up. Project follows the category, and is only asked when the
+                             category is one that names a job. --}}
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-pval wd-ppair">
+                            <select name="timesheet_category_id" class="wd-inline" x-model="categoryId"
+                                    @change="projectId = ''"
+                                    :aria-label="$store.ui.lang==='en' ? 'Category' : 'Kategori'">
+                                <option value="" x-text="$store.ui.lang==='en' ? 'No category' : 'Tiada kategori'"></option>
+                                <template x-for="c in categories" :key="c.id">
+                                    <option :value="c.id" x-text="c.name"></option>
+                                </template>
+                            </select>
+                            <span class="wd-psep" aria-hidden="true" x-show="needsProject" x-cloak>·</span>
+                            <select name="project_id" class="wd-inline" x-model="projectId" x-show="needsProject" x-cloak
+                                    :aria-label="$store.ui.lang==='en' ? 'Project' : 'Projek'">
+                                <option value="" x-text="$store.ui.lang==='en' ? 'No project' : 'Tiada projek'"></option>
+                                <template x-for="p in projectOptions" :key="p.id">
+                                    <option :value="p.id" x-text="p.name"></option>
+                                </template>
+                            </select>
                         </span>
                     </div>
 

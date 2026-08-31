@@ -42,8 +42,10 @@ class Maybank2uBizFormat extends BankFileFormat
             $rows[] = [
                 $s?->bank_account_no,
                 $p->employee?->name,
-                // NRIC decrypts on read; bank files want it digits-only.
-                preg_replace('/\D/', '', (string) $s?->nric),
+                // NRIC lives on the employee record (single source of truth, see the
+                // reconcile migration 2026_08_25_200300), not salary_structures. Decrypts
+                // on read; bank files want it digits-only.
+                preg_replace('/\D/', '', (string) $p->employee?->nric),
                 $this->amount($p->net_pay),
                 'IBG',
                 'Salary '.$run->label,

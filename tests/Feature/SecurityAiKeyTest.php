@@ -78,6 +78,31 @@ class SecurityAiKeyTest extends TestCase
         $this->assertSame('claude-code', $token->name);
     }
 
+    public function test_ticking_allow_writes_mints_all_six_abilities(): void
+    {
+        $response = $this->actingInTenant()->post('/app/security/ai-key/generate', ['password' => 'password', 'allow_writes' => '1']);
+
+        $response->assertRedirect();
+        $token = $this->tokensFor($this->user)->first();
+        $this->assertNotNull($token);
+        $this->assertSame(
+            ['timesheets:read', 'board:read', 'tot:read', 'board:write', 'timesheets:write', 'tot:write'],
+            $token->abilities,
+        );
+    }
+
+    public function test_regenerating_without_the_box_drops_write_scopes(): void
+    {
+        $this->actingInTenant()->post('/app/security/ai-key/generate', ['password' => 'password', 'allow_writes' => '1']);
+        $this->assertContains('board:write', $this->tokensFor($this->user)->first()->abilities);
+
+        $this->actingInTenant()->post('/app/security/ai-key/generate', ['password' => 'password']);
+
+        $tokens = $this->tokensFor($this->user);
+        $this->assertCount(1, $tokens);
+        $this->assertSame(['timesheets:read', 'board:read', 'tot:read'], $tokens->first()->abilities);
+    }
+
     public function test_generating_again_leaves_exactly_one_key(): void
     {
         $this->actingInTenant()->post('/app/security/ai-key/generate', ['password' => 'password']);
@@ -88,6 +113,26 @@ class SecurityAiKeyTest extends TestCase
         $tokens = $this->tokensFor($this->user);
         $this->assertCount(1, $tokens);
         $this->assertNotSame($first->id, $tokens->first()->id);
+    }
+
+    /**
+     * The setup command must register the server at USER scope. `claude mcp add`
+     * defaults to local scope, which ties the server to whichever folder the person
+     * was standing in when they pasted it -- so it would quietly disappear the next
+     * time they opened Claude Code anywhere else. Most holders of one of these keys
+     * are HR or a manager with no notion of a project folder, and would read that as
+     * the key having stopped working.
+     */
+    public function test_the_setup_command_registers_the_server_for_the_whole_machine(): void
+    {
+        $redirect = $this->actingInTenant()->from(route('app.screen', 'security'))
+            ->post('/app/security/ai-key/generate', ['password' => 'password']);
+
+        $command = $redirect->getSession()->get('aiKeyCommand');
+
+        $this->assertStringContainsString('--scope user', $command);
+        $this->assertStringContainsString('--transport http', $command);
+        $this->assertStringContainsString('/mcp/amanahku', $command);
     }
 
     public function test_plaintext_shows_once_then_is_gone_on_next_load(): void

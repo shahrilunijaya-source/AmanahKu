@@ -32,12 +32,13 @@ class DataScope
 
         return match ($scope) {
             'own' => $query->where('id', $self->id),
-            // Team = direct reports, additional (dotted-line) reports, and self. A manager
+            // Team = self, the full reports_to_id subtree (direct reports and everyone
+            // below them, per the org chart), plus direct dotted-line reports. A manager
             // who can verify someone's requests also sees them in team-scoped views.
-            'team' => $query->where(fn ($q) => $q
-                ->where('reports_to_id', $self->id)
-                ->orWhere('id', $self->id)
-                ->orWhereHas('additionalManagers', fn ($m) => $m->whereKey($self->id))),
+            'team' => $query->whereIn('id', array_merge(
+                $this->subtreeIds($self),
+                Employee::whereHas('additionalManagers', fn ($m) => $m->whereKey($self->id))->pluck('id')->all(),
+            )),
             'department' => $self->department_id
                 ? $query->where('department_id', $self->department_id)
                 : $query->where('id', $self->id),
@@ -63,5 +64,31 @@ class DataScope
         }
 
         return $this->applyToEmployees(Employee::query(), $scope, $self)->pluck('id')->all();
+    }
+
+    /**
+     * $self plus every employee below them in the reports_to_id chain, walked
+     * breadth-first so any depth of org chart is covered, not just direct reports.
+     *
+     * @return list<int>
+     */
+    private function subtreeIds(Employee $self): array
+    {
+        $ids = [$self->id];
+        $frontier = [$self->id];
+
+        while (true) {
+            $children = Employee::whereIn('reports_to_id', $frontier)->pluck('id')->all();
+            $children = array_values(array_diff($children, $ids));
+
+            if ($children === []) {
+                break;
+            }
+
+            $ids = array_merge($ids, $children);
+            $frontier = $children;
+        }
+
+        return $ids;
     }
 }
