@@ -7,6 +7,7 @@ namespace App\Mcp\Tools;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
 use App\Support\ApiCaller;
+use App\Timesheet\BoardSuggestions;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Carbon;
 use Laravel\Mcp\Request;
@@ -21,7 +22,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * every employee's timesheet for the week, everyone else sees only their own.
  */
 #[IsReadOnly]
-#[Description('Get one week\'s timesheets (status and daily entries: date, project, category, hours, percentage). Privileged callers (management/HR) see the whole tenant; everyone else sees only their own timesheet.')]
+#[Description('Get one week\'s timesheets (status and daily entries: date, project, category, hours, percentage). Privileged callers (management/HR) see the whole tenant; everyone else sees only their own timesheet. The response also carries `suggested` — the board cards BoardSuggestions would prefill for the caller\'s OWN week (mirrors the timesheet screen), so a caller can see what still needs logging before calling save_timesheet_draft. `suggested` is always the caller\'s own board cards, never anybody else\'s, even when a privileged caller\'s `timesheets` list carries other people\'s weeks too. Omitted only when the caller has no employee profile in this workspace.')]
 class TimesheetWeekTool extends Tool
 {
     public function handle(Request $request): Response
@@ -44,20 +45,31 @@ class TimesheetWeekTool extends Tool
         $query = Timesheet::query()->with(['employee:id,name', 'entries.category:id,name', 'entries.projectRef:id,code,name'])
             ->forWeek($weekStart);
 
+        $employee = ApiCaller::employee($httpRequest);
+
         if (! ApiCaller::isPrivileged($httpRequest)) {
-            $employee = ApiCaller::employee($httpRequest);
             if (! $employee) {
                 return Response::json(['week_start' => $weekStart->toDateString(), 'timesheets' => []]);
             }
             $query->where('employee_id', $employee->id);
         }
 
+        // Suggestions are keyed to the CALLER's own Employee record, never to whichever
+        // employees the `timesheets` list happens to include. HR and management have
+        // their own timesheets to fill too, and are exactly the people likely to draft
+        // one over MCP — excluding them here left every privileged caller with no
+        // suggestions at all. There is no leak in always computing this: a privileged
+        // caller only ever sees their OWN board cards, the same as anyone else. A caller
+        // with no employee profile (a machine token, say) still gets no `suggested` key.
+        $suggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : null;
+
         $timesheets = $query->get()->map($this->timesheetRow(...));
 
-        return Response::json([
+        return Response::json(array_filter([
             'week_start' => $weekStart->toDateString(),
             'timesheets' => $timesheets,
-        ]);
+            'suggested' => $suggested,
+        ], fn ($v) => $v !== null));
     }
 
     /**

@@ -285,9 +285,9 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
     <section id="writes">
       <h2 x-data x-text="$store.ui.lang==='en' ? 'Letting it make changes' : 'Membenarkan ia membuat perubahan'">Letting it make changes</h2>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
-              ? 'The checkbox on the AI access key card — \'Also let it make changes\' — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.'
-              : 'Kotak semak pada kad kunci akses AI — \'Juga benarkan ia membuat perubahan\' — dimatikan secara lalai. Tandakannya dan Claude Code juga boleh mencipta, mengedit, memindah, dan mengarkibkan kad board anda, menyimpan draf lembaran masa anda, dan, jika anda pengurus atau HR, menugaskan tugasan kepada seseorang atau menyiarkan acara TOT luaran.'">
-        The checkbox on the AI access key card — "Also let it make changes" — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards, save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.
+              ? 'The checkbox on the AI access key card — \'Also let it make changes\' — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards (including setting a card\'s effort type and project), save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.'
+              : 'Kotak semak pada kad kunci akses AI — \'Juga benarkan ia membuat perubahan\' — dimatikan secara lalai. Tandakannya dan Claude Code juga boleh mencipta, mengedit, memindah, dan mengarkibkan kad board anda (termasuk menetapkan jenis usaha dan projek sesuatu kad), menyimpan draf lembaran masa anda, dan, jika anda pengurus atau HR, menugaskan tugasan kepada seseorang atau menyiarkan acara TOT luaran.'">
+        The checkbox on the AI access key card — "Also let it make changes" — is off by default. Tick it and Claude Code can also create, edit, move, and archive your board cards (including setting a card's effort type and project), save a draft of your timesheet, and, if you are a manager or HR, assign a task to someone or post an external TOT event.
       </p>
       <p class="sub" x-data x-text="$store.ui.lang==='en'
               ? 'Every one of those changes works the same way, in two steps:'
@@ -340,27 +340,27 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
       </p>
       <div class="steps">
         <div class="step">
-          <h3 x-data x-text="$store.ui.lang==='en' ? 'It looks up the real categories and projects' : 'Ia mencari kategori dan projek sebenar'">It looks up the real categories and projects</h3>
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'It reads your board first' : 'Ia membaca board anda dahulu'">It reads your board first</h3>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'It matches what you worked on to your actual timesheet categories and projects, drafts those days, then shows you the full week to approve.'
-                  : 'Ia memadankan apa yang anda kerjakan dengan kategori dan projek lembaran masa sebenar anda, merangka hari-hari itu, kemudian menunjukkan minggu penuh untuk anda luluskan.'">
-            It matches what you worked on to your actual timesheet categories and projects, drafts those days, then shows you the full week to approve.
+                  ? 'It looks at the cards you had in In Progress or In Review that week — the same ones your timesheet screen already suggests — each already carrying its own effort type and project. It matches what you actually worked on in that folder to those cards, drafts those days, then shows you the full week to approve.'
+                  : 'Ia melihat kad-kad yang anda ada dalam In Progress atau In Review pada minggu itu — sama seperti yang skrin lembaran masa anda sudah cadangkan — setiap satu sudah membawa jenis usaha dan projeknya sendiri. Ia memadankan apa yang anda benar-benar kerjakan dalam folder itu dengan kad-kad tersebut, merangka hari-hari itu, kemudian menunjukkan minggu penuh untuk anda luluskan.'">
+            It looks at the cards you had in In Progress or In Review that week — the same ones your timesheet screen already suggests — each already carrying its own effort type and project. It matches what you actually worked on in that folder to those cards, drafts those days, then shows you the full week to approve.
           </p>
         </div>
         <div class="step">
           <h3 x-data x-text="$store.ui.lang==='en' ? 'Do it again from another folder, same week' : 'Buat lagi dari folder lain, minggu yang sama'">Do it again from another folder, same week</h3>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'If you split your week across projects, you do the same thing standing in the other project\'s folder for the other days.'
-                  : 'Jika minggu anda terbahagi antara projek, buat perkara yang sama semasa berada dalam folder projek lain untuk hari-hari yang selebihnya.'">
-            If you split your week across projects, you do the same thing standing in the other project's folder for the other days.
+                  ? 'If you split your week across projects, you do the same thing standing in the other project\'s folder for the other days — it picks up whichever cards match that folder.'
+                  : 'Jika minggu anda terbahagi antara projek, buat perkara yang sama semasa berada dalam folder projek lain untuk hari-hari yang selebihnya — ia mengambil kad-kad yang sepadan dengan folder itu.'">
+            If you split your week across projects, you do the same thing standing in the other project's folder for the other days — it picks up whichever cards match that folder.
           </p>
         </div>
         <div class="step">
           <h3 x-data x-text="$store.ui.lang==='en' ? 'A day already logged is added to, not overwritten' : 'Hari yang sudah dilog akan ditambah, bukan ditimpa'">A day already logged is added to, not overwritten</h3>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'If a day already has something stored from the other folder, this doesn\'t erase it. The preview marks each line as \'already stored\' or \'added by this change\', so a Tuesday split half-and-half between two projects shows both halves.'
-                  : 'Jika sesuatu hari sudah menyimpan sesuatu daripada folder lain, ini tidak memadamkannya. Pratonton menandakan setiap baris sebagai \'already stored\' atau \'added by this change\', jadi Selasa yang terbahagi separuh-separuh antara dua projek menunjukkan kedua-dua bahagian.'">
-            If a day already has something stored from the other folder, this doesn't erase it. The preview marks each line as "already stored" or "added by this change", so a Tuesday split half-and-half between two projects shows both halves.
+                  ? 'If a day already has something stored from the other folder, this doesn\'t erase it. The preview marks each line as \'already stored\' or \'added by this change\', so a Tuesday split half-and-half between two cards on the same project shows both halves — two different cards on the same project on the same day both stay.'
+                  : 'Jika sesuatu hari sudah menyimpan sesuatu daripada folder lain, ini tidak memadamkannya. Pratonton menandakan setiap baris sebagai \'already stored\' atau \'added by this change\', jadi Selasa yang terbahagi separuh-separuh antara dua kad pada projek yang sama menunjukkan kedua-dua bahagian — dua kad berbeza pada projek yang sama pada hari yang sama kekal kedua-duanya.'">
+            If a day already has something stored from the other folder, this doesn't erase it. The preview marks each line as "already stored" or "added by this change", so a Tuesday split half-and-half between two cards on the same project shows both halves — two different cards on the same project on the same day both stay.
           </p>
         </div>
         <div class="step">
@@ -379,7 +379,20 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
             To take something back off a day, tell it — for example "actually Tuesday was all Amanahku" — and it replaces that day instead of adding to it.
           </p>
         </div>
+        <div class="step">
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'A card with no effort type set gets refused' : 'Kad tanpa jenis usaha ditetapkan akan ditolak'">A card with no effort type set gets refused</h3>
+          <p x-data x-text="$store.ui.lang==='en'
+                  ? 'If a card hasn\'t been told what kind of work it is yet, Claude won\'t guess. It stops and tells you to set that on the card in the board first, then try again — same if the card\'s effort type needs a project and the card doesn\'t have one.'
+                  : 'Jika sesuatu kad belum ditetapkan jenis kerjanya, Claude tidak akan meneka. Ia berhenti dan memberitahu anda untuk menetapkannya pada kad di board dahulu, kemudian cuba semula — sama juga jika jenis usaha kad itu memerlukan projek tetapi kad itu tiada projek.'">
+            If a card hasn't been told what kind of work it is yet, Claude won't guess. It stops and tells you to set that on the card in the board first, then try again — same if the card's effort type needs a project and the card doesn't have one.
+          </p>
+        </div>
       </div>
+      <p class="sub" style="margin-top:14px;" x-data x-text="$store.ui.lang==='en'
+              ? 'A card you didn\'t actually work on that day still shows up on the timesheet screen as a suggestion — striking it off is something you do yourself there, on purpose, since it also takes that work out of the cost report.'
+              : 'Kad yang anda tidak kerjakan pada hari itu masih akan muncul pada skrin lembaran masa sebagai cadangan — membuangnya adalah sesuatu yang anda lakukan sendiri di situ, secara sengaja, kerana ia turut mengeluarkan kerja itu daripada laporan kos.'">
+        A card you didn't actually work on that day still shows up on the timesheet screen as a suggestion — striking it off is something you do yourself there, on purpose, since it also takes that work out of the cost report.
+      </p>
       <p class="sub" style="margin-top:14px;" x-data x-text="$store.ui.lang==='en'
               ? 'As always: what it drafts is an estimate to check, not a measurement, and it only ever saves a DRAFT — submitting your timesheet stays something you do yourself.'
               : 'Seperti biasa: apa yang ia rangka adalah anggaran untuk disemak, bukan ukuran tepat, dan ia hanya menyimpan sebagai DRAF — menghantar lembaran masa anda kekal sebagai sesuatu yang anda buat sendiri.'">

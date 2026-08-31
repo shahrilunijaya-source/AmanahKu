@@ -29,7 +29,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('update_card')]
 #[IsReadOnly]
-#[Description('Preview editing a board card\'s fields (title, description, type, priority, due date, project, labels, links, participants). Only the card owner, its assigner, or a manager covering the owner may edit it. Requires board:write. Returns a summary and a confirm_token — nothing changes until confirm_write is called.')]
+#[Description('Preview editing a board card\'s fields (title, description, type, priority, due date, project, timesheet effort type, labels, links, participants). timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — a card with none set never turns up on the timesheet screen. Only the card owner, its assigner, or a manager covering the owner may edit it. Requires board:write. Returns a summary and a confirm_token — nothing changes until confirm_write is called.')]
 class UpdateCardTool extends Tool
 {
     use PreviewsWrites;
@@ -66,6 +66,7 @@ class UpdateCardTool extends Tool
                 'due_at' => ['sometimes', 'nullable', 'date'],
                 'due_label' => ['sometimes', 'nullable', 'string', 'max:60'],
                 'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
+                'timesheet_category_id' => ['sometimes', 'nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
                 'labels' => ['sometimes', 'array'],
                 'labels.*' => ['string', Rule::in(array_keys(WorkItem::LABELS))],
                 'links' => ['sometimes', 'array', 'max:12'],
@@ -94,6 +95,16 @@ class UpdateCardTool extends Tool
         $changes = ['card' => $item->title];
         foreach ($data as $field => $value) {
             $changes[$field] = ['from' => $item->getAttribute($field), 'to' => $value];
+        }
+
+        // dropProjectTheCategoryDisallows() at confirm time can silently null project_id
+        // as a SIDE EFFECT of a project_id or timesheet_category_id edit — a change the
+        // human approving this preview would otherwise never see (or, if they DID send
+        // a project_id themselves, would see a value that will not actually stick). Same
+        // invariant SaveTimesheetDraftTool leans on throughout: preview and confirm must
+        // never disagree about what a write does.
+        if (BoardRules::wouldDropProject($item, $data)) {
+            $changes['project_id'] = ['from' => $item->project_id, 'to' => null];
         }
 
         return $this->preview(
@@ -127,6 +138,12 @@ class UpdateCardTool extends Tool
             }
 
             $item->update($data);
+
+            // Changing either half of the pair can leave the other one stranded — see
+            // WorkItemController::update()'s call to the same guard (commit 9558b39).
+            if (array_key_exists('project_id', $data) || array_key_exists('timesheet_category_id', $data)) {
+                BoardRules::dropProjectTheCategoryDisallows($item);
+            }
 
             AuditLog::record('Updated board card'.$this->keySuffix($httpRequest), $item->title);
 
@@ -169,7 +186,8 @@ class UpdateCardTool extends Tool
             'priority' => $schema->string()->enum(['high', 'medium', 'low']),
             'due_at' => $schema->string()->description('New due date, YYYY-MM-DD. A card shared with anyone else needs one.'),
             'due_label' => $schema->string()->description('Free-text due label.'),
-            'project_id' => $schema->integer()->description('New project, or omit to leave unchanged.'),
+            'project_id' => $schema->integer()->description('New project, or omit to leave unchanged. Dropped again if it does not match the card\'s current (or newly-set) timesheet_category_id.'),
+            'timesheet_category_id' => $schema->integer()->description('The effort type this card is costed as on a timesheet, or omit to leave unchanged. Call timesheet_options to see valid ids. Changing it can drop project_id if the new category does not offer the card\'s current project.'),
             'labels' => $schema->array()->items($schema->string())->description('Label slugs: '.implode(', ', array_keys(WorkItem::LABELS)).'.'),
             'links' => $schema->array()->items($schema->object(['label' => $schema->string(), 'url' => $schema->string()]))->description('Full replacement list of links: [{label, url}].'),
             'participant_ids' => $schema->array()->items($schema->integer())->description('Full replacement list of participant employee ids.'),

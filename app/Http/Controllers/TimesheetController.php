@@ -31,7 +31,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TimesheetController extends Controller
@@ -206,8 +205,6 @@ class TimesheetController extends Controller
             'dismissed.*.*' => ['integer'],
         ]);
 
-        $this->assertOwnedWorkItems($data['entries'], $employee);
-
         $dismissed = $request->has('dismissed')
             ? $this->cleanDismissed($data['dismissed'] ?? [], $data['week_start'], $employee)
             : null;
@@ -239,18 +236,6 @@ class TimesheetController extends Controller
         return back()->with('ok', $message);
     }
 
-    /**
-     * work_item_id arrives from the browser, so it is a trust boundary. An `exists` rule
-     * is not enough here: model lookups in this app are not tenant-scoped, so a bare
-     * existence check would happily accept another tenant's — or another colleague's —
-     * card id. A foreign id would corrupt the prefill's "already logged" check, hand the
-     * staffer a category read off somebody else's entry, and skew per-card figures.
-     *
-     * Accepted: a card in the active tenant that this employee owns or participates in —
-     * the same membership rule BoardSuggestions applies.
-     *
-     * @param  array<int, array<string, mixed>>  $entries
-     */
     /**
      * The cards struck off each day of this week, with enough of the card left to offer
      * them back: the capture screen shows them greyed under the day with a Restore link,
@@ -336,33 +321,6 @@ class TimesheetController extends Controller
         }
 
         return $out;
-    }
-
-    private function assertOwnedWorkItems(array $entries, Employee $employee): void
-    {
-        $ids = collect($entries)->pluck('work_item_id')->filter()->map(fn ($id) => (int) $id)->unique();
-
-        if ($ids->isEmpty()) {
-            return;
-        }
-
-        $allowed = WorkItem::whereIn('id', $ids)
-            ->where(fn ($q) => $q->where('employee_id', $employee->id)
-                ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
-            ->pluck('id')
-            ->all();
-
-        $problems = [];
-        foreach ($entries as $i => $entry) {
-            $id = $entry['work_item_id'] ?? null;
-            if ($id !== null && ! in_array((int) $id, $allowed, true)) {
-                $problems["entries.$i.work_item_id"] = 'That task is not yours.';
-            }
-        }
-
-        if ($problems !== []) {
-            throw ValidationException::withMessages($problems);
-        }
     }
 
     /**

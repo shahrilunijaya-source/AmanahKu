@@ -52,11 +52,22 @@ use Laravel\Mcp\Server\Attributes\Version;
     sees only their own timesheet and only board cards assigned to them or
     unassigned. TOT sessions are company-wide and are never narrowed by role.
 
-    Before drafting timesheet entries for a week that has no existing entries to
-    copy the shape from, call timesheet_options first — it lists the real
-    category, project and sub-pillar ids the tenant offers (reference data,
-    same for everyone, never narrowed by role) so save_timesheet_draft is never
-    given a guessed id.
+    Timesheets are board-first: a row is a board card (work_item_id), not a typed
+    category/project pair — the card carries its own effort type and project,
+    chosen once on the board. Start drafting a week by calling timesheet_week for
+    your own week: when it's your own week, the response carries `suggested`, the
+    same cards the timesheet screen itself would prefill, one per card per day it
+    was worked. Pick from those rather than inventing a work_item_id.
+    save_timesheet_draft then takes work_item_id + percentage (+ optional
+    sub_pillar_id/description) per row and derives category and project from the
+    card server-side; a card without its effort type set on the board yet is
+    refused with a message pointing there. Cards you did not actually work on
+    still show as suggestions — striking them off is a capture-screen action this
+    server does not expose, so leave them for the human to dismiss in the app.
+    timesheet_options is reference/lookup data only now (category and project
+    names, for reading a report, or for the timesheet_category_id you pass to
+    create_card/update_card when a card needs its effort type set) — it is not
+    where a timesheet row's fields come from any more.
 
     WRITES are always two steps, and require their own scope (board:write,
     timesheets:write, tot:write) — separate from the read scopes:

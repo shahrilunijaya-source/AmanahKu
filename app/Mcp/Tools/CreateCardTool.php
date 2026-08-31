@@ -8,6 +8,7 @@ use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Support\ApiCaller;
+use App\Support\BoardRules;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
@@ -26,7 +27,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('create_card')]
 #[IsReadOnly]
-#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
+#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — without it BoardSuggestions holds the card\'s rows back and it never turns up on the timesheet screen. Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
 class CreateCardTool extends Tool
 {
     use PreviewsWrites;
@@ -53,6 +54,7 @@ class CreateCardTool extends Tool
             'status' => ['nullable', 'in:todo,prog,review,done'],
             'due_label' => ['nullable', 'string', 'max:60'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
+            'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
         ]);
 
         $payload = ['employee_id' => $employee->id] + $data;
@@ -65,6 +67,7 @@ class CreateCardTool extends Tool
             'status' => $data['status'] ?? 'todo',
             'due_label' => $data['due_label'] ?? null,
             'project_id' => $data['project_id'] ?? null,
+            'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
         ];
 
         return $this->preview(
@@ -94,11 +97,16 @@ class CreateCardTool extends Tool
                 'priority' => $payload['priority'],
                 'due_label' => $payload['due_label'] ?? null,
                 'project_id' => $payload['project_id'] ?? null,
+                'timesheet_category_id' => $payload['timesheet_category_id'] ?? null,
                 'status' => $status,
                 'progress' => 0,
                 'done_at' => $status === 'done' ? now() : null,
                 'sort_order' => (int) $employee->workItems()->where('status', $status)->max('sort_order') + 1,
             ]);
+
+            // Same guard WorkItemController::store() runs: a project the chosen category
+            // does not offer never sticks, however the card was created.
+            BoardRules::dropProjectTheCategoryDisallows($item);
 
             AuditLog::record('Created board card'.$this->keySuffix($httpRequest), $item->title);
 
@@ -117,7 +125,8 @@ class CreateCardTool extends Tool
             'priority' => $schema->string()->enum(['high', 'medium', 'low'])->required(),
             'status' => $schema->string()->enum(['todo', 'prog', 'review', 'done'])->description('Defaults to todo.'),
             'due_label' => $schema->string()->description('Free-text due label (not a real date).'),
-            'project_id' => $schema->integer()->description('Project this card is planned under, if any.'),
+            'project_id' => $schema->integer()->description('Project this card is planned under, if any. Dropped if it does not match timesheet_category_id — see that field.'),
+            'timesheet_category_id' => $schema->integer()->description('The effort type this card is costed as on a timesheet. Call timesheet_options to see valid ids. A category that does not require a project (e.g. HR & Admin) drops project_id if it was sent; a category that does (e.g. Development) only keeps project_id when that project is tagged with it.'),
         ];
     }
 }

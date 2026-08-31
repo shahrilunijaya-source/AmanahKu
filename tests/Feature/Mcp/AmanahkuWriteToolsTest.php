@@ -9,6 +9,7 @@ use App\Mcp\Tools\ConfirmWriteTool;
 use App\Mcp\Tools\CreateCardTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
+use App\Mcp\Tools\UpdateCardTool;
 use App\Models\Employee;
 use App\Models\ExternalTotEvent;
 use App\Models\Project;
@@ -139,6 +140,34 @@ class AmanahkuWriteToolsTest extends TestCase
     private function toolIsError(TestResponse $response): bool
     {
         return (bool) $response->json('result.isError');
+    }
+
+    /**
+     * A board card owned by $employee (defaults to staffEmpA), carrying the given
+     * category/project so it is ready for save_timesheet_draft to log against.
+     * Board-first (commit 84dc9cf): a timesheet row names one of these, it never
+     * carries its own category/project.
+     *
+     * -1 (not null) is "use the default" for $categoryId/$projectId, since null is
+     * itself a meaningful value here (an uncategorised card, or one with no project) —
+     * `??` would silently replace an intentional null with the default.
+     */
+    private function card(?int $categoryId = -1, ?int $projectId = -1, ?Employee $employee = null): WorkItem
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $item = WorkItem::create([
+            'tenant_id' => $this->tenantA->id,
+            'employee_id' => ($employee ?? $this->staffEmpA)->id,
+            'title' => 'Card '.WorkItem::count(),
+            'type' => 'task',
+            'priority' => 'medium',
+            'status' => 'prog',
+            'timesheet_category_id' => $categoryId === -1 ? $this->categoryA->id : $categoryId,
+            'project_id' => $projectId === -1 ? $this->projectA->id : $projectId,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        return $item;
     }
 
     // --- create_card: preview writes nothing, confirm applies --------------
@@ -310,6 +339,134 @@ class AmanahkuWriteToolsTest extends TestCase
         app(CurrentTenant::class)->set(null);
     }
 
+    /**
+     * timesheet_category_id sticks on create — without it a card never turns up on
+     * the timesheet screen (BoardSuggestions::categoryFor() holds an uncategorised
+     * card's rows back).
+     */
+    public function test_create_card_accepts_timesheet_category_id(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(CreateCardTool::class, [
+            'title' => 'Categorised card', 'type' => 'task', 'priority' => 'medium',
+            'timesheet_category_id' => $this->categoryA->id, 'project_id' => $this->projectA->id,
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview));
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::where('title', 'Categorised card')->first();
+        $this->assertSame($this->categoryA->id, $card->timesheet_category_id);
+        $this->assertSame($this->projectA->id, $card->project_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The same pairing guard WorkItemController runs (commit 9558b39): a project the
+     * chosen category does not offer never sticks, however the card was created. A
+     * project tagged to a DIFFERENT category only is not offered under categoryA, so
+     * it must be dropped rather than silently paired with a category it disagrees with.
+     */
+    public function test_create_card_drops_a_project_the_chosen_category_does_not_allow(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $otherCategory = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Other Delivery', 'requires_project' => true, 'is_active' => true,
+        ]);
+        $taggedProject = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'TAG', 'name' => 'Tagged Project', 'is_active' => true]);
+        $taggedProject->categories()->attach($otherCategory->id);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(CreateCardTool::class, [
+            'title' => 'Mismatched card', 'type' => 'task', 'priority' => 'medium',
+            'timesheet_category_id' => $this->categoryA->id, 'project_id' => $taggedProject->id,
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview));
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::where('title', 'Mismatched card')->first();
+        $this->assertSame($this->categoryA->id, $card->timesheet_category_id);
+        $this->assertNull($card->project_id, 'the project is dropped, not silently paired with a category it does not fit');
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /** A standalone (no-project) category drops any project_id sent alongside it. */
+    public function test_create_card_drops_project_for_a_standalone_category(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $standalone = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'HR & Admin', 'requires_project' => false, 'is_active' => true,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(CreateCardTool::class, [
+            'title' => 'Admin card', 'type' => 'task', 'priority' => 'medium',
+            'timesheet_category_id' => $standalone->id, 'project_id' => $this->projectA->id,
+        ], $headers);
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::where('title', 'Admin card')->first();
+        $this->assertSame($standalone->id, $card->timesheet_category_id);
+        $this->assertNull($card->project_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    // --- update_card: preview must not hide a project the confirm step drops ----
+
+    /**
+     * Retagging a card to a category the CURRENT project does not fit must show the
+     * project being dropped in the PREVIEW, not just apply it silently at confirm —
+     * the same "preview and confirm can never disagree" invariant save_timesheet_draft
+     * leans on. Without this, a human approving "change effort type to HR & Admin"
+     * would not be told the card is about to lose its project too.
+     */
+    public function test_update_card_preview_shows_the_project_it_will_drop(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $standalone = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'HR & Admin', 'requires_project' => false, 'is_active' => true,
+        ]);
+        $card = WorkItem::create([
+            'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,
+            'title' => 'Reclassify me', 'type' => 'task', 'priority' => 'medium', 'status' => 'todo',
+            'timesheet_category_id' => $this->categoryA->id, 'project_id' => $this->projectA->id,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'timesheet_category_id' => $standalone->id,
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview));
+        $changes = $this->toolData($preview)['changes'];
+        $this->assertArrayHasKey('project_id', $changes);
+        $this->assertSame($this->projectA->id, $changes['project_id']['from']);
+        $this->assertNull($changes['project_id']['to']);
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card->refresh();
+        $this->assertSame($standalone->id, $card->timesheet_category_id);
+        $this->assertNull($card->project_id, 'the preview promised this, and confirm must deliver exactly that');
+        app(CurrentTenant::class)->set(null);
+    }
+
     // --- assign_task: role gate + notify wording ----------------------------
 
     public function test_plain_employee_cannot_assign_a_task(): void
@@ -349,6 +506,75 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertNotNull($card);
         $this->assertSame($this->otherEmpA->id, $card->employee_id);
         $this->assertSame('2026-08-10', $card->due_at->toDateString());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * An assigned card is invisible to the assignee's timesheet until it carries an
+     * effort type — see WorkItemController::assign()'s docblock. The preview must show
+     * the category/project by NAME (an id means nothing to the human approving it), and
+     * confirm must persist both.
+     */
+    public function test_assign_task_accepts_and_persists_the_effort_type(): void
+    {
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(AssignTaskTool::class, [
+            'employee_id' => $this->otherEmpA->id, 'title' => 'Do it', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+            'timesheet_category_id' => $this->categoryA->id, 'project_id' => $this->projectA->id,
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+        $this->assertSame($this->categoryA->name, $data['changes']['timesheet_category']);
+        $this->assertSame($this->projectA->name, $data['changes']['project']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::where('title', 'Do it')->first();
+        $this->assertSame($this->categoryA->id, $card->timesheet_category_id);
+        $this->assertSame($this->projectA->id, $card->project_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The same BoardRules::dropProjectTheCategoryDisallows() guard applies to an
+     * assigned card as to a self-made one — a project the chosen category does not
+     * offer never sticks, and the preview must say so up front rather than letting it
+     * happen silently at confirm time (mirrors UpdateCardTool's preview).
+     */
+    public function test_assign_task_drops_a_project_the_chosen_category_does_not_allow_and_says_so_in_preview(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $otherCategory = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Other Delivery', 'requires_project' => true, 'is_active' => true,
+        ]);
+        $taggedProject = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'TAG', 'name' => 'Tagged Project', 'is_active' => true]);
+        $taggedProject->categories()->attach($otherCategory->id);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(AssignTaskTool::class, [
+            'employee_id' => $this->otherEmpA->id, 'title' => 'Mismatched assignment', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+            'timesheet_category_id' => $this->categoryA->id, 'project_id' => $taggedProject->id,
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview));
+        $changes = $this->toolData($preview)['changes'];
+        $this->assertNull($changes['project'], 'the preview must not show the project as staying on the card');
+        $this->assertArrayHasKey('project_dropped', $changes);
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::where('title', 'Mismatched assignment')->first();
+        $this->assertSame($this->categoryA->id, $card->timesheet_category_id);
+        $this->assertNull($card->project_id, 'the project is dropped, not silently paired with a category it does not fit');
         app(CurrentTenant::class)->set(null);
     }
 
@@ -412,7 +638,12 @@ class AmanahkuWriteToolsTest extends TestCase
             'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,
             'week_start' => self::WEEK, 'status' => 'draft',
         ]);
-        $days = ['Mon' => 0, 'Tue' => 1, 'Wed' => 2, 'Thu' => 3, 'Fri' => 4];
+        // Tuesday deliberately left out: under board-first a saved row's line key
+        // includes work_item_id (WeekWriter::lineKey()), so a fresh card-based row can
+        // never upsert a typed legacy row the way same category/project once did — it
+        // would simply add alongside it and blow the day's capacity. Seeding Tuesday
+        // here would turn this into a capacity test, which isn't the point of this one.
+        $days = ['Mon' => 0, 'Wed' => 2, 'Thu' => 3, 'Fri' => 4];
         foreach ($days as $offset) {
             TimesheetEntry::create([
                 'tenant_id' => $this->tenantA->id, 'timesheet_id' => $timesheet->id,
@@ -425,13 +656,13 @@ class AmanahkuWriteToolsTest extends TestCase
 
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
+        $card = $this->card();
 
         $preview = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => $tuesday,
-                'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id,
+                'work_item_id' => $card->id,
                 'percentage' => 50,
             ]],
         ], $headers);
@@ -470,13 +701,13 @@ class AmanahkuWriteToolsTest extends TestCase
         app(CurrentTenant::class)->set(null);
 
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $card = $this->card();
 
         $response = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => self::WEEK,
-                'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id,
+                'work_item_id' => $card->id,
                 'percentage' => 50,
             ]],
         ], $headers);
@@ -485,16 +716,17 @@ class AmanahkuWriteToolsTest extends TestCase
     }
 
     /**
-     * Bug 1 (black-box): project_id is an OPTIONAL schema key. Omitting it entirely
-     * (not sending null) on a standalone category must not crash the preview.
+     * A card carrying a standalone (no-project) category must still preview cleanly
+     * — its project must come back null, read off the card, never guessed at.
      */
-    public function test_preview_renders_an_entry_that_omits_project_id_entirely(): void
+    public function test_preview_renders_an_entry_from_a_card_with_a_standalone_category(): void
     {
         app(CurrentTenant::class)->set($this->tenantA);
         $standalone = TimesheetCategory::create([
             'tenant_id' => $this->tenantA->id, 'name' => 'Admin', 'requires_project' => false, 'is_active' => true,
         ]);
         app(CurrentTenant::class)->set(null);
+        $card = $this->card(categoryId: $standalone->id, projectId: null);
 
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
 
@@ -502,9 +734,7 @@ class AmanahkuWriteToolsTest extends TestCase
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => self::WEEK,
-                'category_id' => $standalone->id,
-                // project_id deliberately absent — a normal caller is entitled to
-                // omit an optional key rather than send null.
+                'work_item_id' => $card->id,
                 'percentage' => 100,
             ]],
         ], $headers);
@@ -513,6 +743,174 @@ class AmanahkuWriteToolsTest extends TestCase
         $row = $this->toolData($preview)['changes']['resulting_week'][self::WEEK][0];
         $this->assertSame('Admin', $row['category']);
         $this->assertNull($row['project']);
+        $this->assertSame($card->title, $row['card']);
+    }
+
+    /**
+     * A row naming a card that is not the caller's own — not owned, not
+     * participated in — is refused rather than logged against it.
+     */
+    public function test_a_row_naming_another_employees_card_is_refused(): void
+    {
+        $othersCard = $this->card(employee: $this->otherEmpA);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $othersCard->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, TimesheetEntry::where('work_item_id', $othersCard->id)->count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * A row with no work_item_id at all is refused outright — under board-first
+     * there is no other way to name a timesheet line, and validation must catch
+     * this before the tool ever tries to look a card up.
+     */
+    public function test_a_row_with_no_work_item_id_is_refused(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+    }
+
+    /**
+     * The category is derived from the card, never trusted from the caller: a bogus
+     * category_id in the request is simply ignored, and the resulting row is costed
+     * exactly as the card says.
+     */
+    public function test_a_sent_category_id_is_ignored_in_favour_of_the_cards_own(): void
+    {
+        $card = $this->card();
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'category_id' => 999999, // bogus — must have no effect
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $row = $this->toolData($preview)['changes']['resulting_week'][self::WEEK][0];
+        $this->assertSame($this->categoryA->name, $row['category']);
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $stored = TimesheetEntry::where('work_item_id', $card->id)->first();
+        $this->assertSame($this->categoryA->id, $stored->category_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * A card whose timesheet_category_id is null has not answered the board's
+     * question yet — the row is refused with a message pointing at the board,
+     * mirroring what BoardSuggestions::categoryFor() holds back on the capture
+     * screen, rather than silently filing it under Others.
+     */
+    public function test_a_card_with_no_effort_type_set_is_refused(): void
+    {
+        $uncategorized = $this->card(categoryId: null, projectId: null);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $uncategorized->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $this->assertStringContainsString('effort type', $response->json('result.content.0.text'));
+    }
+
+    /**
+     * A card whose category DOES require a project (categoryA — 'Project Work') but
+     * carries none of its own is refused with a message pointing at the board, not
+     * normaliseEntries()'s raw "Choose a project for X" — this tool has no project_id
+     * field for the caller to answer that with any more.
+     */
+    public function test_a_card_whose_category_needs_a_project_it_does_not_have_is_refused(): void
+    {
+        $projectless = $this->card(projectId: null);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $projectless->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $this->assertStringContainsString('needs a project', $response->json('result.content.0.text'));
+    }
+
+    /**
+     * The split-day case work_item_id in lineKey() exists for: two different cards
+     * on the SAME project on the SAME day must both survive the merge, not collapse
+     * into "the same work listed twice".
+     */
+    public function test_two_different_cards_on_the_same_project_and_day_both_survive(): void
+    {
+        $cardOne = $this->card();
+        $cardTwo = $this->card();
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $first = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK, 'work_item_id' => $cardOne->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->confirm($this->toolData($first)['confirm_token'], $headers);
+
+        $second = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK, 'work_item_id' => $cardTwo->id, 'percentage' => 50,
+            ]],
+        ], $headers);
+        $this->assertFalse($this->toolIsError($second));
+        $rows = $this->toolData($second)['changes']['resulting_week'][self::WEEK];
+        $this->assertCount(2, $rows, 'both cards survive, even though they share a project');
+
+        $confirm = $this->confirm($this->toolData($second)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $stored = TimesheetEntry::whereDate('entry_date', self::WEEK)->whereNull('source')->get();
+        $this->assertCount(2, $stored);
+        $this->assertEqualsCanonicalizing(
+            [$cardOne->id, $cardTwo->id],
+            $stored->pluck('work_item_id')->map(fn ($id) => (int) $id)->all(),
+        );
+        app(CurrentTenant::class)->set(null);
     }
 
     /**
@@ -526,13 +924,13 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         // A valid Monday in its own right — just not the week being saved.
         $wrongWeekDate = date('Y-m-d', strtotime(self::WEEK.' -7 day'));
+        $card = $this->card();
 
         $preview = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => $wrongWeekDate,
-                'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id,
+                'work_item_id' => $card->id,
                 'percentage' => 100,
             ]],
         ], $headers);
@@ -575,13 +973,13 @@ class AmanahkuWriteToolsTest extends TestCase
         app(CurrentTenant::class)->set(null);
 
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $card = $this->card();
 
         $preview = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => self::WEEK,
-                'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id,
+                'work_item_id' => $card->id,
                 'percentage' => 100,
             ]],
         ], $headers);
@@ -646,13 +1044,13 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_save_timesheet_draft_is_refused_for_a_read_only_key(): void
     {
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']);
+        $card = $this->card();
 
         $response = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
                 'entry_date' => self::WEEK,
-                'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id,
+                'work_item_id' => $card->id,
                 'percentage' => 50,
             ]],
         ], $headers);
@@ -671,14 +1069,15 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_saving_two_different_projects_on_the_same_day_combines_them(): void
     {
         $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $cardA = $this->card(projectId: $this->projectA->id);
+        $cardB = $this->card(projectId: $projectB->id);
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
 
         $first = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardA->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->assertFalse($this->toolIsError($first));
@@ -687,8 +1086,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $second = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $projectB->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardB->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->assertFalse($this->toolIsError($second));
@@ -718,14 +1116,15 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_a_merge_that_would_exceed_the_days_capacity_is_refused_at_preview(): void
     {
         $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $cardA = $this->card(projectId: $this->projectA->id);
+        $cardB = $this->card(projectId: $projectB->id);
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
 
         $full = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 100,
+                'entry_date' => $tuesday, 'work_item_id' => $cardA->id, 'percentage' => 100,
             ]],
         ], $headers);
         $this->confirm($this->toolData($full)['confirm_token'], $headers);
@@ -733,8 +1132,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $overflow = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $projectB->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardB->id, 'percentage' => 50,
             ]],
         ], $headers);
 
@@ -752,6 +1150,7 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_the_cap_is_re_checked_at_confirm_time(): void
     {
         $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $cardB = $this->card(projectId: $projectB->id);
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
 
@@ -759,8 +1158,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $preview = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $projectB->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardB->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->assertFalse($this->toolIsError($preview));
@@ -797,6 +1195,8 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_the_tot_saturday_caps_at_50_percent(): void
     {
         $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $cardA = $this->card(projectId: $this->projectA->id);
+        $cardB = $this->card(projectId: $projectB->id);
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
 
         // The first Saturday of the CURRENT month, falling back to last month's if
@@ -818,8 +1218,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $half = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => $weekStart,
             'entries' => [[
-                'entry_date' => $totSaturday, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 50,
+                'entry_date' => $totSaturday, 'work_item_id' => $cardA->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->assertFalse($this->toolIsError($half));
@@ -828,8 +1227,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $overflow = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => $weekStart,
             'entries' => [[
-                'entry_date' => $totSaturday, 'category_id' => $this->categoryA->id,
-                'project_id' => $projectB->id, 'percentage' => 25,
+                'entry_date' => $totSaturday, 'work_item_id' => $cardB->id, 'percentage' => 25,
             ]],
         ], $headers);
 
@@ -840,19 +1238,19 @@ class AmanahkuWriteToolsTest extends TestCase
     }
 
     /**
-     * Re-sending the same category/project/sub-pillar line is a correction
-     * (upsert), not a duplicate — assertNoDuplicateLines() would otherwise
-     * refuse it, and simple addition would double-count it.
+     * Re-sending the same card on the same day is a correction (upsert), not a
+     * duplicate — assertNoDuplicateLines() would otherwise refuse it, and simple
+     * addition would double-count it.
      */
     public function test_identical_lines_combine_instead_of_duplicating(): void
     {
+        $card = $this->card();
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
 
         $first = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => self::WEEK, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 50,
+                'entry_date' => self::WEEK, 'work_item_id' => $card->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->confirm($this->toolData($first)['confirm_token'], $headers);
@@ -861,8 +1259,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $second = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => self::WEEK, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 100,
+                'entry_date' => self::WEEK, 'work_item_id' => $card->id, 'percentage' => 100,
             ]],
         ], $headers);
         $this->assertFalse($this->toolIsError($second));
@@ -889,6 +1286,8 @@ class AmanahkuWriteToolsTest extends TestCase
     public function test_replace_days_drops_a_line_the_caller_never_typed(): void
     {
         $projectB = Project::create(['tenant_id' => $this->tenantA->id, 'code' => 'IGM', 'name' => 'iGuaman', 'is_active' => true]);
+        $cardA = $this->card(projectId: $this->projectA->id);
+        $cardB = $this->card(projectId: $projectB->id);
         $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
         $tuesday = date('Y-m-d', strtotime(self::WEEK.' +1 day'));
 
@@ -896,8 +1295,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $first = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardA->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->confirm($this->toolData($first)['confirm_token'], $headers);
@@ -905,8 +1303,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $second = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $projectB->id, 'percentage' => 50,
+                'entry_date' => $tuesday, 'work_item_id' => $cardB->id, 'percentage' => 50,
             ]],
         ], $headers);
         $this->confirm($this->toolData($second)['confirm_token'], $headers);
@@ -916,8 +1313,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $correction = $this->callTool(SaveTimesheetDraftTool::class, [
             'week_start' => self::WEEK,
             'entries' => [[
-                'entry_date' => $tuesday, 'category_id' => $this->categoryA->id,
-                'project_id' => $this->projectA->id, 'percentage' => 100,
+                'entry_date' => $tuesday, 'work_item_id' => $cardA->id, 'percentage' => 100,
             ]],
             'replace_days' => [$tuesday],
         ], $headers);

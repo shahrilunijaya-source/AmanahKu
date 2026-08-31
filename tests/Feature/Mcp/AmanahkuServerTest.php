@@ -18,6 +18,7 @@ use App\Models\TotParticipation;
 use App\Models\TotSession;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Models\WorkItemProgressStint;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -50,6 +51,8 @@ class AmanahkuServerTest extends TestCase
 
     private Employee $otherEmpA;
 
+    private Employee $hrEmpA;
+
     private Project $projectA;
 
     protected function setUp(): void
@@ -63,7 +66,7 @@ class AmanahkuServerTest extends TestCase
 
         $this->hrA = User::create(['name' => 'HR Ann', 'email' => 'hr.a@example.com', 'password' => Hash::make('password')]);
         $this->hrA->tenants()->attach($this->tenantA->id, ['role' => 'hr']);
-        Employee::create(['tenant_id' => $this->tenantA->id, 'user_id' => $this->hrA->id, 'name' => 'HR Ann', 'status' => 'active', 'workload' => 'green']);
+        $this->hrEmpA = Employee::create(['tenant_id' => $this->tenantA->id, 'user_id' => $this->hrA->id, 'name' => 'HR Ann', 'status' => 'active', 'workload' => 'green']);
 
         $this->staffA = User::create(['name' => 'Staff Sam', 'email' => 'staff.a@example.com', 'password' => Hash::make('password')]);
         $this->staffA->tenants()->attach($this->tenantA->id, ['role' => 'employee']);
@@ -242,6 +245,81 @@ class AmanahkuServerTest extends TestCase
         $names = collect($this->toolData($response)['timesheets'])->pluck('employee')->all();
         $this->assertContains('Staff Sam', $names);
         $this->assertNotContains('Beta Bob', $names);
+    }
+
+    /**
+     * A board card, in In Progress, with a stint that covers self::WEEK — the exact
+     * shape BoardSuggestions::forWeek() prefills the capture screen from. Owned by
+     * $employee (defaults to staffEmpA) so tests can build one for a privileged
+     * caller's own board as well as a plain employee's.
+     */
+    private function suggestableCard(?Employee $employee = null, string $title = 'Suggested Card'): WorkItem
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        // Category name is unique per tenant (timesheet_categories.tenant_id+name), so a
+        // test calling this helper more than once needs a distinct name each time — tied
+        // to $title, which callers already vary.
+        $category = TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Development: '.$title, 'requires_project' => true, 'is_active' => true,
+        ]);
+        $card = WorkItem::create([
+            'tenant_id' => $this->tenantA->id, 'employee_id' => ($employee ?? $this->staffEmpA)->id,
+            'title' => $title, 'type' => 'task', 'priority' => 'medium', 'status' => 'prog',
+            'timesheet_category_id' => $category->id, 'project_id' => $this->projectA->id,
+        ]);
+        // Created directly (not via the status-transition observer) so the stint's
+        // started_at falls inside self::WEEK rather than "now" (the real test-run date).
+        WorkItemProgressStint::create([
+            'tenant_id' => $this->tenantA->id, 'work_item_id' => $card->id, 'started_at' => self::WEEK,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        return $card;
+    }
+
+    public function test_timesheet_week_tool_includes_suggested_for_own_week(): void
+    {
+        $card = $this->suggestableCard();
+
+        $response = $this->callTool(
+            TimesheetWeekTool::class,
+            ['week_start' => self::WEEK],
+            $this->bearer($this->staffA, $this->tenantA, ['timesheets:read'])
+        );
+
+        $this->assertFalse($this->toolIsError($response));
+        $data = $this->toolData($response);
+        $this->assertArrayHasKey('suggested', $data);
+        $this->assertArrayHasKey(self::WEEK, $data['suggested']);
+        $this->assertSame($card->title, $data['suggested'][self::WEEK][0]['title']);
+    }
+
+    /**
+     * A privileged caller's `timesheets` list is never narrowed to one employee — it
+     * reads the whole tenant. `suggested`, though, is always the CALLER's own board
+     * cards: HR and management have their own timesheets to fill too, and are exactly
+     * the people likely to draft one over MCP. This proves both halves — the caller's
+     * own suggestable card shows up, and another employee's does not leak in even
+     * though that employee's timesheet is right there in the response.
+     */
+    public function test_timesheet_week_tool_includes_only_the_privileged_callers_own_suggested(): void
+    {
+        $ownCard = $this->suggestableCard($this->hrEmpA, 'HR Own Card');
+        $othersCard = $this->suggestableCard($this->staffEmpA, 'Staff Card');
+        $this->submitWeek($this->staffEmpA, $this->tenantA, $this->projectA, [100]);
+
+        $response = $this->callTool(
+            TimesheetWeekTool::class,
+            ['week_start' => self::WEEK],
+            $this->bearer($this->hrA, $this->tenantA, ['timesheets:read'])
+        );
+
+        $this->assertFalse($this->toolIsError($response));
+        $data = $this->toolData($response);
+        $this->assertArrayHasKey('suggested', $data);
+        $titles = collect($data['suggested'][self::WEEK] ?? [])->pluck('title')->all();
+        $this->assertContains($ownCard->title, $titles);
+        $this->assertNotContains($othersCard->title, $titles);
     }
 
     // --- TimesheetOptionsTool -----------------------------------------------------

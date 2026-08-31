@@ -12,14 +12,17 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Board (work item) authorization, extracted out of WorkItemController so the
- * MCP write tools (App\Mcp\Tools\{UpdateCard,MoveCard,ArchiveCard,RestoreCard,
- * AssignTask}Tool) can apply exactly the same rules a browser request would —
- * one implementation, so the two surfaces cannot drift on who can touch what.
+ * Board (work item) authorization and shared board rules, extracted out of
+ * WorkItemController so the MCP write tools (App\Mcp\Tools\{CreateCard,
+ * UpdateCard,MoveCard,ArchiveCard,RestoreCard,AssignTask}Tool) can apply
+ * exactly the same rules a browser request would — one implementation, so the
+ * two surfaces cannot drift on who can touch what, or on what a write does.
  *
- * Every method here is unchanged behaviour lifted verbatim from
+ * Most methods here are unchanged behaviour lifted verbatim from
  * WorkItemController; see git blame on that file for the history behind each
  * rule (AK-AUTHZ-01 etc.) if a docblock here references it.
+ * dropProjectTheCategoryDisallows() came from WorkItemController (commit
+ * 9558b39); its preview-time twin wouldDropProject() came from UpdateCardTool.
  */
 class BoardRules
 {
@@ -163,5 +166,68 @@ class BoardRules
                 'due_at' => 'A task shared with someone else needs a due date.',
             ]);
         }
+    }
+
+    /**
+     * Clear a project the card's current category does not offer. No-op when it does, and
+     * when the card has no project to begin with.
+     *
+     * The card owns the category, so the project is the half that gives way: a category
+     * needing no project drops it outright, and a delivery category drops a project it was
+     * never tagged with.
+     *
+     * Static because it needs no instance state — the one shared implementation for
+     * WorkItemController::store()/assign()/update() and the MCP write tools
+     * (CreateCardTool, UpdateCardTool, AssignTaskTool), so the rule cannot drift between
+     * the browser and MCP surfaces. See commit 9558b39 for the original reasoning.
+     */
+    public static function dropProjectTheCategoryDisallows(WorkItem $workItem): void
+    {
+        if (! $workItem->project_id) {
+            return;
+        }
+
+        $workItem->unsetRelation('timesheetCategory');
+
+        if ($workItem->projectOptions()->contains('id', $workItem->project_id)) {
+            return;
+        }
+
+        $workItem->update(['project_id' => null]);
+        $workItem->unsetRelation('projectRef');
+    }
+
+    /**
+     * Preview-time twin of dropProjectTheCategoryDisallows() that PREDICTS the drop
+     * instead of applying it — nothing here is saved. Builds an unpersisted WorkItem
+     * carrying the RESULTING category/project (the edit overlaid on the card's current
+     * values, mirroring how $item->update($data) would leave it) and asks it the same
+     * question projectOptions() answers for a real card: does the category on offer
+     * still allow this project.
+     *
+     * Only worth asking when the edit actually touches one half of the pair — an edit
+     * to, say, just the title can never strand the other half.
+     *
+     * @param  array<string, mixed>  $data  the partial update/create data being previewed
+     */
+    public static function wouldDropProject(WorkItem $item, array $data): bool
+    {
+        if (! array_key_exists('project_id', $data) && ! array_key_exists('timesheet_category_id', $data)) {
+            return false;
+        }
+
+        $resultingProjectId = array_key_exists('project_id', $data) ? $data['project_id'] : $item->project_id;
+        if (! $resultingProjectId) {
+            return false;
+        }
+
+        $resultingCategoryId = array_key_exists('timesheet_category_id', $data) ? $data['timesheet_category_id'] : $item->timesheet_category_id;
+
+        $probe = new WorkItem([
+            'timesheet_category_id' => $resultingCategoryId,
+            'project_id' => $resultingProjectId,
+        ]);
+
+        return ! $probe->projectOptions()->contains('id', $resultingProjectId);
     }
 }

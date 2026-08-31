@@ -61,7 +61,7 @@ class WorkItemController extends Controller
         // Same guard update() runs: a project the chosen category does not offer never
         // sticks, however the card was created. store() used to skip it entirely, so an
         // API caller could pair any category with any project.
-        $this->dropProjectTheCategoryDisallows($item);
+        BoardRules::dropProjectTheCategoryDisallows($item);
 
         if ($request->expectsJson()) {
             return response()->json(['card' => $this->cardPayload($item), 'html' => $this->cardHtml($item)], 201);
@@ -126,7 +126,7 @@ class WorkItemController extends Controller
             'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
         ]);
 
-        $this->dropProjectTheCategoryDisallows($item);
+        BoardRules::dropProjectTheCategoryDisallows($item);
 
         AppNotification::send(
             $employee->user_id,
@@ -245,7 +245,7 @@ class WorkItemController extends Controller
         // the card is booked to. The drawer would stop offering that project, so it would
         // sit on the card invisibly and still label every timesheet line it produces.
         if (array_key_exists('project_id', $data) || array_key_exists('timesheet_category_id', $data)) {
-            $this->dropProjectTheCategoryDisallows($workItem);
+            BoardRules::dropProjectTheCategoryDisallows($workItem);
         }
 
         $workItem->load('participants');
@@ -254,30 +254,6 @@ class WorkItemController extends Controller
             'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
             'html' => $this->cardHtml($workItem),
         ]);
-    }
-
-    /**
-     * Clear a project the card's current category does not offer. No-op when it does, and
-     * when the card has no project to begin with.
-     *
-     * The card owns the category, so the project is the half that gives way: a category
-     * needing no project drops it outright, and a delivery category drops a project it was
-     * never tagged with.
-     */
-    private function dropProjectTheCategoryDisallows(WorkItem $workItem): void
-    {
-        if (! $workItem->project_id) {
-            return;
-        }
-
-        $workItem->unsetRelation('timesheetCategory');
-
-        if ($workItem->projectOptions()->contains('id', $workItem->project_id)) {
-            return;
-        }
-
-        $workItem->update(['project_id' => null]);
-        $workItem->unsetRelation('projectRef');
     }
 
     /**

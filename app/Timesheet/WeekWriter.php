@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
+use App\Models\WorkItem;
 use App\Support\HtmlSanitizer;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -124,6 +125,14 @@ final class WeekWriter
     public function resolveWeek(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries): array
     {
         $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+
+        // Every caller of resolveWeek() — the browser, the MCP tool, and the
+        // leave/holiday reconcile — goes through this the same way. It used to be a
+        // copy TimesheetController::store() ran on its own after validate() and
+        // before calling into WeekWriter, which meant any new caller (the MCP tool,
+        // when it was first built) could forget it entirely.
+        $this->assertOwnedWorkItems($rawEntries, $employee);
+
         $locked = $this->lockedDays->forWeek($employee, $weekStartCarbon);
 
         // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
@@ -162,6 +171,47 @@ final class WeekWriter
         $entries = $this->reconciler->mergeEntries($employee, $weekStartCarbon, $normalised);
 
         return ['entries' => $entries, 'dropped' => $dropped, 'locked' => $locked];
+    }
+
+    /**
+     * work_item_id arrives from the browser, so it is a trust boundary. An `exists` rule
+     * is not enough here: model lookups in this app are not tenant-scoped, so a bare
+     * existence check would happily accept another tenant's — or another colleague's —
+     * card id. A foreign id would corrupt the prefill's "already logged" check, hand the
+     * staffer a category read off somebody else's entry, and skew per-card figures.
+     *
+     * Accepted: a card in the active tenant that this employee owns or participates in —
+     * the same membership rule BoardSuggestions applies. A row with no work_item_id at
+     * all (a generated locked row, or a legacy draft saved before this column existed)
+     * is not this check's business and passes through untouched.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function assertOwnedWorkItems(array $entries, Employee $employee): void
+    {
+        $ids = collect($entries)->pluck('work_item_id')->filter()->map(fn ($id) => (int) $id)->unique();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        $allowed = WorkItem::whereIn('id', $ids)
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
+            ->pluck('id')
+            ->all();
+
+        $problems = [];
+        foreach ($entries as $i => $entry) {
+            $id = $entry['work_item_id'] ?? null;
+            if ($id !== null && ! in_array((int) $id, $allowed, true)) {
+                $problems["entries.$i.work_item_id"] = 'That task is not yours.';
+            }
+        }
+
+        if ($problems !== []) {
+            throw ValidationException::withMessages($problems);
+        }
     }
 
     /**
