@@ -22,26 +22,32 @@ return new class extends Migration
             $table->json('tagged_employee_ids')->nullable()->after('description');
         });
 
-        // Query builder, not Eloquent: CompanyEvent's BelongsToTenant global scope would
-        // otherwise silently drop every tenant but the one currently active.
-        DB::table('external_tot_events')->orderBy('id')->each(function (object $row) {
-            DB::table('company_events')->insert([
-                'tenant_id' => $row->tenant_id,
-                'title' => $row->title,
-                'type' => 'training',
-                'host' => $row->host,
-                'event_date' => $row->event_date,
-                'start_time' => $row->time_label,
-                'location' => $row->venue,
-                'venue_map_url' => $row->venue_map_url,
-                'registration_url' => $row->registration_url,
-                'description' => $row->description,
-                'tagged_employee_ids' => $row->tagged_employee_ids,
-                'created_by_employee_id' => $row->posted_by,
-                'created_at' => $row->created_at,
-                'updated_at' => $row->updated_at,
-            ]);
-        });
+        // Guarded because this is the only chance production gets to move its rows —
+        // nobody has a shell there, so the copy has to be part of the deploy's migrate
+        // step or the posts are simply lost. A host missing the table (a rebuild that
+        // never had it) must add the columns and carry on, not abort the whole deploy.
+        if (Schema::hasTable('external_tot_events')) {
+            // Query builder, not Eloquent: CompanyEvent's BelongsToTenant global scope
+            // would otherwise silently drop every tenant but the one currently active.
+            DB::table('external_tot_events')->orderBy('id')->each(function (object $row) {
+                DB::table('company_events')->insert([
+                    'tenant_id' => $row->tenant_id,
+                    'title' => $row->title,
+                    'type' => 'training',
+                    'host' => $row->host,
+                    'event_date' => $row->event_date,
+                    'start_time' => $row->time_label,
+                    'location' => $row->venue,
+                    'venue_map_url' => $row->venue_map_url,
+                    'registration_url' => $row->registration_url,
+                    'description' => $row->description,
+                    'tagged_employee_ids' => $row->tagged_employee_ids,
+                    'created_by_employee_id' => $row->posted_by,
+                    'created_at' => $row->created_at,
+                    'updated_at' => $row->updated_at,
+                ]);
+            });
+        }
 
         Schema::dropIfExists('external_tot_events');
     }
