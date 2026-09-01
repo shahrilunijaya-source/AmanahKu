@@ -61,7 +61,16 @@
                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $l->employee?->initials }}</div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->display_name }}</div>
-                        <div style="font-size:11.5px;color:var(--muted);">{{ $l->leaveType?->name }}</div>
+                        {{-- The type is only spelled out to the person themselves, their
+                             managers and the roles that administer leave; everybody else
+                             sees that they are away and nothing about why. --}}
+                        <div style="font-size:11.5px;color:var(--muted);">
+                            @if (\App\Support\Permissions::showsLeaveType($leaveTypeIds ?? null, $l->employee_id))
+                                {{ $l->leaveType?->name }}
+                            @else
+                                <span x-text="$store.ui.lang==='en' ? 'On leave' : 'Bercuti'">On leave</span>
+                            @endif
+                        </div>
                     </div>
                     <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $l->date_from->format('j') }}–{{ $l->date_to->format('j M') }}</span>
                 </div>

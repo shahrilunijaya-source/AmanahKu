@@ -146,7 +146,7 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_the_attention_dots(): void
+    public function test_the_newest_release_announces_the_one_page_dashboard(): void
     {
         $newest = Changelog::releases()[0];
 
@@ -157,13 +157,15 @@ class ChangelogScreenTest extends TestCase
             ->get('/app/changelog');
 
         $response->assertOk();
+        $response->assertSee('The dashboard is one page now', false);
+        $response->assertSee('/app/dash', false);
+
         $response->assertSee('red dot on anything waiting for you', false);
-        $response->assertSee('/app/leave', false);
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.8 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7.1 entry has no Malay copy of its own.');
         }
     }
 

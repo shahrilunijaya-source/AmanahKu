@@ -140,7 +140,7 @@
             // non-embed screen centres in one column: focused screens at 920px, data-dense
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
-                'roles', 'calendar', 'attendance-admin', 'attendance-report', 'timesheet-reports',
+                'roles', 'calendar', 'dash', 'attendance-admin', 'attendance-report', 'timesheet-reports',
                 'messages', 'orgchart', 'board'];
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp

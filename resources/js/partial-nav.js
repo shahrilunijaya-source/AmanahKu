@@ -130,7 +130,7 @@ async function go(url, { push = true } = {}) {
     }
 
     const fresh = doc.querySelector(MAIN);
-    // The measure classes (.uj-measured / .uj-main--wide / .uj-main--full) live on <main>
+    // The measure classes (.uj-measured / .uj-main--wide) live on <main>
     // itself, so swapping only innerHTML left the previous screen's width in place: a board
     // reached from a 920px screen stayed capped and centred until a full reload.
     main.className = fresh.className;

@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\DashboardWidgets;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
- * Validates a dashboard card-preference save: which scope it applies to, which
- * card ids are hidden, and their display order. `queue`/`secondary` being present
- * in `hidden` is not rejected here — DashboardPrefs::merge() silently strips those
- * pinned ids so a stale client payload can never bury a user's own action queue.
+ * Validates a dashboard widget-preference save: which widgets are hidden, and
+ * their order within each of the two columns.
+ *
+ * Ids are checked against the registry here so an unknown id is a 422 rather
+ * than something silently stored. Pinned widgets appearing in `hidden` are NOT
+ * rejected — DashboardPrefs::merge() strips them regardless of what was sent,
+ * so a stale client can never bury a user's own action list.
  */
 class UpdateDashboardPrefsRequest extends FormRequest
 {
@@ -22,12 +27,18 @@ class UpdateDashboardPrefsRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        return [
-            'scope' => ['required', 'string', 'in:me,company'],
+        $ids = Rule::in(DashboardWidgets::ids());
+        $rules = [
             'hidden' => ['array'],
-            'hidden.*' => ['string'],
+            'hidden.*' => ['string', $ids],
             'order' => ['array'],
-            'order.*' => ['string'],
         ];
+
+        foreach (DashboardWidgets::COLUMNS as $column) {
+            $rules["order.{$column}"] = ['array'];
+            $rules["order.{$column}.*"] = ['string', $ids];
+        }
+
+        return $rules;
     }
 }

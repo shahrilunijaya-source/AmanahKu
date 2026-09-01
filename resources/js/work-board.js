@@ -594,8 +594,9 @@ export function registerWorkBoard(Alpine) {
                     el.focus();
                 }
             } else {
+                // No el.click() here — the overlay input calls this from its own
+                // @click, so clicking it back would recurse.
                 el.focus();
-                el.click();
             }
         },
 

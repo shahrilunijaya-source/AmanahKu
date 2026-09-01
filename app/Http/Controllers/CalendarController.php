@@ -8,6 +8,7 @@ use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
+use App\Support\Permissions;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -20,7 +21,8 @@ use Illuminate\Support\Collection;
  * events — into a Mon–Sun month grid. No model, no migration, no writes.
  * Tenant isolation comes from the BelongsToTenant global scope on each model,
  * so no manual tenant_id filters are added here (that would double-scope).
- * Everyone may view; there is no privilege gate.
+ * Everyone may view; there is no privilege gate. The one thing not shown to
+ * everyone is the leave TYPE — see Permissions::leaveTypeAudience().
  */
 class CalendarController extends Controller
 {
@@ -30,7 +32,8 @@ class CalendarController extends Controller
      * @return array{
      *     month:string, monthValue:string, prevMonth:string, nextMonth:string,
      *     weekdays:array<int,string>, weeks:array<int,array<int,array<string,mixed>>>,
-     *     outThisMonth:Collection, holidaysThisMonth:Collection, eventsThisMonth:Collection
+     *     outThisMonth:Collection, holidaysThisMonth:Collection, eventsThisMonth:Collection,
+     *     leaveTypeIds:list<int>|null
      * }
      */
     public function screenData(Request $request, ?Employee $employee): array
@@ -55,6 +58,13 @@ class CalendarController extends Controller
         $weeks = $this->buildWeeks($gridStart, $gridEnd, $month, $today, $leave, $holidays, $events, $birthdays);
 
         return [
+            // Who this viewer may see a leave TYPE for; null means everybody. The
+            // calendar names everyone who is away, but "Medical" beside a colleague's
+            // name is their health, not the company's noticeboard.
+            'leaveTypeIds' => Permissions::leaveTypeAudience(
+                $employee,
+                (string) $request->attributes->get('tenantRole', 'employee'),
+            ),
             'month' => $month->format('F Y'),
             'monthValue' => $month->format('Y-m'),
             'prevMonth' => $month->subMonth()->format('Y-m'),

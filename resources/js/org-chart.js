@@ -75,7 +75,7 @@ const spring = (onFrame, damping = 1, response = 0.42) => {
 
 export function registerOrgChart(Alpine) {
     /**
-     * @param chart {{people: array, parents: object, verifiers: object, roots: array, directors: array}}
+     * @param chart {{people: array, parents: object, verifiers: object, roots: array, unmanaged: array, directors: array}}
      * @param canEdit {boolean} HR/management may change reporting lines.
      */
     Alpine.data('orgChart', (chart, canEdit) => ({
@@ -85,6 +85,10 @@ export function registerOrgChart(Alpine) {
         parents: { ...chart.parents },
         verifiers: { ...chart.verifiers },
         directorIds: chart.directors,
+        // Ids whose manager field is empty, from the server. Kept as its own list
+        // because `parents` cannot tell "no manager" from "reports to a director" —
+        // both read null there, the director band being drawn flat above the chart.
+        unmanagedIds: chart.unmanaged ?? [],
 
         focus: null, // null = the directors band, the top of the chart
         dir: 1, // travel direction of the last move, so the motion points where the eye goes
@@ -145,7 +149,7 @@ export function registerOrgChart(Alpine) {
         },
         /** People with no manager: nobody can verify their leave, claims or overtime. */
         get unmanaged() {
-            return this.kidsOf(null).filter((id) => id !== this.focus);
+            return this.unmanagedIds.filter((id) => id !== this.focus);
         },
 
         /**
@@ -212,6 +216,12 @@ export function registerOrgChart(Alpine) {
             try {
                 await api('/app/org/move', this.token, { employee_id: employeeId, manager_id: managerId });
                 this.parents[employeeId] = managerId;
+                // Placed under someone, so they are somebody's report now; placed at the
+                // top level (no manager) and they join the list instead.
+                this.unmanagedIds = this.unmanagedIds.filter((id) => id !== employeeId);
+                if (managerId === null) {
+                    this.unmanagedIds.push(employeeId);
+                }
                 this.justPlaced = employeeId;
                 setTimeout(() => {
                     this.justPlaced = null;
