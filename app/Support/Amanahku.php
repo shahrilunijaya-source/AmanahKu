@@ -282,46 +282,6 @@ class Amanahku
         ));
     }
 
-    /**
-     * Dashboard SCOPE access: the two-scope replacement for the old four-persona
-     * dashboard. `me` is everyone's own week; `company` merges the old manager,
-     * management and hr dashboards into one queue, distinguished per-row by a
-     * verify/approve stage badge rather than by separate screens. A plain employee
-     * never reaches `company` — there is nothing routed to them to verify or approve.
-     * Pass Permissions::effectiveRole() output (director already collapsed).
-     *
-     * @var array<string, array<int, string>>
-     */
-    public const SCOPE_ACCESS = [
-        'employee' => ['me'],
-        'manager' => ['me', 'company'],
-        'management' => ['me', 'company'],
-        'hr' => ['me', 'company'],
-    ];
-
-    /** Scope ids a role may view (employee-only fallback for unknown roles). */
-    public static function scopeIdsFor(string $role): array
-    {
-        return self::SCOPE_ACCESS[$role] ?? ['me'];
-    }
-
-    /** Scope switcher tabs for $role: one entry only for a plain employee. */
-    public static function scopesFor(string $role): array
-    {
-        $labels = ['me' => 'Me', 'company' => 'Company'];
-
-        return array_map(
-            fn (string $id): array => ['id' => $id, 'label' => $labels[$id]],
-            self::scopeIdsFor($role),
-        );
-    }
-
-    /** This role's default scope when none/an invalid one was requested. */
-    public static function defaultScope(string $role): string
-    {
-        return $role === 'employee' ? 'me' : 'company';
-    }
-
     public static function roleLabel(string $persona): string
     {
         return [

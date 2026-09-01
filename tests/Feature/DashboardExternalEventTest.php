@@ -76,11 +76,13 @@ class DashboardExternalEventTest extends TestCase
             ->assertDontSee('A secret agenda line nobody should see from the dashboard.');
     }
 
-    public function test_a_past_external_event_drops_off_the_dashboard(): void
+    public function test_a_past_external_event_drops_off_the_notice_board(): void
     {
         $this->event(['event_date' => now()->subDay()->toDateString()]);
 
-        $this->dash()->assertOk()->assertDontSee('Cybersecurity in the Age of NeoCloud');
+        // The month calendar still shows the day it happened, which is what a calendar
+        // is for. The notice board is the invite, so a finished workshop leaves it.
+        $this->dash()->assertOk()->assertDontSee('External event');
     }
 
     public function test_the_brief_is_hidden_when_the_events_module_is_off(): void

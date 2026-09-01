@@ -31,9 +31,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
- * Dashboard, achievements and reviews screen data for AppController::screen().
- * Split out of AppController purely for file size — every method still runs on
- * the controller instance ($this), so cross-trait calls keep working.
+ * Shared dashboard row builders, plus achievements and reviews screen data, for
+ * AppController::screen(). Split out of AppController purely for file size —
+ * every method still runs on the controller instance ($this), so cross-trait
+ * calls keep working.
+ *
+ * The dashboard's own entry point lives in BuildsDashboardWidgets, which composes
+ * the row builders here into per-widget payloads.
  */
 trait BuildsDashboardData
 {
@@ -49,109 +53,6 @@ trait BuildsDashboardData
         ['leave', 'Leave', 'leave'],
         ['claim', 'Claim', 'claims'],
     ];
-
-    /**
-     * Build the full view-model for one dashboard scope ('me' or 'company'). This is
-     * the single entry point AppController::screen() calls for the 'dash' screen —
-     * everything else in this file below it is a private helper.
-     *
-     * @return array{head: array, chips: array, queue: Collection, queueMeta: array,
-     *     secondary: Collection, secondaryMeta: array, railCards: array}
-     */
-    private function dashboardScopeData(Request $request, string $scope, ?Employee $employee): array
-    {
-        return $scope === 'company'
-            ? $this->companyScopeData($request, $employee)
-            : $this->meScopeData($employee);
-    }
-
-    /**
-     * "What do I owe, and where is my stuff stuck?" — the viewer's own obligations
-     * (timesheet, clock, unread lessons) plus their own leave/claim requests in flight.
-     */
-    private function meScopeData(?Employee $employee): array
-    {
-        $tenant = app(CurrentTenant::class)->get();
-        $features = app(FeatureManager::class);
-
-        $blankDays = $this->meTimesheetBlankDays($employee, $features, $tenant);
-        $unreadLessons = $this->meUnreadLessonCount($employee, $features, $tenant);
-
-        return [
-            'head' => $this->meHead($employee),
-            'chips' => [
-                ['n' => (string) $blankDays, 'label' => 'timesheet days blank', 'hot' => $blankDays > 0],
-                ['n' => $this->trimNumber($employee?->annualLeaveBalance() ?? 0.0), 'label' => 'annual leave days', 'hot' => false],
-                ['n' => (string) $this->meRequestsInFlight($employee, $features, $tenant), 'label' => 'requests in flight', 'hot' => false],
-                ['n' => (string) $unreadLessons, 'label' => 'unread lessons', 'hot' => false],
-            ],
-            'queue' => $this->meQueueRows($employee, $features, $tenant, $blankDays, $unreadLessons),
-            'queueMeta' => [
-                'title' => 'Your obligations',
-                'done_title' => 'All clear',
-                'done_body' => 'Nothing outstanding this week.',
-            ],
-            'secondary' => $this->meSecondaryRows($employee, $features, $tenant),
-            'secondaryMeta' => [
-                'title' => 'Your open requests',
-                'done_title' => 'Nothing in flight',
-                'done_body' => "You don't have any open leave or claim requests.",
-                'link' => null,
-            ],
-            'railCards' => [
-                ['id' => 'around', 'title' => 'Around you', 'rows' => $this->aroundRows($employee)],
-                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows($employee)],
-            ],
-        ];
-    }
-
-    /**
-     * "What is waiting on me, and what is quietly rotting?" — the viewer's real
-     * verify+approve queue (leave, claims), merged from the old manager/management/hr
-     * dashboards and distinguished per-row by stage badge, plus StuckRequests as the
-     * "reaching nobody" list.
-     */
-    private function companyScopeData(Request $request, ?Employee $employee): array
-    {
-        $tenant = app(CurrentTenant::class)->get();
-
-        $queue = $this->companyQueueRows($request);
-        $secondary = $this->stuckRows();
-
-        $lateTimesheets = app(TimesheetCompliance::class)
-            ->roster($tenant, now()->startOfWeek())
-            ->where('status', 'late')
-            ->count();
-        $headcount = $tenant->employees()->active()->count();
-
-        return [
-            'head' => $this->companyHead($queue->count()),
-            'chips' => [
-                ['n' => (string) $queue->count(), 'label' => 'waiting on you', 'hot' => $queue->count() > 0],
-                ['n' => (string) $secondary->count(), 'label' => 'reaching nobody', 'hot' => $secondary->count() > 0],
-                ['n' => (string) $lateTimesheets, 'label' => 'timesheets past lock', 'hot' => false],
-                ['n' => (string) $headcount, 'label' => 'active headcount', 'hot' => false],
-            ],
-            'queue' => $queue,
-            'queueMeta' => [
-                'title' => 'Waiting on you',
-                'done_title' => 'All caught up',
-                'done_body' => 'Nothing needs your verification or approval right now.',
-            ],
-            'secondary' => $secondary,
-            'secondaryMeta' => [
-                'title' => 'Reaching nobody',
-                'done_title' => 'Nothing stuck',
-                'done_body' => 'Every submitted request has someone to verify it.',
-                'link' => ['label' => 'Open Employee Directory', 'url' => route('app.screen', 'directory')],
-            ],
-            'railCards' => [
-                ['id' => 'rot', 'title' => 'Quietly rotting', 'rows' => $this->rotRows()],
-                ['id' => 'pop', 'title' => 'Headcount', 'rows' => $this->popRows($tenant)],
-                ['id' => 'news', 'title' => 'Announcements', 'rows' => $this->newsRows($employee)],
-            ],
-        ];
-    }
 
     /** "Good afternoon, {firstName}." greeting + today's date and clock state. */
     private function meHead(?Employee $employee): array
@@ -179,30 +80,6 @@ trait BuildsDashboardData
         };
 
         return ['h1' => $h1, 'sub' => now()->format('l, j F Y')." · {$clockState}."];
-    }
-
-    /**
-     * "Four requests are waiting on you." — a live sentence built from the queue
-     * count, with number words for 1–9 and digits above (per copy convention).
-     */
-    private function companyHead(int $waiting): array
-    {
-        $tenant = app(CurrentTenant::class)->get();
-
-        if ($waiting === 0) {
-            $h1 = 'Nothing is waiting on you.';
-        } else {
-            $number = $waiting <= 9 ? $this->numberWord($waiting) : (string) $waiting;
-            $verb = $waiting === 1 ? 'is' : 'are';
-            $h1 = "{$number} ".Str::plural('request', $waiting)." {$verb} waiting on you.";
-        }
-
-        return ['h1' => $h1, 'sub' => ($tenant?->name ?? 'Your company').' · '.now()->format('l, j F Y').'.'];
-    }
-
-    private function numberWord(int $n): string
-    {
-        return ['0' => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine'][$n] ?? (string) $n;
     }
 
     /** Trim a float to its shortest useful string: 12.0 → "12", 12.5 → "12.5". */

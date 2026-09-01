@@ -129,10 +129,10 @@ class DashboardRenderedQueueTest extends TestCase
 
     /**
      * The surviving half of the old "People this month" card: colleagues on approved
-     * leave still surface on the `me` scope, now as the `around` rail card. It affects
-     * when the viewer can take their own leave, which is why it stayed in the redesign.
+     * leave still surface, now through the calendar widget. It affects when the viewer
+     * can take their own leave, which is why it stayed through two redesigns.
      */
-    public function test_me_scope_lists_a_colleague_on_approved_leave(): void
+    public function test_the_calendar_lists_a_colleague_on_approved_leave(): void
     {
         $viewer = $this->member('employee', 'Viewer');
         $onLeave = $this->member('employee', 'Farid OnLeave');
@@ -156,11 +156,12 @@ class DashboardRenderedQueueTest extends TestCase
     }
 
     /**
-     * The viewer must not appear in their own "who is off" list — the old people-pulse
-     * query excluded the viewer and the rail card has to keep doing so, or a person on
-     * leave reads their own name back as company news.
+     * The viewer DOES see their own approved leave here, which reverses the old
+     * "around you" rail card's rule. That card was company news, where reading your
+     * own name back was noise; this is a calendar, and a calendar that hides the
+     * days you are off is lying about your month.
      */
-    public function test_the_viewer_is_excluded_from_their_own_on_leave_list(): void
+    public function test_the_calendar_includes_the_viewers_own_leave(): void
     {
         $viewer = $this->member('employee', 'Solo Viewer');
 
@@ -179,18 +180,12 @@ class DashboardRenderedQueueTest extends TestCase
             'status' => 'approved',
         ]);
 
-        // Asserted against the rail card's data, not the page HTML: the viewer's own
-        // name legitimately appears in the header and avatar chrome, so a whole-page
-        // string count would pass or fail for reasons unrelated to this rule.
-        $cards = $this->dash($viewer)->assertOk()->viewData('railCards');
-        $around = collect($cards)->firstWhere('id', 'around');
+        // Asserted against the widget payload, not the page HTML: the viewer's own name
+        // legitimately appears in the header and avatar chrome, so a whole-page string
+        // match would pass for reasons unrelated to this rule.
+        $out = $this->dash($viewer)->assertOk()->viewData('widgets')['calendar']['outThisMonth'];
 
-        $this->assertNotNull($around, 'The `me` scope must expose an `around` rail card.');
-        $this->assertNotContains(
-            'Solo Viewer',
-            array_column($around['rows'], 'title'),
-            'The viewer must not be listed among colleagues who are off.'
-        );
+        $this->assertContains('Solo Viewer', $out->map(fn ($l) => $l->employee?->name)->all());
     }
 
     /**
@@ -219,7 +214,7 @@ class DashboardRenderedQueueTest extends TestCase
 
         $this->assertContains(
             'You are still clocked in',
-            array_column($response->viewData('queue')->all(), 'title'),
+            array_column(collect($response->viewData('widgets')['tasks']['groups'])->firstWhere('id', 'owed')['rows'], 'title'),
             'The open overnight punch must still raise the clock-out reminder after midnight.'
         );
     }

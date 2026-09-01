@@ -1,6 +1,7 @@
 import Alpine from 'alpinejs';
 import Sortable from 'sortablejs';
 import './passkeys';
+import { registerDashboardWidgets } from './dashboard-widgets';
 import { registerTicketAttach } from './ticket-attach';
 import { registerMapPicker } from './map-picker';
 import { registerMapView } from './map-view';
@@ -70,6 +71,7 @@ registerExternalTotPaste(Alpine);
 registerTotCard(Alpine);
 registerTotRoster(Alpine);
 registerUploadFilenameSanitizer();
+registerDashboardWidgets(Alpine);
 registerWorkBoard(Alpine);
 registerServiceWorker();
 

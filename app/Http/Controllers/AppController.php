@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\BuildsDashboardData;
+use App\Http\Controllers\Concerns\BuildsDashboardWidgets;
 use App\Http\Controllers\Concerns\BuildsNav;
 use App\Http\Controllers\Concerns\BuildsPeopleData;
 use App\Http\Controllers\Concerns\BuildsSettingsData;
@@ -40,6 +41,7 @@ use Illuminate\View\View as ViewContract;
 class AppController extends Controller
 {
     use BuildsDashboardData;
+    use BuildsDashboardWidgets;
     use BuildsNav;
     use BuildsPeopleData;
     use BuildsSettingsData;
@@ -149,17 +151,6 @@ class AppController extends Controller
             session(['persona' => $role]);
         }
 
-        // Dashboard SCOPE: 'me' or 'company', the two-scope replacement for the old
-        // four-persona dashboard (see Amanahku::SCOPE_ACCESS). An employee may only
-        // ever get 'me'. An out-of-scope ?scope= value is rejected by falling back to
-        // the role's default scope — never aborted — mirroring the persona guard's
-        // AK-AUTHZ-02 style above.
-        $scopes = Amanahku::scopesFor($role);
-        $scope = $request->query('scope');
-        if (! is_string($scope) || ! in_array($scope, Amanahku::scopeIdsFor($role), true)) {
-            $scope = Amanahku::defaultScope($role);
-        }
-
         // Administration screens are restricted to privileged roles.
         if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
@@ -199,16 +190,12 @@ class AppController extends Controller
 
         $page = Amanahku::page($screen);
         if ($screen === 'dash') {
-            $scopeData = $this->dashboardScopeData($request, $scope, $employee);
-            $data = array_merge($data, $scopeData, [
-                'scope' => $scope,
-                'scopes' => $scopes,
-                'cardPrefs' => DashboardPrefs::forScope($request->user()?->dashboard_prefs, $scope),
-            ]);
-            // Legacy title/sub kept in sync from the new $head so anything still reading
+            $dashData = $this->dashboardData($request, $employee, $role);
+            $data = array_merge($data, $dashData);
+            // Legacy title/sub kept in sync from $head so anything still reading
             // pageTitle/pageSub (the shared layout's <title> tag, breadcrumb h1) shows the
-            // real scope heading rather than the static "Dashboard" placeholder.
-            $page = array_merge($page, ['title' => $scopeData['head']['h1'], 'title_ms' => $scopeData['head']['h1'], 'sub' => $scopeData['head']['sub'], 'sub_ms' => $scopeData['head']['sub']]);
+            // real greeting rather than the static "Dashboard" placeholder.
+            $page = array_merge($page, ['title' => $dashData['head']['h1'], 'title_ms' => $dashData['head']['h1'], 'sub' => $dashData['head']['sub'], 'sub_ms' => $dashData['head']['sub']]);
         }
         // Profile header reflects the actual employee being viewed.
         if ($screen === 'profile' && ! empty($data['profile'])) {
@@ -266,10 +253,10 @@ class AppController extends Controller
     }
 
     /**
-     * Save the signed-in user's card visibility/order for one dashboard scope.
-     * `queue`/`secondary` are pinned (DashboardPrefs::merge strips them from
-     * `hidden` no matter what the client sends) — a user must never be able to
-     * bury their own action queue.
+     * Save the signed-in user's widget visibility and drag order.
+     * `tasks` is pinned (DashboardPrefs::merge strips it from `hidden` no matter
+     * what the client sends) — a user must never be able to bury their own
+     * action list.
      */
     public function updateDashboardPrefs(UpdateDashboardPrefsRequest $request): JsonResponse
     {
@@ -277,7 +264,6 @@ class AppController extends Controller
 
         $user->dashboard_prefs = DashboardPrefs::merge(
             $user->dashboard_prefs,
-            $request->string('scope')->value(),
             $request->input('hidden', []),
             $request->input('order', []),
         );
