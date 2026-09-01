@@ -510,6 +510,91 @@ class AmanahkuWriteToolsTest extends TestCase
     }
 
     /**
+     * No tool hands out a staff directory, so an MCP client has no way to reach an
+     * employee_id on its own — naming the person the way people say it is the only
+     * usable path in.
+     */
+    public function test_assign_task_resolves_the_assignee_by_nickname(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->otherEmpA->update(['nickname' => 'omar']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(AssignTaskTool::class, [
+            'employee' => 'Omar', 'title' => 'Do it', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+        $this->assertStringContainsString('Omar', $data['summary']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame($this->otherEmpA->id, WorkItem::first()->employee_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * Assigning emails the assignee, so a half-matched name must never be guessed at:
+     * the wrong guess mails the wrong person. The refusal carries the ids so the
+     * caller can settle it in one more turn instead of dead-ending.
+     */
+    public function test_assign_task_refuses_a_name_matching_more_than_one_person_and_lists_them(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $nabil = Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabil Aziz', 'status' => 'active', 'workload' => 'green']);
+        $nabilah = Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabilah Rahim', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(AssignTaskTool::class, [
+            'employee' => 'Nabil', 'title' => 'Do it', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $text = (string) json_encode($response->json('result.content'));
+        $this->assertStringContainsString('employee_id '.$nabil->id, $text);
+        $this->assertStringContainsString('employee_id '.$nabilah->id, $text);
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, WorkItem::count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * An archived person is not assignable, so a name only they answer to means
+     * "nobody here" — the same outcome as a typo, and never a silent assignment.
+     */
+    public function test_assign_task_refuses_a_name_that_matches_nobody_active(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Gone Ghazali', 'status' => 'archived', 'archived_at' => now(), 'workload' => 'green']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        foreach (['Ghazali', 'Nobody At All'] as $name) {
+            $response = $this->callTool(AssignTaskTool::class, [
+                'employee' => $name, 'title' => 'Do it', 'type' => 'adhoc',
+                'priority' => 'high', 'due_at' => '2026-08-10',
+            ], $headers);
+
+            $this->assertTrue($this->toolIsError($response), $name.' must not resolve to anyone');
+        }
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, WorkItem::count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
      * An assigned card is invisible to the assignee's timesheet until it carries an
      * effort type — see WorkItemController::assign()'s docblock. The preview must show
      * the category/project by NAME (an id means nothing to the human approving it), and
