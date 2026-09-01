@@ -219,7 +219,7 @@ trait BuildsDashboardData
             foreach ($employee->claims()->whereIn('status', ['submitted', 'verified'])->latest()->take(5)->get() as $r) {
                 $stage = $r->status === 'submitted' ? 'step1' : 'step2';
                 $rows->push([
-                    'month' => $r->date?->format('M') ?? '', 'day' => $r->date?->format('d') ?? '',
+                    'month' => $r->date->format('M'), 'day' => $r->date->format('d'),
                     'kind' => ucfirst((string) $r->type).' claim', 'stage' => $stage,
                     'label' => $stage === 'step1' ? 'With your manager' : 'With management',
                     'title' => 'RM'.number_format((float) $r->amount, 2),

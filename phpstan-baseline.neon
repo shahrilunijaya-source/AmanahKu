@@ -135,7 +135,7 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 7
+			count: 6
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -735,12 +735,6 @@ parameters:
 		-
 			message: '#^Method App\\Models\\Employee\:\:verifiers\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Employee\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
 			identifier: return.type
-			count: 1
-			path: app/Models/Employee.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:first\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\LeaveBalance\)\: bool given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Models/Employee.php
 

@@ -147,10 +147,10 @@ final class DashboardWidgets
      */
     public static function catalog(array $ids): array
     {
-        return array_values(array_map(fn (string $id): array => self::ALL[$id] + [
+        return array_map(fn (string $id): array => self::ALL[$id] + [
             'id' => $id,
             'pinned' => in_array($id, self::PINNED, true),
-        ], $ids));
+        ], $ids);
     }
 
     /** Title pair for one widget, for the card header. @return array{0: string, 1: string} */
