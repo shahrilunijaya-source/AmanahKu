@@ -242,9 +242,11 @@ class LeavePolicyTest extends TestCase
     public function test_annual_leave_requires_three_days_notice(): void
     {
         $report = $this->member('employee', 'Reportee', $this->member('manager', 'Mgr')->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
 
         // Starting tomorrow is inside the 3-day window → rejected.
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
             'date_from' => now()->addDay()->toDateString(),
             'date_to' => now()->addDay()->toDateString(),
@@ -256,8 +258,10 @@ class LeavePolicyTest extends TestCase
     public function test_annual_leave_with_enough_notice_is_accepted(): void
     {
         $report = $this->member('employee', 'Reportee', $this->member('manager', 'Mgr')->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
             'date_from' => now()->addDays(4)->toDateString(),
             'date_to' => now()->addDays(5)->toDateString(),
@@ -269,15 +273,33 @@ class LeavePolicyTest extends TestCase
     public function test_emergency_leave_bypasses_the_notice_rule(): void
     {
         $report = $this->member('employee', 'Reportee', $this->member('manager', 'Mgr')->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
 
         // Same-day start is fine for unplanned leave — that is its purpose.
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->emergency->id,
             'date_from' => now()->toDateString(),
             'date_to' => now()->toDateString(),
         ])->assertRedirect()->assertSessionHas('ok');
 
         $this->assertDatabaseCount('leave_requests', 1);
+    }
+
+    // --- Reason ---------------------------------------------------------------
+
+    public function test_an_application_without_a_reason_is_rejected(): void
+    {
+        $report = $this->member('employee', 'Reportee', $this->member('manager', 'Mgr')->id);
+        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+
+        $this->actingAsEmployee($report)->post('/app/leave', [
+            'leave_type_id' => $this->annual->id,
+            'date_from' => now()->addDays(4)->toDateString(),
+            'date_to' => now()->addDays(5)->toDateString(),
+        ])->assertSessionHasErrors('reason');
+
+        $this->assertDatabaseCount('leave_requests', 0);
     }
 
     // --- Bulk verify / approve ----------------------------------------------

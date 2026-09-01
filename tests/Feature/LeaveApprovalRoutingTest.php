@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\KnowledgeContribution;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\OvertimeRequest;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -46,11 +48,28 @@ class LeaveApprovalRoutingTest extends TestCase
         $user = User::create(['name' => $name, 'email' => "user{$this->seq}@example.com", 'password' => Hash::make('password')]);
         $user->tenants()->attach($this->tenant->id, ['role' => $role]);
 
-        return Employee::create([
+        return $this->makeEligible(Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $name, 'status' => 'active', 'workload' => 'green',
             'reports_to_id' => $reportsToId,
-        ]);
+        ]));
+    }
+
+    /**
+     * Every leave type this tenant has, opened at a generous balance. HR ticks eligibility
+     * per person on Leave Setup and that tick IS the balance row, so a fixture employee
+     * with no rows cannot apply for anything.
+     */
+    private function makeEligible(Employee $e): Employee
+    {
+        foreach (LeaveType::all() as $t) {
+            LeaveBalance::firstOrCreate(
+                ['employee_id' => $e->id, 'leave_type_id' => $t->id],
+                ['balance' => 30],
+            );
+        }
+
+        return $e;
     }
 
     private function actingAsEmployee(Employee $e): self
@@ -113,14 +132,14 @@ class LeaveApprovalRoutingTest extends TestCase
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->type->id], ['balance' => 10]);
         $req = $this->request($report, 'verified', $manager->id);
 
         $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")
             ->assertRedirect()->assertSessionHas('ok');
 
         $this->assertSame('approved', $req->fresh()->status);
-        $this->assertEqualsWithDelta(8.0, (float) LeaveBalance::first()->balance, 0.001);
+        $this->assertEqualsWithDelta(8.0, (float) LeaveBalance::where('employee_id', $report->id)->where('leave_type_id', $this->type->id)->value('balance'), 0.001);
     }
 
     public function test_a_manager_cannot_give_final_approval(): void
@@ -194,6 +213,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $report = $this->member('employee', 'Reportee', $manager->id);
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->type->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
         ])->assertRedirect();
 
@@ -213,6 +233,66 @@ class LeaveApprovalRoutingTest extends TestCase
 
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $mgmt->user_id, 'title' => 'Leave awaiting approval',
+        ]);
+    }
+
+    public function test_verifier_comment_is_stored_and_shown_to_the_approver(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $req = $this->request($report);
+
+        $this->actingAsEmployee($manager)->post("/app/leave/{$req->id}/verify", [
+            'verify_note' => 'Cover arranged with the team.',
+        ])->assertRedirect();
+
+        $this->assertSame('Cover arranged with the team.', $req->fresh()->verify_note);
+
+        $this->actingAsEmployee($mgmt)->get('/app/leave')->assertOk()
+            ->assertSee('Cover arranged with the team.');
+    }
+
+    public function test_the_sidebar_marks_leave_when_something_waits_for_you(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->settleKnowledge($manager);
+
+        // Nothing pending yet: no dot anywhere in the nav.
+        $this->actingAsEmployee($manager)->get('/app/dash')->assertOk()->assertDontSee('uj-nav-dot');
+
+        $this->request($report);
+
+        $this->actingAsEmployee($manager)->get('/app/dash')->assertOk()->assertSee('uj-nav-dot');
+        // The person who filed it has nothing to act on, so their nav stays clean.
+        $this->settleKnowledge($report);
+        $this->actingAsEmployee($report)->get('/app/dash')->assertOk()->assertDontSee('uj-nav-dot');
+    }
+
+    public function test_the_sidebar_marks_overtime_too(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->settleKnowledge($manager);
+
+        $this->actingAsEmployee($manager)->get('/app/dash')->assertOk()->assertDontSee('uj-nav-dot');
+
+        OvertimeRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
+            'ot_date' => '2026-06-20', 'hours' => 4, 'rate_multiplier' => '1.50',
+            'reason' => 'Backlog', 'status' => 'submitted',
+        ]);
+
+        $this->actingAsEmployee($manager)->get('/app/dash')->assertOk()->assertSee('uj-nav-dot');
+    }
+
+    /** Silence the standing Knowledge Bank dot so the nav assertions here isolate leave. */
+    private function settleKnowledge(Employee $e): void
+    {
+        KnowledgeContribution::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $e->id,
+            'year' => (int) now()->year, 'month' => (int) now()->month, 'submitted' => true,
         ]);
     }
 
@@ -297,6 +377,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $hr = $this->member('hr', 'HR Officer');
 
         $this->actingAsEmployee($hr)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
@@ -363,7 +444,7 @@ class LeaveApprovalRoutingTest extends TestCase
     {
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 8]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->type->id], ['balance' => 8]);
         $req = LeaveRequest::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
             'leave_type_id' => $this->type->id, 'date_from' => '2026-12-01', 'date_to' => '2026-12-02',
@@ -374,7 +455,7 @@ class LeaveApprovalRoutingTest extends TestCase
             ->assertRedirect()->assertSessionHas('ok');
 
         $this->assertSame('cancelled', $req->fresh()->status);
-        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
+        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::where('employee_id', $report->id)->where('leave_type_id', $this->type->id)->value('balance'), 0.001);
     }
 
     public function test_cancelling_an_approved_future_leave_strips_the_on_leave_timesheet_row(): void
@@ -383,7 +464,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->type->id], ['balance' => 10]);
         Timesheet::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
             'week_start' => '2026-12-14', 'status' => 'draft', 'total_hours' => 0,
@@ -402,7 +483,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->actingAsEmployee($report)->post("/app/leave/{$leave->id}/cancel")->assertRedirect();
 
         $this->assertNull(TimesheetEntry::whereDate('entry_date', '2026-12-16')->first());
-        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::first()->balance, 0.001);
+        $this->assertEqualsWithDelta(10.0, (float) LeaveBalance::where('employee_id', $report->id)->where('leave_type_id', $this->type->id)->value('balance'), 0.001);
     }
 
     public function test_a_leave_already_pulled_into_a_payslip_cannot_be_cancelled(): void

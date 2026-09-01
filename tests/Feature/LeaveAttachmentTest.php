@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
@@ -52,11 +53,28 @@ class LeaveAttachmentTest extends TestCase
         $user = User::create(['name' => $name, 'email' => "user{$this->seq}@example.com", 'password' => Hash::make('password')]);
         $user->tenants()->attach($this->tenant->id, ['role' => $role]);
 
-        return Employee::create([
+        return $this->makeEligible(Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $name, 'status' => 'active', 'workload' => 'green',
             'reports_to_id' => $reportsToId,
-        ]);
+        ]));
+    }
+
+    /**
+     * Every leave type this tenant has, opened at a generous balance. HR ticks eligibility
+     * per person on Leave Setup and that tick IS the balance row, so a fixture employee
+     * with no rows cannot apply for anything.
+     */
+    private function makeEligible(Employee $e): Employee
+    {
+        foreach (LeaveType::all() as $t) {
+            LeaveBalance::firstOrCreate(
+                ['employee_id' => $e->id, 'leave_type_id' => $t->id],
+                ['balance' => 30],
+            );
+        }
+
+        return $e;
     }
 
     private function actingAsEmployee(Employee $e): self
@@ -71,6 +89,7 @@ class LeaveAttachmentTest extends TestCase
         $report = $this->member('employee', 'Reportee');
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
         ])->assertSessionHasErrors('attachment');
 
@@ -82,6 +101,7 @@ class LeaveAttachmentTest extends TestCase
         $report = $this->member('employee', 'Reportee');
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
             'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
         ])->assertRedirect()->assertSessionHas('ok');
@@ -97,6 +117,7 @@ class LeaveAttachmentTest extends TestCase
         $report = $this->member('employee', 'Reportee');
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
         ])->assertRedirect()->assertSessionHas('ok');
 
@@ -107,6 +128,7 @@ class LeaveAttachmentTest extends TestCase
     {
         $report = $this->member('employee', 'Reportee');
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
             'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
         ]);
@@ -119,6 +141,7 @@ class LeaveAttachmentTest extends TestCase
     {
         $report = $this->member('employee', 'Reportee');
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
             'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
         ]);
@@ -132,6 +155,7 @@ class LeaveAttachmentTest extends TestCase
     {
         $report = $this->member('employee', 'Reportee');
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
             'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
         ]);
@@ -147,6 +171,7 @@ class LeaveAttachmentTest extends TestCase
         // Hostinger's ModSecurity WAF blocks on staging (AK's on-disk name stays hashed).
         $report = $this->member('employee', "Nur'ain Binti Abdullah");
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
             'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
         ]);
@@ -160,5 +185,24 @@ class LeaveAttachmentTest extends TestCase
             "nurain-binti-abdullah-leave-{$req->id}-2026-07-10.pdf",
             $disposition,
         );
+    }
+
+    public function test_attachment_is_served_inline_for_preview(): void
+    {
+        // A verifier reads the MC before deciding, so the browser must render it in a
+        // tab rather than save it — an 'attachment' disposition is the old behaviour.
+        $report = $this->member('employee', 'Reportee');
+        $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
+            'leave_type_id' => $this->medical->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
+            'attachment' => UploadedFile::fake()->create('mc.pdf', 120, 'application/pdf'),
+        ]);
+        $req = LeaveRequest::first();
+
+        $disposition = $this->actingAsEmployee($report)
+            ->get("/app/leave/{$req->id}/attachment")->assertOk()
+            ->headers->get('Content-Disposition');
+
+        $this->assertStringStartsWith('inline', $disposition);
     }
 }

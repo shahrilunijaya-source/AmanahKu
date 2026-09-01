@@ -156,6 +156,8 @@
                     // parent or child — that is the only "you are here" left once the tree
                     // stops rendering its rows.
                     $secOn = $items->contains(fn ($i) => $i['active'] || collect($i['children'] ?? [])->contains(fn ($c) => $c['active'] ?? false));
+                    // A closed section still has to say something inside it needs you.
+                    $secDot = $items->sum(fn ($i) => (int) ($i['attention'] ?? 0) + collect($i['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0)));
                     $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
                 @endphp
                 @if ($solo)
@@ -165,6 +167,7 @@
                        :title="sbCollapsed ? ($store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])) : null">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                         <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])">{{ $only['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => $secDot])
                     </a>
                 @else
                     <div x-data="sbSec" @mouseenter="show($event)" @mouseleave="hide()"
@@ -173,6 +176,7 @@
                                 :aria-expanded="fly ? 'true' : 'false'" @if ($secOn) data-on @endif>
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                             <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
+                                @include('partials.nav-dot', ['n' => $secDot])
                             <svg class="uj-nav-chev uj-sb-hide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
                         </button>
 
@@ -197,6 +201,7 @@
                                                        @if ($groupOn) data-on @endif>
                                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                         <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                                         <svg class="uj-fly-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
                                                     </a>
                                                 @else
@@ -206,6 +211,7 @@
                                                             :aria-expanded="sub ? 'true' : 'false'" @if ($groupOn) data-on @endif>
                                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                         <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                                         <svg class="uj-fly-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
                                                     </button>
                                                 @endif
@@ -218,6 +224,7 @@
                                                                class="uj-fly-lnk" @if ($child['active']) data-on @endif>
                                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                                 <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($child['attention'] ?? 0)])
                                                             </a>
                                                         @endforeach
                                                     </div>
@@ -228,6 +235,7 @@
                                                @if ($item['active']) data-on @endif>
                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                 <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                             </a>
                                         @endif
                                     @endforeach
@@ -260,6 +268,8 @@
                     $sectionMs = $items->first()['section_ms'] ?? $section;
                     $secIcon = \App\Support\Amanahku::sectionIcon($section);
                     $secOn = $items->contains(fn ($i) => $i['active'] || collect($i['children'] ?? [])->contains(fn ($c) => $c['active'] ?? false));
+                    // A closed section still has to say something inside it needs you.
+                    $secDot = $items->sum(fn ($i) => (int) ($i['attention'] ?? 0) + collect($i['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0)));
                     $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
                 @endphp
                 @if ($solo)
@@ -268,6 +278,7 @@
                        @mouseenter="leave()" @if ($secOn) data-on @endif>
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                         <span class="uj-nav-lbl" x-text="$store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])">{{ $only['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => $secDot])
                     </a>
                 @else
                     <div>
@@ -279,6 +290,7 @@
                                 @if ($secOn) data-on @endif>
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                             <span class="uj-nav-lbl" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
+                                @include('partials.nav-dot', ['n' => $secDot])
                             <svg class="uj-nav-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
                                  :style="open === @js($section) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
                         </button>
@@ -303,6 +315,7 @@
                                                @if ($itemOn) data-on @endif>
                                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                 <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                                 <svg class="uj-tree-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
                                                      :style="openKid === @js($item['id']) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
                                             </a>
@@ -313,6 +326,7 @@
                                                     @if ($itemOn) data-on @endif>
                                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                 <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                                 <svg class="uj-tree-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
                                                      :style="openKid === @js($item['id']) ? 'transform:rotate(90deg);' : ''"><path d="M9 6l6 6-6 6"></path></svg>
                                             </button>
@@ -325,6 +339,7 @@
                                                    class="uj-tree-lnk uj-tree-deep" @if ($child['active'] ?? false) data-on @endif>
                                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                     <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($child['attention'] ?? 0)])
                                                 </a>
                                             @endforeach
                                           </div>
@@ -335,6 +350,7 @@
                                        @mouseenter="leaveKid()" @if ($itemOn) data-on @endif>
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                         <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
+                                @include('partials.nav-dot', ['n' => (int) ($item['attention'] ?? 0) + collect($item['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0))])
                                     </a>
                                 @endif
                             @endforeach

@@ -15,6 +15,18 @@
 
     $balByType = $balances->keyBy('leave_type_id');
 
+    // Only the types that apply to this person. HR ticks those on Leave Setup and the tick
+    // is stored as a balance row, so a type with a real quota and no row for you is one you
+    // are not entitled to — an intern with no annual leave should not be offered it at all,
+    // rather than shown a balance that reads "Not set up". Quota-less types (Unpaid) carry
+    // no row by design and stay open to everyone. LeaveController::store() re-checks this.
+    $leaveTypes = $leaveTypes->reject(function ($t) use ($leaveTypes, $balByType) {
+        $balTypeId = $t->deducts_from_leave_type_id ?: $t->id;
+        $balType = $leaveTypes->firstWhere('id', $balTypeId) ?? $t;
+
+        return $balType->entitlement > 0 && ! $balByType->has($balTypeId);
+    });
+
     /**
      * Per-type facts the form reasons about client-side: the notice rule, whether a
      * document is required, and which balance the days actually come off (Emergency
@@ -78,6 +90,7 @@
         dateFrom: @js(old('date_from', '')),
         dateTo: @js(old('date_to', '')),
         half: @js(old('half_day_period', '')),
+        reason: @js(old('reason', '')),
         fileName: '',
 
         t() { return this.sel ? this.meta[this.sel] : null; },
@@ -182,6 +195,7 @@
             if (!m) return 'type';
             if (!this.days()) return 'dates';
             if (this.overBy() > 0 && !this.overflows()) return 'over';
+            if (this.reason.trim().length < 3) return 'reason';
             if (m.doc && !this.fileName) return 'doc';
             return '';
         },
@@ -189,7 +203,7 @@
     @csrf
     <input type="hidden" name="leave_type_id" :value="sel">
 
-    @foreach (['date_from', 'date_to', 'half_day_period', 'attachment', 'leave_type_id'] as $field)
+    @foreach (['date_from', 'date_to', 'half_day_period', 'reason', 'attachment', 'leave_type_id'] as $field)
         @error($field)
             <div class="uj-lv-note" data-tone="bad" style="margin:0 0 14px;">{{ $message }}</div>
         @enderror
@@ -242,12 +256,6 @@
                                 @elseif ($bal)
                                     <b>{{ rtrim(rtrim(number_format((float) $bal->balance, 1), '0'), '.') }}</b>
                                     <span x-text="$store.ui.lang==='en' ? 'of {{ (int) $t->entitlement }} left' : 'dari {{ (int) $t->entitlement }} baki'"></span>
-                                @elseif ($t->entitlement > 0)
-                                    {{-- The type carries an entitlement but this person has no balance row
-                                         against it. Say that, rather than "no quota", which is a different
-                                         and untrue thing. --}}
-                                    <b x-text="$store.ui.lang==='en' ? 'Not set up' : 'Belum ditetapkan'">Not set up</b>
-                                    <span x-text="$store.ui.lang==='en' ? 'ask HR' : 'tanya HR'"></span>
                                 @else
                                     <b x-text="$store.ui.lang==='en' ? 'No quota' : 'Tiada kuota'">No quota</b>
                                 @endif
@@ -363,18 +371,21 @@
             <button type="button" class="uj-lv-step-head" @click="open(3)">
                 <span class="uj-lv-step-n">3</span>
                 <span style="flex:1;min-width:0;">
-                    <span class="uj-lv-step-q" x-text="$store.ui.lang==='en' ? 'Anything to add?' : 'Ada apa-apa lagi?'">Anything to add?</span>
+                    <span class="uj-lv-step-q" x-text="$store.ui.lang==='en' ? 'Why do you need it?' : 'Kenapa anda perlukannya?'">Why do you need it?</span>
                     <span class="uj-lv-step-a" x-show="step !== 3" x-cloak
-                          x-text="fileName ? fileName : (t() && t().doc ? ($store.ui.lang==='en' ? 'Document still needed' : 'Dokumen masih diperlukan') : ($store.ui.lang==='en' ? 'Optional' : 'Pilihan'))"></span>
+                          x-text="reason.trim().length < 3
+                            ? ($store.ui.lang==='en' ? 'Reason still needed' : 'Sebab masih diperlukan')
+                            : (t() && t().doc && !fileName ? ($store.ui.lang==='en' ? 'Document still needed' : 'Dokumen masih diperlukan') : (fileName || reason.trim()))"></span>
                 </span>
             </button>
             <div class="uj-lv-fold"><div><div class="uj-lv-fold-in">
                 <label class="uj-lv-field" for="lv-reason">
                     <span x-text="$store.ui.lang==='en' ? 'Reason' : 'Sebab'">Reason</span>
-                    <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional' : '— pilihan'"></span>
+                    <span class="uj-lv-req" x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'">Required</span>
                 </label>
-                <textarea class="uj-lv-in" id="lv-reason" name="reason" rows="2" maxlength="500"
-                          :placeholder="$store.ui.lang==='en' ? 'Your manager reads this. One line is enough.' : 'Pengurus anda akan baca ini. Satu baris sudah cukup.'">{{ old('reason') }}</textarea>
+                <textarea class="uj-lv-in" id="lv-reason" name="reason" rows="2" maxlength="500" required
+                          x-model="reason"
+                          :placeholder="$store.ui.lang==='en' ? 'Your manager reads this. One line is enough.' : 'Pengurus anda akan baca ini. Satu baris sudah cukup.'"></textarea>
 
                 <div style="margin-top:16px;">
                     <label class="uj-lv-field" for="lv-doc">
@@ -412,6 +423,7 @@
                     type: $store.ui.lang==='en' ? 'Nothing is sent until you press Send.' : 'Tiada apa dihantar sehingga anda tekan Hantar.',
                     dates: $store.ui.lang==='en' ? 'Choose the days first.' : 'Pilih hari dahulu.',
                     over: $store.ui.lang==='en' ? 'Over your balance — shorten the dates.' : 'Melebihi baki — pendekkan tarikh.',
+                    reason: $store.ui.lang==='en' ? 'Say why you need this leave to send it.' : 'Nyatakan sebab cuti ini untuk hantar.',
                     doc: $store.ui.lang==='en' ? 'Attach the required document to send this.' : 'Lampirkan dokumen wajib untuk hantar.',
                     '': $store.ui.lang==='en' ? @js($sendsTo['en']) : @js($sendsTo['ms']),
                 }[blocker()]"></span>

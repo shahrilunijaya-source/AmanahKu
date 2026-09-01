@@ -67,6 +67,9 @@ class LeaveSetupController extends Controller
             'balances' => ['array'],
             'balances.*' => ['array'],
             'balances.*.*' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'applies' => ['array'],
+            'applies.*' => ['array'],
+            'applies.*.*' => ['nullable', 'boolean'],
         ]);
 
         // Whitelist writable ids from the tenant's own data (both models are tenant-scoped).
@@ -80,16 +83,58 @@ class LeaveSetupController extends Controller
             ->pluck('id')->flip();
 
         $updated = 0;
+        $removed = 0;
 
-        DB::transaction(function () use ($validated, $staffIds, $typeIds, &$updated) {
+        // Which types each person is entitled to at all. A cleared tick box means the type
+        // does not apply to them (an intern gets no annual leave), and that is stored as
+        // the absence of a balance row — the same state as "never set up", which is what
+        // the Apply form already hides. Every rendered cell posts a 0 or 1 here, so an
+        // absent key means the cell was not on the page and nothing is touched.
+        $applies = $validated['applies'] ?? [];
+
+        DB::transaction(function () use ($validated, $applies, $staffIds, $typeIds, &$updated, &$removed) {
+            foreach ($applies as $employeeId => $byType) {
+                if (! is_array($byType) || ! $staffIds->has((int) $employeeId)) {
+                    continue;
+                }
+
+                foreach ($byType as $typeId => $on) {
+                    if ((bool) $on || ! $typeIds->has((int) $typeId)) {
+                        continue;
+                    }
+
+                    $removed += LeaveBalance::where('employee_id', (int) $employeeId)
+                        ->where('leave_type_id', (int) $typeId)
+                        ->delete();
+                }
+            }
+
             foreach ($validated['balances'] ?? [] as $employeeId => $byType) {
                 if (! is_array($byType) || ! $staffIds->has((int) $employeeId)) {
                     continue;
                 }
 
                 foreach ($byType as $typeId => $value) {
-                    if ($value === null || $value === '' || ! $typeIds->has((int) $typeId)) {
+                    if (! $typeIds->has((int) $typeId)) {
                         continue;
+                    }
+
+                    // No tick box posted at all (an API-shaped post, or an older form)
+                    // means the cell is simply a balance edit, not an eligibility change.
+                    $ticked = (bool) ($applies[$employeeId][$typeId] ?? true);
+                    if (! $ticked) {
+                        continue;
+                    }
+
+                    // Ticked but left blank: the person is entitled to the type and starts
+                    // at nothing, so a row still has to exist for the type to be offered.
+                    // An existing balance is left exactly as it was.
+                    if ($value === null || $value === '') {
+                        if (LeaveBalance::where('employee_id', (int) $employeeId)
+                            ->where('leave_type_id', (int) $typeId)->exists()) {
+                            continue;
+                        }
+                        $value = 0;
                     }
 
                     // Stamp the month: an opening balance imported from the old system
@@ -104,9 +149,11 @@ class LeaveSetupController extends Controller
             }
         });
 
-        AuditLog::record('Set opening leave balances', $updated.' balance(s) updated');
+        AuditLog::record('Set opening leave balances', $updated.' balance(s) updated'
+            .($removed > 0 ? ', '.$removed.' type(s) marked not applicable' : ''));
 
-        return back()->with('ok', "Leave balances saved ({$updated} updated).");
+        return back()->with('ok', "Leave balances saved ({$updated} updated"
+            .($removed > 0 ? ", {$removed} removed" : '').').');
     }
 
     // ---- Leave types (the master list balances are set against) ------------
