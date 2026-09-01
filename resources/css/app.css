@@ -1703,7 +1703,7 @@ select.wd-inline {
 .uj-dw-pulse .v[data-hot] { color:var(--red); }
 
 /* ── widget picker ── */
-.uj-dw-scrim { position:fixed; inset:0; z-index:70; background:rgba(38,37,30,.42); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .2s ease-out; }
+.uj-dw-scrim { position:fixed; inset:0; z-index:190; background:rgba(38,37,30,.42); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .2s ease-out; }
 .uj-dw-scrim[data-open] { opacity:1; pointer-events:auto; }
 .uj-dw-sheet { width:100%; max-width:720px; max-height:100%; background:var(--card); border-radius:16px; box-shadow:var(--lift-hi); display:flex; flex-direction:column; overflow:hidden; transform:scale(.97); opacity:0; transition:transform .22s var(--ease), opacity .18s ease-out; }
 .uj-dw-scrim[data-open] .uj-dw-sheet { transform:none; opacity:1; }

@@ -44,7 +44,8 @@ export function registerDashboardWidgets(Alpine) {
         currentOrder() {
             const order = {};
             this.$el.querySelectorAll('.uj-dw-col').forEach((col) => {
-                order[col.dataset.col] = Array.from(col.querySelectorAll(':scope > [data-widget]'))
+                order[col.dataset.col] = Array.from(col.children)
+                    .filter((w) => w.dataset.widget)
                     .map((w) => w.dataset.widget);
             });
             return order;
@@ -118,8 +119,8 @@ export function registerDashboardWidgets(Alpine) {
                     }
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
-                    const after = Array.from(col.querySelectorAll(':scope > [data-widget]'))
-                        .filter((w) => w !== dragged)
+                    const after = Array.from(col.children)
+                        .filter((w) => w.dataset.widget && w !== dragged)
                         .find((w) => {
                             const r = w.getBoundingClientRect();
                             return e.clientY < r.top + r.height / 2;
