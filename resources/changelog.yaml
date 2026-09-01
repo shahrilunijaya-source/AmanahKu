@@ -17,7 +17,7 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.8"
+- version: "1.7.1"
   date: "2026-09-01"
   entries:
     - tag: improved
@@ -37,10 +37,6 @@
     - tag: fixed
       text: "\"My team\" on the dashboard now means everybody below you in the org chart, not just the people who report to you directly. A manager with a team lead under them was only counting the lead, and missing everyone the lead manages.\nThe org chart also stopped calling people unmanaged when they report straight to a director. It counted them as having nobody because the directors sit in their own band above the chart; only a genuinely empty manager field counts now."
       text_ms: "\"Pasukan Saya\" pada papan pemuka kini bermaksud semua orang di bawah anda dalam carta organisasi, bukan hanya mereka yang melapor terus kepada anda. Pengurus yang mempunyai ketua pasukan di bawahnya hanya mengira ketua itu sahaja, dan tertinggal semua orang di bawah ketua tersebut.\nCarta organisasi juga berhenti mengatakan seseorang tiada pengurus sedangkan mereka melapor terus kepada pengarah. Ia mengira mereka sebagai tiada sesiapa kerana pengarah berada dalam jalur tersendiri di atas carta; kini hanya ruangan pengurus yang benar-benar kosong dikira."
-
-- version: "1.7.1"
-  date: "2026-09-01"
-  entries:
     - tag: added
       text: "The sidebar now puts a red dot on anything waiting for you, so you can see it without opening every screen. Leave, Claims and Overtime dot when a request needs your verification or your approval. T.A.A. dots when somebody else has put a card on your board and it is still sitting in To Do. Helpdesk dots when a ticket has been handed to you and nobody has started it. Events dots when an event tags your name and you have not said whether you are going. TOT Sessions dots when your own slot is a fortnight away or nearer. Knowledge Bank dots in the last week of the month if you still have not logged a lesson.\nEvery dot clears itself the moment you deal with the thing behind it — pick the card up, start the ticket, RSVP, log the lesson. A closed section keeps its own dot, so nothing hides behind a collapsed group."
       text_ms: "Bar sisi kini meletakkan titik merah pada apa-apa yang menunggu anda, jadi anda boleh nampak tanpa membuka setiap skrin. Cuti, Tuntutan dan Kerja Lebih Masa bertitik apabila ada permohonan yang perlu pengesahan atau kelulusan anda. T.A.A. bertitik apabila orang lain meletakkan kad pada papan anda dan ia masih berada dalam To Do. Helpdesk bertitik apabila tiket diserahkan kepada anda dan belum disentuh sesiapa. Acara bertitik apabila sesuatu acara menandakan nama anda dan anda belum menjawab sama ada anda hadir. Sesi TOT bertitik apabila slot anda sendiri tinggal dua minggu atau kurang. Bank Pengetahuan bertitik pada minggu terakhir bulan jika anda masih belum merekod pelajaran.\nSetiap titik hilang sendiri sebaik sahaja anda uruskan perkara di sebaliknya — ambil kad itu, mulakan tiket, jawab RSVP, rekod pelajaran. Bahagian yang ditutup mengekalkan titiknya sendiri, jadi tiada apa yang tersembunyi di sebalik kumpulan yang dilipat."
