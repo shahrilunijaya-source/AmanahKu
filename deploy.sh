@@ -11,6 +11,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# The app requires PHP 8.3+. On multi-PHP servers the default `php` may be older.
+if command -v php8.3 >/dev/null 2>&1 && ! php -r 'exit(PHP_VERSION_ID >= 80300 ? 0 : 1);' 2>/dev/null; then
+    php() { command php8.3 "$@"; }
+    export -f php
+    echo "==> Using $(php8.3 -v | head -1) (default php is too old)"
+fi
+
 env_get() {
     grep -E "^$1=" .env 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" | xargs || true
 }
