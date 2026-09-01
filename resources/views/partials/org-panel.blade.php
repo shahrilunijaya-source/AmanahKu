@@ -112,8 +112,8 @@
                     <p style="font-size:12.5px;color:var(--muted);margin:0;line-height:1.5;"
                        x-text="! @js($canEdit)
                             ? ($store.ui.lang==='en' ? 'Choose a circle to walk down the chart.' : 'Pilih bulatan untuk turun dalam carta.')
-                            : (kidsOf(null).length
-                                ? (kidsOf(null).length + ($store.ui.lang==='en'
+                            : (unmanaged.length
+                                ? (unmanaged.length + ($store.ui.lang==='en'
                                     ? ' people report to nobody. Only the directors can approve their requests — fill a slot to give them a manager.'
                                     : ' orang tidak melapor kepada sesiapa. Hanya pengarah boleh meluluskan permohonan mereka — isi slot untuk beri mereka pengurus.'))
                                 : ($store.ui.lang==='en' ? 'Everybody has a manager. Choose a circle to walk down the chart.' : 'Semua orang ada pengurus. Pilih bulatan untuk turun dalam carta.'))"></p>

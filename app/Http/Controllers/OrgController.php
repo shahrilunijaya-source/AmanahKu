@@ -123,6 +123,15 @@ class OrgController extends Controller
                     $e->id => $e->additionalManagers->modelKeys(),
                 ])->all(),
                 'roots' => $roots->modelKeys(),
+                // Genuinely nobody's report: the manager field is empty. NOT the same as
+                // a root of the drawn tree — anyone reporting straight to a director is
+                // drawn as a root too, because the director band sits flat above the
+                // chart rather than having branches hang off it. Counting roots called
+                // those people unmanaged when their line is set and deliberate.
+                'unmanaged' => $scope
+                    ->filter(fn (Employee $e) => ! in_array($e->id, $directorIds, true) && $e->reports_to_id === null)
+                    ->values()
+                    ->modelKeys(),
                 'directors' => $directorIds,
             ],
             'headcount' => $scope->count(),
