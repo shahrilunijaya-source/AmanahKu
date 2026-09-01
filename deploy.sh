@@ -12,10 +12,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # The app requires PHP 8.3+. On multi-PHP servers the default `php` may be older.
+# A shell function cannot override `#!/usr/bin/env php` in composer, so we prepend
+# a directory containing a `php` symlink to PATH instead.
 if command -v php8.3 >/dev/null 2>&1 && ! php -r 'exit(PHP_VERSION_ID >= 80300 ? 0 : 1);' 2>/dev/null; then
-    php() { command php8.3 "$@"; }
-    export -f php
-    echo "==> Using $(php8.3 -v | head -1) (default php is too old)"
+    PHPBIN="$(mktemp -d)"
+    ln -s "$(command -v php8.3)" "${PHPBIN}/php"
+    export PATH="${PHPBIN}:${PATH}"
+    echo "==> Using $(php -v | head -1) (default was too old)"
 fi
 
 env_get() {
