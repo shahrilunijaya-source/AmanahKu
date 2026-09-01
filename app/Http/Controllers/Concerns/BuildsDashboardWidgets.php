@@ -535,13 +535,22 @@ trait BuildsDashboardWidgets
             ];
         })->values();
 
+        $counts = array_map(fn (array $c) => [
+            'k' => $c[0],
+            'v' => $people->where('state', $c[0])->count(),
+            'label' => $c[1],
+        ], [['in', 'In'], ['late', 'Late'], ['done', 'Done'], ['leave', 'Leave'], ['absent', 'Absent']]);
+
+        // Only the first few show, so the people whose day needs looking at come
+        // first: nobody should have to open the fold to find out someone is missing.
+        $order = ['absent' => 0, 'late' => 1, 'leave' => 2, 'in' => 3, 'done' => 4];
+
         return [
-            'counts' => array_map(fn (array $c) => [
-                'k' => $c[0],
-                'v' => $people->where('state', $c[0])->count(),
-                'label' => $c[1],
-            ], [['in', 'In'], ['late', 'Late'], ['done', 'Done'], ['leave', 'Leave'], ['absent', 'Absent']]),
-            'people' => $people->all(),
+            'counts' => $counts,
+            'people' => $people
+                ->sortBy(fn (array $p): array => [$order[$p['state']], $p['name']])
+                ->values()
+                ->all(),
         ];
     }
 

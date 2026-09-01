@@ -1698,6 +1698,10 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 /* Collapsed, the third row's own bottom hairline is the separator; expanded, that
    row is the last child of the fold and drops it, so the button draws the line. */
 .uj-dw-more[aria-expanded="true"] { border-top:1px solid var(--hairline-soft); }
+/* Inside a padded body the row list has no edge to sit against, so the button
+   drops the shelf background and lines up with the rows above it. */
+.uj-dw-more--inline { padding:10px 0; background:none; }
+.uj-dw-more--inline:hover { background:none; }
 
 /* ── clock log ── */
 .uj-dw-shift { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--hairline-soft); flex-wrap:wrap; row-gap:9px; }

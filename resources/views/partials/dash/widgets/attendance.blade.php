@@ -17,16 +17,26 @@
                 </div>
             @endforeach
         </div>
-        <div class="uj-dw-people">
-            @foreach ($w['people'] as $p)
-                <div class="uj-dw-person">
-                    <span class="av" style="background:{{ $p['color'] }}">{{ $p['initials'] }}</span>
-                    <span class="txt">
-                        <span class="t">{{ $p['name'] }}</span>
-                        <span class="s">{{ $p['label'] }}</span>
-                    </span>
-                </div>
+        @php
+            $top = array_slice($w['people'], 0, 3);
+            $rest = array_slice($w['people'], 3);
+        @endphp
+        <div class="uj-dw-people" @if ($rest) x-data="{ more: false }" @endif>
+            @foreach ($top as $p)
+                @include('partials.dash.widgets.person-row', ['p' => $p])
             @endforeach
+            @if ($rest)
+                <div x-show="more" x-cloak>
+                    @foreach ($rest as $p)
+                        @include('partials.dash.widgets.person-row', ['p' => $p])
+                    @endforeach
+                </div>
+                <button type="button" class="uj-dw-more uj-dw-more--inline" @click="more = ! more"
+                        :aria-expanded="more ? 'true' : 'false'"
+                        x-text="more
+                            ? ($store.ui.lang==='en' ? 'Show less' : 'Tunjuk kurang')
+                            : ($store.ui.lang==='en' ? 'Show {{ count($rest) }} more' : 'Tunjuk {{ count($rest) }} lagi')">Show {{ count($rest) }} more</button>
+            @endif
         </div>
     @endif
 </div>

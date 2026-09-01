@@ -259,6 +259,39 @@ class DashboardWidgetsTest extends TestCase
         $response->assertSee('Show 2 more')->assertSee('Marriage')->assertSee('Unpaid');
     }
 
+    /** Only a few staff show, so whoever needs looking at comes first. */
+    public function test_team_attendance_leads_with_the_days_that_need_attention(): void
+    {
+        $manager = $this->userWithRole('manager', 'attmgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+
+        $names = ['Aisyah', 'Bala', 'Chong', 'Devi', 'Eng'];
+        foreach ($names as $i => $name) {
+            $staff = $this->userWithRole('employee', 'att'.$i.'@acme.test');
+            $this->employeeFor($staff, $mgrEmployee->id)->update(['name' => $name]);
+        }
+
+        // Everyone is absent by default; give one of them an approved leave day so
+        // the two states can be told apart in the order.
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id,
+            'employee_id' => Employee::where('name', 'Aisyah')->value('id'),
+            'leave_type_id' => $type->id, 'status' => 'approved',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($manager);
+        $response = $this->get('/app/dash')->assertOk();
+        $people = $response->viewData('widgets')['attendance']['people'];
+
+        // Absent first (alphabetically inside the state), the leave day after them.
+        $this->assertSame(['Bala', 'Chong', 'Devi', 'Eng', 'Aisyah'], array_column($people, 'name'));
+
+        // Three show, the other two sit behind the fold rather than being dropped.
+        $response->assertSee('Show 2 more')->assertSee('Aisyah');
+    }
+
     /** Calendar tabs widen the circle: Personal is you, Company is everyone. */
     public function test_calendar_entries_carry_the_narrowest_tab_that_shows_them(): void
     {
