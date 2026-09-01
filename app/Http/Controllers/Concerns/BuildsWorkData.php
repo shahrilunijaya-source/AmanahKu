@@ -375,7 +375,7 @@ trait BuildsWorkData
             'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'])->latest()->get() ?? collect(),
             'approvalChain' => $chain,
             'leaveVerifiers' => $chain['verifiers'],
-            // HR reports straight to the directors, so their own requests open already
+            // HR and the directors have nobody above them, so their own requests open already
             // verified. The Apply form must promise the right chain, not the generic one.
             'leaveSkipsVerification' => $this->skipsVerification($request),
             'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),

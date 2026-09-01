@@ -74,7 +74,8 @@ class OvertimeController extends Controller
         $body = $employee->name.' · '.number_format((float) $data['hours'], 2).'h @ '.$data['rate_multiplier'].'x';
 
         if ($this->skipsVerification($request)) {
-            // HR reports straight to the directors: no verify step, straight to final approval.
+            // Nobody sits above a final-approval-tier requester: no verify step, straight to
+            // final approval.
             $this->notifyManagementToApprove(
                 $overtime->tenant_id,
                 'Overtime awaiting final approval',

@@ -95,7 +95,8 @@ class ClaimController extends Controller
         $body = $data['title'].' · RM '.number_format((float) $data['amount'], 2);
 
         if ($this->skipsVerification($request)) {
-            // HR reports straight to the directors: no verify step, straight to final approval.
+            // Nobody sits above a final-approval-tier requester: no verify step, straight to
+            // final approval.
             $this->notifyManagementToApprove(
                 $claim->tenant_id,
                 'Claim awaiting final approval',

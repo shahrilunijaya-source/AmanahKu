@@ -13,7 +13,34 @@
 # gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
-# cadence.
+# cadence. A PATCH digit (MAJOR.MINOR.PATCH) is allowed for a same-day
+# follow-on that finishes what the MINOR release started, rather than opening
+# a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
+
+- version: "1.7.1"
+  date: "2026-09-01"
+  entries:
+    - tag: added
+      text: "The sidebar now puts a red dot on anything waiting for you, so you can see it without opening every screen. Leave, Claims and Overtime dot when a request needs your verification or your approval. T.A.A. dots when somebody else has put a card on your board and it is still sitting in To Do. Helpdesk dots when a ticket has been handed to you and nobody has started it. Events dots when an event tags your name and you have not said whether you are going. TOT Sessions dots when your own slot is a fortnight away or nearer. Knowledge Bank dots in the last week of the month if you still have not logged a lesson.\nEvery dot clears itself the moment you deal with the thing behind it — pick the card up, start the ticket, RSVP, log the lesson. A closed section keeps its own dot, so nothing hides behind a collapsed group."
+      text_ms: "Bar sisi kini meletakkan titik merah pada apa-apa yang menunggu anda, jadi anda boleh nampak tanpa membuka setiap skrin. Cuti, Tuntutan dan Kerja Lebih Masa bertitik apabila ada permohonan yang perlu pengesahan atau kelulusan anda. T.A.A. bertitik apabila orang lain meletakkan kad pada papan anda dan ia masih berada dalam To Do. Helpdesk bertitik apabila tiket diserahkan kepada anda dan belum disentuh sesiapa. Acara bertitik apabila sesuatu acara menandakan nama anda dan anda belum menjawab sama ada anda hadir. Sesi TOT bertitik apabila slot anda sendiri tinggal dua minggu atau kurang. Bank Pengetahuan bertitik pada minggu terakhir bulan jika anda masih belum merekod pelajaran.\nSetiap titik hilang sendiri sebaik sahaja anda uruskan perkara di sebaliknya — ambil kad itu, mulakan tiket, jawab RSVP, rekod pelajaran. Bahagian yang ditutup mengekalkan titiknya sendiri, jadi tiada apa yang tersembunyi di sebalik kumpulan yang dilipat."
+    - tag: improved
+      text: "Applying for leave now asks for a reason, and it is no longer optional — your manager reads it before deciding, and a blank one only sent the request back to you anyway.\nVerifiers get a comment box of their own. Whatever the manager writes when they verify is shown to the director who gives final approval, so the second person is not deciding blind.\nBoth the verifier and the approver now see the leave type spelled out on the request, in colour, instead of having to open it to find out whether it was annual, medical or unpaid.\nA supporting document opens in a new tab for you to look at, instead of downloading to your machine the moment you click it."
+      text_ms: "Memohon cuti kini meminta sebab, dan ia tidak lagi pilihan — pengurus anda membacanya sebelum membuat keputusan, dan yang kosong hanya akan dihantar semula kepada anda.\nPengesah pula mendapat kotak komen sendiri. Apa sahaja yang ditulis pengurus semasa mengesahkan akan dipaparkan kepada pengarah yang memberi kelulusan akhir, jadi orang kedua tidak membuat keputusan secara buta.\nPengesah dan pelulus kini melihat jenis cuti tertera jelas pada permohonan, berwarna, tanpa perlu membukanya untuk tahu sama ada ia cuti tahunan, cuti sakit atau cuti tanpa gaji.\nDokumen sokongan kini dibuka dalam tab baharu untuk anda lihat, bukan terus dimuat turun ke komputer anda sebaik diklik."
+      link: "/app/leave"
+      link_text: "Open Leave"
+      link_text_ms: "Buka Cuti"
+    - tag: added
+      text: "HR can now say which leave types apply to which person. On Leave Setup, every person has a tick box beside each type — untick it and that type stops being offered to them altogether, so an intern is simply not shown annual leave. Everybody currently keeps every type, so nothing changes until HR unticks something.\nLeave Setup is also four tabs now — Types, Holidays, Balances and Replacement — rather than one long scroll."
+      text_ms: "HR kini boleh menetapkan jenis cuti mana yang terpakai untuk siapa. Pada Persediaan Cuti, setiap orang mempunyai kotak tanda di sebelah setiap jenis — buang tandanya dan jenis itu tidak lagi ditawarkan kepada mereka langsung, jadi pelatih memang tidak dipaparkan cuti tahunan. Buat masa ini semua orang mengekalkan semua jenis, jadi tiada apa berubah sehingga HR membuang mana-mana tanda.\nPersediaan Cuti kini juga terbahagi kepada empat tab — Jenis, Cuti Umum, Baki dan Ganti — bukan satu skrin panjang."
+    - tag: improved
+      text: "Asking Claude to put a task on somebody's board now works by name. Say \"assign this to Nabil\" and it finds the person, instead of stopping to ask you for a staff number that nothing in the app ever shows you. Nicknames work too, since that is what people actually go by.\nIf the name fits more than one person it says so and lists them, rather than picking one — a task landing on the wrong board emails the wrong person."
+      text_ms: "Meminta Claude meletakkan tugasan pada papan seseorang kini boleh dibuat dengan nama. Sebut \"berikan ini kepada Nabil\" dan ia akan mencari orangnya, bukan berhenti untuk meminta anda nombor kakitangan yang memang tidak dipaparkan di mana-mana dalam app. Nama panggilan pun boleh, kerana itulah yang orang gunakan.\nJika nama itu sepadan dengan lebih daripada seorang, ia akan memberitahu dan menyenaraikan mereka, bukan memilih sendiri — tugasan yang jatuh pada papan yang salah menghantar e-mel kepada orang yang salah."
+      link: "/docs/mcp"
+      link_text: "Read the guide"
+      link_text_ms: "Baca panduan"
+    - tag: fixed
+      text: "The notification bell and message badge no longer crash the header when the app briefly loses its database connection. They now just quietly wait for the next check instead of showing a broken screen."
+      text_ms: "Loceng pemberitahuan dan lencana mesej tidak lagi merosakkan bahagian atas apabila aplikasi hilang sambungan pangkalan data seketika. Ia kini hanya menunggu semakan seterusnya secara senyap dan bukan memaparkan skrin rosak."
 
 - version: "1.7"
   date: "2026-09-01"

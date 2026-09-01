@@ -1,7 +1,8 @@
 {{-- One review queue, with per-row detail, chronology and bulk actions.
 
      Params: $items (LeaveRequest collection, balances eager-loaded on employee),
-             $mode ('verify' | 'approve').
+             $mode ('verify' | 'approve'). Also reads $leaveMeta from the leave screen
+             (per-type icon accent + tint) so a reviewer sees the leave type at a glance.
 
      Lives on the Approvals tab now. Each row states the balance the requester is
      left with if you say yes — the number an approver actually needs, which the
@@ -51,23 +52,26 @@
             $balTypeId = $a->leaveType?->effectiveBalanceTypeId() ?? $a->leave_type_id;
             $bal = $a->employee?->leaveBalances->firstWhere('leave_type_id', $balTypeId);
             $after = $bal ? max(0, (float) $bal->balance - (float) $a->days) : null;
+            // Same icon + tint the employee saw when choosing the type, so "Medical" is
+            // read as medical here rather than hunted for in the grey sub-line.
+            $slug = strtolower($a->leaveType?->name ?? '');
+            $m = ($leaveMeta ?? [])[$slug] ?? [null, '#8a8f98', '#eef0f2', '', ''];
         @endphp
         <div class="uj-lv-rw" x-data="{ open: false }" :data-open="open ? '' : null">
             <div class="uj-lv-ar">
                 <input type="checkbox" class="uj-lv-ck" value="{{ $a->id }}" x-model="sel">
                 <span style="flex:0 0 32px;height:32px;border-radius:50%;background:{{ $a->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:grid;place-items:center;font-size:var(--t-micro);font-weight:600;">{{ $a->employee?->initials }}</span>
+                <span class="uj-lv-rw-ico" style="background:{{ $m[2] }};flex:0 0 auto;">
+                    @include('partials.leave-type-icon', ['slug' => $slug, 'accent' => $m[1]])
+                </span>
                 <button type="button" class="uj-lv-ar-t" @click="open = !open">
                     <span class="uj-lv-rw-1">
-                        {{ $a->employee?->display_name }}
-                        @if ($a->employee?->position)<span style="color:var(--muted);font-weight:400;">· {{ $a->employee->position }}</span>@endif
+                        <b style="color:{{ $m[1] }};">{{ $a->leaveType?->name }} <span x-text="$store.ui.lang==='en' ? 'leave' : 'cuti'">leave</span></b>
+                        · {{ $a->employee?->display_name }}
                     </span>
                     <span class="uj-lv-rw-2">
-                        {{ $a->leaveType?->name }}
-                        · {{ $a->date_from->format('j M') }}@if (! $a->date_from->isSameDay($a->date_to)) – {{ $a->date_to->format('j M') }}@endif
-                        · <span x-text="$store.ui.lang==='en' ? '{{ $num($a->days) }} {{ (float) $a->days == 1 ? 'day' : 'days' }}' : '{{ $num($a->days) }} hari'">{{ $num($a->days) }}</span>
-                        @if ($a->attachment_path)
-                            · <span x-text="$store.ui.lang==='en' ? 'document attached' : 'ada dokumen'">document attached</span>
-                        @endif
+                        {{ $a->date_from->format('j M') }}@if (! $a->date_from->isSameDay($a->date_to)) – {{ $a->date_to->format('j M') }}@endif
+                        (<span x-text="$store.ui.lang==='en' ? '{{ $num($a->days) }} {{ (float) $a->days == 1 ? 'day' : 'days' }}' : '{{ $num($a->days) }} hari'">{{ $num($a->days) }}</span>)
                         <svg class="uj-lv-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
                     </span>
                     <span class="uj-lv-after">
@@ -84,7 +88,7 @@
                     </span>
                 </button>
                 <span class="uj-lv-acts">
-                    <form method="post" action="{{ route($actionRoute, $a) }}">
+                    <form method="post" action="{{ route($actionRoute, $a) }}" id="lv-act-{{ $a->id }}">
                         @csrf
                         <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
                             <span x-text="$store.ui.lang==='en' ? @js($btnEn) : @js($btnMs)">{{ $btnEn }}</span>
@@ -103,11 +107,31 @@
                     @if ($a->reason)<div class="uj-lv-quote">“{{ $a->reason }}”</div>@endif
                     @if ($a->attachment_path)
                         <div style="margin-bottom:11px;">
-                            <a href="{{ route('leave.attachment', $a) }}" style="font-size:var(--t-sm);color:var(--red);text-decoration:none;">
-                                <span x-text="$store.ui.lang==='en' ? 'Open supporting document' : 'Buka dokumen sokongan'">Open supporting document</span>
+                            {{-- Opens in a tab and renders there (the route streams inline), so an MC
+                                 is read before the decision instead of landing in Downloads. --}}
+                            <a href="{{ route('leave.attachment', $a) }}" target="_blank" rel="noopener"
+                               style="font-size:var(--t-sm);color:var(--red);text-decoration:none;">
+                                <span x-text="$store.ui.lang==='en' ? 'Preview supporting document' : 'Pratonton dokumen sokongan'">Preview supporting document</span>
                                 — {{ $a->attachment_name }}
                             </a>
                         </div>
+                    @endif
+                    @if (! $isVerify && $a->verify_note)
+                        <div class="uj-lv-quote" style="margin-bottom:11px;">
+                            “{{ $a->verify_note }}”
+                            <span style="display:block;color:var(--muted);font-size:var(--t-sm);">— {{ $a->verifiedBy?->name }}</span>
+                        </div>
+                    @endif
+                    @if ($isVerify)
+                        {{-- Posts with the Verify button above: the action form is a sibling of this
+                             fold, so the field joins it by `form=` rather than restructuring the row. --}}
+                        <label class="uj-lv-field" for="lv-note-{{ $a->id }}">
+                            <span x-text="$store.ui.lang==='en' ? 'Your comment' : 'Komen anda'">Your comment</span>
+                            <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional, seen by the approver' : '— pilihan, dilihat oleh pelulus'"></span>
+                        </label>
+                        <textarea class="uj-lv-in" id="lv-note-{{ $a->id }}" form="lv-act-{{ $a->id }}"
+                                  name="verify_note" rows="2" maxlength="500" style="margin-bottom:11px;"
+                                  :placeholder="$store.ui.lang==='en' ? 'Anything management should know before approving.' : 'Apa-apa yang pengurusan patut tahu sebelum meluluskan.'"></textarea>
                     @endif
                     @include('partials.leave-timeline', ['r' => $a])
                 </div></div>

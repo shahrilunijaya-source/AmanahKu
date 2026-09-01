@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -126,6 +127,12 @@ class ReportsAuditAccessTest extends TestCase
      */
     public function test_clock_remark_is_visible_to_an_overseer_and_hidden_from_a_peer(): void
     {
+        // Mid-month, because the record below is dated yesterday and the report defaults to
+        // the current month: run this on the 1st and yesterday sits in the previous month,
+        // outside the window, so the remark is legitimately absent and the test fails for a
+        // reason that has nothing to do with who may read it.
+        $this->travelTo(CarbonImmutable::parse('2026-07-15 10:00:00'));
+
         // The record is created outside a request, so the tenant the BelongsToTenant trait
         // stamps and scopes by has to be set by hand first.
         app(CurrentTenant::class)->set($this->tenant);

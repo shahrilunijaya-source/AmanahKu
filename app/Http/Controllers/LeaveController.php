@@ -36,7 +36,11 @@ class LeaveController extends Controller
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'half_day_period' => ['nullable', 'in:am,pm'],
-            'reason' => ['nullable', 'string', 'max:500'],
+            // Mandatory: the verifier and the approver both decide on this sentence, and
+            // an empty one sent the request back down the line as a question anyway.
+            'reason' => ['required', 'string', 'min:3', 'max:500'],
+        ], [
+            'reason.required' => 'Say why you need this leave — your manager reads it.',
         ]);
 
         // A half day only makes sense on a single date: you cannot take "the morning off"
@@ -57,6 +61,19 @@ class LeaveController extends Controller
         if ($type->is_hr_granted_only) {
             return back()->withInput()->withErrors([
                 'leave_type_id' => $type->name.' leave is granted by HR and cannot be applied for.',
+            ]);
+        }
+
+        // Eligibility: HR ticks which types apply to each person on Leave Setup, stored as
+        // the presence of a balance row. A type carrying its own quota that this person has
+        // no row for is not theirs to take (an intern gets no annual leave). Types with no
+        // quota at all (Unpaid) are open to everyone, so they are never gated here.
+        $balanceTypeId = $type->effectiveBalanceTypeId();
+        $quotaType = $balanceTypeId === $type->id ? $type : LeaveType::find($balanceTypeId);
+        if ($quotaType && $quotaType->entitlement > 0
+            && ! $employee->leaveBalances()->where('leave_type_id', $balanceTypeId)->exists()) {
+            return back()->withInput()->withErrors([
+                'leave_type_id' => $type->name.' leave does not apply to you. Ask HR if you think it should.',
             ]);
         }
 
@@ -112,7 +129,8 @@ class LeaveController extends Controller
         $body = $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's');
 
         if ($this->skipsVerification($request)) {
-            // HR reports straight to the directors: no verify step, straight to final approval.
+            // Nobody sits above a final-approval-tier requester: no verify step, straight to
+            // final approval.
             $this->notifyManagementToApprove(
                 $leave->tenant_id,
                 'Leave awaiting final approval',
@@ -208,7 +226,9 @@ class LeaveController extends Controller
         $this->assertVerifier($request, $leaveRequest->employee, $leaveRequest->tenant_id);
         abort_unless($leaveRequest->status === 'submitted', 422, 'Only submitted requests can be verified.');
 
-        $this->applyVerification($leaveRequest, $request->attributes->get('employee')?->id);
+        $note = $request->validate(['verify_note' => ['nullable', 'string', 'max:500']])['verify_note'] ?? null;
+
+        $this->applyVerification($leaveRequest, $request->attributes->get('employee')?->id, $note);
 
         return back()->with('ok', 'Leave verified for '.$leaveRequest->employee->name.'. Sent to management for approval.');
     }
@@ -282,13 +302,17 @@ class LeaveController extends Controller
             ->all();
     }
 
-    /** Flip a submitted request to verified and fan out the notifications. */
-    private function applyVerification(LeaveRequest $leaveRequest, ?int $actorId): void
+    /**
+     * Flip a submitted request to verified and fan out the notifications. $note is the
+     * verifier's comment, typed on the single-request action; bulk verify carries none.
+     */
+    private function applyVerification(LeaveRequest $leaveRequest, ?int $actorId, ?string $note = null): void
     {
         $leaveRequest->update([
             'status' => 'verified',
             'verified_by_id' => $actorId,
             'verified_at' => now(),
+            'verify_note' => $note,
         ]);
 
         AuditLog::record('Verified leave', $leaveRequest->employee->name.' · '.$leaveRequest->days.'d');
@@ -543,7 +567,10 @@ class LeaveController extends Controller
         abort_unless($isOwner || $isSuperior || $isPrivileged, 403);
         abort_unless(Storage::disk(self::ATTACHMENT_DISK)->exists($leaveRequest->attachment_path), 404);
 
-        return Storage::disk(self::ATTACHMENT_DISK)->download(
+        // Inline, not an attachment: an MC is looked at before a decision, so the browser
+        // should render it in a tab rather than drop a file in Downloads. Every allowed
+        // mime (pdf/jpg/png) previews natively.
+        return Storage::disk(self::ATTACHMENT_DISK)->response(
             $leaveRequest->attachment_path,
             AttachmentName::build(
                 $leaveRequest->employee?->name,

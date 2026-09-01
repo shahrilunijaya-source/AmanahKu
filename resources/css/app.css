@@ -581,6 +581,12 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-nav-row[data-on] { background: rgba(255, 255, 255, .09); color: #fff; }
 .uj-nav-row[data-on] > svg { color: var(--red); }
 .uj-nav-lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The "needs you" dot on a nav row (BuildsNav::navAttention). Pushed to the right end
+   of the row so it lands in the same place on every line; on the collapsed rail the label
+   is gone and it sits beside the icon instead. */
+.uj-nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex-shrink: 0; margin-left: auto; box-shadow: 0 0 0 3px rgba(214, 35, 43, .22); }
+.uj-fly-lnk .uj-nav-dot, .uj-tree-lnk .uj-nav-dot { width: 6px; height: 6px; box-shadow: 0 0 0 2px rgba(214, 35, 43, .2); }
+
 .uj-nav-chev { flex-shrink: 0; color: var(--sidebar-dim); transition: transform .16s cubic-bezier(.23, 1, .32, 1); }
 .uj-nav-row[aria-expanded="true"] .uj-nav-chev { transform: rotate(90deg); }
 .uj-nav-pill { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; color: var(--sidebar-dim); background: rgba(255, 255, 255, .08); border-radius: 9999px; padding: 1px 7px; flex-shrink: 0; }
@@ -2743,6 +2749,9 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
    a second pill — it is the category's child, not its equal. */
 .uj-tr-cat { display: inline-block; padding: 1px 9px; border: 1px solid var(--hairline); border-radius: 9999px; font-size: var(--t-micro); font-weight: 600; background: var(--hairline-soft); color: var(--ink); margin-right: 6px; }
 .uj-tr-proj { font-size: var(--t-micro); font-weight: 500; color: var(--muted); }
+/* The board card the line came from: its name, on its own line above the taxonomy.
+   Lines with no card behind them (leave, holidays, hand-typed rows) simply omit it. */
+.uj-tr-ent .c { display: block; color: var(--ink); line-height: 1.35; margin-bottom: 2px; }
 .uj-tr-ent .n { display: block; font-size: var(--t-micro); color: var(--muted); line-height: 1.45; margin-top: 1px; }
 
 /* Person header of the drill-down panel: who, what they cost, how many weeks are in. */

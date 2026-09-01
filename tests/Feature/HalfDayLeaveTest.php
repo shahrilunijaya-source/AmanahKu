@@ -65,11 +65,28 @@ class HalfDayLeaveTest extends TestCase
         $user = User::create(['name' => $name, 'email' => "user{$this->seq}@example.com", 'password' => Hash::make('password')]);
         $user->tenants()->attach($this->tenant->id, ['role' => $role]);
 
-        return Employee::create([
+        return $this->makeEligible(Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $name, 'status' => 'active', 'workload' => 'green',
             'reports_to_id' => $reportsToId,
-        ]);
+        ]));
+    }
+
+    /**
+     * Every leave type this tenant has, opened at a generous balance. HR ticks eligibility
+     * per person on Leave Setup and that tick IS the balance row, so a fixture employee
+     * with no rows cannot apply for anything.
+     */
+    private function makeEligible(Employee $e): Employee
+    {
+        foreach (LeaveType::all() as $t) {
+            LeaveBalance::firstOrCreate(
+                ['employee_id' => $e->id, 'leave_type_id' => $t->id],
+                ['balance' => 30],
+            );
+        }
+
+        return $e;
     }
 
     private function actingAsEmployee(Employee $e): self
@@ -89,10 +106,11 @@ class HalfDayLeaveTest extends TestCase
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id], ['balance' => 10]);
 
         // --- apply (morning of Wed 2026-07-22) ---
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
             'date_from' => '2026-07-22',
             'date_to' => '2026-07-22',
@@ -111,7 +129,7 @@ class HalfDayLeaveTest extends TestCase
         $this->assertSame('approved', $req->fresh()->status);
 
         // --- balance dropped by 0.5, not 1.0 ---
-        $this->assertEqualsWithDelta(9.5, (float) LeaveBalance::first()->balance, 0.001);
+        $this->assertEqualsWithDelta(9.5, (float) LeaveBalance::where('employee_id', $report->id)->where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
 
         // --- LockedDays emits a 50% row for that day ---
         $locked = app(LockedDays::class)->forWeek($report, '2026-07-20');
@@ -182,7 +200,7 @@ class HalfDayLeaveTest extends TestCase
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id], ['balance' => 10]);
 
         // Verified (not yet approved) half day for Wed 2026-07-22, so the day is not locked
         // when the staffer saves — their 50% work stands alone as a draft.
@@ -205,7 +223,7 @@ class HalfDayLeaveTest extends TestCase
 
         // Approval back-fills the stored week with the 50% leave row.
         $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
-        $this->assertEqualsWithDelta(9.5, (float) LeaveBalance::first()->balance, 0.001);
+        $this->assertEqualsWithDelta(9.5, (float) LeaveBalance::where('employee_id', $report->id)->where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
 
         $dayEntries = TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->get();
         $this->assertEqualsWithDelta(100.0, (float) $dayEntries->sum('percentage'), 0.001);
@@ -224,7 +242,7 @@ class HalfDayLeaveTest extends TestCase
         $manager = $this->member('manager', 'Manager');
         $mgmt = $this->member('management', 'Director');
         $report = $this->member('employee', 'Reportee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id], ['balance' => 10]);
 
         $card = WorkItem::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
@@ -267,6 +285,7 @@ class HalfDayLeaveTest extends TestCase
         $report = $this->member('employee', 'Reportee');
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
             'date_from' => '2026-07-22',
             'date_to' => '2026-07-23',
@@ -287,6 +306,7 @@ class HalfDayLeaveTest extends TestCase
 
         // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday.
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
             'date_from' => '2026-07-31',
             'date_to' => '2026-08-03',

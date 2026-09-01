@@ -85,7 +85,7 @@ class TimesheetController extends Controller
         $lockedDays = app(LockedDays::class);
         $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
 
-        $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'employee.positionBand'];
+        $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem', 'employee.positionBand'];
 
         $myTimesheets = $employee
             ? Timesheet::with($with)->where('employee_id', $employee->id)->latest('week_start')->get()
@@ -121,6 +121,11 @@ class TimesheetController extends Controller
 
                 $existingGrid[$e->entry_date->toDateString()][] = [
                     'id' => $e->id,
+                    // The board card's own name, so the line reads as the work it was
+                    // rather than as its category. Derived from the relation, never
+                    // stored on the entry: the three places that delete-and-recreate
+                    // entries would each have to remember to carry a copy.
+                    'title' => (string) ($e->workItem->title ?? ''),
                     'category_id' => $e->category_id,
                     'project_id' => $e->project_id,
                     'sub_pillar_id' => $e->sub_pillar_id,
@@ -248,7 +253,7 @@ class TimesheetController extends Controller
         $stored = $timesheet === null ? [] : ($timesheet->dismissed_suggestions ?? []);
 
         $cards = WorkItem::whereIn('id', collect($stored)->flatten()->unique()->all())
-            ->get(['id', 'title', 'description', 'project_id', 'timesheet_category_id'])
+            ->get(['id', 'title', 'project_id', 'timesheet_category_id'])
             ->keyBy('id');
 
         $categories = app(BoardSuggestions::class)->categoryFor($cards);
@@ -267,7 +272,9 @@ class TimesheetController extends Controller
                     'title' => $card->title,
                     'category_id' => $categories[(int) $card->id] ?? null,
                     'project_id' => $card->project_id ? (int) $card->project_id : null,
-                    'description' => (string) ($card->description ?: $card->title),
+                    // The note is the staffer's to write. The card's title names the line
+                    // on its own now, and the card's description is spec text, not a note.
+                    'description' => '',
                 ];
             }
         }
@@ -385,7 +392,7 @@ class TimesheetController extends Controller
         $scope = $request->attributes->get('tenantScope', 'company');
         $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $employee);
 
-        $entries = TimesheetEntry::with(['category', 'projectRef', 'subPillar', 'timesheet.employee.positionBand'])
+        $entries = TimesheetEntry::with(['category', 'projectRef', 'subPillar', 'workItem', 'timesheet.employee.positionBand'])
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
             ->whereHas('timesheet', fn ($t) => $t->where('status', 'submitted')
                 // archived owners' entries drop from RM totals
@@ -694,7 +701,7 @@ class TimesheetController extends Controller
         // Eight weeks back, so the viewer's own prev/next has somewhere to step without
         // a round trip per step. buildWeekBlocks() returns them oldest-first and the
         // Alpine component opens on the last one, which is the week asked for.
-        $timesheets = Timesheet::with(['entries.category', 'entries.projectRef', 'entries.subPillar'])
+        $timesheets = Timesheet::with(['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem'])
             ->where('employee_id', $employee->id)
             // Half-open upper bound, not whereBetween: the date cast stores a 00:00:00
             // time on sqlite, which sorts after the bare date string and drops the very
@@ -777,6 +784,7 @@ class TimesheetController extends Controller
                     // free-text project), which renders as the plain neutral pill.
                     'categoryColour' => $e->category?->colour(),
                     'project' => $project ?: null,
+                    'card' => (string) ($e->workItem->title ?? ''),
                     'note' => $e->description,
                     'days' => round((float) $e->percentage / 100, 2),
                 ];

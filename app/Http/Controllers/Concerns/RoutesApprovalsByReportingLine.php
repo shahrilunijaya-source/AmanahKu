@@ -25,10 +25,12 @@ use Illuminate\Support\Collection;
  * - VERIFY is the requester's direct manager only (employees.reports_to_id) — the link the
  *   org chart configures. They recommend; they cannot give final approval.
  * - APPROVE is HR or the management tier (director), and only once a request is verified.
- * - HR SKIPS VERIFY: an HR-role requester reports straight to the directors, so there is no
- *   intermediate superior to recommend their own request. Theirs opens already `verified`
- *   (with no verifier recorded) and goes straight to the final-approval queue, where a
- *   director signs it off — HR cannot approve their own request.
+ * - THE TOP OF THE CHART SKIPS VERIFY: a requester who is themselves in the final-approval
+ *   tier (HR reports straight to the directors; a director/management requester has no
+ *   superior at all) has no intermediate superior to recommend their own request. Theirs
+ *   opens already `verified` (with no verifier recorded) and goes straight to the
+ *   final-approval queue, where someone else in that tier signs it off — nobody approves
+ *   their own request.
  * - Segregation of duties: nobody acts on their own request, and the verifier may not also
  *   approve. A request with no superior set stays at `submitted` until one is assigned.
  *
@@ -49,17 +51,23 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
-     * True when the acting user's own request needs no verification step: HR reports directly
-     * to the directors, so no manager sits between them and final approval.
+     * True when the acting user's own request needs no verification step: they already sit in
+     * the final-approval tier, so nobody above them can recommend their request. HR reports
+     * directly to the directors, and a director/management requester is the top of the org
+     * chart with no superior at all — their submission would otherwise land in nobody's verify
+     * queue and sit at `submitted` forever. Gated on ROLE, not on a missing reports_to_id: a
+     * plain employee with no superior is a broken org chart (see StuckRequests) and must not
+     * quietly self-route past the manager they should have.
      */
     protected function skipsVerification(Request $request): bool
     {
-        return $this->tenantRole($request) === 'hr';
+        return $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES);
     }
 
     /**
      * Status columns for a two-step request the acting user is creating for themselves —
-     * `submitted` normally, already `verified` for an HR requester (see skipsVerification()).
+     * `submitted` normally, already `verified` for an HR or management-tier requester (see
+     * skipsVerification()).
      * Spread into the create() array so every module opens at the same stage.
      *
      * @return array{status: string, verified_at?: Carbon}

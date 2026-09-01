@@ -196,7 +196,7 @@
                                 <span class="uj-lv-rw-2">
                                     <span x-text="$store.ui.lang==='en' ? '{{ $num($r->days) }} {{ (float) $r->days == 1 ? 'day' : 'days' }}' : '{{ $num($r->days) }} hari'">{{ $num($r->days) }}</span>
                                     @if ($r->attachment_path)
-                                        · <a href="{{ route('leave.attachment', $r) }}" @click.stop style="color:var(--red);text-decoration:none;">{{ $r->attachment_name }}</a>
+                                        · <a href="{{ route('leave.attachment', $r) }}" target="_blank" rel="noopener" @click.stop style="color:var(--red);text-decoration:none;">{{ $r->attachment_name }}</a>
                                     @endif
                                 </span>
                             </span>
@@ -207,6 +207,12 @@
                         <div class="uj-lv-fold" :style="open ? 'grid-template-rows:1fr' : 'grid-template-rows:0fr'">
                             <div><div class="uj-lv-rw-in">
                                 @if ($r->reason)<div class="uj-lv-quote">“{{ $r->reason }}”</div>@endif
+                                @if ($r->verify_note)
+                                    <div class="uj-lv-quote" style="margin-bottom:11px;">
+                                        “{{ $r->verify_note }}”
+                                        <span style="display:block;color:var(--muted);font-size:var(--t-sm);">— {{ $r->verifiedBy?->name }}</span>
+                                    </div>
+                                @endif
                                 @include('partials.leave-timeline', ['r' => $r, 'assignedVerifiers' => $leaveVerifiers])
                                 @if (in_array($r->status, ['submitted', 'verified'], true) || ($r->status === 'approved' && ! $r->paid_at && $r->date_from->isFuture()))
                                     <form method="post" action="{{ route('leave.cancel', $r) }}" style="margin-top:11px;">

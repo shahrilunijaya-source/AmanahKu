@@ -477,3 +477,75 @@ test('a board row that has a category is sent as usual', () => {
     expect(c.flatRows()).toHaveLength(1);
     expect(c.hasBlankRows(THURSDAY)).toBe(false);
 });
+
+// ---- The card's own title, and answering a card that reached the sheet uncategorised ----
+
+test('rowTitle() names the line by its card, and falls back to the classification when there is none', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+
+    expect(c.rowTitle({ title: 'Tender ISCAF', category_id: 1, project_id: 5 })).toBe('Tender ISCAF');
+    expect(c.rowTitle({ title: '', category_id: 1, project_id: 5 })).toBe('Development · KPT: RMS');
+});
+
+test('init() carries the card title through both saved rows and board suggestions', () => {
+    const c = makeComponent({
+        days: 5,
+        existing: { [THURSDAY]: [{ id: 9, title: 'Saved card', category_id: 1, percentage: 50 }] },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, title: 'Suggested card', category_id: null }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY].map((r) => r.title)).toEqual(['Saved card', 'Suggested card']);
+});
+
+test('the overlay asks for a category only when the row arrived without one, and writes the pick back', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, title: 'No category card', category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+        { work_item_id: 43, title: 'Has one', category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 50 },
+    ];
+
+    c.openEditRow(1);
+    expect(c.picker.askCat).toBe(false);
+    c.closePicker();
+
+    c.openEditRow(0);
+    expect(c.picker.askCat).toBe(true);
+    c.picker.pendingCat = 2;
+    c.picker.pendingPct = 50;
+    c.confirmEntry();
+
+    expect(c.rows[THURSDAY][0].category_id).toBe(2);
+    expect(c.rows[THURSDAY][1].category_id).toBe(1);
+    expect(c.needsCategory(c.rows[THURSDAY][0])).toBe(false);
+});
+
+test('answering one day of a card fills that card\'s other uncategorised days too', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, title: 'Ran all week', category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+    c.rows['2026-08-05'] = [
+        { work_item_id: 42, title: 'Ran all week', category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+        { work_item_id: 43, title: 'A different card', category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
+    ];
+
+    c.openEditRow(0);
+    c.picker.pendingCat = 2;
+    c.picker.pendingPct = 100;
+    c.confirmEntry();
+
+    expect(c.rows['2026-08-05'][0].category_id).toBe(2);
+    expect(c.rows['2026-08-05'][1].category_id).toBe('');
+});
+
+test('a row still without a category never reaches the server', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, title: 'No category card', category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: 50 },
+    ];
+
+    expect(c.flatRows()).toEqual([]);
+});
