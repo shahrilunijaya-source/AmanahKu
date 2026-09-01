@@ -299,6 +299,42 @@ class DashboardWidgetsTest extends TestCase
         $this->assertSame(3, $today['marks']['company']['count']);
     }
 
+    /** Your own leave shows before it is approved — it is your day either way. */
+    public function test_calendar_shows_your_own_leave_while_it_is_still_waiting(): void
+    {
+        $user = $this->userWithRole('employee', 'calpending@acme.test');
+        $employee = $this->employeeFor($user);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'leave_type_id' => $type->id, 'status' => 'submitted',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($user);
+        $calendar = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar'];
+
+        $entries = $calendar['days'][now()->toDateString()]['entries'];
+        $this->assertCount(1, $entries);
+        $this->assertSame('pending', $entries[0]['kind']);
+        $this->assertSame(0, $entries[0]['level']);
+        $this->assertSame('Waiting to be verified', $entries[0]['sub']);
+        $this->assertSame('You — annual', $entries[0]['title']);
+
+        // Someone else's pending leave stays off the calendar, on every tab.
+        $other = $this->userWithRole('employee', 'calpending2@acme.test');
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employeeFor($other)->id,
+            'leave_type_id' => $type->id, 'status' => 'submitted',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($user);
+        $calendar = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar'];
+        $this->assertSame(1, $calendar['days'][now()->toDateString()]['marks']['company']['count']);
+    }
+
     /** Nobody reporting to you means no Team tab — it would only repeat Personal. */
     public function test_calendar_drops_the_team_tab_for_someone_with_no_reports(): void
     {

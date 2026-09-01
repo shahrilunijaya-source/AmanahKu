@@ -134,6 +134,7 @@ trait BuildsDashboardWidgets
         $reports = $employee
             ? Employee::where('reports_to_id', $employee->id)->pluck('id')->all()
             : [];
+        $ownPending = $this->ownPendingLeave($weeks, $employee);
 
         $days = [];
         $selected = null;
@@ -145,7 +146,7 @@ trait BuildsDashboardWidgets
                 }
 
                 $key = $day['date']->toDateString();
-                $entries = $this->calendarEntries($day, $employee, $reports);
+                $entries = $this->calendarEntries($day, $employee, $reports, $ownPending);
 
                 $days[$key] = [
                     'label' => $day['date']->format('j F'),
@@ -174,9 +175,10 @@ trait BuildsDashboardWidgets
      *
      * @param  array<string, mixed>  $day
      * @param  list<int>  $reports
+     * @param  Collection<int, LeaveRequest>  $ownPending
      * @return list<array{level: int, kind: string, who: string, title: string, sub: string}>
      */
-    private function calendarEntries(array $day, ?Employee $employee, array $reports): array
+    private function calendarEntries(array $day, ?Employee $employee, array $reports, Collection $ownPending): array
     {
         $entries = [];
 
@@ -194,7 +196,7 @@ trait BuildsDashboardWidgets
             $person = $leave->employee;
             $mine = $employee !== null && $person->id === $employee->id;
             $name = $mine ? 'You' : $person->display_name;
-            $type = $leave->leaveType?->name ?? 'leave';
+            $type = $this->leaveTypeName($leave);
 
             $entries[] = [
                 'level' => match (true) {
@@ -211,7 +213,53 @@ trait BuildsDashboardWidgets
             ];
         }
 
+        // Your own leave that has not been approved yet is on the calendar screen
+        // nowhere, but it is the thing you most want to see on your own dashboard:
+        // the day you asked for is already spoken for, pending or not.
+        foreach ($ownPending as $leave) {
+            if (! $day['date']->betweenIncluded($leave->date_from, $leave->date_to)) {
+                continue;
+            }
+
+            $entries[] = [
+                'level' => 0,
+                'kind' => 'pending',
+                'who' => 'You',
+                'title' => 'You — '.Str::lower($this->leaveTypeName($leave)),
+                // Verified means a superior has already passed it up; the only thing
+                // left is final approval.
+                'sub' => $leave->verified_at !== null
+                    ? 'Waiting for approval'
+                    : 'Waiting to be verified',
+            ];
+        }
+
         return $entries;
+    }
+
+    /**
+     * The viewer's own submitted-or-verified leave overlapping the visible grid.
+     * Loaded once for the whole month rather than per cell.
+     *
+     * @param  list<list<array<string, mixed>>>  $weeks
+     * @return Collection<int, LeaveRequest>
+     */
+    private function ownPendingLeave(array $weeks, ?Employee $employee): Collection
+    {
+        if ($employee === null || $weeks === []) {
+            return collect();
+        }
+
+        $first = $weeks[0][0]['date'];
+        $lastWeek = $weeks[count($weeks) - 1];
+        $last = $lastWeek[count($lastWeek) - 1]['date'];
+
+        return LeaveRequest::with('leaveType')
+            ->where('employee_id', $employee->id)
+            ->whereIn('status', ['submitted', 'verified'])
+            ->whereDate('date_from', '<=', $last->toDateString())
+            ->whereDate('date_to', '>=', $first->toDateString())
+            ->get();
     }
 
     /**
@@ -243,6 +291,12 @@ trait BuildsDashboardWidgets
         }
 
         return $marks;
+    }
+
+    /** A request's leave type, or a plain word when the type row has gone. */
+    private function leaveTypeName(LeaveRequest $leave): string
+    {
+        return (string) ($leave->leaveType?->name ?? 'leave');
     }
 
     /** Two-letter stand-in for a face, from a display name. */

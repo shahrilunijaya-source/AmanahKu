@@ -13,7 +13,7 @@
     $tabs = $w['calTabs'] ?? ['personal', 'company'];
     $tabLevels = ['personal' => 0, 'team' => 1, 'company' => 2];
     $tabLabels = ['personal' => ['Personal', 'Peribadi'], 'team' => ['Team', 'Pasukan'], 'company' => ['Company', 'Syarikat']];
-    $kindLabels = ['leave' => ['Leave', 'Cuti'], 'holiday' => ['Holiday', 'Cuti umum'], 'event' => ['Event', 'Acara']];
+    $kindLabels = ['leave' => ['Leave', 'Cuti'], 'pending' => ['Pending', 'Menunggu'], 'holiday' => ['Holiday', 'Cuti umum'], 'event' => ['Event', 'Acara']];
     // Day label and the per-tab entry count, so the panel heading can be written
     // client-side without shipping every day's heading as markup.
     $meta = collect($days)->map(fn (array $d): array => [
