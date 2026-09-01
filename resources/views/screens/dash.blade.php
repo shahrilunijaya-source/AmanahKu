@@ -18,6 +18,8 @@
 
     Visibility and drag order POST to route('dashboard.prefs.update'); if that
     route is missing, save() is a silent no-op so the UI still works locally.
+    The period arrows GET route('dashboard.widget') for one card's markup and swap
+    it in place — same fallback, the arrows just do nothing without the route.
 --}}
 
 @section('screen')
@@ -35,6 +37,7 @@
         hidden: @js(array_values($widgetPrefs['hidden'] ?? [])),
         catalog: @js($widgetCatalog),
         prefsUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.prefs.update') ? route('dashboard.prefs.update') : null),
+        widgetUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.widget') ? route('dashboard.widget', '__id__') : null),
     })" x-init="initDrag()">
 
     {{-- The dashboard owns its heading; the shared layout suppresses its page-title

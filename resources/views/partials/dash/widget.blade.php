@@ -1,30 +1,20 @@
 @php
     /**
-     * One dashboard widget card. The shell (border, hover lift, drag handle,
-     * title) lives here; the body is partials/dash/widgets/{id}.blade.php.
+     * One dashboard widget card — the shell only: border, hover lift, drag
+     * handle, and the state the header and body share. Everything inside is
+     * partials/dash/widget-inner.blade.php, which is also what the period
+     * arrows fetch on their own, so a card can be rebuilt without the page.
      *
      * Expects:
      *   $id       widget id from App\Support\DashboardWidgets
      *   $widgets  the full payload map from the controller
      *
-     * The HEADER is the drag handle, the way the Worksy dashboard drags a widget
-     * by its title: no grip button had to be added to eleven sections, and the
-     * grip dots are a pseudo element so the handle costs no layout. Controls
-     * inside the header keep working — dash.blade.php's dragstart bails out when
-     * the mousedown landed on a button, link, input or select.
-     *
-     * `scope` lives on the card rather than in either partial because the control
+     * `scope` lives out here rather than in either partial because the control
      * that sets it is in the header and the thing it switches is in the body.
-     * Only the month summary reads it today.
+     * Only the month summary reads it today, and it survives a period swap
+     * because the swap replaces what is inside this section, not the section.
      */
-    $meta = \App\Support\DashboardWidgets::ALL[$id];
-    $w = $widgets[$id] ?? [];
 @endphp
 <section class="uj-dw" data-widget="{{ $id }}" x-data="{ scope: 'me' }">
-    <div class="uj-dw-hd">
-        <h2 x-data="{ en: @js($meta['title']), ms: @js($meta['title_ms']) }"
-            x-text="$store.ui.lang==='en' ? en : ms">{{ $meta['title'] }}</h2>
-        @includeIf('partials.dash.widgets.'.$id.'-head', ['w' => $w])
-    </div>
-    @include('partials.dash.widgets.'.$id, ['w' => $w])
+    @include('partials.dash.widget-inner', ['id' => $id, 'w' => $widgets[$id] ?? []])
 </section>

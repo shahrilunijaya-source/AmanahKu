@@ -1546,6 +1546,21 @@ select.wd-inline {
 .uj-dw:hover .uj-dw-hd::before { opacity:.55; }
 .uj-dw-hd h2 { font-size:var(--t-lg); font-weight:600; color:var(--ink); letter-spacing:-.01em; line-height:normal; margin:0; }
 .uj-dw-hd .uj-dw-spacer { margin-left:auto; }
+/* Period arrows. Mono label so the width does not shift as the date changes,
+   and a disabled forward arrow rather than a missing one so the row keeps its
+   shape when a card reaches the present. */
+.uj-dw-pnav { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.uj-dw-pnav button { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; border:0; background:none; color:var(--muted); cursor:pointer; transition:background .14s ease-out, color .14s ease-out, transform .14s ease-out; }
+.uj-dw-pnav button:hover:not(:disabled) { background:var(--hairline-soft); color:var(--ink); }
+.uj-dw-pnav button:active:not(:disabled) { transform:scale(.9); }
+.uj-dw-pnav button:disabled { opacity:.35; cursor:default; }
+.uj-dw-pnav svg { width:13px; height:13px; }
+.uj-dw-pnav .label { font-family:var(--font-mono); font-size:var(--t-sm); font-weight:600; color:var(--ink); padding:4px 10px; border-radius:8px; border:1px solid var(--hairline); white-space:nowrap; letter-spacing:-.01em; }
+.uj-dw-pnav .now { width:auto; padding:0 10px; font-size:var(--t-sm); font-weight:500; background:var(--hairline-soft); }
+.uj-dw-pnav .now:hover { color:var(--ink); background:var(--shelf); }
+/* A card mid-refetch stays readable and stays put; only the pointer says wait. */
+.uj-dw[data-busy] { cursor:progress; }
+.uj-dw[data-busy] .uj-dw-pnav { opacity:.5; pointer-events:none; }
 .uj-dw-body { padding:16px; }
 .uj-dw-body.uj-dw-flush { padding:0; }
 .uj-dw-foot { padding:11px 16px; border-top:1px solid var(--hairline-soft); background:#fbfbf9; display:flex; align-items:center; gap:10px; font-size:var(--t-sm); color:var(--muted); }

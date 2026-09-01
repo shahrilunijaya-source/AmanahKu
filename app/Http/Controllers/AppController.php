@@ -20,6 +20,7 @@ use App\Services\FeatureManager;
 use App\Support\Amanahku;
 use App\Support\Changelog;
 use App\Support\DashboardPrefs;
+use App\Support\DashboardWidgets;
 use App\Support\Permissions;
 use App\Support\ProfileCompletion;
 use App\Tenancy\CurrentTenant;
@@ -250,6 +251,38 @@ class AppController extends Controller
             // the signed-in user has no employee record in this workspace.
             'profileCompletion' => $employee ? app(ProfileCompletion::class)->summary($employee) : null,
         ], $this->quickActions($employee, $role), app(KnowledgeController::class)->context($employee), app(MessageController::class)->context($employee), $data));
+    }
+
+    /**
+     * One dashboard card, rebuilt for the period its arrows are pointing at.
+     *
+     * The arrows swap this markup into the card in place rather than reloading
+     * the dashboard, so scroll position, open folds and the other cards' periods
+     * all survive. Every gate the dashboard applies is applied again here: the
+     * page not rendering a card is not a gate, and a hand-typed URL must not be
+     * able to reach a widget the viewer's role or the tenant's modules keep off.
+     */
+    public function dashboardWidgetPartial(Request $request, string $widget): ViewContract
+    {
+        // Only the cards that actually carry arrows. Everything else has no period
+        // to ask for, so the request is meaningless rather than merely empty.
+        abort_unless(DashboardWidgets::periodUnit($widget) !== null, 404);
+
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        abort_unless(in_array($widget, DashboardWidgets::forRole($role), true), 404);
+
+        $screen = DashboardWidgets::gatingScreen($widget);
+        abort_unless(
+            $screen === null || app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), $screen),
+            404,
+        );
+
+        $at = $request->query('at');
+
+        return view('partials.dash.widget-inner', [
+            'id' => $widget,
+            'w' => $this->dashboardWidget($widget, $request, $request->attributes->get('employee'), is_string($at) ? $at : null),
+        ]);
     }
 
     /**

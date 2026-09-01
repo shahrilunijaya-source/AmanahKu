@@ -104,6 +104,26 @@ final class DashboardWidgets
         ],
     ];
 
+    /**
+     * Widgets that carry period arrows, and the slice each arrow moves by.
+     *
+     * `future` says whether the forward arrow may leave the present: the calendar
+     * is there to show what is booked ahead, while the rest are logs of what
+     * already happened and have nothing to say about a day that has not come.
+     * A widget missing from this list has no arrows — the leave summary is the
+     * one the mock drew them on, but a balance is a single running number with no
+     * history behind it, so the arrows would relabel the same figures.
+     *
+     * @var array<string, array{unit: string, future: bool}>
+     */
+    public const PERIODS = [
+        'clock' => ['unit' => 'day', 'future' => false],
+        'calendar' => ['unit' => 'month', 'future' => true],
+        'attendance' => ['unit' => 'day', 'future' => false],
+        'claims' => ['unit' => 'year', 'future' => false],
+        'work' => ['unit' => 'month', 'future' => false],
+    ];
+
     /** Picker filter chips, in the order they are shown. */
     public const CATEGORIES = ['All', 'Me', 'Attendance', 'Leave', 'Claim', 'Team'];
 
@@ -131,6 +151,18 @@ final class DashboardWidgets
             self::ids(),
             fn (string $id): bool => self::ALL[$id]['roles'] === null || in_array($role, self::ALL[$id]['roles'], true),
         ));
+    }
+
+    /** The period slice a widget's arrows move by, or null when it has none. */
+    public static function periodUnit(string $id): ?string
+    {
+        return self::PERIODS[$id]['unit'] ?? null;
+    }
+
+    /** Whether a widget's forward arrow may go past the current period. */
+    public static function allowsFuture(string $id): bool
+    {
+        return self::PERIODS[$id]['future'] ?? false;
     }
 
     /** The tenant module a widget needs, or null when it is core. */

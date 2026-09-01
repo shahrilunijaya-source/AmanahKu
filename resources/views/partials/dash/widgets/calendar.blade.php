@@ -3,6 +3,10 @@
         screen can never drift apart. Month navigation is deliberately absent for
         now — it needs a partial swap, which is a later phase.
 
+        The month arrows in the header say which month is drawn, so the strip
+        below is only ever today's date — the month badge that used to sit here
+        would have repeated the arrows' own label.
+
         The tabs widen the circle rather than filter it: Personal is your own
         leave plus what applies to everyone, Team adds your reports, Company is
         everyone. Every entry is rendered once carrying the narrowest tab it
@@ -33,7 +37,6 @@
             <span class="dow">{{ $today->format('l') }}</span>
             <span class="big">{{ $today->format('j F') }}</span>
         </span>
-        <span class="badge">{{ $w['month'] ?? $today->format('F Y') }}</span>
         <a class="uj-dw-btn uj-dw-btn-red" style="margin-left:auto" href="{{ route('app.screen', 'leave') }}"
            x-text="$store.ui.lang==='en' ? 'New request' : 'Permohonan baru'">New request</a>
     </div>

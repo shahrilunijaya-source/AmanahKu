@@ -10,6 +10,7 @@ export function registerDashboardWidgets(Alpine) {
         hidden: config.hidden,
         catalog: config.catalog,
         prefsUrl: config.prefsUrl,
+        widgetUrl: config.widgetUrl,
         draft: [],
 
         openPicker() {
@@ -51,6 +52,35 @@ export function registerDashboardWidgets(Alpine) {
             return order;
         },
 
+        // Rebuild one card for another period. Only that card's insides are
+        // replaced, so the page keeps its scroll, its open folds and whatever
+        // period the other cards are on. Alpine initialises the new markup by
+        // itself; `scope` and the drag handle live outside the swap and survive it.
+        async shiftPeriod(el, at) {
+            const card = el.closest('.uj-dw');
+            if (!card || !this.widgetUrl) {
+                return;
+            }
+
+            const url = new URL(this.widgetUrl.replace('__id__', card.dataset.widget), window.location.origin);
+            if (at) {
+                url.searchParams.set('at', at);
+            }
+
+            card.dataset.busy = '';
+            try {
+                const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (res.ok) {
+                    card.innerHTML = await res.text();
+                }
+            } catch {
+                // A failed fetch leaves the card exactly as it was, which reads as
+                // "the arrow did nothing" — better than blanking somebody's data.
+            } finally {
+                delete card.dataset.busy;
+            }
+        },
+
         save() {
             if (!this.prefsUrl) {
                 return Promise.resolve();
@@ -77,16 +107,19 @@ export function registerDashboardWidgets(Alpine) {
             let dragged = null;
             const root = this.$el;
 
-            root.querySelectorAll('.uj-dw-hd').forEach((head) => {
-                const card = head.closest('.uj-dw');
-                head.addEventListener('mousedown', (e) => {
-                    // Controls living in the header keep working; only a bare header grabs.
-                    if (e.target.closest('button,a,input,select')) {
-                        return;
-                    }
-                    card.draggable = true;
-                });
-                head.addEventListener('mouseup', () => {
+            // Delegated rather than bound per header: a period arrow replaces its
+            // card's markup, and a listener attached to the old header would go with it.
+            root.addEventListener('mousedown', (e) => {
+                const head = e.target.closest && e.target.closest('.uj-dw-hd');
+                // Controls living in the header keep working; only a bare header grabs.
+                if (!head || e.target.closest('button,a,input,select')) {
+                    return;
+                }
+                head.closest('.uj-dw').draggable = true;
+            });
+
+            root.addEventListener('mouseup', () => {
+                root.querySelectorAll('.uj-dw[draggable]').forEach((card) => {
                     card.draggable = false;
                 });
             });

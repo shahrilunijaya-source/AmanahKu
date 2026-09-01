@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -61,6 +62,16 @@ class DashboardWidgetsTest extends TestCase
             'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
             'date' => now()->toDateString(), 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
             'worked_minutes' => $minutes, 'status' => $status,
+        ]);
+    }
+
+    /** A finished shift on a named date, for the cards the period arrows move. */
+    private function recordOn(Employee $employee, string $date): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'date' => $date, 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
+            'worked_minutes' => 480, 'status' => 'on_time',
         ]);
     }
 
@@ -427,5 +438,129 @@ class DashboardWidgetsTest extends TestCase
         $calendar = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar'];
 
         $this->assertSame(['personal', 'company'], $calendar['calTabs']);
+    }
+
+    /** The work summary's month arrow moves the rows, not just the label. */
+    public function test_the_month_arrow_rebuilds_the_work_summary_for_that_month(): void
+    {
+        // Mid-month, so neither "last month" nor "next month" lands on a boundary
+        // the way a run on the 1st or the 31st would.
+        Carbon::setTestNow('2026-09-15 10:00:00');
+
+        $user = $this->userWithRole('employee', 'pnav@acme.test');
+        $employee = $this->employeeFor($user);
+        $this->recordOn($employee, '2026-09-10');
+        // The last day of August: the month bound has to include it, and a plain
+        // `<=` against the date would not, because `date` carries a midnight time.
+        $this->recordOn($employee, '2026-08-31');
+        $this->recordOn($employee, '2026-08-12');
+
+        $this->actAs($user);
+
+        $now = $this->get('/app/dash')->assertOk()->viewData('widgets')['work'];
+        $this->assertSame(['10 Sep'], collect($now['rows'])->pluck('date')->all());
+        $this->assertSame('Sep 2026', $now['pnav']['label']);
+        // Nothing happened in October yet, so there is nowhere forward to go.
+        $this->assertNull($now['pnav']['next']);
+        $this->assertSame('2026-08', $now['pnav']['prev']);
+
+        $back = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => '2026-08']))->assertOk();
+        $w = $back->viewData('w');
+
+        $this->assertSame(['31 Aug', '12 Aug'], collect($w['rows'])->pluck('date')->all());
+        $this->assertSame('Aug 2026', $w['pnav']['label']);
+        $this->assertSame('2026-09', $w['pnav']['next']);
+        $back->assertSee('This month');
+    }
+
+    /** The clock log's day arrow moves the punch list back with it, rather than
+        relabelling this week's punches with an older date. */
+    public function test_the_day_arrow_moves_the_clock_log_back_with_it(): void
+    {
+        Carbon::setTestNow('2026-09-15 10:00:00');
+
+        $user = $this->userWithRole('employee', 'pnavclock@acme.test');
+        $employee = $this->employeeFor($user);
+        foreach (['2026-09-14', '2026-09-15'] as $date) {
+            $this->recordOn($employee, $date);
+        }
+
+        $this->actAs($user);
+
+        $w = $this->get(route('dashboard.widget', ['widget' => 'clock', 'at' => '2026-09-14']))->assertOk()->viewData('w');
+
+        $this->assertSame(['Mon 14 Sep'], collect($w['punches'])->pluck('day')->all());
+        $this->assertSame('14 Sep 2026', $w['pnav']['label']);
+    }
+
+    /** Claims are filed by year, so their arrows step a year at a time. */
+    public function test_the_year_arrow_rebuilds_the_claim_summary_for_that_year(): void
+    {
+        Carbon::setTestNow('2026-09-15 10:00:00');
+
+        $user = $this->userWithRole('employee', 'pnavclaim@acme.test');
+        $employee = $this->employeeFor($user);
+
+        foreach ([['2026-03-04', 'transport', 120], ['2025-03-04', 'meal', 60]] as [$date, $type, $amount]) {
+            Claim::create([
+                'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+                'status' => 'approved', 'amount' => $amount, 'date' => $date, 'type' => $type, 'title' => 'Trip',
+            ]);
+        }
+
+        $this->actAs($user);
+
+        $now = $this->get('/app/dash')->assertOk()->viewData('widgets')['claims'];
+        $this->assertSame(['Transport'], collect($now['rows'])->pluck('type')->all());
+        $this->assertSame('2026', $now['pnav']['label']);
+
+        $w = $this->get(route('dashboard.widget', ['widget' => 'claims', 'at' => '2025']))->assertOk()->viewData('w');
+
+        $this->assertSame(['Meal'], collect($w['rows'])->pluck('type')->all());
+        $this->assertSame(60.0, $w['awaiting']);
+    }
+
+    /** The calendar is the one card that may look ahead: it shows what is booked. */
+    public function test_the_calendar_arrow_may_go_past_the_current_month(): void
+    {
+        Carbon::setTestNow('2026-09-15 10:00:00');
+
+        $user = $this->userWithRole('employee', 'pnavcal@acme.test');
+        $this->employeeFor($user);
+        $this->actAs($user);
+
+        $this->assertSame('2026-10', $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['pnav']['next']);
+
+        $w = $this->get(route('dashboard.widget', ['widget' => 'calendar', 'at' => '2026-10']))->assertOk()->viewData('w');
+
+        $this->assertSame('Oct 2026', $w['pnav']['label']);
+    }
+
+    /** The arrows are gated exactly as the card is: a role that cannot see the
+        card cannot fetch it either, and a card with no period has nothing to ask for. */
+    public function test_the_widget_endpoint_refuses_what_the_dashboard_would_never_render(): void
+    {
+        $user = $this->userWithRole('employee', 'pnavgate@acme.test');
+        $this->employeeFor($user);
+        $this->actAs($user);
+
+        // Team attendance is manager-and-above; pending tasks has no period at all.
+        $this->get(route('dashboard.widget', ['widget' => 'attendance']))->assertNotFound();
+        $this->get(route('dashboard.widget', ['widget' => 'tasks']))->assertNotFound();
+        $this->get(route('dashboard.widget', ['widget' => 'nonsense']))->assertNotFound();
+    }
+
+    /** A junk period reads as today rather than blowing up the card. */
+    public function test_an_unparseable_period_falls_back_to_the_current_one(): void
+    {
+        Carbon::setTestNow('2026-09-15 10:00:00');
+
+        $user = $this->userWithRole('employee', 'pnavjunk@acme.test');
+        $this->employeeFor($user);
+        $this->actAs($user);
+
+        $w = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => 'not-a-month']))->assertOk()->viewData('w');
+
+        $this->assertSame('Sep 2026', $w['pnav']['label']);
     }
 }

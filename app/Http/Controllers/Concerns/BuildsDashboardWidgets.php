@@ -15,6 +15,7 @@ use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -73,23 +74,105 @@ trait BuildsDashboardWidgets
         ];
     }
 
-    /** One widget's payload. @return array<string, mixed> */
-    private function dashboardWidget(string $id, Request $request, ?Employee $employee): array
+    /**
+     * One widget's payload, for the period the viewer is looking at.
+     *
+     * `$at` is the raw arrow value from the query string (`2026-08-31`, `2026-08`,
+     * `2026`); null means the current period. Widgets without arrows ignore it.
+     *
+     * @return array<string, mixed>
+     */
+    private function dashboardWidget(string $id, Request $request, ?Employee $employee, ?string $at = null): array
     {
-        return match ($id) {
+        // The calendar widget already honoured `?month=` on the dashboard URL before
+        // it had arrows; keep that working by treating it as the same value.
+        if ($id === 'calendar' && $at === null && is_string($request->query('month'))) {
+            $at = $request->query('month');
+        }
+
+        $when = $this->dashboardPeriodStart($id, $at);
+
+        $payload = match ($id) {
             'summary' => $this->summaryWidget($employee),
-            'clock' => $this->clockWidget($employee),
+            'clock' => $this->clockWidget($employee, $when),
             'tasks' => $this->tasksWidget($request, $employee),
             'leave' => $this->leaveWidget($employee),
             'stuck' => ['rows' => $this->stuckRows()->all()],
-            'calendar' => $this->calendarWidget($request, $employee),
-            'attendance' => $this->teamAttendanceWidget($employee),
+            'calendar' => $this->calendarWidget($request, $employee, $when),
+            'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
-            'claims' => $this->claimsWidget($employee),
-            'work' => $this->workWidget($employee),
+            'claims' => $this->claimsWidget($employee, $when),
+            'work' => $this->workWidget($employee, $when),
             'pulse' => $this->pulseWidget(),
             default => [],
         };
+
+        $pnav = $this->dashboardPnav($id, $when);
+
+        return $pnav === null ? $payload : $payload + ['pnav' => $pnav];
+    }
+
+    /**
+     * The start of the period a widget should render, from the raw arrow value.
+     *
+     * Anything unparseable falls back to now rather than erroring: the value comes
+     * off a query string, and a bad one should show today's card, not a 500. The
+     * same goes for a future period on a backward-looking widget.
+     */
+    private function dashboardPeriodStart(string $id, ?string $at): CarbonImmutable
+    {
+        $now = CarbonImmutable::now();
+        $unit = DashboardWidgets::periodUnit($id);
+
+        if ($unit === null || $at === null) {
+            return $now;
+        }
+
+        try {
+            $start = match ($unit) {
+                'day' => CarbonImmutable::createFromFormat('Y-m-d', $at)->startOfDay(),
+                'month' => CarbonImmutable::createFromFormat('Y-m', $at)->startOfMonth(),
+                default => CarbonImmutable::createFromFormat('Y', $at)->startOfYear(),
+            };
+        } catch (\Throwable) {
+            return $now;
+        }
+
+        return ! DashboardWidgets::allowsFuture($id) && $start->isAfter($now) ? $now : $start;
+    }
+
+    /**
+     * The arrows themselves: what the label reads, and where each side goes.
+     *
+     * `next` is null once the card is showing the current period, so a log of what
+     * happened cannot be walked into a future it has nothing to say about. The
+     * calendar is the exception and never runs out of forward.
+     *
+     * @return array{unit: string, label: string, prev: string, next: ?string, isNow: bool}|null
+     */
+    private function dashboardPnav(string $id, CarbonImmutable $when): ?array
+    {
+        $unit = DashboardWidgets::periodUnit($id);
+
+        if ($unit === null) {
+            return null;
+        }
+
+        [$label, $value] = match ($unit) {
+            'day' => ['j M Y', 'Y-m-d'],
+            'month' => ['M Y', 'Y-m'],
+            default => ['Y', 'Y'],
+        };
+
+        $isNow = $when->format($value) === CarbonImmutable::now()->format($value);
+
+        return [
+            'unit' => $unit,
+            'label' => $when->format($label),
+            'prev' => $when->sub($unit, 1)->format($value),
+            'next' => $isNow && ! DashboardWidgets::allowsFuture($id) ? null : $when->add($unit, 1)->format($value),
+            'isNow' => $isNow,
+        ];
     }
 
     /**
@@ -100,8 +183,12 @@ trait BuildsDashboardWidgets
      *
      * @return array<string, mixed>
      */
-    private function calendarWidget(Request $request, ?Employee $employee): array
+    private function calendarWidget(Request $request, ?Employee $employee, CarbonImmutable $when): array
     {
+        // screenData reads the month off the query string; the arrows have already
+        // been folded into $when, so hand it back the month it should draw.
+        $request->query->set('month', $when->format('Y-m'));
+
         $data = app(CalendarController::class)->screenData($request, $employee);
 
         if (! app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'events')) {
@@ -351,7 +438,9 @@ trait BuildsDashboardWidgets
 
         $records = $ids === [] ? collect() : AttendanceRecord::whereIn('employee_id', $ids)
             ->where('date', '>=', $start->toDateString())
-            ->where('date', '<=', $end->toDateString())
+            // Exclusive: `date` stores a time, so `<=` the last of the month would
+            // compare against its midnight and drop that day's shift.
+            ->where('date', '<', $end->copy()->addDay()->toDateString())
             ->get();
 
         $finished = $records->filter(fn (AttendanceRecord $r) => $r->clock_out !== null);
@@ -400,19 +489,25 @@ trait BuildsDashboardWidgets
      *
      * @return array{today: ?AttendanceRecord, punches: list<array>, totalMinutes: int}
      */
-    private function clockWidget(?Employee $employee): array
+    private function clockWidget(?Employee $employee, CarbonImmutable $when): array
     {
         if (! $employee) {
             return ['today' => null, 'punches' => [], 'totalMinutes' => 0];
         }
 
         // Same overnight case as meHead(): an open punch from a shift that crossed
-        // midnight is dated yesterday, so prefer it over today's (absent) row.
-        $today = $employee->attendanceRecords()->openPunch(now())->first()
-            ?? $employee->attendanceRecords()->onDate(now())->first();
+        // midnight is dated yesterday, so prefer it over the picked day's (absent) row.
+        $today = $employee->attendanceRecords()->openPunch($when)->first()
+            ?? $employee->attendanceRecords()->onDate($when)->first();
 
+        // The five punches leading up to the picked day, not the five newest on
+        // record — arrowing back has to move the list, or the card would keep
+        // showing this week under last month's date.
         $recent = $employee->attendanceRecords()
             ->whereNotNull('clock_in')
+            // Upper bound is the NEXT day, exclusive: `date` carries a midnight time
+            // component, so a `<=` against the day itself would drop the day itself.
+            ->where('date', '<', $when->addDay()->toDateString())
             ->orderByDesc('date')
             ->take(5)
             ->get();
@@ -506,13 +601,14 @@ trait BuildsDashboardWidgets
     }
 
     /**
-     * Who on the viewer's reporting line is in, late, on leave or absent today.
+     * Who on the viewer's reporting line is in, late, on leave or absent on the
+     * day the arrows are pointing at.
      * "My staff" means the direct reporting line for every role — HR and the
      * directors get the company-wide picture from Company pulse instead.
      *
      * @return array{counts: list<array{k: string, v: int, label: string}>, people: list<array>}
      */
-    private function teamAttendanceWidget(?Employee $employee): array
+    private function teamAttendanceWidget(?Employee $employee, CarbonImmutable $when): array
     {
         if (! $employee) {
             return ['counts' => [], 'people' => []];
@@ -524,14 +620,14 @@ trait BuildsDashboardWidgets
         }
 
         $records = AttendanceRecord::whereIn('employee_id', $team->pluck('id'))
-            ->onDate(now())
+            ->onDate($when)
             ->get()
             ->keyBy('employee_id');
 
         $onLeave = LeaveRequest::whereIn('employee_id', $team->pluck('id'))
             ->where('status', 'approved')
-            ->whereDate('date_from', '<=', now()->toDateString())
-            ->whereDate('date_to', '>=', now()->toDateString())
+            ->whereDate('date_from', '<=', $when->toDateString())
+            ->whereDate('date_to', '>=', $when->toDateString())
             ->pluck('employee_id')
             ->all();
 
@@ -574,20 +670,20 @@ trait BuildsDashboardWidgets
     }
 
     /**
-     * This calendar year's claims, grouped by type, with what is still owed to the
+     * One calendar year's claims, grouped by type, with what is still owed to the
      * viewer. Approved-but-unpaid is the number that matters here: a submitted
      * claim is a request, an approved one is money the company owes you.
      *
      * @return array{rows: list<array>, awaiting: float}
      */
-    private function claimsWidget(?Employee $employee): array
+    private function claimsWidget(?Employee $employee, CarbonImmutable $when): array
     {
         if (! $employee) {
             return ['rows' => [], 'awaiting' => 0.0];
         }
 
         $claims = $employee->claims()
-            ->whereYear('date', now()->year)
+            ->whereYear('date', $when->year)
             ->get();
 
         $rows = $claims->groupBy('type')->map(fn (Collection $forType, string $type) => [
@@ -606,18 +702,21 @@ trait BuildsDashboardWidgets
     }
 
     /**
-     * The viewer's own clock-in/clock-out log for the current month, newest first.
+     * The viewer's own clock-in/clock-out log for one month, newest first.
      *
      * @return array{rows: list<array>}
      */
-    private function workWidget(?Employee $employee): array
+    private function workWidget(?Employee $employee, CarbonImmutable $when): array
     {
         if (! $employee) {
             return ['rows' => []];
         }
 
         $rows = $employee->attendanceRecords()
-            ->where('date', '>=', now()->startOfMonth()->toDateString())
+            ->where('date', '>=', $when->startOfMonth()->toDateString())
+            // Exclusive upper bound for the same reason as the clock log: `date`
+            // stores a time, so `<=` the last of the month loses the last of the month.
+            ->where('date', '<', $when->addMonth()->startOfMonth()->toDateString())
             ->orderByDesc('date')
             ->take(10)
             ->get()
