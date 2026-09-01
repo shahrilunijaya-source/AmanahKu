@@ -146,19 +146,23 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_the_attention_dots(): void
+    public function test_the_newest_release_announces_the_one_page_dashboard(): void
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.7.1', $newest['version']);
+        $this->assertSame('1.8', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
+        $response->assertSee('The dashboard is one page now', false);
+        $response->assertSee('/app/dash', false);
+
+        // The release before it is still on the screen: this is the whole history,
+        // not just the newest entry.
         $response->assertSee('red dot on anything waiting for you', false);
-        $response->assertSee('/app/leave', false);
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
