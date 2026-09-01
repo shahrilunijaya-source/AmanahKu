@@ -14,6 +14,7 @@ use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
 use Carbon\CarbonImmutable;
@@ -200,7 +201,7 @@ trait BuildsDashboardWidgets
             );
         }
 
-        return $data + $this->calendarDays($data['weeks'], $employee);
+        return $data + $this->calendarDays($data['weeks'], $employee, $data['leaveTypeIds']);
     }
 
     /**
@@ -215,9 +216,10 @@ trait BuildsDashboardWidgets
      * a copy of Personal.
      *
      * @param  list<list<array<string, mixed>>>  $weeks
+     * @param  list<int>|null  $leaveTypeIds  whose leave type this viewer may read
      * @return array{days: array<string, array<string, mixed>>, calTabs: list<string>, selected: string}
      */
-    private function calendarDays(array $weeks, ?Employee $employee): array
+    private function calendarDays(array $weeks, ?Employee $employee, ?array $leaveTypeIds): array
     {
         $reports = $this->dashboardTeamIds($employee);
         $ownPending = $this->ownPendingLeave($weeks, $employee);
@@ -232,7 +234,7 @@ trait BuildsDashboardWidgets
                 }
 
                 $key = $day['date']->toDateString();
-                $entries = $this->calendarEntries($day, $employee, $reports, $ownPending);
+                $entries = $this->calendarEntries($day, $employee, $reports, $ownPending, $leaveTypeIds);
 
                 $days[$key] = [
                     'label' => $day['date']->format('j F'),
@@ -262,9 +264,10 @@ trait BuildsDashboardWidgets
      * @param  array<string, mixed>  $day
      * @param  list<int>  $reports
      * @param  Collection<int, LeaveRequest>  $ownPending
+     * @param  list<int>|null  $leaveTypeIds  whose leave type this viewer may read
      * @return list<array{level: int, kind: string, who: string, title: string, sub: string}>
      */
-    private function calendarEntries(array $day, ?Employee $employee, array $reports, Collection $ownPending): array
+    private function calendarEntries(array $day, ?Employee $employee, array $reports, Collection $ownPending, ?array $leaveTypeIds): array
     {
         $entries = [];
 
@@ -282,7 +285,12 @@ trait BuildsDashboardWidgets
             $person = $leave->employee;
             $mine = $employee !== null && $person->id === $employee->id;
             $name = $mine ? 'You' : $person->display_name;
-            $type = $this->leaveTypeName($leave);
+            // "Medical" beside a colleague's name is their health, not company news.
+            // Everyone still sees that they are away; only their own managers and the
+            // roles that administer leave see what kind (Permissions::leaveTypeAudience).
+            $type = Permissions::showsLeaveType($leaveTypeIds, $person->id)
+                ? Str::lower($this->leaveTypeName($leave))
+                : 'on leave';
 
             $entries[] = [
                 'level' => match (true) {
@@ -292,7 +300,7 @@ trait BuildsDashboardWidgets
                 },
                 'kind' => 'leave',
                 'who' => $mine ? 'You' : $this->initials($name),
-                'title' => $name.' — '.Str::lower($type),
+                'title' => $name.' — '.$type,
                 'sub' => $leave->date_from->isSameDay($leave->date_to)
                     ? 'All day'
                     : $leave->date_from->format('j M').' – '.$leave->date_to->format('j M'),

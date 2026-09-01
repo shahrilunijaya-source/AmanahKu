@@ -342,6 +342,58 @@ class DashboardWidgetsTest extends TestCase
         $response->assertSee('Show 2 more')->assertSee('Aisyah');
     }
 
+    /**
+     * A colleague's leave TYPE is theirs. Everyone sees that they are away; only
+     * they, their managers up the line, and HR see what kind of leave it was.
+     */
+    public function test_the_calendar_hides_a_colleagues_leave_type_from_the_rest_of_the_company(): void
+    {
+        $manager = $this->userWithRole('manager', 'ltmgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+
+        $away = $this->userWithRole('employee', 'ltaway@acme.test');
+        $awayEmployee = $this->employeeFor($away, $mgrEmployee->id);
+        $awayEmployee->update(['name' => 'Farid']);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Medical']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $awayEmployee->id,
+            'leave_type_id' => $type->id, 'status' => 'approved',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $titles = function (): array {
+            $days = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'];
+
+            return array_column($days[now()->toDateString()]['entries'], 'title');
+        };
+
+        // A colleague with no place in Farid's reporting line sees only that he is out.
+        $stranger = $this->userWithRole('employee', 'ltother@acme.test');
+        $this->employeeFor($stranger);
+        $this->actAs($stranger);
+        $this->assertContains('Farid — on leave', $titles());
+        $this->assertNotContains('Farid — medical', $titles());
+
+        // His manager sees the type, because approving his leave is their job.
+        $this->actAs($manager);
+        $this->assertContains('Farid — medical', $titles());
+
+        // So does HR, who administer leave for everybody.
+        $hr = $this->userWithRole('hr', 'lthr@acme.test');
+        $this->employeeFor($hr);
+        $this->actAs($hr);
+        $this->assertContains('Farid — medical', $titles());
+
+        // And Farid sees his own, spelled out.
+        $this->actAs($away);
+        $this->assertContains('You — medical', $titles());
+
+        // The screen the widget mirrors keeps the same rule.
+        $this->actAs($stranger);
+        $this->get('/app/calendar')->assertOk()->assertSee('Farid')->assertDontSee('Medical');
+    }
+
     /** The Me / My staff toggle: the staff view sums the whole reporting line. */
     public function test_month_summary_offers_a_staff_view_to_whoever_has_reports(): void
     {

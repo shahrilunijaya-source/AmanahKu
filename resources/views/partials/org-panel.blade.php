@@ -99,16 +99,24 @@
     {{-- Reading the chart. --}}
     <template x-if="! picking && ! pickingVerifier">
         <div>
+            {{-- Who is missing a manager, and the nudge to fix it, is work only the
+                 people who can edit the chart can act on. Everyone else opens this
+                 screen to read the shape of the company, so they get the one line
+                 that tells them how. --}}
             <template x-if="focus === null">
                 <div>
-                    <h3 class="uj-card-title" style="margin:0 0 4px;"
-                        x-text="$store.ui.lang==='en' ? 'Top of the chart' : 'Atas carta'"></h3>
+                    @if ($canEdit)
+                        <h3 class="uj-card-title" style="margin:0 0 4px;"
+                            x-text="$store.ui.lang==='en' ? 'Top of the chart' : 'Atas carta'"></h3>
+                    @endif
                     <p style="font-size:12.5px;color:var(--muted);margin:0;line-height:1.5;"
-                       x-text="kidsOf(null).length
-                            ? (kidsOf(null).length + ($store.ui.lang==='en'
-                                ? ' people report to nobody. Only the directors can approve their requests — fill a slot to give them a manager.'
-                                : ' orang tidak melapor kepada sesiapa. Hanya pengarah boleh meluluskan permohonan mereka — isi slot untuk beri mereka pengurus.'))
-                            : ($store.ui.lang==='en' ? 'Everybody has a manager. Choose a circle to walk down the chart.' : 'Semua orang ada pengurus. Pilih bulatan untuk turun dalam carta.')"></p>
+                       x-text="! @js($canEdit)
+                            ? ($store.ui.lang==='en' ? 'Choose a circle to walk down the chart.' : 'Pilih bulatan untuk turun dalam carta.')
+                            : (kidsOf(null).length
+                                ? (kidsOf(null).length + ($store.ui.lang==='en'
+                                    ? ' people report to nobody. Only the directors can approve their requests — fill a slot to give them a manager.'
+                                    : ' orang tidak melapor kepada sesiapa. Hanya pengarah boleh meluluskan permohonan mereka — isi slot untuk beri mereka pengurus.'))
+                                : ($store.ui.lang==='en' ? 'Everybody has a manager. Choose a circle to walk down the chart.' : 'Semua orang ada pengurus. Pilih bulatan untuk turun dalam carta.'))"></p>
                 </div>
             </template>
 
