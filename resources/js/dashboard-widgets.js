@@ -1,3 +1,56 @@
+/** The gap between cards in a column, matching .uj-dw-col's CSS gap. */
+const CARD_GAP = 18;
+
+/**
+ * How many cards to lift off the bottom of one column and drop on the other so
+ * the two end as close in height as they can get.
+ *
+ * Pure so it can be tested without a layout: takes the card heights of each
+ * column, top to bottom, and answers which column gives and how many. Moves stop
+ * as soon as another one would overshoot, and a column is never emptied — one
+ * tall stack beside nothing is the same blank half, just on the other side.
+ *
+ * @param {number[]} left
+ * @param {number[]} right
+ * @returns {{from: 'left'|'right', count: number}|null}
+ */
+export function planBalance(left, right, gap = CARD_GAP) {
+    const cols = { left: left.slice(), right: right.slice() };
+    const total = (a) => a.reduce((sum, h) => sum + h + gap, 0);
+    let from = null;
+    let count = 0;
+
+    // Bounded rather than while(true): a bad height (0, NaN) must not be able to
+    // spin this forever.
+    for (let i = 0; i < 10; i++) {
+        const tall = total(cols.left) >= total(cols.right) ? 'left' : 'right';
+        const short = tall === 'left' ? 'right' : 'left';
+
+        if (cols[tall].length < 2) {
+            break;
+        }
+
+        // Only ever one direction: the first move decides which column gives.
+        if (from !== null && tall !== from) {
+            break;
+        }
+
+        const before = Math.abs(total(cols.left) - total(cols.right));
+        const moved = cols[tall][cols[tall].length - 1];
+        const after = Math.abs((total(cols[tall]) - moved - gap) - (total(cols[short]) + moved + gap));
+
+        if (!(after < before)) {
+            break;
+        }
+
+        cols[short].push(cols[tall].pop());
+        from = tall;
+        count += 1;
+    }
+
+    return from === null ? null : { from, count };
+}
+
 // The dashboard's widget picker and drag-to-rearrange.
 //
 // Turning a widget on or off needs a re-render — the payload is built server-side
@@ -12,6 +65,10 @@ export function registerDashboardWidgets(Alpine) {
         prefsUrl: config.prefsUrl,
         widgetUrl: config.widgetUrl,
         draft: [],
+        /** Where the server put each card, before the balancer moved anything. */
+        homeLayout: null,
+        /** Set once the viewer drags: their arrangement outranks the balancer. */
+        arranged: false,
 
         openPicker() {
             this.draft = this.catalog.map((i) => i.id).filter((id) => !this.hidden.includes(id));
@@ -78,6 +135,93 @@ export function registerDashboardWidgets(Alpine) {
                 // "the arrow did nothing" — better than blanking somebody's data.
             } finally {
                 delete card.dataset.busy;
+                this.balance();
+            }
+        },
+
+        // The two columns hold fixed sets of cards, so a short left column leaves
+        // half the page blank while the right one runs on. After render the
+        // trailing cards of the taller column move over until the two end near
+        // the same height. Looks only: nothing is saved, and the moment the
+        // viewer drags anything themselves the balancer stands down for good.
+        initBalance() {
+            this.homeLayout = this.currentOrder();
+            this.balance();
+
+            // x-init runs before webfonts land and before the last image decodes,
+            // and every card is a few pixels taller once they do. Balance again
+            // when the page has settled, or the first paint's split sticks with
+            // stale measurements behind it.
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(() => this.balance());
+            }
+            window.addEventListener('load', () => this.balance());
+
+            let pending = false;
+            window.addEventListener('resize', () => {
+                if (pending) {
+                    return;
+                }
+                pending = true;
+                requestAnimationFrame(() => {
+                    pending = false;
+                    this.balance();
+                });
+            });
+        },
+
+        /** Every card back in the column and order the server rendered it in. */
+        resetLayout() {
+            const cols = {};
+            this.$el.querySelectorAll('.uj-dw-col').forEach((col) => {
+                cols[col.dataset.col] = col;
+            });
+
+            Object.entries(this.homeLayout).forEach(([col, ids]) => {
+                ids.forEach((id) => {
+                    const card = this.$el.querySelector('.uj-dw[data-widget="' + id + '"]');
+                    if (card && cols[col]) {
+                        cols[col].appendChild(card);
+                        delete card.dataset.moved;
+                    }
+                });
+            });
+        },
+
+        balance() {
+            if (!this.homeLayout || this.arranged) {
+                return;
+            }
+
+            // Start from the server's layout every time, so a resize re-decides
+            // rather than piling another round of moves on the last one.
+            this.resetLayout();
+
+            // One column below 1020px: everything is already in one stack.
+            if (window.matchMedia('(max-width: 1020px)').matches) {
+                return;
+            }
+
+            const cols = {};
+            this.$el.querySelectorAll('.uj-dw-col').forEach((col) => {
+                cols[col.dataset.col] = col;
+            });
+
+            if (!cols.left || !cols.right) {
+                return;
+            }
+
+            const heights = (col) => Array.from(col.children).map((card) => card.offsetHeight);
+            const plan = planBalance(heights(cols.left), heights(cols.right));
+
+            if (!plan) {
+                return;
+            }
+
+            for (let i = 0; i < plan.count; i++) {
+                const card = cols[plan.from].lastElementChild;
+                cols[plan.from === 'left' ? 'right' : 'left'].appendChild(card);
+                card.dataset.moved = '';
             }
         },
 
@@ -131,6 +275,13 @@ export function registerDashboardWidgets(Alpine) {
                 }
                 dragged = card;
                 card.dataset.dragging = '';
+                // Their first drag freezes whatever the balancer arrived at into
+                // a real layout: what they see is what gets saved, and nothing
+                // shuffles under them afterwards.
+                this.arranged = true;
+                root.querySelectorAll('.uj-dw[data-moved]').forEach((w) => {
+                    delete w.dataset.moved;
+                });
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', card.dataset.widget);
             });

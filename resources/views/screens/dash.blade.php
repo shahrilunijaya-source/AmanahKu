@@ -38,7 +38,7 @@
         catalog: @js($widgetCatalog),
         prefsUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.prefs.update') ? route('dashboard.prefs.update') : null),
         widgetUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.widget') ? route('dashboard.widget', '__id__') : null),
-    })" x-init="initDrag()">
+    })" x-init="initDrag(); initBalance()">
 
     {{-- The dashboard owns its heading; the shared layout suppresses its page-title
          block for this screen (layouts/app.blade.php) so the greeting prints once. --}}
