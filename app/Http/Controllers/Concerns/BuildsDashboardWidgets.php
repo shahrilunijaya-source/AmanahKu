@@ -283,7 +283,7 @@ trait BuildsDashboardWidgets
                 'pills' => array_map(
                     fn (array $e): array => [
                         'kind' => $e['kind'],
-                        'label' => $e['kind'] === 'leave' ? $e['who'] : $e['title'],
+                        'label' => in_array($e['kind'], ['leave', 'pending'], true) ? $e['who'] : $e['title'],
                     ],
                     array_slice($shown, 0, 2),
                 ),
