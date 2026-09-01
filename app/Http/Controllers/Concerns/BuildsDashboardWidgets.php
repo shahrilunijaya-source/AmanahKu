@@ -312,24 +312,47 @@ trait BuildsDashboardWidgets
     }
 
     /**
+     * The month summary, in two views: your own, and everyone reporting to you.
+     *
+     * "My staff" is the direct reporting line, the same set Team attendance uses.
+     * The mock gated the toggle at manager and above, but having reports is the
+     * honest gate: an HR person with nobody under them has no staff view to show,
+     * and a director with reports does. No reports means no second view at all.
+     *
+     * @return array{tiles: list<array{k: string, v: string, unit: string, label: string}>, staffTiles: ?list<array{k: string, v: string, unit: string, label: string}>}
+     */
+    private function summaryWidget(?Employee $employee): array
+    {
+        $staff = $employee
+            ? Employee::active()->where('reports_to_id', $employee->id)->pluck('id')->all()
+            : [];
+
+        return [
+            'tiles' => $this->monthTiles($employee ? [$employee->id] : []),
+            'staffTiles' => $staff === [] ? null : $this->monthTiles($staff),
+        ];
+    }
+
+    /**
      * Six figures for the month so far: hours, overtime, leave, lateness, absence
      * and unfinished shifts. Overtime is minutes worked past the shift's own
      * expected hours on days that are actually finished — the same expectation the
-     * record's flags were raised from, so the two can never disagree.
+     * record's flags were raised from, so the two can never disagree. Over several
+     * people it nets the same way it nets over several days: a short day cancels an
+     * overtime day, and the tile reads what the team owed against what it worked.
      *
-     * @return array{tiles: list<array{k: string, v: string, unit: string, label: string}>}
+     * @param  list<int>  $ids
+     * @return list<array{k: string, v: string, unit: string, label: string}>
      */
-    private function summaryWidget(?Employee $employee): array
+    private function monthTiles(array $ids): array
     {
         $start = now()->startOfMonth();
         $end = now()->endOfMonth();
 
-        $records = $employee
-            ? $employee->attendanceRecords()
-                ->where('date', '>=', $start->toDateString())
-                ->where('date', '<=', $end->toDateString())
-                ->get()
-            : collect();
+        $records = $ids === [] ? collect() : AttendanceRecord::whereIn('employee_id', $ids)
+            ->where('date', '>=', $start->toDateString())
+            ->where('date', '<=', $end->toDateString())
+            ->get();
 
         $finished = $records->filter(fn (AttendanceRecord $r) => $r->clock_out !== null);
         $worked = (int) $records->sum('worked_minutes');
@@ -337,13 +360,11 @@ trait BuildsDashboardWidgets
             ->filter(fn (AttendanceRecord $r) => $r->expected_min_hours !== null)
             ->sum(fn (AttendanceRecord $r) => (int) round((float) $r->expected_min_hours * 60));
 
-        $leaveDays = $employee
-            ? (float) $employee->leaveRequests()
-                ->where('status', 'approved')
-                ->whereDate('date_from', '<=', $end->toDateString())
-                ->whereDate('date_to', '>=', $start->toDateString())
-                ->sum('days')
-            : 0.0;
+        $leaveDays = $ids === [] ? 0.0 : (float) LeaveRequest::whereIn('employee_id', $ids)
+            ->where('status', 'approved')
+            ->whereDate('date_from', '<=', $end->toDateString())
+            ->whereDate('date_to', '>=', $start->toDateString())
+            ->sum('days');
 
         $late = $records->where('status', 'late')->count();
         $absent = $records->filter(fn (AttendanceRecord $r) => $r->clock_in === null)->count();
@@ -354,14 +375,12 @@ trait BuildsDashboardWidgets
         )->count();
 
         return [
-            'tiles' => [
-                $this->summaryTile('hours', $worked, 'Work hours'),
-                $this->summaryTile('ot', max(0, $worked - $expected), 'Overtime'),
-                ['k' => 'leave', 'v' => $this->trimNumber($leaveDays), 'unit' => Str::plural('day', (int) ceil($leaveDays)), 'label' => 'On leave'],
-                ['k' => 'late', 'v' => (string) $late, 'unit' => Str::plural('shift', $late), 'label' => 'Late'],
-                ['k' => 'absent', 'v' => (string) $absent, 'unit' => Str::plural('shift', $absent), 'label' => 'Absent'],
-                ['k' => 'incomplete', 'v' => (string) $incomplete, 'unit' => Str::plural('shift', $incomplete), 'label' => 'Incomplete'],
-            ],
+            $this->summaryTile('hours', $worked, 'Work hours'),
+            $this->summaryTile('ot', max(0, $worked - $expected), 'Overtime'),
+            ['k' => 'leave', 'v' => $this->trimNumber($leaveDays), 'unit' => Str::plural('day', (int) ceil($leaveDays)), 'label' => 'On leave'],
+            ['k' => 'late', 'v' => (string) $late, 'unit' => Str::plural('shift', $late), 'label' => 'Late'],
+            ['k' => 'absent', 'v' => (string) $absent, 'unit' => Str::plural('shift', $absent), 'label' => 'Absent'],
+            ['k' => 'incomplete', 'v' => (string) $incomplete, 'unit' => Str::plural('shift', $incomplete), 'label' => 'Incomplete'],
         ];
     }
 

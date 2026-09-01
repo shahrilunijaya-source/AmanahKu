@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceRecord;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
@@ -50,6 +51,16 @@ class DashboardWidgetsTest extends TestCase
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $user->name, 'status' => 'active', 'workload' => 'green',
             'reports_to_id' => $reportsToId,
+        ]);
+    }
+
+    /** A finished shift today, so the month summary has something to add up. */
+    private function record(Employee $employee, int $minutes, string $status = 'on_time'): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'date' => now()->toDateString(), 'clock_in' => '09:00:00', 'clock_out' => '18:00:00',
+            'worked_minutes' => $minutes, 'status' => $status,
         ]);
     }
 
@@ -290,6 +301,44 @@ class DashboardWidgetsTest extends TestCase
 
         // Three show, the other two sit behind the fold rather than being dropped.
         $response->assertSee('Show 2 more')->assertSee('Aisyah');
+    }
+
+    /** The Me / My staff toggle: the staff view sums the whole reporting line. */
+    public function test_month_summary_offers_a_staff_view_to_whoever_has_reports(): void
+    {
+        $manager = $this->userWithRole('manager', 'summgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+        $this->record($mgrEmployee, 300);
+
+        foreach ([420, 480] as $i => $minutes) {
+            $staff = $this->userWithRole('employee', 'sum'.$i.'@acme.test');
+            $this->record($this->employeeFor($staff, $mgrEmployee->id), $minutes, $i === 0 ? 'late' : 'on_time');
+        }
+
+        $this->actAs($manager);
+        $response = $this->get('/app/dash')->assertOk();
+        $w = $response->viewData('widgets')['summary'];
+
+        // Me is the manager's own 5 hours; My staff is the two reports' 15, and one
+        // of them was late. The manager's own lateness never leaks into either.
+        $this->assertSame('5', collect($w['tiles'])->firstWhere('k', 'hours')['v']);
+        $this->assertSame('15', collect($w['staffTiles'])->firstWhere('k', 'hours')['v']);
+        $this->assertSame('1', collect($w['staffTiles'])->firstWhere('k', 'late')['v']);
+
+        $response->assertSee('My staff');
+    }
+
+    /** Nobody reporting to you means there is no second view to offer. */
+    public function test_month_summary_hides_the_staff_view_from_someone_with_no_reports(): void
+    {
+        $employee = $this->userWithRole('employee', 'sumsolo@acme.test');
+        $this->employeeFor($employee);
+
+        $this->actAs($employee);
+        $response = $this->get('/app/dash')->assertOk();
+
+        $this->assertNull($response->viewData('widgets')['summary']['staffTiles']);
+        $response->assertDontSee('My staff');
     }
 
     /** Calendar tabs widen the circle: Personal is you, Company is everyone. */

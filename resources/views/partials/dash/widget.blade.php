@@ -12,11 +12,15 @@
      * grip dots are a pseudo element so the handle costs no layout. Controls
      * inside the header keep working — dash.blade.php's dragstart bails out when
      * the mousedown landed on a button, link, input or select.
+     *
+     * `scope` lives on the card rather than in either partial because the control
+     * that sets it is in the header and the thing it switches is in the body.
+     * Only the month summary reads it today.
      */
     $meta = \App\Support\DashboardWidgets::ALL[$id];
     $w = $widgets[$id] ?? [];
 @endphp
-<section class="uj-dw" data-widget="{{ $id }}">
+<section class="uj-dw" data-widget="{{ $id }}" x-data="{ scope: 'me' }">
     <div class="uj-dw-hd">
         <h2 x-data="{ en: @js($meta['title']), ms: @js($meta['title_ms']) }"
             x-text="$store.ui.lang==='en' ? en : ms">{{ $meta['title'] }}</h2>
