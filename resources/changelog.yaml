@@ -13,9 +13,11 @@
 # gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
-# cadence.
+# cadence. A PATCH digit (MAJOR.MINOR.PATCH) is allowed for a same-day
+# follow-on that finishes what the MINOR release started, rather than opening
+# a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.8"
+- version: "1.7.1"
   date: "2026-09-01"
   entries:
     - tag: added
@@ -30,6 +32,15 @@
     - tag: added
       text: "HR can now say which leave types apply to which person. On Leave Setup, every person has a tick box beside each type — untick it and that type stops being offered to them altogether, so an intern is simply not shown annual leave. Everybody currently keeps every type, so nothing changes until HR unticks something.\nLeave Setup is also four tabs now — Types, Holidays, Balances and Replacement — rather than one long scroll."
       text_ms: "HR kini boleh menetapkan jenis cuti mana yang terpakai untuk siapa. Pada Persediaan Cuti, setiap orang mempunyai kotak tanda di sebelah setiap jenis — buang tandanya dan jenis itu tidak lagi ditawarkan kepada mereka langsung, jadi pelatih memang tidak dipaparkan cuti tahunan. Buat masa ini semua orang mengekalkan semua jenis, jadi tiada apa berubah sehingga HR membuang mana-mana tanda.\nPersediaan Cuti kini juga terbahagi kepada empat tab — Jenis, Cuti Umum, Baki dan Ganti — bukan satu skrin panjang."
+    - tag: improved
+      text: "Asking Claude to put a task on somebody's board now works by name. Say \"assign this to Nabil\" and it finds the person, instead of stopping to ask you for a staff number that nothing in the app ever shows you. Nicknames work too, since that is what people actually go by.\nIf the name fits more than one person it says so and lists them, rather than picking one — a task landing on the wrong board emails the wrong person."
+      text_ms: "Meminta Claude meletakkan tugasan pada papan seseorang kini boleh dibuat dengan nama. Sebut \"berikan ini kepada Nabil\" dan ia akan mencari orangnya, bukan berhenti untuk meminta anda nombor kakitangan yang memang tidak dipaparkan di mana-mana dalam app. Nama panggilan pun boleh, kerana itulah yang orang gunakan.\nJika nama itu sepadan dengan lebih daripada seorang, ia akan memberitahu dan menyenaraikan mereka, bukan memilih sendiri — tugasan yang jatuh pada papan yang salah menghantar e-mel kepada orang yang salah."
+      link: "/docs/mcp"
+      link_text: "Read the guide"
+      link_text_ms: "Baca panduan"
+    - tag: fixed
+      text: "The notification bell and message badge no longer crash the header when the app briefly loses its database connection. They now just quietly wait for the next check instead of showing a broken screen."
+      text_ms: "Loceng pemberitahuan dan lencana mesej tidak lagi merosakkan bahagian atas apabila aplikasi hilang sambungan pangkalan data seketika. Ia kini hanya menunggu semakan seterusnya secara senyap dan bukan memaparkan skrin rosak."
 
 - version: "1.7"
   date: "2026-09-01"

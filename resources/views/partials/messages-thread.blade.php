@@ -34,7 +34,7 @@
                 fetch('{{ route('messages.read', $a['conversationId']) }}', {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
-                }).then(r => r.json()).then(d => {
+                }).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
                     if (this.$store.msgbadge) { this.$store.msgbadge.unread = d.unread; }
                     // Clear the row's own badge too, without refetching the index.
                     this.$dispatch('msg-read', { id: {{ $a['conversationId'] }} });

@@ -150,7 +150,7 @@ class ChangelogScreenTest extends TestCase
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.8', $newest['version']);
+        $this->assertSame('1.7.1', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])

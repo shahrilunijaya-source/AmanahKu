@@ -293,7 +293,8 @@
             poll() {
                 if (document.hidden) return;
                 fetch('{{ route('messages.summary') }}', { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json()).then(d => { this.unread = d.unread; this.threads = d.threads; }).catch(() => {});
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { this.unread = d.unread; this.threads = d.threads; }).catch(() => {});
             },
         });
         @endif
@@ -317,7 +318,8 @@
             poll() {
                 if (document.hidden) return;
                 fetch('{{ route('notifications.summary') }}', { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json()).then(d => { this.unread = d.unread; this.notifications = d.notifications; }).catch(() => {});
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { this.unread = d.unread; this.notifications = d.notifications; }).catch(() => {});
             },
             /** Fired on click, alongside the link's own navigation — not blocking it. */
             markOne(id) {

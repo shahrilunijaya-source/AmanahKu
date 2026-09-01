@@ -128,6 +128,7 @@
                                 <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
                                 <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked"
+                                       @click="openDuePicker()"
                                        @change="commitField('due_at', $event.target.value || null)"
                                        style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
                             @else
