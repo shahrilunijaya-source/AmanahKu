@@ -1,6 +1,6 @@
 @php
-    /** "My staff" is the direct reporting line for every role. HR and the
-        directors get the company-wide picture from Company pulse instead. */
+    /** "My staff" is everyone below the viewer in the org chart, at any depth.
+        HR and the directors get the company-wide picture from Company pulse. */
     $swatch = ['in' => 'var(--success)', 'late' => 'var(--amber)', 'done' => 'var(--info)', 'leave' => 'var(--leave)', 'absent' => 'var(--red)'];
 @endphp
 <div class="uj-dw-body">

@@ -260,6 +260,34 @@ class DashboardWidgetsTest extends TestCase
         $this->assertSame('absent', $people[0]['state']);
     }
 
+    /** "My team" runs the whole org chart down, not just the people one rung below. */
+    public function test_team_cards_include_the_reports_of_your_reports(): void
+    {
+        $senior = $this->userWithRole('manager', 'senior@acme.test');
+        $seniorEmployee = $this->employeeFor($senior);
+
+        $lead = $this->userWithRole('manager', 'lead@acme.test');
+        $leadEmployee = $this->employeeFor($lead, $seniorEmployee->id);
+        $leadEmployee->update(['name' => 'Lead Person']);
+
+        $junior = $this->userWithRole('employee', 'junior@acme.test');
+        $juniorEmployee = $this->employeeFor($junior, $leadEmployee->id);
+        $juniorEmployee->update(['name' => 'Junior Person']);
+        $this->record($juniorEmployee, 480);
+
+        $this->actAs($senior);
+        $widgets = $this->get('/app/dash')->assertOk()->viewData('widgets');
+
+        // Team attendance lists the grandchild, not only the direct report.
+        $names = array_column($widgets['attendance']['people'], 'name');
+        sort($names);
+        $this->assertSame(['Junior Person', 'Lead Person'], $names);
+
+        // And the month summary's staff view counts the grandchild's shift.
+        $hours = collect($widgets['summary']['staffTiles'])->firstWhere('k', 'hours');
+        $this->assertSame('8', $hours['v']);
+    }
+
     /** Leave summary shows the biggest entitlements first and folds the tail away. */
     public function test_leave_summary_leads_with_the_biggest_entitlements_and_folds_the_rest(): void
     {

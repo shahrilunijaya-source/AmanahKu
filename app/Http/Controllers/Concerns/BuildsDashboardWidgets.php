@@ -10,6 +10,7 @@ use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
@@ -208,9 +209,9 @@ trait BuildsDashboardWidgets
      *
      * A tab is a widening circle rather than a filter — Personal is your own leave
      * plus the dates that apply to everyone (holidays, company events), Team adds
-     * the people who report to you, Company is the lot. So an entry carries the
+     * everyone below you in the org chart, Company is the lot. So an entry carries the
      * narrowest tab it belongs to and every wider tab shows it too. The Team tab
-     * is left out entirely for someone with nobody reporting to them; it would be
+     * is left out entirely for someone with nobody under them; it would be
      * a copy of Personal.
      *
      * @param  list<list<array<string, mixed>>>  $weeks
@@ -218,9 +219,7 @@ trait BuildsDashboardWidgets
      */
     private function calendarDays(array $weeks, ?Employee $employee): array
     {
-        $reports = $employee
-            ? Employee::where('reports_to_id', $employee->id)->pluck('id')->all()
-            : [];
+        $reports = $this->dashboardTeamIds($employee);
         $ownPending = $this->ownPendingLeave($weeks, $employee);
 
         $days = [];
@@ -399,20 +398,36 @@ trait BuildsDashboardWidgets
     }
 
     /**
+     * "My team" for every card that shows one: everyone below the viewer in the
+     * org chart at any depth, not just their direct reports, plus their
+     * dotted-line reports. Grandchildren count — a manager of managers still
+     * manages the people two rungs down, and a card that skipped them would
+     * report a team the viewer does not recognise as theirs.
+     *
+     * Shared so team attendance, the month summary's staff view and the
+     * calendar's Team tab always draw the same set of people.
+     *
+     * @return list<int>
+     */
+    private function dashboardTeamIds(?Employee $employee): array
+    {
+        return $employee ? app(DataScope::class)->teamIds($employee) : [];
+    }
+
+    /**
      * The month summary, in two views: your own, and everyone reporting to you.
      *
-     * "My staff" is the direct reporting line, the same set Team attendance uses.
-     * The mock gated the toggle at manager and above, but having reports is the
-     * honest gate: an HR person with nobody under them has no staff view to show,
-     * and a director with reports does. No reports means no second view at all.
+     * "My staff" is the whole reporting line below the viewer, the same set Team
+     * attendance uses. The mock gated the toggle at manager and above, but having
+     * reports is the honest gate: an HR person with nobody under them has no staff
+     * view to show, and a director with reports does. Nobody under you means no
+     * second view at all.
      *
      * @return array{tiles: list<array{k: string, v: string, unit: string, label: string}>, staffTiles: ?list<array{k: string, v: string, unit: string, label: string}>}
      */
     private function summaryWidget(?Employee $employee): array
     {
-        $staff = $employee
-            ? Employee::active()->where('reports_to_id', $employee->id)->pluck('id')->all()
-            : [];
+        $staff = Employee::active()->whereIn('id', $this->dashboardTeamIds($employee))->pluck('id')->all();
 
         return [
             'tiles' => $this->monthTiles($employee ? [$employee->id] : []),
@@ -602,9 +617,9 @@ trait BuildsDashboardWidgets
 
     /**
      * Who on the viewer's reporting line is in, late, on leave or absent on the
-     * day the arrows are pointing at.
-     * "My staff" means the direct reporting line for every role — HR and the
-     * directors get the company-wide picture from Company pulse instead.
+     * day the arrows are pointing at. The line runs all the way down, so a
+     * manager of managers sees their managers' people too. HR and the directors
+     * get the company-wide picture from Company pulse instead.
      *
      * @return array{counts: list<array{k: string, v: int, label: string}>, people: list<array>}
      */
@@ -614,7 +629,7 @@ trait BuildsDashboardWidgets
             return ['counts' => [], 'people' => []];
         }
 
-        $team = Employee::active()->where('reports_to_id', $employee->id)->orderBy('name')->get();
+        $team = Employee::active()->whereIn('id', $this->dashboardTeamIds($employee))->orderBy('name')->get();
         if ($team->isEmpty()) {
             return ['counts' => [], 'people' => []];
         }
