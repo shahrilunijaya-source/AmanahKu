@@ -309,7 +309,9 @@ class BoardSuggestionsTest extends TestCase
 
         $this->assertNull($row['category_id']);
         $this->assertNull($row['project_id']);
-        $this->assertSame('Build the thing', $row['description']);
+        // The card names the line; the note stays the staffer's to write.
+        $this->assertSame('Build the thing', $row['title']);
+        $this->assertSame('', $row['description']);
     }
 
     /** Log a real timesheet entry for a card, so the "already logged" and carry-forward paths have data. */

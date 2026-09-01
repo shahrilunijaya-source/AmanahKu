@@ -246,10 +246,20 @@
                         <div class="uj-ts-row" :class="{ 'uj-ts-row--suggested': r.suggested }" :data-blank="isBlank(r) ? '1' : '0'"
                             style="padding:10px 0 8px;border-top:1px solid var(--hairline-soft);">
                             <div class="uj-ts-row-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                                <span class="uj-ts-row-label" style="min-width:0;display:flex;align-items:center;gap:10px;">
-                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;"
+                                {{-- The card's own title names the line; its classification
+                                     (category · project · what-you-were-doing) sits under it in
+                                     the muted size. It used to be the other way round — the line
+                                     was labelled only by its classification, so a card with no
+                                     category and no project rendered as an empty row. --}}
+                                <span class="uj-ts-row-label" style="min-width:0;display:flex;align-items:flex-start;gap:10px;">
+                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;margin-top:5px;"
                                         :style="{ background: rowColour(i) }"></span>
-                                    <span style="font-size:12.5px;color:var(--ink);line-height:1.35;" x-text="rowLabel(r)"></span>
+                                    <span style="min-width:0;">
+                                        <span style="display:block;font-size:12.5px;color:var(--ink);line-height:1.35;" x-text="rowTitle(r)"></span>
+                                        <span x-show="rowLabel(r) && rowLabel(r) !== rowTitle(r)" x-cloak
+                                            style="display:block;margin-top:2px;font-size:11px;color:var(--muted);line-height:1.35;"
+                                            x-text="rowLabel(r)"></span>
+                                    </span>
                                 </span>
                                 {{-- The unit lives IN the box. A bare number field next to a bare
                                      "100 / 100" left testers unsure whether it wanted percent or
@@ -257,17 +267,17 @@
                                 <span style="position:relative;flex:none;">
                                     <input type="text" inputmode="decimal"
                                         x-model="r.percentage" @input="clampPct(r)" @blur="save()" :disabled="!isEditable(selected)"
-                                        :aria-label="($store.ui.lang==='en' ? 'Percent of the day for ' : 'Peratus hari untuk ') + rowLabel(r)"
+                                        :aria-label="($store.ui.lang==='en' ? 'Percent of the day for ' : 'Peratus hari untuk ') + rowTitle(r)"
                                         style="width:86px;height:36px;padding:0 26px 0 10px;text-align:right;border:1px solid var(--hairline);border-radius:8px;font-family:var(--font-mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink);background:#fff;outline:none;"
                                         :style="isBlank(r) && isEditable(selected) ? { borderColor:'var(--amber)', background:'#fffaf0' } : {}" />
                                     <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--font-mono);font-size:12.5px;color:var(--muted);pointer-events:none;">%</span>
                                 </span>
                                 <button type="button" @click="openEditRow(i)" :disabled="!isEditable(selected)"
                                     class="uj-btn-ghost" style="height:36px;padding:0 10px;"
-                                    :aria-label="($store.ui.lang==='en' ? 'Edit ' : 'Sunting ') + rowLabel(r)">&#9998;</button>
+                                    :aria-label="($store.ui.lang==='en' ? 'Edit ' : 'Sunting ') + rowTitle(r)">&#9998;</button>
                                 <button type="button" @click="removeRow(i); save()" :disabled="!isEditable(selected)"
                                     class="uj-btn-ghost" style="height:36px;padding:0 10px;color:var(--error);"
-                                    :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + rowLabel(r)">&times;</button>
+                                    :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + rowTitle(r)">&times;</button>
                             </div>
                             {{-- The note this line carries is rich HTML written through the
                                  popup's Quill editor (see openEditRow()/confirmEntry()) — shown
@@ -282,14 +292,15 @@
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en' ? 'Needs a percentage — how much of this day went here?' : 'Perlukan peratus — berapa banyak hari ini pergi ke sini?'"></div>
 
-                            {{-- A card that arrived with nothing to cost it against. The fix is on
-                                 the card, not here, so the line says so rather than offering a
-                                 picker the screen no longer has. --}}
+                            {{-- A card that arrived with nothing to cost it against. Answering it
+                                 here only fixes this week's lines — the board is still where a
+                                 card gets a permanent category — but it unblocks the week without
+                                 leaving the screen. --}}
                             <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en'
-                                    ? 'This card has no category — open it on the board and set one. Until then this line is not saved.'
-                                    : 'Kad ini tiada kategori — buka di papan dan tetapkan satu. Sehingga itu baris ini tidak disimpan.'"></div>
+                                    ? 'This card has no category — tap ✎ and pick one. Until then this line is not saved.'
+                                    : 'Kad ini tiada kategori — ketik ✎ dan pilih satu. Sehingga itu baris ini tidak disimpan.'"></div>
 
                             {{-- The amount controls sit INSIDE the line they change, revealed by
                                  hovering or focusing that line. They used to be one strip pinned
@@ -343,10 +354,11 @@
         </div>
 
         {{-- ---- Row overlay: what you were doing, how much of the day, and any notes.
-             Category and project are shown, not asked — they ride in from the board card,
-             and the card is where they are corrected. Same shell (fixed backdrop, centred
-             card) as partials/ticket-raise.blade.php, so every popup in the app opens the
-             same way. ---- --}}
+             Project is shown, not asked — it rides in from the board card, and the card is
+             where it is corrected. Category is the same, EXCEPT when the card never set one:
+             then it is asked here, because otherwise the line can never be saved. Same shell
+             (fixed backdrop, centred card) as partials/ticket-raise.blade.php, so every popup
+             in the app opens the same way. ---- --}}
         <div x-show="picker.open" x-cloak class="uj-dialog-overlay"
              @click.self="closePicker()"
              @keydown.escape.window="if (picker.open) closePicker()"
@@ -388,9 +400,36 @@
                                  screen exists to report" (docs/DESIGN.md), not the small 13px
                                  row-editing size, so it reads as the decision this step asks for
                                  rather than a form field lost among buttons. --}}
+                            {{-- Only for a card that reached the timesheet without a category.
+                                 Required, not optional: the line cannot be saved without it.
+                                 Picking it here also fills every other uncategorised line of the
+                                 same card this week (applyCategory), so a card that ran Monday
+                                 to Friday is answered once. --}}
+                            <div x-show="picker.askCat" x-cloak>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
+                                    x-text="$store.ui.lang==='en' ? 'What kind of work was this? (this card has no category)' : 'Kerja jenis apa ini? (kad ini tiada kategori)'"></label>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    <template x-for="c in categories" :key="c.id">
+                                        <button type="button" @click="picker.pendingCat = c.id" class="uj-ts-pill"
+                                            style="min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;"
+                                            :style="String(picker.pendingCat) === String(c.id)
+                                                ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                                : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }"
+                                            :aria-pressed="String(picker.pendingCat) === String(c.id) ? 'true' : 'false'">
+                                            <span style="width:8px;height:8px;border-radius:2px;flex:none;"
+                                                :style="{ background: categoryColour(c.id) }"></span>
+                                            <span x-text="categoryName(c)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div x-show="!picker.pendingCat" x-cloak
+                                    style="margin-top:7px;font-size:11px;color:var(--amber-ink);"
+                                    x-text="$store.ui.lang==='en' ? 'Pick one, or this line is not saved.' : 'Pilih satu, atau baris ini tidak disimpan.'"></div>
+                            </div>
+
                             {{-- The quick "what kind of work was this" tag. Optional, one tap,
-                                 and the only classification the staffer still makes: category
-                                 and project arrive with the card. --}}
+                                 and the only classification the staffer still makes: the project
+                                 arrives with the card. --}}
                             <div x-show="subPillars.length" x-cloak>
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                                     x-text="$store.ui.lang==='en' ? 'What were you doing?' : 'Anda buat apa?'"></label>

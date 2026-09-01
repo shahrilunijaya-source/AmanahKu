@@ -109,6 +109,7 @@ export function registerTimesheetCapture(Alpine) {
                 if (this.isFullyLocked(iso)) continue;
                 this.rows[iso] = seed[iso].map((e) => ({
                     id: e.id,
+                    title: e.title || '',
                     category_id: e.category_id || '',
                     project_id: e.project_id || '',
                     sub_pillar_id: e.sub_pillar_id || '',
@@ -129,6 +130,7 @@ export function registerTimesheetCapture(Alpine) {
                 this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
                     id: null,
                     work_item_id: s.work_item_id,
+                    title: s.title || '',
                     category_id: s.category_id || '',
                     project_id: s.project_id || '',
                     sub_pillar_id: s.sub_pillar_id || '',
@@ -299,7 +301,7 @@ export function registerTimesheetCapture(Alpine) {
 
             this.dismissed[iso].push({
                 work_item_id: row.work_item_id,
-                title: this.rowLabel(row),
+                title: row.title || this.rowLabel(row),
                 category_id: row.category_id || '',
                 project_id: row.project_id || '',
                 description: row.description || '',
@@ -319,6 +321,7 @@ export function registerTimesheetCapture(Alpine) {
             this.rows[iso].push({
                 id: null,
                 work_item_id: card.work_item_id,
+                title: card.title || '',
                 category_id: card.category_id || '',
                 project_id: card.project_id || '',
                 sub_pillar_id: '',
@@ -393,6 +396,12 @@ export function registerTimesheetCapture(Alpine) {
             const cat = this.categories.find((c) => String(c.id) === String(categoryId));
             return (cat && cat.colour) || 'var(--muted-soft)';
         },
+        // What the line is called: the board card's own title. A row that predates the
+        // title being carried (or a hand-added one) falls back to its classification, which
+        // is what the head used to show for everything.
+        rowTitle(r) {
+            return r.title || this.rowLabel(r);
+        },
         rowLabel(r) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
@@ -401,27 +410,34 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- the row overlay ------------------------------------------------------
-        // One popup, one job: the row already knows its category and project (they come
-        // from the board card), so this asks the three things the card cannot answer —
-        // what the staffer was doing, how much of the day it took, and any notes.
+        // One popup, one job: the row already knows its project (it comes from the board
+        // card), so this asks what the card cannot answer — what the staffer was doing, how
+        // much of the day it took, and any notes. Plus the category, but only for a card
+        // that never set one: without it the line can never be saved at all.
         picker: {
             open: false, step: 'category', pendingItem: null, pendingPct: null,
-            pendingDesc: '', pendingSub: '', editingIndex: null,
+            pendingDesc: '', pendingSub: '', pendingCat: '', askCat: false, editingIndex: null,
         },
 
         // Opens the row's overlay, pre-filled from the row itself, so a rich-text note is
         // edited through the same Quill instance that wrote it rather than a plain input
-        // showing its raw HTML tags. Category and project are shown, not asked: they come
-        // from the board card, and the card is where they get corrected.
+        // showing its raw HTML tags. Project is shown, not asked: it comes from the board
+        // card, and the card is where it gets corrected. Category too — unless the card
+        // arrived without one, in which case askCat turns the picker on.
         openEditRow(i) {
             const r = this.rows[this.selected][i];
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
             this.picker = {
                 open: true, step: 'details',
-                pendingItem: cat ? this.pickerItem(cat, proj, null) : { label: this.rowLabel(r), category_id: r.category_id, project_id: r.project_id || '' },
+                pendingItem: { label: this.rowTitle(r), category_id: r.category_id, project_id: r.project_id || '' },
                 pendingPct: r.percentage, pendingDesc: r.description || '',
-                pendingSub: r.sub_pillar_id || '', editingIndex: i,
+                pendingSub: r.sub_pillar_id || '',
+                pendingCat: r.category_id || '',
+                // Snapshotted, not read off the live row: once a category is picked the row
+                // stops needing one, and a live check would make the picker vanish mid-edit.
+                askCat: this.needsCategory(r),
+                editingIndex: i,
             };
             this.focusPickerTitle();
         },
@@ -440,6 +456,7 @@ export function registerTimesheetCapture(Alpine) {
             // would make that a same-value no-op, so the next edit's Quill instance keeps
             // showing the previous row's notes instead of the new row's.
             this.picker.step = 'category';
+            this.picker.askCat = false;
         },
         categoryName(c) {
             return this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
@@ -473,11 +490,31 @@ export function registerTimesheetCapture(Alpine) {
             const n = parseFloat(raw);
             this.picker.pendingPct = isNaN(n) ? '' : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
         },
+        // The category picked in the overlay lands on the row — and on every other
+        // uncategorised row of the same card this week. A card sits In Progress for days,
+        // so it proposes a line on each of them; answering the same question five times for
+        // one card is the kind of thing people give up on halfway through.
+        // The card itself is untouched: the board is still where a permanent answer lives.
+        applyCategory(row, categoryId) {
+            row.category_id = categoryId;
+            if (!row.work_item_id) return;
+            for (const iso of Object.keys(this.rows)) {
+                if (!this.isEditable(iso)) continue;
+                for (const other of this.rows[iso]) {
+                    if (other !== row && !other.category_id && String(other.work_item_id) === String(row.work_item_id)) {
+                        other.category_id = categoryId;
+                    }
+                }
+            }
+        },
         // Overlay Submit: writes what the staffer was doing, how much of the day it took
         // and any notes back into the row it was opened from.
         confirmEntry() {
             if (this.picker.editingIndex == null) return;
             const r = this.rows[this.selected][this.picker.editingIndex];
+            if (this.picker.askCat && this.picker.pendingCat) {
+                this.applyCategory(r, this.picker.pendingCat);
+            }
             r.percentage = this.picker.pendingPct;
             r.description = this.picker.pendingDesc;
             r.sub_pillar_id = this.picker.pendingSub || '';
