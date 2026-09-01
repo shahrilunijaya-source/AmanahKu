@@ -394,6 +394,43 @@ class DashboardWidgetsTest extends TestCase
         $this->get('/app/calendar')->assertOk()->assertSee('Farid')->assertDontSee('Medical');
     }
 
+    /** A day cell names who is out. Initials read as one letter — every display name here is one word. */
+    public function test_a_calendar_day_names_the_person_rather_than_initialling_them(): void
+    {
+        $user = $this->userWithRole('employee', 'pill@acme.test');
+        $employee = $this->employeeFor($user);
+        $employee->update(['name' => 'Nurin Syafiqah', 'nickname' => 'Nurin']);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $employee->id,
+            'leave_type_id' => $type->id, 'status' => 'approved',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($user);
+        $days = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'];
+        $pills = array_column($days[now()->toDateString()]['marks']['personal']['pills'], 'label');
+
+        // It is the viewer's own leave, so the cell says so in a word rather than 'N'.
+        $this->assertSame(['You'], $pills);
+
+        // Somebody else's reads their name, still not their first letter.
+        $other = $this->userWithRole('employee', 'pill2@acme.test');
+        $otherEmployee = $this->employeeFor($other);
+        $otherEmployee->update(['name' => 'Mirza Hakim', 'nickname' => 'Mirza']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $otherEmployee->id,
+            'leave_type_id' => $type->id, 'status' => 'approved',
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $days = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'];
+        $pills = array_column($days[now()->toDateString()]['marks']['company']['pills'], 'label');
+
+        $this->assertContains('Mirza', $pills);
+    }
+
     /** The Me / My staff toggle: the staff view sums the whole reporting line. */
     public function test_month_summary_offers_a_staff_view_to_whoever_has_reports(): void
     {

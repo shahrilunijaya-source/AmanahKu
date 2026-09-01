@@ -265,7 +265,7 @@ trait BuildsDashboardWidgets
      * @param  list<int>  $reports
      * @param  Collection<int, LeaveRequest>  $ownPending
      * @param  list<int>|null  $leaveTypeIds  whose leave type this viewer may read
-     * @return list<array{level: int, kind: string, who: string, title: string, sub: string}>
+     * @return list<array{level: int, kind: string, who: string, short: string, title: string, sub: string}>
      */
     private function calendarEntries(array $day, ?Employee $employee, array $reports, Collection $ownPending, ?array $leaveTypeIds): array
     {
@@ -273,11 +273,13 @@ trait BuildsDashboardWidgets
 
         foreach ($day['holiday'] as $holiday) {
             $entries[] = ['level' => 0, 'kind' => 'holiday', 'who' => 'PH',
+                'short' => (string) $holiday->name,
                 'title' => (string) $holiday->name, 'sub' => 'Public holiday'];
         }
 
         foreach ($day['events'] as $event) {
             $entries[] = ['level' => 0, 'kind' => 'event', 'who' => 'EV',
+                'short' => (string) $event->title,
                 'title' => (string) $event->title, 'sub' => 'Company event'];
         }
 
@@ -300,6 +302,10 @@ trait BuildsDashboardWidgets
                 },
                 'kind' => 'leave',
                 'who' => $mine ? 'You' : $this->initials($name),
+                // The grid cell says who, in as many letters as the cell can hold.
+                // Initials alone were a single letter for most people here — every
+                // display name is one word — which named nobody.
+                'short' => $name,
                 'title' => $name.' — '.$type,
                 'sub' => $leave->date_from->isSameDay($leave->date_to)
                     ? 'All day'
@@ -319,6 +325,7 @@ trait BuildsDashboardWidgets
                 'level' => 0,
                 'kind' => 'pending',
                 'who' => 'You',
+                'short' => 'You',
                 'title' => 'You — '.Str::lower($this->leaveTypeName($leave)),
                 // Verified means a superior has already passed it up; the only thing
                 // left is final approval.
@@ -361,7 +368,11 @@ trait BuildsDashboardWidgets
      * because "the first two, and how many are left" is a different answer for
      * each tab, and a cell can only show one tab's worth.
      *
-     * @param  list<array{level: int, kind: string, who: string, title: string, sub: string}>  $entries
+     * A pill reads the entry's short name — the person, the holiday, the event —
+     * and the cell clips it with an ellipsis. Initials were tried and read as one
+     * letter: every display name here is a single word, so "N" was the whole pill.
+     *
+     * @param  list<array{level: int, kind: string, who: string, short: string, title: string, sub: string}>  $entries
      * @return array<string, array{pills: list<array{kind: string, label: string}>, more: int, count: int}>
      */
     private function calendarMarks(array $entries): array
@@ -377,7 +388,7 @@ trait BuildsDashboardWidgets
                 'pills' => array_map(
                     fn (array $e): array => [
                         'kind' => $e['kind'],
-                        'label' => in_array($e['kind'], ['leave', 'pending'], true) ? $e['who'] : $e['title'],
+                        'label' => $e['short'],
                     ],
                     array_slice($shown, 0, 2),
                 ),
