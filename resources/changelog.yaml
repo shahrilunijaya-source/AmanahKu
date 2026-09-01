@@ -13,7 +13,9 @@
 # gitlab main (prod) — not dev commits. Baseline 1.0 is the 2026-08-02 gitlab
 # main launch commit. Bump MINOR for an ordinary release; bump MAJOR only for
 # something meaningful (a real breaking or headline change), never on a fixed
-# cadence.
+# cadence. A PATCH digit (MAJOR.MINOR.PATCH) is allowed for a same-day
+# follow-on that finishes what the MINOR release started, rather than opening
+# a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
 - version: "1.7.1"
   date: "2026-09-01"
@@ -36,6 +38,9 @@
       link: "/docs/mcp"
       link_text: "Read the guide"
       link_text_ms: "Baca panduan"
+    - tag: fixed
+      text: "The notification bell and message badge no longer crash the header when the app briefly loses its database connection. They now just quietly wait for the next check instead of showing a broken screen."
+      text_ms: "Loceng pemberitahuan dan lencana mesej tidak lagi merosakkan bahagian atas apabila aplikasi hilang sambungan pangkalan data seketika. Ia kini hanya menunggu semakan seterusnya secara senyap dan bukan memaparkan skrin rosak."
 
 - version: "1.7"
   date: "2026-09-01"
