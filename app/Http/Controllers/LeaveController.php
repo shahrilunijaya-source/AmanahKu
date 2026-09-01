@@ -129,7 +129,8 @@ class LeaveController extends Controller
         $body = $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's');
 
         if ($this->skipsVerification($request)) {
-            // HR reports straight to the directors: no verify step, straight to final approval.
+            // Nobody sits above a final-approval-tier requester: no verify step, straight to
+            // final approval.
             $this->notifyManagementToApprove(
                 $leave->tenant_id,
                 'Leave awaiting final approval',

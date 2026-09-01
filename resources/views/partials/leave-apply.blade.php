@@ -69,8 +69,8 @@
     $selInit = old('leave_type_id', '');
     $verifierName = collect($approvalChain['verifiers'] ?? [])->first()?->name;
 
-    // Where the request actually goes. HR skips the verify step entirely, so promising
-    // them a manager review would be a lie the timeline then contradicts.
+    // Where the request actually goes. HR and the directors skip the verify step entirely,
+    // so promising them a manager review would be a lie the timeline then contradicts.
     $sendsTo = ($leaveSkipsVerification ?? false)
         ? ['en' => 'Goes straight to management for approval — your role skips the verify step.',
             'ms' => 'Dihantar terus kepada pengurusan untuk kelulusan — peranan anda melangkau langkah pengesahan.']

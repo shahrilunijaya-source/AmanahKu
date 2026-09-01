@@ -415,6 +415,64 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->assertSame('verified', $req->fresh()->status);
     }
 
+    // --- A director sits at the top of the chart, so they skip verify too ----
+
+    public function test_director_leave_opens_pre_verified_and_goes_to_the_approval_tier(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $director = $this->member('director', 'Shahril');
+
+        $this->actingAsEmployee($director)->post('/app/leave', [
+            'reason' => 'Family matters.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::where('employee_id', $director->id)->firstOrFail();
+        $this->assertSame('verified', $req->status);
+        $this->assertNull($req->verified_by_id);
+
+        // It reaches somebody: HR is in the final-approval tier and gets the ping.
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $hr->user_id, 'title' => 'Leave awaiting final approval',
+        ]);
+    }
+
+    public function test_director_cannot_approve_their_own_pre_verified_leave(): void
+    {
+        $director = $this->member('director', 'Shahril');
+        $req = $this->request($director, 'verified');
+
+        $this->actingAsEmployee($director)->post("/app/leave/{$req->id}/approve")->assertForbidden();
+        $this->assertSame('verified', $req->fresh()->status);
+    }
+
+    public function test_hr_gives_final_approval_on_a_directors_leave(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $director = $this->member('director', 'Shahril');
+        $req = $this->request($director, 'verified');
+
+        $this->actingAsEmployee($hr)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    /**
+     * The role gate, not a missing reports_to_id: a plain employee whose org chart has no
+     * superior still waits at `submitted` (StuckRequests surfaces it) rather than quietly
+     * routing itself past the manager they should have.
+     */
+    public function test_a_plain_employee_with_no_superior_still_opens_submitted(): void
+    {
+        $orphan = $this->member('employee', 'Orphan');
+
+        $this->actingAsEmployee($orphan)->post('/app/leave', [
+            'reason' => 'Family matters.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('submitted', LeaveRequest::where('employee_id', $orphan->id)->firstOrFail()->status);
+    }
+
     // --- Cancel (the requester withdraws) -----------------------------------
 
     public function test_requester_cancels_their_own_pending_request(): void
