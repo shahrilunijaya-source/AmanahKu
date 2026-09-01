@@ -938,8 +938,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-measured > .uj-fade { max-width: 920px; margin-inline: auto; }
 .uj-main--wide > .uj-head-stack,
 .uj-main--wide > .uj-fade { max-width: 1280px; }
-.uj-main--full > .uj-head-stack,
-.uj-main--full > .uj-fade { max-width: none; }
 
 /* Page title block. Sits in the scroll body on the same canvas and scrolls away
    with the content — it used to be a second white band under a white header. */
@@ -1527,8 +1525,10 @@ select.wd-inline {
 
 /* ── grid ── */
 .uj-dw-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
-/* The dashboard opts out of the shared 920px page measure (.uj-main--full):
-   it is a wall of cards, not a column of prose, so it takes the whole width. */
+/* The dashboard rides the wide page measure (1280px, same as the calendar
+   screen): two columns of cards need more than the 920px prose measure, but not
+   the whole monitor — and a fixed cap means collapsing the sidebar does not
+   stretch every card. */
 .uj-dw-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
 @media (max-width: 1020px) { .uj-dw-grid { grid-template-columns:minmax(0,1fr); } }
 
@@ -1614,6 +1614,32 @@ select.wd-inline {
 .uj-dw-cal-pill[data-k="event"]   { background:var(--info-tint);    color:var(--info-ink); }
 .uj-dw-cal-pill[data-k="holiday"] { background:var(--amber-tint);   color:var(--amber-ink); }
 .uj-dw-cal-more { font-size:10px; color:var(--muted-soft); padding-left:2px; line-height:1.4; }
+/* A day is a button now — it picks what the panel below reads out. Buttons carry
+   their own background and font, so the cell resets both back to the grid. */
+.uj-dw-cal-day { background:none; font:inherit; color:inherit; }
+button.uj-dw-cal-day { cursor:pointer; transition:background .14s ease-out; }
+button.uj-dw-cal-day:hover { background:#faf9f6; }
+button.uj-dw-cal-day[data-sel] { background:var(--info-tint); box-shadow:inset 0 0 0 1.5px var(--info); }
+button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-shadow:inset 0 0 0 1.5px var(--red); }
+
+/* Whose days you are reading. Underline, not a pill row: the tabs belong to the
+   panel below them, and a boxed segment control would read as a second card. */
+.uj-dw-cal-tabs { display:flex; gap:2px; padding:10px 12px 0; }
+.uj-dw-cal-tabs button { padding:7px 13px; border:0; border-bottom:2px solid transparent; border-radius:8px 8px 0 0; background:none; font-size:var(--t-sm); font-weight:500; color:var(--muted); cursor:pointer; transition:color .16s ease-out, border-color .16s ease-out; }
+.uj-dw-cal-tabs button:hover { color:var(--ink); }
+.uj-dw-cal-tabs button[data-on] { color:var(--red); border-bottom-color:var(--red); }
+.uj-dw-cal-panel { padding:12px 16px 16px; border-top:1px solid var(--hairline-soft); }
+.uj-dw-cal-ph { font-size:var(--t-sm); font-weight:600; color:var(--ink); margin:0 0 9px; line-height:normal; }
+.uj-dw-cal-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--hairline-soft); }
+.uj-dw-cal-item:first-of-type { border-top:0; }
+.uj-dw-cal-item .av { flex-shrink:0; width:28px; height:28px; border-radius:999px; background:var(--shelf); border:1px solid var(--shelf-line); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--muted); }
+.uj-dw-cal-item .txt { min-width:0; }
+.uj-dw-cal-item .t { display:block; font-size:var(--t-sm); font-weight:500; color:var(--ink); line-height:1.4; }
+.uj-dw-cal-item .s { display:block; font-size:var(--t-micro); color:var(--muted); line-height:1.4; }
+.uj-dw-cal-tag { margin-left:auto; flex-shrink:0; font-size:var(--t-micro); font-weight:600; border-radius:999px; padding:3px 9px; white-space:nowrap; }
+.uj-dw-cal-tag[data-k="leave"]   { background:var(--success-tint); color:var(--success-ink); }
+.uj-dw-cal-tag[data-k="event"]   { background:var(--info-tint);    color:var(--info-ink); }
+.uj-dw-cal-tag[data-k="holiday"] { background:var(--amber-tint);   color:var(--amber-ink); }
 
 /* ── accordion (Pending tasks) ── */
 .uj-dw-acc { border:1px solid var(--hairline); border-radius:11px; overflow:hidden; }

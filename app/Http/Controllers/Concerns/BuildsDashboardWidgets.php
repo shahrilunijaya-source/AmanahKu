@@ -104,17 +104,157 @@ trait BuildsDashboardWidgets
     {
         $data = app(CalendarController::class)->screenData($request, $employee);
 
-        if (app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'events')) {
-            return $data;
+        if (! app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'events')) {
+            $data['eventsThisMonth'] = collect();
+            $data['weeks'] = array_map(
+                fn (array $week) => array_map(fn (array $day) => ['events' => collect()] + $day, $week),
+                $data['weeks'],
+            );
         }
 
-        $data['eventsThisMonth'] = collect();
-        $data['weeks'] = array_map(
-            fn (array $week) => array_map(fn (array $day) => ['events' => collect()] + $day, $week),
-            $data['weeks'],
-        );
+        return $data + $this->calendarDays($data['weeks'], $employee);
+    }
 
-        return $data;
+    /**
+     * The day-by-day reading of the same month grid: what sits on each date, who
+     * it belongs to, and how much of it each tab shows.
+     *
+     * A tab is a widening circle rather than a filter — Personal is your own leave
+     * plus the dates that apply to everyone (holidays, company events), Team adds
+     * the people who report to you, Company is the lot. So an entry carries the
+     * narrowest tab it belongs to and every wider tab shows it too. The Team tab
+     * is left out entirely for someone with nobody reporting to them; it would be
+     * a copy of Personal.
+     *
+     * @param  list<list<array<string, mixed>>>  $weeks
+     * @return array{days: array<string, array<string, mixed>>, calTabs: list<string>, selected: string}
+     */
+    private function calendarDays(array $weeks, ?Employee $employee): array
+    {
+        $reports = $employee
+            ? Employee::where('reports_to_id', $employee->id)->pluck('id')->all()
+            : [];
+
+        $days = [];
+        $selected = null;
+
+        foreach ($weeks as $week) {
+            foreach ($week as $day) {
+                if (! $day['inMonth']) {
+                    continue;
+                }
+
+                $key = $day['date']->toDateString();
+                $entries = $this->calendarEntries($day, $employee, $reports);
+
+                $days[$key] = [
+                    'label' => $day['date']->format('j F'),
+                    'entries' => $entries,
+                    'marks' => $this->calendarMarks($entries),
+                ];
+
+                // Land on today, or on the first of the month when the viewer is
+                // looking at a month they are not standing in.
+                if ($selected === null || $day['isToday']) {
+                    $selected = $key;
+                }
+            }
+        }
+
+        return [
+            'days' => $days,
+            'calTabs' => $reports === [] ? ['personal', 'company'] : ['personal', 'team', 'company'],
+            'selected' => $selected ?? now()->toDateString(),
+        ];
+    }
+
+    /**
+     * One day's entries, each tagged with the narrowest tab that shows it:
+     * 0 personal, 1 team, 2 company.
+     *
+     * @param  array<string, mixed>  $day
+     * @param  list<int>  $reports
+     * @return list<array{level: int, kind: string, who: string, title: string, sub: string}>
+     */
+    private function calendarEntries(array $day, ?Employee $employee, array $reports): array
+    {
+        $entries = [];
+
+        foreach ($day['holiday'] as $holiday) {
+            $entries[] = ['level' => 0, 'kind' => 'holiday', 'who' => 'PH',
+                'title' => (string) $holiday->name, 'sub' => 'Public holiday'];
+        }
+
+        foreach ($day['events'] as $event) {
+            $entries[] = ['level' => 0, 'kind' => 'event', 'who' => 'EV',
+                'title' => (string) $event->title, 'sub' => 'Company event'];
+        }
+
+        foreach ($day['leave'] as $leave) {
+            $person = $leave->employee;
+            $mine = $employee !== null && $person->id === $employee->id;
+            $name = $mine ? 'You' : $person->display_name;
+            $type = $leave->leaveType?->name ?? 'leave';
+
+            $entries[] = [
+                'level' => match (true) {
+                    $mine => 0,
+                    in_array($person->id, $reports, true) => 1,
+                    default => 2,
+                },
+                'kind' => 'leave',
+                'who' => $mine ? 'You' : $this->initials($name),
+                'title' => $name.' — '.Str::lower($type),
+                'sub' => $leave->date_from->isSameDay($leave->date_to)
+                    ? 'All day'
+                    : $leave->date_from->format('j M').' – '.$leave->date_to->format('j M'),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The pills a grid cell carries, per tab. Built here rather than in the view
+     * because "the first two, and how many are left" is a different answer for
+     * each tab, and a cell can only show one tab's worth.
+     *
+     * @param  list<array{level: int, kind: string, who: string, title: string, sub: string}>  $entries
+     * @return array<string, array{pills: list<array{kind: string, label: string}>, more: int, count: int}>
+     */
+    private function calendarMarks(array $entries): array
+    {
+        $marks = [];
+
+        foreach (['personal' => 0, 'team' => 1, 'company' => 2] as $tab => $level) {
+            $shown = array_values(array_filter($entries, fn (array $e): bool => $e['level'] <= $level));
+
+            $marks[$tab] = [
+                'count' => count($shown),
+                'more' => max(0, count($shown) - 2),
+                'pills' => array_map(
+                    fn (array $e): array => [
+                        'kind' => $e['kind'],
+                        'label' => $e['kind'] === 'leave' ? $e['who'] : $e['title'],
+                    ],
+                    array_slice($shown, 0, 2),
+                ),
+            ];
+        }
+
+        return $marks;
+    }
+
+    /** Two-letter stand-in for a face, from a display name. */
+    private function initials(string $name): string
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $letters = array_slice(array_filter(array_map(
+            fn (string $p): string => mb_substr($p, 0, 1),
+            $parts,
+        )), 0, 2);
+
+        return mb_strtoupper(implode('', $letters)) ?: '?';
     }
 
     /**

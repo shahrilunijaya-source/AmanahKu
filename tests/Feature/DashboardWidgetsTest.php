@@ -258,4 +258,56 @@ class DashboardWidgetsTest extends TestCase
         // All five render; the two past the top three sit behind the fold, not dropped.
         $response->assertSee('Show 2 more')->assertSee('Marriage')->assertSee('Unpaid');
     }
+
+    /** Calendar tabs widen the circle: Personal is you, Company is everyone. */
+    public function test_calendar_entries_carry_the_narrowest_tab_that_shows_them(): void
+    {
+        $manager = $this->userWithRole('manager', 'calmgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+
+        $staff = $this->userWithRole('employee', 'calstaff@acme.test');
+        $staffEmployee = $this->employeeFor($staff, $mgrEmployee->id);
+        $staffEmployee->update(['name' => 'Siti Aminah']);
+
+        $stranger = $this->userWithRole('employee', 'calstranger@acme.test');
+        $strangerEmployee = $this->employeeFor($stranger);
+        $strangerEmployee->update(['name' => 'Raju Kumar']);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        foreach ([$mgrEmployee, $staffEmployee, $strangerEmployee] as $who) {
+            LeaveRequest::create([
+                'tenant_id' => $this->tenant->id, 'employee_id' => $who->id,
+                'leave_type_id' => $type->id, 'status' => 'approved',
+                'date_from' => now(), 'date_to' => now(), 'days' => 1,
+            ]);
+        }
+
+        $this->actAs($manager);
+        $calendar = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar'];
+
+        $this->assertSame(['personal', 'team', 'company'], $calendar['calTabs']);
+
+        $today = $calendar['days'][now()->toDateString()];
+        $levels = collect($today['entries'])->pluck('level', 'who');
+        $this->assertSame(0, $levels['You']);
+        $this->assertSame(1, $levels['SA']);
+        $this->assertSame(2, $levels['RK']);
+
+        // Each tab's cell pills count only what that tab shows.
+        $this->assertSame(1, $today['marks']['personal']['count']);
+        $this->assertSame(2, $today['marks']['team']['count']);
+        $this->assertSame(3, $today['marks']['company']['count']);
+    }
+
+    /** Nobody reporting to you means no Team tab — it would only repeat Personal. */
+    public function test_calendar_drops_the_team_tab_for_someone_with_no_reports(): void
+    {
+        $user = $this->userWithRole('employee', 'lonely@acme.test');
+        $this->employeeFor($user);
+
+        $this->actAs($user);
+        $calendar = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar'];
+
+        $this->assertSame(['personal', 'company'], $calendar['calTabs']);
+    }
 }
