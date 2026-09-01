@@ -26,6 +26,17 @@ use App\Support\Permissions;
  */
 trait BuildsNav
 {
+    /**
+     * The two "My Team" screens a plain employee keeps: who reports to whom, and
+     * who is out this month. Knowing the shape of the company and when a colleague
+     * is away is everyone's business, not a manager's privilege — and both screens
+     * are read-only for them anyway (OrgController hands $canEdit to management and
+     * HR only; the calendar has no controls at all beyond its month arrows).
+     *
+     * @var list<string>
+     */
+    private const EMPLOYEE_TEAM_SCREENS = ['orgchart', 'calendar'];
+
     /** Build the sidebar nav with active/expanded flags for the current screen. */
     private function navModel(string $screen, string $role, ?Tenant $tenant): array
     {
@@ -39,7 +50,7 @@ trait BuildsNav
         if (! in_array($role, ['management', 'hr'], true)) {
             $items = array_values(array_filter($items, fn ($i) => ! in_array($i['id'], ['admin', 'cases'], true)));
         }
-        // The whole "My Team" section plus the Insights oversight group are for
+        // Most of the "My Team" section plus the Insights oversight group are for
         // managers and above — hidden from plain employees. A plain employee keeps
         // My Work and Learning, which is everything about their own week. The screens
         // themselves stay server-gated in AppController::screen (canSeeAll) for anyone
@@ -49,7 +60,8 @@ trait BuildsNav
         if ($role === 'employee') {
             $items = array_values(array_filter(
                 $items,
-                fn ($i) => $i['section'] !== 'My Team' && $i['id'] !== 'oversight',
+                fn ($i) => (in_array($i['id'], self::EMPLOYEE_TEAM_SCREENS, true) || $i['section'] !== 'My Team')
+                    && $i['id'] !== 'oversight',
             ));
         }
 
