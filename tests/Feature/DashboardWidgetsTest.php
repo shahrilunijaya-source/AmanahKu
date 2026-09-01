@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
@@ -235,5 +236,26 @@ class DashboardWidgetsTest extends TestCase
 
         $this->assertSame('Akilah', $people[0]['name']);
         $this->assertSame('absent', $people[0]['state']);
+    }
+
+    /** Leave summary shows the biggest entitlements first and folds the tail away. */
+    public function test_leave_summary_leads_with_the_biggest_entitlements_and_folds_the_rest(): void
+    {
+        $user = $this->userWithRole('employee', 'leave@acme.test');
+        $employee = $this->employeeFor($user);
+
+        foreach (['Unpaid' => 0, 'Annual' => 16, 'Marriage' => 3, 'Medical' => 14, 'Paternity' => 7] as $name => $days) {
+            $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => $name, 'entitlement' => $days]);
+            LeaveBalance::create(['employee_id' => $employee->id, 'leave_type_id' => $type->id, 'balance' => $days]);
+        }
+
+        $this->actAs($user);
+        $response = $this->get('/app/dash')->assertOk();
+
+        $types = array_column($response->viewData('widgets')['leave']['rows'], 'type');
+        $this->assertSame(['Annual', 'Medical', 'Paternity', 'Marriage', 'Unpaid'], $types);
+
+        // All five render; the two past the top three sit behind the fold, not dropped.
+        $response->assertSee('Show 2 more')->assertSee('Marriage')->assertSee('Unpaid');
     }
 }

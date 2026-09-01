@@ -279,7 +279,12 @@ trait BuildsDashboardWidgets
                     // otherwise divide by nothing and render a full bar.
                     'pct' => $entitlement > 0 ? (int) round($used / $entitlement * 100) : 0,
                 ];
-            })->values()->all();
+            })
+            // The card shows the first three and folds the rest away, so the
+            // biggest entitlements (annual, medical) must come first — the one-day
+            // allowances are the tail, whatever order the balances were created in.
+            ->sortByDesc(fn (array $r): float => (float) $r['entitlement'])
+            ->values()->all();
 
         return [
             'rows' => $rows,
