@@ -146,24 +146,24 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_the_claude_code_connection(): void
+    public function test_the_newest_release_announces_the_attention_dots(): void
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.7', $newest['version']);
+        $this->assertSame('1.7.1', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
-        $response->assertSee('connect Claude', false);
-        $response->assertSee('/docs/mcp', false);
+        $response->assertSee('red dot on anything waiting for you', false);
+        $response->assertSee('/app/leave', false);
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.8 entry has no Malay copy of its own.');
         }
     }
 

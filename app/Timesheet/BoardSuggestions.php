@@ -100,7 +100,9 @@ final class BoardSuggestions
                     // The staffer tags what they were doing (Technical, Meeting, ...) in
                     // the row's own overlay; the card does not carry it.
                     'sub_pillar_id' => null,
-                    'description' => (string) ($card->description ?: $card->title),
+                    // The note starts empty: the card's title names the line by itself
+                    // now, and the card's description is spec text, not a staffer note.
+                    'description' => '',
                 ];
             }
         }
@@ -122,7 +124,7 @@ final class BoardSuggestions
             ->whereNull('archived_at')
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
-            ->get(['id', 'title', 'description', 'project_id', 'timesheet_category_id'])
+            ->get(['id', 'title', 'project_id', 'timesheet_category_id'])
             ->keyBy('id');
     }
 
@@ -170,10 +172,11 @@ final class BoardSuggestions
      * else. The board asks for the category on the card, so there is no project to infer
      * one from — and no automatic overhead bucket either.
      *
-     * A card that has not answered comes back null and its row is held back: Others is
-     * where work the company does for itself belongs, and filing an unanswered card there
-     * would quietly put whatever it was into the one column the director reads as
-     * overhead. The capture screen points at the card instead, where the picker is.
+     * A card that has not answered comes back null: Others is where work the company does
+     * for itself belongs, and filing an unanswered card there would quietly put whatever it
+     * was into the one column the director reads as overhead. The capture screen asks the
+     * staffer instead — the row's own edit overlay offers a category picker, and the row is
+     * not saved until one is chosen. That choice lands on the entry, not on the card.
      *
      * Public because the capture screen's "restore a struck-off card" list has to offer
      * the row back with the same category the prefill would have given it.

@@ -396,6 +396,24 @@ export function registerWorkBoard(Alpine) {
             if (field === this.sortMode) this.applySort();
         },
 
+        // Fills the category / project selects a tick after their options exist.
+        // Alpine applies x-model to a <select> before the <template x-for> inside
+        // it has rendered any <option>, so the browser has nothing to match the id
+        // against, silently resets the select to the empty row, and never re-syncs
+        // when the options do appear: the card kept its category in the database
+        // and in drawer.card, while the drawer showed "No category" forever.
+        // Blanking first matters — assigning the id it already holds is not a
+        // change, so Alpine's effect would not re-run and the select would stay
+        // empty.
+        applySelectIds(categoryId, projectId) {
+            this.drawer.card.timesheet_category_id = '';
+            this.drawer.card.project_id = '';
+            this.$nextTick(() => {
+                this.drawer.card.timesheet_category_id = categoryId ?? '';
+                this.drawer.card.project_id = projectId ?? '';
+            });
+        },
+
         nextSeq() {
             return ++this.drawer.seq;
         },
@@ -437,6 +455,12 @@ export function registerWorkBoard(Alpine) {
                 (FIELD_DERIVED[field] || []).forEach((key) => {
                     this.drawer.card[key] = card[key];
                 });
+                // Changing the category hands back a fresh project list, so the project
+                // select is rebuilt in this same flush and hits the timing problem
+                // applySelectIds() exists for.
+                if (field === 'timesheet_category_id') {
+                    this.applySelectIds(this.drawer.card.timesheet_category_id, card.project_id);
+                }
                 this.applyFieldRepaint(field, html);
                 this.flashSaved();
 
@@ -684,12 +708,14 @@ export function registerWorkBoard(Alpine) {
                     links: card.links ?? [],
                     participants: card.participants ?? [],
                     mentionable: card.mentionable ?? [],
-                    project_id: card.project?.id ?? '',
+                    project_id: '',
                     project_options: card.project_options ?? [],
-                    timesheet_category_id: card.timesheet_category_id ?? '',
+                    timesheet_category_id: '',
                     timesheet_category_name: card.timesheet_category_name ?? '',
                     timesheet_category_options: card.timesheet_category_options ?? [],
                 };
+                // Both ids land a tick later — see applySelectIds().
+                this.applySelectIds(card.timesheet_category_id, card.project?.id);
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
                 // participant (edits belong to the owner) — either way, move + comment only.

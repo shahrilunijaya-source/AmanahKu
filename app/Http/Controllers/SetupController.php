@@ -91,7 +91,9 @@ class SetupController extends Controller
 
             // Leave & requests
             'leave_types' => ['label' => 'Configure leave types', 'label_ms' => 'Konfigur jenis cuti', 'desc' => 'Annual, medical, unpaid and other leave types with entitlements.', 'screen' => 'leave-setup', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => true],
-            'holidays' => ['label' => 'Add public holidays', 'label_ms' => 'Tambah cuti umum', 'desc' => 'The holiday calendar leave and attendance work against.', 'screen' => 'leave-setup', 'query' => [], 'auto' => true, 'domain' => 'requests', 'critical' => false],
+            // Same screen as the step above, so it needs ?tab= to open on the right one —
+            // without it the holiday step drops you on the leave types tab.
+            'holidays' => ['label' => 'Add public holidays', 'label_ms' => 'Tambah cuti umum', 'desc' => 'The holiday calendar leave and attendance work against.', 'screen' => 'leave-setup', 'query' => ['tab' => 'holidays'], 'auto' => true, 'domain' => 'requests', 'critical' => false],
         ];
 
         // Payroll is only relevant when the module is enabled for the tenant.

@@ -50,6 +50,8 @@ class WritePathsTest extends TestCase
     public function test_leave_application_persists_a_request(): void
     {
         $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual', 'entitlement' => 18]);
+        // The balance row is what makes the type apply to this person (Leave Setup tick).
+        LeaveBalance::create(['employee_id' => $this->employee->id, 'leave_type_id' => $type->id, 'balance' => 18]);
 
         $this->actingInTenant()->post('/app/leave', [
             'leave_type_id' => $type->id,
@@ -71,6 +73,7 @@ class WritePathsTest extends TestCase
         $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual', 'entitlement' => 18]);
 
         $this->actingInTenant()->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $type->id,
             'date_from' => '2026-07-05',
             'date_to' => '2026-07-01', // before start

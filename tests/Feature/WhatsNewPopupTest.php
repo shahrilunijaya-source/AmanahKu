@@ -21,13 +21,22 @@ class WhatsNewPopupTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_changelog_marks_some_entries_major(): void
+    /**
+     * A release may have no major entry at all — a quiet release simply shows no popup,
+     * which is the documented behaviour. What must never happen is EVERY entry being
+     * major, because then the popup is the whole release and Read more leads nowhere.
+     */
+    public function test_no_release_marks_every_entry_major(): void
     {
-        $latest = Changelog::releases()[0];
-        $major = array_filter($latest['entries'], fn (array $entry): bool => $entry['major']);
+        foreach (Changelog::releases() as $release) {
+            $major = array_filter($release['entries'], fn (array $entry): bool => $entry['major']);
 
-        $this->assertNotEmpty($major, 'The newest release has no major entry, so nobody would see a popup.');
-        $this->assertLessThan(count($latest['entries']), count($major), 'Everything being major leaves nothing behind Read more.');
+            $this->assertLessThan(
+                count($release['entries']),
+                count($major),
+                "Release {$release['version']} is all major, leaving nothing behind Read more.",
+            );
+        }
     }
 
     public function test_the_endpoint_returns_the_major_entries_and_nothing_else(): void

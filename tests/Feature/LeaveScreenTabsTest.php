@@ -169,6 +169,7 @@ class LeaveScreenTabsTest extends TestCase
             ->followingRedirects()
             // Annual needs 3 days' notice; today breaks it.
             ->post(route('leave.store'), [
+                'reason' => 'Family matters.',
                 'leave_type_id' => $this->annual->id,
                 'date_from' => now()->toDateString(),
                 'date_to' => now()->toDateString(),
@@ -198,6 +199,7 @@ class LeaveScreenTabsTest extends TestCase
             ->from('/app/leave')
             ->followingRedirects()
             ->post(route('leave.store'), [
+                'reason' => 'Family matters.',
                 'leave_type_id' => $replacement->id,
                 'date_from' => now()->addDays(10)->toDateString(),
                 'date_to' => now()->addDays(10)->toDateString(),

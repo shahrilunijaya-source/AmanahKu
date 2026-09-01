@@ -159,7 +159,7 @@ class TimesheetScreenDataTest extends TestCase
     /**
      * A category switched off after a draft was filed still has to reach the grid, or the
      * line it names renders with no name on it. Nothing new can be filed under it — the
-     * capture screen has no category picker any more.
+     * capture screen only offers the picker to a card that arrived without a category.
      */
     public function test_a_deactivated_category_a_draft_still_uses_reaches_the_view(): void
     {
@@ -240,6 +240,32 @@ class TimesheetScreenDataTest extends TestCase
 
         $this->assertArrayHasKey($today, $suggested);
         $this->assertSame($card->id, $suggested[$today][0]['work_item_id']);
+    }
+
+    /**
+     * A saved line carries the name of the board card behind it, so the row reads as the
+     * work it was rather than as its category — which is nothing at all for a card that
+     * reached the sheet without one.
+     */
+    public function test_a_saved_line_carries_its_board_cards_title(): void
+    {
+        $card = $this->employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Tender ISCAF', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8,
+            'work_item_id' => $card->id,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $this->assertSame('Tender ISCAF', $response->viewData('existingGrid')['2026-06-15'][0]['title']);
     }
 
     public function test_a_failure_building_suggestions_does_not_take_the_screen_down(): void

@@ -49,11 +49,28 @@ class MatrixReportingTest extends TestCase
         $user = User::create(['name' => $name, 'email' => "user{$this->seq}@example.com", 'password' => Hash::make('password')]);
         $user->tenants()->attach($this->tenant->id, ['role' => $role]);
 
-        return Employee::create([
+        return $this->makeEligible(Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
             'name' => $name, 'status' => 'active', 'workload' => 'green',
             'reports_to_id' => $reportsToId,
-        ]);
+        ]));
+    }
+
+    /**
+     * Every leave type this tenant has, opened at a generous balance. HR ticks eligibility
+     * per person on Leave Setup and that tick IS the balance row, so a fixture employee
+     * with no rows cannot apply for anything.
+     */
+    private function makeEligible(Employee $e): Employee
+    {
+        foreach (LeaveType::all() as $t) {
+            LeaveBalance::firstOrCreate(
+                ['employee_id' => $e->id, 'leave_type_id' => $t->id],
+                ['balance' => 30],
+            );
+        }
+
+        return $e;
     }
 
     private function actingAsEmployee(Employee $e): self
@@ -141,6 +158,7 @@ class MatrixReportingTest extends TestCase
         $report->additionalManagers()->attach($extra->id);
 
         $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
             'leave_type_id' => $this->type->id, 'date_from' => '2026-07-10', 'date_to' => '2026-07-11',
         ])->assertRedirect();
 
@@ -372,7 +390,7 @@ class MatrixReportingTest extends TestCase
         $manager = $this->emp('Manager', 'manager');
         $director = $this->emp('Board Director', 'director');
         $report = $this->emp('Reportee', 'employee', $manager->id);
-        LeaveBalance::create(['employee_id' => $report->id, 'leave_type_id' => $this->type->id, 'balance' => 10]);
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->type->id], ['balance' => 10]);
         $req = LeaveRequest::create([
             'tenant_id' => $this->tenant->id, 'employee_id' => $report->id,
             'leave_type_id' => $this->type->id, 'date_from' => '2026-07-01', 'date_to' => '2026-07-02',

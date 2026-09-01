@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\SetupController;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
@@ -77,6 +78,73 @@ class LeaveSetupTest extends TestCase
         $this->asHr()->get('/app/leave-setup')->assertOk()->assertSee('off Annual');
     }
 
+    public function test_the_two_setup_steps_open_on_their_own_tab(): void
+    {
+        // Both company-setup steps embed the same screen, so the holiday one is only
+        // useful if it carries the tab that actually holds the holiday calendar.
+        $steps = app(SetupController::class)->stepDefs();
+
+        $this->assertSame('leave-setup', $steps['leave_types']['screen']);
+        $this->assertSame('leave-setup', $steps['holidays']['screen']);
+        $this->assertSame(['tab' => 'holidays'], $steps['holidays']['query']);
+
+        // And the screen has to honour it, not just be handed it.
+        $this->asHr()->get('/app/leave-setup?tab=holidays')->assertOk()->assertSee("tab: 'holidays'", false);
+    }
+
+    public function test_the_balances_grid_renders_a_tick_box_per_person_and_type(): void
+    {
+        // The controller side of the tick is covered below, but the tick is useless if the
+        // grid never draws it — this is the assertion that catches the markup going missing.
+        $response = $this->asHr()->get('/app/leave-setup');
+
+        $response->assertOk();
+        $response->assertSee('name="applies['.$this->staff->id.']['.$this->annual->id.']"', false);
+        // The hidden 0 must ride in front of the box, or an unticked cell posts nothing.
+        $response->assertSee('type="hidden" name="applies['.$this->staff->id.']['.$this->annual->id.']" value="0"', false);
+    }
+
+    public function test_unticking_a_type_removes_the_persons_balance(): void
+    {
+        LeaveBalance::create(['employee_id' => $this->staff->id, 'leave_type_id' => $this->annual->id, 'balance' => 12]);
+
+        // An intern gets no annual leave: HR clears the tick and the row goes.
+        $this->asHr()->post('/app/leave-setup', [
+            'applies' => [$this->staff->id => [$this->annual->id => 0]],
+            'balances' => [$this->staff->id => [$this->annual->id => 12]],
+        ])->assertRedirect();
+
+        $this->assertDatabaseMissing('leave_balances', [
+            'employee_id' => $this->staff->id, 'leave_type_id' => $this->annual->id,
+        ]);
+    }
+
+    public function test_ticking_a_type_with_no_days_still_opens_a_row(): void
+    {
+        // The tick is the eligibility: without a row the type is never offered, so a
+        // person entitled to it but carrying nothing forward still needs one at zero.
+        $this->asHr()->post('/app/leave-setup', [
+            'applies' => [$this->staff->id => [$this->annual->id => 1]],
+            'balances' => [$this->staff->id => [$this->annual->id => '']],
+        ])->assertRedirect();
+
+        $this->assertEqualsWithDelta(0.0, (float) LeaveBalance::where('employee_id', $this->staff->id)
+            ->where('leave_type_id', $this->annual->id)->value('balance'), 0.001);
+    }
+
+    public function test_a_type_the_person_is_not_eligible_for_cannot_be_applied_for(): void
+    {
+        $this->actingAs($this->employee)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/leave', [
+                'leave_type_id' => $this->annual->id,
+                'date_from' => now()->addDays(10)->toDateString(),
+                'date_to' => now()->addDays(10)->toDateString(),
+                'reason' => 'Family matters.',
+            ])->assertSessionHasErrors('leave_type_id');
+
+        $this->assertDatabaseCount('leave_requests', 0);
+    }
+
     public function test_hr_sees_the_leave_setup_screen(): void
     {
         $this->asHr()->get('/app/leave-setup')->assertOk();
@@ -112,7 +180,7 @@ class LeaveSetupTest extends TestCase
      */
     public function test_the_record_card_appears_only_for_hr_granted_types(): void
     {
-        $this->asHr()->get('/app/leave-setup')->assertOk()->assertDontSee('Record granted leave');
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertDontSee(route('leave.record'), false);
 
         LeaveType::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
@@ -120,7 +188,7 @@ class LeaveSetupTest extends TestCase
         ]);
 
         $this->asHr()->get('/app/leave-setup')->assertOk()
-            ->assertSee('Record granted leave')
+            ->assertSee('Book a replacement day')
             ->assertSee(route('leave.record'), false);
     }
 

@@ -94,6 +94,12 @@
                                                  fill: two identical grey pills side by side
                                                  read as one object and neither told you which
                                                  was which. --}}
+                                            {{-- The board card this line came from, named first:
+                                                 the taxonomy under it says how the line is costed,
+                                                 the card says what the work actually was. --}}
+                                            <template x-if="line.card">
+                                                <span class="c" x-text="line.card"></span>
+                                            </template>
                                             <template x-if="line.category">
                                                 <span class="uj-tr-cat"
                                                     {{-- The tone-chip recipe from docs/DESIGN.md: the
