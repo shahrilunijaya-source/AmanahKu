@@ -1665,8 +1665,11 @@ select.wd-inline {
 /* Fold for the long tail of leave types: the three that matter stay open, the
    rest sit behind this. It reads as a row, not a button, so it does not compete
    with the card's own footer link. */
-.uj-dw-more { width:100%; padding:10px 14px; border:0; border-top:1px solid var(--hairline-soft); background:#fbfbf9; font-size:var(--t-sm); font-weight:500; color:var(--muted); text-align:left; cursor:pointer; transition:color .16s ease-out, background .16s ease-out; }
+.uj-dw-more { width:100%; padding:10px 14px; border:0; background:#fbfbf9; font-size:var(--t-sm); font-weight:500; color:var(--muted); text-align:left; cursor:pointer; transition:color .16s ease-out, background .16s ease-out; }
 .uj-dw-more:hover { color:var(--ink); background:#f6f6f2; }
+/* Collapsed, the third row's own bottom hairline is the separator; expanded, that
+   row is the last child of the fold and drops it, so the button draws the line. */
+.uj-dw-more[aria-expanded="true"] { border-top:1px solid var(--hairline-soft); }
 
 /* ── clock log ── */
 .uj-dw-shift { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--hairline-soft); flex-wrap:wrap; row-gap:9px; }
