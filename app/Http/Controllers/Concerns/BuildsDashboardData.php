@@ -16,13 +16,11 @@ use App\Models\LeaveRequest;
 use App\Models\PerformanceReview;
 use App\Models\Tenant;
 use App\Models\Timesheet;
-use App\Models\WorkItem;
 use App\Services\FeatureManager;
 use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
 use App\Tenancy\CurrentTenant;
-use App\Timesheet\TimesheetCompliance;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -127,24 +125,6 @@ trait BuildsDashboardData
         return KnowledgeEntry::whereNotIn('id', $readIds)->count();
     }
 
-    /** The viewer's own leave + claim requests still in flight (submitted or verified). */
-    private function meRequestsInFlight(?Employee $employee, FeatureManager $features, ?Tenant $tenant): int
-    {
-        if (! $employee) {
-            return 0;
-        }
-
-        $count = 0;
-        if ($features->screenAllowed($tenant, 'leave')) {
-            $count += $employee->leaveRequests()->whereIn('status', ['submitted', 'verified'])->count();
-        }
-        if ($features->screenAllowed($tenant, 'claims')) {
-            $count += $employee->claims()->whereIn('status', ['submitted', 'verified'])->count();
-        }
-
-        return $count;
-    }
-
     /** The viewer's own obligation rows: incomplete timesheet, still clocked in, unread lessons. */
     private function meQueueRows(?Employee $employee, FeatureManager $features, ?Tenant $tenant, int $blankDays, int $unreadLessons): Collection
     {
@@ -231,22 +211,6 @@ trait BuildsDashboardData
         }
 
         return $rows->values();
-    }
-
-    /**
-     * Colleagues on approved leave, next 7 days, for the "Around you" rail card.
-     * Rail rows are a flat, DIFFERENT shape from the pinned-queue ROW ARRAY — see
-     * partials.dash.rail-card's doc block (title/sub/meta/initials/color/tag/url).
-     */
-    private function aroundRows(?Employee $employee): array
-    {
-        return $this->teamOnLeaveSoon($employee)->map(fn (LeaveRequest $r) => [
-            'title' => $r->employee?->display_name ?? 'Someone',
-            'sub' => trim($r->date_from->format('j M').'–'.$r->date_to->format('j M')),
-            'meta' => ($r->leaveType?->name ?? 'Leave').' leave',
-            'initials' => $r->employee?->initials ?? '–',
-            'color' => $r->employee?->avatar_color ?? config('amanahku.avatar_color'),
-        ])->all();
     }
 
     /**
@@ -360,62 +324,6 @@ trait BuildsDashboardData
         ];
     }
 
-    /**
-     * Verified leave/claim requests that have sat waiting for final approval for 5+
-     * days — nobody has actioned them, but they no longer show up as "new" either.
-     * Flat rail-row shape (informational — this is a rail card, not the action queue).
-     */
-    private function rotRows(): array
-    {
-        $features = app(FeatureManager::class);
-        $tenant = app(CurrentTenant::class)->get();
-        $cutoff = now()->subDays(5);
-
-        $rows = collect();
-        if ($features->screenAllowed($tenant, 'leave')) {
-            foreach (LeaveRequest::with(['employee', 'leaveType'])->where('status', 'verified')->where('verified_at', '<=', $cutoff)->latest('verified_at')->take(5)->get() as $r) {
-                $rows->push($this->rotRow('Leave', $r->employee, $r->created_at));
-            }
-        }
-        if ($features->screenAllowed($tenant, 'claims')) {
-            foreach (Claim::with('employee')->where('status', 'verified')->where('verified_at', '<=', $cutoff)->latest('verified_at')->take(5)->get() as $r) {
-                $rows->push($this->rotRow('Claim', $r->employee, $r->created_at));
-            }
-        }
-
-        return $rows->take(5)->values()->all();
-    }
-
-    private function rotRow(string $tag, ?Employee $employee, ?CarbonInterface $since): array
-    {
-        $days = $since ? (int) $since->diffInDays(now()) : 0;
-
-        return [
-            'title' => $employee?->name ?? 'Someone',
-            'sub' => $days.' '.Str::plural('day', $days).' waiting on final approval',
-            'meta' => $tag,
-            'initials' => $employee?->initials ?? '–',
-            'color' => $employee?->avatar_color ?? config('amanahku.avatar_color'),
-        ];
-    }
-
-    /** A couple of live headcount figures for the "Headcount" rail card (flat rail-row shape). */
-    private function popRows(?Tenant $tenant): array
-    {
-        return [
-            [
-                'title' => 'Active headcount',
-                'meta' => (string) ($tenant?->employees()->active()->count() ?? 0),
-                'tag' => 'Live',
-            ],
-            [
-                'title' => 'On leave today',
-                'meta' => (string) Employee::active()->where('status', 'on_leave')->count(),
-                'tag' => 'Live',
-            ],
-        ];
-    }
-
     /** Submitted leave/claim requests whose submitter has no reporting-line superior. */
     /**
      * Stuck requests, one row per PERSON rather than per request.
@@ -465,35 +373,6 @@ trait BuildsDashboardData
             ->values();
     }
 
-    /** Colleagues on approved leave from today through the next 7 days (bounded). */
-    private function teamOnLeaveSoon(?Employee $employee): Collection
-    {
-        $today = now()->startOfDay();
-        $horizon = $today->copy()->addDays(7);
-
-        return LeaveRequest::with(['employee:id,name,nickname,initials,avatar_color', 'leaveType:id,name'])
-            ->where('status', 'approved')
-            ->when($employee, fn ($q) => $q->where('employee_id', '!=', $employee->id))
-            ->whereHas('employee', fn ($q) => $q->active())
-            ->whereDate('date_from', '<=', $horizon->toDateString())
-            ->whereDate('date_to', '>=', $today->toDateString())
-            ->orderBy('date_from')
-            ->take(8)
-            ->get();
-    }
-
-    /** Active colleagues with a birthday this month, sorted by day (real DOB, viewer excluded). */
-    private function birthdaysThisMonth(?Employee $employee): Collection
-    {
-        return Employee::active()
-            ->whereNotNull('date_of_birth')
-            ->whereMonth('date_of_birth', now()->month)
-            ->when($employee, fn ($q) => $q->where('id', '!=', $employee->id))
-            ->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'date_of_birth'])
-            ->sortBy(fn (Employee $e) => (int) $e->date_of_birth->format('d'))
-            ->values();
-    }
-
     private function departmentCapacity(): Collection
     {
         return Department::withCount(['employees' => fn ($q) => $q->whereNull('archived_at')])->orderByDesc('employees_count')->get()->map(function ($d) {
@@ -501,33 +380,6 @@ trait BuildsDashboardData
 
             return ['name' => $d->name, 'head' => $d->employees_count, 'cap' => $cap, 'color' => $cap >= 90 ? 'red' : ($cap >= 80 ? 'amber' : 'green')];
         });
-    }
-
-    private function managerStats(): array
-    {
-        $total = Employee::active()->count();
-        $present = Employee::active()->where('status', 'active')->count();
-        // Exclude cards owned by an archived person (their open work is reassigned to their
-        // manager on archive; this also cleans any pre-existing rows). Unassigned cards
-        // (null owner) are legitimate open work and stay counted.
-        $openWork = WorkItem::where('status', '!=', 'done')
-            ->where(fn ($q) => $q->whereNull('employee_id')->orWhereHas('employee', fn ($e) => $e->active()))
-            ->count();
-
-        $stats = [
-            ['k' => 'Team present', 'v' => "$present/$total", 'c' => 'var(--ink)'],
-            ['k' => 'Open work items', 'v' => (string) $openWork, 'c' => $openWork > 10 ? 'var(--amber)' : 'var(--ink)'],
-        ];
-
-        // Avg KPI is part of the Performance module — drop the card entirely when that
-        // module is off, so the manager dashboard tracks the same 'kpi' screen toggle that
-        // already hides the KPI screen, its nav entry, and the profile KPI widgets ($perfEnabled).
-        if (app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'kpi')) {
-            $avgKpi = (int) round((float) (Employee::active()->avg('kpi_pct') ?? 0));
-            $stats[] = ['k' => 'Avg KPI', 'v' => "$avgKpi%", 'c' => 'var(--ink)'];
-        }
-
-        return $stats;
     }
 
     /**
@@ -576,27 +428,6 @@ trait BuildsDashboardData
             'direct_reports' => $reports->count(),
             'on_leave' => $reports->where('status', 'on_leave')->count(),
             'timesheets_outstanding' => $reports->pluck('id')->intersect($pendingIds)->count(),
-        ];
-    }
-
-    private function hrStats(): array
-    {
-        // Real weekly timesheet compliance — replaces the old hardcoded '87%' seed copy.
-        $roster = app(TimesheetCompliance::class)->roster(app(CurrentTenant::class)->get(), now()->startOfWeek());
-        $tsPct = $roster->isEmpty()
-            ? 100
-            : (int) round($roster->where('status', 'done')->count() / $roster->count() * 100);
-
-        // The count is employees.status, so the tile stays. Its subtitle promises a
-        // confirmation workflow that only the Probation module provides, so the copy
-        // (and its amber "needs action" tone) follows that module's gate.
-        $probation = app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'probation');
-
-        return [
-            ['k' => 'Headcount', 'v' => Employee::active()->count(), 'sub' => 'across all branches', 'subc' => 'var(--muted)'],
-            ['k' => 'On probation', 'v' => Employee::active()->where('status', 'probation')->count(), 'sub' => $probation ? 'confirmations pending' : 'of active headcount', 'subc' => $probation ? 'var(--amber)' : 'var(--muted)'],
-            ['k' => 'On leave today', 'v' => Employee::active()->where('status', 'on_leave')->count(), 'sub' => 'see leave calendar', 'subc' => 'var(--muted)'],
-            ['k' => 'Timesheets filled', 'v' => $tsPct.'%', 'sub' => 'this week', 'subc' => $tsPct >= 80 ? 'var(--success)' : 'var(--amber)'],
         ];
     }
 

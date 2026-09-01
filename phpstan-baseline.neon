@@ -75,7 +75,7 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
 			identifier: method.notFound
-			count: 11
+			count: 9
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -87,7 +87,7 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
 			identifier: method.notFound
-			count: 2
+			count: 1
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -109,7 +109,7 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 2
 			path: app/Http/Controllers/AppController.php
@@ -127,15 +127,9 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 2
-			path: app/Http/Controllers/AppController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 7
+			count: 5
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -773,20 +767,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Support/StuckRequests.php
-
-		-
-			# False positive: Larastan infers Collection::get() as never-null here, but
-			# whereIn(...)->get()->keyBy() only covers users that have an Employee row —
-			# verified against real data that some tenant users have none (no match, get()
-			# genuinely returns null). Removing the nullsafe would fatal-error those tenants.
-			# Count 3: one hit in AppController::auditLogsData() itself, one in
-			# BuildsPeopleData::rolesData() and one in BuildsDashboardData::aroundRows()
-			# — traits used only by AppController, so PHPStan attributes all three to
-			# this file.
-			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 3
-			path: app/Http/Controllers/AppController.php
 
 		-
 			message: '#^Method App\\Timesheet\\TimesheetCompliance\:\:roster\(\) should return Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\>\.$#'
