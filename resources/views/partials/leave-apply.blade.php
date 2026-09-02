@@ -19,12 +19,16 @@
     // is stored as a balance row, so a type with a real quota and no row for you is one you
     // are not entitled to — an intern with no annual leave should not be offered it at all,
     // rather than shown a balance that reads "Not set up". Quota-less types (Unpaid) carry
-    // no row by design and stay open to everyone. LeaveController::store() re-checks this.
+    // no row by design and stay open to everyone. A type that spends another type's quota
+    // (Emergency off Annual) stays open too: probation staff and interns hold no Annual
+    // row, and their emergency is approved as unpaid rather than refused.
+    // LeaveController::store() re-checks this.
     $leaveTypes = $leaveTypes->reject(function ($t) use ($leaveTypes, $balByType) {
-        $balTypeId = $t->deducts_from_leave_type_id ?: $t->id;
-        $balType = $leaveTypes->firstWhere('id', $balTypeId) ?? $t;
+        if ($t->deducts_from_leave_type_id) {
+            return false;
+        }
 
-        return $balType->entitlement > 0 && ! $balByType->has($balTypeId);
+        return $t->entitlement > 0 && ! $balByType->has($t->id);
     });
 
     /**
@@ -32,22 +36,29 @@
      * document is required, and which balance the days actually come off (Emergency
      * spends Annual, so it must show Annual's numbers, not its own).
      *
-     * @var array<int, array{notice:int, unplanned:bool, doc:bool, name:string, balName:string, balLeft:float|null, balQuota:float|null}>
+     * @var array<int, array{notice:int, unplanned:bool, doc:bool, name:string, balName:string, balLeft:float|null, balQuota:float|null, unpaidOnly:bool}>
      */
     $applyMeta = $leaveTypes->mapWithKeys(function ($t) use ($balByType, $leaveTypes) {
         $balTypeId = $t->deducts_from_leave_type_id ?: $t->id;
         $balType = $t->deducts_from_leave_type_id ? $leaveTypes->firstWhere('id', $balTypeId) : $t;
         $bal = $balByType->get($balTypeId);
 
+        // Spends a quota this person does not hold (Emergency for someone with no Annual
+        // row): there is no balance to count down, every day is approved as unpaid. The
+        // balance copy and the usage bar are nulled out so the form stops promising a
+        // deduction from a balance that does not exist.
+        $unpaidOnly = (bool) $t->deducts_from_leave_type_id && ! $bal;
+
         return [$t->id => [
             'notice' => (int) $t->min_notice_days,
             'unplanned' => (bool) $t->is_unplanned,
             'doc' => (bool) $t->requires_attachment,
             'name' => $t->name,
-            'deducts' => $t->deducts_from_leave_type_id ? ($balType?->name) : null,
+            'deducts' => $t->deducts_from_leave_type_id && ! $unpaidOnly ? ($balType?->name) : null,
             'balName' => $balType?->name ?? $t->name,
             'balLeft' => $bal ? (float) $bal->balance : null,
-            'balQuota' => $balType && $balType->entitlement > 0 ? (float) $balType->entitlement : null,
+            'balQuota' => ! $unpaidOnly && $balType && $balType->entitlement > 0 ? (float) $balType->entitlement : null,
+            'unpaidOnly' => $unpaidOnly,
         ]];
     })->toArray();
 
@@ -248,9 +259,14 @@
                                 <span class="uj-lv-type-d" x-text="$store.ui.lang==='en' ? @js($m[3]) : @js($m[4])">{{ $m[3] }}</span>
                             </span>
                             <span class="uj-lv-type-bal"
-                                  @if ($t->is_unplanned && $t->deducts_from_leave_type_id) data-none
+                                  @if ($t->deducts_from_leave_type_id) data-none
                                   @elseif ($bal && $bal->balance <= 3) data-low @endif>
-                                @if ($t->is_unplanned && $t->deducts_from_leave_type_id)
+                                @if ($t->deducts_from_leave_type_id && ! $bal)
+                                    {{-- No row for the quota it spends: the days are unpaid, so say that
+                                         rather than pointing at a balance this person does not have. --}}
+                                    <b x-text="$store.ui.lang==='en' ? 'As needed' : 'Ikut perlu'">As needed</b>
+                                    <span x-text="$store.ui.lang==='en' ? 'unpaid' : 'tanpa gaji'">unpaid</span>
+                                @elseif ($t->is_unplanned && $t->deducts_from_leave_type_id)
                                     <b x-text="$store.ui.lang==='en' ? 'As needed' : 'Ikut perlu'">As needed</b>
                                     <span x-text="$store.ui.lang==='en' ? 'off {{ $deductsName }}' : 'dari {{ $deductsName }}'"></span>
                                 @elseif ($bal)
@@ -274,6 +290,10 @@
                      x-text="$store.ui.lang==='en'
                         ? 'Emergency leave is not extra entitlement. Every day comes off your ' + (t() ? t().deducts : '') + ' balance, and frequent use is reported to management. If you knew about this in advance, use Annual leave.'
                         : 'Cuti kecemasan bukan kelayakan tambahan. Setiap hari ditolak daripada baki ' + (t() ? t().deducts : '') + ' anda, dan penggunaan kerap dilaporkan kepada pengurusan. Jika anda sudah tahu lebih awal, guna cuti tahunan.'"></div>
+                <div class="uj-lv-note" data-tone="warn" x-show="t() && t().unpaidOnly" x-cloak
+                     x-text="$store.ui.lang==='en'
+                        ? 'You have no paid leave balance for this, so every day approved here is unpaid — it is deducted from your salary. Use it only for a real emergency.'
+                        : 'Anda tiada baki cuti berbayar untuk ini, jadi setiap hari yang diluluskan adalah tanpa gaji — ia ditolak daripada gaji anda. Guna hanya untuk kecemasan sebenar.'"></div>
                 <div class="uj-lv-note" data-tone="info" x-show="t() && !t().unplanned && t().notice > 0" x-cloak
                      x-text="$store.ui.lang==='en'
                         ? 'Apply at least ' + (t() ? t().notice : 0) + ' days ahead — the earliest date you can pick is ' + fmt(minFrom()) + '. Need time off sooner than that? Use Emergency leave.'

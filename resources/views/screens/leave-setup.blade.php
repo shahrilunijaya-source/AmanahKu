@@ -235,6 +235,11 @@
                                         {{-- Booked outright on the Record card below, so it keeps no running total. --}}
                                         <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
                                              x-text="$store.ui.lang==='en' ? 'granted, no balance' : 'diberi, tiada baki'">granted, no balance</div>
+                                    @elseif ($type->is_unpaid)
+                                        {{-- Not an entitlement — salary not paid for a day not worked. No quota
+                                             to open, and open to everyone, so there is nothing to tick. --}}
+                                        <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
+                                             x-text="$store.ui.lang==='en' ? 'no quota, open to all' : 'tiada kuota, untuk semua'">no quota, open to all</div>
                                     @elseif ($type->deducts_from_leave_type_id)
                                         {{-- Spends another type's balance, so there is nothing to open here. --}}
                                         <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
@@ -262,7 +267,7 @@
                                 @foreach ($leaveTypes as $type)
                                     @php $cell = $row?->get($type->id); @endphp
                                     <td style="padding:7px 14px;text-align:center;">
-                                        @if ($type->is_hr_granted_only)
+                                        @if ($type->is_hr_granted_only || $type->is_unpaid)
                                             <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">—</span>
                                         @elseif ($type->deducts_from_leave_type_id)
                                             @php $src = $row?->get($type->deducts_from_leave_type_id); @endphp

@@ -17,6 +17,20 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.7.2"
+  date: "2026-09-02"
+  entries:
+    - tag: improved
+      major: true
+      text: "Emergency leave now works even when you have no annual leave left to spend. It still comes off your annual balance first, exactly as before. Once that balance is empty — or if you never had one at all, which is the case while you are on probation or interning — the days are approved as unpaid leave instead of being refused. An emergency is still an emergency, and the absence is still recorded properly.\nThe apply screen warns you before you send it that those days will not be paid, and the manager approving it sees the same warning, so nobody is deciding blind."
+      text_ms: "Cuti kecemasan kini boleh digunakan walaupun baki cuti tahunan anda sudah habis. Ia tetap ditolak daripada baki cuti tahunan dahulu, sama seperti sebelum ini. Apabila baki itu habis — atau jika anda memang tidak pernah ada, seperti semasa dalam tempoh percubaan atau menjalani latihan industri — hari-hari itu diluluskan sebagai cuti tanpa gaji dan bukan ditolak. Kecemasan tetap kecemasan, dan ketidakhadiran itu tetap direkodkan dengan betul.\nSkrin permohonan memberi amaran sebelum anda menghantar bahawa hari tersebut tidak dibayar, dan pengurus yang meluluskannya melihat amaran yang sama, jadi tiada sesiapa membuat keputusan secara buta."
+      link: "/app/leave"
+      link_text: "Open Leave"
+      link_text_ms: "Buka Cuti"
+    - tag: fixed
+      text: "Unpaid leave no longer carries a quota. It never was something anybody is allotted — it is simply pay withheld for a day not worked — so it is open to everyone and there is no balance to run out. Leave Setup shows it as \"no quota, open to all\" rather than a tick box and a number, and the balances that had been handed out for it are gone."
+      text_ms: "Cuti tanpa gaji tidak lagi mempunyai kuota. Ia memang bukan sesuatu yang diperuntukkan kepada sesiapa — ia hanya gaji yang tidak dibayar bagi hari yang tidak bekerja — jadi ia terbuka kepada semua orang dan tiada baki untuk dihabiskan. Persediaan Cuti memaparkannya sebagai \"tiada kuota, terbuka kepada semua\" dan bukan kotak tanda dengan nombor, dan baki yang pernah diberikan untuknya telah dibuang."
+
 - version: "1.7.1"
   date: "2026-09-01"
   entries:

@@ -76,10 +76,13 @@ class LeaveSetupController extends Controller
         // A type that spends another type's balance (Emergency off Annual) has no balance
         // of its own — writing one would create a row nothing ever reads or deducts. Nor
         // does a granted type (Replacement): HR books those days outright, so there is no
-        // running total to open.
+        // running total to open. Nor does Unpaid leave: it is not an entitlement anyone
+        // is allotted, it is salary not paid for a day not worked, so it carries no quota
+        // and is open to everyone — see the 2026_09_01 unpaid-carries-no-quota migration.
         $staffIds = Employee::active()->pluck('id')->flip();
         $typeIds = LeaveType::whereNull('deducts_from_leave_type_id')
             ->where('is_hr_granted_only', false)
+            ->where('is_unpaid', false)
             ->pluck('id')->flip();
 
         $updated = 0;
@@ -173,7 +176,16 @@ class LeaveSetupController extends Controller
         $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
         $this->assertTenant($leaveType);
 
-        $leaveType->update($this->validateType($request, $leaveType->id));
+        $data = $this->validateType($request, $leaveType->id);
+
+        // Unpaid leave carries no quota, so an entitlement typed into the form is ignored
+        // rather than written back — that figure is what created the phantom balance rows
+        // the 2026_09_01 migration cleared.
+        if ($leaveType->is_unpaid) {
+            $data['entitlement'] = 0;
+        }
+
+        $leaveType->update($data);
         AuditLog::record('Updated leave type', $leaveType->name);
 
         return back()->with('ok', $leaveType->name.' updated.');
