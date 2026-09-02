@@ -276,20 +276,6 @@
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
              x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'), queue: @js($verifyCount > 0 ? 'verify' : 'approve') }"
              class="uj-lv-panel">
-            <div>
-                <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Claims waiting on you' : 'Tuntutan menunggu anda'">Claims waiting on you</span></h3>
-                <p style="font-size:var(--t-sm);color:var(--muted);margin:0;">
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'You verify your own reports first. Management gives the final approval on anything already verified.'
-                        : 'Anda sahkan laporan anda sendiri dahulu. Pengurusan beri kelulusan akhir bagi yang telah disahkan.'"></span>
-                </p>
-                <p style="font-size:var(--t-sm);color:var(--muted);margin:6px 0 0;">
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'Tap any claim to open its receipt and approval trail before you decide.'
-                        : 'Ketik mana-mana tuntutan untuk buka resit dan jejak kelulusan sebelum anda putuskan.'"></span>
-                </p>
-            </div>
-
             {{-- Status counts. Approved covers the whole year, so it keeps its number even
                  on a day when nothing is pending — the reason this tab no longer hides. --}}
             <div class="uj-lv-stbar">
