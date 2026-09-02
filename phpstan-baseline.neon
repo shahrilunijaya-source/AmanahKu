@@ -133,12 +133,6 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Using nullsafe property access on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/AppController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -215,12 +209,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/DocumentController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:tenants\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/EmployeeController.php
 
 		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,App\\Models\\Employee\>\:\:filter\(\) expects \(callable\(App\\Models\\Employee, int\)\: bool\)\|null, Closure\(mixed\)\: \(string\|null\) given\.$#'

@@ -315,17 +315,39 @@ trait BuildsWorkData
      * The `claim-approvals` slug renders this same screen (defaulting to the Approvals tab)
      * so existing deep links keep working — see AppController::screen().
      */
+    /**
+     * HR's "filing for" picker on the Apply tabs. Returns the person the form is currently
+     * set up for (`?for=<employee id>`, HR only, defaults to the viewer) and the staff list
+     * to pick from — empty for everyone who is not HR, so the picker never renders.
+     *
+     * @return array{applyFor: ?Employee, onBehalfStaff: Collection}
+     */
+    private function onBehalfData(Request $request, ?Employee $employee): array
+    {
+        if (! $this->hasTenantRole($request, ['hr'])) {
+            return ['applyFor' => $employee, 'onBehalfStaff' => collect()];
+        }
+
+        $staff = Employee::active()->orderBy('name')->get();
+        $for = $request->query('for');
+        $target = $for ? $staff->firstWhere('id', (int) $for) : null;
+
+        return ['applyFor' => $target ?? $employee, 'onBehalfStaff' => $staff];
+    }
+
     private function claimsData(Request $request, ?Employee $employee): array
     {
+        ['applyFor' => $applyFor, 'onBehalfStaff' => $onBehalfStaff] = $this->onBehalfData($request, $employee);
         $myClaims = $employee?->claims()->latest('date')->get() ?? collect();
 
         // Medical allowance consumed this calendar year (all non-rejected medical claims),
-        // so the form can show what's left against the annual cap.
-        $medicalUsedYtd = (float) $myClaims
+        // so the form can show what's left against the annual cap. Counted for the person
+        // the form is filing FOR, which is the viewer unless HR picked someone.
+        $medicalUsedYtd = (float) ($applyFor?->claims()
             ->where('type', 'medical')
-            ->where('status', '!=', 'rejected')
-            ->filter(fn (Claim $c) => $c->date?->year === now()->year)
-            ->sum('amount');
+            ->whereNotIn('status', ['rejected', 'cancelled'])
+            ->whereYear('date', now()->year)
+            ->sum('amount') ?? 0);
 
         // An approver has a verify/approve queue; a privileged viewer (management/hr) also
         // sees the company-wide ledger. A plain employee is neither, and gets no extra keys.
@@ -338,7 +360,10 @@ trait BuildsWorkData
 
         $data = [
             'myClaims' => $myClaims,
-            'approvalChain' => $this->approvalChain($employee),
+            'approvalChain' => $this->approvalChain($applyFor),
+            'applyFor' => $applyFor,
+            'onBehalfStaff' => $onBehalfStaff,
+            'applySkipsVerification' => $this->skipsVerification($request, $applyFor),
             'medicalCap' => (float) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'claims.medical_cap'),
             'medicalUsedYtd' => $medicalUsedYtd,
             'isApprover' => $isApprover,
@@ -374,17 +399,23 @@ trait BuildsWorkData
         // Approval chain (verifier[s] + management approver pool) shown up front so the
         // applicant knows who signs off before they submit. Also feeds the pending-verify
         // name in "My requests" timelines.
-        $chain = $this->approvalChain($employee);
+        ['applyFor' => $applyFor, 'onBehalfStaff' => $onBehalfStaff] = $this->onBehalfData($request, $employee);
+        $chain = $this->approvalChain($applyFor);
 
         return [
             'balances' => $employee?->leaveBalances()->with('leaveType')->get() ?? collect(),
+            // The Apply tab's own copy of the balances: the viewer's, unless HR is filing for
+            // someone else — then that person's, so eligibility and "days left" are theirs.
+            'applyBalances' => $applyFor?->leaveBalances()->with('leaveType')->get() ?? collect(),
+            'applyFor' => $applyFor,
+            'onBehalfStaff' => $onBehalfStaff,
             'leaveTypes' => LeaveType::orderBy('name')->get(),
             'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'])->latest()->get() ?? collect(),
             'approvalChain' => $chain,
             'leaveVerifiers' => $chain['verifiers'],
             // HR and the directors have nobody above them, so their own requests open already
             // verified. The Apply form must promise the right chain, not the generic one.
-            'leaveSkipsVerification' => $this->skipsVerification($request),
+            'leaveSkipsVerification' => $this->skipsVerification($request, $applyFor),
             // Names the Approvals tab for what this viewer can actually do — see the note
             // on $givesFinalApproval in the claims builder.
             'givesFinalApproval' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES),

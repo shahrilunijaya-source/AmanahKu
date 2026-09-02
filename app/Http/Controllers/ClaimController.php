@@ -32,8 +32,11 @@ class ClaimController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $employee = $request->attributes->get('employee');
-        abort_unless($employee, 403, 'No employee profile in this workspace.');
+        // Normally the acting user's own record; HR may file for someone else (see
+        // requesterFor()). The medical cap is the requester's, and so is the route.
+        $employee = $this->requesterFor($request);
+        abort_unless($employee !== null, 403, 'No employee profile in this workspace.');
+        $filedById = $this->filedByIdFor($request, $employee);
 
         $data = $request->validate([
             'type' => ['required', 'in:mileage,medical,expense,travel,other'],
@@ -89,12 +92,16 @@ class ClaimController extends Controller
             'reason' => $data['reason'] ?? null,
             'receipt_path' => $receiptPath,
             'receipt_name' => $receiptName,
-            ...$this->openingStatusColumns($request),
+            'filed_by_id' => $filedById,
+            ...$this->openingStatusColumns($request, $employee),
         ]);
 
         $body = $data['title'].' · RM '.number_format((float) $data['amount'], 2);
+        if ($filedById) {
+            AuditLog::record('Filed claim on behalf', $employee->name.' · '.$body);
+        }
 
-        if ($this->skipsVerification($request)) {
+        if ($this->skipsVerification($request, $employee)) {
             // Nobody sits above a final-approval-tier requester: no verify step, straight to
             // final approval.
             $this->notifyManagementToApprove(
@@ -113,7 +120,9 @@ class ClaimController extends Controller
             );
         }
 
-        return back()->with('ok', 'Claim submitted for RM '.number_format((float) $data['amount'], 2).'.');
+        $for = $filedById ? ' for '.$employee->name : '';
+
+        return back()->with('ok', 'Claim submitted'.$for.' for RM '.number_format((float) $data['amount'], 2).'.');
     }
 
     /** Step 1: the immediate superior verifies, moving the claim on to management. */
@@ -153,7 +162,7 @@ class ClaimController extends Controller
     /** Step 2: management gives final approval. */
     public function approve(Request $request, Claim $claim): RedirectResponse
     {
-        $this->assertApprover($request, $claim->employee, $claim->tenant_id, $claim->verified_by_id);
+        $this->assertApprover($request, $claim->employee, $claim->tenant_id, $claim->verified_by_id, $claim->filed_by_id);
         abort_unless($claim->status === 'verified', 422, 'A claim must be verified by the immediate superior before approval.');
 
         // Compare-and-set so two concurrent approves don't double-audit / double-notify.

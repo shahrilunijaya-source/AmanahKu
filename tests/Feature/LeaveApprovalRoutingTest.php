@@ -583,4 +583,98 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->actingAsEmployee($manager)->post("/app/leave/{$req->id}/cancel")->assertForbidden();
         $this->assertSame('submitted', $req->fresh()->status);
     }
+
+    // --- HR files on someone's behalf ------------------------------------------
+
+    public function test_hr_can_file_leave_for_an_employee_and_it_routes_to_that_persons_manager(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/leave', [
+            'employee_id' => $report->id, 'reason' => 'Called in sick, HR filing.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::where('employee_id', $report->id)->firstOrFail();
+        $this->assertSame('submitted', $req->status);
+        $this->assertSame($hr->id, $req->filed_by_id);
+        $this->assertDatabaseMissing('leave_requests', ['employee_id' => $hr->id]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $manager->user_id, 'title' => 'Leave awaiting your verification',
+        ]);
+    }
+
+    public function test_hr_filing_for_a_director_opens_pre_verified_and_hr_cannot_approve_it(): void
+    {
+        $shahril = $this->member('director', 'Shahril');
+        $suandy = $this->member('director', 'Suandy');
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/leave', [
+            'employee_id' => $suandy->id, 'reason' => 'Overseas trip.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::where('employee_id', $suandy->id)->firstOrFail();
+        $this->assertSame('verified', $req->status);
+
+        // Filer, requester: neither signs it off. The other director does.
+        $this->actingAsEmployee($hr)->post("/app/leave/{$req->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($suandy)->post("/app/leave/{$req->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($shahril)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $req->fresh()->status);
+    }
+
+    public function test_non_hr_posting_employee_id_files_for_themselves(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $other = $this->member('employee', 'Other', $manager->id);
+
+        $this->actingAsEmployee($other)->post('/app/leave', [
+            'employee_id' => $report->id, 'reason' => 'Trying it on.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('leave_requests', ['employee_id' => $report->id]);
+        $this->assertDatabaseHas('leave_requests', ['employee_id' => $other->id, 'filed_by_id' => null]);
+    }
+
+    public function test_hr_sees_the_filing_for_picker_and_others_do_not(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $staff = $this->member('employee', 'Plain Staff');
+
+        $this->actingAsEmployee($hr)->get('/app/leave')->assertOk()->assertSee('Filing for');
+        $this->actingAsEmployee($hr)->get('/app/leave?for='.$staff->id)->assertOk()
+            ->assertSee('Recorded as filed by you');
+        $this->actingAsEmployee($staff)->get('/app/leave')->assertOk()->assertDontSee('Filing for');
+    }
+
+    // --- Directors approve each other ------------------------------------------
+
+    public function test_directors_approve_each_others_leave_and_never_their_own(): void
+    {
+        $shahril = $this->member('director', 'Shahril');
+        $suandy = $this->member('director', 'Suandy');
+
+        $this->actingAsEmployee($suandy)->post('/app/leave', [
+            'reason' => 'Board retreat.',
+            'leave_type_id' => $this->type->id, 'date_from' => '2026-09-01', 'date_to' => '2026-09-02',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $suandys = LeaveRequest::where('employee_id', $suandy->id)->firstOrFail();
+        $this->assertSame('verified', $suandys->status);
+        $this->assertDatabaseHas('app_notifications', ['user_id' => $shahril->user_id, 'title' => 'Leave awaiting final approval']);
+
+        $this->actingAsEmployee($suandy)->post("/app/leave/{$suandys->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($shahril)->post("/app/leave/{$suandys->id}/approve")->assertRedirect();
+        $this->assertSame($shahril->id, $suandys->fresh()->approved_by_id);
+
+        $shahrils = $this->request($shahril, 'verified');
+        $this->actingAsEmployee($shahril)->post("/app/leave/{$shahrils->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($suandy)->post("/app/leave/{$shahrils->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $shahrils->fresh()->status);
+    }
 }

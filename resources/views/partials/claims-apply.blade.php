@@ -27,14 +27,19 @@
         'other'   => ['Other', 'Lain-lain', 'Anything else. Add a note so finance can code it.', 'Apa-apa lagi. Tambah nota supaya finance boleh kod.'],
     ];
     $verifierName = collect($approvalChain['verifiers'] ?? [])->first()?->name;
-    $sendsTo = $verifierName
+    $sendsTo = ($applySkipsVerification ?? false)
+        ? ['en' => 'Goes straight to management for approval — no verify step for this role.',
+            'ms' => 'Dihantar terus kepada pengurusan untuk kelulusan — tiada langkah pengesahan untuk peranan ini.']
+        : ($verifierName
         ? ['en' => "Goes to {$verifierName} to verify, then management to approve.",
             'ms' => "Dihantar kepada {$verifierName} untuk sahkan, kemudian pengurusan untuk lulus."]
         : ['en' => 'Goes to your manager to verify, then management to approve.',
-            'ms' => 'Dihantar kepada pengurus anda untuk sahkan, kemudian pengurusan untuk lulus.'];
+            'ms' => 'Dihantar kepada pengurus anda untuk sahkan, kemudian pengurusan untuk lulus.']);
 @endphp
 
-<form method="post" action="{{ route('claims.store') }}" enctype="multipart/form-data" x-data="{
+@include('partials.on-behalf-picker', ['screen' => 'claims'])
+
+<form id="apply-claims" method="post" action="{{ route('claims.store') }}" enctype="multipart/form-data" x-data="{
         meta: @js($applyMeta),
         cap: @js((float) $medicalCap),
         capLeft: @js((float) $medicalRemaining),
