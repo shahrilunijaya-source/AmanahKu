@@ -40,8 +40,9 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * effort type and project (set once, in the board drawer), and this tool
  * derives both server-side from the card rather than trusting them from the
  * caller — see resolveCardEntries(). A card the caller does not own or
- * participate in, or one that has not had its effort type set yet, is
- * refused rather than guessed at.
+ * participate in is refused rather than guessed at. A card with no effort
+ * type set on the board yet takes the row's own category_id instead — the
+ * capture overlay's fallback, landing on the entry and never the card.
  *
  * The preview always renders the FULL resulting week, day by day, after the
  * change is merged with whatever is already saved (WeekWriter::mergePartialIntoExisting())
@@ -66,7 +67,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('save_timesheet_draft')]
 #[IsReadOnly]
-#[Description("Preview saving a change to one or more days of YOUR OWN timesheet week, as a draft. Each row names a board card (work_item_id) — the card's own effort type and project are used, they are not picked here. Unmentioned days keep whatever is already saved. A mentioned day gets its rows ADDED to whatever is already saved for that day — this tool merges, it never wipes the week or a day. Re-saving the same card on the same day updates that line rather than duplicating it; two different cards on the same day (even the same project) both survive. To deliberately remove a line you did not just send (e.g. correcting a day that was wrongly split across two cards), pass its date in replace_days to fully replace that day instead of merging into it. A card that is not yours, or whose effort type has not been set on the board yet, is refused. Cards you did not actually work on still show up as suggestions on the timesheet screen — strike them off there, this tool does not touch dismissals. A day pushed over its capacity (100%, or 50% on the first Saturday of the month) is refused. Only works on a draft week (a submitted week is refused). Never submits. Requires timesheets:write. Returns a summary and a confirm_token, with the FULL resulting week shown day by day — nothing is saved until confirm_write is called.")]
+#[Description("Preview saving a change to one or more days of YOUR OWN timesheet week, as a draft. Each row names a board card (work_item_id) — the card's own effort type and project are used, they are not picked here; only when the card has NO effort type set on the board does the row's own category_id fill in for it (timesheet_options lists the ids), landing on the entry without touching the card. Unmentioned days keep whatever is already saved. A mentioned day gets its rows ADDED to whatever is already saved for that day — this tool merges, it never wipes the week or a day. Re-saving the same card on the same day updates that line rather than duplicating it; two different cards on the same day (even the same project) both survive. To deliberately remove a line you did not just send (e.g. correcting a day that was wrongly split across two cards), pass its date in replace_days to fully replace that day instead of merging into it. A card that is not yours is refused; so is a row where neither the card nor the row supplies an effort type. Cards you did not actually work on still show up as suggestions on the timesheet screen — strike them off there, this tool does not touch dismissals. A day pushed over its capacity (100%, or 50% on the first Saturday of the month) is refused. Only works on a draft week (a submitted week is refused). Never submits. Requires timesheets:write. Returns a summary and a confirm_token, with the FULL resulting week shown day by day — nothing is saved until confirm_write is called.")]
 class SaveTimesheetDraftTool extends Tool
 {
     use PreviewsWrites;
@@ -93,6 +94,10 @@ class SaveTimesheetDraftTool extends Tool
             'entries' => ['required', 'array', 'min:1'],
             'entries.*.entry_date' => ['required', 'date'],
             'entries.*.work_item_id' => ['required', 'integer'],
+            // Fallback only — resolveCardEntries() ignores it whenever the card carries
+            // its own effort type, and validates it there (not here) so a stray value on
+            // a row that never needs it stays harmless, as it always was.
+            'entries.*.category_id' => ['nullable', 'integer'],
             'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
             'entries.*.percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'entries.*.description' => ['nullable', 'string', 'max:10000'],
@@ -227,18 +232,26 @@ class SaveTimesheetDraftTool extends Tool
      * later in the pipeline and would only produce a raw "that task is not yours"
      * validation exception rather than pointing the model at the actual problem row.
      *
-     * A card whose timesheet_category_id is null is refused rather than defaulted to
-     * Others: see BoardSuggestions::categoryFor()'s docblock — filing an unanswered
-     * card under the one bucket the director reads as overhead would quietly cost it
-     * as something nobody chose. The fix is on the board, not in this tool.
+     * A card whose timesheet_category_id is null has not answered the board's question
+     * — but the capture screen does not dead-end there: its row overlay asks the
+     * staffer instead, and the choice lands on the entry, never the card (see
+     * BoardSuggestions::categoryFor()). The row's own category_id is that overlay's
+     * MCP twin: used ONLY when the card carries no effort type of its own — a card
+     * that HAS answered always wins, so a stray category_id cannot re-cost a card
+     * someone already booked — and validated only when actually used, so a stray
+     * value on a row that never needs it stays harmless. A row where neither the
+     * card nor the caller supplies one is still refused rather than defaulted to
+     * Others: filing an unanswered card under the one bucket the director reads as
+     * overhead would quietly cost it as something nobody chose.
      *
-     * A card carrying a category that DOES require a project (Development, Maintenance,
-     * ...) but has no project of its own is refused the same way: normaliseEntries()
-     * would otherwise throw "Choose a project for X", a message that names a field this
-     * tool does not accept — there is nowhere for the caller to put an answer. The fix
-     * is the same: on the board, not a project_id this tool would have to invent.
+     * A card carrying (or falling back to) a category that DOES require a project
+     * (Development, Maintenance, ...) but has no project of its own is refused the
+     * same way: normaliseEntries() would otherwise throw "Choose a project for X", a
+     * message that names a field this tool does not accept — there is nowhere for the
+     * caller to put an answer. That fix stays on the board: a project_id is an
+     * identity this tool must not invent.
      *
-     * @param  array<int, array{entry_date:string, work_item_id:int, percentage:float|int|string, sub_pillar_id?:?int, description?:?string}>  $rawEntries
+     * @param  array<int, array{entry_date:string, work_item_id:int, percentage:float|int|string, category_id?:?int, sub_pillar_id?:?int, description?:?string}>  $rawEntries
      * @return array<int, array{entry_date:string, category_id:int, project_id:?int, sub_pillar_id:?int, percentage:float|int|string, description:?string, work_item_id:int}>
      */
     private function resolveCardEntries(array $rawEntries, Employee $employee): array
@@ -253,12 +266,13 @@ class SaveTimesheetDraftTool extends Tool
             ->get(['id', 'title', 'project_id', 'timesheet_category_id'])
             ->keyBy(fn (WorkItem $c) => (int) $c->id);
 
-        // Every offending card, not the first — the same reasoning
+        // Every offending row, not the first — the same reasoning
         // WeekWriter::assertDatesInWindow() and assertNoBlankLines() spell out. A
         // developer drafting a week from a project folder can easily be holding three
         // cards nobody has given an effort type; reporting one at a time costs them
         // three trips to the board and three retries to learn what a single message
-        // could have told them.
+        // could have told them. Deduplicated at throw time: the same card logged on
+        // two days earns its message once.
         $problems = [];
 
         foreach ($cardIds as $id) {
@@ -267,42 +281,72 @@ class SaveTimesheetDraftTool extends Tool
             }
         }
 
-        $categories = app(BoardSuggestions::class)->categoryFor($cards);
-        $categoryModels = TimesheetCategory::whereIn('id', collect($categories)->filter()->unique())->get()->keyBy('id');
+        $cardCategories = app(BoardSuggestions::class)->categoryFor($cards);
 
-        foreach ($cards as $card) {
-            $categoryId = $categories[(int) $card->id];
+        // The effort type each ROW is costed as: the card's own answer when it has
+        // one, else the row's fallback. Per row, not per card — two rows naming the
+        // same unanswered card may disagree, and each is judged on what it sent.
+        $rowCategories = [];
+        foreach ($rawEntries as $i => $e) {
+            $id = (int) $e['work_item_id'];
+            $rowCategories[$i] = $cards->has($id)
+                ? ($cardCategories[$id] ?? (isset($e['category_id']) ? (int) $e['category_id'] : null))
+                : null;
+        }
+
+        // Tenant-scoped via BelongsToTenant, so a category_id from another workspace
+        // simply fails to resolve and is refused below like any other unknown id.
+        $categoryModels = TimesheetCategory::whereIn('id', collect($rowCategories)->filter()->unique())->get()->keyBy('id');
+
+        foreach ($rawEntries as $i => $e) {
+            $id = (int) $e['work_item_id'];
+
+            if (! $cards->has($id)) {
+                continue;
+            }
+
+            $card = $cards[$id];
+            $categoryId = $rowCategories[$i];
 
             if ($categoryId === null) {
-                $problems[] = "'{$card->title}' has no effort type set — set its category on the card in the board first, then try saving this again.";
+                $problems[] = "'{$card->title}' has no effort type set — set its category on the card in the board, or pass the row a category_id (timesheet_options lists them), then try saving this again.";
 
                 continue;
             }
 
             $category = $categoryModels->get($categoryId);
 
-            if ($category && $category->requires_project && ! $card->project_id) {
+            if (! $category) {
+                $problems[] = "category_id {$categoryId} is not one of this workspace's timesheet categories — timesheet_options lists them.";
+
+                continue;
+            }
+
+            if ($category->requires_project && ! $card->project_id) {
                 $problems[] = "'{$card->title}' is booked to {$category->name}, which needs a project — set one on the card in the board first, then try saving this again.";
             }
         }
 
         if ($problems !== []) {
-            throw ValidationException::withMessages(['entries' => $problems]);
+            throw ValidationException::withMessages(['entries' => array_values(array_unique($problems))]);
         }
 
-        return array_map(function (array $e) use ($cards, $categories) {
+        $out = [];
+        foreach ($rawEntries as $i => $e) {
             $card = $cards[(int) $e['work_item_id']];
 
-            return [
+            $out[] = [
                 'entry_date' => $e['entry_date'],
-                'category_id' => $categories[(int) $card->id],
+                'category_id' => $rowCategories[$i],
                 'project_id' => $card->project_id ? (int) $card->project_id : null,
                 'sub_pillar_id' => $e['sub_pillar_id'] ?? null,
                 'percentage' => $e['percentage'],
                 'description' => $e['description'] ?? null,
                 'work_item_id' => (int) $card->id,
             ];
-        }, $rawEntries);
+        }
+
+        return $out;
     }
 
     /** @return array<string, array<int, array<string, mixed>>> */
@@ -398,10 +442,11 @@ class SaveTimesheetDraftTool extends Tool
             'entries' => $schema->array()->items($schema->object([
                 'entry_date' => $schema->string(),
                 'work_item_id' => $schema->integer(),
+                'category_id' => $schema->integer(),
                 'sub_pillar_id' => $schema->integer(),
                 'percentage' => $schema->number(),
                 'description' => $schema->string(),
-            ]))->description('The changed day(s) only. Each row names a board card (work_item_id) — its category and project are read off the card, not supplied here. Any day not mentioned here keeps whatever is already saved for that day. A day that IS mentioned gets these rows ADDED to what is already saved for it — re-sending the same card on the same day updates that line, a different card is kept alongside it.')->required(),
+            ]))->description('The changed day(s) only. Each row names a board card (work_item_id) — its category and project are read off the card, not supplied here; category_id is a fallback used ONLY when the card has no effort type set on the board (timesheet_options lists the ids), and is ignored whenever the card carries its own. Any day not mentioned here keeps whatever is already saved for that day. A day that IS mentioned gets these rows ADDED to what is already saved for it — re-sending the same card on the same day updates that line, a different card is kept alongside it.')->required(),
             'replace_days' => $schema->array()->items($schema->string())->description('Dates (YYYY-MM-DD, must also appear in entries) whose stored rows should be fully REPLACED rather than merged into — the only way to remove a line this call did not itself send, e.g. correcting a day that was wrongly split across two cards.'),
         ];
     }
