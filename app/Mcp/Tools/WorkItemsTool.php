@@ -15,11 +15,14 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 /**
  * Board cards (work items). Privileged callers (management|hr) see the whole
- * tenant's board; everyone else sees only cards assigned to them or unassigned —
- * the same "own records" rule as the rest of the read API, applied to employee_id.
+ * tenant's board; everyone else sees cards assigned to them, unassigned, or ones
+ * they participate in — the same membership BoardSuggestions::cardsFor() lets
+ * them log time against, so every card save_timesheet_draft would accept is
+ * findable here (with its id, which that tool needs) rather than only via the
+ * week's suggestions.
  */
 #[IsReadOnly]
-#[Description('Search the board for work item cards (title, status, priority, labels, due date, assignee, project). Privileged callers (management/HR) see the whole board; everyone else sees only cards assigned to them or unassigned.')]
+#[Description('Search the board for work item cards (id, title, status, priority, labels, due date, assignee, project). The id is the work_item_id save_timesheet_draft takes. Privileged callers (management/HR) see the whole board; everyone else sees cards assigned to them, unassigned, or ones they participate in.')]
 class WorkItemsTool extends Tool
 {
     public function handle(Request $request): Response
@@ -59,7 +62,9 @@ class WorkItemsTool extends Tool
         if (! ApiCaller::isPrivileged($httpRequest)) {
             $employee = ApiCaller::employee($httpRequest);
             $employeeId = $employee?->id;
-            $query->where(fn ($q) => $q->where('employee_id', $employeeId)->orWhereNull('employee_id'));
+            $query->where(fn ($q) => $q->where('employee_id', $employeeId)
+                ->orWhereNull('employee_id')
+                ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employeeId)));
         }
 
         $cards = $query->get()->map($this->cardRow(...));
@@ -68,11 +73,12 @@ class WorkItemsTool extends Tool
     }
 
     /**
-     * @return array{title: string, status: string, priority: ?string, labels: array<int, string>, due_date: ?string, assignee: ?string, project: ?string}
+     * @return array{id: int, title: string, status: string, priority: ?string, labels: array<int, string>, due_date: ?string, assignee: ?string, project: ?string}
      */
     private function cardRow(WorkItem $item): array
     {
         return [
+            'id' => (int) $item->id,
             'title' => $item->title,
             'status' => $item->status,
             'priority' => $item->priority,
