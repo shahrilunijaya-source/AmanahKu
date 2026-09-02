@@ -9,6 +9,7 @@ use App\Mcp\Tools\ConfirmWriteTool;
 use App\Mcp\Tools\CreateCardTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
+use App\Mcp\Tools\TimesheetOptionsTool;
 use App\Mcp\Tools\UpdateCardTool;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
@@ -1047,7 +1048,51 @@ class AmanahkuWriteToolsTest extends TestCase
         ], $headers);
 
         $this->assertTrue($this->toolIsError($response));
-        $this->assertStringContainsString('effort type', $response->json('result.content.0.text'));
+
+        // The ids inline, not a pointer at timesheet_options: the caller can retry
+        // from the refusal alone instead of spending a round trip discovering them.
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('no category set', $text);
+        $this->assertStringContainsString($this->categoryA->id.' '.$this->categoryA->name, $text);
+    }
+
+    /**
+     * The refusal's inline list and timesheet_options must offer the same categories.
+     * They are two copies of one answer, and a caller told about a category the other
+     * tool would not have offered — an inactive one, or a leave-module one — is being
+     * pointed at a choice that fails one step later.
+     */
+    public function test_the_refusal_lists_exactly_what_timesheet_options_offers(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Retired Bucket', 'requires_project' => false, 'is_active' => false,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $card = $this->card(categoryId: null, projectId: null);
+
+        $refusal = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'percentage' => 100,
+            ]],
+        ], $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']));
+
+        $text = $refusal->json('result.content.0.text');
+
+        $options = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']));
+        $offered = $this->toolData($options)['categories'];
+
+        $this->assertNotEmpty($offered);
+
+        foreach ($offered as $category) {
+            $this->assertStringContainsString($category['id'].' '.$category['name'], $text);
+        }
+
+        $this->assertStringNotContainsString('Retired Bucket', $text, 'an inactive category must not be offered by either tool');
     }
 
     /**
@@ -1108,7 +1153,9 @@ class AmanahkuWriteToolsTest extends TestCase
         ], $headers);
 
         $this->assertTrue($this->toolIsError($response));
-        $this->assertStringContainsString('timesheet_options', $response->json('result.content.0.text'));
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('not one of this workspace', $text);
+        $this->assertStringContainsString($this->categoryA->id.' '.$this->categoryA->name, $text);
         app(CurrentTenant::class)->set($this->tenantA);
         $this->assertSame(0, TimesheetEntry::where('work_item_id', $card->id)->count());
         app(CurrentTenant::class)->set(null);

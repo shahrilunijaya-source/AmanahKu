@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
 use App\Support\ApiCaller;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\BoardSuggestions;
@@ -71,6 +72,9 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 class SaveTimesheetDraftTool extends Tool
 {
     use PreviewsWrites;
+
+    /** Built at most once per request by categoryMenu(). */
+    private ?string $categoryMenu = null;
 
     public function __construct(private WeekWriter $weekWriter) {}
 
@@ -254,6 +258,32 @@ class SaveTimesheetDraftTool extends Tool
      * @param  array<int, array{entry_date:string, work_item_id:int, percentage:float|int|string, category_id?:?int, sub_pillar_id?:?int, description?:?string}>  $rawEntries
      * @return array<int, array{entry_date:string, category_id:int, project_id:?int, sub_pillar_id:?int, percentage:float|int|string, description:?string, work_item_id:int}>
      */
+    /**
+     * The categories a row may name, inline in the refusal that needs them, so a
+     * caller learns the ids from the error itself instead of spending a round trip
+     * on timesheet_options to find out. Mirrors that tool's own list exactly —
+     * same active filter, same order, same leave-module exclusions — because two
+     * lists that can disagree eventually will.
+     *
+     * Memoised: several rows can hit the same refusal, and the list cannot change
+     * mid-request.
+     */
+    private function categoryMenu(): string
+    {
+        if ($this->categoryMenu !== null) {
+            return $this->categoryMenu;
+        }
+
+        $leaveModuleOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'module.leave');
+
+        return $this->categoryMenu = TimesheetCategory::where('is_active', true)->orderBy('sort')->orderBy('name')->get()
+            ->reject(fn (TimesheetCategory $c) => $leaveModuleOn && in_array($c->name, ['On Leave', 'Public Holiday'], true))
+            // Flagged, because a category that needs a project is no use on a card that
+            // has none — that row is refused a second time, one step further along.
+            ->map(fn (TimesheetCategory $c) => $c->id.' '.$c->name.($c->requires_project ? ' (needs a project)' : ''))
+            ->join(', ');
+    }
+
     private function resolveCardEntries(array $rawEntries, Employee $employee): array
     {
         $cardIds = collect($rawEntries)->pluck('work_item_id')->map(fn ($id) => (int) $id)->unique();
@@ -309,7 +339,7 @@ class SaveTimesheetDraftTool extends Tool
             $categoryId = $rowCategories[$i];
 
             if ($categoryId === null) {
-                $problems[] = "'{$card->title}' has no effort type set — set its category on the card in the board, or pass the row a category_id (timesheet_options lists them), then try saving this again.";
+                $problems[] = "'{$card->title}' has no category set — pass the row a category_id and try saving this again. Choose from: ".$this->categoryMenu().'. (Setting it on the card in the board works too, and then every row from that card inherits it.)';
 
                 continue;
             }
@@ -317,7 +347,7 @@ class SaveTimesheetDraftTool extends Tool
             $category = $categoryModels->get($categoryId);
 
             if (! $category) {
-                $problems[] = "category_id {$categoryId} is not one of this workspace's timesheet categories — timesheet_options lists them.";
+                $problems[] = "category_id {$categoryId} is not one of this workspace's timesheet categories. Choose from: ".$this->categoryMenu().'.';
 
                 continue;
             }
