@@ -331,6 +331,10 @@ trait BuildsWorkData
         // sees the company-wide ledger. A plain employee is neither, and gets no extra keys.
         $isApprover = $this->hasTenantRole($request, ['manager', 'management', 'hr']);
         $privileged = $this->hasTenantRole($request, ['management', 'hr']);
+        // A plain manager only ever recommends — scopeToApprove() closes for them. Naming
+        // their tab "Approvals" would overstate what they can do, so the label follows the
+        // role: "To verify" for a recommender, "Approvals" for the final-approval tier.
+        $givesFinalApproval = $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES);
 
         $data = [
             'myClaims' => $myClaims,
@@ -339,6 +343,7 @@ trait BuildsWorkData
             'medicalUsedYtd' => $medicalUsedYtd,
             'isApprover' => $isApprover,
             'privileged' => $privileged,
+            'givesFinalApproval' => $givesFinalApproval,
         ];
 
         if ($isApprover) {
@@ -380,6 +385,9 @@ trait BuildsWorkData
             // HR and the directors have nobody above them, so their own requests open already
             // verified. The Apply form must promise the right chain, not the generic one.
             'leaveSkipsVerification' => $this->skipsVerification($request),
+            // Names the Approvals tab for what this viewer can actually do — see the note
+            // on $givesFinalApproval in the claims builder.
+            'givesFinalApproval' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES),
             'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             // Decision history for the Approvals tab's Approved / Rejected filters. A

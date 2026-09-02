@@ -143,6 +143,26 @@ class LeaveScreenTabsTest extends TestCase
             ->assertSee('Nothing is waiting on you.');
     }
 
+    public function test_the_tab_is_named_for_what_the_viewer_can_actually_do(): void
+    {
+        // A plain manager only recommends — scopeToApprove() closes for them — so calling
+        // their tab "Approvals" would promise a power they do not have.
+        $manager = $this->member('manager', 'Manager');
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $this->submittedRequestFor($staff);
+
+        $this->screenAs($manager)->assertOk()
+            ->assertViewHas('givesFinalApproval', false)
+            ->assertSee('To verify');
+
+        // A director signs off, so theirs keeps the stronger word.
+        $management = $this->member('management', 'Director');
+
+        $this->screenAs($management)->assertOk()
+            ->assertViewHas('givesFinalApproval', true)
+            ->assertSee('Approvals');
+    }
+
     /**
      * A leave the viewer approved and the applicant later withdrew stays in the approved
      * list, marked — for a while the approver believed that person was away.

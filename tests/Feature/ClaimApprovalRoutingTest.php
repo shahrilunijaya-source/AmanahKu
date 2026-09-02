@@ -354,6 +354,26 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertDontSee('All claims');
     }
 
+    public function test_the_tab_is_named_for_what_the_viewer_can_actually_do(): void
+    {
+        // A plain manager only recommends — scopeToApprove() closes for them — so calling
+        // their tab "Approvals" would promise a power they do not have.
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->claim($report);
+
+        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
+            ->assertViewHas('givesFinalApproval', false)
+            ->assertSee('To verify');
+
+        // A director signs off, so theirs keeps the stronger word.
+        $mgmt = $this->member('management', 'Director');
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('givesFinalApproval', true)
+            ->assertSee('Approvals');
+    }
+
     public function test_management_claims_screen_exposes_the_company_ledger_tab(): void
     {
         $mgmt = $this->member('management', 'Director');

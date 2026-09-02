@@ -64,6 +64,12 @@
     // later pulled is still something they decided, and worth seeing marked.
     $decApproved = $leaveApprovedByMe ?? collect();
     $decRejected = $leaveRejectedByMe ?? collect();
+    // A plain manager only recommends — scopeToApprove() closes for them — so the tab is
+    // named for what they can actually do.
+    $givesFinalApproval = $givesFinalApproval ?? false;
+    $tabWordEn = $givesFinalApproval ? 'Approvals' : 'To verify';
+    $tabWordMs = $givesFinalApproval ? 'Kelulusan' : 'Untuk disahkan';
+
     $showApprovals = ($leaveCanReview ?? false) || $reviewCount > 0;
 
     $tabs = $showApprovals ? ['apply', 'mine', 'approvals'] : ['apply', 'mine'];
@@ -122,7 +128,8 @@
         @if ($showApprovals)
             <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'approvals' ? '' : null"
                     :aria-selected="tab === 'approvals'" @click="go('approvals')">
-                <span x-text="$store.ui.lang==='en' ? 'Approvals' : 'Kelulusan'">Approvals</span>
+                {{-- A manager recommends, they don't approve — so the tab says what they do. --}}
+                <span x-text="$store.ui.lang==='en' ? {{ Js::from($tabWordEn) }} : {{ Js::from($tabWordMs) }}">{{ $tabWordEn }}</span>
                 @if ($reviewCount > 0)<span class="uj-lv-tab-n">{{ $reviewCount }}</span>@endif
             </button>
         @endif
