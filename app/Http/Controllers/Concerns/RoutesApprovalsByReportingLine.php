@@ -191,13 +191,23 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
+     * The acting person's employee id, or 0 when the request carries no employee — a user
+     * who belongs to the tenant but has no employee record. 0 matches nothing, so every
+     * scope built on it closes rather than opening, which is the safe direction.
+     */
+    private function actingEmployeeId(Request $request): int
+    {
+        return $request->attributes->get('employee')?->id ?? 0;
+    }
+
+    /**
      * The viewer's VERIFY queue: still-submitted requests from anyone they manage — their
      * direct reports (reports_to_id) plus anyone who lists them as an additional manager.
      * Empty for anyone who manages nobody. Assumes the model has an `employee` relation.
      */
     protected function scopeToVerify(Builder $query, Request $request): Builder
     {
-        $actorId = $request->attributes->get('employee')?->id ?? 0;
+        $actorId = $this->actingEmployeeId($request);
 
         // active() on the requester so a submitted request from a since-archived person
         // drops out of their manager's queue — an archived person holds no live obligation.
@@ -250,7 +260,7 @@ trait RoutesApprovalsByReportingLine
     {
         return $query
             ->whereIn('status', $statuses)
-            ->where('approved_by_id', $request->attributes->get('employee')?->id ?? 0)
+            ->where('approved_by_id', $this->actingEmployeeId($request))
             ->whereYear('approved_at', now()->year);
     }
 
@@ -259,7 +269,7 @@ trait RoutesApprovalsByReportingLine
     {
         return $query
             ->where('status', 'rejected')
-            ->where('rejected_by_id', $request->attributes->get('employee')?->id ?? 0)
+            ->where('rejected_by_id', $this->actingEmployeeId($request))
             ->whereYear('rejected_at', now()->year);
     }
 
@@ -275,7 +285,7 @@ trait RoutesApprovalsByReportingLine
             return true;
         }
 
-        $actorId = $request->attributes->get('employee')?->id ?? 0;
+        $actorId = $this->actingEmployeeId($request);
 
         return $actorId > 0 && Employee::query()->active()
             ->where(fn (Builder $w) => $w
