@@ -67,6 +67,7 @@ deploy-dev:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
+      allow_failure: true
 
 # ---- UAT / staging: MANUAL button on main (future use) ----
 deploy-uat:
@@ -77,7 +78,7 @@ deploy-uat:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
-
+      allow_failure: true
 # =============================================================================
 # Real checks (AK-CI-02). The included ci-templates jobs are placeholders that
 # echo a sentence and pass, so a "green pipeline" proved nothing. These override
