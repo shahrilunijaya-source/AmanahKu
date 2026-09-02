@@ -647,10 +647,10 @@ class LeaveApprovalRoutingTest extends TestCase
         $hr = $this->member('hr', 'HR Officer');
         $staff = $this->member('employee', 'Plain Staff');
 
-        $this->actingAsEmployee($hr)->get('/app/leave')->assertOk()->assertSee('Filing for');
+        $this->actingAsEmployee($hr)->get('/app/leave')->assertOk()->assertSee('On behalf');
         $this->actingAsEmployee($hr)->get('/app/leave?for='.$staff->id)->assertOk()
             ->assertSee('Recorded as filed by you');
-        $this->actingAsEmployee($staff)->get('/app/leave')->assertOk()->assertDontSee('Filing for');
+        $this->actingAsEmployee($staff)->get('/app/leave')->assertOk()->assertDontSee('On behalf');
     }
 
     // --- Directors approve each other ------------------------------------------

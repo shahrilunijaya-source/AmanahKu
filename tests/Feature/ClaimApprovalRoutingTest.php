@@ -741,7 +741,7 @@ class ClaimApprovalRoutingTest extends TestCase
         $hr = $this->member('hr', 'HR Officer');
         $staff = $this->member('employee', 'Plain Staff');
 
-        $this->actingAsEmployee($hr)->get('/app/claims')->assertOk()->assertSee('Filing for');
-        $this->actingAsEmployee($staff)->get('/app/claims')->assertOk()->assertDontSee('Filing for');
+        $this->actingAsEmployee($hr)->get('/app/claims')->assertOk()->assertSee('On behalf');
+        $this->actingAsEmployee($staff)->get('/app/claims')->assertOk()->assertDontSee('On behalf');
     }
 }

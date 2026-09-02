@@ -316,7 +316,7 @@ trait BuildsWorkData
      * so existing deep links keep working — see AppController::screen().
      */
     /**
-     * HR's "filing for" picker on the Apply tabs. Returns the person the form is currently
+     * HR's "On behalf" picker on the Apply tabs. Returns the person the form is currently
      * set up for (`?for=<employee id>`, HR only, defaults to the viewer) and the staff list
      * to pick from — empty for everyone who is not HR, so the picker never renders.
      *
