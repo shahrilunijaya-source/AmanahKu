@@ -333,15 +333,6 @@
              x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'),
                        queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
              class="uj-lv-panel">
-            <div>
-                <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Approvals' : 'Kelulusan'">Approvals</span></h3>
-                <p style="font-size:var(--t-sm);color:var(--muted);margin:0;">
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'What is waiting on you, and what you have decided this year. You verify your own reports first; management gives the final approval on anything already verified — never on a request they verified themselves.'
-                        : 'Apa yang menunggu anda, dan apa yang anda putuskan tahun ini. Anda sahkan laporan anda sendiri dahulu; pengurusan beri kelulusan akhir bagi yang telah disahkan — bukan bagi permohonan yang mereka sahkan sendiri.'"></span>
-                </p>
-            </div>
-
             {{-- Status counts. Approved covers the whole year, so it keeps its number even
                  on a day when nothing is pending — the reason this tab no longer hides. --}}
             <div class="uj-lv-stbar">
