@@ -344,6 +344,10 @@ trait BuildsWorkData
         if ($isApprover) {
             $data['claimsToVerify'] = $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get();
             $data['claimsToApprove'] = $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get();
+            // What this person decided themselves this year. Claims settled before the
+            // 2026_09_02 decision trail recorded no approver, so they stay out for good.
+            $data['claimsApprovedByMe'] = $this->scopeApprovedByViewer(Claim::with('employee'), $request, ['approved', 'cancelled', 'paid'])->latest('approved_at')->get();
+            $data['claimsRejectedByMe'] = $this->scopeRejectedByViewer(Claim::with('employee'), $request)->latest('rejected_at')->get();
         }
 
         if ($privileged) {
@@ -380,6 +384,18 @@ trait BuildsWorkData
             'leaveSkipsVerification' => $this->skipsVerification($request),
             'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
             'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
+            // Decision history for the Approvals tab's Approved / Rejected filters. A
+            // withdrawn request the viewer had already approved stays in the approved set,
+            // tagged rather than hidden: for a while they believed that person was away.
+            'leaveApprovedByMe' => $this->scopeApprovedByViewer(
+                LeaveRequest::with(['employee', 'leaveType']), $request,
+            )->latest('approved_at')->get(),
+            'leaveRejectedByMe' => $this->scopeRejectedByViewer(
+                LeaveRequest::with(['employee', 'leaveType']), $request,
+            )->latest('rejected_at')->get(),
+            // Gates the tab itself. Deliberately not "is anything pending" — see
+            // canReviewAnything: a cleared queue must not take the history with it.
+            'leaveCanReview' => $this->canReviewAnything($request),
             // active() owner: a since-archived person holds no live leave — drop their
             // approved requests from the team-leave widget (mirrors the approval queues).
             // Ongoing or upcoming only — date_to >= today, soonest first — not "most

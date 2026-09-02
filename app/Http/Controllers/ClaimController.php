@@ -157,7 +157,11 @@ class ClaimController extends Controller
         abort_unless($claim->status === 'verified', 422, 'A claim must be verified by the immediate superior before approval.');
 
         // Compare-and-set so two concurrent approves don't double-audit / double-notify.
-        $flipped = Claim::whereKey($claim->id)->where('status', 'verified')->update(['status' => 'approved']);
+        $flipped = Claim::whereKey($claim->id)->where('status', 'verified')->update([
+            'status' => 'approved',
+            'approved_by_id' => $request->attributes->get('employee')?->id,
+            'approved_at' => now(),
+        ]);
         if ($flipped === 0) {
             return back()->with('ok', 'Claim approved for '.$claim->employee->name.'.');
         }
@@ -201,7 +205,11 @@ class ClaimController extends Controller
         $this->assertCanReject($request, $claim);
 
         // Compare-and-set from either pending state so a double-click doesn't double-notify.
-        $flipped = Claim::whereKey($claim->id)->whereIn('status', ['submitted', 'verified'])->update(['status' => 'rejected']);
+        $flipped = Claim::whereKey($claim->id)->whereIn('status', ['submitted', 'verified'])->update([
+            'status' => 'rejected',
+            'rejected_by_id' => $request->attributes->get('employee')?->id,
+            'rejected_at' => now(),
+        ]);
         if ($flipped === 0) {
             return back()->with('ok', 'Claim rejected for '.$claim->employee->name.'.');
         }

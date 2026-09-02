@@ -228,6 +228,63 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
+     * The viewer's APPROVED history: requests they personally signed off this year, plus
+     * any the applicant later withdrew (still their approval — it happened, then it was
+     * pulled). Matched on approved_by_id, never on verified_by_id: a verifier recommends,
+     * the approver decides, and the two must not be conflated or a manager who passed a
+     * request up would see somebody else's decision listed as their own.
+     *
+     * Scoped by the date of the DECISION, not of the submission, so the "this year" label
+     * and the column agree — a request filed in December and approved in January belongs
+     * to January's figures.
+     *
+     * Claims decided before the 2026_09_02 decision trail carry no approver and cannot
+     * appear here — there is nothing recorded to match against (see that migration).
+     *
+     * @param  list<string>  $statuses  the states that still count as approved. Claims pass
+     *                                  'paid' as well: payroll flips an approved claim to
+     *                                  paid when it reimburses it, and being reimbursed is
+     *                                  not the approver un-approving it.
+     */
+    protected function scopeApprovedByViewer(Builder $query, Request $request, array $statuses = ['approved', 'cancelled']): Builder
+    {
+        return $query
+            ->whereIn('status', $statuses)
+            ->where('approved_by_id', $request->attributes->get('employee')?->id ?? 0)
+            ->whereYear('approved_at', now()->year);
+    }
+
+    /** The same for refusals, matched on the rejecter alone. See scopeApprovedByViewer(). */
+    protected function scopeRejectedByViewer(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->where('status', 'rejected')
+            ->where('rejected_by_id', $request->attributes->get('employee')?->id ?? 0)
+            ->whereYear('rejected_at', now()->year);
+    }
+
+    /**
+     * Can this viewer approve anything at all — either as somebody's superior or as
+     * management? Decides whether the Approvals tab exists, which must NOT depend on
+     * something currently being pending: a cleared queue would otherwise take the
+     * viewer's whole decision history off the screen with it.
+     */
+    protected function canReviewAnything(Request $request): bool
+    {
+        if ($this->hasTenantRole($request, $this->approvalManagerRoles())) {
+            return true;
+        }
+
+        $actorId = $request->attributes->get('employee')?->id ?? 0;
+
+        return $actorId > 0 && Employee::query()->active()
+            ->where(fn (Builder $w) => $w
+                ->where('reports_to_id', $actorId)
+                ->orWhereHas('additionalManagers', fn (Builder $m) => $m->whereKey($actorId)))
+            ->exists();
+    }
+
+    /**
      * Notify everyone who can verify this request — the primary superior and any additional
      * managers — that something awaits their verification. Deduplicated so a manager listed
      * on both links is pinged once.

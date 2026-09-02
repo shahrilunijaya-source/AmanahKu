@@ -51,13 +51,21 @@
     $approveCount = $isApprover ? ($claimsToApprove?->count() ?? 0) : 0;
     $reviewCount = $verifyCount + $approveCount;
 
+    // Decisions this viewer made themselves this year. Kept off the pending count on
+    // purpose: these are history, not work. Empty for everyone until the 2026_09_02
+    // decision trail has some claims to record.
+    $decApproved = $claimsApprovedByMe ?? collect();
+    $decRejected = $claimsRejectedByMe ?? collect();
+
     $sc = ['cancelled' => 'muted', 'submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
     $statusEn = ['cancelled' => 'Cancelled', 'submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved · pays next run', 'paid' => 'Paid', 'rejected' => 'Declined'];
     $statusMs = ['cancelled' => 'Dibatalkan', 'submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan · gaji berikutnya', 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
 
     $money = fn ($v) => 'RM ' . number_format((float) $v, 2);
 
-    $tabs = array_merge(['apply', 'mine'], $reviewCount > 0 ? ['approvals'] : [], $privileged ? ['all'] : []);
+    // The tab belongs to anyone who can approve, not to whoever happens to have
+    // something pending — a cleared queue must not take the decision history with it.
+    $tabs = array_merge(['apply', 'mine'], $isApprover ? ['approvals'] : [], $privileged ? ['all'] : []);
     $requested = request()->query('tab');
     $initialTab = in_array($requested, $tabs, true) ? $requested : 'apply';
     // The claim-approvals slug opens straight on the queue when there is one.
@@ -128,11 +136,13 @@
         <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'mine' ? '' : null"
                 :aria-selected="tab === 'mine'" @click="go('mine')"
                 x-text="$store.ui.lang==='en' ? 'My claims' : 'Tuntutan saya'">My claims</button>
-        @if ($reviewCount > 0)
+        @if ($isApprover)
             <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'approvals' ? '' : null"
                     :aria-selected="tab === 'approvals'" @click="go('approvals')">
                 <span x-text="$store.ui.lang==='en' ? 'Approvals' : 'Kelulusan'">Approvals</span>
-                <span class="uj-lv-tab-n">{{ $reviewCount }}</span>
+                @if ($reviewCount > 0)
+                    <span class="uj-lv-tab-n">{{ $reviewCount }}</span>
+                @endif
             </button>
         @endif
         @if ($privileged)
@@ -262,9 +272,9 @@
     </div>
 
     {{-- ── Approvals ── --}}
-    @if ($reviewCount > 0)
+    @if ($isApprover)
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
-             x-data="{ queue: @js($verifyCount > 0 ? 'verify' : 'approve') }"
+             x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'), queue: @js($verifyCount > 0 ? 'verify' : 'approve') }"
              class="uj-lv-panel">
             <div>
                 <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Claims waiting on you' : 'Tuntutan menunggu anda'">Claims waiting on you</span></h3>
@@ -280,29 +290,63 @@
                 </p>
             </div>
 
-            @if ($verifyCount > 0 && $approveCount > 0)
-                <div class="uj-lv-qbar">
-                    <button type="button" class="uj-lv-qchip" :data-on="queue === 'verify' ? '' : null" @click="queue = 'verify'">
-                        <span x-text="$store.ui.lang==='en' ? 'Yours to verify' : 'Untuk anda sahkan'">Yours to verify</span>
-                        <b>{{ $verifyCount }}</b>
-                    </button>
-                    <button type="button" class="uj-lv-qchip" :data-on="queue === 'approve' ? '' : null" @click="queue = 'approve'">
-                        <span x-text="$store.ui.lang==='en' ? 'Final approval' : 'Kelulusan akhir'">Final approval</span>
-                        <b>{{ $approveCount }}</b>
-                    </button>
-                </div>
-            @endif
+            {{-- Status counts. Approved covers the whole year, so it keeps its number even
+                 on a day when nothing is pending — the reason this tab no longer hides. --}}
+            <div class="uj-lv-stbar">
+                <button type="button" class="uj-lv-stchip" :data-on="st === 'pending' ? '' : null" @click="st = 'pending'">
+                    <span x-text="$store.ui.lang==='en' ? 'Pending' : 'Menunggu'">Pending</span>
+                    <b>{{ $reviewCount }}</b>
+                </button>
+                <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
+                    <span x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'">Approved</span>
+                    <b>{{ $decApproved->count() }}</b>
+                </button>
+                <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
+                    <span x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'">Rejected</span>
+                    <b>{{ $decRejected->count() }}</b>
+                </button>
+            </div>
 
-            @if ($verifyCount > 0)
-                <div x-show="queue === 'verify'">
-                    @include('partials.claims-review-queue', ['items' => $claimsToVerify, 'mode' => 'verify'])
-                </div>
-            @endif
-            @if ($approveCount > 0)
-                <div x-show="queue === 'approve'">
-                    @include('partials.claims-review-queue', ['items' => $claimsToApprove, 'mode' => 'approve'])
-                </div>
-            @endif
+            {{-- ── Pending ── --}}
+            <div x-show="st === 'pending'" class="uj-tab-stack">
+                @if ($verifyCount > 0 && $approveCount > 0)
+                    <div class="uj-lv-qbar">
+                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'verify' ? '' : null" @click="queue = 'verify'">
+                            <span x-text="$store.ui.lang==='en' ? 'Yours to verify' : 'Untuk anda sahkan'">Yours to verify</span>
+                            <b>{{ $verifyCount }}</b>
+                        </button>
+                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'approve' ? '' : null" @click="queue = 'approve'">
+                            <span x-text="$store.ui.lang==='en' ? 'Final approval' : 'Kelulusan akhir'">Final approval</span>
+                            <b>{{ $approveCount }}</b>
+                        </button>
+                    </div>
+                @endif
+
+                @if ($verifyCount > 0)
+                    <div x-show="queue === 'verify'">
+                        @include('partials.claims-review-queue', ['items' => $claimsToVerify, 'mode' => 'verify'])
+                    </div>
+                @endif
+                @if ($approveCount > 0)
+                    <div x-show="queue === 'approve'">
+                        @include('partials.claims-review-queue', ['items' => $claimsToApprove, 'mode' => 'approve'])
+                    </div>
+                @endif
+
+                @if ($reviewCount === 0)
+                    <div class="uj-card uj-lv-empty">
+                        <span x-text="$store.ui.lang==='en' ? 'Nothing is waiting on you.' : 'Tiada apa-apa menunggu anda.'">Nothing is waiting on you.</span>
+                    </div>
+                @endif
+            </div>
+
+            {{-- ── Decided this year ── --}}
+            <div x-show="st === 'approved'" class="uj-tab-stack">
+                @include('partials.claims-decided-list', ['items' => $decApproved, 'kind' => 'approved'])
+            </div>
+            <div x-show="st === 'rejected'" class="uj-tab-stack">
+                @include('partials.claims-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])
+            </div>
         </div>
     @endif
 
