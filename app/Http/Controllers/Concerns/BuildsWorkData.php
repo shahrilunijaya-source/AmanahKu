@@ -351,10 +351,8 @@ trait BuildsWorkData
         }
 
         if ($privileged) {
-            // Company-wide claims view, management/hr only. Totals come from one grouped
-            // aggregate query (not summed in PHP), and the claim list is capped at the
-            // latest 50 rows on purpose so this screen doesn't grow heavier forever.
-            $data['claimTotals'] = Claim::query()->selectRaw('status, COUNT(*) as count, SUM(amount) as total')->groupBy('status')->get()->keyBy('status');
+            // Company-wide claims view, management/hr only. The claim list is capped at
+            // the latest 50 rows on purpose so this screen doesn't grow heavier forever.
             $data['allClaims'] = Claim::with('employee')->latest('date')->take(50)->get();
         }
 

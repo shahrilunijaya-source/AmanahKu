@@ -419,32 +419,6 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertDontSee('Company claims');
     }
 
-    public function test_company_totals_sum_amounts_correctly_by_status(): void
-    {
-        $mgmt = $this->member('management', 'Director');
-        $empA = $this->member('employee', 'Emp A');
-        $empB = $this->member('employee', 'Emp B');
-
-        // Two submitted claims: 100.00 + 50.00 = 150.00.
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'expense', 'title' => 'S1', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empB->id, 'type' => 'expense', 'title' => 'S2', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'submitted']);
-        // One approved claim: 75.25.
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'medical', 'title' => 'A1', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
-
-        $response = $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk();
-
-        $totals = $response->viewData('claimTotals');
-        $this->assertSame(2, (int) $totals['submitted']->count);
-        $this->assertEqualsWithDelta(150.00, (float) $totals['submitted']->total, 0.001);
-        $this->assertSame(1, (int) $totals['approved']->count);
-        $this->assertEqualsWithDelta(75.25, (float) $totals['approved']->total, 0.001);
-
-        $response->assertSee('150.00')->assertSee('75.25');
-
-        $allClaims = $response->viewData('allClaims');
-        $this->assertCount(3, $allClaims);
-    }
-
     public function test_personal_tiles_show_only_the_viewers_own_claims_not_company_total(): void
     {
         $mgmt = $this->member('management', 'Director');
@@ -469,22 +443,6 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertSee('Manager')
             ->assertSee('Director')
             ->assertDontSee('Who signs off your request');
-    }
-
-    public function test_personal_tiles_compute_waiting_and_approved_not_paid_correctly(): void
-    {
-        $employee = $this->member('employee', 'Claimant');
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Submitted', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Verified', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'verified']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Approved', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Paid', 'amount' => 999, 'date' => '2026-06-04', 'status' => 'paid']);
-
-        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
-            // Waiting on approval = submitted (100) + verified (50) = 150.00.
-            ->assertSee('150.00')
-            // Approved, not yet paid = approved only (75.25) — excludes the 999 paid claim.
-            ->assertSee('75.25')
-            ->assertDontSee('1074.25');
     }
 
     // --- HR skips the verify step (reports straight to the directors) --------

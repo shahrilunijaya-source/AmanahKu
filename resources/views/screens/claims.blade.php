@@ -35,14 +35,6 @@
         ->groupBy('type')->map(fn ($g) => (float) $g->sum('amount'));
     $settledTotal = (float) $settledByType->sum();
 
-    // Two money tiles: still moving through the two-step gate (submitted or verified),
-    // and approved but not yet paid — kept apart from `paid` since that's the thing an
-    // employee actually wants to know: when does the money arrive.
-    $waitingClaims = $myClaims->whereIn('status', ['submitted', 'verified']);
-    $waitingTotal = (float) $waitingClaims->sum('amount');
-    $waitingCount = $waitingClaims->count();
-    $approvedNotPaidTotal = (float) $myClaims->where('status', 'approved')->sum('amount');
-
     $isApprover = $isApprover ?? false;
     $privileged = $privileged ?? false;
 
@@ -159,23 +151,6 @@
 
     {{-- ── My claims ── --}}
     <div role="tabpanel" x-show="tab === 'mine'" x-cloak class="uj-lv-panel">
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
-                <div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Waiting on approval' : 'Menunggu kelulusan'">Waiting on approval</div>
-                <div class="uj-stat-value" style="color:var(--amber);">{{ $money($waitingTotal) }}</div>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
-                    {{ $waitingCount }} <span x-text="$store.ui.lang==='en' ? @js(\Illuminate\Support\Str::plural('claim', $waitingCount)) : 'tuntutan'">{{ \Illuminate\Support\Str::plural('claim', $waitingCount) }}</span>
-                </div>
-            </div>
-            <div class="uj-card uj-stat" style="flex:1;min-width:200px;">
-                <div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Approved, not yet paid' : 'Diluluskan, belum dibayar'">Approved, not yet paid</div>
-                <div class="uj-stat-value" style="color:var(--success);">{{ $money($approvedNotPaidTotal) }}</div>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
-                    <span x-text="$store.ui.lang==='en' ? 'pays out next payroll run' : 'dibayar dalam gaji berikutnya'">pays out next payroll run</span>
-                </div>
-            </div>
-        </div>
-
         <div>
             <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Your year' : 'Tahun anda'">Your year</span></h3>
             <p style="font-size:var(--t-sm);color:var(--muted);margin:0 0 12px;">
@@ -338,12 +313,6 @@
 
     {{-- ── All claims — finance & audit (management / hr) ── --}}
     @if ($privileged)
-        @php
-            $pendTotal = (float) (($claimTotals['submitted']->total ?? 0) + ($claimTotals['verified']->total ?? 0));
-            $pendCount = (int) (($claimTotals['submitted']->count ?? 0) + ($claimTotals['verified']->count ?? 0));
-            $payTotal = (float) ($claimTotals['approved']->total ?? 0);
-            $payCount = (int) ($claimTotals['approved']->count ?? 0);
-        @endphp
         <div role="tabpanel" x-show="tab === 'all'" x-cloak x-data="{
                 rows: @js($allClaims->map(fn ($c) => [
                     'name' => $c->employee?->display_name ?? '—',
@@ -383,20 +352,6 @@
                     a.click(); URL.revokeObjectURL(a.href);
                 },
             }" class="uj-lv-panel">
-            {{-- The two numbers finance opens this tab for. --}}
-            <div style="display:flex;gap:14px;flex-wrap:wrap;">
-                <div class="uj-card" style="flex:1;min-width:210px;padding:15px 18px;">
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;" x-text="$store.ui.lang==='en' ? 'Waiting on a decision' : 'Menunggu keputusan'">Waiting on a decision</div>
-                    <div style="font-family:var(--font-mono);font-size:24px;font-weight:600;letter-spacing:-.025em;color:var(--amber-ink,#8a5714);margin-top:5px;">{{ $money($pendTotal) }}</div>
-                    <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $pendCount }} <span x-text="$store.ui.lang==='en' ? @js(\Illuminate\Support\Str::plural('claim', $pendCount)) : 'tuntutan'">{{ \Illuminate\Support\Str::plural('claim', $pendCount) }}</span> · <span x-text="$store.ui.lang==='en' ? 'not yet a cost' : 'belum jadi kos'">not yet a cost</span></div>
-                </div>
-                <div class="uj-card" style="flex:1;min-width:210px;padding:15px 18px;">
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;" x-text="$store.ui.lang==='en' ? 'Approved · pays next run' : 'Diluluskan · gaji berikutnya'">Approved · pays next run</div>
-                    <div style="font-family:var(--font-mono);font-size:24px;font-weight:600;letter-spacing:-.025em;color:var(--success-ink,#14614a);margin-top:5px;">{{ $money($payTotal) }}</div>
-                    <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $payCount }} <span x-text="$store.ui.lang==='en' ? @js(\Illuminate\Support\Str::plural('claim', $payCount)) : 'tuntutan'">{{ \Illuminate\Support\Str::plural('claim', $payCount) }}</span> · <span x-text="$store.ui.lang==='en' ? 'include in this payroll' : 'masukkan dalam payroll ini'">include in this payroll</span></div>
-                </div>
-            </div>
-
             {{-- Search · filter · export, over the loaded ledger. --}}
             <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
                 <label style="position:relative;flex:1;min-width:200px;">
