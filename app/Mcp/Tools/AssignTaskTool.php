@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
+use App\Mcp\Tools\Concerns\ResolvesEmployeeNames;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
@@ -17,7 +18,6 @@ use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
-use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -49,6 +49,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 class AssignTaskTool extends Tool
 {
     use PreviewsWrites;
+    use ResolvesEmployeeNames;
 
     public function handle(Request $request): Response
     {
@@ -94,20 +95,11 @@ class AssignTaskTool extends Tool
                 return Response::error('You cannot assign a task to an archived staff member.');
             }
         } else {
-            $matches = $this->matchByName($data['employee'], $tid);
+            $employee = $this->resolveByName($data['employee'], $tid);
 
-            if ($matches->isEmpty()) {
-                return Response::error("No active staff member here matches '".$data['employee']."'.");
+            if (is_string($employee)) {
+                return Response::error($employee);
             }
-            // Never guess between people — a task assigned to the wrong person emails
-            // the wrong person. Hand the ambiguity back with the ids to choose from.
-            if ($matches->count() > 1) {
-                return Response::error("'".$data['employee']."' matches ".$matches->count().' people: '.
-                    $matches->map(fn (Employee $e) => $e->display_name.' (employee_id '.$e->id.')')->join(', ').
-                    '. Re-run naming the employee_id you mean.');
-            }
-
-            $employee = $matches->first();
         }
 
         // The + operator keeps the left array's value on a key collision, so this
@@ -144,30 +136,6 @@ class AssignTaskTool extends Tool
                 '. This WILL email and notify '.$employee->display_name.'.',
             $changes,
         );
-    }
-
-    /**
-     * Active staff whose nickname or full name contains $needle. An exact hit on
-     * either wins outright, so "Nabil" resolves cleanly even when a "Nabilah" also
-     * contains it; anything short of that stays ambiguous on purpose and is handed
-     * back to the caller rather than guessed at.
-     *
-     * Archived staff are excluded here rather than matched and then refused — they
-     * are not assignable at all, so a name that only matches an archived person
-     * reads as "nobody", which is what it means.
-     *
-     * @return Collection<int, Employee>
-     */
-    private function matchByName(string $needle, int $tenantId): Collection
-    {
-        $rows = Employee::query()->active()->where('tenant_id', $tenantId)
-            ->where(fn ($q) => $q->where('nickname', 'like', '%'.$needle.'%')->orWhere('name', 'like', '%'.$needle.'%'))
-            ->orderBy('name')->get();
-
-        $exact = $rows->filter(fn (Employee $e) => strcasecmp((string) $e->nickname, $needle) === 0
-            || strcasecmp($e->name, $needle) === 0);
-
-        return $exact->isNotEmpty() ? $exact->values() : $rows;
     }
 
     /**

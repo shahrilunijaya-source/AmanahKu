@@ -467,6 +467,103 @@ class AmanahkuWriteToolsTest extends TestCase
         app(CurrentTenant::class)->set(null);
     }
 
+    // --- update_card: participants by name ----------------------------------
+
+    /** A card the caller owns, due-dated so it may carry participants at all. */
+    private function shareableCard(): WorkItem
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::create([
+            'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,
+            'title' => 'Share me', 'type' => 'task', 'priority' => 'medium', 'status' => 'todo',
+            'due_at' => '2026-09-30',
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        return $card;
+    }
+
+    /**
+     * The reason this exists: no MCP tool hands out employee ids, so participant_ids
+     * alone dead-ends any "add Nabil to this card" request.
+     */
+    public function test_update_card_resolves_participants_by_nickname(): void
+    {
+        $card = $this->shareableCard();
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->otherEmpA->update(['nickname' => 'omar']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'participants' => ['Omar'],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+
+        // Names, not ids — an id means nothing to the human approving the preview.
+        $this->assertSame(['Omar'], $data['changes']['participant_ids']['to']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame([$this->otherEmpA->id], $card->participants()->pluck('employees.id')->all());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * participant_ids is a FULL replacement list, so a partly-resolved one would
+     * silently drop whoever failed to match off the card. All or nothing.
+     */
+    public function test_update_card_refuses_the_whole_edit_when_one_participant_name_is_ambiguous(): void
+    {
+        $card = $this->shareableCard();
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabil Aziz', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabilah Rahim', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'title' => 'Renamed too',
+            'participants' => ['Nabil'],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $text = (string) json_encode($response->json('result.content'));
+        $this->assertStringContainsString('Nabil Aziz', $text);
+        $this->assertStringContainsString('Nabilah Rahim', $text);
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card->refresh();
+        $this->assertSame('Share me', $card->title, 'the rest of the edit must not land either');
+        $this->assertSame(0, $card->participants()->count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /** Two full replacement lists for the same relation cannot both be honoured. */
+    public function test_update_card_refuses_participants_and_participant_ids_together(): void
+    {
+        $card = $this->shareableCard();
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'participants' => ['Omar'],
+            'participant_ids' => [$this->otherEmpA->id],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+    }
+
     // --- assign_task: role gate + notify wording ----------------------------
 
     public function test_plain_employee_cannot_assign_a_task(): void
