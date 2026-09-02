@@ -682,4 +682,66 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
             ->assertSee('You have not rejected anything this year.', false);
     }
+
+    // --- HR files on someone's behalf ------------------------------------------
+
+    public function test_hr_can_file_a_claim_for_an_employee_and_it_routes_to_that_persons_manager(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/claims', [
+            'employee_id' => $report->id, 'type' => 'other', 'title' => 'Parking', 'amount' => 12, 'date' => '2026-09-01',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $claim = Claim::where('employee_id', $report->id)->firstOrFail();
+        $this->assertSame('submitted', $claim->status);
+        $this->assertSame($hr->id, $claim->filed_by_id);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $manager->user_id, 'title' => 'Claim awaiting your verification',
+        ]);
+    }
+
+    public function test_hr_filing_for_a_director_opens_pre_verified_and_the_other_director_approves(): void
+    {
+        $shahril = $this->member('director', 'Shahril');
+        $suandy = $this->member('director', 'Suandy');
+        $hr = $this->member('hr', 'HR Officer');
+
+        $this->actingAsEmployee($hr)->post('/app/claims', [
+            'employee_id' => $shahril->id, 'type' => 'other', 'title' => 'Client dinner', 'amount' => 300, 'date' => '2026-09-01',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $claim = Claim::where('employee_id', $shahril->id)->firstOrFail();
+        $this->assertSame('verified', $claim->status);
+
+        $this->actingAsEmployee($hr)->post("/app/claims/{$claim->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($shahril)->post("/app/claims/{$claim->id}/approve")->assertForbidden();
+        $this->actingAsEmployee($suandy)->post("/app/claims/{$claim->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $claim->fresh()->status);
+    }
+
+    public function test_non_hr_posting_employee_id_files_for_themselves(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $other = $this->member('employee', 'Other', $manager->id);
+
+        $this->actingAsEmployee($other)->post('/app/claims', [
+            'employee_id' => $report->id, 'type' => 'other', 'title' => 'Parking', 'amount' => 12, 'date' => '2026-09-01',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('claims', ['employee_id' => $report->id]);
+        $this->assertDatabaseHas('claims', ['employee_id' => $other->id, 'filed_by_id' => null]);
+    }
+
+    public function test_hr_sees_the_filing_for_picker_and_others_do_not(): void
+    {
+        $hr = $this->member('hr', 'HR Officer');
+        $staff = $this->member('employee', 'Plain Staff');
+
+        $this->actingAsEmployee($hr)->get('/app/claims')->assertOk()->assertSee('On behalf');
+        $this->actingAsEmployee($staff)->get('/app/claims')->assertOk()->assertDontSee('On behalf');
+    }
 }

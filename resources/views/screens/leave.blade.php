@@ -137,7 +137,7 @@
 
     {{-- ── Apply ── --}}
     <div role="tabpanel" x-show="tab === 'apply'" x-cloak>
-        @include('partials.leave-apply')
+        @include('partials.leave-apply', ['balances' => $applyBalances ?? $balances])
     </div>
 
     {{-- ── My leave ── --}}

@@ -28,8 +28,12 @@ class LeaveController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $employee = $request->attributes->get('employee');
-        abort_unless($employee, 403, 'No employee profile in this workspace.');
+        // Normally the acting user's own record; HR may file for someone else (see
+        // requesterFor()). Every rule below — eligibility, balance, notice — is checked
+        // against the person the leave is FOR, and the route follows their reporting line.
+        $employee = $this->requesterFor($request);
+        abort_unless($employee !== null, 403, 'No employee profile in this workspace.');
+        $filedById = $this->filedByIdFor($request, $employee);
 
         $data = $request->validate([
             'leave_type_id' => ['required', 'integer'],
@@ -126,12 +130,16 @@ class LeaveController extends Controller
             'reason' => $data['reason'] ?? null,
             'attachment_path' => $attachmentPath,
             'attachment_name' => $attachmentName,
-            ...$this->openingStatusColumns($request),
+            'filed_by_id' => $filedById,
+            ...$this->openingStatusColumns($request, $employee),
         ]);
 
         $body = $employee->name.' · '.$days.' day'.($days == 1 ? '' : 's');
+        if ($filedById) {
+            AuditLog::record('Filed leave on behalf', $body.' · '.$type->name);
+        }
 
-        if ($this->skipsVerification($request)) {
+        if ($this->skipsVerification($request, $employee)) {
             // Nobody sits above a final-approval-tier requester: no verify step, straight to
             // final approval.
             $this->notifyManagementToApprove(
@@ -151,7 +159,9 @@ class LeaveController extends Controller
             );
         }
 
-        return back()->with('ok', "Leave application submitted ({$days} day".($days == 1 ? '' : 's').').');
+        $for = $filedById ? ' for '.$employee->name : '';
+
+        return back()->with('ok', "Leave application submitted{$for} ({$days} day".($days == 1 ? '' : 's').').');
     }
 
     /**
@@ -239,7 +249,7 @@ class LeaveController extends Controller
     /** Step 2: management gives final approval and the matching balance is decremented. */
     public function approve(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
-        $this->assertApprover($request, $leaveRequest->employee, $leaveRequest->tenant_id, $leaveRequest->verified_by_id);
+        $this->assertApprover($request, $leaveRequest->employee, $leaveRequest->tenant_id, $leaveRequest->verified_by_id, $leaveRequest->filed_by_id);
         abort_unless($leaveRequest->status === 'verified', 422, 'A request must be verified by the immediate superior before approval.');
 
         $this->applyApproval($leaveRequest, $request->attributes->get('employee')?->id);
@@ -282,6 +292,7 @@ class LeaveController extends Controller
             ->whereKey($ids)
             ->where(fn ($q) => $q->whereNull('verified_by_id')->orWhere('verified_by_id', '!=', $actorId))
             ->where('employee_id', '!=', $actorId)
+            ->where(fn ($q) => $q->whereNull('filed_by_id')->orWhere('filed_by_id', '!=', $actorId))
             ->get();
 
         $done = 0;

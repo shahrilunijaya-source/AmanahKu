@@ -59,9 +59,49 @@ trait RoutesApprovalsByReportingLine
      * plain employee with no superior is a broken org chart (see StuckRequests) and must not
      * quietly self-route past the manager they should have.
      */
-    protected function skipsVerification(Request $request): bool
+    protected function skipsVerification(Request $request, ?Employee $requester = null): bool
     {
+        // Filed on somebody's behalf (HR for a member of staff): the ROUTE follows the
+        // requester's role, not the filer's — HR filing for a plain employee must still
+        // send it to that employee's manager, and HR filing for a director must not.
+        if ($requester && $requester->user_id !== auth()->id()) {
+            $tenant = app(CurrentTenant::class)->get();
+            $role = $tenant && $requester->user ? $requester->user->roleIn($tenant) : 'employee';
+
+            return in_array($role, Permissions::FINAL_APPROVAL_ROLES, true)
+                || in_array(Permissions::effectiveRole($role), Permissions::FINAL_APPROVAL_ROLES, true);
+        }
+
         return $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES);
+    }
+
+    /**
+     * Who a new request is FOR. Normally the acting user's own employee record. HR may
+     * file on behalf of any active member of staff by posting `employee_id`; anyone else
+     * posting that field is ignored and files for themselves. Returns null when there is
+     * nobody to file for at all (no employee profile).
+     */
+    protected function requesterFor(Request $request): ?Employee
+    {
+        $actor = $request->attributes->get('employee');
+
+        if (! $request->filled('employee_id') || ! $this->hasTenantRole($request, ['hr'])) {
+            return $actor;
+        }
+
+        // Employee is tenant-scoped, so an id from another tenant finds nothing.
+        $target = Employee::active()->whereKey((int) $request->input('employee_id'))->first();
+        abort_unless($target !== null, 422, 'That person is not an active member of staff.');
+
+        return $target;
+    }
+
+    /** The filer to record on a request created by requesterFor(): the actor, only when filing for someone else. */
+    protected function filedByIdFor(Request $request, Employee $requester): ?int
+    {
+        $actor = $request->attributes->get('employee');
+
+        return $actor && $actor->id !== $requester->id ? $actor->id : null;
     }
 
     /**
@@ -72,9 +112,9 @@ trait RoutesApprovalsByReportingLine
      *
      * @return array{status: string, verified_at?: Carbon}
      */
-    protected function openingStatusColumns(Request $request): array
+    protected function openingStatusColumns(Request $request, ?Employee $requester = null): array
     {
-        return $this->skipsVerification($request)
+        return $this->skipsVerification($request, $requester)
             ? ['status' => 'verified', 'verified_at' => now()]
             : ['status' => 'submitted'];
     }
@@ -139,7 +179,7 @@ trait RoutesApprovalsByReportingLine
      * (or the requester themselves). Stage validity (must be `verified`) is checked by the
      * caller against the record status.
      */
-    protected function assertApprover(Request $request, ?Employee $requester, int $recordTenantId, ?int $verifiedById = null): void
+    protected function assertApprover(Request $request, ?Employee $requester, int $recordTenantId, ?int $verifiedById = null, ?int $filedById = null): void
     {
         $this->assertSameTenant($recordTenantId);
 
@@ -158,6 +198,12 @@ trait RoutesApprovalsByReportingLine
             403,
             'The person who verified a request cannot also approve it.',
         );
+
+        abort_if(
+            $actor && $filedById && $actor->id === $filedById,
+            403,
+            'The person who filed a request on someone\'s behalf cannot also approve it.',
+        );
     }
 
     /**
@@ -172,7 +218,7 @@ trait RoutesApprovalsByReportingLine
         $isManagement = $this->hasTenantRole($request, $this->approvalManagerRoles());
 
         if ($record->status === 'verified') {
-            $this->assertApprover($request, $record->employee, $record->tenant_id, $record->verified_by_id);
+            $this->assertApprover($request, $record->employee, $record->tenant_id, $record->verified_by_id, $record->filed_by_id);
 
             return;
         }

@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $date_from
  * @property Carbon $date_to
  * @property int|null $verified_by_id
+ * @property int|null $filed_by_id
  * @property Carbon|null $verified_at
  */
 class LeaveRequest extends Model

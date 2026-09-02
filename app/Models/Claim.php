@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $date
+ * @property int|null $filed_by_id
  */
 class Claim extends Model
 {

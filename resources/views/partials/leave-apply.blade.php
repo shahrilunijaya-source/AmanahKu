@@ -82,9 +82,13 @@
 
     // Where the request actually goes. HR and the directors skip the verify step entirely,
     // so promising them a manager review would be a lie the timeline then contradicts.
+    $forOther = isset($applyFor) && $applyFor && $applyFor->user_id !== auth()->id();
     $sendsTo = ($leaveSkipsVerification ?? false)
-        ? ['en' => 'Goes straight to management for approval — your role skips the verify step.',
-            'ms' => 'Dihantar terus kepada pengurusan untuk kelulusan — peranan anda melangkau langkah pengesahan.']
+        ? ($forOther
+            ? ['en' => 'Goes straight to management for approval — their role skips the verify step.',
+                'ms' => 'Dihantar terus kepada pengurusan untuk kelulusan — peranan mereka melangkau langkah pengesahan.']
+            : ['en' => 'Goes straight to management for approval — your role skips the verify step.',
+                'ms' => 'Dihantar terus kepada pengurusan untuk kelulusan — peranan anda melangkau langkah pengesahan.'])
         : ($verifierName
             ? ['en' => "Goes to {$verifierName} to verify, then management to approve.",
                 'ms' => "Dihantar kepada {$verifierName} untuk sahkan, kemudian pengurusan untuk lulus."]
@@ -92,7 +96,9 @@
                 'ms' => 'Dihantar kepada pengurus anda untuk sahkan, kemudian pengurusan untuk lulus.']);
 @endphp
 
-<form method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{
+@include('partials.on-behalf-picker', ['screen' => 'leave'])
+
+<form id="apply-leave" method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{
         meta: @js($applyMeta),
         team: @js($teamRanges),
         sel: @js($selInit ? (int) $selInit : null),

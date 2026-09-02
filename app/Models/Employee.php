@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $joined_at
  * @property Carbon|null $archived_at
  * @property-read string $display_name
+ * @property-read User|null $user
  * @property-read string|null $position
  * @property-read string $workload
  * @property-read string $workload_label
