@@ -415,6 +415,26 @@ class AmanahkuServerTest extends TestCase
         $this->assertNotContains('Omar card', $titles);
     }
 
+    /**
+     * A card the caller was added to as a participant is one save_timesheet_draft
+     * accepts (BoardSuggestions::cardsFor()'s membership), so the listing must
+     * surface it too — and carry the id, which is the work_item_id that tool takes.
+     * Without the id, the only route to it was the week's stint-driven suggestions.
+     */
+    public function test_work_items_tool_lists_participant_cards_with_ids(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $shared = WorkItem::create(['tenant_id' => $this->tenantA->id, 'employee_id' => $this->otherEmpA->id, 'title' => 'Shared card', 'status' => 'prog', 'due_at' => '2026-08-07']);
+        $shared->participants()->attach($this->staffEmpA->id);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->callTool(WorkItemsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['board:read']));
+
+        $row = collect($this->toolData($response)['work_items'])->firstWhere('title', 'Shared card');
+        $this->assertNotNull($row);
+        $this->assertSame($shared->id, $row['id']);
+    }
+
     public function test_work_items_tool_is_tenant_isolated(): void
     {
         app(CurrentTenant::class)->set($this->tenantA);

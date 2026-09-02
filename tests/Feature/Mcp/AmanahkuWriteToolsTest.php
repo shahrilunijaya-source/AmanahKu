@@ -1051,6 +1051,70 @@ class AmanahkuWriteToolsTest extends TestCase
     }
 
     /**
+     * The capture overlay's fallback, over MCP: a card with NO effort type takes the
+     * row's own category_id — costed on the entry, with the project still read off
+     * the card — and the card itself is left unanswered for the board to settle.
+     */
+    public function test_a_row_category_fills_in_for_a_card_with_no_effort_type(): void
+    {
+        $card = $this->card(categoryId: null); // projectA stays — the category is the only gap
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'category_id' => $this->categoryA->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $row = $this->toolData($preview)['changes']['resulting_week'][self::WEEK][0];
+        $this->assertSame($this->categoryA->name, $row['category']);
+        $this->assertSame($this->projectA->name, $row['project']);
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $stored = TimesheetEntry::where('work_item_id', $card->id)->first();
+        $this->assertSame($this->categoryA->id, $stored->category_id);
+        $this->assertSame($this->projectA->id, $stored->project_id);
+        $this->assertNull($card->refresh()->timesheet_category_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The fallback is validated where it is USED: an unknown category_id on a card
+     * that actually needs one is refused with a pointer at timesheet_options, never
+     * silently filed. (On a card carrying its own category the same stray value stays
+     * ignored — see test_a_sent_category_id_is_ignored_in_favour_of_the_cards_own.)
+     */
+    public function test_a_bogus_row_category_on_an_uncategorised_card_is_refused(): void
+    {
+        $card = $this->card(categoryId: null, projectId: null);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'category_id' => 999999,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $this->assertStringContainsString('timesheet_options', $response->json('result.content.0.text'));
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, TimesheetEntry::where('work_item_id', $card->id)->count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
      * EVERY offending card is named, not just the first. Drafting a week from a
      * project folder routinely touches several cards at once, and reporting one
      * problem per attempt costs the developer a trip to the board and a retry for
