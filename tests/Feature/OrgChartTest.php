@@ -103,6 +103,46 @@ class OrgChartTest extends TestCase
         $this->assertContains($employee->id, $data['chart']['directors']);
     }
 
+    /**
+     * "Reports to nobody" means an empty manager field, not a root of the drawn
+     * tree. Someone reporting straight to a director is drawn as a root — the
+     * director band sits flat above the chart with no branches hanging off it — and
+     * counting roots told HR to go fix a line that was already set on purpose.
+     */
+    public function test_reporting_to_a_director_is_not_the_same_as_having_no_manager(): void
+    {
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+
+        $boss = User::create(['name' => 'Boss', 'email' => 'boss@acme.example', 'password' => Hash::make('password')]);
+        $boss->tenants()->attach($tenant->id, ['role' => 'director']);
+        $director = Employee::create([
+            'tenant_id' => $tenant->id, 'user_id' => $boss->id,
+            'name' => 'Boss', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $reportsToDirector = Employee::create([
+            'tenant_id' => $tenant->id, 'name' => 'Has A Manager', 'status' => 'active',
+            'workload' => 'green', 'reports_to_id' => $director->id,
+        ]);
+
+        $orphan = Employee::create([
+            'tenant_id' => $tenant->id, 'name' => 'Nobody At All', 'status' => 'active',
+            'workload' => 'green',
+        ]);
+
+        app(CurrentTenant::class)->set($tenant);
+        $this->actingAs($boss)->withSession(['current_tenant' => $tenant->id]);
+
+        $chart = app(OrgController::class)->screenData(Request::create('/app/orgchart'), $director)['chart'];
+
+        // Both are roots of the drawn tree...
+        $this->assertContains($reportsToDirector->id, $chart['roots']);
+        $this->assertContains($orphan->id, $chart['roots']);
+
+        // ...but only one of them actually has nobody to verify their requests.
+        $this->assertSame([$orphan->id], $chart['unmanaged']);
+    }
+
     public function test_orgchart_shows_the_summary_line(): void
     {
         // Act

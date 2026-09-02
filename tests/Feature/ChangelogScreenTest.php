@@ -158,8 +158,9 @@ class ChangelogScreenTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('approved as unpaid leave instead of being refused', false);
+        $response->assertSee('The dashboard is one page now', false);
+        $response->assertSee('/app/dash', false);
         $response->assertSee('red dot on anything waiting for you', false);
-        $response->assertSee('/app/leave', false);
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.

@@ -103,3 +103,5 @@ truth. Do not keep a second copy here.
 | [docs/SYSTEM_GUIDE.html](docs/SYSTEM_GUIDE.html) | Developer walkthrough. Last verified 2026-07-17. |
 
 Progress history lives in `git log`, not in a doc.
+
+#Test Policy

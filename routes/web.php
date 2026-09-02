@@ -192,6 +192,10 @@ Route::middleware('auth')->group(function () {
     Route::middleware(['tenant', 'company.active', 'not.archived', 'module.enabled'])->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
+        // One dashboard card, rebuilt for another period. Read-only and gated the
+        // same way the dashboard gates the card itself, so the arrows cannot reach
+        // a widget the viewer's role or the tenant's modules keep off their page.
+        Route::get('/app/dashboard/widget/{widget}', [AppController::class, 'dashboardWidgetPartial'])->name('dashboard.widget');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
         // HR books a granted day (Replacement) for someone else — see LeaveController::record.
         Route::post('/app/leave/record', [LeaveController::class, 'record'])->name('leave.record');

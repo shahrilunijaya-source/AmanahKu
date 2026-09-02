@@ -1491,66 +1491,350 @@ select.wd-inline {
 
 /* ═══════════════════════════════════════════════════════════════════════
    Dashboard (resources/views/screens/dash.blade.php) — ported from the
-   approved public/_dash-revamp.html mock. Namespaced uj-dq- ("dash queue")
-   to avoid colliding with the existing .uj-dash-split/.uj-dash-main/
-   .uj-dash-side layout classes, which are reused as-is for the col/rail
-   split (their flex 2/1 + stack-below-900px behaviour matches the mock's
-   1fr/288px split closely enough not to duplicate).
+   approved public/_dash-unified.html mock, which replaced the old Me/Company
+   scope switch with ONE grid of role-gated, user-arrangeable widgets.
+
+   Namespaced uj-dw- ("dashboard widget") for the new chrome. The disclosure
+   row and its stage badge keep their original uj-dq- names: partials/dash/row
+   still renders them, now inside the Pending tasks accordion instead of the
+   retired pinned queue card.
    ═══════════════════════════════════════════════════════════════════════ */
-/* Stacked, not a two-column header row: the chips read as a summary OF the
-   sentence above them, so they belong under it rather than opposite it. */
-.uj-dq-top { display:flex; flex-direction:column; align-items:stretch; gap:14px; margin-bottom:18px; }
-.uj-dq-titlerow { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
-.uj-dq-top h1 { font-size:var(--t-xl); font-weight:600; color:var(--ink); letter-spacing:-.025em; margin:0 0 3px; text-wrap:balance; }
-.uj-dq-hint { font-size:var(--t-sm); color:var(--muted); margin:-6px 0 14px; }
 
-.uj-dq-chips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.uj-dq-chip { display:flex; align-items:baseline; gap:6px; padding:7px 12px; border-radius:9px; background:#fff; border:1px solid var(--hairline); white-space:nowrap; transition:background .18s ease-out, border-color .18s ease-out; }
-.uj-dq-chip b { font:600 var(--t-lg) var(--font-mono); color:var(--ink); letter-spacing:-.02em; }
-.uj-dq-chip span { font-size:var(--t-sm); color:var(--muted); }
-.uj-dq-chip[data-hot] { background:var(--red-tint); border-color:#f3ced0; }
-.uj-dq-chip[data-hot] b { color:var(--red); }
-.uj-dq-chip[data-ok] { background:#e6f3ee; border-color:#c9e4da; }
-.uj-dq-chip[data-ok] b { color:var(--success); }
+/* Widget-local palette. The app's tokens carry the ink, the canvas and the one
+   red; these are the tinted surfaces the widgets sit on, plus the two shadow
+   steps that separate a resting card from a hovered one. */
+:root {
+    --red-line: #f3ced0;
+    --success-tint: #e6f3ee; --success-line: #c9e4da;
+    --amber-tint: #fbf3e6;  --amber-line: #ecdcbf;
+    --info-tint: #eaf1f8;   --info-ink: #2b537d;  --info-line: #cddeee;
+    --violet: #6b5ca5;      --violet-tint: #efedf8; --violet-ink: #4e4180; --violet-line: #ddd8ef;
+    --lift: 0 1px 2px rgba(38, 37, 30, .05);
+    --lift-hover: 0 3px 12px rgba(38, 37, 30, .09);
+    --lift-hi: 0 6px 20px rgba(38, 37, 30, .12);
+}
 
-/* customise toggle */
-/* ── Type: hold the mock's ramp inside the dashboard ──
-   The shared .uj-card-title is 15px with no tracking. The dashboard's ramp puts a
-   card heading at --t-lg (16px) with -0.01em, which is the step that separates a
-   card heading from a row title (14px); inheriting the 15px shared value collapsed
-   that gap and is why the port did not match the approved comp. Scoped to .uj-dq so
-   no other screen's card titles move. Line-heights are `normal` rather than the
-   body's 1.5 — the comp sets none on these, and headings read tighter than copy. */
-.uj-dq .uj-card-title { font-size:var(--t-lg); line-height:normal; letter-spacing:-.01em; }
-.uj-dq .uj-dq-rail-card .uj-card-title { font-size:var(--t-base); }
-.uj-dq .uj-dq-top h1 { font-size:var(--t-xl); font-weight:600; line-height:normal; letter-spacing:-.025em; margin:0 0 3px; text-wrap:balance; }
-.uj-dq .uj-dq-chip span { line-height:normal; }
-/* Controls sit on a fixed-height row, so the body's 1.5 line-height only shifts
-   their baseline. The card-head link is w500 in the comp — the shared .uj-link is
-   w400, which made "Open Employee Directory" read lighter than its neighbours. */
-.uj-dq .uj-dq-cust, .uj-dq .uj-dq-scope { line-height:normal; }
-.uj-dq .uj-card-head .uj-link { font-weight:500; line-height:normal; }
+/* ── head ── */
+.uj-dw-head { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+.uj-dw-head h1 { font-size:var(--t-xl); font-weight:600; color:var(--ink); letter-spacing:-.025em; margin:0; line-height:normal; text-wrap:balance; }
+.uj-dw-today { margin-left:auto; font-size:var(--t-sm); color:var(--muted); white-space:nowrap; }
+.uj-dw-gear { width:36px; height:36px; border-radius:10px; border:1px solid var(--hairline); background:#fff; display:flex; align-items:center; justify-content:center; color:var(--muted); box-shadow:var(--lift); transition:color .16s ease-out, border-color .16s ease-out, transform .16s var(--ease); }
+.uj-dw-gear:hover { color:var(--ink); border-color:var(--shelf-line); }
+.uj-dw-gear:active { transform:scale(.94); }
+.uj-dw-gear svg { width:17px; height:17px; }
 
-/* ── Me / Company scope switch ──
-   These are real navigations, so they are the one daily control on the dashboard.
-   They previously carried inline styles and therefore no press feedback at all —
-   the only pressable thing on the screen that did not respond to being pressed. */
-.uj-dq-scopes { display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--hairline-soft); border:1px solid var(--hairline); flex-shrink:0; }
-.uj-dq-scope { height:26px; padding:0 13px; border-radius:7px; font-size:var(--t-sm); font-weight:500; display:flex; align-items:center; text-decoration:none; white-space:nowrap; color:var(--muted);
-    transition:color .14s cubic-bezier(.23,1,.32,1), background .14s cubic-bezier(.23,1,.32,1), transform .16s cubic-bezier(.23,1,.32,1); }
-.uj-dq-scope:hover { color:var(--ink); }
-.uj-dq-scope:active { transform:scale(.97); }
-.uj-dq-scope[data-on] { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(38,37,30,.08); }
+/* ── grid ── */
+.uj-dw-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
+/* The dashboard rides the wide page measure (1280px, same as the calendar
+   screen): two columns of cards need more than the 920px prose measure, but not
+   the whole monitor — and a fixed cap means collapsing the sidebar does not
+   stretch every card. */
+.uj-dw-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
+@media (max-width: 1020px) { .uj-dw-grid { grid-template-columns:minmax(0,1fr); } }
 
-.uj-dq-cust { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:9px; border:1px solid var(--hairline); background:#fff; color:var(--body); font-size:var(--t-sm); font-weight:500; transition:border-color .14s ease-out, background .14s ease-out, transform .14s ease-out; }
-.uj-dq-cust:hover { border-color:#d5d2c8; background:#fbfbf9; }
-.uj-dq-cust:active { transform:scale(.97); }
-.uj-dq-cust[data-on] { background:var(--ink); border-color:var(--ink); color:#fff; }
+/* ── card ── */
+.uj-dw { background:var(--card); border:1px solid var(--hairline); border-radius:14px; box-shadow:var(--lift); overflow:hidden; transition:box-shadow .18s ease-out, border-color .18s ease-out; }
+.uj-dw:hover { box-shadow:var(--lift-hover); border-color:var(--shelf-line); }
+.uj-dw[data-dragging] { opacity:.45; }
+.uj-dw-hd { position:relative; display:flex; align-items:center; gap:10px; padding:14px 16px 12px; border-bottom:1px solid var(--hairline-soft); flex-wrap:wrap; row-gap:8px; cursor:grab; user-select:none; }
+.uj-dw[data-dragging] .uj-dw-hd { cursor:grabbing; }
+.uj-dw-hd button, .uj-dw-hd a { cursor:pointer; }
+/* Grip dots, one pseudo element plus five shadows: the handle costs no layout
+   and cannot push the title off its baseline. Fades in on card hover. */
+.uj-dw-hd::before { content:""; position:absolute; left:6px; top:50%; width:2px; height:2px; border-radius:50%; background:var(--muted-soft); transform:translateY(-50%); opacity:0; transition:opacity .16s ease-out;
+    box-shadow:0 -4px var(--muted-soft), 0 4px var(--muted-soft), 4px -4px var(--muted-soft), 4px 0 var(--muted-soft), 4px 4px var(--muted-soft); }
+.uj-dw:hover .uj-dw-hd::before { opacity:.55; }
+.uj-dw-hd h2 { font-size:var(--t-lg); font-weight:600; color:var(--ink); letter-spacing:-.01em; line-height:normal; margin:0; }
+.uj-dw-hd .uj-dw-spacer { margin-left:auto; }
+/* Period arrows. Mono label so the width does not shift as the date changes,
+   and a disabled forward arrow rather than a missing one so the row keeps its
+   shape when a card reaches the present. */
+.uj-dw-pnav { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.uj-dw-pnav button { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; border:0; background:none; color:var(--muted); cursor:pointer; transition:background .14s ease-out, color .14s ease-out, transform .14s ease-out; }
+.uj-dw-pnav button:hover:not(:disabled) { background:var(--hairline-soft); color:var(--ink); }
+.uj-dw-pnav button:active:not(:disabled) { transform:scale(.9); }
+.uj-dw-pnav button:disabled { opacity:.35; cursor:default; }
+.uj-dw-pnav svg { width:13px; height:13px; }
+.uj-dw-pnav .label { font-family:var(--font-mono); font-size:var(--t-sm); font-weight:600; color:var(--ink); padding:4px 10px; border-radius:8px; border:1px solid var(--hairline); white-space:nowrap; letter-spacing:-.01em; }
+.uj-dw-pnav .now { width:auto; padding:0 10px; font-size:var(--t-sm); font-weight:500; background:var(--hairline-soft); }
+.uj-dw-pnav .now:hover { color:var(--ink); background:var(--shelf); }
+/* A card mid-refetch stays readable and stays put; only the pointer says wait. */
+.uj-dw[data-busy] { cursor:progress; }
+.uj-dw[data-busy] .uj-dw-pnav { opacity:.5; pointer-events:none; }
+.uj-dw-body { padding:16px; }
+.uj-dw-body.uj-dw-flush { padding:0; }
+.uj-dw-foot { padding:11px 16px; border-top:1px solid var(--hairline-soft); background:#fbfbf9; display:flex; align-items:center; gap:10px; font-size:var(--t-sm); color:var(--muted); }
+.uj-dw-foot b { margin-left:auto; font:600 var(--t-base) var(--font-mono); color:var(--ink); letter-spacing:-.02em; }
+.uj-dw-link { font-size:var(--t-sm); font-weight:500; color:var(--info-ink); text-decoration:none; }
+.uj-dw-link:hover { text-decoration:underline; }
+.uj-dw-count { font:600 var(--t-micro) var(--font-mono); color:var(--muted); background:var(--hairline-soft); border-radius:999px; padding:3px 9px; }
+.uj-dw-count[data-hot] { background:var(--red-tint); color:var(--red); }
+.uj-dw-empty { padding:24px 16px; text-align:center; font-size:var(--t-sm); color:var(--muted); }
 
-/* count badge on a card header — zero is the good outcome, so it earns the ok tone */
-.uj-dq-count { font:600 var(--t-micro) var(--font-mono); color:var(--muted); background:var(--hairline-soft); border-radius:999px; padding:3px 9px; transition:background .18s ease-out, color .18s ease-out; }
-.uj-dq-count[data-hot] { background:var(--red-tint); color:var(--red); }
-.uj-dq-count[data-ok] { background:#e6f3ee; color:#12654a; }
+/* status pill, shared by tables and lists */
+.uj-dw-pill { font-size:var(--t-micro); font-weight:600; padding:2px 8px; border-radius:5px; white-space:nowrap; display:inline-block; }
+.uj-dw-pill[data-k="ok"]   { background:var(--success-tint); color:var(--success-ink); }
+.uj-dw-pill[data-k="warn"] { background:var(--amber-tint);   color:var(--amber-ink); }
+.uj-dw-pill[data-k="bad"]  { background:var(--red-tint);     color:var(--red); }
+.uj-dw-pill[data-k="off"]  { background:var(--hairline-soft); color:var(--muted); }
+
+/* ── stat tiles (Current month summary) ── */
+.uj-dw-tiles { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+@media (max-width: 520px) { .uj-dw-tiles { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+.uj-dw-tile { border:1px solid var(--hairline); border-radius:11px; padding:13px 13px 11px; background:#fff; }
+.uj-dw-tile .v { font:600 20px var(--font-mono); color:var(--ink); letter-spacing:-.03em; display:block; line-height:1.1; }
+.uj-dw-tile .v small { font-size:12px; font-weight:500; color:var(--muted-soft); margin-left:2px; }
+.uj-dw-tile .l { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:var(--t-sm); color:var(--muted); line-height:normal; }
+.uj-dw-tile .dot { width:7px; height:7px; border-radius:999px; flex-shrink:0; background:var(--muted-soft); }
+.uj-dw-tile[data-k="hours"] { background:var(--info-tint); border-color:var(--info-line); }
+.uj-dw-tile[data-k="hours"] .v { color:var(--info-ink); } .uj-dw-tile[data-k="hours"] .dot { background:var(--info); }
+.uj-dw-tile[data-k="ot"] { background:var(--violet-tint); border-color:var(--violet-line); }
+.uj-dw-tile[data-k="ot"] .v { color:var(--violet-ink); } .uj-dw-tile[data-k="ot"] .dot { background:var(--violet); }
+.uj-dw-tile[data-k="leave"] { background:var(--success-tint); border-color:var(--success-line); }
+.uj-dw-tile[data-k="leave"] .v { color:var(--success-ink); } .uj-dw-tile[data-k="leave"] .dot { background:var(--success); }
+.uj-dw-tile[data-k="late"] { background:var(--amber-tint); border-color:var(--amber-line); }
+.uj-dw-tile[data-k="late"] .v { color:var(--amber-ink); } .uj-dw-tile[data-k="late"] .dot { background:var(--amber); }
+.uj-dw-tile[data-k="absent"], .uj-dw-tile[data-k="incomplete"] { background:var(--red-tint); border-color:var(--red-line); }
+.uj-dw-tile[data-k="absent"] .v, .uj-dw-tile[data-k="incomplete"] .v { color:var(--red); }
+.uj-dw-tile[data-k="absent"] .dot, .uj-dw-tile[data-k="incomplete"] .dot { background:var(--red); }
+
+/* One authored entrance: the six figures land in reading order on first paint.
+   Nothing else on the page stages itself — a dashboard that animates every card
+   is a dashboard you wait for. */
+@keyframes uj-dw-tile-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.uj-dw-tiles .uj-dw-tile { animation:uj-dw-tile-in .34s var(--ease) both; }
+.uj-dw-tiles .uj-dw-tile:nth-child(1) { animation-delay:0ms; }
+.uj-dw-tiles .uj-dw-tile:nth-child(2) { animation-delay:42ms; }
+.uj-dw-tiles .uj-dw-tile:nth-child(3) { animation-delay:84ms; }
+.uj-dw-tiles .uj-dw-tile:nth-child(4) { animation-delay:126ms; }
+.uj-dw-tiles .uj-dw-tile:nth-child(5) { animation-delay:168ms; }
+.uj-dw-tiles .uj-dw-tile:nth-child(6) { animation-delay:210ms; }
+
+/* ── calendar ── */
+.uj-dw-cal-today { padding:14px 16px; background:var(--shelf); border-bottom:1px solid var(--shelf-line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; row-gap:8px; }
+.uj-dw-cal-today .dow { font-size:var(--t-sm); color:var(--muted); display:block; line-height:normal; }
+.uj-dw-cal-today .big { font-size:19px; font-weight:600; color:var(--ink); letter-spacing:-.02em; display:block; line-height:1.25; }
+.uj-dw-cal-today .badge { font-size:var(--t-micro); font-weight:600; color:var(--success-ink); background:var(--success-tint); border:1px solid var(--success-line); border-radius:999px; padding:3px 9px; white-space:nowrap; }
+.uj-dw-cal-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); }
+.uj-dw-cal-dow { font-size:var(--t-micro); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); text-align:center; padding:9px 0; border-bottom:1px solid var(--hairline); background:#fbfbf9; }
+.uj-dw-cal-day { min-height:74px; padding:6px 6px 7px; border-right:1px solid var(--hairline-soft); border-bottom:1px solid var(--hairline-soft); text-align:left; display:flex; flex-direction:column; gap:4px; overflow:hidden; }
+.uj-dw-cal-day:nth-child(7n) { border-right:0; }
+.uj-dw-cal-day .n { font:500 var(--t-sm) var(--font-mono); color:var(--body); display:block; line-height:normal; }
+.uj-dw-cal-day[data-out] .n { color:#b9b6ac; }
+.uj-dw-cal-day[data-today] { background:var(--red-tint); box-shadow:inset 0 0 0 1.5px var(--red); }
+.uj-dw-cal-day[data-today] .n { color:var(--red); font-weight:600; }
+.uj-dw-cal-marks { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.uj-dw-cal-pill { font-size:10px; font-weight:500; line-height:1.5; padding:1px 5px; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.uj-dw-cal-pill[data-k="leave"]   { background:var(--success-tint); color:var(--success-ink); }
+.uj-dw-cal-pill[data-k="event"]   { background:var(--info-tint);    color:var(--info-ink); }
+.uj-dw-cal-pill[data-k="holiday"] { background:var(--amber-tint);   color:var(--amber-ink); }
+.uj-dw-cal-pill[data-k="pending"] { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--hairline); }
+.uj-dw-cal-more { font-size:10px; color:var(--muted-soft); padding-left:2px; line-height:1.4; }
+/* A day is a button now — it picks what the panel below reads out. Buttons carry
+   their own background and font, so the cell resets both back to the grid. */
+.uj-dw-cal-day { background:none; font:inherit; color:inherit; }
+button.uj-dw-cal-day { cursor:pointer; transition:background .14s ease-out; }
+button.uj-dw-cal-day:hover { background:#faf9f6; }
+button.uj-dw-cal-day[data-sel] { background:var(--info-tint); box-shadow:inset 0 0 0 1.5px var(--info); }
+button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-shadow:inset 0 0 0 1.5px var(--red); }
+
+/* Whose days you are reading. Underline, not a pill row: the tabs belong to the
+   panel below them, and a boxed segment control would read as a second card. */
+.uj-dw-cal-tabs { display:flex; gap:2px; padding:10px 12px 0; }
+.uj-dw-cal-tabs button { padding:7px 13px; border:0; border-bottom:2px solid transparent; border-radius:8px 8px 0 0; background:none; font-size:var(--t-sm); font-weight:500; color:var(--muted); cursor:pointer; transition:color .16s ease-out, border-color .16s ease-out; }
+.uj-dw-cal-tabs button:hover { color:var(--ink); }
+.uj-dw-cal-tabs button[data-on] { color:var(--red); border-bottom-color:var(--red); }
+.uj-dw-cal-panel { padding:12px 16px 16px; border-top:1px solid var(--hairline-soft); }
+.uj-dw-cal-ph { font-size:var(--t-sm); font-weight:600; color:var(--ink); margin:0 0 9px; line-height:normal; }
+.uj-dw-cal-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--hairline-soft); }
+.uj-dw-cal-item:first-of-type { border-top:0; }
+.uj-dw-cal-item .av { flex-shrink:0; width:28px; height:28px; border-radius:999px; background:var(--shelf); border:1px solid var(--shelf-line); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--muted); }
+.uj-dw-cal-item .txt { min-width:0; }
+.uj-dw-cal-item .t { display:block; font-size:var(--t-sm); font-weight:500; color:var(--ink); line-height:1.4; }
+.uj-dw-cal-item .s { display:block; font-size:var(--t-micro); color:var(--muted); line-height:1.4; }
+.uj-dw-cal-tag { margin-left:auto; flex-shrink:0; font-size:var(--t-micro); font-weight:600; border-radius:999px; padding:3px 9px; white-space:nowrap; }
+.uj-dw-cal-tag[data-k="leave"]   { background:var(--success-tint); color:var(--success-ink); }
+.uj-dw-cal-tag[data-k="event"]   { background:var(--info-tint);    color:var(--info-ink); }
+.uj-dw-cal-tag[data-k="holiday"] { background:var(--amber-tint);   color:var(--amber-ink); }
+.uj-dw-cal-tag[data-k="pending"] { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--hairline); }
+
+/* ── accordion (Pending tasks) ── */
+.uj-dw-acc { border:1px solid var(--hairline); border-radius:11px; overflow:hidden; }
+.uj-dw-acc + .uj-dw-acc { margin-top:10px; }
+.uj-dw-acc-hd { width:100%; display:flex; align-items:center; gap:10px; padding:11px 13px; background:var(--shelf); text-align:left; transition:background .14s ease-out; }
+.uj-dw-acc-hd:hover { background:#e5e1d7; }
+.uj-dw-acc-hd .t { font-size:var(--t-sm); font-weight:600; color:var(--ink); flex:1; line-height:normal; }
+.uj-dw-acc-hd .chev { width:14px; height:14px; color:var(--muted); transition:transform .22s var(--ease); flex-shrink:0; }
+.uj-dw-acc[data-open] .uj-dw-acc-hd .chev { transform:rotate(180deg); }
+.uj-dw-acc-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .26s var(--ease); }
+.uj-dw-acc[data-open] .uj-dw-acc-body { grid-template-rows:1fr; }
+.uj-dw-acc-body > div { overflow:hidden; }
+/* Blur bridges the reveal: without it the rows read as a second object sliding
+   over the first instead of one panel opening. */
+.uj-dw-acc-body .uj-dw-acc-in { filter:blur(3px); opacity:0; transition:filter .24s ease-out, opacity .2s ease-out; }
+.uj-dw-acc[data-open] .uj-dw-acc-body .uj-dw-acc-in { filter:none; opacity:1; }
+/* The disclosure rows sit flush inside the accordion, so they drop the queue
+   card's 18px gutter and the 73px body indent it needed for the date chip. */
+.uj-dw-acc .uj-dq-row-hd { padding:11px 13px; gap:11px; }
+.uj-dw-acc .uj-dq-row-body-in { padding:0 13px 14px 66px; }
+
+/* ── tables ── */
+.uj-dw-tbl { width:100%; border-collapse:collapse; }
+.uj-dw-tbl th { font-size:var(--t-micro); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); background:var(--shelf); text-align:left; padding:9px 14px; border-bottom:1px solid var(--shelf-line); white-space:nowrap; }
+.uj-dw-tbl th.r, .uj-dw-tbl td.r { text-align:right; }
+.uj-dw-tbl td { padding:11px 14px; border-bottom:1px solid var(--hairline-soft); font-size:var(--t-sm); color:var(--body); vertical-align:middle; }
+.uj-dw-tbl tr:last-child td { border-bottom:0; }
+.uj-dw-tbl tbody tr { transition:background .14s ease-out; }
+.uj-dw-tbl tbody tr:hover { background:#fbfaf7; }
+.uj-dw-tbl .num { font:500 var(--t-sm) var(--font-mono); color:var(--ink); letter-spacing:-.01em; }
+.uj-dw-tbl .day { font:500 var(--t-micro) var(--font-mono); color:var(--muted); display:block; line-height:1.3; }
+.uj-dw-tbl .dnum { font:600 var(--t-base) var(--font-mono); color:var(--ink); display:block; line-height:1.1; letter-spacing:-.02em; }
+.uj-dw-total { display:flex; align-items:center; padding:12px 16px; background:var(--shelf); border-top:1px solid var(--shelf-line); }
+.uj-dw-total .l { font-size:var(--t-micro); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+.uj-dw-total .v { margin-left:auto; font:600 var(--t-lg) var(--font-mono); color:var(--ink); letter-spacing:-.02em; }
+.uj-dw-swatch { width:9px; height:9px; border-radius:999px; display:inline-block; margin-right:8px; flex-shrink:0; }
+
+/* ── leave rows ── */
+.uj-dw-lv { padding:12px 14px; border-bottom:1px solid var(--hairline-soft); }
+.uj-dw-lv:last-child { border-bottom:0; }
+.uj-dw-lv-top { display:flex; align-items:center; gap:0; }
+.uj-dw-lv-top .t { font-size:var(--t-sm); font-weight:500; color:var(--ink); line-height:normal; }
+.uj-dw-lv-top .v { margin-left:auto; font:600 var(--t-sm) var(--font-mono); color:var(--ink); letter-spacing:-.01em; white-space:nowrap; }
+.uj-dw-lv-top .v small { color:var(--muted-soft); font-weight:500; }
+.uj-dw-lv-bar { height:5px; border-radius:999px; background:var(--hairline); margin-top:8px; overflow:hidden; display:flex; }
+.uj-dw-lv-bar i { display:block; height:100%; background:var(--info); }
+.uj-dw-lv-meta { display:flex; gap:14px; flex-wrap:wrap; margin-top:7px; font-size:var(--t-micro); color:var(--muted); }
+.uj-dw-lv-meta b { font-family:var(--font-mono); font-weight:600; color:var(--body); }
+/* Fold for the long tail of leave types: the three that matter stay open, the
+   rest sit behind this. It reads as a row, not a button, so it does not compete
+   with the card's own footer link. */
+.uj-dw-more { width:100%; padding:10px 14px; border:0; background:#fbfbf9; font-size:var(--t-sm); font-weight:500; color:var(--muted); text-align:left; cursor:pointer; transition:color .16s ease-out, background .16s ease-out; }
+.uj-dw-more:hover { color:var(--ink); background:#f6f6f2; }
+/* Collapsed, the third row's own bottom hairline is the separator; expanded, that
+   row is the last child of the fold and drops it, so the button draws the line. */
+.uj-dw-more[aria-expanded="true"] { border-top:1px solid var(--hairline-soft); }
+/* Inside a padded body the row list has no edge to sit against, so the button
+   drops the shelf background and lines up with the rows above it. */
+.uj-dw-more--inline { padding:10px 0; background:none; }
+.uj-dw-more--inline:hover { background:none; }
+
+/* ── clock log ── */
+.uj-dw-shift { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--hairline-soft); flex-wrap:wrap; row-gap:9px; }
+.uj-dw-shift .txt { display:block; min-width:0; flex:1; }
+.uj-dw-shift .t { font-size:var(--t-sm); font-weight:500; color:var(--ink); display:block; line-height:1.4; }
+.uj-dw-shift .s { font:500 var(--t-sm) var(--font-mono); color:var(--muted); display:block; line-height:1.4; }
+.uj-dw-punch { display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid var(--hairline-soft); }
+.uj-dw-punch:last-child { border-bottom:0; }
+.uj-dw-punch .dow { width:78px; font:500 var(--t-sm) var(--font-mono); color:var(--muted); flex-shrink:0; }
+.uj-dw-punch .times { font:500 var(--t-sm) var(--font-mono); color:var(--ink); flex:1; }
+
+/* ── team attendance ── */
+.uj-dw-att { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
+@media (max-width: 560px) { .uj-dw-att { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+.uj-dw-att > div { border:1px solid var(--hairline); border-radius:10px; padding:11px 8px; text-align:center; background:#fff; }
+.uj-dw-att .v { font:600 18px var(--font-mono); color:var(--ink); display:block; line-height:1.1; letter-spacing:-.03em; }
+.uj-dw-att .l { font-size:var(--t-micro); color:var(--muted); display:flex; align-items:center; justify-content:center; gap:5px; margin-top:5px; line-height:normal; }
+.uj-dw-att .l .uj-dw-swatch { margin:0; }
+.uj-dw-people { margin-top:12px; border-top:1px solid var(--hairline-soft); }
+.uj-dw-person { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline-soft); }
+.uj-dw-person:last-child { border-bottom:0; }
+.uj-dw-person .av { width:28px; height:28px; border-radius:999px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font:600 var(--t-micro) var(--font-mono); color:#fff; background:var(--muted-soft); }
+.uj-dw-person .txt { flex:1; min-width:0; display:block; }
+.uj-dw-person .t { font-size:var(--t-sm); font-weight:500; color:var(--ink); display:block; line-height:1.4; }
+.uj-dw-person .s { font-size:var(--t-sm); color:var(--muted); display:block; line-height:1.4; }
+
+/* ── notices ── */
+.uj-dw-notice { display:flex; gap:11px; padding:12px 0; border-bottom:1px solid var(--hairline-soft); }
+.uj-dw-notice:first-child { padding-top:0; }
+.uj-dw-notice:last-child { border-bottom:0; padding-bottom:0; }
+.uj-dw-notice .when { width:52px; flex-shrink:0; text-align:center; padding-top:1px; font:600 var(--t-micro) var(--font-mono); color:var(--muted); }
+.uj-dw-notice .txt { min-width:0; display:block; flex:1; }
+.uj-dw-notice .t { font-size:var(--t-sm); font-weight:500; color:var(--ink); display:block; line-height:1.45; }
+.uj-dw-notice .s { font-size:var(--t-sm); color:var(--muted); display:block; line-height:1.45; margin-top:2px; }
+.uj-dw-notice .tag { font-size:var(--t-micro); font-weight:600; color:var(--info-ink); background:var(--info-tint); border-radius:5px; padding:2px 7px; white-space:nowrap; align-self:flex-start; flex-shrink:0; }
+.uj-dw-notice .tag[data-req] { color:var(--red); background:var(--red-tint); }
+
+/* ── pulse ── */
+.uj-dw-pulse { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+.uj-dw-pulse > div { border:1px solid var(--hairline); border-radius:11px; padding:12px 13px; }
+.uj-dw-pulse .v { font:600 20px var(--font-mono); color:var(--ink); display:block; line-height:1.1; letter-spacing:-.03em; }
+.uj-dw-pulse .l { font-size:var(--t-sm); color:var(--muted); display:block; margin-top:5px; line-height:1.35; }
+.uj-dw-pulse .v[data-hot] { color:var(--red); }
+
+/* ── widget picker ── */
+.uj-dw-scrim { position:fixed; inset:0; z-index:190; background:rgba(38,37,30,.42); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .2s ease-out; }
+.uj-dw-scrim[data-open] { opacity:1; pointer-events:auto; }
+.uj-dw-sheet { width:100%; max-width:720px; max-height:100%; background:var(--card); border-radius:16px; box-shadow:var(--lift-hi); display:flex; flex-direction:column; overflow:hidden; transform:scale(.97); opacity:0; transition:transform .22s var(--ease), opacity .18s ease-out; }
+.uj-dw-scrim[data-open] .uj-dw-sheet { transform:none; opacity:1; }
+.uj-dw-sheet-hd { display:flex; align-items:flex-start; gap:12px; padding:16px 18px 14px; border-bottom:1px solid var(--hairline); }
+.uj-dw-sheet-hd h2 { font-size:var(--t-lg); font-weight:600; color:var(--ink); margin:0; letter-spacing:-.01em; line-height:normal; }
+.uj-dw-sheet-hd .sub { font-size:var(--t-sm); color:var(--muted); display:block; line-height:1.4; margin-top:1px; }
+.uj-dw-sheet-hd > span { flex:1; min-width:0; }
+.uj-dw-x { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:var(--muted); flex-shrink:0; transition:background .14s ease-out, color .14s ease-out, transform .16s var(--ease); }
+.uj-dw-x:hover { background:var(--hairline-soft); color:var(--ink); }
+.uj-dw-x:active { transform:scale(.9); }
+.uj-dw-x svg { width:15px; height:15px; }
+.uj-dw-filters { display:flex; gap:6px; padding:12px 18px; border-bottom:1px solid var(--hairline-soft); overflow-x:auto; }
+.uj-dw-filters button { height:28px; padding:0 12px; border-radius:999px; font-size:var(--t-sm); font-weight:500; color:var(--muted); border:1px solid var(--hairline); white-space:nowrap; background:#fff; transition:color .14s ease-out, background .14s ease-out, border-color .14s ease-out, transform .16s var(--ease); }
+.uj-dw-filters button:hover { color:var(--ink); }
+.uj-dw-filters button:active { transform:scale(.97); }
+.uj-dw-filters button[data-on] { background:var(--ink); border-color:var(--ink); color:#fff; }
+.uj-dw-picks { padding:12px 18px 18px; overflow-y:auto; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:9px; align-content:start; }
+@media (max-width: 560px) { .uj-dw-picks { grid-template-columns:minmax(0,1fr); } }
+.uj-dw-pick { display:flex; align-items:flex-start; gap:11px; padding:12px; border:1px solid var(--hairline); border-radius:11px; text-align:left; background:#fff; transition:border-color .16s ease-out, background .16s ease-out, transform .16s var(--ease); }
+.uj-dw-pick:hover { border-color:var(--shelf-line); }
+.uj-dw-pick:active { transform:scale(.99); }
+.uj-dw-pick[data-on] { border-color:#c9c5b8; background:#fbfaf7; }
+.uj-dw-pick .box { width:19px; height:19px; border-radius:6px; border:1.5px solid var(--shelf-line); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; margin-top:1px; transition:background .16s ease-out, border-color .16s ease-out; }
+.uj-dw-pick[data-on] .box { background:var(--red); border-color:var(--red); }
+.uj-dw-pick .box svg { width:11px; height:11px; opacity:0; transform:scale(.7); transition:opacity .14s ease-out, transform .2s var(--ease); }
+.uj-dw-pick[data-on] .box svg { opacity:1; transform:none; }
+.uj-dw-pick .txt { min-width:0; display:block; }
+.uj-dw-pick .t { font-size:var(--t-sm); font-weight:500; color:var(--ink); display:block; line-height:1.4; }
+.uj-dw-pick .s { font-size:var(--t-sm); color:var(--muted); display:block; line-height:1.4; }
+.uj-dw-pick:disabled { opacity:.45; cursor:not-allowed; }
+.uj-dw-sheet-ft { display:flex; align-items:center; gap:10px; padding:13px 18px; border-top:1px solid var(--hairline); background:#fbfbf9; }
+.uj-dw-sheet-ft .n { font-size:var(--t-sm); color:var(--muted); }
+.uj-dw-sheet-ft .uj-dw-btn-ghost { margin-left:auto; }
+
+/* ── buttons local to the dashboard ── */
+.uj-dw-btn { height:32px; padding:0 14px; border-radius:9px; font-size:var(--t-sm); font-weight:500; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; text-decoration:none; transition:background .16s ease-out, color .16s ease-out, border-color .16s ease-out, transform .16s var(--ease); }
+.uj-dw-btn:active { transform:scale(.97); }
+.uj-dw-btn-red { background:var(--red); color:#fff; }
+.uj-dw-btn-red:hover { background:var(--red-active); }
+.uj-dw-btn-ghost { border:1px solid var(--hairline); color:var(--body); background:#fff; }
+.uj-dw-btn-ghost:hover { border-color:var(--shelf-line); color:var(--ink); }
+
+/* ── mobile ──
+   Below 640px a 7-column month grid gives each day ~48px. Labels cannot fit, so
+   the cell carries a dot per entry and the panel under it carries the words —
+   the grid stays a month you can scan, not a wall of ellipses. */
+@media (max-width: 640px) {
+    .uj-dw-cal-day { min-height:52px; padding:5px 4px; }
+    .uj-dw-cal-marks { flex-direction:row; flex-wrap:wrap; gap:3px; }
+    .uj-dw-cal-pill { width:6px; height:6px; padding:0; border-radius:999px; font-size:0; overflow:hidden; flex-shrink:0; }
+    .uj-dw-cal-more { display:none; }
+    .uj-dw-cal-dow { font-size:10px; }
+    .uj-dw-head h1 { font-size:19px; }
+    .uj-dw-today { margin-left:0; }
+    .uj-dq-row-hd { padding:12px 14px; gap:11px; }
+    .uj-dq-row-acts .uj-dq-btn { flex:1; justify-content:center; height:44px; font-size:var(--t-base); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .uj-dw-tiles .uj-dw-tile,
+    .uj-dq-done-mark, .uj-dq-done h3, .uj-dq-done p { animation:none; opacity:1; transform:none; filter:none; }
+    .uj-dw, .uj-dw-acc-body, .uj-dw-acc-body .uj-dw-acc-in, .uj-dq-row-body, .uj-dq-row-body p { transition-duration:.01ms; }
+}
+
+/* Dragging is pointer-driven (HTML5 drag and drop), so a touch device gets the
+   picker but not reorder. The grip dots would be a promise the device cannot keep. */
+@media (hover: none) {
+    .uj-dw-hd { cursor:default; }
+    .uj-dw-hd::before { display:none; }
+}
+
+/* ── disclosure rows, kept from the retired pinned queue card ── */
 
 /* stage badge — the verify/approve distinction */
 .uj-dq-stage { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; padding:4px 8px; border-radius:5px; flex-shrink:0; }
@@ -1587,6 +1871,10 @@ select.wd-inline {
 .uj-dq-row-acts { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 .uj-dq-btn { height:34px; padding:0 14px; border-radius:8px; font-size:var(--t-sm); display:inline-flex; align-items:center; text-decoration:none; }
 
+/* The entrance rise, shared by the cleared-queue mark and any staggered row. */
+@keyframes uj-dq-rise { to { opacity:1; transform:none; } }
+.uj-dq-stag { opacity:0; transform:translateY(7px); animation:uj-dq-rise .34s cubic-bezier(.23,1,.32,1) forwards; animation-delay:calc(var(--i, 0) * 42ms); }
+
 /* cleared-queue empty state. No overshoot: an HR officer clears this queue most
    working days, so the moment is routine, not rare — bounce at daily frequency
    is the thing you notice once and resent after. Same house curve as everything
@@ -1596,87 +1884,6 @@ select.wd-inline {
 @keyframes uj-dq-pop { to { opacity:1; transform:none; } }
 .uj-dq-done h3 { font-size:var(--t-lg); font-weight:600; color:var(--ink); margin:0 0 5px; opacity:0; transform:translateY(6px); animation:uj-dq-rise .3s cubic-bezier(.23,1,.32,1) .06s forwards; }
 .uj-dq-done p { font-size:var(--t-sm); color:var(--muted); margin:0 auto; max-width:38ch; line-height:1.6; opacity:0; transform:translateY(6px); animation:uj-dq-rise .3s cubic-bezier(.23,1,.32,1) .11s forwards; }
-
-/* ── rail (optional/hideable) cards ── */
-.uj-dq-rail-card { padding:16px 17px; }
-.uj-dq-rail-card .uj-card-title { font-size:var(--t-base); margin-bottom:11px; }
-.uj-dq-mini { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--hairline-soft); }
-.uj-dq-mini:last-child { border-bottom:0; padding-bottom:0; }
-.uj-dq-mini .av { width:27px; height:27px; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; font-size:var(--t-micro); font-weight:600; flex-shrink:0; }
-.uj-dq-mini .t { font-size:var(--t-sm); color:var(--ink); font-weight:500; line-height:1.35; }
-.uj-dq-mini .s { font-size:var(--t-sm); color:var(--muted); margin-top:1px; }
-.uj-dq-mini .r { margin-left:auto; font:500 var(--t-micro) var(--font-mono); color:var(--muted-soft); white-space:nowrap; }
-.uj-dq-tag { font:600 var(--t-micro) var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--hairline-soft); padding:3px 7px; border-radius:5px; }
-
-
-/* A card with no chrome of its own: the thing inside IS the card. Used by tiles that
-   would otherwise read as a box inside a box. */
-.uj-card-bare { background:none; border:0; padding:0; box-shadow:none; }
-.uj-card-bare .uj-dq-card-tools { right:auto; left:12px; }
-
-/* ── Customise mode ── */
-.uj-dq-card-tools { position:absolute; top:-11px; right:12px; display:flex; align-items:center; gap:3px; padding:3px; border-radius:999px; background:#fff; border:1px solid var(--hairline); box-shadow:0 3px 10px rgba(38,37,30,.09); }
-.uj-dq-card-tools button { width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:var(--muted); transition:background .14s ease-out, color .14s ease-out, transform .14s ease-out; }
-.uj-dq-card-tools button:hover { background:var(--hairline-soft); color:var(--ink); }
-.uj-dq-card-tools button:active { transform:scale(.9); }
-.uj-dq-card-tools button:disabled { opacity:.3; cursor:default; }
-.uj-dq-card-tools button[data-hide]:hover { background:var(--red-tint); color:var(--red); }
-.uj-dq-pin { position:absolute; top:-11px; right:12px; display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--hairline-soft); border:1px solid var(--hairline); font-size:var(--t-micro); font-weight:600; color:var(--muted); letter-spacing:.03em; }
-/* editing is a different mode, and the content must read as inert while you
-   are arranging it — not as something you can still act on */
-[data-dq-editing] .uj-card[data-opt],
-[data-dq-editing] .uj-card[data-pin] { position:relative; opacity:.86; transition:opacity .16s ease-out, box-shadow .16s ease-out; }
-[data-dq-editing] .uj-card[data-opt] { opacity:1; box-shadow:0 0 0 2px rgba(58,110,165,.28); }
-[data-dq-editing] .uj-card[data-pin] { opacity:.8; }
-[data-dq-editing] .uj-card [data-dq-inert] { pointer-events:none; }
-
-.uj-dq-tray { margin-top:18px; padding:15px 17px; border-radius:13px; border:1px dashed #d5d2c8; background:#fbfbf9; }
-.uj-dq-tray h3 { font-size:var(--t-base); font-weight:600; color:var(--ink); margin:0 0 3px; }
-.uj-dq-tray p { font-size:var(--t-sm); color:var(--muted); margin:0 0 11px; line-height:1.55; }
-.uj-dq-tray-items { display:flex; gap:8px; flex-wrap:wrap; }
-.uj-dq-tray-chip { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:9px; background:#fff; border:1px solid var(--hairline); font-size:var(--t-sm); font-weight:500; color:var(--body); transition:border-color .14s ease-out, color .14s ease-out, transform .14s ease-out; }
-.uj-dq-tray-chip:hover { border-color:var(--info); color:var(--ink); }
-.uj-dq-tray-chip:active { transform:scale(.97); }
-.uj-dq-tray-empty { font-size:var(--t-sm); color:var(--muted-soft); }
-
-/* entrance — staggered, one authored moment, driven by --i. Runs once on
-   first paint; nothing on this screen destroys/recreates these elements on
-   hide, reorder or edit-mode toggle (those only flip x-show/order), so it
-   never replays. */
-@keyframes uj-dq-rise { to { opacity:1; transform:none; } }
-.uj-dq-stag { opacity:0; transform:translateY(7px); animation:uj-dq-rise .34s cubic-bezier(.23,1,.32,1) forwards; animation-delay:calc(var(--i, 0) * 42ms); }
-
-@media (prefers-reduced-motion: reduce) {
-  .uj-dq-stag, .uj-dq-done-mark, .uj-dq-done h3, .uj-dq-done p { animation:none; opacity:1; transform:none; }
-  .uj-dq-row-body { transition:none; }
-  .uj-dq-row-body p { transition:opacity .12s linear; filter:none; }
-  .uj-dq-chev { transition:none; }
-  /* Reduced motion means gentler, not none. The Customise show/hide transitions
-     are opacity-only by design, so they stay — a fade aids comprehension. Only
-     the scope switch has travel to remove. */
-  .uj-dq-scope { transition:color .14s linear, background .14s linear; }
-  .uj-dq-scope:active { transform:none; }
-}
-@media (hover: none) {
-  .uj-dq-row-hd:hover, .uj-dq-cust:hover, .uj-dq-scope:hover { background:initial; }
-}
-
-/* ── mobile — chips become one swipeable strip, rows/buttons grow to real
-   44px touch targets. Sidebar/header/tab-bar chrome is owned by the shell
-   layout, not this screen. ── */
-@media (max-width: 820px) {
-  .uj-dq-top { display:block; margin-bottom:14px; }
-  .uj-dq-top h1 { font-size:19px; letter-spacing:-.02em; }
-  .uj-dq-chips { margin-top:12px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; margin-inline:-14px; padding-inline:14px; }
-  .uj-dq-chips::-webkit-scrollbar { display:none; }
-  .uj-dq-chip { scroll-snap-align:start; }
-  .uj-dq-row-hd { padding:12px 14px; gap:11px; }
-  .uj-dq-row-body-in { padding:0 14px 15px 14px; }
-  .uj-dq-rail-card { padding:14px; }
-  .uj-dq-row-acts .uj-dq-btn { flex:1; justify-content:center; height:44px; font-size:var(--t-base); }
-  .uj-dq-cust { height:38px; }
-  .uj-dq-card-tools button { width:32px; height:32px; }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Attendance (resources/views/screens/attendance.blade.php) — ported from

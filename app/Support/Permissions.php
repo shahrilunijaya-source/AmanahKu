@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Employee;
+use App\Services\DataScope;
 
 /**
  * Role → permission map, layered on top of the existing 4-role enum. This is the
@@ -156,6 +157,38 @@ class Permissions
 
         return $employee !== null
             && Employee::active()->where('reports_to_id', $employee->id)->exists();
+    }
+
+    /**
+     * Whose leave TYPE a viewer may read on the time-off calendar.
+     *
+     * Everyone may see THAT a colleague is away — that is the whole point of the
+     * calendar, and coverage is everybody's problem. The type is different: Medical,
+     * Hospitalization and Maternity say something about a named person's health, so
+     * they stay with the person themselves, whoever manages them anywhere up the
+     * line, and the roles that administer leave.
+     *
+     * Null means no restriction at all.
+     *
+     * @return list<int>|null
+     */
+    public static function leaveTypeAudience(?Employee $viewer, string $role): ?array
+    {
+        if (in_array(self::effectiveRole($role), ['management', 'hr'], true)) {
+            return null;
+        }
+
+        if ($viewer === null) {
+            return [];
+        }
+
+        return array_merge([$viewer->id], app(DataScope::class)->teamIds($viewer));
+    }
+
+    /** Whether one person's leave type may be spelled out to this audience. */
+    public static function showsLeaveType(?array $audience, ?int $employeeId): bool
+    {
+        return $audience === null || ($employeeId !== null && in_array($employeeId, $audience, true));
     }
 
     /** Distinct, sorted catalogue of every permission key across all roles. */

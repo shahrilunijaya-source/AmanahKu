@@ -84,27 +84,25 @@ class AllScreensRenderTest extends TestCase
     }
 
     /**
-     * The dashboard scope switcher must only render for privileged roles — the switch
-     * is server-gated (Amanahku::SCOPE_ACCESS), so showing it to a plain employee is a
-     * dead control that 404s nothing but confuses. Aisyah is HR on Unijaya but a plain
-     * employee on Petron, so one user exercises both sides of the gate.
+     * The dashboard's team widgets must only render for privileged roles — the gate is
+     * server-side (App\Support\DashboardWidgets), so a card a role cannot have is never
+     * built rather than merely hidden. Aisyah is HR on Unijaya but a plain employee on
+     * Petron, so one user exercises both sides of the gate.
      *
-     * Replaces the four-persona version of this test: the `persona=` switcher was
-     * removed with the four-persona dashboard, and the two scopes (`me` / `company`)
-     * took over the same job.
+     * Replaces the scope-switcher version of this test: the Me/Company switch was
+     * removed with the two-scope dashboard, and per-widget role gates took over the job.
      */
-    public function test_scope_switcher_renders_only_for_privileged_roles(): void
+    public function test_team_widgets_render_only_for_privileged_roles(): void
     {
         $petron = Tenant::where('slug', 'petron-tl')->firstOrFail();
 
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $this->tenant->id,
-        ])->get('/app/dash')->assertSee('scope=company');
+        ])->get('/app/dash')->assertSee('data-widget="pulse"', false);
 
-        // A plain employee has exactly one scope, so the strip must not render at all.
         $this->actingAs($this->hr)->withSession([
             'current_tenant' => $petron->id,
-        ])->get('/app/dash')->assertDontSee('scope=company');
+        ])->get('/app/dash')->assertDontSee('data-widget="pulse"', false);
     }
 
     /**
@@ -112,8 +110,8 @@ class AllScreensRenderTest extends TestCase
      * two-scope dashboard rewrite (BuildsDashboardData) dropped it along with the rest
      * of the four-persona dashboard — a manager's reporting line now surfaces via the
      * `company` scope's real verify/approve queue instead. See
-     * Tests\Feature\DashboardScopeTest for the replacement coverage (queue routing,
-     * live headline copy).
+     * Tests\Feature\DashboardWidgetsTest for the replacement coverage (queue routing,
+     * per-widget role gates).
      */
 
     /**

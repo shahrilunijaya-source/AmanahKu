@@ -67,6 +67,27 @@ class DataScope
     }
 
     /**
+     * Everyone under $self in the org chart: their direct reports, those reports'
+     * reports, and so on down, plus anyone who lists $self as a dotted-line
+     * manager. $self themselves is left out — callers want "my team", not "me and
+     * my team". Ids only, unfiltered: callers add their own active()/archived rules.
+     *
+     * Same reporting line the 'team' data scope draws, so a manager's dashboard
+     * counts the same people the attendance and timesheet reports count.
+     *
+     * @return list<int>
+     */
+    public function teamIds(Employee $self): array
+    {
+        $ids = array_merge(
+            $this->subtreeIds($self),
+            Employee::whereHas('additionalManagers', fn ($m) => $m->whereKey($self->id))->pluck('id')->all(),
+        );
+
+        return array_values(array_unique(array_diff($ids, [$self->id])));
+    }
+
+    /**
      * $self plus every employee below them in the reports_to_id chain, walked
      * breadth-first so any depth of org chart is covered, not just direct reports.
      *

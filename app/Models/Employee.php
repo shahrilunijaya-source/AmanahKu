@@ -301,6 +301,7 @@ class Employee extends Model
         return $this->hasMany(AttendanceRecord::class);
     }
 
+    /** @return HasMany<LeaveBalance, $this> */
     public function leaveBalances(): HasMany
     {
         return $this->hasMany(LeaveBalance::class);
@@ -352,6 +353,7 @@ class Employee extends Model
         return $this->hasMany(EmployeeDocument::class);
     }
 
+    /** @return HasMany<Claim, $this> */
     public function claims(): HasMany
     {
         return $this->hasMany(Claim::class);

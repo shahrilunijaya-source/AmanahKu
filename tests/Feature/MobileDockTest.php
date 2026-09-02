@@ -78,7 +78,9 @@ class MobileDockTest extends TestCase
 
         $dock = $this->dock();
 
-        // A plain employee gets no My Team screens anywhere, dock included.
+        // A plain employee gets no manager screens anywhere, dock included. The org
+        // chart and the time-off calendar are the exception and stay reachable, see
+        // SidebarNavTest.
         $this->assertStringNotContainsString('/app/directory', $dock);
         $this->assertStringContainsString('/app/dash', $dock);
     }

@@ -22,11 +22,11 @@ class SidebarNavTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function signIn(): User
+    private function signIn(string $role = 'hr'): User
     {
-        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
-        $user = User::create(['name' => 'Ana', 'email' => 'ana@acme.test', 'password' => Hash::make('password')]);
-        $user->tenants()->attach($tenant->id, ['role' => 'hr']);
+        $tenant = Tenant::first() ?? Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $user = User::create(['name' => 'Ana', 'email' => $role.'@acme.test', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($tenant->id, ['role' => $role]);
 
         $this->actingAs($user)->withSession(['current_tenant' => $tenant->id]);
 
@@ -119,6 +119,29 @@ class SidebarNavTest extends TestCase
 
         $this->assertStringContainsString('toggleSbStyle()', $html,
             'The control that swaps the two sidebar layouts is gone.');
+    }
+
+    /**
+     * The org chart and the time-off calendar are everyone's, read-only: knowing who
+     * reports to whom and who is away this month is not a manager's privilege. The
+     * rest of My Team still is.
+     */
+    public function test_a_plain_employee_keeps_the_org_chart_and_the_time_off_calendar(): void
+    {
+        $this->signIn('employee');
+
+        $nav = $this->desktopNav();
+
+        foreach (['orgchart', 'calendar'] as $screen) {
+            $this->assertStringContainsString(route('app.screen', ['screen' => $screen]), $nav,
+                sprintf('%s is missing from a plain employee\'s nav.', $screen));
+        }
+
+        // The manager-only half of the section stays gone.
+        foreach (['directory', 'probation', 'workload'] as $screen) {
+            $this->assertStringNotContainsString(route('app.screen', ['screen' => $screen]), $nav,
+                sprintf('%s is a manager screen and should not be in a plain employee\'s nav.', $screen));
+        }
     }
 
     public function test_every_nav_section_has_an_icon(): void
