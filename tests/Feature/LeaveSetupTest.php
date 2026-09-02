@@ -78,6 +78,29 @@ class LeaveSetupTest extends TestCase
         $this->asHr()->get('/app/leave-setup')->assertOk()->assertSee('off Annual');
     }
 
+    public function test_unpaid_leave_carries_no_quota_and_gets_no_opening_balance(): void
+    {
+        $unpaid = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Unpaid', 'entitlement' => 0, 'is_unpaid' => true,
+        ]);
+
+        $this->asHr()->post('/app/leave-setup', [
+            'balances' => [$this->staff->id => [$this->annual->id => 12, $unpaid->id => 5]],
+        ])->assertRedirect();
+
+        // Unpaid is not an entitlement — it is salary not paid for a day not worked, so
+        // there is no running total to open and everyone can take it.
+        $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $unpaid->id]);
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertSee('no quota, open to all');
+
+        // Nor can an entitlement be typed back onto the type itself.
+        $this->asHr()->post("/app/leave-setup/types/{$unpaid->id}", [
+            'name' => 'Unpaid', 'entitlement' => 5,
+        ])->assertRedirect();
+
+        $this->assertEqualsWithDelta(0.0, (float) $unpaid->fresh()->entitlement, 0.001);
+    }
+
     public function test_the_two_setup_steps_open_on_their_own_tab(): void
     {
         // Both company-setup steps embed the same screen, so the holiday one is only

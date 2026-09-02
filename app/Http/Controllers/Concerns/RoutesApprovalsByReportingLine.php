@@ -191,13 +191,23 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
+     * The acting person's employee id, or 0 when the request carries no employee — a user
+     * who belongs to the tenant but has no employee record. 0 matches nothing, so every
+     * scope built on it closes rather than opening, which is the safe direction.
+     */
+    private function actingEmployeeId(Request $request): int
+    {
+        return $request->attributes->get('employee')?->id ?? 0;
+    }
+
+    /**
      * The viewer's VERIFY queue: still-submitted requests from anyone they manage — their
      * direct reports (reports_to_id) plus anyone who lists them as an additional manager.
      * Empty for anyone who manages nobody. Assumes the model has an `employee` relation.
      */
     protected function scopeToVerify(Builder $query, Request $request): Builder
     {
-        $actorId = $request->attributes->get('employee')?->id ?? 0;
+        $actorId = $this->actingEmployeeId($request);
 
         // active() on the requester so a submitted request from a since-archived person
         // drops out of their manager's queue — an archived person holds no live obligation.
@@ -225,6 +235,63 @@ trait RoutesApprovalsByReportingLine
         // detached person). On-archive cancellation is the primary guard; this backs it up.
         return $query->where('status', 'verified')
             ->whereHas('employee', fn (Builder $q) => $q->active());
+    }
+
+    /**
+     * The viewer's APPROVED history: requests they personally signed off this year, plus
+     * any the applicant later withdrew (still their approval — it happened, then it was
+     * pulled). Matched on approved_by_id, never on verified_by_id: a verifier recommends,
+     * the approver decides, and the two must not be conflated or a manager who passed a
+     * request up would see somebody else's decision listed as their own.
+     *
+     * Scoped by the date of the DECISION, not of the submission, so the "this year" label
+     * and the column agree — a request filed in December and approved in January belongs
+     * to January's figures.
+     *
+     * Claims decided before the 2026_09_02 decision trail carry no approver and cannot
+     * appear here — there is nothing recorded to match against (see that migration).
+     *
+     * @param  list<string>  $statuses  the states that still count as approved. Claims pass
+     *                                  'paid' as well: payroll flips an approved claim to
+     *                                  paid when it reimburses it, and being reimbursed is
+     *                                  not the approver un-approving it.
+     */
+    protected function scopeApprovedByViewer(Builder $query, Request $request, array $statuses = ['approved', 'cancelled']): Builder
+    {
+        return $query
+            ->whereIn('status', $statuses)
+            ->where('approved_by_id', $this->actingEmployeeId($request))
+            ->whereYear('approved_at', now()->year);
+    }
+
+    /** The same for refusals, matched on the rejecter alone. See scopeApprovedByViewer(). */
+    protected function scopeRejectedByViewer(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->where('status', 'rejected')
+            ->where('rejected_by_id', $this->actingEmployeeId($request))
+            ->whereYear('rejected_at', now()->year);
+    }
+
+    /**
+     * Can this viewer approve anything at all — either as somebody's superior or as
+     * management? Decides whether the Approvals tab exists, which must NOT depend on
+     * something currently being pending: a cleared queue would otherwise take the
+     * viewer's whole decision history off the screen with it.
+     */
+    protected function canReviewAnything(Request $request): bool
+    {
+        if ($this->hasTenantRole($request, $this->approvalManagerRoles())) {
+            return true;
+        }
+
+        $actorId = $this->actingEmployeeId($request);
+
+        return $actorId > 0 && Employee::query()->active()
+            ->where(fn (Builder $w) => $w
+                ->where('reports_to_id', $actorId)
+                ->orWhereHas('additionalManagers', fn (Builder $m) => $m->whereKey($actorId)))
+            ->exists();
     }
 
     /**

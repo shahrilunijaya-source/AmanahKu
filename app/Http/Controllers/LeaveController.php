@@ -67,10 +67,13 @@ class LeaveController extends Controller
         // Eligibility: HR ticks which types apply to each person on Leave Setup, stored as
         // the presence of a balance row. A type carrying its own quota that this person has
         // no row for is not theirs to take (an intern gets no annual leave). Types with no
-        // quota at all (Unpaid) are open to everyone, so they are never gated here.
+        // quota at all (Unpaid) are open to everyone, so they are never gated here. Nor is
+        // a type that spends someone else's quota (Emergency off Annual): staff on
+        // probation and interns hold no Annual row, and an emergency is still an emergency
+        // — the absence stands, it just gets approved as unpaid (see applyApproval).
         $balanceTypeId = $type->effectiveBalanceTypeId();
         $quotaType = $balanceTypeId === $type->id ? $type : LeaveType::find($balanceTypeId);
-        if ($quotaType && $quotaType->entitlement > 0
+        if ($type->deducts_from_leave_type_id === null && $quotaType && $quotaType->entitlement > 0
             && ! $employee->leaveBalances()->where('leave_type_id', $balanceTypeId)->exists()) {
             return back()->withInput()->withErrors([
                 'leave_type_id' => $type->name.' leave does not apply to you. Ask HR if you think it should.',
@@ -374,6 +377,11 @@ class LeaveController extends Controller
                 // onto Unpaid leave, and only the covered days come off the balance.
                 ['spend' => $spend, 'unpaid' => $unpaidDays, 'overflow' => $overflow] = $this->absorbOverflowAsUnpaid($leaveRequest, (float) $balance->balance, $actorId);
                 $balance->update(['balance' => max(0, $balance->balance - $spend)]);
+            } elseif ($leaveRequest->leaveType?->deducts_from_leave_type_id !== null) {
+                // No row at all for the quota this type spends: probation staff and interns
+                // hold no Annual balance, so the whole emergency is approved as unpaid.
+                // Nothing to decrement — there is no row to write back to.
+                ['unpaid' => $unpaidDays, 'overflow' => $overflow] = $this->absorbOverflowAsUnpaid($leaveRequest, 0.0, $actorId);
             }
 
             // Leave→timesheet is otherwise pull-based: LockedDays only materialises the

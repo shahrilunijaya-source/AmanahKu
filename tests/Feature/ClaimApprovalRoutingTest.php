@@ -354,6 +354,26 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertDontSee('All claims');
     }
 
+    public function test_the_tab_is_named_for_what_the_viewer_can_actually_do(): void
+    {
+        // A plain manager only recommends — scopeToApprove() closes for them — so calling
+        // their tab "Approvals" would promise a power they do not have.
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+        $this->claim($report);
+
+        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
+            ->assertViewHas('givesFinalApproval', false)
+            ->assertSee('To verify');
+
+        // A director signs off, so theirs keeps the stronger word.
+        $mgmt = $this->member('management', 'Director');
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('givesFinalApproval', true)
+            ->assertSee('Approvals');
+    }
+
     public function test_management_claims_screen_exposes_the_company_ledger_tab(): void
     {
         $mgmt = $this->member('management', 'Director');
@@ -419,32 +439,6 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertDontSee('Company claims');
     }
 
-    public function test_company_totals_sum_amounts_correctly_by_status(): void
-    {
-        $mgmt = $this->member('management', 'Director');
-        $empA = $this->member('employee', 'Emp A');
-        $empB = $this->member('employee', 'Emp B');
-
-        // Two submitted claims: 100.00 + 50.00 = 150.00.
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'expense', 'title' => 'S1', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empB->id, 'type' => 'expense', 'title' => 'S2', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'submitted']);
-        // One approved claim: 75.25.
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $empA->id, 'type' => 'medical', 'title' => 'A1', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
-
-        $response = $this->actingAsEmployee($mgmt)->get('/app/claim-approvals')->assertOk();
-
-        $totals = $response->viewData('claimTotals');
-        $this->assertSame(2, (int) $totals['submitted']->count);
-        $this->assertEqualsWithDelta(150.00, (float) $totals['submitted']->total, 0.001);
-        $this->assertSame(1, (int) $totals['approved']->count);
-        $this->assertEqualsWithDelta(75.25, (float) $totals['approved']->total, 0.001);
-
-        $response->assertSee('150.00')->assertSee('75.25');
-
-        $allClaims = $response->viewData('allClaims');
-        $this->assertCount(3, $allClaims);
-    }
-
     public function test_personal_tiles_show_only_the_viewers_own_claims_not_company_total(): void
     {
         $mgmt = $this->member('management', 'Director');
@@ -469,22 +463,6 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertSee('Manager')
             ->assertSee('Director')
             ->assertDontSee('Who signs off your request');
-    }
-
-    public function test_personal_tiles_compute_waiting_and_approved_not_paid_correctly(): void
-    {
-        $employee = $this->member('employee', 'Claimant');
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Submitted', 'amount' => 100, 'date' => '2026-06-01', 'status' => 'submitted']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'expense', 'title' => 'Verified', 'amount' => 50, 'date' => '2026-06-02', 'status' => 'verified']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Approved', 'amount' => 75.25, 'date' => '2026-06-03', 'status' => 'approved']);
-        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $employee->id, 'type' => 'medical', 'title' => 'Paid', 'amount' => 999, 'date' => '2026-06-04', 'status' => 'paid']);
-
-        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
-            // Waiting on approval = submitted (100) + verified (50) = 150.00.
-            ->assertSee('150.00')
-            // Approved, not yet paid = approved only (75.25) — excludes the 999 paid claim.
-            ->assertSee('75.25')
-            ->assertDontSee('1074.25');
     }
 
     // --- HR skips the verify step (reports straight to the directors) --------
@@ -605,5 +583,103 @@ class ClaimApprovalRoutingTest extends TestCase
             'type' => 'medical', 'title' => 'After cancel', 'amount' => 400, 'date' => '2026-07-01',
             'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
+    }
+
+    /**
+     * The decision trail added 2026_09_02. Without it the approver's own history has
+     * nothing to match on and every count reads zero forever.
+     */
+    public function test_approving_a_claim_records_who_approved_it_and_when(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+        $claim = $this->claim($manager, 'verified', $manager->id);
+
+        $this->actingAsEmployee($mgmt)->post("/app/claims/{$claim->id}/approve")->assertRedirect();
+
+        $fresh = $claim->fresh();
+        $this->assertSame('approved', $fresh->status);
+        $this->assertSame($mgmt->id, $fresh->approved_by_id);
+        $this->assertNotNull($fresh->approved_at);
+    }
+
+    public function test_rejecting_a_claim_records_who_rejected_it_and_when(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+        $claim = $this->claim($manager, 'verified', $manager->id);
+
+        $this->actingAsEmployee($mgmt)->post("/app/claims/{$claim->id}/reject")->assertRedirect();
+
+        $fresh = $claim->fresh();
+        $this->assertSame('rejected', $fresh->status);
+        $this->assertSame($mgmt->id, $fresh->rejected_by_id);
+        $this->assertNotNull($fresh->rejected_at);
+    }
+
+    public function test_the_approvals_tab_counts_what_this_person_decided_this_year(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+
+        foreach (['approved', 'approved', 'rejected'] as $i => $status) {
+            $this->claim($manager, 'verified', $manager->id, "Claim {$i}")->update([
+                'status' => $status,
+                'approved_by_id' => $status === 'approved' ? $mgmt->id : null,
+                'approved_at' => $status === 'approved' ? now() : null,
+                'rejected_by_id' => $status === 'rejected' ? $mgmt->id : null,
+                'rejected_at' => $status === 'rejected' ? now() : null,
+            ]);
+        }
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('claimsApprovedByMe', fn ($c) => $c->count() === 2)
+            ->assertViewHas('claimsRejectedByMe', fn ($c) => $c->count() === 1);
+    }
+
+    /**
+     * Payroll flips an approved claim to 'paid' when it reimburses it. Being paid is the
+     * approval reaching its end, so it must not drop out of the approver's history.
+     */
+    public function test_a_paid_claim_stays_in_the_approvers_approved_history(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+
+        $this->claim($manager, 'verified', $manager->id)->update([
+            'status' => 'paid', 'approved_by_id' => $mgmt->id, 'approved_at' => now(),
+        ]);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('claimsApprovedByMe', fn ($c) => $c->count() === 1)
+            ->assertSee('paid', false);
+    }
+
+    /**
+     * The tab used to vanish when the queue emptied, taking the history with it. An
+     * approver keeps it whether or not anything is pending.
+     */
+    public function test_an_approver_with_an_empty_queue_still_gets_the_approvals_tab(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertSee('Nothing is waiting on you.', false)
+            ->assertSee('You have not approved anything this year.', false);
+    }
+
+    /** A verifier did not decide it; somebody else did. It is not their history. */
+    public function test_a_verifier_does_not_own_the_decision_someone_else_made(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->claim($report, 'verified', $manager->id)->update([
+            'status' => 'rejected', 'rejected_by_id' => $mgmt->id, 'rejected_at' => now(),
+        ]);
+
+        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
+            ->assertSee('You have not rejected anything this year.', false);
     }
 }

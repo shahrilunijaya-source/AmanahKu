@@ -93,6 +93,173 @@ class LeaveScreenTabsTest extends TestCase
             ->assertDontSee(route('leave.bulk-approve'), false);
     }
 
+    /**
+     * The counts row is the point of the tab: a manager must be able to see what they
+     * decided this year, not only what is still waiting.
+     */
+    public function test_the_approvals_tab_counts_what_the_viewer_decided_this_year(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        // One approved by this director, one rejected by them, one still pending.
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'approved', 'approved_by_id' => $management->id, 'approved_at' => now(),
+        ]);
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'rejected', 'rejected_by_id' => $management->id, 'rejected_at' => now(),
+        ]);
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'verified', 'verified_by_id' => $manager->id, 'verified_at' => now(),
+        ]);
+
+        $res = $this->screenAs($management);
+
+        $res->assertOk()
+            ->assertSee('Approved this year')
+            ->assertSee('Rejected this year');
+    }
+
+    /**
+     * The tab used to exist only while something was pending, which would have taken the
+     * whole decision history off the screen the moment a manager cleared their queue.
+     */
+    public function test_an_approver_with_an_empty_queue_still_gets_the_approvals_tab(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'approved', 'approved_by_id' => $management->id, 'approved_at' => now(),
+        ]);
+
+        $res = $this->screenAs($management);
+
+        // Nothing pending, but the tab and the history are both there.
+        $res->assertOk()
+            ->assertSee('Approved this year')
+            ->assertSee('Nothing is waiting on you.');
+    }
+
+    public function test_the_tab_is_named_for_what_the_viewer_can_actually_do(): void
+    {
+        // A plain manager only recommends — scopeToApprove() closes for them — so calling
+        // their tab "Approvals" would promise a power they do not have.
+        $manager = $this->member('manager', 'Manager');
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $this->submittedRequestFor($staff);
+
+        $this->screenAs($manager)->assertOk()
+            ->assertViewHas('givesFinalApproval', false)
+            ->assertSee('To verify');
+
+        // A director signs off, so theirs keeps the stronger word.
+        $management = $this->member('management', 'Director');
+
+        $this->screenAs($management)->assertOk()
+            ->assertViewHas('givesFinalApproval', true)
+            ->assertSee('Approvals');
+    }
+
+    /**
+     * A leave the viewer approved and the applicant later withdrew stays in the approved
+     * list, marked — for a while the approver believed that person was away.
+     */
+    public function test_a_withdrawn_leave_stays_in_the_approved_list_and_is_tagged(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'cancelled', 'approved_by_id' => $management->id, 'approved_at' => now(),
+        ]);
+
+        $this->screenAs($management)
+            ->assertOk()
+            ->assertSee('withdrawn by applicant');
+    }
+
+    /**
+     * A withdrawal nobody had acted on is the applicant changing their mind before the
+     * queue ever saw it — noise on an approver's screen, and deliberately absent.
+     */
+    public function test_a_leave_withdrawn_before_anyone_acted_never_reaches_the_approver(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update(['status' => 'cancelled']);
+
+        $this->screenAs($management)
+            ->assertOk()
+            ->assertDontSee('withdrawn by applicant');
+    }
+
+    /**
+     * Someone else's decision is not the viewer's history — two managers must not see
+     * each other's totals.
+     */
+    public function test_a_decision_made_by_someone_else_is_not_counted_as_yours(): void
+    {
+        $management = $this->member('management', 'Director');
+        $other = $this->member('management', 'Other Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'approved', 'approved_by_id' => $other->id, 'approved_at' => now(),
+        ]);
+
+        $this->screenAs($management)
+            ->assertOk()
+            ->assertSee('You have not approved anything this year.');
+    }
+
+    /**
+     * The verifier passed it up; somebody else said no. That rejection belongs to the
+     * person who made it, not to whoever moved it along the chain.
+     */
+    public function test_a_verifier_does_not_own_the_decision_someone_else_made(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'rejected',
+            'verified_by_id' => $manager->id, 'verified_at' => now(),
+            'rejected_by_id' => $management->id, 'rejected_at' => now(),
+        ]);
+
+        // The manager verified it. The director rejected it. The manager rejected nothing.
+        $this->screenAs($manager)
+            ->assertOk()
+            ->assertSee('You have not rejected anything this year.');
+    }
+
+    /**
+     * Same trap on the withdrawal path: a request the manager verified and the applicant
+     * then pulled was never approved by anyone, so it is nobody's approved history.
+     */
+    public function test_a_withdrawal_before_approval_is_not_the_verifiers_approved_history(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $staff = $this->member('employee', 'Staff', $manager->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'cancelled',
+            'verified_by_id' => $manager->id, 'verified_at' => now(),
+        ]);
+
+        $this->screenAs($manager)
+            ->assertOk()
+            ->assertSee('You have not approved anything this year.');
+    }
+
     public function test_the_immediate_superior_gets_the_verify_queue(): void
     {
         $manager = $this->member('manager', 'Manager');

@@ -177,6 +177,80 @@ class LeavePolicyTest extends TestCase
         $this->assertSame(1, LeaveRequest::count());
     }
 
+    public function test_plain_unpaid_leave_is_approved_as_is_with_no_balance_row(): void
+    {
+        $unpaid = $this->unpaidType();
+        [$mgmt, $report] = $this->approverAndRequester(10);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $unpaid->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-02', 'days' => 2, 'status' => 'verified',
+        ]);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        // Unpaid holds no quota of its own, so there is nothing to overflow, nothing to
+        // convert and nothing to decrement — the request is approved exactly as filed.
+        $fresh = $req->fresh();
+        $this->assertSame($unpaid->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(2.0, (float) $fresh->days, 0.001);
+        $this->assertSame(1, LeaveRequest::count());
+        $this->assertSame(0, LeaveBalance::where('leave_type_id', $unpaid->id)->count());
+    }
+
+    // --- No Annual entitlement at all (probation, interns) -------------------
+
+    public function test_employee_with_no_annual_row_can_still_apply_for_emergency_leave(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        // Probation staff and interns get no Annual balance row at all, which is how HR
+        // records "annual leave does not apply to you" on Leave Setup.
+        $intern = $this->member('employee', 'Intern', $manager->id);
+
+        // The Apply form offers it, and says plainly that the days will not be paid.
+        $this->actingAsEmployee($intern)->get('/app/leave')
+            ->assertOk()
+            ->assertSee('no paid leave balance for this', false);
+
+        $this->actingAsEmployee($intern)->post('/app/leave', [
+            'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-01',
+            'reason' => 'Family emergency.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('leave_requests', [
+            'employee_id' => $intern->id, 'leave_type_id' => $this->emergency->id, 'status' => 'submitted',
+        ]);
+    }
+
+    public function test_emergency_from_an_employee_with_no_annual_row_is_approved_entirely_as_unpaid(): void
+    {
+        $unpaid = $this->unpaidType();
+        $manager = $this->member('manager', 'Manager');
+        $mgmt = $this->member('management', 'Director');
+        $intern = $this->member('employee', 'Intern', $manager->id);
+
+        $req = LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $intern->id, 'leave_type_id' => $this->emergency->id,
+            'date_from' => '2026-07-01', 'date_to' => '2026-07-02', 'days' => 2, 'status' => 'verified',
+        ]);
+
+        // The approver is told what approving actually does before they click it.
+        $this->actingAsEmployee($mgmt)->get('/app/leave')
+            ->assertOk()
+            ->assertSee('approving makes this unpaid leave', false);
+
+        $this->actingAsEmployee($mgmt)->post("/app/leave/{$req->id}/approve")->assertRedirect();
+
+        // Converted in place onto Unpaid, and no balance row is invented on the way.
+        $fresh = $req->fresh();
+        $this->assertSame($unpaid->id, $fresh->leave_type_id);
+        $this->assertEqualsWithDelta(2.0, (float) $fresh->days, 0.001);
+        $this->assertSame('approved', $fresh->status);
+        $this->assertSame(1, LeaveRequest::count());
+        $this->assertSame(0, LeaveBalance::where('employee_id', $intern->id)->count());
+    }
+
     public function test_overflow_stays_on_the_request_when_no_unpaid_type_is_configured(): void
     {
         [$mgmt, $report] = $this->approverAndRequester(2);

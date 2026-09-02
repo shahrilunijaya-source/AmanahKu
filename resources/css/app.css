@@ -4367,6 +4367,30 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-bulk span { font-size: var(--t-sm); color: var(--muted); }
 .uj-lv-ck { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; flex-shrink: 0; }
 
+/* Approvals status filter — same chip as .uj-lv-qchip, with a tone for the two
+   settled states so approved/rejected read apart at a glance. Bigger than the
+   verify/approve chips because these are the top-level split on the tab. */
+.uj-lv-stbar { display: flex; gap: 8px; flex-wrap: wrap; }
+.uj-lv-stchip { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 15px; border-radius: 10px; border: 1px solid var(--hairline); background: #fff; color: var(--body); font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-stchip:hover { border-color: #d5d2c8; background: #fbfbf9; }
+.uj-lv-stchip b { font: 600 var(--t-base) var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-lv-stchip[data-on] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.uj-lv-stchip[data-tone="ok"][data-on] { background: var(--success); border-color: var(--success); }
+.uj-lv-stchip[data-tone="no"][data-on] { background: var(--red-active); border-color: var(--red-active); }
+
+/* One settled decision. Read-only, so no hover affordance and no chevron. */
+.uj-lv-drw { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 20px; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
+.uj-lv-drw:first-of-type { border-top: 0; }
+.uj-lv-drw-main { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.uj-lv-drw-main b { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.uj-lv-drw-type { font-size: var(--t-sm); color: var(--muted); }
+.uj-lv-drw-meta { display: flex; align-items: center; gap: 14px; font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.uj-lv-drw-when { font-size: var(--t-micro); }
+/* Withdrawn after the fact: dimmed, because the absence never happened, but never
+   hidden — the viewer had already acted on it. */
+.uj-lv-drw[data-withdrawn] .uj-lv-drw-main b,
+.uj-lv-drw[data-withdrawn] .uj-lv-drw-meta { opacity: .6; }
+
 .uj-lv-empty { padding: 34px 20px; text-align: center; }
 .uj-lv-empty b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
 .uj-lv-empty span { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.55; max-width: 40ch; margin: 3px auto 0; }

@@ -60,7 +60,19 @@
     $statusEn = ['cancelled' => 'Cancelled', 'approved' => 'Approved', 'verified' => 'With management', 'submitted' => 'With your manager', 'rejected' => 'Declined', 'draft' => 'Draft'];
     $statusMs = ['cancelled' => 'Dibatalkan', 'approved' => 'Diluluskan', 'verified' => 'Dengan pengurusan', 'submitted' => 'Dengan pengurus', 'rejected' => 'Ditolak', 'draft' => 'Draf'];
 
-    $tabs = $reviewCount > 0 ? ['apply', 'mine', 'approvals'] : ['apply', 'mine'];
+    // Approved keeps the withdrawn ones: a leave the viewer approved and the applicant
+    // later pulled is still something they decided, and worth seeing marked.
+    $decApproved = $leaveApprovedByMe ?? collect();
+    $decRejected = $leaveRejectedByMe ?? collect();
+    // A plain manager only recommends — scopeToApprove() closes for them — so the tab is
+    // named for what they can actually do.
+    $givesFinalApproval = $givesFinalApproval ?? false;
+    $tabWordEn = $givesFinalApproval ? 'Approvals' : 'To verify';
+    $tabWordMs = $givesFinalApproval ? 'Kelulusan' : 'Untuk disahkan';
+
+    $showApprovals = ($leaveCanReview ?? false) || $reviewCount > 0;
+
+    $tabs = $showApprovals ? ['apply', 'mine', 'approvals'] : ['apply', 'mine'];
     $initialTab = in_array(request()->query('tab'), $tabs, true) ? request()->query('tab') : 'apply';
     // A failed submit must land back on the form holding the rejected input, not on
     // whichever tab the URL still says.
@@ -113,11 +125,12 @@
         <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'mine' ? '' : null"
                 :aria-selected="tab === 'mine'" @click="go('mine')"
                 x-text="$store.ui.lang==='en' ? 'My leave' : 'Cuti saya'">My leave</button>
-        @if ($reviewCount > 0)
+        @if ($showApprovals)
             <button type="button" class="uj-lv-tab" role="tab" :data-on="tab === 'approvals' ? '' : null"
                     :aria-selected="tab === 'approvals'" @click="go('approvals')">
-                <span x-text="$store.ui.lang==='en' ? 'Approvals' : 'Kelulusan'">Approvals</span>
-                <span class="uj-lv-tab-n">{{ $reviewCount }}</span>
+                {{-- A manager recommends, they don't approve — so the tab says what they do. --}}
+                <span x-text="$store.ui.lang==='en' ? {{ Js::from($tabWordEn) }} : {{ Js::from($tabWordMs) }}">{{ $tabWordEn }}</span>
+                @if ($reviewCount > 0)<span class="uj-lv-tab-n">{{ $reviewCount }}</span>@endif
             </button>
         @endif
     </div>
@@ -318,42 +331,72 @@
     </div>
 
     {{-- ── Approvals ── --}}
-    @if ($reviewCount > 0)
+    @if ($showApprovals)
+        {{-- `st` is the status filter (pending | approved | rejected), `queue` the
+             verify/approve split inside pending. Opens on pending when anything waits,
+             otherwise on the approved history — an idle approver lands on something
+             rather than an empty panel. --}}
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
-             x-data="{ queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
+             x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'),
+                       queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
              class="uj-lv-panel">
-            <div>
-                <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Requests waiting on you' : 'Permohonan menunggu anda'">Requests waiting on you</span></h3>
-                <p style="font-size:var(--t-sm);color:var(--muted);margin:0;">
-                    <span x-text="$store.ui.lang==='en'
-                        ? 'You verify your own reports first. Management gives the final approval on anything already verified — never on a request they verified themselves.'
-                        : 'Anda sahkan laporan anda sendiri dahulu. Pengurusan beri kelulusan akhir bagi yang telah disahkan — bukan bagi permohonan yang mereka sahkan sendiri.'"></span>
-                </p>
+            {{-- Status counts. Approved covers the whole year, so it keeps its number even
+                 on a day when nothing is pending — the reason this tab no longer hides. --}}
+            <div class="uj-lv-stbar">
+                <button type="button" class="uj-lv-stchip" :data-on="st === 'pending' ? '' : null" @click="st = 'pending'">
+                    <span x-text="$store.ui.lang==='en' ? 'Pending' : 'Menunggu'">Pending</span>
+                    <b>{{ $reviewCount }}</b>
+                </button>
+                <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
+                    <span x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'">Approved</span>
+                    <b>{{ $decApproved->count() }}</b>
+                </button>
+                <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
+                    <span x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'">Rejected</span>
+                    <b>{{ $decRejected->count() }}</b>
+                </button>
             </div>
 
-            @if ($leaveToVerify->isNotEmpty() && $leaveToApprove->isNotEmpty())
-                <div class="uj-lv-qbar">
-                    <button type="button" class="uj-lv-qchip" :data-on="queue === 'verify' ? '' : null" @click="queue = 'verify'">
-                        <span x-text="$store.ui.lang==='en' ? 'Yours to verify' : 'Untuk anda sahkan'">Yours to verify</span>
-                        <b>{{ $leaveToVerify->count() }}</b>
-                    </button>
-                    <button type="button" class="uj-lv-qchip" :data-on="queue === 'approve' ? '' : null" @click="queue = 'approve'">
-                        <span x-text="$store.ui.lang==='en' ? 'Final approval' : 'Kelulusan akhir'">Final approval</span>
-                        <b>{{ $leaveToApprove->count() }}</b>
-                    </button>
-                </div>
-            @endif
+            {{-- ── Pending ── --}}
+            <div x-show="st === 'pending'" class="uj-tab-stack">
+                @if ($leaveToVerify->isNotEmpty() && $leaveToApprove->isNotEmpty())
+                    <div class="uj-lv-qbar">
+                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'verify' ? '' : null" @click="queue = 'verify'">
+                            <span x-text="$store.ui.lang==='en' ? 'Yours to verify' : 'Untuk anda sahkan'">Yours to verify</span>
+                            <b>{{ $leaveToVerify->count() }}</b>
+                        </button>
+                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'approve' ? '' : null" @click="queue = 'approve'">
+                            <span x-text="$store.ui.lang==='en' ? 'Final approval' : 'Kelulusan akhir'">Final approval</span>
+                            <b>{{ $leaveToApprove->count() }}</b>
+                        </button>
+                    </div>
+                @endif
 
-            @if ($leaveToVerify->isNotEmpty())
-                <div x-show="queue === 'verify'">
-                    @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify'])
-                </div>
-            @endif
-            @if ($leaveToApprove->isNotEmpty())
-                <div x-show="queue === 'approve'">
-                    @include('partials.leave-review-queue', ['items' => $leaveToApprove, 'mode' => 'approve'])
-                </div>
-            @endif
+                @if ($leaveToVerify->isNotEmpty())
+                    <div x-show="queue === 'verify'">
+                        @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify'])
+                    </div>
+                @endif
+                @if ($leaveToApprove->isNotEmpty())
+                    <div x-show="queue === 'approve'">
+                        @include('partials.leave-review-queue', ['items' => $leaveToApprove, 'mode' => 'approve'])
+                    </div>
+                @endif
+
+                @if ($reviewCount === 0)
+                    <div class="uj-card uj-lv-empty">
+                        <span x-text="$store.ui.lang==='en' ? 'Nothing is waiting on you.' : 'Tiada apa-apa menunggu anda.'">Nothing is waiting on you.</span>
+                    </div>
+                @endif
+            </div>
+
+            {{-- ── Decided this year ── --}}
+            <div x-show="st === 'approved'" class="uj-tab-stack">
+                @include('partials.leave-decided-list', ['items' => $decApproved, 'kind' => 'approved'])
+            </div>
+            <div x-show="st === 'rejected'" class="uj-tab-stack">
+                @include('partials.leave-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])
+            </div>
         </div>
     @endif
 </div>

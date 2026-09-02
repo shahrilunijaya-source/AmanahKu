@@ -9,6 +9,7 @@ use App\Mcp\Tools\ConfirmWriteTool;
 use App\Mcp\Tools\CreateCardTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
+use App\Mcp\Tools\TimesheetOptionsTool;
 use App\Mcp\Tools\UpdateCardTool;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
@@ -465,6 +466,103 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertSame($standalone->id, $card->timesheet_category_id);
         $this->assertNull($card->project_id, 'the preview promised this, and confirm must deliver exactly that');
         app(CurrentTenant::class)->set(null);
+    }
+
+    // --- update_card: participants by name ----------------------------------
+
+    /** A card the caller owns, due-dated so it may carry participants at all. */
+    private function shareableCard(): WorkItem
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card = WorkItem::create([
+            'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,
+            'title' => 'Share me', 'type' => 'task', 'priority' => 'medium', 'status' => 'todo',
+            'due_at' => '2026-09-30',
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        return $card;
+    }
+
+    /**
+     * The reason this exists: no MCP tool hands out employee ids, so participant_ids
+     * alone dead-ends any "add Nabil to this card" request.
+     */
+    public function test_update_card_resolves_participants_by_nickname(): void
+    {
+        $card = $this->shareableCard();
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->otherEmpA->update(['nickname' => 'omar']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'participants' => ['Omar'],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+
+        // Names, not ids — an id means nothing to the human approving the preview.
+        $this->assertSame(['Omar'], $data['changes']['participant_ids']['to']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame([$this->otherEmpA->id], $card->participants()->pluck('employees.id')->all());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * participant_ids is a FULL replacement list, so a partly-resolved one would
+     * silently drop whoever failed to match off the card. All or nothing.
+     */
+    public function test_update_card_refuses_the_whole_edit_when_one_participant_name_is_ambiguous(): void
+    {
+        $card = $this->shareableCard();
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabil Aziz', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabilah Rahim', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'title' => 'Renamed too',
+            'participants' => ['Nabil'],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $text = (string) json_encode($response->json('result.content'));
+        $this->assertStringContainsString('Nabil Aziz', $text);
+        $this->assertStringContainsString('Nabilah Rahim', $text);
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $card->refresh();
+        $this->assertSame('Share me', $card->title, 'the rest of the edit must not land either');
+        $this->assertSame(0, $card->participants()->count());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /** Two full replacement lists for the same relation cannot both be honoured. */
+    public function test_update_card_refuses_participants_and_participant_ids_together(): void
+    {
+        $card = $this->shareableCard();
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(UpdateCardTool::class, [
+            'work_item_id' => $card->id,
+            'participants' => ['Omar'],
+            'participant_ids' => [$this->otherEmpA->id],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
     }
 
     // --- assign_task: role gate + notify wording ----------------------------
@@ -950,7 +1048,117 @@ class AmanahkuWriteToolsTest extends TestCase
         ], $headers);
 
         $this->assertTrue($this->toolIsError($response));
-        $this->assertStringContainsString('effort type', $response->json('result.content.0.text'));
+
+        // The ids inline, not a pointer at timesheet_options: the caller can retry
+        // from the refusal alone instead of spending a round trip discovering them.
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('no category set', $text);
+        $this->assertStringContainsString($this->categoryA->id.' '.$this->categoryA->name, $text);
+    }
+
+    /**
+     * The refusal's inline list and timesheet_options must offer the same categories.
+     * They are two copies of one answer, and a caller told about a category the other
+     * tool would not have offered — an inactive one, or a leave-module one — is being
+     * pointed at a choice that fails one step later.
+     */
+    public function test_the_refusal_lists_exactly_what_timesheet_options_offers(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create([
+            'tenant_id' => $this->tenantA->id, 'name' => 'Retired Bucket', 'requires_project' => false, 'is_active' => false,
+        ]);
+        app(CurrentTenant::class)->set(null);
+
+        $card = $this->card(categoryId: null, projectId: null);
+
+        $refusal = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'percentage' => 100,
+            ]],
+        ], $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']));
+
+        $text = $refusal->json('result.content.0.text');
+
+        $options = $this->callTool(TimesheetOptionsTool::class, [], $this->bearer($this->staffA, $this->tenantA, ['timesheets:read']));
+        $offered = $this->toolData($options)['categories'];
+
+        $this->assertNotEmpty($offered);
+
+        foreach ($offered as $category) {
+            $this->assertStringContainsString($category['id'].' '.$category['name'], $text);
+        }
+
+        $this->assertStringNotContainsString('Retired Bucket', $text, 'an inactive category must not be offered by either tool');
+    }
+
+    /**
+     * The capture overlay's fallback, over MCP: a card with NO effort type takes the
+     * row's own category_id — costed on the entry, with the project still read off
+     * the card — and the card itself is left unanswered for the board to settle.
+     */
+    public function test_a_row_category_fills_in_for_a_card_with_no_effort_type(): void
+    {
+        $card = $this->card(categoryId: null); // projectA stays — the category is the only gap
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'category_id' => $this->categoryA->id,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $row = $this->toolData($preview)['changes']['resulting_week'][self::WEEK][0];
+        $this->assertSame($this->categoryA->name, $row['category']);
+        $this->assertSame($this->projectA->name, $row['project']);
+
+        $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $stored = TimesheetEntry::where('work_item_id', $card->id)->first();
+        $this->assertSame($this->categoryA->id, $stored->category_id);
+        $this->assertSame($this->projectA->id, $stored->project_id);
+        $this->assertNull($card->refresh()->timesheet_category_id);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * The fallback is validated where it is USED: an unknown category_id on a card
+     * that actually needs one is refused with a pointer at timesheet_options, never
+     * silently filed. (On a card carrying its own category the same stray value stays
+     * ignored — see test_a_sent_category_id_is_ignored_in_favour_of_the_cards_own.)
+     */
+    public function test_a_bogus_row_category_on_an_uncategorised_card_is_refused(): void
+    {
+        $card = $this->card(categoryId: null, projectId: null);
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+
+        $response = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'category_id' => 999999,
+                'percentage' => 100,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('not one of this workspace', $text);
+        $this->assertStringContainsString($this->categoryA->id.' '.$this->categoryA->name, $text);
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame(0, TimesheetEntry::where('work_item_id', $card->id)->count());
+        app(CurrentTenant::class)->set(null);
     }
 
     /**

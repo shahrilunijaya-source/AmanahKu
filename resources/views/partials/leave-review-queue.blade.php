@@ -79,6 +79,10 @@
                             <span x-text="$store.ui.lang==='en' ? 'Leaves them' : 'Baki mereka'">Leaves them</span>
                             <b>{{ $num($after) }}</b>
                             <span x-text="$store.ui.lang==='en' ? '{{ $bal->leaveType?->name ?? '' }} days' : 'hari {{ $bal->leaveType?->name ?? '' }}'">days</span>
+                        @elseif ($a->leaveType?->deducts_from_leave_type_id)
+                            {{-- Spends a quota this person holds no row for (probation staff, interns):
+                                 approving converts the whole absence to unpaid leave. --}}
+                            <span x-text="$store.ui.lang==='en' ? 'No paid balance — approving makes this unpaid leave' : 'Tiada baki berbayar — kelulusan menjadikannya cuti tanpa gaji'"></span>
                         @else
                             <span x-text="$store.ui.lang==='en' ? 'No balance recorded for this type' : 'Tiada baki direkodkan untuk jenis ini'"></span>
                         @endif
