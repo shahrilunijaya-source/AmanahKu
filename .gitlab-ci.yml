@@ -11,7 +11,7 @@
 
 include:
   - project: 'developer-unijaya/claudecode/ci-templates'
-    ref: v0.4.0   # pin to a tag; bump deliberately per SOP-00
+    ref: v0.5.0   # pin to a tag; bump deliberately per SOP-00
     file:
       - '/templates/ci-basic.yml'
       - '/templates/ci-test.yml'
@@ -19,8 +19,9 @@ include:
       - '/templates/ci-build.yml'
       - '/templates/ci-deploy.yml'
       - '/templates/ci-release.yml'
+      - '/templates/ci-dast.yml'
 
-stages: [lint, test, security, build, deploy, release]
+stages: [lint, test, security, build, deploy, release, dast]
 
 # -----------------------------------------------------------------------------
 # Reusable deploy block (YAML anchor). Server has the repo cloned — deploy is
