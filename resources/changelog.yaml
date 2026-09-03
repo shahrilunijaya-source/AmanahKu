@@ -17,9 +17,16 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.7.3"
+- version: "1.8"
   date: "2026-09-03"
   entries:
+    - tag: improved
+      major: true
+      text: "Replacement leave now works like every other leave type: HR gives you the quota, and you apply for the days yourself.\nBefore, HR booked the day for you and that was that. Now HR grants the days you earned by working a rest day, along with a short note saying what the quota is for (\"Worked Saturday 30 Aug\"), and half days count. You then apply whenever it suits you, through the usual chain: your manager verifies, a director approves. There is no notice period on it, so tomorrow is allowed.\nYou cannot ask for more than you hold, and days still waiting for a decision are counted, so the balance you see is the balance you can actually spend. Your Leave screen lists every grant with its note, so it is always clear where the days came from. Everything you already had is still there."
+      text_ms: "Cuti ganti kini berfungsi seperti jenis cuti lain: HR memberi kuota, dan anda memohon hari itu sendiri.\nSebelum ini, HR menempah hari itu untuk anda dan itu sahaja. Kini HR memberi hari yang anda peroleh kerana bekerja pada hari rehat, bersama nota ringkas tentang tujuan kuota itu (\"Bekerja Sabtu 30 Ogos\"), dan setengah hari juga dikira. Anda kemudian memohon bila-bila masa yang sesuai, melalui rantaian biasa: pengurus mengesahkan, pengarah meluluskan. Tiada tempoh notis, jadi esok pun boleh.\nAnda tidak boleh memohon lebih daripada baki, dan hari yang masih menunggu keputusan turut dikira, jadi baki yang anda lihat ialah baki yang benar-benar boleh digunakan. Skrin Cuti anda menyenaraikan setiap kuota berserta notanya, jadi jelas dari mana hari itu datang. Semua yang anda ada sebelum ini kekal."
+      link: "/app/leave"
+      link_text: "Open Leave"
+      link_text_ms: "Buka Cuti"
     - tag: fixed
       major: true
       text: "A T.A.A. card that goes straight into Done now shows up on your timesheet. Before, a card only reached the timesheet if it had sat in In Progress or In Review, so a card you created in Done, or dragged from To Do straight to Done, was never offered and the work went unlogged.\nNow the day you close it is the day it appears, as an uncosted line on that day's grid. Give it a share of the day, or strike it off if it took no real time. Cards that went through In Progress or In Review are unaffected.\nThis only covers cards closed from today onwards. A card that was already sitting in Done before this update still needs a nudge: drag it into In Progress and back to Done, and it appears on today's timesheet."
@@ -27,6 +34,12 @@
       link: "/app/timesheets"
       link_text: "Open Timesheets"
       link_text_ms: "Buka Lembaran Masa"
+    - tag: added
+      text: "HR can fix a replacement quota it already gave. The days and the note edit in place on the Replacement tab, and the person's balance moves by the difference. A quota cannot be cut below what has already been taken, so nobody loses days they have used."
+      text_ms: "HR boleh membetulkan kuota cuti ganti yang sudah diberi. Hari dan nota boleh diubah terus pada tab Cuti Ganti, dan baki pekerja berubah mengikut perbezaannya. Kuota tidak boleh dikurangkan di bawah hari yang sudah diambil, jadi tiada sesiapa kehilangan hari yang telah digunakan."
+      link: "/app/leave-setup"
+      link_text: "Open Leave Setup"
+      link_text_ms: "Buka Tetapan Cuti"
 
 - version: "1.7.2"
   date: "2026-09-02"

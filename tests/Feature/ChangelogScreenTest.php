@@ -146,17 +146,18 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_done_cards_reaching_the_timesheet(): void
+    public function test_the_newest_release_announces_replacement_quota(): void
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.7.3', $newest['version']);
+        $this->assertSame('1.8', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
+        $response->assertSee('HR gives you the quota, and you apply for the days yourself', false);
         $response->assertSee('goes straight into Done now shows up on your timesheet', false);
         $response->assertSee('approved as unpaid leave instead of being refused', false);
         $response->assertSee('The dashboard is one page now', false);
