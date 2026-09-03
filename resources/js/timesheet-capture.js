@@ -70,6 +70,10 @@ export function registerTimesheetCapture(Alpine) {
         // What the staffer was doing on a line (Technical, Meeting, ...) — the one thing
         // a board card cannot say for them, asked in the row's own edit overlay.
         subPillars: cfg.subPillars || [],
+        // Per-user switch (Settings live on the screen itself, not a settings page): on
+        // prefills from the board same as always; off hides the prefill server-side
+        // (cfg.suggested arrives empty) and turns on the Add line button instead.
+        fillFromBoard: cfg.fillFromBoard !== false,
         // Board cards struck off a day, keyed by ISO date. Seeded from what the last save
         // stored, so a removed row stays removed across a reload.
         dismissed: {},
@@ -334,6 +338,19 @@ export function registerTimesheetCapture(Alpine) {
         dismissedFor(iso) {
             return this.dismissed[iso] || [];
         },
+        // Manual mode's own way of putting a line on the day — the board-prefill
+        // equivalent of a card landing In Progress, except the staffer starts it. Opens
+        // straight into the overlay: an empty row with nothing to name it is not worth
+        // leaving on screen half-built.
+        addManualRow() {
+            const iso = this.selected;
+            if (!this.rows[iso]) this.rows[iso] = [];
+            this.rows[iso].push({
+                id: null, work_item_id: null, title: '', category_id: '', project_id: '',
+                sub_pillar_id: '', description: '', percentage: '', suggested: false, manual: true,
+            });
+            this.openEditRow(this.rows[iso].length - 1);
+        },
         remainder(iso) {
             return Math.max(0, Math.round((100 - this.dayTotal(iso)) * 100) / 100);
         },
@@ -354,7 +371,13 @@ export function registerTimesheetCapture(Alpine) {
         },
         // A line the staffer added but has not costed yet. It is kept and flagged rather than
         // dropped: the day cannot be submitted while one exists, but it survives a reload.
+        // A manual row (no card behind it) is blank until BOTH a category and a percentage
+        // are on it — without the category half, a typed percentage would read dayTotal()
+        // as done while flatRows() (needsCategory()) drops the row on save regardless,
+        // which would show a day as finished when it cannot actually be submitted that way.
         isBlank(row) {
+            if (!row.work_item_id && !row.category_id) return true;
+
             return !(parseFloat(row.percentage) > 0);
         },
         // A card that reached the grid with no category behind it: its own choice is unset,
@@ -364,12 +387,26 @@ export function registerTimesheetCapture(Alpine) {
         needsCategory(row) {
             return !row.category_id;
         },
+        // A manual row whose category requires a project (see categoryRequiresProject())
+        // but has none picked yet. Card rows never hit this — their project rides in with
+        // the card and is never asked here.
+        needsProject(row) {
+            return !row.work_item_id && this.categoryRequiresProject(row.category_id) && !row.project_id;
+        },
+        // Whether a category (by id) requires a project, read off the same `categories`
+        // list the picker's pills render from — one definition of "requires a project" on
+        // this screen.
+        categoryRequiresProject(categoryId) {
+            const cat = this.categories.find((c) => String(c.id) === String(categoryId));
+
+            return !!(cat && cat.requires_project);
+        },
         // Gates dayState() and the submit blockers. An uncosted suggestion is excluded here
         // (but stays `isBlank()` for its own row styling) — it is never sent (flatRows()),
         // so it must never be able to stop the week from being sent either. A row the
         // staffer actually typed is never `suggested: true`, so this changes nothing for it.
         hasBlankRows(iso) {
-            return (this.rows[iso] || []).some((r) => (!r.suggested && this.isBlank(r)) || this.needsCategory(r));
+            return (this.rows[iso] || []).some((r) => (!r.suggested && this.isBlank(r)) || this.needsCategory(r) || this.needsProject(r));
         },
         // Give this line whatever is unallocated. Shown only while something is left, so it
         // can never subtract — the old day-level "give the rest to the last line" set the
@@ -406,7 +443,15 @@ export function registerTimesheetCapture(Alpine) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
             const sub = proj && (proj.sub_pillars || []).find((s) => String(s.id) === String(r.sub_pillar_id));
-            return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
+            const label = [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
+            // A manual row with nothing picked yet (freshly added, or the overlay was
+            // cancelled before anything was chosen) would otherwise render with no title
+            // at all — a card row always has at least its board title to fall back to.
+            if (!label && !r.work_item_id) {
+                return this.$store.ui.lang === 'en' ? 'New line' : 'Baris baharu';
+            }
+
+            return label;
         },
 
         // ---- the row overlay ------------------------------------------------------
@@ -417,6 +462,7 @@ export function registerTimesheetCapture(Alpine) {
         picker: {
             open: false, step: 'category', pendingItem: null, pendingPct: null,
             pendingDesc: '', pendingSub: '', pendingCat: '', askCat: false, editingIndex: null,
+            isManual: false, askProject: false, pendingProject: '',
         },
 
         // Opens the row's overlay, pre-filled from the row itself, so a rich-text note is
@@ -428,18 +474,47 @@ export function registerTimesheetCapture(Alpine) {
             const r = this.rows[this.selected][i];
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
+            // A manual row has no card to answer for it, so its category is always asked
+            // here — even when it already has one, so it stays correctable. A card row
+            // keeps the old rule: asked only the first time, while it needsCategory().
+            const isManual = !r.work_item_id;
             this.picker = {
                 open: true, step: 'details',
                 pendingItem: { label: this.rowTitle(r), category_id: r.category_id, project_id: r.project_id || '' },
                 pendingPct: r.percentage, pendingDesc: r.description || '',
                 pendingSub: r.sub_pillar_id || '',
                 pendingCat: r.category_id || '',
-                // Snapshotted, not read off the live row: once a category is picked the row
-                // stops needing one, and a live check would make the picker vanish mid-edit.
-                askCat: this.needsCategory(r),
+                askCat: isManual || this.needsCategory(r),
+                isManual,
+                // Project is only ever asked for a manual row, and only when its (already
+                // chosen) category demands one — a card's project rides in with the card.
+                askProject: isManual && this.categoryRequiresProject(r.category_id),
+                pendingProject: r.project_id || '',
                 editingIndex: i,
             };
             this.focusPickerTitle();
+        },
+        // Category pill click on the details step. For a manual row this also decides
+        // whether the project step shows next: switching from a project-less category to
+        // one that requires a project must reveal it immediately, and switching back away
+        // must drop whatever project was pending so a stale pick can't sneak onto a line
+        // whose category no longer wants one.
+        pickManualCategory(categoryId) {
+            this.picker.pendingCat = categoryId;
+            if (!this.picker.isManual) return;
+            this.picker.askProject = this.categoryRequiresProject(categoryId);
+            if (!this.picker.askProject) this.picker.pendingProject = '';
+        },
+        // Projects offered for the manual row's project step, narrowed to the chosen
+        // category the way the picker already narrows by card — falls back to every
+        // project when none declare that category, so an uncategorized project stays
+        // reachable (same reasoning as `category_ids` in TimesheetController::projectOptions()).
+        pickerProjects() {
+            const catId = this.picker.pendingCat;
+            if (!catId) return this.projects;
+            const narrowed = this.projects.filter((p) => (p.category_ids || []).map(String).includes(String(catId)));
+
+            return narrowed.length ? narrowed : this.projects;
         },
         // The overlay is one step deep now, so Back is simply Cancel.
         pickerBack() {
@@ -514,6 +589,11 @@ export function registerTimesheetCapture(Alpine) {
             const r = this.rows[this.selected][this.picker.editingIndex];
             if (this.picker.askCat && this.picker.pendingCat) {
                 this.applyCategory(r, this.picker.pendingCat);
+            }
+            // Project only ever comes from this step for a manual row; a card row's
+            // project always rides in with the card and this leaves it untouched.
+            if (this.picker.isManual) {
+                r.project_id = this.picker.askProject ? (this.picker.pendingProject || '') : '';
             }
             r.percentage = this.picker.pendingPct;
             r.description = this.picker.pendingDesc;
@@ -670,6 +750,28 @@ export function registerTimesheetCapture(Alpine) {
             return this.blockingDays().length === 0 && this.weekEndReached();
         },
 
+        // Flips the "fill from board" switch server-side, then reloads: the row set the
+        // screen shows is a genuinely different shape either way (board prefill vs. an
+        // empty grid with Add line), and rebuilding it in place would just be a second,
+        // buggier copy of what the next page load already does correctly.
+        async setFillFromBoard(on) {
+            try {
+                const res = await fetch(cfg.preferencesUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({ fill_from_board: on }),
+                });
+                if (!res.ok) throw new Error('bad status');
+                window.location.reload();
+            } catch (e) {
+                this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not save that setting.' : 'Tidak dapat simpan tetapan itu.');
+            }
+        },
+
         // ---- persistence ---------------------------------------------------
         // Dismissals as the server wants them: ISO date => card ids, editable days only,
         // for the same reason flatRows() skips the rest.
@@ -698,7 +800,14 @@ export function registerTimesheetCapture(Alpine) {
                     .filter((r) => !(r.suggested && (r.percentage === '' || r.percentage === null)))
                     // A row with no category cannot be stored (the server requires one) and
                     // would take the whole week's save down with it.
-                    .filter((r) => !this.needsCategory(r));
+                    .filter((r) => !this.needsCategory(r))
+                    // An abandoned manual line (added, never given a category+percentage) is
+                    // dropped rather than sent as a 0% row — unlike a board row, nothing put
+                    // it there but the staffer, so quietly forgetting it is the right default.
+                    .filter((r) => r.work_item_id || !this.isBlank(r))
+                    // A manual line whose category demands a project but has none yet is
+                    // withheld the same way a missing category is, until the picker fills it.
+                    .filter((r) => !this.needsProject(r));
                 for (const r of dayRows) {
                     // A 0% line IS sent. It used to be dropped here, which meant a line the
                     // staffer had added but not yet costed vanished on the next reload with

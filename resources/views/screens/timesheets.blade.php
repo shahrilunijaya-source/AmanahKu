@@ -100,6 +100,8 @@
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
             editEntryId: @js(request()->query('edit')),
+            fillFromBoard: @js($tsFillFromBoard),
+            preferencesUrl: @js(route('timesheets.preferences')),
          })"
          @popstate.window="if ($store.tsReview.open) closeReview()"
          @keydown.escape.window="if ($store.tsReview.open) history.back()">
@@ -145,6 +147,24 @@
                                 ? ($store.ui.lang==='en' ? 'this day is done' : 'hari ini selesai')
                                 : ($store.ui.lang==='en' ? 'of this day' : 'daripada hari ini')"></div>
             </div>
+        </div>
+
+        {{-- The staffer's own switch for the board prefill. Hidden once the week is
+             locked — flipping it would change nothing a locked week can act on anyway. ---- --}}
+        <div x-show="!readonly" x-cloak
+             style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline-soft);flex-wrap:wrap;">
+            <div style="min-width:0;">
+                <div style="font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fill from board' : 'Isi dari papan'"></div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;"
+                    x-text="$store.ui.lang==='en'
+                        ? 'On: cards you worked appear by themselves. Off: you add each line yourself.'
+                        : 'Hidup: kad yang anda kerjakan muncul sendiri. Mati: anda tambah setiap baris sendiri.'"></div>
+            </div>
+            <button type="button" role="switch" :aria-checked="fillFromBoard ? 'true' : 'false'"
+                @click="setFillFromBoard(!fillFromBoard)" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12px;flex-shrink:0;"
+                :style="fillFromBoard ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' } : {}">
+                <span x-text="fillFromBoard ? ($store.ui.lang==='en' ? 'On' : 'Hidup') : ($store.ui.lang==='en' ? 'Off' : 'Mati')"></span>
+            </button>
         </div>
 
         {{-- The bar is segmented, one piece per line in the day, so it shows the split and
@@ -237,9 +257,11 @@
                          lines come from, or it just reads as broken. --}}
                     <template x-if="!(rows[selected] || []).length && !dismissedFor(selected).length">
                         <div style="padding:16px 0 4px;font-size:12.5px;color:var(--muted);line-height:1.5;">
-                            <span x-text="$store.ui.lang==='en'
-                                ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
-                                : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.'"></span>
+                            <span x-text="fillFromBoard
+                                ? ($store.ui.lang==='en'
+                                    ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
+                                    : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.')
+                                : ($store.ui.lang==='en' ? 'No lines yet for this day.' : 'Belum ada baris untuk hari ini.')"></span>
                         </div>
                     </template>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
@@ -325,6 +347,16 @@
                         </div>
                     </template>
 
+                    {{-- Manual mode's own way of starting a line — the board prefill's
+                         equivalent of a card landing In Progress, except the staffer starts
+                         it themselves. Absent in board mode: there, a line only ever arrives
+                         from a card. --}}
+                    <div x-show="isEditable(selected) && !fillFromBoard" x-cloak style="margin-top:12px;">
+                        <button type="button" @click="addManualRow()" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;">
+                            <span x-text="$store.ui.lang==='en' ? 'Add line' : 'Tambah baris'"></span>
+                        </button>
+                    </div>
+
                     {{-- Cards struck off this day. Removing one sticks (it is saved with the
                          day), so a mis-tapped × needs a way back that is not a trip to the
                          board — this is it. --}}
@@ -407,10 +439,12 @@
                                  to Friday is answered once. --}}
                             <div x-show="picker.askCat" x-cloak>
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                                    x-text="$store.ui.lang==='en' ? 'What kind of work was this? (this card has no category)' : 'Kerja jenis apa ini? (kad ini tiada kategori)'"></label>
+                                    x-text="picker.isManual
+                                        ? ($store.ui.lang==='en' ? 'What kind of work was this?' : 'Kerja jenis apa ini?')
+                                        : ($store.ui.lang==='en' ? 'What kind of work was this? (this card has no category)' : 'Kerja jenis apa ini? (kad ini tiada kategori)')"></label>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                     <template x-for="c in categories" :key="c.id">
-                                        <button type="button" @click="picker.pendingCat = c.id" class="uj-ts-pill"
+                                        <button type="button" @click="pickManualCategory(c.id)" class="uj-ts-pill"
                                             style="min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;"
                                             :style="String(picker.pendingCat) === String(c.id)
                                                 ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
@@ -423,6 +457,28 @@
                                     </template>
                                 </div>
                                 <div x-show="!picker.pendingCat" x-cloak
+                                    style="margin-top:7px;font-size:11px;color:var(--amber-ink);"
+                                    x-text="$store.ui.lang==='en' ? 'Pick one, or this line is not saved.' : 'Pilih satu, atau baris ini tidak disimpan.'"></div>
+                            </div>
+
+                            {{-- Only for a manual row (no card), and only once its category
+                                 demands a project. Card rows never see this — the project
+                                 rides in with the card and is corrected there. --}}
+                            <div x-show="picker.askProject" x-cloak>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
+                                    x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'"></label>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    <template x-for="p in pickerProjects()" :key="p.id">
+                                        <button type="button" @click="picker.pendingProject = p.id" class="uj-ts-pill"
+                                            style="min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;cursor:pointer;"
+                                            :style="String(picker.pendingProject) === String(p.id)
+                                                ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                                : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }"
+                                            :aria-pressed="String(picker.pendingProject) === String(p.id) ? 'true' : 'false'"
+                                            x-text="p.name"></button>
+                                    </template>
+                                </div>
+                                <div x-show="!picker.pendingProject" x-cloak
                                     style="margin-top:7px;font-size:11px;color:var(--amber-ink);"
                                     x-text="$store.ui.lang==='en' ? 'Pick one, or this line is not saved.' : 'Pilih satu, atau baris ini tidak disimpan.'"></div>
                             </div>

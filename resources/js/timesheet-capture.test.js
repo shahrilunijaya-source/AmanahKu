@@ -325,7 +325,9 @@ test('the row overlay writes what the staffer was doing back onto the row', () =
 test('an uncosted suggestion does not block dayState() from reading done, or count as a blank row', () => {
     const c = makeComponent({ days: 5 });
     c.rows[THURSDAY] = [
-        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        // category 2 (Sales) needs no project — this test is about the suggestion, not
+        // about project-requirement gating (see the manual-mode tests for that).
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
         { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
     ];
 
@@ -388,7 +390,9 @@ test('init() skips a cfg.suggested row on a non-editable day (before the earlies
 test('flatRows() drops an uncosted suggestion so it can never block the week submit', () => {
     const c = makeComponent({ days: 5 });
     c.rows[THURSDAY] = [
-        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
+        // category 2 (Sales) needs no project — this test is about the suggestion, not
+        // about project-requirement gating (see the manual-mode tests for that).
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
         { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
     ];
 
@@ -548,4 +552,123 @@ test('a row still without a category never reaches the server', () => {
     ];
 
     expect(c.flatRows()).toEqual([]);
+});
+
+// ---- Manual mode: a row nobody's board card ever proposed --------------------------
+// PROJECTS[0] (KPT: RMS) is used as the manual line's project below; its category_ids
+// is [] on purpose (see PROJECTS above), so it stays reachable under any category.
+
+test('fillFromBoard defaults true, and reflects cfg.fillFromBoard when given', () => {
+    expect(makeComponent({ days: 5 }).fillFromBoard).toBe(true);
+    expect(makeComponent({ days: 5, fillFromBoard: false }).fillFromBoard).toBe(false);
+});
+
+test('fillFromBoard: false does not touch rows already saved for the week', () => {
+    const c = makeComponent({
+        days: 5,
+        fillFromBoard: false,
+        existing: { [THURSDAY]: [{ id: 9, category_id: 1, percentage: 40 }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toHaveLength(1);
+    expect(c.rows[THURSDAY][0].id).toBe(9);
+});
+
+test('addManualRow() opens the picker on a fresh line with askCat true', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+
+    c.addManualRow();
+
+    expect(c.rows[THURSDAY]).toHaveLength(1);
+    expect(c.rows[THURSDAY][0].work_item_id).toBeNull();
+    expect(c.picker.open).toBe(true);
+    expect(c.picker.askCat).toBe(true);
+    expect(c.picker.isManual).toBe(true);
+});
+
+test('isBlank() reads a fresh manual row as blank', () => {
+    const c = makeComponent({ days: 5 });
+    const row = { id: null, work_item_id: null, category_id: '', project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: false, manual: true };
+
+    expect(c.isBlank(row)).toBe(true);
+});
+
+test('rowLabel() names an unfinished manual row "New line" instead of rendering blank', () => {
+    const c = makeComponent({ days: 5 });
+    const row = { work_item_id: null, category_id: '', project_id: '', sub_pillar_id: '' };
+
+    expect(c.rowLabel(row)).toBe('New line');
+});
+
+test('confirmEntry() withholds a manual row whose category requires a project until one is picked', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.addManualRow();
+
+    c.pickManualCategory(1); // Development, requires_project: true
+    expect(c.picker.askProject).toBe(true);
+    c.picker.pendingPct = 50;
+    c.confirmEntry();
+
+    expect(c.flatRows()).toEqual([]);
+});
+
+test('confirmEntry() writes a manual row once category, project and percentage are all set, with work_item_id null', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.addManualRow();
+
+    c.pickManualCategory(1);
+    c.picker.pendingProject = 5;
+    c.picker.pendingPct = 50;
+    c.confirmEntry();
+
+    const out = c.flatRows();
+    expect(out).toHaveLength(1);
+    expect(out[0].category_id).toBe(1);
+    expect(out[0].project_id).toBe(5);
+    expect(out[0].percentage).toBe(50);
+    expect(out[0].work_item_id).toBeNull();
+});
+
+test('confirmEntry() writes a manual row under a category that needs no project, with project_id null', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.addManualRow();
+
+    c.pickManualCategory(2); // Sales, requires_project: false
+    c.picker.pendingPct = 100;
+    c.confirmEntry();
+
+    const out = c.flatRows();
+    expect(out).toHaveLength(1);
+    expect(out[0].project_id).toBeNull();
+});
+
+test('pickManualCategory() clears a pending project when switching to a category that no longer needs one', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.addManualRow();
+    c.pickManualCategory(1);
+    c.picker.pendingProject = 5;
+
+    c.pickManualCategory(2);
+
+    expect(c.picker.askProject).toBe(false);
+    expect(c.picker.pendingProject).toBe('');
+});
+
+test('openEditRow() never asks for a project on a card row, even under a category that requires one', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: 1, project_id: 5, sub_pillar_id: '', description: '', percentage: 50 },
+    ];
+
+    c.openEditRow(0);
+
+    expect(c.picker.isManual).toBe(false);
+    expect(c.picker.askProject).toBe(false);
 });
