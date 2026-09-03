@@ -31,7 +31,7 @@
         if (str_starts_with($choice, 'preset:') && ($css = config('amanahku.wallpaper_presets.'.substr($choice, 7)))) {
             $wp = $css;
         } elseif ($choice === 'upload' && ! empty($appearance['wallpaper_path'])) {
-            $wp = 'url('.e(\Illuminate\Support\Facades\Storage::disk('public')->url($appearance['wallpaper_path'])).')';
+            $wp = 'url('.\Illuminate\Support\Facades\Storage::disk('public')->url($appearance['wallpaper_path']).')';
         }
     }
     $wpDim = $appearance['dim'] ?? 'soft';
@@ -204,7 +204,7 @@
                                  heading reading "Messages"), and the sidebar already marks where
                                  you are. --}}
                             @unless ($screen === 'dash')
-                                <div class="{{ $wp ? 'uj-plate' : '' }}" style="{{ $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : '' }}" x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                <div id="uj-page-title" class="{{ $wp ? 'uj-plate' : '' }}" style="{{ $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : '' }}" x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
                                     <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
                                     <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
                                 </div>

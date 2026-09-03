@@ -287,13 +287,23 @@ document.addEventListener('alpine:init', () => {
            two objects mid-swap. */
         paint() {
             const shell = document.getElementById('uj-shell');
+            const header = document.querySelector('.uj-header');
+            const plate = document.getElementById('uj-page-title');
             let layer = document.querySelector('.uj-wallpaper');
             let bg = null;
             if (this.choice.startsWith('preset:')) bg = cfg.presets[this.choice.slice(7)];
             else if (this.choice === 'upload' && this.photoUrl) bg = 'url(' + this.photoUrl + ')';
-            if (!bg) { layer?.remove(); shell?.classList.remove('uj-has-wallpaper'); document.querySelector('.uj-plate')?.classList.remove('uj-plate'); return; }
+
+            /* Everything a wallpaper toggles, kept in this one list so it can't drift
+               from the $wp branch in layouts/app.blade.php: the shell + layer, the
+               title plate, and the header/plate blur. */
+            const blur = bg ? 'blur(14px)' : '';
+            shell?.classList.toggle('uj-has-wallpaper', !!bg);
+            plate?.classList.toggle('uj-plate', !!bg);
+            [header, plate].forEach((el) => { if (el) { el.style.backdropFilter = blur; el.style.webkitBackdropFilter = blur; } });
+
+            if (!bg) { layer?.remove(); return; }
             if (!layer) { layer = document.createElement('div'); layer.className = 'uj-wallpaper'; shell.prepend(layer); }
-            shell.classList.add('uj-has-wallpaper');
             layer.dataset.dim = this.dim;
             layer.style.transition = 'opacity 220ms cubic-bezier(.23,1,.32,1), filter 220ms cubic-bezier(.23,1,.32,1)';
             layer.style.filter = 'blur(6px)'; layer.style.opacity = '0.6';
@@ -302,10 +312,15 @@ document.addEventListener('alpine:init', () => {
         async send(body) {
             this.error = '';
             const fallback = Alpine.store('ui').lang === 'en' ? 'Could not save.' : 'Tidak dapat disimpan.';
-            const res = await fetch(cfg.url, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' }, body });
-            if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? fallback; return false; }
-            if (!res.ok) { this.error = fallback; return false; }
-            return true;
+            try {
+                const res = await fetch(cfg.url, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' }, body });
+                if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? fallback; return false; }
+                if (!res.ok) { this.error = fallback; return false; }
+                return true;
+            } catch (e) {
+                this.error = fallback;
+                return false;
+            }
         },
         form(extra = {}) {
             const f = new FormData(); f.append('wallpaper', this.choice); f.append('dim', this.dim);
@@ -324,8 +339,14 @@ document.addEventListener('alpine:init', () => {
             this.photoUrl = URL.createObjectURL(file); this.paint();
         },
         async removePhoto() {
-            const res = await fetch(cfg.deleteUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' } });
-            if (!res.ok) { this.error = Alpine.store('ui').lang === 'en' ? 'Could not remove the photo.' : 'Foto tidak dapat dibuang.'; return; }
+            const fallback = Alpine.store('ui').lang === 'en' ? 'Could not remove the photo.' : 'Foto tidak dapat dibuang.';
+            try {
+                const res = await fetch(cfg.deleteUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' } });
+                if (!res.ok) { this.error = fallback; return; }
+            } catch (e) {
+                this.error = fallback;
+                return;
+            }
             this.photoUrl = null; if (this.choice === 'upload') this.choice = 'none'; this.paint();
         },
     }));
