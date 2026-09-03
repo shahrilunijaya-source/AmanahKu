@@ -41,10 +41,6 @@
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
-    - tag: improved
-      major: true
-      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
-      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
     - tag: added
       text: "You can also put a cover across the top of your profile, a colour or your own photo, which everyone who opens your profile sees."
       text_ms: "Anda juga boleh letak cover di bahagian atas profil anda, sama ada warna atau foto sendiri, yang dilihat semua orang yang membuka profil anda."
@@ -54,6 +50,9 @@
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
+    - tag: improved
+      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
+      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
 
 - version: "1.7.3"
   date: "2026-09-03"
