@@ -1057,12 +1057,20 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-sub--all { color: var(--success-ink); }
 /* A parent with subtasks reads as a stack: two hairline layers peek out below it.
    Pure CSS so the card's markup and drag behaviour are untouched. */
-.wc--stack { position: relative; margin-bottom: 10px; }
+/* Two sheets peeking out under a card that has subtasks. Each layer is a shade
+   darker than the one above so the stack reads as depth, not as three outlines;
+   the shadow sits on the front card and falls onto them. */
+.wc--stack { position: relative; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(31,30,26,.05); }
 .wc--stack::before, .wc--stack::after {
-    content: ""; position: absolute; top: 100%; left: 6px; right: 6px; height: 4px;
-    background: var(--card); border: 1px solid var(--hairline); border-top: 0; border-radius: 0 0 9px 9px;
+    content: ""; position: absolute; top: 100%; left: 7px; right: 7px; height: 6px;
+    background: #ebe9e3; border: 1px solid #d9d7cf; border-top: 0; border-radius: 0 0 10px 10px;
+    transition: transform .14s cubic-bezier(.23,1,.32,1);
 }
-.wc--stack::after { top: calc(100% + 4px); left: 12px; right: 12px; }
+.wc--stack::after { top: calc(100% + 6px); left: 14px; right: 14px; height: 5px; background: #dcdad3; border-color: #cbc9c1; }
+@media (hover: hover) and (pointer: fine) {
+    .wc--stack:hover::before { transform: translateY(1px); }
+    .wc--stack:hover::after { transform: translateY(2px); }
+}
 .wc-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 /* Compact modifier — the team board's smaller-type variant, replacing .wi-sm. */
