@@ -17,6 +17,17 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.9"
+  date: "2026-09-03"
+  entries:
+    - tag: added
+      major: true
+      text: "Your timesheet can now fill itself from the board, or you can add lines yourself.\nSwitch it on the Timesheet screen. Off, you pick the kind of work, a project if that kind needs one, what you were doing, and the share of the day, per line. On is unchanged from before. Either way, your existing lines are untouched."
+      text_ms: "Timesheet anda kini boleh mengisi sendiri daripada papan, atau anda boleh tambah baris sendiri.\nTukar di skrin Timesheet. Apabila mati, anda pilih jenis kerja, projek jika jenis itu memerlukannya, apa yang anda buat, dan bahagian hari, bagi setiap baris. Apabila hidup, tiada perubahan daripada sebelum ini. Kedua-duanya, baris sedia ada anda tidak terjejas."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+
 - version: "1.8"
   date: "2026-09-03"
   entries:
