@@ -39,7 +39,7 @@
     // Whether the current screen yielded a hero backdrop (see @section('hero') in
     // profile.blade.php). Read here because the child view's section is captured
     // before the layout renders, so this only works once, not inside @yield('hero') itself.
-    $hero = \Illuminate\Support\Facades\View::hasSection('hero');
+    $hero = ! $embed && \Illuminate\Support\Facades\View::hasSection('hero');
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',

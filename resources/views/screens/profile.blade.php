@@ -25,7 +25,7 @@
 @elseif (! ($canViewFull ?? false))
     {{-- Slim public card: a blocked viewer never gets a 403 (header search and directory
          clicks must not dead-end) but also never gets tabs, stats, salary or attendance. --}}
-    <div class="uj-card" style="max-width:360px;padding:24px;text-align:center;overflow:hidden;">
+    <div class="uj-card" style="max-width:360px;padding:24px;text-align:center;">
         <div style="width:88px;height:88px;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:30px;font-weight:600;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">{{ $p->initials }}</div>
         <h3 style="font-size:18px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>
         <p style="font-size:13px;color:var(--muted);margin:4px 0 12px;">{{ $p->positionBand?->title ?? '—' }}</p>
