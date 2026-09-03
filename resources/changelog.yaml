@@ -17,6 +17,17 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.8"
+  date: "2026-09-03"
+  entries:
+    - tag: added
+      major: true
+      text: "Make Amanahku yours: pick a background for your workspace, or upload your own photo, from Account & security → Appearance. Only you see it.\nYou can also put a cover photo across the top of your profile, which everyone who opens your profile sees."
+      text_ms: "Jadikan Amanahku milik anda: pilih latar belakang untuk ruang kerja anda, atau muat naik foto sendiri, dari Akaun & keselamatan → Penampilan. Hanya anda yang melihatnya.\nAnda juga boleh letak foto cover di bahagian atas profil anda, yang dilihat semua orang yang membuka profil anda."
+      link: "/app/security#appearance"
+      link_text: "Choose a background"
+      link_text_ms: "Pilih latar belakang"
+
 - version: "1.7.4"
   date: "2026-09-03"
   entries:
