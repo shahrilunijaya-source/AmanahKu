@@ -174,13 +174,14 @@ class LeaveSetupTest extends TestCase
     }
 
     /**
-     * A granted type keeps no running total: HR books those days outright, so the grid
-     * offers no cell to open one and a forged figure in the payload writes nothing.
+     * A granted type's quota is handed out one grant at a time on the Replacement tab,
+     * each with the remark saying what earned it, so the grid offers no cell to type an
+     * opening balance into and a forged figure in the payload writes nothing.
      */
     public function test_a_granted_type_gets_no_opening_balance(): void
     {
         $replacement = LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 0,
             'is_hr_granted_only' => true,
         ]);
 
@@ -192,27 +193,26 @@ class LeaveSetupTest extends TestCase
         $this->assertDatabaseMissing('leave_balances', ['leave_type_id' => $replacement->id]);
 
         $html = $this->asHr()->get('/app/leave-setup')->assertOk()->getContent();
-        $this->assertStringContainsString('granted, no balance', $html);
+        $this->assertStringContainsString('granted, see Replacement', $html);
         $this->assertStringNotContainsString('balances['.$this->staff->id.']['.$replacement->id.']', $html);
     }
 
     /**
-     * An HR-granted type (Replacement) is missing from the employee's Apply form, so the
-     * only way the day gets booked is the Record card here. It appears only once such a
-     * type exists — a tenant without one has nothing to record.
+     * The grant card is the only place a replacement quota is handed out. It appears only
+     * once an HR-granted type exists — a tenant without one has nothing to grant.
      */
-    public function test_the_record_card_appears_only_for_hr_granted_types(): void
+    public function test_the_grant_card_appears_only_for_hr_granted_types(): void
     {
-        $this->asHr()->get('/app/leave-setup')->assertOk()->assertDontSee(route('leave.record'), false);
+        $this->asHr()->get('/app/leave-setup')->assertOk()->assertDontSee(route('leave.grant'), false);
 
         LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 0,
             'is_hr_granted_only' => true,
         ]);
 
         $this->asHr()->get('/app/leave-setup')->assertOk()
-            ->assertSee('Book a replacement day')
-            ->assertSee(route('leave.record'), false);
+            ->assertSee('Grant replacement quota')
+            ->assertSee(route('leave.grant'), false);
     }
 
     public function test_the_balance_grid_is_searchable_by_nickname(): void

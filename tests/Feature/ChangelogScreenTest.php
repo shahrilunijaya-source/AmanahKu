@@ -146,17 +146,19 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_the_newest_release_announces_the_unpaid_emergency_leave_rule(): void
+    public function test_the_newest_release_announces_replacement_quota(): void
     {
         $newest = Changelog::releases()[0];
 
-        $this->assertSame('1.7.2', $newest['version']);
+        $this->assertSame('1.7.3', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
+        $response->assertSee('HR gives you the quota, and you apply for the days yourself', false);
+        $response->assertSee('goes straight into Done now shows up on your timesheet', false);
         $response->assertSee('approved as unpaid leave instead of being refused', false);
         $response->assertSee('The dashboard is one page now', false);
         $response->assertSee('/app/dash', false);
@@ -165,7 +167,7 @@ class ChangelogScreenTest extends TestCase
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7.2 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.7.3 entry has no Malay copy of its own.');
         }
     }
 

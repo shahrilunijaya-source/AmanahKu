@@ -52,7 +52,9 @@
         $logoPath = $tenant?->logo_path ? \Illuminate\Support\Facades\Storage::disk('public')->path($tenant->logo_path) : null;
         $payDate = $run?->finalized_at ? $run->finalized_at->format('d/m/Y') : now()->format('d/m/Y');
         $periodLabel = $run?->label ?? $run?->period;
-        // A granted type (Replacement) keeps no running total, so it is not a balance to print.
+        // Only the two headline entitlements. A granted type (Replacement) does carry a
+        // balance now, but it is quota earned by working rest days, not part of the yearly
+        // entitlement a payslip reports.
         $balances = $emp?->leaveBalances->reject(fn ($b) => $b->leaveType?->is_hr_granted_only)->take(2) ?? collect();
     @endphp
     <div class="page" @if (! $loop->last) style="page-break-after: always;" @endif>

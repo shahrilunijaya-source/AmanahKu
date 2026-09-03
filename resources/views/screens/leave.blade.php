@@ -51,10 +51,15 @@
     // Ledger: every type the person carries a real entitlement in, with the days
     // already spent and the days still awaiting a decision.
     $pendingByType = $pending->groupBy('leave_type_id')->map(fn ($g) => (float) $g->sum('days'));
-    // A granted type (Replacement) keeps no running total — HR books those days outright —
-    // so it has no line here even where an old balance row survives.
-    $ledger = $balances->filter(fn ($b) => ($b->leaveType?->entitlement ?? 0) > 0 && ! $b->leaveType->is_hr_granted_only)
-        ->sortByDesc(fn ($b) => $b->leaveType->entitlement);
+    // A granted type (Replacement) carries no yearly entitlement: its quota is the sum of
+    // what HR has granted, so that sum is the denominator its line counts against.
+    $myGrants = $myLeaveGrants ?? collect();
+    $grantedByType = $myGrants->groupBy('leave_type_id')->map(fn ($g) => (float) $g->sum('days'));
+    $quotaFor = fn ($b) => $b->leaveType?->is_hr_granted_only
+        ? $grantedByType->get($b->leave_type_id, 0.0)
+        : (float) ($b->leaveType?->entitlement ?? 0);
+    $ledger = $balances->filter(fn ($b) => $quotaFor($b) > 0)
+        ->sortByDesc($quotaFor);
 
     $statusTone = ['cancelled' => 'muted', 'approved' => 'success', 'verified' => 'amber', 'submitted' => 'amber', 'rejected' => 'error', 'draft' => 'muted'];
     $statusEn = ['cancelled' => 'Cancelled', 'approved' => 'Approved', 'verified' => 'With management', 'submitted' => 'With your manager', 'rejected' => 'Declined', 'draft' => 'Draft'];
@@ -155,7 +160,7 @@
                         @php
                             $slug = strtolower($b->leaveType?->name ?? '');
                             $m = $leaveMeta[$slug] ?? [null, '#8a8f98', '#eef0f2', '', ''];
-                            $quota = (float) $b->leaveType->entitlement;
+                            $quota = $quotaFor($b);
                             $usedDays = max(0, $quota - (float) $b->balance);
                             $pendDays = $pendingByType->get($b->leave_type_id, 0.0);
                             $w = fn ($v) => $quota > 0 ? min(100, $v / $quota * 100) : 0;
@@ -178,6 +183,30 @@
                             </span>
                         </div>
                     @endforeach
+                </div>
+            </div>
+        @endif
+
+        @if ($myGrants->isNotEmpty())
+            <div>
+                <h3 class="uj-card-title" style="margin-bottom:3px;"><span x-text="$store.ui.lang==='en' ? 'Replacement quota granted to you' : 'Kuota cuti ganti yang diberi'">Replacement quota granted to you</span></h3>
+                <p style="font-size:var(--t-sm);color:var(--muted);margin:0 0 12px;">
+                    <span x-text="$store.ui.lang==='en'
+                        ? 'HR grants these days for rest days you worked. Apply for them whenever you like, up to the balance above.'
+                        : 'HR memberi hari ini kerana anda bekerja pada hari rehat. Mohon bila-bila masa, sehingga baki di atas.'"></span>
+                </p>
+                <div class="uj-card" style="padding:0;overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <tbody>
+                            @foreach ($myGrants as $g)
+                                <tr style="{{ $loop->first ? '' : 'border-top:1px solid var(--hairline);' }}">
+                                    <td style="padding:10px 16px;font-variant-numeric:tabular-nums;white-space:nowrap;width:1%;font-weight:600;color:{{ $g->days < 0 ? 'var(--danger, #c0392b)' : 'var(--ink)' }};">{{ $g->days > 0 ? '+' : '' }}{{ $num($g->days) }}</td>
+                                    <td style="padding:10px 16px;">{{ $g->remark }}</td>
+                                    <td style="padding:10px 16px;color:var(--muted);white-space:nowrap;text-align:right;">{{ $g->created_at?->format('j M Y') }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
         @endif
@@ -302,6 +331,10 @@
                                         <span class="uj-lv-ref-q" style="color:{{ $m[1] }};">
                                             @if ($t->is_unplanned && $t->deducts_from_leave_type_id)
                                                 <span x-text="$store.ui.lang==='en' ? 'AS NEEDED' : 'IKUT PERLU'">AS NEEDED</span>
+                                            @elseif ($t->is_hr_granted_only)
+                                                {{-- Paid days, but no yearly figure to quote: the quota is whatever
+                                                     HR granted for the rest days actually worked. --}}
+                                                <span x-text="$store.ui.lang==='en' ? 'AS GRANTED' : 'IKUT DIBERI'">AS GRANTED</span>
                                             @elseif ($t->entitlement > 0)
                                                 {{ (int) $t->entitlement }} <span x-text="$store.ui.lang==='en' ? 'DAYS/YR' : 'HARI/THN'">DAYS/YR</span>
                                             @else

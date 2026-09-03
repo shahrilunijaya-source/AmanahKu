@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unijaya Payroll Spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --red:#d6232b; --red-active:#b01b22; --red-tint:#fcebec;
+    --canvas:#f6f6f3; --card:#ffffff; --shelf:#ece9e1; --shelf-line:#ddd9cf;
+    --ink:#26251e; --body:#5a5852; --muted:#6f6c61; --muted-soft:#8b887e;
+    --hairline:#e6e5e0; --hairline-soft:#efeee8;
+    --success:#1f8a65; --success-tint:#e4f3ec; --amber:#c08532; --amber-tint:#f8efdf; --info:#3a6ea5; --info-tint:#e6eef7;
+    --sans:"Poppins",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --canvas:#1f1e1a; --card:#26251f; --shelf:#2b2a25; --shelf-line:#3a3831;
+      --ink:#ecebe4; --body:#c9c7bd; --muted:#a5a297; --muted-soft:#8b887e;
+      --hairline:#353329; --hairline-soft:#2e2c26;
+      --red:#e8464d; --red-tint:#3a2224; --success:#43b98a; --success-tint:#1e3129; --amber:#d9a253; --amber-tint:#3a2f1c; --info:#7aa6d8; --info-tint:#1f2d3d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --canvas:#1f1e1a; --card:#26251f; --shelf:#2b2a25; --shelf-line:#3a3831;
+    --ink:#ecebe4; --body:#c9c7bd; --muted:#a5a297; --muted-soft:#8b887e;
+    --hairline:#353329; --hairline-soft:#2e2c26;
+    --red:#e8464d; --red-tint:#3a2224; --success:#43b98a; --success-tint:#1e3129; --amber:#d9a253; --amber-tint:#3a2f1c; --info:#7aa6d8; --info-tint:#1f2d3d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--body);font-family:var(--sans);font-size:14.5px;line-height:1.6;}
+  a{color:var(--info);text-decoration:none;border-bottom:1px solid transparent}
+  a:hover,a:focus-visible{border-bottom-color:currentColor;outline:none}
+  .page{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;max-width:1120px;margin:0 auto;padding:40px 28px 96px}
+  nav.toc{position:sticky;top:24px;align-self:start;font-size:12.5px;line-height:1.45}
+  nav.toc .eyebrow{margin-bottom:10px}
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  nav.toc li a{display:block;padding:5px 10px;border-radius:6px;color:var(--muted);border:0}
+  nav.toc li a:hover{background:var(--shelf);color:var(--ink)}
+  nav.toc li.sub a{padding-left:22px;font-size:12px}
+  main{max-width:760px;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  h1{font-family:var(--mono);font-size:clamp(30px,4vw,44px);font-weight:600;letter-spacing:-.03em;line-height:1.05;color:var(--ink);margin:10px 0 14px;text-wrap:balance}
+  .lede{font-size:16.5px;color:var(--ink);max-width:62ch;margin:0 0 20px}
+  h2{font-size:22px;font-weight:500;letter-spacing:-.025em;color:var(--ink);margin:56px 0 12px;padding-top:20px;border-top:1px solid var(--hairline);text-wrap:balance}
+  h3{font-size:16px;font-weight:600;color:var(--ink);margin:32px 0 8px;text-wrap:balance}
+  h4{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
+  p{margin:0 0 12px;max-width:68ch}
+  ul,ol{margin:0 0 12px;padding-left:22px}
+  li{margin:3px 0}
+  li>ul{margin-top:3px}
+  code,.mono{font-family:var(--mono);font-size:.92em}
+  code{background:var(--shelf);padding:1px 5px;border-radius:4px;color:var(--ink)}
+  pre{background:var(--shelf);border:1px solid var(--shelf-line);border-radius:8px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.5;color:var(--ink);margin:0 0 14px}
+  pre code{background:none;padding:0}
+  .tbl{overflow-x:auto;margin:0 0 16px;border:1px solid var(--hairline);border-radius:8px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--hairline-soft)}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--shelf);white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.04em;padding:2px 8px;border-radius:999px;white-space:nowrap;vertical-align:middle}
+  .chip.built{background:var(--success-tint);color:var(--success)}
+  .chip.gap{background:var(--red-tint);color:var(--red)}
+  .chip.partial{background:var(--amber-tint);color:var(--amber)}
+  .chip.law{background:var(--info-tint);color:var(--info)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);margin:0 0 8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:8px;overflow:hidden;margin:16px 0 20px}
+  .stat{background:var(--card);padding:12px 14px}
+  .stat .v{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--ink);line-height:1.1}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .feat{border:1px solid var(--hairline);border-radius:10px;background:var(--card);padding:18px 20px 6px;margin:0 0 18px}
+  .feat h3{margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .feat h3 .id{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:600}
+  .feat .law{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+  .feat h4:first-of-type{margin-top:8px}
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;font-size:13px;margin:0 0 12px}
+  .kv dt{color:var(--muted);font-weight:500}
+  .kv dd{margin:0;color:var(--ink)}
+  .phase{display:flex;align-items:baseline;gap:12px;margin:40px 0 14px}
+  .phase .n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--red);letter-spacing:.06em}
+  .phase h3{margin:0}
+  .src{font-size:12.5px}
+  .src li{margin:5px 0;word-break:break-word}
+  .footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--hairline);font-size:12px;color:var(--muted)}
+  @media (max-width:860px){.page{grid-template-columns:1fr;gap:24px}nav.toc{position:static}}
+  @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+  html{scroll-behavior:smooth}
+</style>
+</head>
+<body>
+
+<div class="page">
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#summary">1. Summary</a></li>
+    <li><a href="#scope">2. Scope and assumptions</a></li>
+    <li><a href="#law">3. What the law demands</a></li>
+    <li><a href="#built">4. Already built</a></li>
+    <li class="sub"><a href="#worksy">Worksy parity</a></li>
+    <li><a href="#features">5. Features to build</a></li>
+    <li class="sub"><a href="#p1">Phase 1 · before first live run</a></li>
+    <li class="sub"><a href="#p2">Phase 2 · monthly operations</a></li>
+    <li class="sub"><a href="#p3">Phase 3 · later</a></li>
+    <li><a href="#data">6. Data model changes</a></li>
+    <li><a href="#rules">7. Rules that must not be tidied</a></li>
+    <li><a href="#security">8. Permissions, audit, retention</a></li>
+    <li><a href="#testing">9. Testing</a></li>
+    <li><a href="#questions">10. Open questions</a></li>
+    <li><a href="#sources">11. Sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<div class="eyebrow">Design spec · AmanahKu · 2 September 2026</div>
+<h1>Payroll for Unijaya</h1>
+<p class="lede">What AmanahKu still needs so Unijaya can run its own monthly payroll, pay staff on time, and file EPF, SOCSO, EIS, PCB and HRD Corp figures that match to the sen, without leaving Worksy's vocabulary behind.</p>
+<div class="legend">
+  <span><b class="chip built">Built</b> shipped on <code>dev</code>, tested</span>
+  <span><b class="chip partial">Partial</b> exists, needs work</span>
+  <span><b class="chip gap">Gap</b> to build</span>
+  <span><b class="chip law">Law</b> statutory basis</span>
+</div>
+
+<h2 id="summary">1. Summary</h2>
+<p>Unijaya runs payroll on Worksy today. AmanahKu already has the hard part: statutory calculators built from the official KWSP, PERKESO and LHDN documents, a Payroll Item catalogue, Fixed and Individual Transactions, payroll runs, payslip PDFs, Form EA, Form E and C.P.8D. One finalized test run exists for August 2026.</p>
+<p>What is missing is everything <em>around</em> the calculation that a real month needs: the employer's own statutory numbers, the upload files each agency accepts, HRD Corp levy, proration of basic pay for joiners and leavers, the seven-day payment deadline, monthly TP1 relief claims, the CP22 family of notices, and a payslip that carries every particular the Employment Regulations list. This spec defines those as sixteen features across three phases. Phase 1 is the set that must exist before the first live run.</p>
+<div class="stats">
+  <div class="stat"><div class="v">29</div><div class="l">active staff, all Malaysian citizens</div></div>
+  <div class="stat"><div class="v">13</div><div class="l">salary structures on file, basic pay still RM0.00 (scrubbed copy)</div></div>
+  <div class="stat"><div class="v">13 / 13</div><div class="l">missing income tax number (TIN)</div></div>
+  <div class="stat"><div class="v">2 banks</div><div class="l">Maybank and CIMB, typed five different ways</div></div>
+  <div class="stat"><div class="v">146</div><div class="l">payroll test methods, incl. 1,203 EPF rows and 65 PERKESO rows each</div></div>
+</div>
+<p>Figures above are from the local copy of the production database on 2 September 2026. Salaries were zeroed in that copy, so "below minimum wage" cannot be judged from it.</p>
+
+<h2 id="scope">2. Scope and assumptions</h2>
+<h3>In scope</h3>
+<ul>
+  <li>Monthly salary for employees on a contract of service, paid in ringgit into a Malaysian bank account.</li>
+  <li>Malaysian citizens under 60. The EPF and PERKESO calculators already handle 60 and over and non-citizens; nothing in this spec removes that, but no new work targets them.</li>
+  <li>Statutory upload files for KWSP i-Akaun, PERKESO ASSIST, LHDN e-PCB Plus and HRD Corp e-TRiS. The app produces the file; a person uploads it and pays through the agency portal or bank.</li>
+  <li>Annual Form EA, Form E and C.P.8D (already built) fed correctly by the new monthly data.</li>
+</ul>
+<h3>Out of scope</h3>
+<ul>
+  <li>Direct API submission to any agency. None offers a public API a small employer can use; file upload is the sanctioned path.</li>
+  <li>PCB categories for C-suite, knowledge workers and returning experts (LHDN spec D.b.3 to D.b.5). Unijaya has none.</li>
+  <li>Accounting ledger. A journal CSV for the accountant is Phase 3; the app is not a general ledger.</li>
+  <li>Termination and lay-off benefits computation. Unijaya staff over RM4,000 fall outside s.60J anyway; below that it is a rare, HR-computed Individual Transaction.</li>
+  <li>Gig Workers Act 2025. Platform work only, no employees affected.</li>
+</ul>
+<h3>Assumptions made in this spec</h3>
+<ul>
+  <li><b>Unijaya must register with HRD Corp.</b> 29 Malaysian employees is above the 10-employee mandatory line, and coverage has extended to all sectors since 2021. If Unijaya already pays the levy through Worksy, the registration number exists and only needs entering.</li>
+  <li><b>Interns are employees for payroll.</b> They draw an allowance through payroll, so EPF, SOCSO, EIS and PCB apply as for any employee. If any intern is paid outside payroll, they are simply given no salary structure.</li>
+  <li><b>Worksy's monthly Individual Transaction wording stays.</b> Terms in this spec follow Worksy: Payroll Item, Fixed Transaction, Individual Transaction. Staff cross-check figures against Worksy during the parallel run.</li>
+  <li><b>Statutory rates stay read-only.</b> Nothing here adds a tenant-editable rate. Only per-person facts (reliefs, opt-ins, notices) are editable.</li>
+  <li><b>Parallel run.</b> Unijaya runs one month in both systems before switching. Phase 1 is sized for that month.</li>
+</ul>
+
+<h2 id="law">3. What the law demands</h2>
+<p>Each row names the obligation, the statute, and the feature in section 5 that carries it. Sources are linked in section 11.</p>
+<div class="tbl"><table>
+<thead><tr><th>Obligation</th><th>Basis</th><th>Detail</th><th>Carried by</th></tr></thead>
+<tbody>
+<tr><td>Pay wages within 7 days of the wage period ending</td><td>Employment Act 1955 s.19</td><td>OT, rest-day and holiday pay may follow by the end of the next wage period. On termination, pay on the last day (s.20).</td><td>F5, F10</td></tr>
+<tr><td>Prorate an incomplete month by calendar days</td><td>EA s.18A</td><td>Monthly wages ÷ days in the month × days employed. Join, leave, unpaid leave.</td><td>F3</td></tr>
+<tr><td>Ordinary rate of pay uses 26 days, 8 hours</td><td>EA s.60I</td><td>Feeds overtime and unpaid-leave deduction. Different divisor from s.18A on purpose.</td><td>Built</td></tr>
+<tr><td>Overtime 1.5× normal, 2× rest day, 3× public holiday; max 104 h/month</td><td>EA s.60A, s.60(3), s.60D(3); Limitation of Overtime Regs 1980</td><td>Overtime module stores raw hours and a multiplier per request.</td><td>Built, guard in F4</td></tr>
+<tr><td>Deductions capped at 50% of the month's wages, most need written consent</td><td>EA s.24</td><td>Statutory deductions always allowed. Loans, advances, zakat are consent-based.</td><td>F4</td></tr>
+<tr><td>Pay into a bank account</td><td>EA s.25</td><td>Cash or cheque only on written request plus Director-General approval.</td><td>Built (bank file), F14</td></tr>
+<tr><td>Itemised pay statement on or before pay day</td><td>Employment Regulations 1957 reg. 9 and reg. 5(c)</td><td>Rate of pay, days or hours worked, OT rate/hours/amount, rest-day and holiday work, leave pay, allowances, gross, advances, deductions, net, leave granted, date of payment.</td><td>F13</td></tr>
+<tr><td>Minimum wage RM1,700</td><td>Minimum Wages Order 2024, from 1 Feb 2025</td><td>No new order as of August 2026; a review is under way.</td><td>F4</td></tr>
+<tr><td>Keep wage records 6 years (Employment) and 7 years (tax)</td><td>EA s.61; Income Tax Act s.82</td><td>Finalized runs are never deleted; exports are logged.</td><td>Section 8</td></tr>
+<tr><td>EPF 11% employee, 13% or 12% employer, Third Schedule bands, by the 15th</td><td>EPF Act 1991 s.43, s.45, Third Schedule (Oct 2025)</td><td>Overtime, travel allowance, gratuity excluded from EPF wages. Form A via i-Akaun.</td><td>Built calc; file in F6</td></tr>
+<tr><td>SOCSO and EIS on the PERKESO schedules, ceiling RM6,000, by the 15th</td><td>Act 4 Third Schedule; Act 800 Second Schedule; Employer Circular 3/2024</td><td>Annual bonus excluded from PERKESO wages, overtime included. SKBBK 0.75% employee-only, voluntary for Malaysians since 8 July 2026. Borang 8A text upload on ASSIST.</td><td>Built calc; file in F6</td></tr>
+<tr><td>PCB by the computerised method, CP39 by the 15th</td><td>Income Tax Act s.107; Income Tax (Deduction from Remuneration) Rules 1994; LHDN spec 2026</td><td>Bonus is "additional remuneration". Zakat nets off. Round up to the next 5 sen. Fixed-width CP39 text file, Exhibit 4 of the spec.</td><td>Built calc; file in F6; F8, F9, F10</td></tr>
+<tr><td>TP1 monthly relief claims, TP3 previous employer figures</td><td>LHDN spec 2026; forms TP1(1/2026), TP3(1/2026)</td><td>TP3 is built. TP1 is not.</td><td>F8</td></tr>
+<tr><td>CP22 within 30 days of hire; CP22A or CP21 at least 30 days before leaving; hold final pay until clearance</td><td>Income Tax Act s.83(2), s.83(3), s.83(4), s.83(5)</td><td>Since 1 Sep 2024 CP22 goes through e-CP22 on MyTax; CP22A and CP21 through e-SPC.</td><td>F11</td></tr>
+<tr><td>Form EA to staff by end of February; Form E and C.P.8D by 31 March</td><td>Income Tax Act s.83(1), s.83(1A)</td><td>Already produced. Calendar and reminders in F12.</td><td>Built; F12</td></tr>
+<tr><td>HRD Corp levy 1% of basic plus fixed allowances, by the 15th</td><td>PSMB Act 2001 s.14, s.15; Pembangunan Sumber Manusia Berhad (Registration of Employers and Payment of Levy) Regulations</td><td>Mandatory at 10 or more Malaysian employees. Employer cost, never deducted from staff. e-TRiS submission.</td><td>F7</td></tr>
+<tr><td>Zakat via salary counts as a tax rebate</td><td>Income Tax Act s.6A(3); LHDN spec variable Z</td><td>Deduction is voluntary and consent-based under EA s.24(3).</td><td>Built; consent in F4</td></tr>
+</tbody></table></div>
+
+<h2 id="built">4. Already built</h2>
+<p>Everything below is on <code>dev</code>, merged from the August 2026 payroll rebuild. This is the base the features in section 5 extend; none of it is re-done.</p>
+<div class="tbl"><table>
+<thead><tr><th>Area</th><th>Status</th><th>Where</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>EPF from the KWSP Third Schedule, parts A/C/E/F</td><td><b class="chip built">Built</b></td><td><code>EpfCalculator</code></td><td>All 1,203 rows asserted against the fixture. Ceiling RM20,000, no employee share after 75.</td></tr>
+<tr><td>SOCSO and EIS from PERKESO tables, category 1 and 2, SKBBK opt-in</td><td><b class="chip built">Built</b></td><td><code>SocsoCalculator</code>, <code>EisCalculator</code>, <code>PerkesoSchedule</code></td><td>65 rows each, stored as data. SKBBK is a per-employee flag on the salary structure with its own payslip column.</td></tr>
+<tr><td>PCB by LHDN's year-to-date computerised method</td><td><b class="chip built">Built</b></td><td><code>PcbCalculator</code>, <code>PcbYearToDate</code></td><td>Normal and additional remuneration, zakat, non-resident 30%. Asserted against Exhibit 5 of the 2026 spec month by month.</td></tr>
+<tr><td>Previous employer figures (TP3)</td><td><b class="chip built">Built</b></td><td><code>PayrollOpeningFigure</code></td><td>Feeds ∑Y, ∑K, ∑P, ∑Z. Exempt allowances stored but not applied (see F8).</td></tr>
+<tr><td>Payroll Item catalogue with EPF, PERKESO, PCB and EA-box flags</td><td><b class="chip built">Built</b></td><td><code>PayrollItem</code>, 16 system items seeded</td><td>Wage bases derive from item flags, so a travel allowance can be PERKESO-liable and EPF-exempt.</td></tr>
+<tr><td>Fixed Transactions (recurring) and Individual Transactions (one-off)</td><td><b class="chip built">Built</b></td><td><code>PayrollController</code></td><td>Fixed Transactions can prorate by calendar days. Basic pay cannot yet (F3).</td></tr>
+<tr><td>Pull approved overtime, unpaid leave and claims into the payslip</td><td><b class="chip built">Built</b></td><td><code>PayrollController::createRun</code></td><td>Overtime keeps raw hours and multiplier per group. Claims are reimbursements, not wages.</td></tr>
+<tr><td>Runs: draft → approved → finalized, optional four-eyes setting</td><td><b class="chip built">Built</b></td><td><code>PayrollRun</code>, <code>payroll.four_eyes</code></td><td>Finalized runs lock their payslips. No pay date recorded (F5).</td></tr>
+<tr><td>Payslip PDF, single and bulk; employee can open own finalized payslip</td><td><b class="chip partial">Partial</b></td><td><code>PayrollPdfController</code>, <code>pdf/payslip.blade.php</code></td><td>Missing reg. 5(c) particulars: days or hours of normal work, rate of pay, date of payment, leave granted in the period. No "published" step or notification (F13).</td></tr>
+<tr><td>Form EA (C.P.8A), Form E (C.P.8), C.P.8D text file</td><td><b class="chip built">Built</b></td><td><code>EaFormData</code>, <code>FormEData</code>, <code>Cp8dData</code></td><td>Form E items 3, 4, 5 blank for lack of tenant fields (F1). TP1 reliefs and benefits-in-kind blank (F8).</td></tr>
+<tr><td>Bank files</td><td><b class="chip partial">Partial</b></td><td><code>BankFile/</code></td><td>Generic CSV, Maybank2u Biz, DuitNow batch. CIMB missing and bank names are free text (F14).</td></tr>
+<tr><td>Statutory report</td><td><b class="chip partial">Partial</b></td><td><code>PayrollExportController::statutoryReport</code></td><td>One generic CSV with NRIC. Not in any agency's upload format (F6).</td></tr>
+<tr><td>Employer statutory numbers</td><td><b class="chip gap">Gap</b></td><td><code>tenants</code></td><td>Only <code>employer_tin</code> and <code>registration_number</code> exist. No EPF, SOCSO, HRD Corp numbers, no paying account.</td></tr>
+<tr><td>HRD Corp levy</td><td><b class="chip gap">Gap</b></td><td></td><td>Not modelled anywhere.</td></tr>
+<tr><td>TP1, CP38 notice, CP22 family, statutory calendar</td><td><b class="chip gap">Gap</b></td><td></td><td>CP38 is a flat monthly amount on the salary structure with no notice behind it.</td></tr>
+</tbody></table></div>
+
+<h3 id="worksy">4.1 Worksy parity</h3>
+<p>Toured read-only in Unijaya's Worksy account on 2 September 2026 (dummy view, no submit or download clicked). Each row is a Worksy screen or setting, what AmanahKu has for it, and where the gap lands. Rows marked "not planned" are deliberate: Unijaya does not use them, or the law settles the choice.</p>
+<div class="tbl"><table>
+<thead><tr><th>Worksy</th><th>AmanahKu</th><th>Lands in</th></tr></thead>
+<tbody>
+<tr><td>Payroll Policies: payment types Monthly, Daily, Hourly, Custom</td><td><b class="chip built">Built</b> monthly only</td><td>Not planned. Every Unijaya structure is a monthly rate.</td></tr>
+<tr><td>Working days basis for joiners and leavers: Calendar Days or Attendance Schedule; formula Basic × days ÷ (calendar month or custom)</td><td><b class="chip gap">Gap</b> for basic pay</td><td>F3, calendar days only (s.18A). No custom divisor.</td></tr>
+<tr><td>Negative net pay: leave negative, set to zero, or deduct next month</td><td><b class="chip gap">Gap</b></td><td>F4, carried to next month as an Individual Transaction.</td></tr>
+<tr><td>Rounding per earning, per deduction and on net (none, up, down, nearest; 1 sen to RM1)</td><td><b class="chip built">Built</b> as one rule</td><td>Not planned. Half up to the sen, PCB up to 5 sen (section 7). A configurable rounding is a way to drift from the statutory figure.</td></tr>
+<tr><td>Overtime policy: ORP = (basic + ORP-flagged earnings) ÷ hours, split by day type, max hours and max amount, salary cap on eligibility</td><td><b class="chip partial">Partial</b></td><td>Built: raw hours + multiplier per group, "Add to ORP" is the item flag. F4 adds the 104-hour warning. Eligibility cap is open question 9.</td></tr>
+<tr><td>Unpaid leave formulas (JTK calendar days × 8h, 208h, 26 × 8)</td><td><b class="chip built">Built</b></td><td>26 days × 8 hours (s.60I). Not tenant-selectable.</td></tr>
+<tr><td>ESS: payslip available Immediately, Fixed Date or Relative Date; email notice; require acknowledgement with receiver's name</td><td><b class="chip gap">Gap</b></td><td>F13: the publish step is the availability date; acknowledgement added as an optional setting.</td></tr>
+<tr><td>Payroll Item settings: category, prorate basis, Include in EPF, Add to ORP, LHDN tax category, EA section, KWSP / PERKESO / EIS / HRDF toggles</td><td><b class="chip partial">Partial</b></td><td>Built except HRDF (F7) and the per-item proration switch (F3). LHDN tax categories map to <code>pcb_exempt_cap_yearly</code> (F8).</td></tr>
+<tr><td>Unijaya's live items: Aggregate Reimbursements (from Claim), Bonus, Commission, Fixed Allowance, Hibah, Meal Incentive (from Attendance), Offset Zakat, Outstation Allowance, Overtime Allowance (from Attendance), Petrol Claim (from Claim), plus three not read</td><td><b class="chip partial">Partial</b></td><td>16 system items seeded. Hibah, Meal Incentive, Offset Zakat and Outstation Allowance need tenant items with the right flags before go-live; open question 8.</td></tr>
+<tr><td>Process Payroll: Period → Condition (pull attendance, allowances, overtime, claims, unpaid leave, absent as unpaid, overwrite pulled) → Selected Employees → Results</td><td><b class="chip built">Built</b></td><td>Create run pulls overtime, unpaid leave and claims. "Absent as unpaid" is not planned: attendance is not the payroll source here.</td></tr>
+<tr><td>Payroll Control: lock a pay cycle</td><td><b class="chip built">Built</b></td><td>Finalize locks the run.</td></tr>
+<tr><td>Employee profile, Bank &amp; Statutory tab: bank picker, account; TIN, resident type (Resident, Non-resident, REP, knowledge worker), tax category, children with 100% / 50% split; EPF number, EPF category, extra voluntary % employee and employer; SOCSO / EIS on-off and number; Zakat and HRDF on-off; PTPTN, ASB, Tabung Haji numbers</td><td><b class="chip partial">Partial</b></td><td>F2 lists what is added. PTPTN, ASB and Tabung Haji are ordinary Fixed Transactions, no fields needed.</td></tr>
+<tr><td>Transactions: Fixed, Individual, CP38, Tax Rebate (zakat), Figures Take On (TP3), Individual Personal Tax Relief (TP1), Festival Bonus, Overwrite EA Form</td><td><b class="chip partial">Partial</b></td><td>Fixed, Individual and TP3 built. CP38 is F9, TP1 is F8, bonus is F10. Overwrite EA not planned: EA is derived, corrections go through transactions.</td></tr>
+<tr><td>Loan Management (loan with interest, monthly repayment, last-month balance) and Bond; Saving Funds</td><td><b class="chip gap">Gap</b></td><td>Not planned until asked. A staff loan is a Fixed Transaction deduction with <code>consent_reference</code> (F4) and an end date. Open question 10.</td></tr>
+<tr><td>Submission: per-company totals (net, EPF, SOCSO, EIS, zakat, PCB); Government Statutory download by period with Test or Live file type; Payout Management generates bank and statutory files per company</td><td><b class="chip gap">Gap</b></td><td>F6 for the agency files, F12 for the log, F14 for CIMB. One tenant per company, so "per company" is the tenant.</td></tr>
+<tr><td>Forms: CP21, CP22, CP22A, E, EA, EPF Borang A, SOCSO Borang 8A, SIP, Zakat, PCB 2(II), HRDF, CP8D</td><td><b class="chip partial">Partial</b></td><td>E, EA, CP8D built. Borang A, 8A, CP39 are F6. CP21, CP22, CP22A are F11, which also gains PCB 2(II) for leavers.</td></tr>
+<tr><td>Reports: monthly HRDF, year-to-date EPF / EIS / PCB / SOCSO, bank / cheque / cash listing, payslip acknowledgement, variance, GL integration</td><td><b class="chip gap">Gap</b></td><td>HRDF in F7, GL in F16. Variance against the previous month is a one-screen addition to the run review; added to F12's scope. Cheque and cash listings not planned.</td></tr>
+<tr><td>Review: Individual Payroll with Earning Details, Audit Log, Add Transaction on the payslip; Batch Remove Payslip</td><td><b class="chip built">Built</b></td><td>Payslip review with overrides and audit exists. Removing a payslip from a draft run is the F2 exclusion.</td></tr>
+</tbody></table></div>
+
+<h2 id="features">5. Features to build</h2>
+<p>Each feature says why the law needs it, what changes, the rules that decide behaviour, and what test proves it. Phase order is delivery order.</p>
+
+<div class="phase" id="p1"><span class="n">PHASE 1</span><h3>Before the first live run</h3></div>
+<p>Without these, the first month cannot be filed. Everything here is small; the point is completeness, not size.</p>
+
+<div class="feat" id="f1">
+<h3><span class="id">F1</span> Employer statutory identity <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> Every upload file and annual form is keyed on the employer's own registration numbers.</p>
+<h4>What changes</h4>
+<ul>
+  <li>New tenant fields: <code>epf_employer_no</code>, <code>socso_employer_code</code>, <code>hrdf_registration_no</code>, <code>employer_category</code> (Form E item 3), <code>employer_status</code> (item 4), <code>paying_bank_code</code>, <code>paying_bank_account_no</code>, <code>payroll_contact_name</code>, <code>payroll_contact_phone</code>. <code>employer_tin</code> (the E number) and <code>registration_number</code> (SSM) already exist.</li>
+  <li>Company settings screen gets a "Statutory registration" section for these, editable by HR and management. Super-admin can also edit (existing tenant edit).</li>
+  <li>Form E fills items 3, 4, 5 from the new fields instead of leaving them blank.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Run creation (F2 readiness gate) refuses when EPF number, SOCSO code or E number is blank. HRD Corp number is required only when <code>hrdf_registered</code> is on (F7).</li>
+  <li>Numbers are stored as typed but trimmed; formats are validated loosely (digits and hyphens) since agencies change formats and a hard regex would block real numbers.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Feature test: saving the settings persists them; run creation with a blank EPF number returns 422 naming the missing field; Form E data carries items 3 to 5.</li></ul>
+</div>
+
+<div class="feat" id="f2">
+<h3><span class="id">F2</span> Employee statutory profile and run readiness gate <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> CP39 needs the TIN or NRIC; Borang 8A needs the SOCSO number and NRIC; KWSP Form A needs the EPF number and NRIC. A payslip with a blank identifier is a rejected upload on the 15th.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Move <code>tax_no</code> and <code>nationality</code> conceptually to "who the person is", the same way NRIC and marital status were moved in August. Keep the columns on <code>salary_structures</code> for now to avoid another reconcile migration; the readiness gate reads them wherever they live.</li>
+  <li>Add <code>employees.last_working_day</code> (date, nullable). Today the only leaving signal is an offboarding case; a person archived by hand has none. Offboarding sets it automatically; HR can set it directly.</li>
+  <li>Bank name becomes a picker over a fixed list of Malaysian bank codes (F14 shares it). Existing free text is mapped once by a migration: "Maybank", "MBB", "Malayan Banking Berhad (MAYBANK) (MBB)" all become <code>MBBEMYKL</code>.</li>
+  <li>Match Worksy's Bank &amp; Statutory tab so HR keys the same facts in the same place. Already held: EPF, SOCSO, TIN, nationality, marital and spouse status, children count, disabled flags, SKBBK, zakat, one EPF rate override. Add <code>tax_resident_type</code> (resident, non-resident; the REP and knowledge-worker rates are not planned), <code>epf_voluntary_employee_rate</code> and <code>epf_voluntary_employer_rate</code> (extra percentage on top of the statutory rate, allowed under EPF Act s.44, replaces the dead override columns), <code>socso_exempt</code> and <code>hrdf_exempt</code> switches, and the 100% / 50% child relief split as <code>children_relief_full</code> and <code>children_relief_half</code> in place of the single count.</li>
+  <li>New "Readiness" panel on the Payroll screen, above "Create run": a list of every active employee with a red mark per missing item: salary structure, basic pay above zero, NRIC, EPF number, SOCSO number, TIN, bank code and account, date of birth, joined date.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Create run is disabled while any active employee is not ready, with the count shown on the button. HR can exclude an employee from the run explicitly (an intern paid outside payroll, say), which records the exclusion on the run.</li>
+  <li>A missing TIN is a warning, not a block: LHDN accepts NRIC in CP39 for staff who have no TIN yet. Every other item blocks.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Feature test: a tenant with one unready employee gets 422 on create run listing the employee and the field; excluding the employee lets the run through and stores the exclusion; a missing TIN alone does not block.</li></ul>
+</div>
+
+<div class="feat" id="f3">
+<h3><span class="id">F3</span> Basic pay proration for joiners and leavers <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> EA s.18A: wages for an incomplete month are monthly wages ÷ days in that month × days employed. Calendar days, the real month length.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Reuse the existing <code>prorationFactor()</code> that Fixed Transactions already use. Apply it to basic salary and to every recurring allowance in <code>salary_structures.allowances</code> when the factor is below 1.</li>
+  <li>Payslip stores <code>days_employed</code> and <code>days_in_month</code> so the payslip PDF can print "23 / 30 days" and so an audit can re-derive the figure.</li>
+  <li>Leaving date comes from <code>employees.last_working_day</code> (F2) first, then the offboarding case as today.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Proration applies only to earnings flagged <code>prorate_on_incomplete_month</code> on the Payroll Item. Basic Salary and Fixed Allowance default on; Bonus, Commission, Overtime and reimbursements default off.</li>
+  <li>Unpaid leave stays on the 26-day ordinary rate. Two divisors coexist by design (section 7).</li>
+  <li>HR can override the prorated basic on the payslip, and the override is flagged the same way overtime overrides are today.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Unit: joiner on 8 February 2028 (29-day month) with RM3,000 basic gets RM2,275.86; leaver on 15 April with RM3,000 gets RM1,500.00; full-month employee is untouched. Feature: the payslip stores the day counts and the override flag.</li></ul>
+</div>
+
+<div class="feat" id="f4">
+<h3><span class="id">F4</span> Wage floor and deduction guards <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> Minimum Wages Order 2024 (RM1,700 from 1 Feb 2025). EA s.24: total deductions in a month may not exceed 50% of wages, and non-statutory deductions need written consent. Limitation of Overtime Regulations 1980: 104 overtime hours a month.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Constant <code>MinimumWage::MONTHLY = 1700.00</code> with its effective date, in code, next to the other statutory constants. Not tenant-editable.</li>
+  <li>Salary structure save warns (does not block) when basic pay for a full-time employee is below RM1,700. Interns and part-timers have no floor in the Order the same way, so the warning applies to every structure but says "check the employment type".</li>
+  <li>Payslip computation flags <code>deduction_cap_exceeded</code> when non-statutory deductions (loans, advances, zakat, other) exceed 50% of gross wages. The run's review list shows the flag; finalize is blocked while any payslip carries it unless HR ticks "employee consented in writing, DG-permitted where needed" on that payslip.</li>
+  <li>Overtime pull warns when an employee's pulled hours exceed 104 in the period.</li>
+  <li>Fixed Transactions of type deduction gain a <code>consent_reference</code> text field (date of the signed authorisation, or the loan agreement reference).</li>
+  <li>Net pay below zero (unpaid leave plus deductions larger than the month's earnings) blocks finalize. HR resolves it on the payslip with "Carry to next month", which caps this month's deductions at gross, sets net to zero, and creates an Individual Transaction deduction for the shortfall in the next period, subject to the same 50% cap there. This is Worksy's "deduct next month" policy, fixed rather than selectable, because "leave negative" is not a payable figure.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Unit: cap flag trips at 50.01% and not at 50.00%; statutory deductions never count toward the cap. Feature: finalize returns 422 with the flag set and no consent; passes with consent recorded; a negative-net payslip blocks finalize, and carrying it forward zeroes the net and creates next month's deduction for the exact shortfall.</li></ul>
+</div>
+
+<div class="feat" id="f5">
+<h3><span class="id">F5</span> Pay date and the seven-day rule <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> EA s.19: wages no later than the seventh day after the wage period ends. Employment Regulations reg. 5(c): the pay statement shows the date of payment.</p>
+<h4>What changes</h4>
+<ul>
+  <li><code>payroll_runs.pay_date</code> (date, required at finalize, defaults to the last calendar day of the period) and <code>payroll_runs.paid_at</code> (set when HR clicks "Mark paid" after the bank transfer clears).</li>
+  <li>The payslip PDF prints the pay date (F13).</li>
+  <li>Dashboard card for HR: "August 2026 payroll: finalized 28 Aug, pay by 7 Sep, not yet marked paid." Turns red on the eighth day.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Finalize refuses a pay date later than the seventh day after period end, with the message quoting s.19. HR can override with a reason, which is written to the audit log; the law allows later payment only for overtime and holiday pay, so the override is expected to be rare.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Feature: finalize with pay date 8 September for the August period returns 422; 7 September passes; the override stores the reason and an audit entry.</li></ul>
+</div>
+
+<div class="feat" id="f6">
+<h3><span class="id">F6</span> Statutory upload files: KWSP Form A, PERKESO Borang 8A, LHDN CP39 <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> Each agency accepts one upload format. The CP39 layout is Exhibit 4 of the 2026 LHDN spec (fixed-width text, header 57 characters, detail 136). KWSP i-Akaun accepts its Form A CSV. PERKESO ASSIST accepts a Borang 8A text file. All three are due by the 15th of the month after the wage month.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Three new exporters beside the bank files, one class each, under <code>App\Services\Payroll\Statutory\</code>: <code>KwspFormA</code>, <code>PerkesoBorang8A</code>, <code>LhdnCp39</code>. Each takes a finalized run and returns a string; the controller streams it with the agency's expected file name (CP39: <code>&lt;employerNo&gt;MM_YYYY.txt</code>).</li>
+  <li>Download links on the finalized run: "EPF file", "SOCSO/EIS file", "PCB file", "HRD Corp file" (F7). The existing generic statutory CSV stays as the human-readable check sheet.</li>
+  <li>The official layout documents for Form A and Borang 8A are downloaded into <code>docs/statutory/</code> alongside the schedules, and each exporter has a golden-file test transcribed from the document's own example. CP39's layout is already in the spec PDF in the repo.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Only finalized runs export. A draft or approved run shows the links disabled with the reason.</li>
+  <li>CP39 header totals must equal the sum of the detail rows; the exporter asserts this and refuses to produce a file that does not balance.</li>
+  <li>Amounts in CP39 are the payslip's <code>pcb + pcb_additional</code> as MTD and <code>cp38</code> as CP38, each in ringgit with two decimals, zero-padded to width. Names are upper-cased ASCII, truncated at 60. Employees with no TIN carry the NRIC in the IC field and zeros in the TIN field.</li>
+  <li>Borang 8A carries the employee's SOCSO number (NRIC for citizens), the wage subject to contribution (capped at RM6,000), and both shares. SKBBK is reported the way PERKESO's 2026 layout specifies; if the layout does not yet carry it, the exporter emits the pre-SKBBK layout and the SKBBK amount is paid through the portal manually, and this is written into the download page.</li>
+  <li>Form A carries the EPF number, NRIC, name, wages, employee share and employer share per employee, plus the employer's number and the contribution month (wage month plus one).</li>
+  <li>Every download writes an audit entry, as the existing statutory CSV already does, because the file contains NRICs.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Golden files: one two-employee run per exporter, byte-compared against a fixture transcribed from the official layout example. Header-balance assertion. Zero-TIN employee case. Width and padding of every CP39 field checked with a unit test that slices the string at the documented offsets.</li></ul>
+</div>
+
+<div class="feat" id="f7">
+<h3><span class="id">F7</span> HRD Corp levy <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> PSMB Act 2001: employers with 10 or more Malaysian employees register and pay 1% of wages monthly (5 to 9 employees: optional, 0.5%). Wages here are basic salary plus fixed allowances, after unpaid leave, excluding bonus, commission, overtime, travel and shift allowances. Due by the 15th via e-TRiS. It is the employer's cost; nothing is deducted from the employee.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Tenant setting <code>hrdf_registered</code> (off, 1%, 0.5%) beside the registration number from F1. Registry entry in <code>Features::SETTINGS</code>, tenant scope, default off.</li>
+  <li>Payroll Item gains <code>hrdf_liable</code>. Seeded: Basic Salary and Fixed Allowance on, everything else off. Unpaid Leave Deduction reduces the base the same way it reduces the EPF base today.</li>
+  <li>Payslip gains <code>hrdf_levy</code> (employer side) and it is added to <code>employer_cost</code>. It never appears in the employee's deductions.</li>
+  <li>Levy applies to citizens only: the salary structure's <code>nationality</code> must be <code>citizen</code>, otherwise zero.</li>
+  <li>Exporter <code>HrdCorpLevyFile</code> in F6's folder produces the e-TRiS wages-and-levy listing; the run page shows the month's total.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>Levy is rounded to the sen, half up, per employee, then summed. If HRD Corp's guideline rounds at the total instead, the test fixture from their example decides; this is verified when the layout document is fetched.</li>
+  <li>Readiness (F2) warns when the setting is off and the tenant has 10 or more active citizen employees.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Unit: RM3,000 basic + RM300 fixed allowance + RM500 overtime + 2 unpaid days (26-day rate) yields levy on RM3,069.23, that is RM30.69. Non-citizen yields zero. Setting off yields zero and no column on the payslip PDF.</li></ul>
+</div>
+
+<div class="phase" id="p2"><span class="n">PHASE 2</span><h3>Monthly operations</h3></div>
+<p>Needed within the first quarter of live use. Each one turns something HR would otherwise track in a spreadsheet into a record the calculators read.</p>
+
+<div class="feat" id="f8">
+<h3><span class="id">F8</span> TP1 monthly claims and the RM6,000 travel exemption <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> LHDN spec 2026: an employee may hand in Form TP1 each month claiming reliefs (medical, education, insurance, SOCSO/EIS RM350, and the 2026 additions) and zakat paid outside payroll. These enter the year-to-date ∑LP and Z variables. Petrol, travel and toll allowances are tax-exempt up to RM6,000 a year and reported in EA Part F.</p>
+<h4>What changes</h4>
+<ul>
+  <li>New table <code>payroll_tp1_claims</code>: employee, year, month, relief code (from the TP1(1/2026) list, stored as a PHP constant with the yearly caps), amount, zakat amount, note, created by. HR enters it from the paper or PDF form the employee signs; the app does not collect the form itself.</li>
+  <li><code>PcbYearToDate</code> adds the month's claims to ∑LP and zakat to Z, subject to each relief's annual cap after subtracting the year's earlier claims.</li>
+  <li>Apply <code>pcb_exempt_cap_yearly</code>, already on the Payroll Item, in <code>PcbYearToDate</code>: sum this year's finalized amounts for that item, and only the amount above the cap is taxable this month. Travel allowance is seeded with RM6,000. Opening figures' <code>exempt_allowances</code> count toward the cap for mid-year joiners.</li>
+  <li>Form EA Part F and C.P.8D relief fields read from these records.</li>
+</ul>
+<h4>Rules</h4>
+<ul>
+  <li>A claim for a month whose run is finalized is refused; enter it in the next month, which is what LHDN allows.</li>
+  <li>Caps live in code with the year they apply to. A new tax year's TP1 list is a code change, reviewed against the LHDN form, never a tenant setting.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Unit: an employee with RM500 monthly travel allowance pays no PCB on it through December (RM6,000 total), and the whole allowance is taxable from month 13 of a mid-year join that already carried RM6,000 in opening figures. A TP1 medical claim over the cap is trimmed. Zakat claimed on TP1 reduces the month's net MTD, and excess carries forward, matching the spec's Z rule.</li></ul>
+</div>
+
+<div class="feat" id="f9">
+<h3><span class="id">F9</span> CP38 instruction record <b class="chip partial">Partial</b></h3>
+<p class="law"><b class="chip law">Law</b> A CP38 is an LHDN notice ordering the employer to deduct a stated amount over stated months on top of MTD. It has a reference, a total and instalments, and it stops when paid.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Replace the flat <code>salary_structures.cp38_monthly</code> with a <code>payroll_cp38_notices</code> table: employee, LHDN reference, notice date, total amount, monthly instalment, first month, last month, remaining balance, status.</li>
+  <li>Run creation takes the active notice's instalment (or the remaining balance if smaller) and writes it to <code>payslips.cp38</code>, then decrements the balance at finalize. The salary-structure field is migrated into a notice with no reference and an open end, so nothing changes for existing data.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Feature: a RM1,000 notice at RM300 a month produces 300, 300, 300, 100, 0 across five runs; deleting a draft run restores the balance.</li></ul>
+</div>
+
+<div class="feat" id="f10">
+<h3><span class="id">F10</span> Off-cycle runs: bonus and final pay <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> A bonus is "additional remuneration" in the PCB spec, computed with its own formula and reported in the same CP39 month. EA s.20: a leaver is paid on the last day. ITA s.83(5): once CP22A is filed, the employer withholds money owed to the leaver until LHDN clears or 90 days pass.</p>
+<h4>What changes</h4>
+<ul>
+  <li><code>payroll_runs.kind</code>: <code>monthly</code> (default), <code>bonus</code>, <code>final</code>. One monthly run per period stays the rule; bonus and final runs may share a period.</li>
+  <li>A bonus run pulls only Individual Transactions flagged as bonus for that period and computes PCB as additional remuneration on top of the month's normal remuneration, using the monthly run's figures if it exists or projecting them if it does not. EPF applies; SOCSO and EIS do not (annual bonus is excluded from PERKESO wages).</li>
+  <li>A final run is for one employee, prorates to the last working day (F3), pulls encashed leave and any termination amount entered as Individual Transactions, and marks the employee as paid out. It sets <code>held_for_cp22a</code> when F11 has an open CP22A without clearance, and the bank file omits the payslip until HR releases it.</li>
+  <li>CP39 for the month merges monthly, bonus and final runs into one file, because LHDN wants one submission per employer per month.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Unit: PCB on a RM5,000 bonus in June for an employee on RM4,000 matches a hand-worked additional-remuneration case from the spec's Exhibit method. Feature: a held final payslip is absent from the bank file and present after release; the merged CP39 sums both runs.</li></ul>
+</div>
+
+<div class="feat" id="f11">
+<h3><span class="id">F11</span> Lifecycle notices: CP22, CP22A, CP21, SOCSO Form 2, KWSP registration <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> ITA s.83(2): CP22 within 30 days of a new hire. s.83(3): CP22A at least 30 days before employment ends. s.83(4): CP21 when a leaver is departing Malaysia. PERKESO: Form 2 registers a new employee. KWSP: a new employee is registered on first contribution or by KWSP 3.</p>
+<h4>What changes</h4>
+<ul>
+  <li>New table <code>payroll_notices</code>: employee, type, due date, filed date, LHDN or PERKESO reference, filed by, note.</li>
+  <li>When an employee is created with a joined date, the app opens a CP22 notice due 30 days later and a SOCSO Form 2 reminder. When a last working day is set (F2 or offboarding), it opens a CP22A due 30 days before that date, or immediately if the date is nearer.</li>
+  <li>A CP22A notice also produces PCB 2(II), the statement of the year's remuneration and tax deducted to date for the leaver, from the same year-to-date figures Form EA uses. It is the one form in this family that is a document rather than an online entry.</li>
+  <li>Each notice has a "Prefilled data" view with the fields the MyTax form asks for (name, NRIC, TIN, address, joined or last day, monthly salary), copyable, and a "Mark filed" button that records date and reference. No PDF generation: LHDN's forms are online only since 2024.</li>
+  <li>Open notices show on the HR dashboard and in F12's calendar. An overdue CP22A sets the hold in F10.</li>
+</ul>
+<h4>Tests</h4>
+<ul><li>Feature: hiring on 1 March creates a CP22 due 31 March; setting last working day 30 June on 1 May creates a CP22A due 31 May; marking filed clears the dashboard item.</li></ul>
+</div>
+
+<div class="feat" id="f12">
+<h3><span class="id">F12</span> Statutory calendar, submission log and month-on-month variance <b class="chip gap">Gap</b></h3>
+<p class="law"><b class="chip law">Law</b> The monthly and annual deadlines in section 3, and the 6 and 7 year record duties, which mean "when did we file it and what did we file" must be recoverable.</p>
+<h4>What changes</h4>
+<ul>
+  <li>New table <code>payroll_submissions</code>: run (or year for annual items), agency (EPF, SOCSO/EIS, PCB, HRD Corp, EA, Form E), due date, file downloaded at, marked submitted at, submitted by, agency receipt reference, amount paid.</li>
+  <li>Each download from F6 or F7 writes the "downloaded" stamp. HR marks "submitted" with the portal's receipt number after uploading and paying.</li>
+  <li>Payroll screen gets a "Deadlines" tab: the current and next month's due items with state (not started, file ready, submitted, overdue), plus the annual items from January to April.</li>
+  <li>The existing daily scheduled command sends HR one digest email on the 10th and again on the 14th for any unsubmitted item due on the 15th, and on 20 February and 20 March for the annual forms.</li>
+</ul>
+<h4>Rules</h4>
+<ul><li>Due dates are computed, never stored as configuration: the 15th of the month after the period, last day of February, 31 March. If the 15th is a weekend the due date stays the 15th; agencies count calendar days.</li></ul>
+<h4>Tests</h4>
+<ul><li>Feature: finalizing August creates five submissions due 15 September; downloading the CP39 stamps it; the digest on 14 September lists the four not yet submitted.</li></ul>
+</div>
+
+<div class="feat" id="f13">
+<h3><span class="id">F13</span> Complete payslip and publish step <b class="chip partial">Partial</b></h3>
+<p class="law"><b class="chip law">Law</b> Employment Regulations 1957 reg. 9: a pay statement to each employee on or before pay day, with the reg. 5(c) particulars. There is no express rule on electronic statements; s.61(3) EA lets the Director-General approve any form of record, and e-payslips are the general practice.</p>
+<h4>What changes</h4>
+<ul>
+  <li>Payslip PDF gains the missing particulars: rate of pay (monthly basic), days employed in the period (F3), ordinary rate of pay and hourly rate used for overtime, overtime hours and multiplier per group (already stored), unpaid leave days, leave taken in the period (from approved leave requests), date of payment (F5), and the employer's EPF and SOCSO numbers (F1) in the footer.</li>
+  <li>New run step after finalize: "Publish payslips". It stamps <code>payroll_runs.published_at</code>, sends each employee the existing app notification and an email saying their payslip for the month is ready, and only then does the self-service list show it. Today an employee can open a finalized payslip before HR is ready.</li>
+  <li>Employee self-service: a "My payslips" list under My Work with one row per published month and the PDF link, plus the year's EA once issued.</li>
+  <li>Optional acknowledgement, matching Worksy's "require acknowledgement": setting <code>payroll.payslip_acknowledgement</code> off by default; when on, the employee's payslip page shows an "Acknowledge" button that stamps <code>payslips.acknowledged_at</code>, and the run review lists who has not acknowledged. No typed name: the logged-in account is the signature.</li>
+</ul>
+<h4>Rules</h4>
+<ul><li>Publishing must happen on or before the pay date; finalize on the pay date with publish in one click is the common path, so the finalize dialog offers "Finalize and publish now".</li></ul>
+<h4>Tests</h4>
+<ul><li>Feature: an employee cannot open a finalized-but-unpublished payslip (403), and can after publish; the PDF contains the day counts and the pay date; the notification is queued once per employee.</li></ul>
+</div>
+
+<div class="phase" id="p3"><span class="n">PHASE 3</span><h3>Later</h3></div>
+<p>Useful, not required to be legal or to leave Worksy. Build when asked.</p>
+
+<div class="feat" id="f14">
+<h3><span class="id">F14</span> CIMB BizChannel bank file and bank code list <b class="chip partial">Partial</b></h3>
+<p>Unijaya's staff bank with Maybank and CIMB. Maybank2u Biz exists; add the CIMB BizChannel Autopay fixed-width text format from CIMB's published bulk payroll guide, as one more <code>BankFileFormat</code>. The bank picker in F2 uses the SWIFT/BIC list of Malaysian banks so the DuitNow batch format gets a valid bank code instead of free text. Golden-file test per format.</p>
+</div>
+
+<div class="feat" id="f15">
+<h3><span class="id">F15</span> Salary revision history and back pay <b class="chip gap">Gap</b></h3>
+<p>Today one salary structure per employee with <code>effective_from</code>. Make it one row per revision, the run picks the row effective on the period's first day, and a revision dated into an already-finalized month produces a back-pay Individual Transaction for the difference in the next run. Keeps EA figures right when an increment is agreed late.</p>
+</div>
+
+<div class="feat" id="f16">
+<h3><span class="id">F16</span> Accounting journal export <b class="chip gap">Gap</b></h3>
+<p>One CSV per finalized run with debit lines (salaries, allowances, employer EPF, SOCSO, EIS, HRD Corp) and credit lines (net pay payable, each statutory payable, loan recoveries) so the accountant can import it into SQL Account or AutoCount. Account codes are a small tenant-editable map; the amounts are not.</p>
+</div>
+
+<h2 id="data">6. Data model changes</h2>
+<div class="tbl"><table>
+<thead><tr><th>Table</th><th>Change</th><th>Feature</th></tr></thead>
+<tbody>
+<tr><td><code>tenants</code></td><td>add <code>epf_employer_no</code>, <code>socso_employer_code</code>, <code>hrdf_registration_no</code>, <code>employer_category</code>, <code>employer_status</code>, <code>paying_bank_code</code>, <code>paying_bank_account_no</code>, <code>payroll_contact_name</code>, <code>payroll_contact_phone</code></td><td>F1</td></tr>
+<tr><td><code>employees</code></td><td>add <code>last_working_day</code> date nullable</td><td>F2, F3</td></tr>
+<tr><td><code>salary_structures</code></td><td><code>bank_name</code> becomes <code>bank_code</code> (migration maps existing text); drop <code>cp38_monthly</code> after migrating into notices; replace the dead EPF override columns with <code>epf_voluntary_employee_rate</code> and <code>epf_voluntary_employer_rate</code>; add <code>tax_resident_type</code>, <code>socso_exempt</code>, <code>hrdf_exempt</code>, <code>children_relief_full</code>, <code>children_relief_half</code> (migrating <code>children_relief_count</code> into the full column)</td><td>F2, F7, F9</td></tr>
+<tr><td><code>payroll_items</code></td><td>add <code>prorate_on_incomplete_month</code> bool, <code>hrdf_liable</code> bool</td><td>F3, F7</td></tr>
+<tr><td><code>payroll_runs</code></td><td>add <code>kind</code> enum, <code>pay_date</code>, <code>paid_at</code>, <code>published_at</code>, <code>pay_date_override_reason</code>, <code>excluded_employee_ids</code> json</td><td>F2, F5, F10, F13</td></tr>
+<tr><td><code>payslips</code></td><td>add <code>days_employed</code>, <code>days_in_month</code>, <code>basic_overridden</code>, <code>hrdf_levy</code>, <code>deduction_cap_exceeded</code>, <code>deduction_consent_confirmed</code>, <code>carried_forward_amount</code>, <code>held_for_cp22a</code>, <code>acknowledged_at</code></td><td>F3, F4, F7, F10, F13</td></tr>
+<tr><td><code>fixed_transactions</code></td><td>add <code>consent_reference</code></td><td>F4</td></tr>
+<tr><td><code>payroll_tp1_claims</code></td><td>new</td><td>F8</td></tr>
+<tr><td><code>payroll_cp38_notices</code></td><td>new</td><td>F9</td></tr>
+<tr><td><code>payroll_notices</code></td><td>new</td><td>F11</td></tr>
+<tr><td><code>payroll_submissions</code></td><td>new</td><td>F12</td></tr>
+<tr><td><code>Features::SETTINGS</code></td><td>add <code>payroll.hrdf</code> enum off / 1% / 0.5%; <code>payroll.payslip_acknowledgement</code> bool</td><td>F7, F13</td></tr>
+</tbody></table></div>
+<p>Every new table carries <code>tenant_id</code> and the ownership check in the controller, since route-model binding is not tenant-scoped in this app. Finalized runs remain immutable; the new columns on <code>payroll_runs</code> that change after finalize (<code>paid_at</code>, <code>published_at</code>) are the only exceptions and are set through dedicated actions, never mass assignment.</p>
+
+<h2 id="rules">7. Rules that must not be tidied</h2>
+<p>These cost real effort to get right in August and each looks like a duplication to a fresh reader.</p>
+<ul>
+  <li><b>Three wage bases.</b> EPF excludes overtime and travel allowance. SOCSO and EIS exclude annual bonus but include overtime. HRD Corp counts only basic plus fixed allowances. Each Payroll Item carries its own flags; no single "wages" figure exists.</li>
+  <li><b>Two proration divisors.</b> Calendar days for basic pay and allowances on an incomplete month (s.18A). 26 days and 8 hours for unpaid leave and overtime (s.60I ordinary rate). Unifying them is wrong in law.</li>
+  <li><b>Overtime is raw hours plus a multiplier.</b> Never store pre-multiplied "equivalent hours"; the payslip must print both.</li>
+  <li><b>Statutory rates are not tenant-editable.</b> New EPF, PERKESO or LHDN figures are a code change with a new fixture from the official PDF in <code>docs/statutory/</code>. HRD Corp's 1% and the RM1,700 floor join that rule.</li>
+  <li><b>PCB rounds up to the next 5 sen after truncating to 2 decimals.</b> Everything else rounds half up to the sen.</li>
+  <li><b>Previous-employer figures stay separate.</b> TP3 amounts are added to year-to-date totals deliberately in the calculator, and shown separately on Form EA.</li>
+  <li><b>PERKESO tables are data, not a formula.</b> The bands below RM500 do not follow a percentage.</li>
+</ul>
+
+<h2 id="security">8. Permissions, audit, retention</h2>
+<ul>
+  <li><b>Who can do what.</b> HR and the management tier (manager, director) keep their existing payroll rights. New actions (settings, notices, TP1 entry, publish, mark paid, mark submitted) sit behind the same gate. Employees see only their own published payslips and EA. Super-admin can edit tenant statutory fields but never sees payslips of a tenant it is not a member of, as today.</li>
+  <li><b>Four-eyes.</b> The existing <code>payroll.four_eyes</code> setting still decides whether finalize needs a separate approver. This spec recommends Unijaya turn it on: HR prepares, a director approves, HR finalizes and publishes.</li>
+  <li><b>Audit.</b> Every statutory file download, publish, mark paid, pay-date override and notice filing writes an <code>AuditLog</code> entry, following the existing statutory CSV pattern. NRIC stays encrypted at rest and is decrypted only into the agency files.</li>
+  <li><b>Retention.</b> Finalized runs, payslips, submissions and notices are never hard-deleted. The existing run-deletion rules (draft only) stand. Seven years covers both the Employment Act and the Income Tax Act.</li>
+  <li><b>Throttling and CSV safety.</b> New POST routes take the existing 30-per-minute throttle. Any CSV output goes through the existing <code>Csv::safeRow</code> guard.</li>
+</ul>
+
+<h2 id="testing">9. Testing</h2>
+<ul>
+  <li><b>Statutory math</b> is proven by fixtures transcribed from the official document, asserted row by row, as the EPF, PERKESO and PCB tests already do. HRD Corp and minimum wage get the same treatment: constant plus effective date plus a test citing the instrument.</li>
+  <li><b>Upload files</b> are proven by golden files: one small run, byte-compared against a fixture built from the agency's own layout example. A change in the layout is a change in the fixture, reviewed against the new document.</li>
+  <li><b>Workflow rules</b> (readiness gate, seven-day rule, deduction cap, publish gate, CP22A hold) are feature tests with an HR user, a director and an employee, run against MySQL in CI as today.</li>
+  <li><b>Parallel month.</b> Before go-live, Unijaya runs one real month in both Worksy and AmanahKu, and HR compares every payslip's EPF, SOCSO, EIS, PCB and net to the sen. Any difference is a bug in AmanahKu until proven otherwise, because Worksy's figures have been accepted by the agencies.</li>
+  <li><b>IRBM verification</b> of the PCB implementation is a separate, human submission (the five scenarios in <code>docs/statutory/mtd-testing-question-2026.pdf</code>). F8 and F10 close the last two scenarios that the app cannot yet answer, TP1 claims and additional remuneration.</li>
+</ul>
+
+<h2 id="questions">10. Open questions</h2>
+<p>None of these blocks Phase 1 from starting. Each needs one answer from Unijaya, and the spec states the assumption it proceeds on.</p>
+<ol>
+  <li><b>Is Unijaya registered with HRD Corp today, and at what rate?</b> Assumed yes at 1%. Needed for F7's setting and F1's number.</li>
+  <li><b>Which account pays salaries, and through which portal?</b> Maybank2u Biz is assumed since that format exists. Decides whether F14 is needed before go-live.</li>
+  <li><b>Does anyone currently have a CP38 notice, TP1 claims, or zakat through salary?</b> Decides whether F8 and F9 move into the go-live month.</li>
+  <li><b>Are interns paid through payroll with EPF and SOCSO?</b> Assumed yes. If not, they are excluded in F2 and no calculator change is needed.</li>
+  <li><b>Has anyone opted out of SKBBK?</b> The flag exists; HR needs to set it from the signed forms before the first run.</li>
+  <li><b>Pay day.</b> Assumed the last calendar day of the month. F5 defaults to it and enforces the seventh-day ceiling either way.</li>
+  <li><b>Four-eyes on or off for go-live?</b> Recommended on.</li>
+  <li><b>Which of Worksy's thirteen Payroll Items are in use this year, and what are Hibah and Offset Zakat?</b> Hibah reads as a gift, so PCB-taxable and EPF-liable unless it is a token-value award; Offset Zakat reads as the zakat rebate line, which the PCB calculator already handles. Both need confirming before the item flags are set. The three items past the first page were not read.</li>
+  <li><b>Does any employee earn above RM4,000 and still receive overtime?</b> EA s.60A applies overtime to employees within the Act's wage threshold; above it, overtime is contractual. Worksy has an eligibility salary cap for this. Assumed contractual and paid for everyone, so no cap is built.</li>
+  <li><b>Any staff loans, training bonds or saving funds running through Worksy today?</b> If yes, each becomes a Fixed Transaction with an end date and a consent reference at go-live; a loan ledger is only built if the count justifies it.</li>
+  <li><b>Should payslips require acknowledgement?</b> Worksy has the switch; F13 ships it off.</li>
+</ol>
+
+<h2 id="sources">11. Sources</h2>
+<p>Official texts first. Figures marked "vendor-confirmed only" in the research were not used for any rule in this spec; where an official page could not be fetched by machine (KWSP sits behind Cloudflare) the figure was cross-checked with the PDF already held in <code>docs/statutory/</code>.</p>
+<ul class="src">
+  <li>Employment Act 1955 (Act 265), consolidated: <a href="https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20(Akta%20265).pdf">jtksm.mohr.gov.my</a></li>
+  <li>Employment Regulations 1957 (reg. 5, reg. 9 pay statement): <a href="https://jtksm.mohr.gov.my/sites/default/files/2023-03/1.%20EMPLOYMENT%20REGULATIONS%201957_0.pdf">jtksm.mohr.gov.my</a></li>
+  <li>Employment (Limitation of Overtime Work) Regulations 1980: <a href="https://jtksm.mohr.gov.my/sites/default/files/2023-03/7.%20EMPLOYMENT%20(LIMITATION%20OF%20OVERTIME%20WORK)%20REGULATIONS%201980_0.pdf">jtksm.mohr.gov.my</a></li>
+  <li>Minimum Wages Order 2024, P.U.(A) 376: <a href="https://gajiminimum.mohr.gov.my/wp-content/uploads/PUA%20376.pdf">gajiminimum.mohr.gov.my</a></li>
+  <li>EPF Act 1991 Third Schedule (Oct 2025) and mandatory contribution: <a href="https://www.kwsp.gov.my/en/epf-act-1991-third-schedule">kwsp.gov.my</a>, local copy <code>docs/statutory/epf-third-schedule-2025-10.pdf</code></li>
+  <li>EPF for non-Malaysian employees from October 2025: <a href="https://www.kwsp.gov.my/en/w/news/epf-begins-mandatory-contributions-for-non-malaysian-citizen-employees-effective-october-2025">kwsp.gov.my</a></li>
+  <li>PERKESO contribution rates, Employer Circular 3/2024 (RM6,000 ceiling), SKBBK rate table, Employer Circular 02/2026: <a href="https://www.perkeso.gov.my/en/our-services/employer-employee/contributions.html">perkeso.gov.my</a>, <a href="https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf">SKBBK table</a>, local copies <code>docs/statutory/socso-act4.pdf</code>, <code>eis-act800.pdf</code></li>
+  <li>LHDN Specification for MTD Calculations Using Computerised Calculation 2026, including Exhibit 4 CP39 layout: <a href="https://www.hasil.gov.my/wp-content/uploads/spesifikasi-kaedah-pengiraan-berkomputer-pcb-2026.pdf">hasil.gov.my</a>, local copy in <code>docs/statutory/</code></li>
+  <li>LHDN employer responsibilities (CP22, CP22A, CP21, EA, Form E, records): <a href="https://www.hasil.gov.my/en/majikan/tanggungjawab-majikan/">hasil.gov.my</a></li>
+  <li>Budget 2026 tax measures (YA2026 relief changes): <a href="https://belanjawan.mof.gov.my/pdf/belanjawan2026/ucapan/tax-measures.pdf">belanjawan.mof.gov.my</a></li>
+  <li>HRD Corp levy: <a href="https://hrdcorp.gov.my/faq">hrdcorp.gov.my FAQ</a>, <a href="https://supportcentre.hrdcorp.gov.my/portal/en/kb/articles/hrd-levy">levy guideline</a></li>
+  <li>CIMB BizChannel bulk payroll guide: <a href="https://www.cimb.com.my/content/dam/cimb/business/documents/bizchannel-cimb/bizchannel-cimb-guides/bizchannel-cimb-transaction/3-6-bizchannel-cimb-standard-and-customised-package-bulk-payroll-guide-eng.pdf">cimb.com.my</a></li>
+  <li>Worksy payroll feature list (vocabulary and parity target): <a href="https://worksy.io/payroll-system-malaysia/">worksy.io</a>; plus a read-only tour of Unijaya's own Worksy account on 2 September 2026 (Payroll Policies, Payroll Items, Process Payroll, Submission, Payout Management, Individual Payroll review, employee Bank &amp; Statutory tab, CP38, Figures Take On, Loan Management, employee Payslip page), summarised in section 4.1.</li>
+  <li>Repo: <code>docs/statutory/README.md</code>, <code>docs/ROADMAP.md</code> deferred payroll items I-014 to I-017, <code>app/Services/Payroll/</code>, tests under <code>tests/Unit</code> and <code>tests/Feature/Payroll*</code>.</li>
+</ul>
+<p>Still to fetch into <code>docs/statutory/</code> before F6 and F7 start: the KWSP Form A CSV layout, the PERKESO Borang 8A text layout for ASSIST, and HRD Corp's e-TRiS levy file layout. Each exporter's golden test depends on the official example inside those documents.</p>
+
+<div class="footer">AmanahKu payroll design spec · written 2 September 2026 · supersedes the "Deferred, payroll" rows I-016 and I-017 in docs/ROADMAP.md once Phase 1 ships.</div>
+</main>
+</div>
+</body>
+</html>

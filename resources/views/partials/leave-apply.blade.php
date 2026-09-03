@@ -8,11 +8,6 @@
      Params: $leaveTypes, $balances, $leaveMeta (see screens/leave.blade.php),
      $teamLeave, $approvalChain. --}}
 @php
-    // Types HR grants outright (Replacement) are never applied for — the balance shows
-    // on the Balances tab, but the Apply form must not offer them. LeaveController::store()
-    // rejects them too, so a forged post cannot get past the hidden button.
-    $leaveTypes = $leaveTypes->reject(fn ($t) => $t->is_hr_granted_only);
-
     $balByType = $balances->keyBy('leave_type_id');
 
     // Only the types that apply to this person. HR ticks those on Leave Setup and the tick
@@ -28,7 +23,9 @@
             return false;
         }
 
-        return $t->entitlement > 0 && ! $balByType->has($t->id);
+        // A granted type (Replacement) has no yearly entitlement — its quota is whatever
+        // HR granted — so "no balance row" is what "no quota granted to you" looks like.
+        return ($t->entitlement > 0 || $t->is_hr_granted_only) && ! $balByType->has($t->id);
     });
 
     /**
