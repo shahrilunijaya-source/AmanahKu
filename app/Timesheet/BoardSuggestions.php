@@ -17,6 +17,12 @@ use Illuminate\Support\Collection;
  * Which board cards belong on which day of a capture week: the ones that sat in In
  * Progress or In Review, which is what the card's stints record.
  *
+ * A stint says which week a card belongs to, not which day: the day a card is moved on
+ * the board is often not the day the work happened (a card opened and closed today for
+ * yesterday's work is a stint that never touches yesterday). So a card whose stint touches
+ * the week is offered on every working day of that week up to today, and the staffer
+ * strikes off the days that do not apply.
+ *
  * Sits beside LockedDays: both turn a fact the staffer did not type into rows for the
  * capture grid. The difference is ownership. LockedDays rows are HR's (approved leave,
  * public holidays) — locked, regenerated on every save. These are the staffer's own: with
@@ -53,10 +59,11 @@ final class BoardSuggestions
         $out = [];
 
         foreach ($this->stintsFor($cards->keys()->all(), $start, $end) as $stint) {
-            $from = CarbonImmutable::parse($stint->started_at)->startOfDay();
-            $until = $stint->ended_at
-                ? CarbonImmutable::parse($stint->ended_at)->startOfDay()
-                : $today;
+            // Not the stint's own started_at/ended_at: the stint only proves the card
+            // touched this week, not which day the work happened, so it is offered on
+            // every day of the week up to today rather than just the days it covers.
+            $from = $start;
+            $until = $today;
 
             for ($day = $from->max($start); $day->lessThanOrEqualTo($until->min($end)); $day = $day->addDay()) {
                 $iso = $day->toDateString();

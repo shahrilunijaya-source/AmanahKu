@@ -92,14 +92,14 @@ class BoardSuggestionsTest extends TestCase
         return array_column($result[$day] ?? [], 'work_item_id');
     }
 
-    public function test_a_card_is_suggested_on_every_day_of_its_stint(): void
+    public function test_a_card_is_suggested_on_every_worked_day_of_the_week_up_to_today(): void
     {
         $card = $this->card();
         $this->stint($card, '2026-08-25 10:00:00', '2026-08-26 08:00:00');
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
-        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
         $this->assertSame([], $this->idsOn($result, '2026-08-27'));
@@ -113,9 +113,9 @@ class BoardSuggestionsTest extends TestCase
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
-        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
-        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_an_open_stint_runs_to_today_and_no_further(): void
@@ -130,6 +130,31 @@ class BoardSuggestionsTest extends TestCase
         // Thursday and Friday have not happened yet.
         $this->assertSame([], $this->idsOn($result, '2026-08-27'));
         $this->assertSame([], $this->idsOn($result, '2026-08-28'));
+    }
+
+    public function test_a_card_moved_onto_the_board_today_for_work_done_earlier_in_the_week_is_offered_on_those_days(): void
+    {
+        $card = $this->card();
+        $this->stint($card, '2026-08-26 10:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
+    }
+
+    public function test_a_stint_that_touches_only_next_week_is_not_offered_this_week(): void
+    {
+        $card = $this->card();
+        WorkItemProgressStint::withoutGlobalScope('tenant')->where('work_item_id', $card->id)->delete();
+        $this->stint($card, '2026-08-31 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_a_card_already_logged_on_a_day_is_not_suggested_again_for_that_day(): void
