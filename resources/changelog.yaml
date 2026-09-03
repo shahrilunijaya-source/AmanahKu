@@ -17,6 +17,17 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.7.3"
+  date: "2026-09-03"
+  entries:
+    - tag: fixed
+      major: true
+      text: "A T.A.A. card that goes straight into Done now shows up on your timesheet. Before, a card only reached the timesheet if it had sat in In Progress or In Review, so a card you created in Done, or dragged from To Do straight to Done, was never offered and the work went unlogged.\nNow the day you close it is the day it appears, as an uncosted line on that day's grid. Give it a share of the day, or strike it off if it took no real time. Cards that went through In Progress or In Review are unaffected.\nThis only covers cards closed from today onwards. A card that was already sitting in Done before this update still needs a nudge: drag it into In Progress and back to Done, and it appears on today's timesheet."
+      text_ms: "Kad T.A.A. yang terus masuk ke Done kini muncul pada lembaran masa anda. Sebelum ini, kad hanya sampai ke lembaran masa jika ia pernah berada dalam In Progress atau In Review, jadi kad yang anda cipta terus dalam Done, atau diseret dari To Do terus ke Done, tidak pernah ditawarkan dan kerja itu tidak direkodkan.\nKini hari anda menutupnya ialah hari ia muncul, sebagai baris tanpa peratusan pada grid hari itu. Berikan bahagian hari kepadanya, atau buang jika ia tidak mengambil masa sebenar. Kad yang melalui In Progress atau In Review tidak terjejas.\nIni hanya meliputi kad yang ditutup mulai hari ini. Kad yang sudah berada dalam Done sebelum kemas kini ini masih perlu digerakkan: seret ke In Progress dan kembali ke Done, dan ia akan muncul pada lembaran masa hari ini."
+      link: "/app/timesheets"
+      link_text: "Open Timesheets"
+      link_text_ms: "Buka Lembaran Masa"
+
 - version: "1.7.2"
   date: "2026-09-02"
   entries:
