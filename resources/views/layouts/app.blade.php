@@ -40,6 +40,10 @@
     // profile.blade.php). Read here because the child view's section is captured
     // before the layout renders, so this only works once, not inside @yield('hero') itself.
     $hero = ! $embed && \Illuminate\Support\Facades\View::hasSection('hero');
+    // A cover replaces the wallpaper on that screen: the hero fades into the plain canvas.
+    if ($hero) {
+        $wp = null;
+    }
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',

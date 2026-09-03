@@ -178,6 +178,22 @@ class ProfileCoverTest extends TestCase
         $this->assertStringNotContainsString('Remove cover', $slim);
     }
 
+    public function test_a_cover_replaces_the_wallpaper_on_the_profile_screen(): void
+    {
+        $me = $this->person('employee');
+        $me->user->appearance = ['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'dim' => 'soft'];
+        $me->user->save();
+
+        $elsewhere = $this->signIn($me)->get(route('app.screen', ['screen' => 'attendance']))->getContent();
+        $this->assertStringContainsString('uj-has-wallpaper', $elsewhere);
+
+        $me->update(['cover_path' => 'preset:moss']);
+        $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('uj-has-cover', $own);
+        $this->assertStringNotContainsString('uj-has-wallpaper', $own);
+        $this->assertStringNotContainsString('class="uj-wallpaper"', $own);
+    }
+
     public function test_no_cover_shows_the_invitation_to_the_owner_only(): void
     {
         $me = $this->person('employee');
