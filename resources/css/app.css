@@ -1138,6 +1138,11 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     opacity: 0; transition: opacity 260ms cubic-bezier(.32,.72,0,1);
 }
 .wd-scrim[data-open] { opacity: 1; }
+/* Heavier dim + blur only while the overview is showing: the board behind it is
+   context, not content, and the family is what the eye should land on. */
+.wd-scrim:has(.wd-ov:not([style*="display: none"])) {
+    background: rgba(31,30,26,.42); backdrop-filter: blur(7px);
+}
 .wd {
     position: fixed; top: 0; right: 0; z-index: 61;
     width: 560px; max-width: 94vw; height: 100vh; height: 100dvh;
@@ -1150,23 +1155,26 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd[data-open] { transform: translateX(0); }
 /* Overview beside the drawer: the parent card and its subtasks, inside the scrim. */
 .wd-ov {
-    position: fixed; top: 24px; right: calc(min(560px, 94vw) + 24px); width: 300px;
+    /* Centred in the space left of the drawer, vertically too. */
+    position: fixed; top: 50%; left: calc((100vw - min(560px, 94vw)) / 2); transform: translate(-50%, -50%);
+    width: 400px; max-width: calc(100vw - min(560px, 94vw) - 48px);
     max-height: calc(100vh - 48px); overflow-y: auto; z-index: 61; cursor: default;
 }
-.wd-ov-h { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #fff; opacity: .85; margin: 12px 0 6px; }
+.wd-ov-h { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #fff; opacity: .9; margin: 16px 0 8px; }
 .wd-ov-parent, .wd-ov-child {
     display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--hairline);
-    border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font: inherit; color: var(--ink); cursor: pointer;
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; font: inherit; color: var(--ink); cursor: pointer;
+    box-shadow: 0 6px 22px rgba(31,30,26,.14);
 }
 .wd-ov-parent.is-active, .wd-ov-child.is-active { outline: 2px solid var(--red); outline-offset: -1px; }
-.wd-ov-type { display: block; font-size: 10px; color: var(--muted); text-transform: capitalize; }
-.wd-ov-title { display: block; font-size: 13px; font-weight: 600; margin: 2px 0 4px; }
-.wd-ov-meta { display: inline-flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
-.wd-ov-child { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; cursor: default; }
-.wd-ov-child input[type="checkbox"] { margin: 0; accent-color: var(--success); }
-.wd-ov-child-title { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
+.wd-ov-type { display: block; font-size: 11px; color: var(--muted); text-transform: capitalize; }
+.wd-ov-title { display: block; font-size: 16px; font-weight: 600; margin: 3px 0 6px; }
+.wd-ov-meta { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.wd-ov-child { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; cursor: default; }
+.wd-ov-child input[type="checkbox"] { margin: 0; width: 17px; height: 17px; accent-color: var(--success); }
+.wd-ov-child-title { background: none; border: 0; padding: 0; font: inherit; font-size: 15px; color: var(--ink); text-align: left; cursor: pointer; }
 .wd-ov-child.is-done .wd-ov-child-title { text-decoration: line-through; color: var(--muted); }
-.wd-ov-add .wd-inline { width: 100%; margin: 0; background: rgba(255,255,255,.85); border-style: dashed; }
+.wd-ov-add .wd-inline { width: 100%; margin: 0; padding: 12px 16px; font-size: 14px; background: rgba(255,255,255,.85); border-style: dashed; border-radius: 12px; }
 .wd-back { background: none; border: 0; padding: 0 0 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
 .wd-back:hover { color: var(--ink); }
 @media (max-width: 1100px) { .wd-ov { display: none; } }
