@@ -29,7 +29,7 @@
 
 @php
     // One screen, four jobs: the type list, the holiday calendar, the per-person balance
-    // grid, and booking a replacement day. They used to stack into one very long page.
+    // grid, and granting replacement quota. They used to stack into one very long page.
     // The tab lives in ?tab= so a redirect after a save comes back to the same one.
     $setupTabs = ['types', 'holidays', 'balances', 'replacement'];
     $initialTab = in_array(request()->query('tab'), $setupTabs, true) ? request()->query('tab') : 'types';
@@ -232,9 +232,11 @@
                                 <th style="text-align:center;padding:11px 14px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;vertical-align:top;">
                                     {{ $type->name }}
                                     @if ($type->is_hr_granted_only)
-                                        {{-- Booked outright on the Record card below, so it keeps no running total. --}}
+                                        {{-- Quota is handed out one grant at a time on the Replacement tab, each with
+                                             the remark saying what earned it, so it is not an opening balance to type
+                                             into a grid. Shown here read-only. --}}
                                         <div style="margin-top:7px;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;"
-                                             x-text="$store.ui.lang==='en' ? 'granted, no balance' : 'diberi, tiada baki'">granted, no balance</div>
+                                             x-text="$store.ui.lang==='en' ? 'granted, see Replacement' : 'diberi, lihat Cuti ganti'">granted, see Replacement</div>
                                     @elseif ($type->is_unpaid)
                                         {{-- Not an entitlement — salary not paid for a day not worked. No quota
                                              to open, and open to everyone, so there is nothing to tick. --}}
@@ -267,7 +269,10 @@
                                 @foreach ($leaveTypes as $type)
                                     @php $cell = $row?->get($type->id); @endphp
                                     <td style="padding:7px 14px;text-align:center;">
-                                        @if ($type->is_hr_granted_only || $type->is_unpaid)
+                                        @if ($type->is_hr_granted_only)
+                                            {{-- Read-only: the balance is the sum of the grants, not something typed here. --}}
+                                            <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $cell === null ? '—' : ($cell == (int) $cell ? (int) $cell : $cell) }}</span>
+                                        @elseif ($type->is_unpaid)
                                             <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">—</span>
                                         @elseif ($type->deducts_from_leave_type_id)
                                             @php $src = $row?->get($type->deducts_from_leave_type_id); @endphp
@@ -312,23 +317,27 @@
     </div>
 
     <div role="tabpanel" x-show="tab === 'replacement'" x-cloak>
-    {{-- Record granted leave — a type flagged "HR grants only" (Replacement) never appears on
-         the employee's Apply form, so the day off has to be booked from here. It goes in
-         already approved: the balance is decremented and the timesheet reconciled by the very
-         same code an ordinary approval runs (LeaveController::record). --}}
-    @php $grantedTypes = $leaveTypes->where('is_hr_granted_only', true); @endphp
+    {{-- Grant replacement quota — a type flagged "HR grants only" (Replacement) carries no
+         yearly entitlement, so its quota is whatever HR hands out here. The days land on the
+         employee's balance and they apply for them themselves through the normal chain
+         (LeaveController::grant). Each grant keeps its remark so the days can be traced back
+         to the rest day that earned them. --}}
+    @php
+        $grantedTypes = $leaveTypes->where('is_hr_granted_only', true);
+        $num = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
+    @endphp
     @if ($grantedTypes->isEmpty() || $setupStaff->isEmpty())
         <div class="uj-card" style="padding:22px;text-align:center;color:var(--muted);font-size:13px;">
-            <span x-text="$store.ui.lang==='en' ? 'Nothing to book here yet. Mark a leave type “HR grants only” on the Leave types tab (Replacement is the usual one) and add active staff.' : 'Tiada apa untuk ditempah lagi. Tandakan jenis cuti sebagai “HR beri sahaja” pada tab Jenis cuti (biasanya Cuti ganti) dan tambah staf aktif.'">Nothing to book here yet.</span>
+            <span x-text="$store.ui.lang==='en' ? 'Nothing to grant here yet. Mark a leave type “HR grants only” on the Leave types tab (Replacement is the usual one) and add active staff.' : 'Tiada kuota untuk diberi lagi. Tandakan jenis cuti sebagai “HR beri sahaja” pada tab Jenis cuti (biasanya Cuti ganti) dan tambah staf aktif.'">Nothing to grant here yet.</span>
         </div>
     @else
         <div style="display:flex;align-items:center;gap:9px;margin:0 0 6px;">
-            <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Book a replacement day' : 'Tempah cuti ganti'">Book a replacement day</span></h2>
+            <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Grant replacement quota' : 'Beri kuota cuti ganti'">Grant replacement quota</span></h2>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Staff cannot apply for these types — book the day here and it is approved straight away. There is no balance to keep: the day is granted, not spent.' : 'Staf tidak boleh memohon jenis ini — tempah hari di sini dan ia diluluskan terus. Tiada baki disimpan: hari itu diberi, bukan ditolak.'"></span></p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 11px;"><span x-text="$store.ui.lang==='en' ? 'Give the days someone earned by working a rest day. They then apply for those days themselves, whenever they want, and cannot apply for more than they hold. Enter a negative number to correct a mistake.' : 'Beri hari yang diperoleh kerana bekerja pada hari rehat. Mereka memohon hari itu sendiri, bila-bila masa, dan tidak boleh memohon lebih daripada baki. Masukkan nombor negatif untuk membetulkan kesilapan.'"></span></p>
 
         <div class="uj-card" style="padding:18px 22px;">
-            <form method="post" action="{{ route('leave.record') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <form method="post" action="{{ route('leave.grant') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
                 @csrf
                 <div style="flex:2;min-width:200px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Staff *' : 'Staf *'">Staff *</span></label>
@@ -346,32 +355,44 @@
                         @endforeach
                     </select>
                 </div>
-                <div style="width:160px;">
-                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'From *' : 'Dari *'">From *</span></label>
-                    <input type="date" name="date_from" required value="{{ old('date_from') }}" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                <div style="width:130px;">
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Days *' : 'Hari *'">Days *</span></label>
+                    {{-- Half days are real here: a half rest day worked earns 0.5. --}}
+                    <input type="number" name="days" step="0.5" required value="{{ old('days', '1') }}" placeholder="1.5" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                 </div>
-                <div style="width:160px;">
-                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'To *' : 'Hingga *'">To *</span></label>
-                    <input type="date" name="date_to" required value="{{ old('date_to') }}" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                <div style="flex:2;min-width:220px;">
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'What is this quota for? *' : 'Kuota ini untuk apa? *'">What is this quota for? *</span></label>
+                    <input name="remark" maxlength="255" required value="{{ old('remark') }}" placeholder="Worked Saturday 31 Aug" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                 </div>
-                <div style="width:150px;">
-                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Half day' : 'Setengah hari'">Half day</span></label>
-                    {{-- A half day cannot span a range, so the server rejects it unless the two
-                         dates match. Left to the server rather than mirrored in Alpine: this is
-                         an HR form used a few times a month, not the employee Apply flow. --}}
-                    <select name="half_day_period" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;background:#fff;">
-                        <option value="" x-text="$store.ui.lang==='en' ? 'Full day' : 'Sehari penuh'">Full day</option>
-                        <option value="am" @selected(old('half_day_period') === 'am') x-text="$store.ui.lang==='en' ? 'Morning' : 'Pagi'">Morning</option>
-                        <option value="pm" @selected(old('half_day_period') === 'pm') x-text="$store.ui.lang==='en' ? 'Afternoon' : 'Petang'">Afternoon</option>
-                    </select>
-                </div>
-                <div style="flex:1;min-width:180px;">
-                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>
-                    <input name="reason" maxlength="500" value="{{ old('reason') }}" placeholder="Worked on 31 Aug" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                </div>
-                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Record' : 'Rekod'">Record</span></button>
+                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Grant' : 'Beri'">Grant</span></button>
             </form>
         </div>
+
+        @if (($leaveGrants ?? collect())->isNotEmpty())
+            <h2 style="font-size:14px;font-weight:600;color:var(--ink);margin:22px 0 6px;"><span x-text="$store.ui.lang==='en' ? 'Recent grants' : 'Kuota diberi terkini'">Recent grants</span></h2>
+            <div class="uj-card" style="padding:0;overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="text-align:left;color:var(--muted);font-size:12px;">
+                            <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'Staff' : 'Staf'">Staff</span></th>
+                            <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'Days' : 'Hari'">Days</span></th>
+                            <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'For' : 'Untuk'">For</span></th>
+                            <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'Granted' : 'Diberi'">Granted</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($leaveGrants as $g)
+                            <tr style="border-top:1px solid var(--hairline);">
+                                <td style="padding:10px 16px;">{{ $g->employee?->display_name }}</td>
+                                <td style="padding:10px 16px;font-variant-numeric:tabular-nums;color:{{ $g->days < 0 ? 'var(--danger, #c0392b)' : 'var(--ink)' }};">{{ $g->days > 0 ? '+' : '' }}{{ $num($g->days) }}</td>
+                                <td style="padding:10px 16px;color:var(--muted);">{{ $g->remark }}</td>
+                                <td style="padding:10px 16px;color:var(--muted);white-space:nowrap;">{{ $g->created_at?->format('j M Y') }}{{ $g->grantedBy ? ' · '.$g->grantedBy->display_name : '' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     @endif
     </div>
 </div>

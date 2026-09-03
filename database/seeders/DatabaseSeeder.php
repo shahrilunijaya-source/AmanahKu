@@ -311,7 +311,7 @@ class DatabaseSeeder extends Seeder
             ['Hospitalization', 60, true, false, 0],
             ['Maternity', 98, true, false, 0],
             ['Paternity', 7, true, false, 0],
-            ['Replacement', 4, false, false, 0],
+            ['Replacement', 0, false, false, 0],
             ['Emergency', 0, false, true, 0],
             ['Compassionate', 3, false, false, 0],
             ['Marriage', 3, false, false, 0],
@@ -325,7 +325,7 @@ class DatabaseSeeder extends Seeder
             'min_notice_days' => $x[4],
             // Payroll's unpaid-leave pull matches this flag, not the name.
             'is_unpaid' => $x[0] === 'Unpaid',
-            // Replacement is granted by HR (opening balance), not applied for.
+            // Replacement carries no yearly entitlement — HR grants its quota a day at a time.
             'is_hr_granted_only' => $x[0] === 'Replacement',
         ])->id]);
 
@@ -333,8 +333,8 @@ class DatabaseSeeder extends Seeder
         LeaveType::whereKey($types['Emergency'])->update(['deducts_from_leave_type_id' => $types['Annual']]);
 
         // Opening balances only for types with an entitlement of their own (Emergency
-        // has none — it draws down Annual; Replacement has none either — HR books those
-        // days outright and no total is kept).
+        // has none — it draws down Annual; Replacement has none either — its quota is
+        // granted a day at a time and arrives as a LeaveGrant).
         foreach ([['Annual', 12.5], ['Medical', 14]] as $b) {
             LeaveBalance::create(['employee_id' => $aisyah, 'leave_type_id' => $types[$b[0]], 'balance' => $b[1]]);
         }

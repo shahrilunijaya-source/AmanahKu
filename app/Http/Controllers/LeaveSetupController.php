@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
+use App\Models\LeaveGrant;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PublicHoliday;
@@ -49,6 +50,11 @@ class LeaveSetupController extends Controller
             'setupStaff' => $staff,
             'balanceMatrix' => $matrix,
             'holidays' => PublicHoliday::orderBy('date')->get(),
+            // Recent quota grants for the Replacement tab, so HR can see what it has
+            // already handed out before granting more. Capped: this is a running log,
+            // not a report — the audit trail holds the full history.
+            'leaveGrants' => LeaveGrant::with(['employee', 'leaveType', 'grantedBy'])
+                ->latest('id')->limit(50)->get(),
         ];
     }
 
@@ -233,7 +239,8 @@ class LeaveSetupController extends Controller
             ['Hospitalization', 60, true, false, 0],
             ['Maternity', 98, true, false, 0],
             ['Paternity', 7, true, false, 0],
-            ['Replacement', 4, false, false, 0],
+            // No yearly entitlement: replacement quota is granted a day at a time.
+            ['Replacement', 0, false, false, 0],
             ['Emergency', 0, false, true, 0],
             ['Compassionate', 3, false, false, 0],
             ['Marriage', 3, false, false, 0],
@@ -253,7 +260,8 @@ class LeaveSetupController extends Controller
                 // Payroll's unpaid-leave pull matches this flag, not the name — see the
                 // 2026_08_25_210000 migration.
                 'is_unpaid' => $x[0] === 'Unpaid',
-                // Replacement is granted by HR (opening balance on this screen), not applied for.
+                // Replacement carries no yearly entitlement — HR grants its quota on the
+                // Replacement tab and staff apply against it.
                 'is_hr_granted_only' => $x[0] === 'Replacement',
             ]);
             $added++;

@@ -328,6 +328,12 @@ class Employee extends Model
         return $this->hasMany(LeaveRequest::class);
     }
 
+    /** @return HasMany<LeaveGrant, $this> */
+    public function leaveGrants(): HasMany
+    {
+        return $this->hasMany(LeaveGrant::class);
+    }
+
     public function kpiItems(): HasMany
     {
         return $this->hasMany(KpiItem::class);

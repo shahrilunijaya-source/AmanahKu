@@ -411,6 +411,9 @@ trait BuildsWorkData
             'onBehalfStaff' => $onBehalfStaff,
             'leaveTypes' => LeaveType::orderBy('name')->get(),
             'myRequests' => $employee?->leaveRequests()->with(['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'])->latest()->get() ?? collect(),
+            // Where an HR-granted quota (Replacement) came from. Without this the days
+            // appear in the balance with nothing saying which rest day earned them.
+            'myLeaveGrants' => $employee?->leaveGrants()->with(['leaveType', 'grantedBy'])->latest('id')->get() ?? collect(),
             'approvalChain' => $chain,
             'leaveVerifiers' => $chain['verifiers'],
             // HR and the directors have nobody above them, so their own requests open already
