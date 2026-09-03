@@ -17,7 +17,7 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.8"
+- version: "1.7.3"
   date: "2026-09-03"
   entries:
     - tag: improved
