@@ -655,7 +655,10 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-sb-collapsed .uj-sb-hide { display: none !important; }
     .uj-sb-collapsed .uj-sb-brand { padding: 0; justify-content: center; }
     .uj-sb-collapsed .uj-sb-today { margin: 0 8px 4px; padding: 6px 0; gap: 2px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--sidebar-line); border-radius: 0; }
-    .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; }
+    .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; position: relative; }
+    /* The attention dot has no label to sit after in the rail, so it becomes a badge
+       on the icon's top-right corner, ringed in the sidebar colour instead of the halo. */
+    .uj-sb-collapsed .uj-nav-row > .uj-nav-dot { position: absolute; top: 7px; left: calc(50% + 6px); margin: 0; width: 6px; height: 6px; box-shadow: 0 0 0 2px var(--sidebar); }
     .uj-sb-collapsed .uj-sb-foot { padding: 10px 8px; }
     .uj-sb-collapsed .uj-sb-ws { justify-content: center; padding: 9px 0; gap: 0; }
     .uj-sb-collapsed .uj-feedback-btn { justify-content: center; padding: 9px 0 !important; gap: 0 !important; }
