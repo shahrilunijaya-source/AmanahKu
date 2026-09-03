@@ -697,6 +697,8 @@ export function registerWorkBoard(Alpine) {
             this.drawer.id = id;
             this.drawer.loading = true;
             this.drawer.error = '';
+            // Previous card's family would flash beside the drawer until the fetch lands.
+            this.drawer.family = null;
             this.drawer.newComment = '';
             this.drawer.menuOpen = false;
             this.drawer.labelMenuOpen = false;
