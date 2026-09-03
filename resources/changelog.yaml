@@ -17,7 +17,7 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.8"
+- version: "1.7.4"
   date: "2026-09-03"
   entries:
     - tag: added
@@ -27,13 +27,6 @@
       link: "/app/board"
       link_text: "Open My Work"
       link_text_ms: "Buka Kerja Saya"
-    - tag: improved
-      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
-      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
-
-- version: "1.7.4"
-  date: "2026-09-03"
-  entries:
     - tag: improved
       major: true
       text: "A T.A.A. card now appears on every day of the week it was worked, not only the day it moved on the board.\nBefore, a card you moved to In Progress today for work done yesterday never showed on yesterday's timesheet. Now any card that was In Progress or In Review at some point in the week is offered on every working day of that week up to today. Strike off the days it does not belong to, and it stays off."
@@ -47,6 +40,10 @@
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
+
+    - tag: improved
+      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
+      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
 
 - version: "1.7.3"
   date: "2026-09-03"

@@ -1450,6 +1450,16 @@ select.wd-inline {
 }
 .wd-foot textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .wd-post { height: 38px; padding: 0 15px; font-size: var(--t-sm); flex-shrink: 0; border: 0; cursor: pointer; }
+/* Board drawer only: Post stays out of the way until the box is focused or holds text. */
+.wd-foot--reveal .wd-post {
+    max-width: 0; padding: 0; margin-left: -8px; opacity: 0; overflow: hidden; white-space: nowrap;
+    transform: translateX(6px); pointer-events: none;
+    transition: max-width 200ms var(--ease), padding 200ms var(--ease), margin 200ms var(--ease), opacity 140ms ease, transform 200ms var(--ease);
+}
+.wd-foot--reveal:focus-within .wd-post, .wd-foot--reveal.has-text .wd-post {
+    max-width: 120px; padding: 0 15px; margin-left: 0; opacity: 1; transform: none; pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) { .wd-foot--reveal .wd-post { transition: opacity 140ms ease; } }
 
 /* ── Mentions (Stage 3) ────────────────────────────────────────
    The picker only lists people already on the card — participants plus the
