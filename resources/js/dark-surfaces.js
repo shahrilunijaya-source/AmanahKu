@@ -56,17 +56,30 @@ export function registerDarkSurfaces() {
         const m = main();
         if (!m) return;
         mark(m);
+        // Our own uj-surface toggle is a class mutation too. It must not schedule a
+        // re-measure: an element whose background is var(--ink) flips dark once the
+        // class restores the token, measures dark, loses the class, flips light, and
+        // so on forever (the org chart's active chip flickered). Only outside changes
+        // to class or style count.
+        const onlySurfaceChanged = (r) => {
+            if (r.attributeName !== 'class' || r.oldValue === null) return false;
+            const strip = (v) => v.split(/\s+/).filter((c) => c && c !== 'uj-surface').sort().join(' ');
+            return strip(r.oldValue) === strip(r.target.getAttribute('class') || '');
+        };
         new MutationObserver((records) => {
             for (const r of records) {
                 if (r.type === 'childList') r.addedNodes.forEach((n) => n instanceof Element && schedule(n));
-                else if (r.target instanceof Element) schedule(r.target);
+                else if (r.target instanceof Element && !onlySurfaceChanged(r)) schedule(r.target);
             }
-        }).observe(m, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+        }).observe(m, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['class', 'style'] });
         // A background that transitions in (the board's filter chips fade from clear to
         // white over 140ms) measures as clear at the frame the mutation lands, and a
         // finished transition is not a mutation. Measure again when it settles.
+        // Only for elements not yet marked: a marked element whose background then
+        // fades dark is one whose background is var(--ink) and is dark *because* the
+        // mark restored the token. Re-measuring it would unmark it and start the loop.
         m.addEventListener('transitionend', (e) => {
-            if (e.propertyName === 'background-color' && e.target instanceof Element) schedule(e.target);
+            if (e.propertyName === 'background-color' && e.target instanceof Element && !e.target.classList.contains('uj-surface')) schedule(e.target);
         });
     });
 }
