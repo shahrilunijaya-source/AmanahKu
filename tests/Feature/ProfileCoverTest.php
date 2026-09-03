@@ -172,4 +172,18 @@ class ProfileCoverTest extends TestCase
         $this->assertStringNotContainsString('Add a cover photo', $other);
         $this->assertStringNotContainsString('Remove cover', $other);
     }
+
+    public function test_a_failed_replacement_shows_the_error_on_the_profile(): void
+    {
+        $me = $this->person('employee');
+        $me->update(['cover_path' => "covers/{$me->id}/a.jpg"]);
+        $profile = route('app.screen', ['screen' => 'profile', 'emp' => $me->id]);
+
+        $this->signIn($me)->from($profile)
+            ->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])
+            ->assertRedirect($profile);
+
+        $html = $this->get($profile)->getContent();
+        $this->assertStringContainsString('uj-cover-error', $html);
+    }
 }

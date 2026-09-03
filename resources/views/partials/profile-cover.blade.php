@@ -2,7 +2,7 @@
      one takes over from 30% down, both are gone before the box ends, so the picture
      dissolves into the page instead of stopping on a line. $height in px. --}}
 @php $coverUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($employee->cover_path); @endphp
-<div class="uj-cover" style="height:{{ $height }}px;">
+<div class="uj-cover" style="height:{{ $height }}px;{{ ($flat ?? false) ? 'margin-bottom:0;' : '' }}">
     <div class="uj-cover-blur" style="background-image:url('{{ $coverUrl }}');"></div>
     <div class="uj-cover-img" style="background-image:url('{{ $coverUrl }}');"></div>
     @if ($isOwn ?? false)
@@ -14,6 +14,9 @@
                 <span x-text="$store.ui.lang==='en' ? 'Change cover' : 'Tukar cover'">Change cover</span>
             </button>
         </form>
+        @error('photo')
+            <p class="uj-cover-change uj-cover-error" style="left:14px;right:auto;top:auto;bottom:14px;color:var(--error);margin:0;">{{ $message }}</p>
+        @enderror
     @endif
     @if (($isOwn ?? false) || ($canRemove ?? false))
         <form method="post" action="{{ route('employees.cover.destroy', $employee) }}" style="display:contents;">

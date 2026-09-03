@@ -21,7 +21,7 @@
          clicks must not dead-end) but also never gets tabs, stats, salary or attendance. --}}
     <div class="uj-card" style="max-width:360px;padding:0 24px 24px;text-align:center;overflow:hidden;">
         @if ($p->cover_path)
-            <div style="margin:0 -24px 14px;">@include('partials.profile-cover', ['employee' => $p, 'height' => 120, 'isOwn' => false, 'canRemove' => false])</div>
+            <div style="margin:0 -24px 14px;">@include('partials.profile-cover', ['employee' => $p, 'height' => 120, 'isOwn' => false, 'canRemove' => false, 'flat' => true])</div>
         @else
             <div style="height:24px;"></div>
         @endif
