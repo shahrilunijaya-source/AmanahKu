@@ -35,13 +35,14 @@
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
     - tag: added
+      major: true
       text: "Your timesheet can now fill itself from the board, or you can add lines yourself.\nThe cog beside the Record and Review tabs switches it. Off, you pick the kind of work, a project if that kind needs one, what you were doing, and the share of the day, per line. On is unchanged from before. Either way, your existing lines are untouched."
       text_ms: "Timesheet anda kini boleh mengisi sendiri daripada papan, atau anda boleh tambah baris sendiri.\nGear di sebelah tab Rekod dan Semak menukarnya. Apabila mati, anda pilih jenis kerja, projek jika jenis itu memerlukannya, apa yang anda buat, dan bahagian hari, bagi setiap baris. Apabila hidup, tiada perubahan daripada sebelum ini. Kedua-duanya, baris sedia ada anda tidak terjejas."
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
-
     - tag: improved
+      major: true
       text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
       text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
 
