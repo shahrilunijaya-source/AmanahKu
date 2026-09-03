@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\Scopes\ParentOnly;
 use App\Models\WorkItem;
 use Illuminate\Console\Command;
 
@@ -33,6 +34,14 @@ class ArchiveDoneWorkItems extends Command
             ->whereNull('archived_at')
             ->whereNotNull('done_at')
             ->where('done_at', '<=', now()->subDay())
+            ->update(['archived_at' => now()]);
+
+        // Children follow their parent off the board. Their own done_at is irrelevant:
+        // an archived parent is finished business, subtasks included.
+        WorkItem::withoutGlobalScope(ParentOnly::class)
+            ->whereNotNull('parent_id')
+            ->whereNull('archived_at')
+            ->whereHas('parent', fn ($q) => $q->whereNotNull('archived_at'))
             ->update(['archived_at' => now()]);
 
         $this->info("Archived {$count} done work item(s).");

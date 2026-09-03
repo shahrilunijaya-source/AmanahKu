@@ -8,8 +8,10 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OffboardingCase;
 use App\Models\Resignation;
+use App\Models\Scopes\ParentOnly;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkItem;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -163,5 +165,19 @@ class ArchiveDepartedStaffTest extends TestCase
         $this->assertNotNull($leaver->fresh()->archived_at);
         $this->assertSame('completed', $r->fresh()->status);
         $this->assertNotNull($r->fresh()->offboardingCase); // a case was opened for it
+    }
+
+    public function test_a_leavers_subtasks_follow_the_parent_card_to_the_manager(): void
+    {
+        $manager = $this->emp('Manager');
+        $leaver = $this->emp('Leaver', ['reports_to_id' => $manager->id]);
+        $parent = $leaver->workItems()->create(['tenant_id' => $this->tenant->id, 'title' => 'P', 'type' => 'task', 'priority' => 'low', 'status' => 'todo', 'progress' => 0]);
+        $child = WorkItem::withoutGlobalScope(ParentOnly::class)->create(['tenant_id' => $this->tenant->id, 'employee_id' => $leaver->id, 'parent_id' => $parent->id, 'title' => 'C', 'type' => 'task', 'priority' => 'low', 'status' => 'done', 'progress' => 0]);
+        $this->resignation($leaver, now()->subDay()->toDateString());
+
+        $this->artisan('staff:archive-departed')->assertExitCode(0);
+
+        $this->assertSame($manager->id, $parent->fresh()->employee_id);
+        $this->assertSame($manager->id, WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->employee_id);
     }
 }

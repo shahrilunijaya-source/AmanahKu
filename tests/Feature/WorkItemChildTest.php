@@ -7,8 +7,12 @@ use App\Models\Scopes\ParentOnly;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Models\WorkItemProgressStint;
+use App\Support\BoardRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
@@ -110,5 +114,54 @@ class WorkItemChildTest extends TestCase
         $parent->delete();
 
         $this->assertNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id));
+    }
+
+    public function test_done_gate_refuses_a_parent_with_an_open_child(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent);
+        $this->child($parent, ['status' => 'done']);
+
+        try {
+            app(BoardRules::class)->assertChildrenDoneForStatus($parent, 'done');
+            $this->fail('expected a ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertSame('1 subtask still open. Tick it off before moving this card to Done.', $e->errors()['status'][0]);
+        }
+
+        // Other columns carry no gate.
+        app(BoardRules::class)->assertChildrenDoneForStatus($parent, 'review');
+        $this->assertTrue(true);
+    }
+
+    public function test_done_gate_passes_once_every_child_is_done(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent, ['status' => 'done']);
+
+        app(BoardRules::class)->assertChildrenDoneForStatus($parent, 'done');
+        $this->assertTrue(true);
+    }
+
+    public function test_the_hourly_archiver_takes_children_with_the_parent(): void
+    {
+        $parent = $this->parent(['status' => 'done', 'done_at' => now()->subDays(2)]);
+        $child = $this->child($parent, ['status' => 'done', 'done_at' => now()->subDays(2)]);
+
+        $this->artisan('work:archive-done')->assertSuccessful();
+
+        $this->assertNotNull($parent->fresh()->archived_at);
+        $this->assertNotNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->archived_at);
+    }
+
+    public function test_a_child_never_records_a_progress_stint_or_calendar_sync(): void
+    {
+        Queue::fake();
+        $parent = $this->parent();
+        $child = $this->child($parent, ['due_at' => now()->addDay()]);
+        $child->update(['status' => 'done']);
+
+        $this->assertSame(0, WorkItemProgressStint::withoutGlobalScope('tenant')->where('work_item_id', $child->id)->count());
+        Queue::assertNothingPushed();
     }
 }
