@@ -4577,3 +4577,28 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
        flex-basis:0% and no media query can out-rank an inline style, at any width.) */
     .uj-ts-row-label { flex: 1 1 100%; }
 }
+
+/* ── Profile cover ──
+   Sharp on top, a blurred copy carries the colour down, both gone before the box
+   ends. Masks, not JS. The blur is a filter on an element, so it survives the
+   Lightning CSS pass that eats backdrop-filter (see .uj-hd-fade). */
+.uj-cover { position: relative; overflow: hidden; margin: 0 0 -64px; border-radius: 12px 12px 0 0; }
+.uj-cover-img, .uj-cover-blur { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.uj-cover-img { mask-image: linear-gradient(to bottom, #000 35%, transparent 80%); -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 80%); }
+.uj-cover-blur { filter: blur(18px); transform: scale(1.08); mask-image: linear-gradient(to bottom, transparent 30%, #000 60%, transparent 88%); -webkit-mask-image: linear-gradient(to bottom, transparent 30%, #000 60%, transparent 88%); }
+.uj-cover-change { position: absolute; top: 14px; right: 14px; height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: color-mix(in srgb, var(--canvas) 78%, transparent); border: 1px solid rgba(255, 255, 255, .5); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-cover-change:active { transform: scale(.97); }
+.uj-cover-change--remove { top: auto; bottom: 78px; }
+.uj-cover-change + form .uj-cover-change--remove, form + form .uj-cover-change--remove { right: 14px; }
+.uj-card--over-cover { position: relative; z-index: 1; margin: 0 24px; box-shadow: 0 8px 24px -12px rgba(38, 37, 30, .28); }
+.uj-avatar-ring { box-shadow: 0 0 0 4px #fff; }
+.uj-cover-invite { width: 100%; height: 64px; border: 1px dashed var(--shelf-line); border-radius: 10px; background: none; color: var(--muted); font-size: 12.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform 160ms cubic-bezier(.23, 1, .32, 1), border-color 160ms ease; }
+.uj-cover-invite:hover { border-color: var(--muted-soft); color: var(--ink); }
+.uj-cover-invite:active { transform: scale(.99); }
+@media (max-width: 640px) {
+    .uj-cover { height: 150px !important; margin-bottom: -54px; }
+    .uj-card--over-cover { margin: 0 12px; }
+    .uj-cover-change span { display: none; }
+    .uj-cover-change { padding: 0 8px; }
+    .uj-cover-change--remove span { display: inline; }
+}

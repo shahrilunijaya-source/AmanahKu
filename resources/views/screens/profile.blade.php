@@ -19,7 +19,12 @@
 @elseif (! ($canViewFull ?? false))
     {{-- Slim public card: a blocked viewer never gets a 403 (header search and directory
          clicks must not dead-end) but also never gets tabs, stats, salary or attendance. --}}
-    <div class="uj-card" style="max-width:360px;padding:24px;text-align:center;">
+    <div class="uj-card" style="max-width:360px;padding:0 24px 24px;text-align:center;overflow:hidden;">
+        @if ($p->cover_path)
+            <div style="margin:0 -24px 14px;">@include('partials.profile-cover', ['employee' => $p, 'height' => 120, 'isOwn' => false, 'canRemove' => false])</div>
+        @else
+            <div style="height:24px;"></div>
+        @endif
         <div style="width:88px;height:88px;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:30px;font-weight:600;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">{{ $p->initials }}</div>
         <h3 style="font-size:18px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>
         <p style="font-size:13px;color:var(--muted);margin:4px 0 12px;">{{ $p->positionBand?->title ?? '—' }}</p>
@@ -49,9 +54,21 @@
     @endphp
     <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
-        {{-- Identity band --}}
-        <div class="uj-card" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
-            <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;">{{ $p->initials }}</div>
+        {{-- Cover + identity band. With a cover the band rides up over its lower third. --}}
+        @if ($p->cover_path)
+            @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => $isOwn, 'canRemove' => $canEdit])
+        @elseif ($isOwn)
+            <form method="post" action="{{ route('employees.cover.update', $p) }}" enctype="multipart/form-data" x-data>
+                @csrf
+                <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" x-ref="f" style="display:none;" @change="$el.form.requestSubmit()">
+                <button type="button" class="uj-cover-invite" @click="$refs.f.click()">
+                    + <span x-text="$store.ui.lang==='en' ? 'Add a cover photo' : 'Tambah foto cover'">Add a cover photo</span>
+                </button>
+                @error('photo')<p style="margin:6px 0 0;font-size:12px;color:var(--error);">{{ $message }}</p>@enderror
+            </form>
+        @endif
+        <div class="uj-card {{ $p->cover_path ? 'uj-card--over-cover' : '' }}" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;" class="{{ $p->cover_path ? 'uj-avatar-ring' : '' }}">{{ $p->initials }}</div>
             <div style="flex:1;min-width:220px;">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <h3 style="font-size:19px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>

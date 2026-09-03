@@ -133,4 +133,43 @@ class ProfileCoverTest extends TestCase
         $this->signIn($me)->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])->assertSessionHasErrors('photo');
         $this->signIn($me)->post(route('employees.cover.update', $me), [])->assertSessionHasErrors('photo');
     }
+
+    public function test_cover_renders_for_the_owner_a_colleague_and_on_the_slim_card(): void
+    {
+        $me = $this->person('employee');
+        $me->update(['cover_path' => "covers/{$me->id}/a.jpg"]);
+        $url = Storage::disk('public')->url("covers/{$me->id}/a.jpg");
+
+        $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->assertOk()->getContent();
+        $this->assertStringContainsString('class="uj-cover"', $own);
+        $this->assertStringContainsString($url, $own);
+        $this->assertStringContainsString('Change cover', $own);
+        $this->assertStringContainsString(route('employees.cover.destroy', $me), $own);
+
+        $hr = $this->person('hr');
+        $full = $this->signIn($hr)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString($url, $full);
+        $this->assertStringNotContainsString('Change cover', $full);
+        $this->assertStringContainsString('Remove cover', $full);
+
+        $peer = $this->person('employee');
+        $slim = $this->signIn($peer)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString($url, $slim);
+        $this->assertStringNotContainsString('Change cover', $slim);
+        $this->assertStringNotContainsString('Remove cover', $slim);
+    }
+
+    public function test_no_cover_shows_the_invitation_to_the_owner_only(): void
+    {
+        $me = $this->person('employee');
+
+        $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('Add a cover photo', $own);
+        $this->assertStringNotContainsString('class="uj-cover"', $own);
+
+        $hr = $this->person('hr');
+        $other = $this->signIn($hr)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringNotContainsString('Add a cover photo', $other);
+        $this->assertStringNotContainsString('Remove cover', $other);
+    }
 }
