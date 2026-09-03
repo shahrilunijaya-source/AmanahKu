@@ -73,9 +73,9 @@ class AppearanceTest extends TestCase
     public function test_picking_a_preset_saves_it(): void
     {
         $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'preset:dusk', 'dim' => 'strong'])
-            ->assertNoContent();
+            ->assertOk();
 
-        $this->assertSame(['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'dim' => 'strong'], $this->user->fresh()->appearance);
+        $this->assertSame(['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'wallpaper_lum' => null, 'dim' => 'strong'], $this->user->fresh()->appearance);
     }
 
     public function test_unknown_preset_and_unknown_dim_are_rejected(): void
@@ -89,13 +89,13 @@ class AppearanceTest extends TestCase
         $this->user->appearance = ['wallpaper' => 'upload', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'dim' => 'strong'];
         $this->user->save();
 
-        $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'none'])->assertNoContent();
+        $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'none'])->assertOk();
 
-        $this->assertSame(['wallpaper' => 'none', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'dim' => 'strong'], $this->user->fresh()->appearance);
+        $this->assertSame(['wallpaper' => 'none', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'wallpaper_lum' => null, 'dim' => 'strong'], $this->user->fresh()->appearance);
 
         $this->user->appearance = null;
         $this->user->save();
-        $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'preset:dawn'])->assertNoContent();
+        $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'preset:dawn'])->assertOk();
         $this->assertSame('soft', $this->user->fresh()->appearance['dim']);
     }
 
@@ -116,6 +116,30 @@ class AppearanceTest extends TestCase
         $this->assertStringStartsWith('wallpapers/'.$this->user->id.'/', $a['wallpaper_path']);
         Storage::disk('public')->assertExists($a['wallpaper_path']);
         Storage::disk('public')->assertMissing('wallpapers/'.$this->user->id.'/old.jpg');
+        $this->assertNotNull($a['wallpaper_lum']);
+    }
+
+    public function test_a_dark_wallpaper_flips_the_page_text_unless_the_dim_lightens_it(): void
+    {
+        $this->user->appearance = ['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'dim' => 'soft'];
+        $this->user->save();
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+        $this->assertStringContainsString('class="uj-has-wallpaper uj-on-dark"', $html);
+
+        $this->user->appearance = ['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'dim' => 'strong'];
+        $this->user->save();
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+        $this->assertStringContainsString('class="uj-has-wallpaper"', $html);
+
+        $this->user->appearance = ['wallpaper' => 'preset:paper', 'wallpaper_path' => null, 'dim' => 'none'];
+        $this->user->save();
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+        $this->assertStringNotContainsString('uj-has-wallpaper uj-on-dark', $html);
+
+        $this->user->appearance = ['wallpaper' => 'upload', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'wallpaper_lum' => 0.08, 'dim' => 'soft'];
+        $this->user->save();
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+        $this->assertStringContainsString('class="uj-has-wallpaper uj-on-dark"', $html);
     }
 
     public function test_upload_selected_without_a_photo_or_prior_upload_is_rejected(): void
@@ -146,7 +170,7 @@ class AppearanceTest extends TestCase
         $this->actingInTenant()->postJson(route('account.appearance.photo.destroy'))->assertNoContent();
 
         Storage::disk('public')->assertMissing('wallpapers/'.$this->user->id.'/a.jpg');
-        $this->assertSame(['wallpaper' => 'none', 'wallpaper_path' => null, 'dim' => 'soft'], $this->user->fresh()->appearance);
+        $this->assertSame(['wallpaper' => 'none', 'wallpaper_path' => null, 'wallpaper_lum' => null, 'dim' => 'soft'], $this->user->fresh()->appearance);
     }
 
     public function test_deleting_the_photo_while_a_preset_is_selected_keeps_the_preset(): void

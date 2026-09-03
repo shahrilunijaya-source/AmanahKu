@@ -4596,13 +4596,30 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-cover-blur { filter: blur(18px); transform: scale(1.08); mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); }
 .uj-has-cover .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
 .uj-has-cover .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
-/* Text over a cover is white with a soft dark shadow: title, subtitle, the guide strip
-   and the cover pills all sit on the photo, never on a plate. */
+/* Text over a cover sits on the picture, never on a plate. A light cover gets a soft
+   canvas glow behind the ink; a dark one (uj-cover-dark, decided server-side from the
+   picture's luminance) turns the title row and the pills white. */
 .uj-has-cover .uj-main > .uj-head-stack > .uj-pagehead h1,
 .uj-has-cover .uj-main > .uj-head-stack > .uj-pagehead p,
-.uj-has-cover .uj-guide-trigger, .uj-has-cover .uj-guide-trigger:hover { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 0 12px rgba(0, 0, 0, .25); }
+.uj-has-cover .uj-guide-trigger { text-shadow: 0 0 14px var(--canvas), 0 0 4px var(--canvas); }
+.uj-cover-dark .uj-main > .uj-head-stack > .uj-pagehead h1,
+.uj-cover-dark .uj-main > .uj-head-stack > .uj-pagehead p,
+.uj-cover-dark .uj-guide-trigger, .uj-cover-dark .uj-guide-trigger:hover { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 0 12px rgba(0, 0, 0, .25); }
 @media (max-width: 640px) { .uj-cover-hero { height: 260px; } }
-.uj-cover-change { height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: #fff; background: rgba(0, 0, 0, .32); border: 1px solid rgba(255, 255, 255, .35); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-cover-change { height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: color-mix(in srgb, var(--canvas) 78%, transparent); border: 1px solid rgba(255, 255, 255, .5); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-cover-dark .uj-cover-change { color: #fff; background: rgba(0, 0, 0, .32); border-color: rgba(255, 255, 255, .35); }
+
+/* ── Dark wallpaper ──
+   uj-on-dark (server-side, from the wallpaper's luminance blended with its dim) flips
+   the text tokens for everything that sits straight on the picture. Anything with its
+   own light, opaque background sets the page tokens back, so the ledger inside a card
+   is still ink on white. `uj-surface` is measured, not guessed: dark-surfaces.js reads
+   every element's computed background and tags the light ones. `.uj-card` is also
+   listed statically so the common case never flashes white before the script runs. */
+.uj-on-dark .uj-main { --ink: #fff; --body: #eae8e1; --muted: #d6d3c9; --muted-soft: #c0bdb3; }
+.uj-on-dark .uj-main > .uj-head-stack > .uj-pagehead :is(h1, p),
+.uj-on-dark .uj-main .uj-guide-trigger { text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.uj-on-dark .uj-main :is(.uj-card, .uj-surface) { --ink: #26251e; --body: #5a5852; --muted: #6f6c61; --muted-soft: #8b887e; }
 .uj-cover-change:active { transform: scale(.97); }
 .uj-cover-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .uj-cover-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }

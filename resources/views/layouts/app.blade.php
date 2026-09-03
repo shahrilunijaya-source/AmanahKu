@@ -44,6 +44,16 @@
     if ($hero) {
         $wp = null;
     }
+
+    // Dark background, white text. A wallpaper flips the page tokens (uj-on-dark);
+    // a cover only flips the title row over it (uj-cover-dark), the rest of the
+    // profile sits on the plain canvas below the fade.
+    $onDark = false;
+    if ($wp) {
+        $wpLum = str_starts_with($choice, 'preset:') ? \App\Support\Tone::ofCss($wp) : $appearance['wallpaper_lum'] ?? null;
+        $onDark = \App\Support\Tone::isDark($wpLum === null ? null : (float) $wpLum, (int) config('amanahku.wallpaper_dims.'.$wpDim, 30));
+    }
+    $coverDark = $hero && \Illuminate\Support\Facades\View::getSection('hero-tone') === 'dark';
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
@@ -64,7 +74,7 @@
      id="uj-shell"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
-     class="{{ trim(($wp ? 'uj-has-wallpaper ' : '').($hero ? 'uj-has-cover' : '')) }}"
+     class="{{ trim(($wp ? 'uj-has-wallpaper ' : '').($onDark ? 'uj-on-dark ' : '').($hero ? 'uj-has-cover ' : '').($coverDark ? 'uj-cover-dark' : '')) }}"
      {{-- No bottom dock inside an embedded panel, so nothing there should reserve
           room for one (see --uj-dock-h in app.css). --}}
      style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">

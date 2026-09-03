@@ -6,6 +6,7 @@
     @section('hero')
         @include('partials.profile-cover-hero', ['employee' => $p])
     @endsection
+    @section('hero-tone', $p->coverIsDark() ? 'dark' : 'light')
 @endif
 
 @section('screen')

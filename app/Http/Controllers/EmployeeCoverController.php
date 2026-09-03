@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Support\ImageCompressor;
+use App\Support\Tone;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,19 +38,22 @@ class EmployeeCoverController extends Controller
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120', 'required_without:preset'],
         ]);
 
+        $luminance = null;
         if ($request->filled('preset')) {
             $newPath = 'preset:'.$request->input('preset');
         } else {
             $file = $request->file('photo');
+            $mime = (string) $file->getMimeType();
             $newPath = $file->store('covers/'.$employee->id, self::DISK);
             abort_unless($newPath !== false, 500, 'Photo could not be stored.');
-            ImageCompressor::compress(Storage::disk(self::DISK)->path($newPath), (string) $file->getMimeType());
+            ImageCompressor::compress(Storage::disk(self::DISK)->path($newPath), $mime);
+            $luminance = Tone::ofImage(Storage::disk(self::DISK)->path($newPath), $mime);
         }
 
         if ($employee->coverIsFile() && $employee->cover_path !== $newPath) {
             Storage::disk(self::DISK)->delete($employee->cover_path);
         }
-        $employee->update(['cover_path' => $newPath]);
+        $employee->update(['cover_path' => $newPath, 'cover_luminance' => $luminance]);
 
         return back()->with('ok', 'Cover updated.');
     }
@@ -65,7 +69,7 @@ class EmployeeCoverController extends Controller
         if ($employee->coverIsFile()) {
             Storage::disk(self::DISK)->delete($employee->cover_path);
         }
-        $employee->update(['cover_path' => null]);
+        $employee->update(['cover_path' => null, 'cover_luminance' => null]);
 
         return back()->with('ok', 'Cover removed.');
     }

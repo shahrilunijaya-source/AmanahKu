@@ -67,6 +67,29 @@ class ProfileCoverTest extends TestCase
         $this->assertStringStartsWith("covers/{$me->id}/", $path);
         Storage::disk('public')->assertExists($path);
         Storage::disk('public')->assertMissing("covers/{$me->id}/old.jpg");
+        $this->assertNotNull($me->fresh()->cover_luminance);
+    }
+
+    public function test_a_dark_cover_turns_the_title_row_white_and_a_light_one_does_not(): void
+    {
+        $me = $this->person('employee');
+
+        $me->update(['cover_path' => 'preset:slate']);
+        $html = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('uj-has-cover uj-cover-dark', $html);
+
+        $me->update(['cover_path' => 'preset:sand']);
+        $html = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('uj-has-cover', $html);
+        $this->assertStringNotContainsString('uj-cover-dark', $html);
+
+        $me->update(['cover_path' => "covers/{$me->id}/night.jpg", 'cover_luminance' => 0.05]);
+        $html = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('uj-cover-dark', $html);
+
+        $this->assertTrue($me->fresh()->coverIsDark());
+        $me->update(['cover_path' => 'preset:slate', 'cover_luminance' => null]);
+        $this->assertTrue($me->fresh()->coverIsDark());
     }
 
     public function test_a_colleague_cannot_upload_someone_elses_cover(): void

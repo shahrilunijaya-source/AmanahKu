@@ -140,7 +140,12 @@
             choice: @js($apChoice),
             dim: @js($ap['dim'] ?? 'soft'),
             photoUrl: @js($apUrl),
+            photoLum: @js($ap['wallpaper_lum'] ?? null),
             presets: @js(config('amanahku.wallpaper_presets')),
+            lums: @js(array_map(fn (string $css) => \App\Support\Tone::ofCss($css), config('amanahku.wallpaper_presets'))),
+            dims: @js(config('amanahku.wallpaper_dims')),
+            canvasLum: @js(\App\Support\Tone::CANVAS),
+            darkBelow: @js(\App\Support\Tone::DARK_BELOW),
          })">
         <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Appearance' : 'Penampilan'">Appearance</h3>
         <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en' ? 'A background for your workspace. Only you see it.' : 'Latar belakang untuk ruang kerja anda. Hanya anda yang melihatnya.'">A background for your workspace. Only you see it.</p>
@@ -279,7 +284,7 @@
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.data('appearanceCard', (cfg) => ({
-        choice: cfg.choice, dim: cfg.dim, photoUrl: cfg.photoUrl, busy: false, error: '',
+        choice: cfg.choice, dim: cfg.dim, photoUrl: cfg.photoUrl, photoLum: cfg.photoLum, reply: null, busy: false, error: '',
         csrf: document.querySelector('meta[name=csrf-token]').content,
 
         /* The wallpaper behind this page is swapped in place, so the pick is seen at
@@ -294,10 +299,15 @@ document.addEventListener('alpine:init', () => {
             else if (this.choice === 'upload' && this.photoUrl) bg = 'url(' + this.photoUrl + ')';
 
             /* Everything a wallpaper toggles, kept in this one list so it can't drift
-               from the $wp branch in layouts/app.blade.php: the shell + layer, and
-               the header blur. */
+               from the $wp branch in layouts/app.blade.php: the shell + layer, the
+               header blur, and the dark flag (same blend as App\Support\Tone). */
             const blur = bg ? 'blur(14px)' : '';
+            const lum = this.choice.startsWith('preset:') ? cfg.lums[this.choice.slice(7)] : (this.choice === 'upload' ? this.photoLum : null);
+            const d = (cfg.dims[this.dim] ?? 30) / 100;
+            const dark = !!bg && lum != null && (lum * (1 - d) + cfg.canvasLum * d) < cfg.darkBelow;
             shell?.classList.toggle('uj-has-wallpaper', !!bg);
+            shell?.classList.toggle('uj-on-dark', dark);
+            window.ujMarkSurfaces?.();
             if (header) { header.style.backdropFilter = blur; header.style.webkitBackdropFilter = blur; }
 
             if (!bg) { layer?.remove(); return; }
@@ -314,6 +324,7 @@ document.addEventListener('alpine:init', () => {
                 const res = await fetch(cfg.url, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' }, body });
                 if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? fallback; return false; }
                 if (!res.ok) { this.error = fallback; return false; }
+                this.reply = await res.json().catch(() => null);
                 return true;
             } catch (e) {
                 this.error = fallback;
@@ -334,7 +345,7 @@ document.addEventListener('alpine:init', () => {
             const ok = await this.send(this.form({ photo: file }));
             this.busy = false; e.target.value = '';
             if (!ok) { this.choice = prev; return; }
-            this.photoUrl = URL.createObjectURL(file); this.paint();
+            this.photoUrl = URL.createObjectURL(file); this.photoLum = this.reply?.luminance ?? null; this.paint();
         },
         async removePhoto() {
             const fallback = Alpine.store('ui').lang === 'en' ? 'Could not remove the photo.' : 'Foto tidak dapat dibuang.';
@@ -345,7 +356,7 @@ document.addEventListener('alpine:init', () => {
                 this.error = fallback;
                 return;
             }
-            this.photoUrl = null; if (this.choice === 'upload') this.choice = 'none'; this.paint();
+            this.photoUrl = null; this.photoLum = null; if (this.choice === 'upload') this.choice = 'none'; this.paint();
         },
     }));
 });

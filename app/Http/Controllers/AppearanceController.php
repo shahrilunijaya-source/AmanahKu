@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateAppearanceRequest;
 use App\Support\ImageCompressor;
+use App\Support\Tone;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -22,17 +24,20 @@ class AppearanceController extends Controller
 {
     private const DISK = 'public';
 
-    public function update(UpdateAppearanceRequest $request): Response|RedirectResponse
+    public function update(UpdateAppearanceRequest $request): JsonResponse|RedirectResponse
     {
         $user = $request->user();
         $current = $user->appearance ?? [];
         $path = $current['wallpaper_path'] ?? null;
+        $luminance = $current['wallpaper_lum'] ?? null;
 
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
+            $mime = (string) $file->getMimeType();
             $new = $file->store('wallpapers/'.$user->id, self::DISK);
             abort_unless($new !== false, 500, 'Photo could not be stored.');
-            ImageCompressor::compress(Storage::disk(self::DISK)->path($new), (string) $file->getMimeType());
+            ImageCompressor::compress(Storage::disk(self::DISK)->path($new), $mime);
+            $luminance = Tone::ofImage(Storage::disk(self::DISK)->path($new), $mime);
 
             if ($path && $path !== $new) {
                 Storage::disk(self::DISK)->delete($path);
@@ -43,11 +48,14 @@ class AppearanceController extends Controller
         $user->appearance = [
             'wallpaper' => $request->input('wallpaper'),
             'wallpaper_path' => $path,
+            'wallpaper_lum' => $luminance,
             'dim' => $request->input('dim') ?: ($current['dim'] ?? 'soft'),
         ];
         $user->save();
 
-        return $request->expectsJson() ? response()->noContent() : back()->with('ok', 'Background saved.');
+        return $request->expectsJson()
+            ? response()->json(['luminance' => $luminance])
+            : back()->with('ok', 'Background saved.');
     }
 
     public function destroyPhoto(Request $request): Response|RedirectResponse
@@ -62,6 +70,7 @@ class AppearanceController extends Controller
         $user->appearance = [
             'wallpaper' => ($current['wallpaper'] ?? 'none') === 'upload' ? 'none' : ($current['wallpaper'] ?? 'none'),
             'wallpaper_path' => null,
+            'wallpaper_lum' => null,
             'dim' => $current['dim'] ?? 'soft',
         ];
         $user->save();

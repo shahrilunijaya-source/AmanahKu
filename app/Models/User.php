@@ -24,7 +24,7 @@ use Laravel\Sanctum\NewAccessToken;
  * type and hands DashboardPrefs a string.
  *
  * @property array<string, array{hidden?: array<int, string>, order?: array<int, string>}>|null $dashboard_prefs
- * @property array{wallpaper?: string, wallpaper_path?: string, dim?: string}|null $appearance
+ * @property array{wallpaper?: string, wallpaper_path?: string, wallpaper_lum?: float|null, dim?: string}|null $appearance
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
