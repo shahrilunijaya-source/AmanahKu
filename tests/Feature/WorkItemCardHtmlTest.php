@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Scopes\ParentOnly;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
@@ -109,5 +110,34 @@ class WorkItemCardHtmlTest extends TestCase
         $html = view('partials.work-card', ['c' => $item, 'compact' => true])->render();
 
         $this->assertStringContainsString('wc--sm', $html);
+    }
+
+    public function test_a_parent_with_children_renders_as_a_stack_with_a_counter(): void
+    {
+        $parent = $this->card();
+        $mk = fn (string $status) => WorkItem::withoutGlobalScope(ParentOnly::class)->create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'parent_id' => $parent->id,
+            'title' => 'c', 'type' => 'task', 'priority' => 'low', 'status' => $status, 'progress' => 0,
+        ]);
+        $mk('done');
+        $mk('todo');
+
+        $html = view('partials.work-card', ['c' => $parent->fresh()->load(['participants', 'projectRef', 'assignedBy', 'children'])])->render();
+
+        $this->assertStringContainsString('wc--stack', $html);
+        $this->assertStringContainsString('1/2', $html);
+        $this->assertStringNotContainsString('wc-sub--all', $html);
+
+        $parent->children()->update(['status' => 'done']);
+        $html = view('partials.work-card', ['c' => $parent->fresh()->load(['participants', 'projectRef', 'assignedBy', 'children'])])->render();
+        $this->assertStringContainsString('wc-sub--all', $html);
+    }
+
+    public function test_a_card_without_children_has_no_stack_or_counter(): void
+    {
+        $html = view('partials.work-card', ['c' => $this->card()->load(['participants', 'projectRef', 'assignedBy', 'children'])])->render();
+
+        $this->assertStringNotContainsString('wc--stack', $html);
+        $this->assertStringNotContainsString('wc-sub', $html);
     }
 }

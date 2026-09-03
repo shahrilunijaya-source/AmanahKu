@@ -1052,6 +1052,17 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-right { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 .wc-cmt { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
 .wc-cmt svg { width: 12px; height: 12px; }
+.wc-sub { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.wc-sub svg { width: 12px; height: 12px; }
+.wc-sub--all { color: var(--success-ink); }
+/* A parent with subtasks reads as a stack: two hairline layers peek out below it.
+   Pure CSS so the card's markup and drag behaviour are untouched. */
+.wc--stack { position: relative; margin-bottom: 10px; }
+.wc--stack::before, .wc--stack::after {
+    content: ""; position: absolute; top: 100%; left: 6px; right: 6px; height: 4px;
+    background: var(--card); border: 1px solid var(--hairline); border-top: 0; border-radius: 0 0 9px 9px;
+}
+.wc--stack::after { top: calc(100% + 4px); left: 12px; right: 12px; }
 .wc-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 /* Compact modifier — the team board's smaller-type variant, replacing .wi-sm. */
