@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\LeaveBalance;
+use App\Models\LeaveGrant;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
@@ -348,178 +349,425 @@ class LeaveScreenTabsTest extends TestCase
             ->assertSee('must be applied for at least 3 days in advance', false);
     }
 
-    /**
-     * Replacement leave is granted by HR as an opening balance, never applied for. The
-     * Apply form hides it (LeaveScreenTabsTest doesn't cover markup here), but the server
-     * must reject it too in case the request is forged.
-     */
-    public function test_an_hr_granted_only_leave_type_cannot_be_applied_for(): void
-    {
-        $staff = $this->member('employee', 'Staff');
-        $replacement = LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
-            'is_hr_granted_only' => true,
-        ]);
-
-        $this->actingAs($staff->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->from('/app/leave')
-            ->followingRedirects()
-            ->post(route('leave.store'), [
-                'reason' => 'Family matters.',
-                'leave_type_id' => $replacement->id,
-                'date_from' => now()->addDays(10)->toDateString(),
-                'date_to' => now()->addDays(10)->toDateString(),
-            ])
-            ->assertOk()
-            ->assertSee('Replacement leave is granted by HR and cannot be applied for.', false);
-
-        $this->assertSame(0, LeaveRequest::where('leave_type_id', $replacement->id)->count());
-    }
-
-    /** A granted type. It carries no balance by design — HR books the days outright. */
+    /** A granted type: no yearly entitlement, its quota comes one grant at a time. */
     private function replacement(): LeaveType
     {
         return LeaveType::create([
-            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 4,
+            'tenant_id' => $this->tenant->id, 'name' => 'Replacement', 'entitlement' => 0,
             'is_hr_granted_only' => true,
         ]);
     }
 
-    private function recordAsHr(Employee $hr, array $payload)
+    private function grantAsHr(Employee $hr, array $payload)
     {
         return $this->actingAs($hr->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->from('/app/leave-setup')
-            ->post(route('leave.record'), $payload);
+            ->post(route('leave.grant'), $payload);
     }
 
     /**
-     * The other half of the same rule: nobody can apply for Replacement, so HR books the
-     * day itself. It must land approved — a recorded day that stopped at 'verified' would
-     * sit in a queue no one is meant to review.
+     * A mistyped grant is corrected in place and the balance follows the difference.
      */
-    public function test_hr_records_a_granted_leave_and_it_lands_approved(): void
+    public function test_hr_edits_a_grant_and_the_balance_follows(): void
     {
         $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
         $type = $this->replacement();
 
-        $this->recordAsHr($hr, [
-            'employee_id' => $staff->id,
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 2, 'remark' => 'Worked 30 Aug',
+        ])->assertRedirect();
+
+        $this->editGrantAsHr($hr, LeaveGrant::sole(), [
+            'days' => 0.5, 'remark' => 'Worked half of 30 Aug',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $grant = LeaveGrant::sole();
+        $this->assertEquals(0.5, (float) $grant->days);
+        $this->assertSame('Worked half of 30 Aug', $grant->remark);
+        $this->assertEquals(0.5, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /**
+     * Days already taken cannot be taken back: an edit that would drive the balance below
+     * zero is refused whole, leaving both the grant and the balance untouched.
+     */
+    public function test_an_edit_below_what_is_already_taken_is_refused(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $director = $this->member('director', 'Dee');
+        $manager = $this->member('manager', 'Mala', $director->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 2, 'remark' => 'Worked 30-31 Aug',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
             'leave_type_id' => $type->id,
-            // A plain Monday: countDays() only discounts the first Saturday of a month.
-            'date_from' => '2026-09-07',
-            'date_to' => '2026-09-07',
+            'date_from' => '2026-09-07', 'date_to' => '2026-09-07', 'reason' => 'Rest.',
         ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
-        $this->assertSame('approved', $leave->status);
-        $this->assertSame($staff->id, $leave->employee_id);
-        $this->assertSame($hr->id, $leave->approved_by_id);
-        $this->assertEquals(1.0, (float) $leave->days);
+        $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.verify', $leave))->assertRedirect();
+        $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.approve', $leave))->assertRedirect();
+
+        // One of the two days is spent, so the grant cannot drop below one day.
+        $this->editGrantAsHr($hr, LeaveGrant::sole(), [
+            'days' => 0.5, 'remark' => 'Too far',
+        ])->assertSessionHasErrors('days');
+
+        $this->assertEquals(2.0, (float) LeaveGrant::sole()->days);
+        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
     }
 
-    /** HR can book half a granted day. */
-    public function test_hr_can_record_half_a_granted_day(): void
+    /** Editing a grant is HR's job, not the staff member's. */
+    public function test_an_employee_cannot_edit_a_grant(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 30 Aug',
+        ])->assertRedirect();
+
+        $this->editGrantAsHr($staff, LeaveGrant::sole(), [
+            'days' => 9, 'remark' => 'Mine now',
+        ])->assertForbidden();
+
+        $this->assertEquals(1.0, (float) LeaveGrant::sole()->days);
+    }
+
+    private function editGrantAsHr(Employee $hr, LeaveGrant $grant, array $payload)
+    {
+        return $this->actingAs($hr->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave-setup')
+            ->patch(route('leave.grant.update', $grant->id), $payload);
+    }
+
+    private function applyAs(Employee $staff, array $payload)
+    {
+        return $this->actingAs($staff->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave')
+            ->post(route('leave.store'), $payload);
+    }
+
+    /**
+     * HR grants a quota rather than booking the day: the days land on the balance and the
+     * grant row keeps the remark saying which rest day earned them.
+     */
+    public function test_hr_grants_replacement_quota_onto_the_balance(): void
     {
         $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
         $type = $this->replacement();
 
-        $this->recordAsHr($hr, [
+        $this->grantAsHr($hr, [
             'employee_id' => $staff->id,
+            'leave_type_id' => $type->id,
+            'days' => 1.5,
+            'remark' => 'Worked Saturday 31 Aug',
+        ])->assertRedirect();
+
+        $grant = LeaveGrant::sole();
+        $this->assertSame($staff->id, $grant->employee_id);
+        $this->assertEquals(1.5, (float) $grant->days);
+        $this->assertSame('Worked Saturday 31 Aug', $grant->remark);
+        $this->assertSame($hr->id, $grant->granted_by_id);
+
+        $this->assertEquals(1.5, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+
+        // No leave is booked by granting — the staff member applies for the days themselves.
+        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
+    }
+
+    /** A second grant adds to the quota rather than replacing it. */
+    public function test_grants_accumulate_on_the_same_balance(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        foreach ([[1, 'Worked 31 Aug'], [0.5, 'Half rest day 7 Sep']] as [$days, $remark]) {
+            $this->grantAsHr($hr, [
+                'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+                'days' => $days, 'remark' => $remark,
+            ])->assertRedirect();
+        }
+
+        $this->assertSame(2, LeaveGrant::count());
+        $this->assertEquals(1.5, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /** A negative grant corrects a mis-typed one, and the balance never goes below zero. */
+    public function test_a_negative_grant_corrects_a_mistake_and_floors_at_zero(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 31 Aug',
+        ])->assertRedirect();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => -5, 'remark' => 'Typo — was not owed',
+        ])->assertRedirect();
+
+        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /** The remark is the point of the grant — it says what the quota was for. */
+    public function test_a_grant_without_a_remark_is_rejected(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id, 'days' => 1,
+        ])->assertSessionHasErrors('remark');
+
+        $this->assertSame(0, LeaveGrant::count());
+    }
+
+    /** Quota is granted in whole or half days, never a third of one. */
+    public function test_a_grant_must_be_a_multiple_of_half_a_day(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 0.3, 'remark' => 'Worked 31 Aug',
+        ])->assertSessionHasErrors('days');
+
+        $this->assertSame(0, LeaveGrant::count());
+    }
+
+    /**
+     * The whole point of the change: staff apply for their own replacement days, and an
+     * approval spends the granted quota like any other balance.
+     */
+    public function test_staff_apply_for_granted_quota_and_approval_spends_it(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $director = $this->member('director', 'Dee');
+        $manager = $this->member('manager', 'Mala', $director->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 2, 'remark' => 'Worked 30-31 Aug',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
             'leave_type_id' => $type->id,
             'date_from' => '2026-09-07',
             'date_to' => '2026-09-07',
-            'half_day_period' => 'am',
+            'reason' => 'Rest.',
+        ])->assertRedirect();
+
+        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->assertSame('submitted', $leave->status);
+
+        // The quota is not touched until the request is actually approved.
+        $this->assertEquals(2.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+
+        $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.verify', $leave))->assertRedirect();
+        $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.approve', $leave))->assertRedirect();
+
+        $this->assertSame('approved', $leave->fresh()->status);
+        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /**
+     * A replacement day is taken whenever it suits, including tomorrow, so a granted type
+     * must carry no notice period. The live data had three days on it from when HR booked
+     * the day itself; the leave_grants migration clears it.
+     */
+    public function test_a_granted_type_can_be_applied_for_tomorrow(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->assertSame(0, (int) $type->min_notice_days);
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked yesterday',
+        ])->assertRedirect();
+
+        $tomorrow = now()->addDay()->toDateString();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => $tomorrow, 'date_to' => $tomorrow, 'reason' => 'Rest.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('submitted', LeaveRequest::where('leave_type_id', $type->id)
+            ->sole()->status);
+    }
+
+    /**
+     * A granted quota is a hard ceiling. Every other type lets the excess through as
+     * unpaid leave; replacement days are days already worked, so there is no such thing
+     * as taking more than were earned.
+     */
+    public function test_applying_for_more_than_the_granted_quota_is_refused(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 31 Aug',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07',
+            'date_to' => '2026-09-08',
+            'reason' => 'Rest.',
+        ])->assertSessionHasErrors('leave_type_id');
+
+        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
+        // Nothing spilled onto another type either.
+        $this->assertSame(0, LeaveRequest::where('employee_id', $staff->id)->count());
+    }
+
+    /**
+     * Days still awaiting a decision are already spoken for. Without this, two pending
+     * applications could each pass the check and together overdraw the quota.
+     */
+    public function test_pending_days_count_against_the_quota(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 31 Aug',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07', 'date_to' => '2026-09-07', 'reason' => 'Rest.',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-08', 'date_to' => '2026-09-08', 'reason' => 'Rest again.',
+        ])->assertSessionHasErrors('leave_type_id');
+
+        $this->assertSame(1, LeaveRequest::where('leave_type_id', $type->id)->count());
+    }
+
+    /** Half a granted day is spendable, the same 0.5 every other type uses. */
+    public function test_staff_can_apply_for_half_a_granted_day(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 0.5, 'remark' => 'Half rest day',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07', 'date_to' => '2026-09-07',
+            'half_day_period' => 'am', 'reason' => 'Appointment.',
         ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
         $this->assertEquals(0.5, (float) $leave->days);
-        $this->assertSame('am', $leave->half_day_period);
     }
 
-    /** Half a day cannot span a range, the same rule the Apply form enforces. */
-    public function test_a_recorded_half_day_must_be_one_date(): void
+    /**
+     * No quota granted means no balance row, and that is exactly what "this type is not
+     * yours to take" looks like for every other quota-carrying type.
+     */
+    public function test_applying_without_any_granted_quota_is_refused(): void
     {
         $staff = $this->member('employee', 'Staff');
-        $hr = $this->member('hr', 'Hana');
         $type = $this->replacement();
 
-        $this->recordAsHr($hr, [
-            'employee_id' => $staff->id,
+        $this->applyAs($staff, [
             'leave_type_id' => $type->id,
-            'date_from' => '2026-09-07',
-            'date_to' => '2026-09-08',
-            'half_day_period' => 'am',
-        ])->assertSessionHasErrors('half_day_period');
+            'date_from' => '2026-09-07', 'date_to' => '2026-09-07', 'reason' => 'Rest.',
+        ])->assertSessionHasErrors('leave_type_id');
 
         $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
     }
 
-    /**
-     * A granted day is handed over, not spent, so no balance is consulted and none is
-     * touched — including a stale row left behind before the type became HR-granted.
-     * Getting this wrong would spill the day onto Unpaid leave once the row hit zero.
-     */
-    public function test_recording_a_granted_leave_never_touches_a_balance(): void
+    /** Cancelling an approved replacement hands the granted days back. */
+    public function test_cancelling_an_approved_replacement_refunds_the_quota(): void
     {
-        $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
+        $director = $this->member('director', 'Dee');
+        $manager = $this->member('manager', 'Mala', $director->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
         $type = $this->replacement();
-        LeaveBalance::create(['employee_id' => $staff->id, 'leave_type_id' => $type->id, 'balance' => 0]);
 
-        $this->recordAsHr($hr, [
-            'employee_id' => $staff->id,
-            'leave_type_id' => $type->id,
-            'date_from' => '2026-09-07',
-            'date_to' => '2026-09-09',
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 31 Aug',
         ])->assertRedirect();
 
-        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
-        $this->assertSame('approved', $leave->status);
-        $this->assertEquals(3.0, (float) $leave->days);
-
-        // The stale row is left exactly as it was, and nothing was moved onto Unpaid.
-        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
-            ->where('leave_type_id', $type->id)->value('balance'));
-        $this->assertSame(1, LeaveRequest::where('employee_id', $staff->id)->count());
-    }
-
-    /**
-     * Cancelling an approved leave hands the days back. Nothing was taken for a granted
-     * type, so nothing may be handed back either — a refund would top up a quota that is
-     * not supposed to exist. The timesheet still gets put right.
-     */
-    public function test_cancelling_a_granted_leave_refunds_nothing(): void
-    {
-        $staff = $this->member('employee', 'Staff');
-        $hr = $this->member('hr', 'Hana');
-        $type = $this->replacement();
-        LeaveBalance::create(['employee_id' => $staff->id, 'leave_type_id' => $type->id, 'balance' => 0]);
-
-        $this->recordAsHr($hr, [
-            'employee_id' => $staff->id,
+        $this->applyAs($staff, [
             'leave_type_id' => $type->id,
             'date_from' => now()->addDays(10)->toDateString(),
             'date_to' => now()->addDays(10)->toDateString(),
+            'reason' => 'Rest.',
         ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.verify', $leave))->assertRedirect();
+        $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.approve', $leave))->assertRedirect();
 
-        $this->actingAs($staff->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->post(route('leave.cancel', $leave))
-            ->assertRedirect();
+        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+
+        $this->actingAs($staff->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.cancel', $leave))->assertRedirect();
 
         $this->assertSame('cancelled', $leave->fresh()->status);
-        $this->assertEquals(0.0, (float) LeaveBalance::where('employee_id', $staff->id)
+        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
             ->where('leave_type_id', $type->id)->value('balance'));
     }
 
-    /** Recording is an HR/management power — an ordinary employee cannot reach it. */
-    public function test_an_employee_cannot_record_leave_for_someone(): void
+    /** Granting quota is an HR/management power — an ordinary employee cannot reach it. */
+    public function test_an_employee_cannot_grant_quota(): void
     {
         $staff = $this->member('employee', 'Staff');
         $other = $this->member('employee', 'Other');
@@ -527,36 +775,33 @@ class LeaveScreenTabsTest extends TestCase
 
         $this->actingAs($staff->user)
             ->withSession(['current_tenant' => $this->tenant->id])
-            ->post(route('leave.record'), [
+            ->post(route('leave.grant'), [
                 'employee_id' => $other->id,
                 'leave_type_id' => $type->id,
-                'date_from' => '2026-09-07',
-                'date_to' => '2026-09-07',
+                'days' => 5,
+                'remark' => 'Because I said so',
             ])
             ->assertForbidden();
 
-        $this->assertSame(0, LeaveRequest::where('leave_type_id', $type->id)->count());
+        $this->assertSame(0, LeaveGrant::count());
     }
 
     /**
-     * Recording is only for types nobody can apply for. Allowing an ordinary type would
-     * give HR a one-click approval of leave the reporting line never saw.
+     * Quota is only granted for types that carry no yearly entitlement. Granting Annual
+     * this way would hand out entitlement the Leave Setup grid knows nothing about.
      */
-    public function test_hr_cannot_record_a_leave_type_that_is_applied_for(): void
+    public function test_hr_cannot_grant_quota_of_an_ordinary_leave_type(): void
     {
         $staff = $this->member('employee', 'Staff');
         $hr = $this->member('hr', 'Hana');
 
-        $this->actingAs($hr->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->post(route('leave.record'), [
-                'employee_id' => $staff->id,
-                'leave_type_id' => $this->annual->id,
-                'date_from' => '2026-09-07',
-                'date_to' => '2026-09-07',
-            ])
-            ->assertStatus(422);
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id,
+            'leave_type_id' => $this->annual->id,
+            'days' => 5,
+            'remark' => 'Bonus days',
+        ])->assertStatus(422);
 
-        $this->assertSame(0, LeaveRequest::where('leave_type_id', $this->annual->id)->count());
+        $this->assertSame(0, LeaveGrant::count());
     }
 }

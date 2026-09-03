@@ -124,7 +124,31 @@ class WorkItemObserver
 
         if ($isProg && $justArchived) {
             $this->closeOpenStints($item);
+
+            return;
         }
+
+        // A card closed without ever passing through a worked column (created straight
+        // into Done, or dragged To Do -> Done) would otherwise have no stint at all, and
+        // the timesheet would never offer it. Record the day it was closed as a one-day
+        // stint: the staffer still decides what share of the day it took, or strikes it off.
+        $closedUnworked = $item->status === 'done' && $item->isDirty('status') && ! $wasProg;
+
+        if ($closedUnworked && ! $this->hasAnyStint($item)) {
+            WorkItemProgressStint::create([
+                'tenant_id' => $item->tenant_id,
+                'work_item_id' => $item->id,
+                'started_at' => now(),
+                'ended_at' => now(),
+            ]);
+        }
+    }
+
+    private function hasAnyStint(WorkItem $item): bool
+    {
+        return WorkItemProgressStint::withoutGlobalScope('tenant')
+            ->where('work_item_id', $item->id)
+            ->exists();
     }
 
     private function hasOpenStint(WorkItem $item): bool

@@ -197,8 +197,10 @@ Route::middleware('auth')->group(function () {
         // a widget the viewer's role or the tenant's modules keep off their page.
         Route::get('/app/dashboard/widget/{widget}', [AppController::class, 'dashboardWidgetPartial'])->name('dashboard.widget');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
-        // HR books a granted day (Replacement) for someone else — see LeaveController::record.
-        Route::post('/app/leave/record', [LeaveController::class, 'record'])->name('leave.record');
+        // HR grants quota of an HR-granted type (Replacement) — see LeaveController::grant.
+        Route::post('/app/leave/grant', [LeaveController::class, 'grant'])->name('leave.grant');
+        // HR fixes a grant it already made — days and remark only, see LeaveController::updateGrant.
+        Route::patch('/app/leave/grant/{grant}', [LeaveController::class, 'updateGrant'])->name('leave.grant.update');
         Route::post('/app/leave/{leaveRequest}/verify', [LeaveController::class, 'verify'])->name('leave.verify');
         Route::post('/app/leave/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leave.approve');
         Route::post('/app/leave/{leaveRequest}/reject', [LeaveController::class, 'reject'])->name('leave.reject');
