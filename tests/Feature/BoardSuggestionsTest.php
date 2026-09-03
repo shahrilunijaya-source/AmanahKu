@@ -105,6 +105,19 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([], $this->idsOn($result, '2026-08-27'));
     }
 
+    public function test_a_card_closed_the_same_day_it_was_opened_is_suggested_for_that_day(): void
+    {
+        $card = $this->card(['status' => 'done']);
+        WorkItemProgressStint::withoutGlobalScope('tenant')->where('work_item_id', $card->id)->delete();
+        $this->stint($card, '2026-08-25 15:00:00', '2026-08-25 15:00:00');
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
+    }
+
     public function test_an_open_stint_runs_to_today_and_no_further(): void
     {
         $card = $this->card();

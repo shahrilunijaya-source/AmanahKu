@@ -166,11 +166,44 @@ class WorkItemProgressStintTest extends TestCase
         $this->assertSame('2026-08-28 12:00:00', $stint->ended_at->toDateTimeString());
     }
 
-    public function test_a_status_change_that_never_touches_a_worked_column_writes_no_stint(): void
+    public function test_a_card_closed_without_ever_being_worked_gets_a_one_day_stint(): void
     {
         $card = $this->card();
 
+        Carbon::setTestNow('2026-08-27 15:00:00');
         $card->update(['status' => 'done']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertSame('2026-08-27 15:00:00', $stint->started_at->toDateTimeString());
+        $this->assertSame('2026-08-27 15:00:00', $stint->ended_at->toDateTimeString());
+    }
+
+    public function test_creating_a_card_straight_into_done_gets_a_one_day_stint(): void
+    {
+        $card = $this->card(['status' => 'done']);
+
+        $stint = WorkItemProgressStint::where('work_item_id', $card->id)->sole();
+        $this->assertSame('2026-08-26 09:00:00', $stint->started_at->toDateTimeString());
+        $this->assertSame('2026-08-26 09:00:00', $stint->ended_at->toDateTimeString());
+    }
+
+    public function test_closing_a_card_that_was_worked_before_adds_no_extra_stint(): void
+    {
+        $card = $this->card(['status' => 'prog']);
+        $card->update(['status' => 'todo']);
+
+        Carbon::setTestNow('2026-08-28 15:00:00');
+        $card->update(['status' => 'done']);
+
+        $this->assertSame(1, WorkItemProgressStint::where('work_item_id', $card->id)->count());
+    }
+
+    public function test_a_status_change_between_the_idle_columns_writes_no_stint(): void
+    {
+        $card = $this->card(['status' => 'done']);
+        WorkItemProgressStint::where('work_item_id', $card->id)->delete();
+
+        $card->update(['status' => 'todo']);
 
         $this->assertSame(0, WorkItemProgressStint::where('work_item_id', $card->id)->count());
     }
