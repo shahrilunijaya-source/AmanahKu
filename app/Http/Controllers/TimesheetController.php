@@ -82,6 +82,14 @@ class TimesheetController extends Controller
             ? Carbon::parse($request->query('week'))->startOfWeek()
             : Carbon::now()->startOfWeek();
 
+        // Per-user switch: off drops BoardSuggestions entirely and the screen falls back
+        // to its own Add line button. Defaults true both for a request with no user at
+        // all (screenData() is also exercised by callers that never resolve a user) and
+        // for a user whose attribute reads null — the column is NOT NULL DEFAULT true at
+        // the DB level, but an in-memory model built via create() and handed straight to
+        // actingAs() in tests never gets that DB default backfilled onto it.
+        $tsFillFromBoard = $request->user() ? (bool) ($request->user()->timesheet_fill_from_board ?? true) : true;
+
         $lockedDays = app(LockedDays::class);
         $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
 
@@ -141,11 +149,14 @@ class TimesheetController extends Controller
         // only way work reaches a timesheet: nothing is stored until the staffer gives a
         // row a percentage and saves. A failure here must never take the screen down —
         // an empty map just means the grid opens the way it always did.
-        try {
-            $tsSuggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : [];
-        } catch (\Throwable $e) {
-            report($e);
-            $tsSuggested = [];
+        $tsSuggested = [];
+        if ($tsFillFromBoard) {
+            try {
+                $tsSuggested = $employee ? app(BoardSuggestions::class)->forWeek($employee, $weekStart) : [];
+            } catch (\Throwable $e) {
+                report($e);
+                $tsSuggested = [];
+            }
         }
 
         return [
@@ -170,9 +181,12 @@ class TimesheetController extends Controller
             'tsLocked' => $locked,
             'tsSuggested' => $tsSuggested,
             'tsSubPillars' => SubPillar::where('is_active', true)->orderBy('sort')->orderBy('name')->get(['id', 'name']),
-            'tsDismissed' => $this->dismissedRows($weekTimesheet),
+            // The struck-off-card list is a board-prefill concept — nothing to strike off
+            // when the prefill itself is switched off.
+            'tsDismissed' => $tsFillFromBoard ? $this->dismissedRows($weekTimesheet) : [],
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
+            'tsFillFromBoard' => $tsFillFromBoard,
         ];
     }
 
@@ -187,13 +201,34 @@ class TimesheetController extends Controller
         abort_unless($employee, 403, 'No employee profile in this workspace.');
         $tid = app(CurrentTenant::class)->id();
 
+        // A category a draft already carries stays choosable for THAT line even after
+        // it is retired — same reasoning as categoryOptions($keepIds): a resave of an
+        // unchanged row must not suddenly fail on a category nobody just picked. A new
+        // line may not choose a retired category. Read via WeekWriter's own accessor
+        // (whereNull('source')) so this and the actual save agree on what "this draft's
+        // rows" means; a bad week_start just yields no kept ids, caught by the 'date'
+        // rule below.
+        $keepCategoryIds = [];
+        try {
+            if ($request->filled('week_start')) {
+                $keepCategoryIds = collect($this->weekWriter->existingUserEntries($employee, $request->input('week_start')))
+                    ->pluck('category_id')->filter()->map(fn ($id) => (int) $id)->unique()->all();
+            }
+        } catch (\Throwable) {
+            // Bad week_start is reported by the 'date' rule right below instead.
+        }
+
         $data = $request->validate([
             'week_start' => ['required', 'date'],
             'week_label' => ['nullable', 'string', 'max:60'],
             'submit_now' => ['nullable', 'boolean'],
             'entries' => ['present', 'array'],
             'entries.*.entry_date' => ['required', 'date'],
-            'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
+            'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where(
+                fn ($q) => $q->where('tenant_id', $tid)->where(
+                    fn ($q2) => $q2->where('is_active', true)->when($keepCategoryIds !== [], fn ($q3) => $q3->orWhereIn('id', $keepCategoryIds))
+                )
+            )],
             'entries.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
             'entries.*.sub_pillar_id' => ['nullable', 'integer', Rule::exists('sub_pillars', 'id')->where('tenant_id', $tid)],
             // 0 is legal in a DRAFT: a line the staffer has added but not yet costed must
@@ -239,6 +274,27 @@ class TimesheetController extends Controller
         }
 
         return back()->with('ok', $message);
+    }
+
+    /**
+     * The staffer's own switch for the capture screen's board prefill (default true).
+     * Off drops BoardSuggestions from screenData() entirely and hands the day-first
+     * screen its own Add line button instead. Per-user, not per-tenant: it lives on
+     * User, not Employee, the same place dashboard_prefs does.
+     */
+    public function preferences(Request $request): RedirectResponse|JsonResponse
+    {
+        $data = $request->validate([
+            'fill_from_board' => ['required', 'boolean'],
+        ]);
+
+        $request->user()->forceFill(['timesheet_fill_from_board' => $data['fill_from_board']])->save();
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'fill_from_board' => (bool) $data['fill_from_board']]);
+        }
+
+        return back();
     }
 
     /**

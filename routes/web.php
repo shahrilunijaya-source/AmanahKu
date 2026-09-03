@@ -470,6 +470,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/app/compliance/{item}', [ComplianceController::class, 'destroy'])->name('compliance.destroy');
         // Timesheets (weekly hours, parent + entries; staff self-finalise, no approval)
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
+        Route::post('/app/timesheets/preferences', [TimesheetController::class, 'preferences'])->name('timesheets.preferences');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Timesheet categories — privileged (management / HR)
