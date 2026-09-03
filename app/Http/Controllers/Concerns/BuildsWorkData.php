@@ -176,7 +176,7 @@ trait BuildsWorkData
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->whereNull('archived_at')
-            ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')
+            ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')
             ->orderBy('sort_order')->orderBy('id')->get() : collect();
         $cols = [
             'todo' => ['title' => 'To Do', 'cards' => collect()],
@@ -215,7 +215,7 @@ trait BuildsWorkData
                     // participants + projectRef are also loaded here (not just assignedBy) so
                     // partials.work-card, shared with the personal board, never lazy-loads a
                     // relation while painting every employee's lane in one request.
-                    ->with(['assignedBy', 'participants', 'projectRef'])->withCount('comments')->orderBy('sort_order')->orderBy('id'),
+                    ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')->orderBy('sort_order')->orderBy('id'),
             ])
             ->orderBy('name')
             ->get()

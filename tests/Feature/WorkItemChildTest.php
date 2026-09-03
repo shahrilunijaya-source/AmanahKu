@@ -164,4 +164,74 @@ class WorkItemChildTest extends TestCase
         $this->assertSame(0, WorkItemProgressStint::withoutGlobalScope('tenant')->where('work_item_id', $child->id)->count());
         Queue::assertNothingPushed();
     }
+
+    public function test_owner_creates_a_child_that_copies_board_type_and_project_from_the_parent(): void
+    {
+        $parent = $this->parent(['type' => 'adhoc']);
+
+        $res = $this->as($this->owner)->postJson('/app/board', ['title' => 'Step one', 'parent_id' => $parent->id]);
+
+        $res->assertCreated()->assertJsonPath('card.parent_id', $parent->id)->assertJsonStructure(['parent_html']);
+        $child = WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'));
+        $this->assertSame($this->ownerEmp->id, $child->employee_id);
+        $this->assertSame('adhoc', $child->type);
+        $this->assertSame('todo', $child->status);
+        $this->assertSame('medium', $child->priority);
+        $this->assertStringContainsString('wc--stack', $res->json('parent_html'));
+    }
+
+    public function test_a_participant_of_the_parent_can_add_a_child_on_the_owners_board(): void
+    {
+        $parent = $this->parent(['due_at' => now()->addWeek()]);
+        $parent->participants()->attach($this->participantEmp->id);
+
+        $res = $this->as($this->participant)->postJson('/app/board', ['title' => 'Mine', 'parent_id' => $parent->id]);
+
+        $res->assertCreated();
+        $this->assertSame($this->ownerEmp->id, WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'))->employee_id);
+    }
+
+    public function test_a_stranger_cannot_add_a_child(): void
+    {
+        $parent = $this->parent();
+
+        $this->as($this->stranger)->postJson('/app/board', ['title' => 'Nope', 'parent_id' => $parent->id])->assertForbidden();
+    }
+
+    public function test_a_child_cannot_have_children(): void
+    {
+        $child = $this->child($this->parent());
+
+        $this->as($this->owner)->postJson('/app/board', ['title' => 'Grandchild', 'parent_id' => $child->id])
+            ->assertStatus(422)->assertJsonValidationErrors('parent_id');
+    }
+
+    public function test_show_returns_the_family_for_a_parent_and_for_a_child(): void
+    {
+        $parent = $this->parent();
+        $done = $this->child($parent, ['title' => 'A', 'status' => 'done']);
+        $open = $this->child($parent, ['title' => 'B']);
+
+        $this->as($this->owner)->getJson("/app/board/{$parent->id}")
+            ->assertOk()
+            ->assertJsonPath('card.family.parent.id', $parent->id)
+            ->assertJsonPath('card.family.children.0.id', $done->id)
+            ->assertJsonPath('card.family.children.0.status', 'done')
+            ->assertJsonPath('card.family.children.1.title', 'B')
+            ->assertJsonPath('card.child_summary.total', 2);
+
+        $this->as($this->owner)->getJson("/app/board/{$open->id}")
+            ->assertOk()
+            ->assertJsonPath('card.parent_id', $parent->id)
+            ->assertJsonPath('card.family.parent.title', 'Parent')
+            ->assertJsonPath('card.family.children.1.id', $open->id);
+    }
+
+    public function test_children_never_appear_in_the_board_columns(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent, ['title' => 'Hidden child']);
+
+        $this->as($this->owner)->get('/app/board')->assertOk()->assertDontSee('Hidden child');
+    }
 }
