@@ -55,6 +55,35 @@ export function registerTimesheetCapture(Alpine) {
     // boundary to the tab bar.
     Alpine.store('tsReview', { open: false });
 
+    // The cog on the tab row: the staffer's own "fill from board" switch. Its own
+    // component because the tab row sits outside timesheetCapture(). Saves server-side,
+    // then reloads: the row set the screen shows is a genuinely different shape either
+    // way (board prefill vs. an empty day with Add what you worked on), and rebuilding
+    // it in place would just be a second, buggier copy of what the next page load
+    // already does correctly.
+    Alpine.data('timesheetPrefs', (cfg) => ({
+        open: false,
+        fillFromBoard: cfg.fillFromBoard !== false,
+        async set(on) {
+            if (on === this.fillFromBoard) return;
+            try {
+                const res = await fetch(cfg.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({ fill_from_board: on }),
+                });
+                if (!res.ok) throw new Error('bad status');
+                window.location.reload();
+            } catch (e) {
+                this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not save that setting.' : 'Tidak dapat simpan tetapan itu.');
+            }
+        },
+    }));
+
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
         // 5 on an ordinary week, 6 when the week holds the first Saturday of the month —
@@ -837,28 +866,6 @@ export function registerTimesheetCapture(Alpine) {
         },
         weekComplete() {
             return this.blockingDays().length === 0 && this.weekEndReached();
-        },
-
-        // Flips the "fill from board" switch server-side, then reloads: the row set the
-        // screen shows is a genuinely different shape either way (board prefill vs. an
-        // empty grid with Add line), and rebuilding it in place would just be a second,
-        // buggier copy of what the next page load already does correctly.
-        async setFillFromBoard(on) {
-            try {
-                const res = await fetch(cfg.preferencesUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    body: JSON.stringify({ fill_from_board: on }),
-                });
-                if (!res.ok) throw new Error('bad status');
-                window.location.reload();
-            } catch (e) {
-                this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not save that setting.' : 'Tidak dapat simpan tetapan itu.');
-            }
         },
 
         // ---- persistence ---------------------------------------------------
