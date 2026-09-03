@@ -35,15 +35,14 @@
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
     - tag: improved
-      major: true
-      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
-      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
-    - tag: improved
       text: "A T.A.A. card now appears on every day of the week it was worked, not only the day it moved on the board.\nBefore, a card you moved to In Progress today for work done yesterday never showed on yesterday's timesheet. Now any card that was In Progress or In Review at some point in the week is offered on every working day of that week up to today. Strike off the days it does not belong to, and it stays off."
       text_ms: "Kad T.A.A. kini muncul pada setiap hari dalam minggu ia dikerjakan, bukan hanya hari ia digerakkan di papan.\nSebelum ini, kad yang anda gerakkan ke In Progress hari ini untuk kerja semalam tidak pernah muncul pada timesheet semalam. Kini mana-mana kad yang In Progress atau In Review pada bila-bila masa dalam minggu itu ditawarkan pada setiap hari bekerja minggu tersebut sehingga hari ini. Buang hari yang tidak berkenaan, dan ia kekal dibuang."
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
+    - tag: improved
+      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
+      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
 
 - version: "1.7.3"
   date: "2026-09-03"
