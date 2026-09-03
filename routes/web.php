@@ -20,6 +20,7 @@ use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForcePasswordChangeController;
@@ -290,6 +291,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
+        // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
+        Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');
+        Route::post('/app/employees/{employee}/cover/delete', [EmployeeCoverController::class, 'destroy'])->name('employees.cover.destroy');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
