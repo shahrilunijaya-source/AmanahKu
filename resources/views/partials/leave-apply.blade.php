@@ -67,6 +67,10 @@
         'to' => $l->date_to->toDateString(),
     ])->filter(fn ($r) => $r['name'])->values()->all();
 
+    // Public holidays cost no leave; the preview needs them to match countDays().
+    $holidayDates = \App\Models\PublicHoliday::whereDate('date', '>=', now()->subYear()->toDateString())
+        ->pluck('date')->map(fn ($d) => $d->toDateString())->values()->all();
+
     // The four types an employee actually reaches for. The other six are a click away
     // rather than in a ten-row dropdown that buries the common case.
     $primarySlugs = ['annual', 'medical', 'emergency', 'replacement'];
@@ -98,6 +102,7 @@
 <form id="apply-leave" method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{
         meta: @js($applyMeta),
         team: @js($teamRanges),
+        holidays: @js($holidayDates),
         sel: @js($selInit ? (int) $selInit : null),
         step: @js($selInit ? 2 : 1),
         showAll: @js($rest->isNotEmpty() && $selInit && $rest->contains('id', (int) $selInit)),
@@ -148,8 +153,8 @@
         /**
          * Working days inclusive, or 0.5 for a half day — the same arithmetic as
          * LeaveRequest::countDays(): Mon–Fri count 1, the TOT Saturday (first Saturday
-         * of the month, Unijaya's half working day) counts 0.5, and Sundays and ordinary
-         * Saturdays count nothing.
+         * of the month, Unijaya's half working day) counts 0.5, and Sundays, ordinary
+         * Saturdays and public holidays count nothing.
          */
         days() {
             if (!this.dateFrom || !this.dateTo) return 0;
@@ -157,6 +162,8 @@
             let total = 0;
             for (let d = new Date(this.dateFrom + 'T00:00'); d <= new Date(this.dateTo + 'T00:00'); d.setDate(d.getDate() + 1)) {
                 const dow = d.getDay();
+                const ymd = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                if (this.holidays.includes(ymd)) continue;
                 if (dow === 6 && d.getDate() <= 7) total += 0.5;
                 else if (dow >= 1 && dow <= 5) total += 1;
             }

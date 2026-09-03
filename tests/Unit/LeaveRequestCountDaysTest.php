@@ -3,8 +3,9 @@
 namespace Tests\Unit;
 
 use App\Models\LeaveRequest;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 /**
  * Leave is charged for working days only: Mon–Fri plus the TOT Saturday (first Saturday
@@ -12,6 +13,8 @@ use PHPUnit\Framework\TestCase;
  */
 class LeaveRequestCountDaysTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_tot_saturday_to_monday_skips_the_sunday(): void
     {
         // 5 Sep 2026 is the first Saturday of September; 6 Sep is Sunday.

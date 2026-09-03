@@ -68,13 +68,23 @@ class LeaveRequest extends Model
 
     /**
      * Working days between $from and $to inclusive. Unijaya works Mon–Fri plus the TOT
-     * Saturday (the first Saturday of the month, a half day, counted 0.5); Sundays and
-     * ordinary Saturdays are not working days and cost nothing.
+     * Saturday (the first Saturday of the month, a half day, counted 0.5); Sundays,
+     * ordinary Saturdays and the tenant's public holidays are not working days and cost
+     * nothing.
      */
     public static function countDays(Carbon $from, Carbon $to): float
     {
+        $holidays = PublicHoliday::whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<=', $to->toDateString())
+            ->pluck('date')
+            ->map(fn (Carbon $d) => $d->toDateString())
+            ->flip();
+
         $days = 0.0;
         for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
+            if ($holidays->has($date->toDateString())) {
+                continue;
+            }
             if (DayCapacity::isFirstSaturday($date)) {
                 $days += 0.5;
             } elseif ($date->isWeekday()) {
