@@ -146,16 +146,19 @@
         single() { return !!this.dateFrom && this.dateFrom === this.dateTo; },
 
         /**
-         * Whole inclusive days, or 0.5 for a half day — the same arithmetic as
-         * LeaveRequest::countDays(): each date counts 1, except the TOT Saturday (first
-         * Saturday of the month, Unijaya's half working day), which counts 0.5.
+         * Working days inclusive, or 0.5 for a half day — the same arithmetic as
+         * LeaveRequest::countDays(): Mon–Fri count 1, the TOT Saturday (first Saturday
+         * of the month, Unijaya's half working day) counts 0.5, and Sundays and ordinary
+         * Saturdays count nothing.
          */
         days() {
             if (!this.dateFrom || !this.dateTo) return 0;
             if (this.half) return 0.5;
             let total = 0;
             for (let d = new Date(this.dateFrom + 'T00:00'); d <= new Date(this.dateTo + 'T00:00'); d.setDate(d.getDate() + 1)) {
-                total += (d.getDay() === 6 && d.getDate() <= 7) ? 0.5 : 1;
+                const dow = d.getDay();
+                if (dow === 6 && d.getDate() <= 7) total += 0.5;
+                else if (dow >= 1 && dow <= 5) total += 1;
             }
             return total;
         },

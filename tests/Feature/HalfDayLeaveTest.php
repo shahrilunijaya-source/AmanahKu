@@ -297,14 +297,14 @@ class HalfDayLeaveTest extends TestCase
 
     /**
      * A multi-day range spanning the TOT Saturday (first Saturday of the month) discounts
-     * that day to 0.5, same as timesheet capacity does elsewhere. Ordinary weekend days in
-     * the range stay full.
+     * that day to 0.5, same as timesheet capacity does elsewhere. The Sunday in the range
+     * is not a working day and costs nothing.
      */
     public function test_multi_day_range_discounts_the_tot_saturday(): void
     {
         $report = $this->member('employee', 'Reportee');
 
-        // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday.
+        // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday, 2 Aug a Sunday.
         $this->actingAsEmployee($report)->post('/app/leave', [
             'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
@@ -314,6 +314,6 @@ class HalfDayLeaveTest extends TestCase
 
         $req = LeaveRequest::firstWhere('employee_id', $report->id);
         $this->assertNotNull($req);
-        $this->assertEqualsWithDelta(3.5, (float) $req->days, 0.001);
+        $this->assertEqualsWithDelta(2.5, (float) $req->days, 0.001);
     }
 }
