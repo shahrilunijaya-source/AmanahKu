@@ -83,12 +83,9 @@ class TimesheetController extends Controller
             : Carbon::now()->startOfWeek();
 
         // Per-user switch: off drops BoardSuggestions entirely and the screen falls back
-        // to its own Add line button. Defaults true both for a request with no user at
-        // all (screenData() is also exercised by callers that never resolve a user) and
-        // for a user whose attribute reads null — the column is NOT NULL DEFAULT true at
-        // the DB level, but an in-memory model built via create() and handed straight to
-        // actingAs() in tests never gets that DB default backfilled onto it.
-        $tsFillFromBoard = $request->user() ? (bool) ($request->user()->timesheet_fill_from_board ?? true) : true;
+        // to its own Add line button. True for a request with no user at all (screenData()
+        // is also exercised by callers that never resolve a user).
+        $tsFillFromBoard = $request->user() ? (bool) $request->user()->timesheet_fill_from_board : true;
 
         $lockedDays = app(LockedDays::class);
         $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
