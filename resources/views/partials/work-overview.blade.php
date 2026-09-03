@@ -22,14 +22,14 @@
         <span x-show="drawer.family?.parent.child_summary" x-text="' · ' + (drawer.family?.parent.child_summary?.done ?? 0) + ' ' + ($store.ui.lang==='en' ? 'of' : 'daripada') + ' ' + (drawer.family?.parent.child_summary?.total ?? 0) + ' ' + ($store.ui.lang==='en' ? 'done' : 'siap')"></span>
     </p>
     <template x-for="child in (drawer.family ? drawer.family.children : [])" :key="child.id">
-        <div class="wd-ov-child" :class="{ 'is-active': String(drawer.card.id) === String(child.id), 'is-done': child.status === 'done' }">
+        <div class="wd-ov-child" :class="{ 'is-active': String(drawer.card.id) === String(child.id), 'is-done': child.status === 'done' }" @click.self="openChild(child.id)">
             @if ($interactive)
                 <input type="checkbox" :checked="child.status === 'done'" @change="tickChild(child)"
                        :aria-label="$store.ui.lang==='en' ? 'Mark done' : 'Tanda siap'">
             @else
                 <input type="checkbox" :checked="child.status === 'done'" disabled>
             @endif
-            <button type="button" class="wd-ov-child-title" @click="openChild(child.id)" x-text="child.title"></button>
+            <button type="button" class="wd-ov-child-title" @click="openChild(child.id)"><span x-text="child.title"></span></button>
             <span class="wd-ov-meta">
                 <template x-for="p in child.people.slice(0, 2)" :key="p.initials + p.name">
                     <span class="wa" :style="'background:' + p.color" :title="p.name" x-text="p.initials"></span>

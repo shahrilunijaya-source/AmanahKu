@@ -351,7 +351,7 @@
              Typing "@" at a word boundary opens the mention picker above it —
              see mentionActiveQuery()/paintMention()/insertMention() in
              work-board.js (and its team-board.js counterpart). --}}
-        <div class="wd-foot">
+        <div class="wd-foot wd-foot--reveal" :class="{ 'has-text': drawer.newComment.trim().length }">
             <div class="wd-ment" role="listbox" :data-open="drawer.mention.open ? '' : null"
                  :aria-label="$store.ui.lang==='en' ? 'Mention someone on this card' : 'Sebut seseorang pada kad ini'">
                 <template x-if="drawer.mention.open && !mentionPool.length">

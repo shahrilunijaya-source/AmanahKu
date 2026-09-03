@@ -8,6 +8,7 @@ use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\Scopes\ParentOnly;
 use App\Models\WorkItem;
 use App\Support\ApiCaller;
 use App\Support\BoardRules;
@@ -55,10 +56,14 @@ class MoveCardTool extends Tool
         ]);
 
         $result = $this->guarded(function () use ($httpRequest, $employee, $data, $tid) {
-            $item = WorkItem::query()->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $this->boardRules->authorizeAccess($httpRequest, $item, $employee);
+            if ($item->isChild()) {
+                abort_unless(in_array($data['status'], ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
+            }
+            $this->boardRules->assertChildrenDoneForStatus($item, $data['status']);
 
             return ['item' => $item];
         });
@@ -84,7 +89,7 @@ class MoveCardTool extends Tool
     public function applyConfirmed(array $payload, HttpRequest $httpRequest, int $tenantId): array
     {
         return $this->guarded(function () use ($payload, $httpRequest, $tenantId) {
-            $item = WorkItem::query()->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $employee = ApiCaller::employee($httpRequest);
@@ -93,6 +98,10 @@ class MoveCardTool extends Tool
             $this->boardRules->authorizeAccess($httpRequest, $item, $employee);
 
             $status = $payload['status'];
+            if ($item->isChild()) {
+                abort_unless(in_array($status, ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
+            }
+            $this->boardRules->assertChildrenDoneForStatus($item, $status);
             $wasDone = $item->status === 'done';
 
             $item->update([

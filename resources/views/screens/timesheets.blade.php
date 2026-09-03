@@ -26,7 +26,7 @@
     'key' => 'timesheets',
     'en'  => [
         'title' => 'Weekly timesheets',
-        'body'  => 'Pick the week, then work through it one day at a time. Each day already lists the board cards you had In Progress or In Review, so all you set is how much of the day each one took — every working day must reach 100% before the week can be submitted.',
+        'body'  => 'Pick the week, then work through it one day at a time. Each day already lists the board cards you had In Progress or In Review, so all you set is how much of the day each one took — every working day must reach 100% before the week can be submitted. Turn off "Fill from board" to add what you worked on by hand instead, one question at a time.',
         'who'   => 'Staff fill & submit · Managers & HR approve',
         'steps' => [
             'Pick the week using the arrows at the top — the strip shows each weekday with a fill bar for how much of that day is planned.',
@@ -34,12 +34,12 @@
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
             'Touch a line to show its own amount buttons: 100%, 50%, 25%, or "Give it the rest". A line left without a percentage stays on screen and blocks the week until you fill it in or remove it.',
             'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit week" once every day reads 100%.',
-            'Nothing is added by hand any more: a line appears because a card of yours was In Progress or In Review that day. Work with no card on the board never reaches here, so put it on the board first.',
+            'Turn off "Fill from board" and use "+ Add what you worked on" to add a line by hand: category, then project and sub-pillar if asked, then the percentage and notes.',
         ],
     ],
     'ms'  => [
         'title' => 'Timesheet mingguan',
-        'body'  => 'Pilih minggu, kemudian kerjakan satu hari pada satu masa. Setiap hari sudah menyenaraikan kad papan anda yang berada dalam In Progress atau In Review, jadi anda hanya tetapkan berapa banyak hari itu digunakan — setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar.',
+        'body'  => 'Pilih minggu, kemudian kerjakan satu hari pada satu masa. Setiap hari sudah menyenaraikan kad papan anda yang berada dalam In Progress atau In Review, jadi anda hanya tetapkan berapa banyak hari itu digunakan — setiap hari bekerja mesti mencapai 100% sebelum minggu boleh dihantar. Matikan "Isi dari papan" untuk menambah apa yang anda kerjakan secara manual pula, satu soalan pada satu masa.',
         'who'   => 'Staf isi & hantar · Pengurus & HR luluskan',
         'steps' => [
             'Pilih minggu menggunakan anak panah di atas — jalur memaparkan setiap hari minggu dengan bar pengisian menunjukkan berapa banyak hari itu telah dirancang.',
@@ -47,7 +47,7 @@
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
             'Sentuh satu baris untuk memaparkan butang amaunnya sendiri: 100%, 50%, 25%, atau "Beri baki". Baris tanpa peratus kekal di skrin dan menghalang minggu itu sehingga anda mengisinya atau membuangnya.',
             'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
-            'Tiada lagi tambah secara manual: satu baris muncul kerana kad anda berada dalam In Progress atau In Review pada hari itu. Kerja tanpa kad di papan tidak akan sampai ke sini, jadi letakkan di papan dahulu.',
+            'Matikan "Isi dari papan" dan guna "+ Tambah apa yang anda kerjakan" untuk menambah baris secara manual: kategori, kemudian projek dan sub-pillar jika ditanya, kemudian peratus dan nota.',
         ],
     ],
 ])
@@ -81,6 +81,48 @@
             :aria-selected="tab==='review'" @click="setTab('review')">
             <span x-text="$store.ui.lang==='en' ? 'Review' : 'Semak'">Review</span>
         </button>
+
+        {{-- The staffer's own switch for the board prefill, behind a cog on the tab row: it
+             is set once and left, so it earns no space on the face of the day. Its own
+             small component, since the tab row sits outside timesheetCapture(). Hidden once
+             the week is locked — flipping it would change nothing a locked week can act on. --}}
+        @unless ($weekLocked)
+        <div x-data="timesheetPrefs({ fillFromBoard: @js($tsFillFromBoard), url: @js(route('timesheets.preferences')) })"
+             @click.outside="open = false" @keydown.escape.window="open = false"
+             style="position:relative;margin-left:auto;align-self:center;padding-bottom:11px;">
+            <button type="button" class="uj-dw-gear" @click="open = !open"
+                :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"
+                style="width:30px;height:30px;border-radius:8px;box-shadow:none;"
+                :aria-label="$store.ui.lang==='en' ? 'Timesheet settings' : 'Tetapan timesheet'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.76 1 1.4 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+            <div x-show="open" x-cloak role="menu"
+                 x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+                 style="position:absolute;right:0;top:36px;z-index:30;width:min(300px,calc(100vw - 48px));background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 12px 36px rgba(31,30,26,.16);padding:12px;">
+                <div style="font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fill from board' : 'Isi dari papan'"></div>
+                <div style="font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.4;"
+                    x-text="$store.ui.lang==='en'
+                        ? 'On: cards you worked appear by themselves. Off: you add what you worked on yourself.'
+                        : 'Hidup: kad yang anda kerjakan muncul sendiri. Mati: anda tambah apa yang anda kerjakan sendiri.'"></div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <template x-for="opt in [true, false]" :key="String(opt)">
+                        <button type="button" role="menuitemradio" :aria-checked="fillFromBoard === opt ? 'true' : 'false'"
+                            @click="open = false; set(opt)"
+                            class="uj-ts-pill" style="display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 12px;border-radius:9px;font-size:12.5px;cursor:pointer;text-align:left;"
+                            :style="fillFromBoard === opt
+                                ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }">
+                            <span style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: fillFromBoard === opt ? 'var(--success)' : 'var(--hairline)' }"></span>
+                            <span x-text="opt ? ($store.ui.lang==='en' ? 'On' : 'Hidup') : ($store.ui.lang==='en' ? 'Off' : 'Mati')"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+        @endunless
     </div>
 
     <div x-show="tab==='record'" x-cloak role="tabpanel">
@@ -100,6 +142,7 @@
             readonly: @js($weekLocked),
             weekLabel: @js($weekLabel ?? null),
             editEntryId: @js(request()->query('edit')),
+            fillFromBoard: @js($tsFillFromBoard),
          })"
          @popstate.window="if ($store.tsReview.open) closeReview()"
          @keydown.escape.window="if ($store.tsReview.open) history.back()">
@@ -237,9 +280,11 @@
                          lines come from, or it just reads as broken. --}}
                     <template x-if="!(rows[selected] || []).length && !dismissedFor(selected).length">
                         <div style="padding:16px 0 4px;font-size:12.5px;color:var(--muted);line-height:1.5;">
-                            <span x-text="$store.ui.lang==='en'
-                                ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
-                                : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.'"></span>
+                            <span x-text="fillFromBoard
+                                ? ($store.ui.lang==='en'
+                                    ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
+                                    : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.')
+                                : ($store.ui.lang==='en' ? 'No lines yet for this day.' : 'Belum ada baris untuk hari ini.')"></span>
                         </div>
                     </template>
                     <template x-for="(r, i) in (rows[selected] || [])" :key="i">
@@ -295,7 +340,9 @@
                             {{-- A card that arrived with nothing to cost it against. Answering it
                                  here only fixes this week's lines — the board is still where a
                                  card gets a permanent category — but it unblocks the week without
-                                 leaving the screen. --}}
+                                 leaving the screen. A manual row always has a category by the
+                                 time it exists (openAddPicker()'s own category step asks it
+                                 first), so this can only ever fire for a card. --}}
                             <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
                                 x-text="$store.ui.lang==='en'
@@ -324,6 +371,16 @@
                             </div>
                         </div>
                     </template>
+
+                    {{-- Manual mode's own way of starting a line — the board prefill's
+                         equivalent of a card landing In Progress, except the staffer starts
+                         it themselves. Absent in board mode: there, a line only ever arrives
+                         from a card. --}}
+                    <div x-show="isEditable(selected) && !fillFromBoard" x-cloak style="margin-top:12px;">
+                        <button type="button" @click="openAddPicker()" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;">
+                            <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
+                        </button>
+                    </div>
 
                     {{-- Cards struck off this day. Removing one sticks (it is saved with the
                          day), so a mis-tapped × needs a way back that is not a trip to the
@@ -368,12 +425,14 @@
                  x-transition:leave="uj-overlay-leave" x-transition:leave-start="uj-overlay-to" x-transition:leave-end="uj-overlay-from"
                  style="width:100%;max-width:clamp(420px,55vw,900px);margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(31,30,26,.30);display:flex;flex-direction:column;max-height:min(720px,88vh);">
 
-                {{-- Header: back arrow, the question this step asks, and the trail of what is
-                     already chosen so the staffer knows where they are. --}}
+                {{-- Header: back arrow (× on the first step, since Back closes the overlay
+                     from there — see pickerAtFirstStep()), the question this step asks, and
+                     the trail of what is already chosen so the staffer knows where they are. --}}
                 <div style="display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--hairline);flex-shrink:0;">
                     <button type="button" x-ref="pickerCloseBtn" @click="pickerBack()" class="uj-btn-ghost"
-                        :aria-label="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"
-                        style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;">×</button>
+                        :aria-label="pickerAtFirstStep() ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? 'Back a step' : 'Undur satu langkah')"
+                        style="height:30px;width:30px;padding:0;flex-shrink:0;font-size:15px;line-height:1;"
+                        x-text="pickerAtFirstStep() ? '×' : '←'"></button>
                     <div style="flex:1;min-width:0;">
                         {{-- tabindex=-1 + outline:none: a script-focus target only, so a screen
                              reader/keyboard user's position moves with each step instead of
@@ -381,14 +440,74 @@
                              row — see openEditRow()/pickerBack() in timesheet-capture.js,
                              which focus this whenever the overlay opens. --}}
                         <strong id="ts-picker-title" tabindex="-1" style="display:block;outline:none;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;"
-                            x-text="$store.ui.lang==='en' ? 'What were you doing, and how much of the day?' : 'Anda buat apa, dan berapa banyak hari?'"></strong>
-                        <span class="uj-pill"
+                            x-text="pickerStepTitle()"></strong>
+                        <span class="uj-pill" x-show="pickerHeaderLabel()" x-cloak
                             style="display:inline-block;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--hairline-soft);color:var(--muted);"
-                            x-text="picker.pendingItem?.label"></span>
+                            x-text="pickerHeaderLabel()"></span>
                     </div>
                 </div>
 
                 <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:5px;">
+
+                    {{-- Manual flow step 1: what kind of work was this. Every category is
+                         offered — a category that requires a project goes to that step next,
+                         a standalone one goes straight to the optional "what were you doing"
+                         step (or details, when there is none). ---- --}}
+                    <template x-if="picker.step === 'category'">
+                        <div x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
+                            style="display:flex;flex-direction:column;gap:5px;">
+                            <template x-for="c in categories" :key="c.id">
+                                <div @click="pickCategory(c.id)" role="button" tabindex="0"
+                                    @keydown.enter="pickCategory(c.id)" @keydown.space.prevent="pickCategory(c.id)"
+                                    class="uj-ts-opt"
+                                    style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                    <span style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: categoryColour(c.id) }"></span>
+                                    <span style="flex:1;font-size:12.5px;min-width:0;" x-text="categoryName(c)"></span>
+                                    <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    {{-- Manual flow step 2, only for a category that requires one. ---- --}}
+                    <template x-if="picker.step === 'project'">
+                        <div x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
+                            style="display:flex;flex-direction:column;gap:5px;">
+                            <template x-for="p in pickerProjects()" :key="p.id">
+                                <div @click="pickProject(p.id)" role="button" tabindex="0"
+                                    @keydown.enter="pickProject(p.id)" @keydown.space.prevent="pickProject(p.id)"
+                                    class="uj-ts-opt"
+                                    style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                    <span style="flex:1;font-size:12.5px;min-width:0;" x-text="p.name"></span>
+                                    <span style="font-size:13px;color:var(--muted);flex-shrink:0;line-height:1;">&rsaquo;</span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    {{-- Manual flow step 3, optional — skipped entirely (see openAddPicker()/
+                         pickCategory()/pickProject()) when there is no sub-pillar list at all.
+                         The Skip row sits first: most lines don't need this tag, and putting
+                         it at the top means it's never something to scroll past. ---- --}}
+                    <template x-if="picker.step === 'sub'">
+                        <div x-transition:enter="uj-ts-step-enter" x-transition:enter-start="uj-ts-step-enter-start" x-transition:enter-end="uj-ts-step-enter-end"
+                            style="display:flex;flex-direction:column;gap:5px;">
+                            <div @click="pickSub('')" role="button" tabindex="0"
+                                @keydown.enter="pickSub('')" @keydown.space.prevent="pickSub('')"
+                                class="uj-ts-opt"
+                                style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px dashed var(--hairline-soft);color:var(--muted);">
+                                <span style="flex:1;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Skip' : 'Langkau'"></span>
+                            </div>
+                            <template x-for="sp in subPillars" :key="sp.id">
+                                <div @click="pickSub(sp.id)" role="button" tabindex="0"
+                                    @keydown.enter="pickSub(sp.id)" @keydown.space.prevent="pickSub(sp.id)"
+                                    class="uj-ts-opt"
+                                    style="display:flex;align-items:center;gap:8px;padding:11px 10px;border-radius:8px;border:1px solid var(--hairline-soft);">
+                                    <span style="flex:1;font-size:12.5px;min-width:0;" x-text="sp.name"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
 
                     {{-- What the staffer was doing, how much of the day it took, and any
                          notes — the three things a board card cannot answer for them. ---- --}}
@@ -410,7 +529,7 @@
                                     x-text="$store.ui.lang==='en' ? 'What kind of work was this? (this card has no category)' : 'Kerja jenis apa ini? (kad ini tiada kategori)'"></label>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                     <template x-for="c in categories" :key="c.id">
-                                        <button type="button" @click="picker.pendingCat = c.id" class="uj-ts-pill"
+                                        <button type="button" @click="pickManualCategory(c.id)" class="uj-ts-pill"
                                             style="min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;"
                                             :style="String(picker.pendingCat) === String(c.id)
                                                 ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
@@ -427,10 +546,12 @@
                                     x-text="$store.ui.lang==='en' ? 'Pick one, or this line is not saved.' : 'Pilih satu, atau baris ini tidak disimpan.'"></div>
                             </div>
 
-                            {{-- The quick "what kind of work was this" tag. Optional, one tap,
-                                 and the only classification the staffer still makes: the project
-                                 arrives with the card. --}}
-                            <div x-show="subPillars.length" x-cloak>
+                            {{-- The quick "what kind of work was this" tag, for a card row
+                                 only — a manual row's sub-pillar is chosen in its own step
+                                 before this one is ever reached (pickSub()), and edited by
+                                 walking back to it (pickerBack()), not by a second control
+                                 here. --}}
+                            <div x-show="!picker.isManual && subPillars.length" x-cloak>
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px;"
                                     x-text="$store.ui.lang==='en' ? 'What were you doing?' : 'Anda buat apa?'"></label>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -483,7 +604,9 @@
                             </div>
 
                             <button type="button" @click="confirmEntry()" class="uj-btn-primary" style="height:42px;font-size:13px;">
-                                <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'"></span>
+                                <span x-text="picker.editingIndex != null
+                                    ? ($store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan')
+                                    : ($store.ui.lang==='en' ? 'Add entry' : 'Tambah entri')"></span>
                             </button>
                         </div>
                     </template>

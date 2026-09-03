@@ -102,9 +102,11 @@ class ProgressStintBackfillTest extends TestCase
 
     /**
      * The point of the whole thing: after the backfill the card actually reaches the
-     * capture grid, on the day the backfill ran and not before it.
+     * capture grid. The stint it writes starts on the backfill day, and a stint that
+     * touches the week offers the card on every working day of that week up to today
+     * (1.7.4), so Monday and Tuesday get it too, and the days still ahead do not.
      */
-    public function test_a_backfilled_card_is_offered_on_the_timesheet_from_that_day_on(): void
+    public function test_a_backfilled_card_is_offered_on_the_whole_week_up_to_today(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-26 09:00:00')); // a Wednesday
 
@@ -117,8 +119,9 @@ class ProgressStintBackfillTest extends TestCase
 
         $week = app(BoardSuggestions::class)->forWeek($employee, '2026-08-24');
 
-        $this->assertArrayNotHasKey('2026-08-24', $week, 'Monday is before the backfill, so nothing was recorded for it.');
+        $this->assertArrayHasKey('2026-08-24', $week, 'The stint touches this week, so Monday is offered too.');
         $this->assertArrayHasKey('2026-08-26', $week);
+        $this->assertArrayNotHasKey('2026-08-27', $week, 'Thursday is still ahead, nothing is offered for it yet.');
         $this->assertSame('Parked in progress', $week['2026-08-26'][0]['title']);
 
         Carbon::setTestNow();

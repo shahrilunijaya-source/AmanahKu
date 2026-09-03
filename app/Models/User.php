@@ -34,6 +34,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     use HasApiTokens, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
+     * The DB default is true too, but a model built with create() and used in memory
+     * (actingAs() in tests) never reads the column back, so the default lives here as well.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'timesheet_fill_from_board' => true,
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -47,6 +57,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'is_super_admin' => 'boolean',
             'dashboard_prefs' => 'array',
             'appearance' => 'array',
+            'timesheet_fill_from_board' => 'boolean',
         ];
     }
 

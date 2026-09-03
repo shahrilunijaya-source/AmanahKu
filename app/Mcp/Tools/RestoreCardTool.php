@@ -6,6 +6,7 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Models\AuditLog;
+use App\Models\Scopes\ParentOnly;
 use App\Models\WorkItem;
 use App\Support\ApiCaller;
 use App\Support\BoardRules;
@@ -50,7 +51,7 @@ class RestoreCardTool extends Tool
         $data = $request->validate(['work_item_id' => ['required', 'integer']]);
 
         $result = $this->guarded(function () use ($httpRequest, $employee, $data, $tid) {
-            $item = WorkItem::query()->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $this->boardRules->authorizeManage($httpRequest, $item, $employee);
@@ -78,7 +79,7 @@ class RestoreCardTool extends Tool
     public function applyConfirmed(array $payload, HttpRequest $httpRequest, int $tenantId): array
     {
         return $this->guarded(function () use ($payload, $httpRequest, $tenantId) {
-            $item = WorkItem::query()->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $employee = ApiCaller::employee($httpRequest);
@@ -91,6 +92,7 @@ class RestoreCardTool extends Tool
                 'status' => 'todo',
                 'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
             ]);
+            $item->children()->update(['archived_at' => null]);
 
             AuditLog::record('Restored board card'.$this->keySuffix($httpRequest), $item->title);
 
