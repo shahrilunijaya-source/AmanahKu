@@ -192,3 +192,23 @@ staff records, so a destructive or non-reversible migration is a data-loss event
 **Open, not decided:** the two repositories share no commit ancestor, so a prod release
 cannot be traced to a sha. Options are laid out in [ROADMAP.md](ROADMAP.md); the choice needs
 devops, because two of the three touch their repository.
+
+---
+
+## 2026-09-03 — Board subtasks as child cards
+
+**D-021 · A subtask is a `work_items` row with `parent_id`, hidden by a global scope.**
+Spec: `docs/superpowers/specs/2026-09-03-board-child-cards-design.html`. A JSON checklist
+column was built first the same day and thrown away before it shipped: the user wanted each
+subtask to be a real card (description, due date, people, comments), so it became a row on the
+same table, one level deep, with `App\Models\Scopes\ParentOnly` (`whereNull(parent_id)`)
+applied to every `WorkItem` query. Twenty-odd existing query sites (columns, counts, timesheet,
+archive, dashboard, MCP) want parents only, so the rule lives on the model; the two places that
+want children opt out (`WorkItem::children()`, `WorkItem::resolveRouteBinding()`), and the MCP
+tools use `withoutGlobalScope` on their id lookups. A child carries no rights of its own:
+`BoardRules::subject()` judges every rule against the parent, so the controller and the MCP
+tools never branch on kind. A child's `employee_id` always equals its parent's; `StaffArchiver`
+and the hourly `work:archive-done` keep that true. `BoardRules::assertChildrenDoneForStatus()`
+is the one Done gate for browser and MCP. On the timesheet, `BoardSuggestions::childNotes()`
+prefills a parent row's note with the viewer's subtasks ticked that day; a saved note is never
+overwritten.

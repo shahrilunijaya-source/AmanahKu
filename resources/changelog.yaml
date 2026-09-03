@@ -17,6 +17,20 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.8"
+  date: "2026-09-03"
+  entries:
+    - tag: added
+      major: true
+      text: "A T.A.A. card can now hold subtasks, and it cannot reach Done until every one of them is done.\nOpen a card and add subtasks from the panel beside it. Each subtask is a small card of its own: it can carry a description, a due date, people and comments, and it is either open or done. The parent shows on the board as a stack with a count (\"2/5\"), green once everything is ticked. Anyone on the parent can add a subtask or tick one; only the parent's owner can rename or remove one."
+      text_ms: "Kad T.A.A. kini boleh mempunyai subtugas, dan tidak boleh masuk ke Done sehingga semuanya siap.\nBuka kad dan tambah subtugas dari panel di sebelahnya. Setiap subtugas ialah kad kecil tersendiri: boleh ada penerangan, tarikh akhir, orang dan komen, dan ia sama ada terbuka atau siap. Kad induk dipaparkan di papan sebagai timbunan dengan kiraan (\"2/5\"), hijau apabila semuanya ditanda. Sesiapa yang ada pada kad induk boleh menambah atau menanda subtugas; hanya pemilik kad induk boleh menamakan semula atau membuangnya."
+      link: "/app/board"
+      link_text: "Open My Work"
+      link_text_ms: "Buka Kerja Saya"
+    - tag: improved
+      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
+      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
+
 - version: "1.7.4"
   date: "2026-09-03"
   entries:
