@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class WorkItemController extends Controller
@@ -253,6 +254,8 @@ class WorkItemController extends Controller
         }
 
         $data = $request->validate([
+            // A card is born a child or a parent; it does not change sides.
+            'parent_id' => ['missing'],
             'title' => ['sometimes', 'required', 'string', 'max:160'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'type' => ['sometimes', 'required', 'in:assignment,task,adhoc'],
@@ -329,6 +332,15 @@ class WorkItemController extends Controller
             'ids.*' => ['integer'],
         ]);
 
+        if ($workItem->isChild()) {
+            // A subtask is open or done, nothing in between, and it has no column to
+            // be ordered in.
+            abort_unless(in_array($data['status'], ['todo', 'done'], true), 422, 'A subtask is either open or done.');
+            unset($data['ids']);
+        }
+
+        $this->boardRules->assertChildrenDoneForStatus($workItem, $data['status']);
+
         $wasDone = $workItem->status === 'done';
 
         $workItem->update([
@@ -359,7 +371,13 @@ class WorkItemController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'status' => $workItem->status, 'html' => $this->cardHtml($workItem)]);
+            return response()->json([
+                'ok' => true,
+                'status' => $workItem->status,
+                'html' => $this->cardHtml($workItem),
+                // A ticked subtask changes the parent's face (the 1/3 badge), so hand it back.
+                'parent_html' => $workItem->parent_id ? $this->cardHtml($workItem->parent->fresh()) : null,
+            ]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
@@ -385,9 +403,13 @@ class WorkItemController extends Controller
     {
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'A subtask is archived with its parent.');
         abort_unless($workItem->status === 'done', 422, 'Only a Done card can be archived.');
 
-        $workItem->update(['archived_at' => now()]);
+        DB::transaction(function () use ($workItem) {
+            $workItem->update(['archived_at' => now()]);
+            $workItem->children()->update(['archived_at' => now()]);
+        });
 
         return response()->json(['ok' => true]);
     }
@@ -398,11 +420,14 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
 
-        $workItem->update([
-            'archived_at' => null,
-            'status' => 'todo',
-            'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
-        ]);
+        DB::transaction(function () use ($workItem, $employee) {
+            $workItem->update([
+                'archived_at' => null,
+                'status' => 'todo',
+                'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
+            ]);
+            $workItem->children()->update(['archived_at' => null]);
+        });
 
         return response()->json(['ok' => true, 'html' => $this->cardHtml($workItem)]);
     }

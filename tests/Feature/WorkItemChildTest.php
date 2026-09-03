@@ -234,4 +234,78 @@ class WorkItemChildTest extends TestCase
 
         $this->as($this->owner)->get('/app/board')->assertOk()->assertDontSee('Hidden child');
     }
+
+    public function test_moving_a_parent_to_done_is_refused_while_a_child_is_open(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent);
+        $this->child($parent);
+
+        $this->as($this->owner)->postJson("/app/board/{$parent->id}/move", ['status' => 'done'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.status.0', '2 subtasks still open. Tick them off before moving this card to Done.');
+        $this->assertSame('todo', $parent->fresh()->status);
+
+        $this->as($this->owner)->postJson("/app/board/{$parent->id}/move", ['status' => 'review'])->assertOk();
+    }
+
+    public function test_moving_a_parent_to_done_succeeds_once_children_are_done(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent, ['status' => 'done']);
+
+        $this->as($this->owner)->postJson("/app/board/{$parent->id}/move", ['status' => 'done'])->assertOk();
+        $this->assertNotNull($parent->fresh()->done_at);
+    }
+
+    public function test_a_participant_ticks_a_child_done_and_gets_the_parent_face_back(): void
+    {
+        $parent = $this->parent(['due_at' => now()->addWeek()]);
+        $parent->participants()->attach($this->participantEmp->id);
+        $child = $this->child($parent);
+
+        $res = $this->as($this->participant)->postJson("/app/board/{$child->id}/move", ['status' => 'done']);
+
+        $res->assertOk()->assertJsonPath('status', 'done');
+        $this->assertStringContainsString('1/1', $res->json('parent_html'));
+        $this->assertNotNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->done_at);
+    }
+
+    public function test_a_child_cannot_be_moved_to_a_column(): void
+    {
+        $child = $this->child($this->parent());
+
+        $this->as($this->owner)->postJson("/app/board/{$child->id}/move", ['status' => 'prog'])->assertStatus(422);
+    }
+
+    public function test_a_stranger_cannot_tick_a_child(): void
+    {
+        $child = $this->child($this->parent());
+
+        $this->as($this->stranger)->postJson("/app/board/{$child->id}/move", ['status' => 'done'])->assertForbidden();
+    }
+
+    public function test_a_participant_cannot_rename_a_child_but_the_owner_can(): void
+    {
+        $parent = $this->parent(['due_at' => now()->addWeek()]);
+        $parent->participants()->attach($this->participantEmp->id);
+        $child = $this->child($parent);
+
+        $this->as($this->participant)->patchJson("/app/board/{$child->id}", ['title' => 'Renamed'])->assertForbidden();
+        $this->as($this->owner)->patchJson("/app/board/{$child->id}", ['title' => 'Renamed'])->assertOk();
+        $this->as($this->owner)->patchJson("/app/board/{$child->id}", ['parent_id' => null])->assertStatus(422);
+    }
+
+    public function test_archiving_the_parent_archives_children_and_a_child_cannot_be_archived_alone(): void
+    {
+        $parent = $this->parent(['status' => 'done', 'done_at' => now()]);
+        $child = $this->child($parent, ['status' => 'done']);
+
+        $this->as($this->owner)->postJson("/app/board/{$child->id}/archive")->assertStatus(422);
+        $this->as($this->owner)->postJson("/app/board/{$parent->id}/archive")->assertOk();
+        $this->assertNotNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->archived_at);
+
+        $this->as($this->owner)->postJson("/app/board/{$parent->id}/restore")->assertOk();
+        $this->assertNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->archived_at);
+    }
 }
