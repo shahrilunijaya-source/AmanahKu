@@ -84,6 +84,12 @@ export function registerTeamBoard(Alpine) {
             loading: false,
             error: '',
             locked: true, // always — never read from the server's card.can_manage.
+            // Overview beside the drawer, see partials.work-overview. Navigation only here:
+            // the team board is view + comment only, so canAddChild never turns true.
+            family: null,
+            canAddChild: false,
+            newChildTitle: '',
+            addingChild: false,
             lockedReason: '',
             id: null,
             node: null,
@@ -414,13 +420,17 @@ export function registerTeamBoard(Alpine) {
 
         subline(card) {
             if (!card.opened_at) return '';
+            if (card.parent_id) return `${this.t('Subtask', 'Subtugas')} · ${this.t('added', 'ditambah')} ${card.opened_at} ${this.t('by', 'oleh')} ${card.owner_name || ''} · #${card.id}`;
             const verb = card.assigned_by ? this.t('Assigned', 'Ditugaskan') : this.t('Opened', 'Dibuka');
             const by = this.t('by', 'oleh');
             return `${verb} ${card.opened_at} ${by} ${card.owner_name || ''} · #${card.id}`;
         },
 
         async openCard(node) {
-            const id = node.dataset.id;
+            await this.openCardCore(node.dataset.id, node);
+        },
+
+        async openCardCore(id, node) {
             this.drawer.trigger = node;
             this.drawer.node = node;
             this.drawer.id = id;
@@ -445,6 +455,8 @@ export function registerTeamBoard(Alpine) {
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
                 };
+                this.drawer.family = card.family ?? null;
+                this.drawer.canAddChild = false;
                 // Always locked here, regardless of card.can_manage — the team
                 // board is view + comment only for everyone, even a manager who
                 // could edit this same card from their own personal board.
@@ -466,6 +478,15 @@ export function registerTeamBoard(Alpine) {
                 }
             }
         },
+
+        // The overview is navigation-only here: the team board is view + comment only.
+        async openChild(id) { await this.openCardCore(String(id), this.drawer.node); },
+        async backToParent() {
+            const pid = this.drawer.family?.parent.id;
+            if (pid && String(pid) !== String(this.drawer.id)) await this.openCardCore(String(pid), this.drawer.node);
+        },
+        addChild() {},
+        tickChild() {},
 
         closeDrawer() {
             if (!this.drawer.show) return;

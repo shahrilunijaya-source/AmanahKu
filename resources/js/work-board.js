@@ -85,6 +85,14 @@ export function registerWorkBoard(Alpine) {
             error: '',
             locked: false,
             lockedReason: '',
+            // The overview beside the drawer: { parent, children } from the server, for a
+            // parent and for a child alike (null until loaded). See partials.work-overview.
+            family: null,
+            // Anyone who can open a parent may add a subtask to it (server: authorizeAccess),
+            // so this is true whenever a parent is shown, locked or not. False for a child.
+            canAddChild: false,
+            newChildTitle: '',
+            addingChild: false,
             // Index of the link row currently forced open for editing, even though
             // it already has both a label and a url (otherwise a saved link renders
             // as its clickable button — see editLink()/finishLinkEdit()).
@@ -625,7 +633,7 @@ export function registerWorkBoard(Alpine) {
                 this.refreshCounts();
                 this.flashSaved();
             } catch (err) {
-                this.drawer.error = this.t('Could not move this card.', 'Tidak dapat gerakkan kad ini.');
+                this.drawer.error = err.validation ? err.message : this.t('Could not move this card.', 'Tidak dapat gerakkan kad ini.');
             }
         },
 
@@ -661,6 +669,7 @@ export function registerWorkBoard(Alpine) {
 
         subline(card) {
             if (!card.opened_at) return '';
+            if (card.parent_id) return `${this.t('Subtask', 'Subtugas')} · ${this.t('added', 'ditambah')} ${card.opened_at} ${this.t('by', 'oleh')} ${card.owner_name || ''} · #${card.id}`;
             const verb = card.assigned_by ? this.t('Assigned', 'Ditugaskan') : this.t('Opened', 'Dibuka');
             const by = this.t('by', 'oleh');
             return `${verb} ${card.opened_at} ${by} ${card.owner_name || ''} · #${card.id}`;
@@ -715,6 +724,9 @@ export function registerWorkBoard(Alpine) {
                     timesheet_category_name: card.timesheet_category_name ?? '',
                     timesheet_category_options: card.timesheet_category_options ?? [],
                 };
+                this.drawer.family = card.family ?? null;
+                this.drawer.canAddChild = !card.parent_id;
+                this.drawer.newChildTitle = '';
                 // Both ids land a tick later — see applySelectIds().
                 this.applySelectIds(card.timesheet_category_id, card.project?.id);
                 // Read-only unless the server says this viewer may manage the card. Covers
@@ -750,6 +762,80 @@ export function registerWorkBoard(Alpine) {
                         this.$refs.drawerEl?.focus({ preventScroll: true });
                     });
                 }
+            }
+        },
+
+        // Repaint any card on the board from server HTML, by id. repaintNode() only
+        // knows the drawer's own node; a subtask write changes the PARENT's face.
+        repaintCardById(id, html) {
+            if (!html) return;
+            const node = this.$root.querySelector(`[data-card][data-id="${id}"]`);
+            if (node) node.outerHTML = html;
+            if (this.drawer.show && this.drawer.node && String(this.drawer.node.dataset.id) === String(id)) {
+                this.drawer.node = this.$root.querySelector(`[data-card][data-id="${id}"]`);
+            }
+        },
+
+        // Switch the drawer to a subtask. A child has no node on the board, so the
+        // drawer's node stays the parent's: that is what the repaint-on-save targets.
+        async openChild(id) {
+            const parentNode = this.$root.querySelector(`[data-card][data-id="${this.drawer.family?.parent.id}"]`);
+            await this.openCardCore(String(id), parentNode);
+        },
+
+        async backToParent() {
+            const pid = this.drawer.family?.parent.id;
+            if (!pid || String(pid) === String(this.drawer.id)) return;
+            await this.openCardCore(String(pid), this.$root.querySelector(`[data-card][data-id="${pid}"]`));
+        },
+
+        async addChild() {
+            const title = (this.drawer.newChildTitle || '').trim();
+            const parentId = this.drawer.family?.parent.id ?? this.drawer.id;
+            if (!title || this.drawer.addingChild || !this.drawer.canAddChild) return;
+            this.drawer.addingChild = true;
+            try {
+                const { card, parent_html } = await this.api('/app/board', {
+                    method: 'POST',
+                    body: JSON.stringify({ title, parent_id: parentId }),
+                });
+                this.drawer.newChildTitle = '';
+                const { children, parent } = this.drawer.family;
+                children.push({ id: card.id, title: card.title, status: card.status, due_label: card.due_label, people: [] });
+                parent.child_summary = { done: children.filter((c) => c.status === 'done').length, total: children.length };
+                this.repaintCardById(parentId, parent_html);
+            } catch (err) {
+                this.drawer.error = err.validation ? err.message : this.t('Could not add that subtask.', 'Tidak dapat tambah subtugas itu.');
+            } finally {
+                this.drawer.addingChild = false;
+            }
+        },
+
+        // Tick / untick a subtask: a move between todo and done. Access-wide on the
+        // server, so it runs even while drawer.locked (a participant may tick).
+        async tickChild(child) {
+            const next = child.status === 'done' ? 'todo' : 'done';
+            const was = child.status;
+            const row = this.drawer.family?.children.find((c) => String(c.id) === String(child.id));
+            const setStatus = (value) => {
+                child.status = value;
+                if (row) row.status = value;
+                if (String(this.drawer.card.id) === String(child.id)) this.drawer.card.status = value;
+            };
+            setStatus(next); // optimistic; rolled back below
+            try {
+                const { status, parent_html } = await this.api(`/app/board/${child.id}/move`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status: next }),
+                });
+                setStatus(status);
+                const { children, parent } = this.drawer.family;
+                parent.child_summary = { done: children.filter((c) => c.status === 'done').length, total: children.length };
+                this.repaintCardById(parent.id, parent_html);
+                this.flashSaved();
+            } catch (err) {
+                setStatus(was);
+                this.$store.toast.error(this.t('Could not update that subtask.', 'Tidak dapat kemas kini subtugas itu.'));
             }
         },
 
@@ -1088,7 +1174,7 @@ export function registerWorkBoard(Alpine) {
                 from.insertBefore(evt.item, ref);
                 evt.item.dataset.status = from.dataset.list;
                 this.refreshCounts();
-                this.$store.toast.error(this.t('Could not move this card. It has been put back.', 'Tidak dapat gerakkan kad ini. Ia telah dikembalikan.'));
+                this.$store.toast.error(err.validation ? err.message : this.t('Could not move this card. It has been put back.', 'Tidak dapat gerakkan kad ini. Ia telah dikembalikan.'));
             }
         },
     }));
