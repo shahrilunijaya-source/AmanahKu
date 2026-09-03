@@ -35,6 +35,11 @@
         }
     }
     $wpDim = $appearance['dim'] ?? 'soft';
+
+    // Whether the current screen yielded a hero backdrop (see @section('hero') in
+    // profile.blade.php). Read here because the child view's section is captured
+    // before the layout renders, so this only works once, not inside @yield('hero') itself.
+    $hero = \Illuminate\Support\Facades\View::hasSection('hero');
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
@@ -55,7 +60,7 @@
      id="uj-shell"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
-     class="{{ $wp ? 'uj-has-wallpaper' : '' }}"
+     class="{{ trim(($wp ? 'uj-has-wallpaper ' : '').($hero ? 'uj-has-cover' : '')) }}"
      {{-- No bottom dock inside an embedded panel, so nothing there should reserve
           room for one (see --uj-dock-h in app.css). --}}
      style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
@@ -71,7 +76,7 @@
 
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;position:relative;' }}">
         @unless ($embed)
-        @include('partials.header', ['headerStyle' => $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : ''])
+        @include('partials.header', ['headerStyle' => ($wp || $hero) ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : ''])
         {{-- Content scrolls under the header and dissolves into the page canvas
              here, rather than meeting a border. See .uj-hd-fade in app.css.
              The blur is inline, not in that rule: Lightning CSS (Tailwind v4)
@@ -165,6 +170,9 @@
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
         <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $hasPins ? 'uj-main--pinned' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+            @unless ($embed)
+                @yield('hero')
+            @endunless
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
                      siblings of <main>. The header is position:absolute, so it takes no flow
@@ -204,7 +212,7 @@
                                  heading reading "Messages"), and the sidebar already marks where
                                  you are. --}}
                             @unless ($screen === 'dash')
-                                <div id="uj-page-title" class="{{ $wp ? 'uj-plate' : '' }}" style="{{ $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : '' }}" x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
                                     <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
                                     <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
                                 </div>

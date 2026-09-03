@@ -288,19 +288,17 @@ document.addEventListener('alpine:init', () => {
         paint() {
             const shell = document.getElementById('uj-shell');
             const header = document.querySelector('.uj-header');
-            const plate = document.getElementById('uj-page-title');
             let layer = document.querySelector('.uj-wallpaper');
             let bg = null;
             if (this.choice.startsWith('preset:')) bg = cfg.presets[this.choice.slice(7)];
             else if (this.choice === 'upload' && this.photoUrl) bg = 'url(' + this.photoUrl + ')';
 
             /* Everything a wallpaper toggles, kept in this one list so it can't drift
-               from the $wp branch in layouts/app.blade.php: the shell + layer, the
-               title plate, and the header/plate blur. */
+               from the $wp branch in layouts/app.blade.php: the shell + layer, and
+               the header blur. */
             const blur = bg ? 'blur(14px)' : '';
             shell?.classList.toggle('uj-has-wallpaper', !!bg);
-            plate?.classList.toggle('uj-plate', !!bg);
-            [header, plate].forEach((el) => { if (el) { el.style.backdropFilter = blur; el.style.webkitBackdropFilter = blur; } });
+            if (header) { header.style.backdropFilter = blur; header.style.webkitBackdropFilter = blur; }
 
             if (!bg) { layer?.remove(); return; }
             if (!layer) { layer = document.createElement('div'); layer.className = 'uj-wallpaper'; shell.prepend(layer); }

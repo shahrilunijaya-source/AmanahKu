@@ -2,6 +2,12 @@
 
 @php use App\Support\Amanahku; $p = $profile; $pers = $p?->personality ?? []; @endphp
 
+@if ($p?->cover_path)
+    @section('hero')
+        @include('partials.profile-cover-hero', ['employee' => $p])
+    @endsection
+@endif
+
 @section('screen')
 @include('partials.guide', [
     'key' => 'profile',
@@ -19,12 +25,7 @@
 @elseif (! ($canViewFull ?? false))
     {{-- Slim public card: a blocked viewer never gets a 403 (header search and directory
          clicks must not dead-end) but also never gets tabs, stats, salary or attendance. --}}
-    <div class="uj-card" style="max-width:360px;padding:0 24px 24px;text-align:center;overflow:hidden;">
-        @if ($p->cover_path)
-            <div style="margin:0 -24px 14px;">@include('partials.profile-cover', ['employee' => $p, 'height' => 120, 'isOwn' => false, 'canRemove' => false, 'flat' => true])</div>
-        @else
-            <div style="height:24px;"></div>
-        @endif
+    <div class="uj-card" style="max-width:360px;padding:24px;text-align:center;overflow:hidden;">
         <div style="width:88px;height:88px;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:30px;font-weight:600;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">{{ $p->initials }}</div>
         <h3 style="font-size:18px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>
         <p style="font-size:13px;color:var(--muted);margin:4px 0 12px;">{{ $p->positionBand?->title ?? '—' }}</p>
@@ -54,19 +55,20 @@
     @endphp
     <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
-        {{-- Cover + identity band. With a cover the band rides up over its lower third. --}}
+        {{-- Cover controls. The cover picture itself is the full-width hero yielded in
+             the layout (see @section('hero') above); this band only carries the pills. --}}
         @if ($isOwn)
-            <div x-data="{ pick: {{ $p->cover_path ? 'false' : 'true' }} }" @cover-pick.window="pick = !pick">
+            <div x-data="{ pick: {{ ($p->cover_path && ! $errors->has('photo') && ! $errors->has('preset')) ? 'false' : 'true' }} }" @cover-pick.window="pick = !pick">
                 <div x-show="pick" x-transition.opacity.duration.150ms>@include('partials.profile-cover-picker', ['employee' => $p])</div>
                 @if ($p->cover_path)
-                    @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => true, 'canRemove' => $canEdit])
+                    @include('partials.profile-cover-actions', ['employee' => $p, 'isOwn' => true])
                 @endif
             </div>
-        @elseif ($p->cover_path)
-            @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => false, 'canRemove' => $canEdit])
+        @elseif ($p->cover_path && $canEdit)
+            @include('partials.profile-cover-actions', ['employee' => $p, 'isOwn' => false])
         @endif
-        <div class="uj-card {{ $p->cover_path ? 'uj-card--over-cover' : '' }}" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
-            <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;" class="{{ $p->cover_path ? 'uj-avatar-ring' : '' }}">{{ $p->initials }}</div>
+        <div class="uj-card" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;">{{ $p->initials }}</div>
             <div style="flex:1;min-width:220px;">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <h3 style="font-size:19px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>

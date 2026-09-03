@@ -864,9 +864,9 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 }
 
 /* ── Personal wallpaper (users.appearance) ──
-   One fixed layer under everything, a dim over it, and three things that change
-   when it is on: the header goes translucent, the page title gets a paper plate,
-   nothing else moves. Cards stay opaque: the ledger is still the ledger. The blur
+   One fixed layer under everything, a dim over it, and two things that change
+   when it is on: the header goes translucent and its fade tints to match.
+   Nothing else moves. Cards stay opaque: the ledger is still the ledger. The blur
    is inline on the elements (see .uj-hd-fade for why not here). */
 .uj-wallpaper { position: fixed; inset: 0; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
 .uj-wallpaper::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--canvas) 30%, transparent); }
@@ -882,7 +882,6 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-has-wallpaper .uj-shell-main { background: transparent; }
 .uj-has-wallpaper .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
 .uj-has-wallpaper .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
-.uj-plate { display: inline-block; padding: 8px 12px 9px; margin-left: -12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
 /* Small screens show more bare canvas than card, so the dim steps up one level. */
 @media (max-width: 520px) {
     .uj-wallpaper[data-dim="none"]::after { background: color-mix(in srgb, var(--canvas) 30%, transparent); }
@@ -4585,21 +4584,25 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 }
 
 /* ── Profile cover ──
+   A backdrop pinned to the top of <main>, full width, scrolling with the page.
    Sharp on top, a blurred copy carries the colour down, both gone before the box
-   ends. Masks, not JS. The blur is a filter on an element, so it survives the
-   Lightning CSS pass that eats backdrop-filter (see .uj-hd-fade). */
-.uj-cover { position: relative; overflow: hidden; margin: 0 0 -64px; border-radius: 12px 12px 0 0; }
+   ends. Masks, not JS. The two in-flow children of <main> are positioned so they
+   paint above it without any stacking context (no z-index anywhere here). */
+.uj-main { position: relative; }
+.uj-main > .uj-head-stack, .uj-main > .uj-fade { position: relative; }
+.uj-cover-hero { position: absolute; top: 0; left: 0; right: 0; height: 380px; overflow: hidden; pointer-events: none; }
 .uj-cover-img, .uj-cover-blur { position: absolute; inset: 0; background-size: cover; background-position: center; }
-.uj-cover-img { mask-image: linear-gradient(to bottom, #000 35%, transparent 80%); -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 80%); }
-.uj-cover-blur { filter: blur(18px); transform: scale(1.08); mask-image: linear-gradient(to bottom, transparent 30%, #000 60%, transparent 88%); -webkit-mask-image: linear-gradient(to bottom, transparent 30%, #000 60%, transparent 88%); }
-.uj-cover-change { position: absolute; top: 14px; right: 14px; height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: color-mix(in srgb, var(--canvas) 78%, transparent); border: 1px solid rgba(255, 255, 255, .5); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-cover-img { mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 85%); -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 85%); }
+.uj-cover-blur { filter: blur(18px); transform: scale(1.08); mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); }
+.uj-has-cover .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
+.uj-has-cover .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
+@media (max-width: 640px) { .uj-cover-hero { height: 260px; } }
+.uj-cover-change { height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: color-mix(in srgb, var(--canvas) 78%, transparent); border: 1px solid rgba(255, 255, 255, .5); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
 .uj-cover-change:active { transform: scale(.97); }
-.uj-cover-change--remove { top: auto; bottom: 78px; }
-.uj-card--over-cover { position: relative; z-index: 1; margin: 0 24px; box-shadow: 0 8px 24px -12px rgba(38, 37, 30, .28); }
-.uj-avatar-ring { box-shadow: 0 0 0 4px #fff; }
+.uj-cover-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .uj-cover-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
-/* On a wallpaper the strip rides on the same paper plate as the page title, so the label never sits on a photograph. */
-.uj-has-wallpaper .uj-cover-picker { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
+/* On a wallpaper or a cover the strip rides on its own paper plate, so the label never sits on a photograph. */
+.uj-has-wallpaper .uj-cover-picker, .uj-has-cover .uj-cover-picker { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
 .uj-cover-picker-label { font-size: 12.5px; color: var(--muted); margin-right: 4px; }
 .uj-cover-chips { display: contents; }
 .uj-cover-chip { width: 44px; height: 28px; border-radius: 7px; border: 1px solid rgba(38, 37, 30, .12); cursor: pointer; padding: 0; transition: transform 160ms cubic-bezier(.23, 1, .32, 1), box-shadow 160ms ease; }
@@ -4609,10 +4612,3 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-cover-chip--upload { width: auto; padding: 0 10px; background: none; border-style: dashed; color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .uj-cover-chip--upload:hover { color: var(--ink); border-color: var(--muted-soft); }
 .uj-cover-picker-error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--error); }
-@media (max-width: 640px) {
-    .uj-cover { height: 150px !important; margin-bottom: -54px; }
-    .uj-card--over-cover { margin: 0 12px; }
-    .uj-cover-change span { display: none; }
-    .uj-cover-change { padding: 0 8px; }
-    .uj-cover-change--remove span { display: inline; }
-}

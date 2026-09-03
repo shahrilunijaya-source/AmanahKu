@@ -158,7 +158,8 @@ class ProfileCoverTest extends TestCase
         $url = Storage::disk('public')->url("covers/{$me->id}/a.jpg");
 
         $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->assertOk()->getContent();
-        $this->assertStringContainsString('class="uj-cover"', $own);
+        $this->assertStringContainsString('class="uj-cover-hero"', $own);
+        $this->assertStringContainsString('uj-has-cover', $own);
         $this->assertStringContainsString($url, $own);
         $this->assertStringContainsString('Change cover', $own);
         $this->assertStringContainsString(route('employees.cover.destroy', $me), $own);
@@ -171,6 +172,7 @@ class ProfileCoverTest extends TestCase
 
         $peer = $this->person('employee');
         $slim = $this->signIn($peer)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+        $this->assertStringContainsString('class="uj-cover-hero"', $slim);
         $this->assertStringContainsString($url, $slim);
         $this->assertStringNotContainsString('Change cover', $slim);
         $this->assertStringNotContainsString('Remove cover', $slim);
@@ -182,7 +184,8 @@ class ProfileCoverTest extends TestCase
 
         $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
         $this->assertStringContainsString('Pick a colour or upload a photo', $own);
-        $this->assertStringNotContainsString('class="uj-cover"', $own);
+        $this->assertStringNotContainsString('class="uj-cover-hero"', $own);
+        $this->assertStringNotContainsString('uj-has-cover', $own);
 
         $hr = $this->person('hr');
         $other = $this->signIn($hr)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
@@ -240,7 +243,7 @@ class ProfileCoverTest extends TestCase
 
         $html = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
 
-        $this->assertStringContainsString('class="uj-cover"', $html);
+        $this->assertStringContainsString('class="uj-cover-hero"', $html);
         $this->assertStringContainsString(config('amanahku.wallpaper_presets.moss'), $html);
         $this->assertMatchesRegularExpression('/value="moss"[^>]*data-on="1"/', $html);
         $this->assertMatchesRegularExpression('/value="dawn"[^>]*data-on="0"/', $html);
@@ -257,6 +260,6 @@ class ProfileCoverTest extends TestCase
             ->assertRedirect($profile);
 
         $html = $this->get($profile)->getContent();
-        $this->assertStringContainsString('uj-cover-error', $html);
+        $this->assertStringContainsString('uj-cover-picker-error', $html);
     }
 }
