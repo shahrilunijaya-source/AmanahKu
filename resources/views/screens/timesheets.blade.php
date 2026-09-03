@@ -320,9 +320,13 @@
                                  leaving the screen. --}}
                             <div x-show="needsCategory(r) && isEditable(selected)" x-cloak
                                 style="margin-top:8px;font-size:11px;color:var(--amber-ink);"
-                                x-text="$store.ui.lang==='en'
-                                    ? 'This card has no category — tap ✎ and pick one. Until then this line is not saved.'
-                                    : 'Kad ini tiada kategori — ketik ✎ dan pilih satu. Sehingga itu baris ini tidak disimpan.'"></div>
+                                x-text="r.work_item_id
+                                    ? ($store.ui.lang==='en'
+                                        ? 'This card has no category — tap ✎ and pick one. Until then this line is not saved.'
+                                        : 'Kad ini tiada kategori — ketik ✎ dan pilih satu. Sehingga itu baris ini tidak disimpan.')
+                                    : ($store.ui.lang==='en'
+                                        ? 'Tap ✎ and pick the kind of work. Until then this line is not saved.'
+                                        : 'Ketik ✎ dan pilih jenis kerja. Sehingga itu baris ini tidak disimpan.')"></div>
 
                             {{-- The amount controls sit INSIDE the line they change, revealed by
                                  hovering or focusing that line. They used to be one strip pinned
