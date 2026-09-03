@@ -378,19 +378,52 @@
                             <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'Days' : 'Hari'">Days</span></th>
                             <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'For' : 'Untuk'">For</span></th>
                             <th style="padding:10px 16px;font-weight:500;"><span x-text="$store.ui.lang==='en' ? 'Granted' : 'Diberi'">Granted</span></th>
+                            <th style="padding:10px 16px;"><span class="uj-sr-only" x-text="$store.ui.lang==='en' ? 'Edit' : 'Ubah'">Edit</span></th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($leaveGrants as $g)
-                            <tr style="border-top:1px solid var(--hairline);">
+                            {{-- A grant can be corrected in place: days and remark only. The balance
+                                 moves by the difference (LeaveController::updateGrant). The staff
+                                 member and the leave type stay put — those would be a new grant. --}}
+                            <tr style="border-top:1px solid var(--hairline);" x-data="{ edit: false }">
                                 <td style="padding:10px 16px;">{{ $g->employee?->display_name }}</td>
-                                <td style="padding:10px 16px;font-variant-numeric:tabular-nums;color:{{ $g->days < 0 ? 'var(--danger, #c0392b)' : 'var(--ink)' }};">{{ $g->days > 0 ? '+' : '' }}{{ $num($g->days) }}</td>
-                                <td style="padding:10px 16px;color:var(--muted);">{{ $g->remark }}</td>
+                                <td style="padding:10px 16px;font-variant-numeric:tabular-nums;color:{{ $g->days < 0 ? 'var(--danger, #c0392b)' : 'var(--ink)' }};">
+                                    <span x-show="! edit">{{ $g->days > 0 ? '+' : '' }}{{ $num($g->days) }}</span>
+                                    <input type="number" name="days" step="0.5" required form="grant-edit-{{ $g->id }}" value="{{ $num($g->days) }}"
+                                           x-show="edit" x-cloak
+                                           style="width:80px;height:32px;padding:0 8px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" />
+                                </td>
+                                <td style="padding:10px 16px;color:var(--muted);">
+                                    <span x-show="! edit">{{ $g->remark }}</span>
+                                    <input name="remark" maxlength="255" required form="grant-edit-{{ $g->id }}" value="{{ $g->remark }}"
+                                           x-show="edit" x-cloak
+                                           style="width:100%;min-width:180px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" />
+                                </td>
                                 <td style="padding:10px 16px;color:var(--muted);white-space:nowrap;">{{ $g->created_at?->format('j M Y') }}{{ $g->grantedBy ? ' · '.$g->grantedBy->display_name : '' }}</td>
+                                <td style="padding:10px 16px;text-align:right;white-space:nowrap;">
+                                    <button type="button" x-show="! edit" @click="edit = true" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
+                                        <span x-text="$store.ui.lang==='en' ? 'Edit' : 'Ubah'">Edit</span>
+                                    </button>
+                                    <button type="submit" form="grant-edit-{{ $g->id }}" x-show="edit" x-cloak class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;">
+                                        <span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span>
+                                    </button>
+                                    <button type="button" x-show="edit" x-cloak @click="edit = false" class="uj-btn-ghost" style="height:30px;padding:0 10px;font-size:12px;">
+                                        <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span>
+                                    </button>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
+                {{-- The edit forms live outside the table: a <form> cannot wrap a <tr>, so the
+                     cells' inputs point at these by id instead. --}}
+                @foreach ($leaveGrants as $g)
+                    <form id="grant-edit-{{ $g->id }}" method="post" action="{{ route('leave.grant.update', $g->id) }}" hidden>
+                        @csrf
+                        @method('PATCH')
+                    </form>
+                @endforeach
             </div>
         @endif
     @endif

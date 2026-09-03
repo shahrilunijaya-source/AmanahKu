@@ -21,16 +21,19 @@ class LeaveGrant extends Model
         return ['days' => 'float'];
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /** @return BelongsTo<LeaveType, $this> */
     public function leaveType(): BelongsTo
     {
         return $this->belongsTo(LeaveType::class);
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function grantedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'granted_by_id');

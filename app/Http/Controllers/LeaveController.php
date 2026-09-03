@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\RoutesApprovalsByReportingLine;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\LeaveGrant;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Support\AttachmentName;
@@ -267,6 +268,86 @@ class LeaveController extends Controller
 
         return back()->with('ok', $num($days).' day'.(abs($days) == 1 ? '' : 's').' of '.$type->name
             .' quota granted to '.$employee->name.' ('.$num($balanceAfter).' available).');
+    }
+
+    /**
+     * HR corrects a grant it already made: the days and the remark, nothing else. Changing
+     * who it belongs to would be a different grant altogether, so that stays a new row.
+     * The balance moves by the difference, and a correction that would take it below zero
+     * is refused rather than floored — those days have already been taken.
+     */
+    public function updateGrant(Request $request, int $grant): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+
+        $data = $request->validate([
+            'days' => ['required', 'numeric', 'between:-365,365', 'not_in:0', 'multiple_of:0.5'],
+            'remark' => ['required', 'string', 'max:255'],
+        ]);
+
+        // Resolved here rather than by route-model binding: binding runs before the tenant
+        // is resolved, so a bound model can come from another tenant.
+        $leaveGrant = LeaveGrant::with(['employee', 'leaveType'])->whereKey($grant)->first();
+        abort_unless($leaveGrant !== null, 404);
+
+        $employee = $leaveGrant->employee;
+        $type = $leaveGrant->leaveType;
+        abort_unless($employee !== null && $type !== null, 422);
+
+        $was = (float) $leaveGrant->days;
+        $days = (float) $data['days'];
+        $delta = $days - $was;
+
+        $num = fn (float $v): string => rtrim(rtrim(number_format($v, 1), '0'), '.');
+
+        $balanceAfter = DB::transaction(function () use ($leaveGrant, $employee, $type, $days, $delta, $data): ?float {
+            $balance = $employee->leaveBalances()
+                ->where('leave_type_id', $type->id)
+                ->lockForUpdate()
+                ->first();
+
+            $after = ($balance ? (float) $balance->balance : 0.0) + $delta;
+
+            // Below zero means the days are already spent on approved leave.
+            if ($after < 0) {
+                return null;
+            }
+
+            $leaveGrant->update(['days' => $days, 'remark' => $data['remark']]);
+
+            if ($balance) {
+                $balance->update(['balance' => $after]);
+            } else {
+                $employee->leaveBalances()->create(['leave_type_id' => $type->id, 'balance' => $after]);
+            }
+
+            return $after;
+        });
+
+        if ($balanceAfter === null) {
+            return back()->withErrors([
+                'days' => 'That would leave '.$employee->name.' with less '.$type->name
+                    .' quota than has already been taken. It cannot go below '
+                    .$num($was - (float) ($employee->leaveBalances()
+                        ->where('leave_type_id', $type->id)->value('balance') ?? 0)).' days.',
+            ]);
+        }
+
+        AuditLog::record('Edited leave quota grant', $employee->name.' · '.$type->name.' · '
+            .$num($was).'d → '.$num($days).'d · '.$data['remark']);
+
+        if ($delta != 0.0) {
+            AppNotification::send(
+                $employee->user_id,
+                $type->name.' quota adjusted',
+                'Now '.$num($days).' day'.(abs($days) == 1 ? '' : 's').' · '.$data['remark']
+                    .' · '.$num($balanceAfter).' now available',
+                route('app.screen', 'leave'),
+            );
+        }
+
+        return back()->with('ok', 'Grant updated: '.$employee->name.' · '.$num($days).' day'
+            .(abs($days) == 1 ? '' : 's').' of '.$type->name.' ('.$num($balanceAfter).' available).');
     }
 
     /** Step 1: the immediate superior verifies, moving the request on to management. */

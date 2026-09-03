@@ -366,6 +366,96 @@ class LeaveScreenTabsTest extends TestCase
             ->post(route('leave.grant'), $payload);
     }
 
+    /**
+     * A mistyped grant is corrected in place and the balance follows the difference.
+     */
+    public function test_hr_edits_a_grant_and_the_balance_follows(): void
+    {
+        $staff = $this->member('employee', 'Staff');
+        $hr = $this->member('hr', 'Hana');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 2, 'remark' => 'Worked 30 Aug',
+        ])->assertRedirect();
+
+        $this->editGrantAsHr($hr, LeaveGrant::sole(), [
+            'days' => 0.5, 'remark' => 'Worked half of 30 Aug',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $grant = LeaveGrant::sole();
+        $this->assertEquals(0.5, (float) $grant->days);
+        $this->assertSame('Worked half of 30 Aug', $grant->remark);
+        $this->assertEquals(0.5, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /**
+     * Days already taken cannot be taken back: an edit that would drive the balance below
+     * zero is refused whole, leaving both the grant and the balance untouched.
+     */
+    public function test_an_edit_below_what_is_already_taken_is_refused(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $director = $this->member('director', 'Dee');
+        $manager = $this->member('manager', 'Mala', $director->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 2, 'remark' => 'Worked 30-31 Aug',
+        ])->assertRedirect();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => '2026-09-07', 'date_to' => '2026-09-07', 'reason' => 'Rest.',
+        ])->assertRedirect();
+
+        $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.verify', $leave))->assertRedirect();
+        $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post(route('leave.approve', $leave))->assertRedirect();
+
+        // One of the two days is spent, so the grant cannot drop below one day.
+        $this->editGrantAsHr($hr, LeaveGrant::sole(), [
+            'days' => 0.5, 'remark' => 'Too far',
+        ])->assertSessionHasErrors('days');
+
+        $this->assertEquals(2.0, (float) LeaveGrant::sole()->days);
+        $this->assertEquals(1.0, (float) LeaveBalance::where('employee_id', $staff->id)
+            ->where('leave_type_id', $type->id)->value('balance'));
+    }
+
+    /** Editing a grant is HR's job, not the staff member's. */
+    public function test_an_employee_cannot_edit_a_grant(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked 30 Aug',
+        ])->assertRedirect();
+
+        $this->editGrantAsHr($staff, LeaveGrant::sole(), [
+            'days' => 9, 'remark' => 'Mine now',
+        ])->assertForbidden();
+
+        $this->assertEquals(1.0, (float) LeaveGrant::sole()->days);
+    }
+
+    private function editGrantAsHr(Employee $hr, LeaveGrant $grant, array $payload)
+    {
+        return $this->actingAs($hr->user)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->from('/app/leave-setup')
+            ->patch(route('leave.grant.update', $grant->id), $payload);
+    }
+
     private function applyAs(Employee $staff, array $payload)
     {
         return $this->actingAs($staff->user)
