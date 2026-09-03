@@ -1153,30 +1153,83 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transition: transform 280ms cubic-bezier(.32,.72,0,1);
 }
 .wd[data-open] { transform: translateX(0); }
-/* Overview beside the drawer: the parent card and its subtasks, inside the scrim. */
+/* Overview beside the drawer: the parent card and its subtasks, inside the scrim.
+   Sits on the dimmed board, so the cards carry no hairline: on a dark ground a 1px
+   edge reads as a cut-out, and depth comes from a layered shadow instead. The
+   active card wears a soft ring (--red-tint halo) rather than a hard outline.
+   One authored entrance: the panel settles up into place and the rows follow with
+   a short stagger; ticks and presses answer with a small transform. */
+@keyframes wd-ov-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes wd-ov-row { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .wd-ov {
     /* Centred in the space left of the drawer, vertically too. */
     position: fixed; top: 50%; left: calc((100vw - min(560px, 94vw)) / 2); transform: translate(-50%, -50%);
-    width: 400px; max-width: calc(100vw - min(560px, 94vw) - 48px);
+    width: 420px; max-width: calc(100vw - min(560px, 94vw) - 48px);
     max-height: calc(100vh - 48px); overflow-y: auto; z-index: 61; cursor: default;
+    padding: 4px; scrollbar-width: none;
+    animation: wd-ov-in 320ms var(--ease) both;
 }
-.wd-ov-h { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #fff; opacity: .9; margin: 16px 0 8px; }
+.wd-ov-h { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.72); margin: 18px 4px 8px; }
 .wd-ov-parent, .wd-ov-child {
-    display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--hairline);
-    border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; font: inherit; color: var(--ink); cursor: pointer;
-    box-shadow: 0 6px 22px rgba(31,30,26,.14);
+    display: block; width: 100%; text-align: left; background: var(--card); border: 0;
+    border-radius: 18px; padding: 16px 20px; margin-bottom: 10px; font: inherit; color: var(--ink); cursor: pointer;
+    box-shadow: 0 1px 2px rgba(31,30,26,.06), 0 14px 34px -10px rgba(31,30,26,.32);
+    animation: wd-ov-row 260ms var(--ease) both;
+    transition: transform 160ms var(--ease), box-shadow 200ms var(--ease);
 }
-.wd-ov-parent.is-active, .wd-ov-child.is-active { outline: 2px solid var(--red); outline-offset: -1px; }
+.wd-ov-child:nth-of-type(1) { animation-delay: 40ms; }
+.wd-ov-child:nth-of-type(2) { animation-delay: 80ms; }
+.wd-ov-child:nth-of-type(3) { animation-delay: 120ms; }
+.wd-ov-child:nth-of-type(4) { animation-delay: 160ms; }
+.wd-ov-child:nth-of-type(n+5) { animation-delay: 200ms; }
+.wd-ov-add { animation: wd-ov-row 260ms var(--ease) 240ms both; }
+.wd-ov-parent.is-active, .wd-ov-child.is-active {
+    box-shadow: 0 0 0 1.5px var(--red), 0 0 0 6px rgba(214,35,43,.18), 0 14px 34px -10px rgba(31,30,26,.32);
+}
+@media (hover: hover) and (pointer: fine) {
+    .wd-ov-parent:hover { transform: translateY(-1px); box-shadow: 0 1px 2px rgba(31,30,26,.06), 0 18px 40px -10px rgba(31,30,26,.38); }
+    .wd-ov-parent.is-active:hover { box-shadow: 0 0 0 1.5px var(--red), 0 0 0 6px rgba(214,35,43,.18), 0 18px 40px -10px rgba(31,30,26,.38); }
+}
+.wd-ov-parent:active { transform: scale(.985); }
 .wd-ov-type { display: block; font-size: 11px; color: var(--muted); text-transform: capitalize; }
-.wd-ov-title { display: block; font-size: 16px; font-weight: 600; margin: 3px 0 6px; }
+.wd-ov-title { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin: 3px 0 8px; }
 .wd-ov-meta { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
-.wd-ov-child { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; cursor: default; }
-.wd-ov-child input[type="checkbox"] { margin: 0; width: 17px; height: 17px; accent-color: var(--success); }
-.wd-ov-child-title { background: none; border: 0; padding: 0; font: inherit; font-size: 15px; color: var(--ink); text-align: left; cursor: pointer; }
-.wd-ov-child.is-done .wd-ov-child-title { text-decoration: line-through; color: var(--muted); }
-.wd-ov-add .wd-inline { width: 100%; margin: 0; padding: 12px 16px; font-size: 14px; background: rgba(255,255,255,.85); border-style: dashed; border-radius: 12px; }
-.wd-back { background: none; border: 0; padding: 0 0 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
+.wd-ov-child { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; cursor: default; padding: 15px 20px; }
+.wd-ov-child input[type="checkbox"] {
+    margin: 0; width: 18px; height: 18px; accent-color: var(--success); cursor: pointer;
+    transition: transform 140ms var(--ease);
+}
+.wd-ov-child input[type="checkbox"]:active { transform: scale(.85); }
+.wd-ov-child input[type="checkbox"]:disabled { cursor: default; }
+/* Strike-through drawn as a bar that sweeps in from the left; text-decoration can't
+   animate. Untick clears it faster than tick draws it. */
+.wd-ov-child-title {
+    position: relative; justify-self: start; background: none; border: 0; padding: 0; font: inherit; font-size: 15px;
+    color: var(--ink); text-align: left; cursor: pointer; transition: color 200ms ease, transform 120ms var(--ease);
+}
+.wd-ov-child-title::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 55%; height: 1.5px; background: currentColor;
+    transform: scaleX(0); transform-origin: left; transition: transform 140ms var(--ease);
+}
+.wd-ov-child-title:active { transform: scale(.98); }
+.wd-ov-child.is-done .wd-ov-child-title { color: var(--muted); }
+.wd-ov-child.is-done .wd-ov-child-title::after { transform: scaleX(1); transition-duration: 260ms; }
+.wd-ov-add .wd-inline {
+    width: 100%; margin: 0; padding: 14px 20px; font-size: 14px; color: #fff;
+    background: rgba(255,255,255,.12); border: 1px dashed rgba(255,255,255,.5); border-radius: 18px;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.wd-ov-add .wd-inline::placeholder { color: rgba(255,255,255,.82); }
+.wd-ov-add .wd-inline:hover { background: rgba(255,255,255,.2); }
+.wd-ov-add .wd-inline:focus { color: var(--ink); background: var(--card); border-style: solid; }
+.wd-ov-add .wd-inline:focus::placeholder { color: var(--muted-soft); }
+.wd-back { background: none; border: 0; padding: 0 0 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; transition: color 120ms ease; }
 .wd-back:hover { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+    .wd-ov, .wd-ov-parent, .wd-ov-child, .wd-ov-add { animation: uj-fade .15s ease both; animation-delay: 0s; }
+    .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active { transform: none; }
+    .wd-ov-child-title::after { transition: none; }
+}
 @media (max-width: 1100px) { .wd-ov { display: none; } }
 /* Card drawer opened FROM the team board's own person window (.tb-win-modal,
    z-index 61): .wd-scrim/.wd are shared with that window's own backdrop+shell,
