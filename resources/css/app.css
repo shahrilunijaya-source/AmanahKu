@@ -4598,6 +4598,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-card--over-cover { position: relative; z-index: 1; margin: 0 24px; box-shadow: 0 8px 24px -12px rgba(38, 37, 30, .28); }
 .uj-avatar-ring { box-shadow: 0 0 0 4px #fff; }
 .uj-cover-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+/* On a wallpaper the strip rides on the same paper plate as the page title, so the label never sits on a photograph. */
+.uj-has-wallpaper .uj-cover-picker { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
 .uj-cover-picker-label { font-size: 12.5px; color: var(--muted); margin-right: 4px; }
 .uj-cover-chips { display: contents; }
 .uj-cover-chip { width: 44px; height: 28px; border-radius: 7px; border: 1px solid rgba(38, 37, 30, .12); cursor: pointer; padding: 0; transition: transform 160ms cubic-bezier(.23, 1, .32, 1), box-shadow 160ms ease; }

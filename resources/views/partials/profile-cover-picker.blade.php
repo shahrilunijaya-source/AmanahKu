@@ -1,5 +1,5 @@
 {{-- Six colour chips plus upload. Each chip is a submit button in one form; upload is its own form. --}}
-<div class="uj-cover-picker" x-data>
+<div class="uj-cover-picker" x-data style="backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);">
     <span class="uj-cover-picker-label" x-text="$store.ui.lang==='en' ? 'Pick a colour or upload a photo' : 'Pilih warna atau muat naik foto'">Pick a colour or upload a photo</span>
     <form method="post" action="{{ route('employees.cover.update', $employee) }}" class="uj-cover-chips">
         @csrf
