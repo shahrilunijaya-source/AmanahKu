@@ -62,5 +62,11 @@ export function registerDarkSurfaces() {
                 else if (r.target instanceof Element) schedule(r.target);
             }
         }).observe(m, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+        // A background that transitions in (the board's filter chips fade from clear to
+        // white over 140ms) measures as clear at the frame the mutation lands, and a
+        // finished transition is not a mutation. Measure again when it settles.
+        m.addEventListener('transitionend', (e) => {
+            if (e.propertyName === 'background-color' && e.target instanceof Element) schedule(e.target);
+        });
     });
 }
