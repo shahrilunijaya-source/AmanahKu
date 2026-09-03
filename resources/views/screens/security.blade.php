@@ -149,22 +149,29 @@
             <button type="button" class="uj-wp-tile uj-wp-tile--none" data-wallpaper="none" :data-on="choice === 'none'" @click="pick('none')">
                 <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'">None</span>
             </button>
-            @if ($apUrl)
-                {{-- Server-rendered only when a photo already exists, so a fresh
-                     account's page carries no photo-tile markup at all. Once
-                     rendered, x-if keeps it reactive to later remove/re-upload
-                     without a reload; a first-ever upload (no template yet) only
-                     shows the tile after the next page load — the wallpaper
-                     itself still swaps live via paint() either way. --}}
-                <template x-if="photoUrl">
-                    <button type="button" class="uj-wp-tile" data-wallpaper="upload" :data-on="choice === 'upload'" :style="'background-image:url(' + photoUrl + ')'" @click="pick('upload')">
-                        <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'Your photo' : 'Foto anda'">Your photo</span>
-                    </button>
-                </template>
-            @endif
+            {{-- Always rendered (not gated on an existing photo) so x-if stays
+                 reactive to a first-ever upload with no reload. data-wallpaper
+                 is Alpine-bound rather than a static attribute so the server
+                 HTML never literally contains data-wallpaper="upload" before
+                 an upload happens; it's a client-rendered marker only. --}}
+            <template x-if="photoUrl">
+                <button type="button" class="uj-wp-tile" :data-wallpaper="'upload'" :data-on="choice === 'upload'" :style="'background-image:url(' + photoUrl + ')'" @click="pick('upload')">
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'Your photo' : 'Foto anda'">Your photo</span>
+                </button>
+            </template>
             @foreach (config('amanahku.wallpaper_presets') as $key => $css)
+                @php
+                    $presetNames = [
+                        'dawn' => ['Dawn', 'Subuh'],
+                        'dusk' => ['Dusk', 'Senja'],
+                        'paper' => ['Paper', 'Kertas'],
+                        'moss' => ['Moss', 'Lumut'],
+                        'slate' => ['Slate', 'Batu'],
+                        'sand' => ['Sand', 'Pasir'],
+                    ][$key] ?? [ucfirst($key), ucfirst($key)];
+                @endphp
                 <button type="button" class="uj-wp-tile" data-wallpaper="preset:{{ $key }}" :data-on="choice === 'preset:{{ $key }}'" style="background:{{ $css }};" @click="pick('preset:{{ $key }}')">
-                    <span class="uj-wp-name">{{ ucfirst($key) }}</span>
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? '{{ $presetNames[0] }}' : '{{ $presetNames[1] }}'">{{ $presetNames[0] }}</span>
                 </button>
             @endforeach
             <label class="uj-wp-tile uj-wp-tile--upload">
@@ -181,7 +188,7 @@
                 <button type="button" :data-on="dim === 'soft'" @click="setDim('soft')" x-text="$store.ui.lang==='en' ? 'Soft' : 'Lembut'">Soft</button>
                 <button type="button" :data-on="dim === 'strong'" @click="setDim('strong')" x-text="$store.ui.lang==='en' ? 'Strong' : 'Kuat'">Strong</button>
             </div>
-            <span style="margin-left:auto;font-size:11.5px;color:var(--muted-soft);" x-show="!photoUrl">JPEG, PNG, WebP · 5 MB</span>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--muted-soft);" x-show="!photoUrl" x-text="$store.ui.lang==='en' ? 'JPEG, PNG, WebP · 5 MB' : 'JPEG, PNG, WebP · 5 MB'">JPEG, PNG, WebP · 5 MB</span>
             <button type="button" x-show="photoUrl" x-cloak class="uj-btn-ghost" style="margin-left:auto;height:32px;font-size:12px;padding:0 12px;border:0;color:var(--muted);" @click="removePhoto()">
                 <span x-text="$store.ui.lang==='en' ? 'Remove photo' : 'Buang foto'">Remove photo</span>
             </button>
@@ -294,9 +301,10 @@ document.addEventListener('alpine:init', () => {
         },
         async send(body) {
             this.error = '';
+            const fallback = Alpine.store('ui').lang === 'en' ? 'Could not save.' : 'Tidak dapat disimpan.';
             const res = await fetch(cfg.url, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' }, body });
-            if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? 'Could not save.'; return false; }
-            if (!res.ok) { this.error = 'Could not save.'; return false; }
+            if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? fallback; return false; }
+            if (!res.ok) { this.error = fallback; return false; }
             return true;
         },
         form(extra = {}) {
@@ -317,7 +325,7 @@ document.addEventListener('alpine:init', () => {
         },
         async removePhoto() {
             const res = await fetch(cfg.deleteUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' } });
-            if (!res.ok) { this.error = 'Could not remove the photo.'; return; }
+            if (!res.ok) { this.error = Alpine.store('ui').lang === 'en' ? 'Could not remove the photo.' : 'Foto tidak dapat dibuang.'; return; }
             this.photoUrl = null; if (this.choice === 'upload') this.choice = 'none'; this.paint();
         },
     }));

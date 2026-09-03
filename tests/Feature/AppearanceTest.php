@@ -224,8 +224,8 @@ class AppearanceTest extends TestCase
 
         $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
 
-        $this->assertStringContainsString('data-wallpaper="upload"', $html);
         $this->assertStringContainsString('Remove photo', $html);
+        $this->assertStringContainsString('/storage/wallpapers/1/a.jpg', $html);
     }
 
     public function test_account_menu_links_to_the_background_card(): void
