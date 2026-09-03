@@ -340,16 +340,17 @@ export function registerTimesheetCapture(Alpine) {
         },
         // Manual mode's own way of putting a line on the day — the board-prefill
         // equivalent of a card landing In Progress, except the staffer starts it. Opens
-        // straight into the overlay: an empty row with nothing to name it is not worth
-        // leaving on screen half-built.
-        addManualRow() {
-            const iso = this.selected;
-            if (!this.rows[iso]) this.rows[iso] = [];
-            this.rows[iso].push({
-                id: null, work_item_id: null, title: '', category_id: '', project_id: '',
-                sub_pillar_id: '', description: '', percentage: '', suggested: false, manual: true,
-            });
-            this.openEditRow(this.rows[iso].length - 1);
+        // the overlay on the classification question, one step at a time; nothing is
+        // pushed onto the day until the details step is confirmed, so cancelling at any
+        // step along the way leaves the day exactly as it was.
+        openAddPicker() {
+            this.picker = {
+                open: true, step: 'category',
+                pendingCat: '', pendingProject: '', pendingSub: '',
+                pendingPct: '', pendingDesc: '', pendingItem: null,
+                askCat: false, askProject: false, isManual: true, editingIndex: null,
+            };
+            this.focusPickerTitle();
         },
         remainder(iso) {
             return Math.max(0, Math.round((100 - this.dayTotal(iso)) * 100) / 100);
@@ -369,15 +370,11 @@ export function registerTimesheetCapture(Alpine) {
             // A suggestion the staffer has costed is an ordinary row.
             if (row.percentage !== '') row.suggested = false;
         },
-        // A line the staffer added but has not costed yet. It is kept and flagged rather than
-        // dropped: the day cannot be submitted while one exists, but it survives a reload.
-        // A manual row (no card behind it) is blank until BOTH a category and a percentage
-        // are on it — without the category half, a typed percentage would read dayTotal()
-        // as done while flatRows() (needsCategory()) drops the row on save regardless,
-        // which would show a day as finished when it cannot actually be submitted that way.
+        // A line with no percentage yet. It is kept and flagged rather than dropped: the day
+        // cannot be submitted while one exists, but it survives a reload. A manual row always
+        // has a category by the time it exists — the wizard requires one to reach confirmEntry()
+        // — so this is purely about the percentage half.
         isBlank(row) {
-            if (!row.work_item_id && !row.category_id) return true;
-
             return !(parseFloat(row.percentage) > 0);
         },
         // A card that reached the grid with no category behind it: its own choice is unset,
@@ -443,72 +440,82 @@ export function registerTimesheetCapture(Alpine) {
             const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
             const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
             const sub = proj && (proj.sub_pillars || []).find((s) => String(s.id) === String(r.sub_pillar_id));
-            const label = [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
-            // A manual row with nothing picked yet (freshly added, or the overlay was
-            // cancelled before anything was chosen) would otherwise render with no title
-            // at all — a card row always has at least its board title to fall back to.
-            if (!label && !r.work_item_id) {
-                return this.$store.ui.lang === 'en' ? 'New line' : 'Baris baharu';
-            }
-
-            return label;
+            return [cat && cat.name, proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
 
         // ---- the row overlay ------------------------------------------------------
-        // One popup, one job: the row already knows its project (it comes from the board
-        // card), so this asks what the card cannot answer — what the staffer was doing, how
-        // much of the day it took, and any notes. Plus the category, but only for a card
-        // that never set one: without it the line can never be saved at all.
+        // A card row still asks only what the card cannot answer — what the staffer was
+        // doing, how much of the day it took, and any notes, plus its category when the
+        // card never set one. A manual row has no card to answer for it, so it walks the
+        // classification itself first: category, then project (only when the category
+        // needs one), then the optional "what were you doing" tag, and only then details —
+        // one question per step, matching how this screen worked before board prefill
+        // replaced it (see 84dc9cf^).
         picker: {
             open: false, step: 'category', pendingItem: null, pendingPct: null,
-            pendingDesc: '', pendingSub: '', pendingCat: '', askCat: false, editingIndex: null,
-            isManual: false, askProject: false, pendingProject: '',
+            pendingDesc: '', pendingSub: '', pendingCat: '', pendingProject: '',
+            askCat: false, askProject: false, isManual: false, editingIndex: null,
         },
 
         // Opens the row's overlay, pre-filled from the row itself, so a rich-text note is
         // edited through the same Quill instance that wrote it rather than a plain input
-        // showing its raw HTML tags. Project is shown, not asked: it comes from the board
-        // card, and the card is where it gets corrected. Category too — unless the card
-        // arrived without one, in which case askCat turns the picker on.
+        // showing its raw HTML tags. A card row keeps today's behaviour: details only,
+        // project shown (not asked — it rides in with the card), category asked only the
+        // first time (needsCategory()). A manual row has already been through the
+        // category → project → sub steps once (openAddPicker()/confirmEntry() below), so
+        // editing it also opens straight on details — its own back arrow (pickerBack())
+        // is what sends it back to 'category' to re-walk the classification.
         openEditRow(i) {
             const r = this.rows[this.selected][i];
-            const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
-            const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
-            // A manual row has no card to answer for it, so its category is always asked
-            // here — even when it already has one, so it stays correctable. A card row
-            // keeps the old rule: asked only the first time, while it needsCategory().
             const isManual = !r.work_item_id;
             this.picker = {
                 open: true, step: 'details',
-                pendingItem: { label: this.rowTitle(r), category_id: r.category_id, project_id: r.project_id || '' },
+                pendingItem: isManual ? null : { label: this.rowTitle(r) },
                 pendingPct: r.percentage, pendingDesc: r.description || '',
                 pendingSub: r.sub_pillar_id || '',
                 pendingCat: r.category_id || '',
-                askCat: isManual || this.needsCategory(r),
-                isManual,
-                // Project is only ever asked for a manual row, and only when its (already
-                // chosen) category demands one — a card's project rides in with the card.
-                askProject: isManual && this.categoryRequiresProject(r.category_id),
                 pendingProject: r.project_id || '',
+                askCat: !isManual && this.needsCategory(r),
+                askProject: isManual && this.categoryRequiresProject(r.category_id),
+                isManual,
                 editingIndex: i,
             };
             this.focusPickerTitle();
         },
-        // Category pill click on the details step. For a manual row this also decides
-        // whether the project step shows next: switching from a project-less category to
-        // one that requires a project must reveal it immediately, and switching back away
-        // must drop whatever project was pending so a stale pick can't sneak onto a line
-        // whose category no longer wants one.
+        // Category pill click on a card's details step (askCat), unrelated to the manual
+        // flow's own category step (pickCategory() below) — a card's category, once asked,
+        // is answered right there without a separate step.
         pickManualCategory(categoryId) {
             this.picker.pendingCat = categoryId;
-            if (!this.picker.isManual) return;
+        },
+        // Step 1 of the manual flow: category chosen, decide what's next — the project
+        // step when this category needs one, else straight to the optional sub step (or
+        // details, when there is no sub-pillar list to offer).
+        pickCategory(categoryId) {
+            this.picker.pendingCat = categoryId;
             this.picker.askProject = this.categoryRequiresProject(categoryId);
-            if (!this.picker.askProject) this.picker.pendingProject = '';
+            this.picker.pendingProject = '';
+            this.picker.step = this.picker.askProject ? 'project' : (this.subPillars.length ? 'sub' : 'details');
+            this.focusPickerTitle();
+        },
+        // Step 2 (only for a category that requires one): project chosen, on to the
+        // optional sub step, or straight to details when there isn't one.
+        pickProject(projectId) {
+            this.picker.pendingProject = projectId;
+            this.picker.step = this.subPillars.length ? 'sub' : 'details';
+            this.focusPickerTitle();
+        },
+        // Step 3, optional: '' from the Skip row leaves the line without one.
+        pickSub(subId) {
+            this.picker.pendingSub = subId || '';
+            this.picker.step = 'details';
+            this.focusPickerTitle();
         },
         // Projects offered for the manual row's project step, narrowed to the chosen
-        // category the way the picker already narrows by card — falls back to every
-        // project when none declare that category, so an uncategorized project stays
-        // reachable (same reasoning as `category_ids` in TimesheetController::projectOptions()).
+        // category the way the board prefill already narrows by card — falls back to
+        // every project when none declare that category, so an uncategorized project
+        // stays reachable (same reasoning as `category_ids` in
+        // TimesheetController::projectOptions()).
         pickerProjects() {
             const catId = this.picker.pendingCat;
             if (!catId) return this.projects;
@@ -516,9 +523,57 @@ export function registerTimesheetCapture(Alpine) {
 
             return narrowed.length ? narrowed : this.projects;
         },
-        // The overlay is one step deep now, so Back is simply Cancel.
+        // Whether the back arrow (below) would close the overlay outright rather than
+        // step backward — a card's details step has nothing behind it, and the manual
+        // flow's own category step is where its drill-down began. Drives the header's
+        // ×-vs-← and its label.
+        pickerAtFirstStep() {
+            return this.picker.step === 'category'
+                || (this.picker.step === 'details' && this.picker.editingIndex != null && !this.picker.isManual);
+        },
+        // One step back, clearing the choice made at the step being returned to (it is
+        // about to be re-picked) — same rule the old drill-down used. Editing an existing
+        // manual row is the one exception: its details step has no drill-down behind it in
+        // this visit, so Back sends it to 'category' to start the classification over.
         pickerBack() {
-            this.closePicker();
+            if (this.picker.step === 'details') {
+                if (this.picker.editingIndex != null) {
+                    if (!this.picker.isManual) {
+                        this.closePicker();
+
+                        return;
+                    }
+                    this.picker.pendingCat = '';
+                    this.picker.pendingProject = '';
+                    this.picker.pendingSub = '';
+                    this.picker.step = 'category';
+                } else if (this.subPillars.length) {
+                    this.picker.pendingSub = '';
+                    this.picker.step = 'sub';
+                } else if (this.picker.askProject) {
+                    this.picker.pendingProject = '';
+                    this.picker.step = 'project';
+                } else {
+                    this.picker.pendingCat = '';
+                    this.picker.step = 'category';
+                }
+            } else if (this.picker.step === 'sub') {
+                if (this.picker.askProject) {
+                    this.picker.pendingProject = '';
+                    this.picker.step = 'project';
+                } else {
+                    this.picker.pendingCat = '';
+                    this.picker.step = 'category';
+                }
+            } else if (this.picker.step === 'project') {
+                this.picker.pendingCat = '';
+                this.picker.step = 'category';
+            } else {
+                this.closePicker();
+
+                return;
+            }
+            this.focusPickerTitle();
         },
         // Shared by every way the popup can shut (pick, back-out, Escape, backdrop click) so
         // keyboard/screen-reader focus always lands back on the button that opened it, instead
@@ -536,16 +591,29 @@ export function registerTimesheetCapture(Alpine) {
         categoryName(c) {
             return this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
         },
-        // How a row names itself in the overlay's header: its category, and its project
-        // when it has one.
-        pickerItem(category, project, sub) {
-            return {
-                key: `c${category.id}-${project ? project.id : ''}-${sub ? sub.id : ''}`,
-                label: [this.categoryName(category), project && project.name, sub && sub.name].filter(Boolean).join(' · '),
-                category_id: category.id,
-                project_id: project ? project.id : '',
-                sub_pillar_id: sub ? sub.id : '',
-            };
+        // The header's title, one per step. A manual row's details step asks a narrower
+        // question than a card's — classification already happened in the steps before it.
+        pickerStepTitle() {
+            const en = this.$store.ui.lang === 'en';
+            if (this.picker.step === 'category') return en ? 'What kind of work was this?' : 'Kerja jenis apa ini?';
+            if (this.picker.step === 'project') return en ? 'Which project?' : 'Projek mana?';
+            if (this.picker.step === 'sub') return en ? 'What were you doing?' : 'Anda buat apa?';
+            if (this.picker.isManual && this.picker.editingIndex == null) {
+                return en ? 'How much of the day?' : 'Berapa banyak hari?';
+            }
+
+            return en ? 'What were you doing, and how much of the day?' : 'Anda buat apa, dan berapa banyak hari?';
+        },
+        // The header's trail pill: a card keeps showing its own title (set once, in
+        // openEditRow()); a manual row shows what has been picked so far, filling in as
+        // each step is answered.
+        pickerHeaderLabel() {
+            if (!this.picker.isManual) return (this.picker.pendingItem && this.picker.pendingItem.label) || '';
+            const cat = this.categories.find((c) => String(c.id) === String(this.picker.pendingCat));
+            const proj = this.projects.find((p) => String(p.id) === String(this.picker.pendingProject));
+            const sub = this.subPillars.find((s) => String(s.id) === String(this.picker.pendingSub));
+
+            return [cat && this.categoryName(cat), proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
         // Moves focus to the picker dialog's own step heading (tabindex="-1", script-focus
         // only) — called after any step change so focus tracks the step instead of dropping
@@ -582,23 +650,44 @@ export function registerTimesheetCapture(Alpine) {
                 }
             }
         },
-        // Overlay Submit: writes what the staffer was doing, how much of the day it took
-        // and any notes back into the row it was opened from.
+        // Overlay Submit. Editing a row (card or manual) writes what changed back into it.
+        // A fresh manual add has no row yet — that's the point of openAddPicker() not
+        // pushing one — so this is where it is finally created, fully formed, with
+        // whatever category/project/sub the earlier steps settled on.
         confirmEntry() {
-            if (this.picker.editingIndex == null) return;
-            const r = this.rows[this.selected][this.picker.editingIndex];
-            if (this.picker.askCat && this.picker.pendingCat) {
-                this.applyCategory(r, this.picker.pendingCat);
+            if (this.picker.editingIndex != null) {
+                const r = this.rows[this.selected][this.picker.editingIndex];
+                if (this.picker.askCat && this.picker.pendingCat) {
+                    this.applyCategory(r, this.picker.pendingCat);
+                }
+                // A card row's category/project ride in with the card (or, for category,
+                // are answered once via askCat above) and are otherwise left untouched here.
+                if (this.picker.isManual) {
+                    r.category_id = this.picker.pendingCat;
+                    r.project_id = this.picker.pendingProject || '';
+                }
+                r.percentage = this.picker.pendingPct;
+                r.description = this.picker.pendingDesc;
+                r.sub_pillar_id = this.picker.pendingSub || '';
+                if (r.percentage !== '') r.suggested = false;
+                this.closePicker();
+                this.save();
+
+                return;
             }
-            // Project only ever comes from this step for a manual row; a card row's
-            // project always rides in with the card and this leaves it untouched.
-            if (this.picker.isManual) {
-                r.project_id = this.picker.askProject ? (this.picker.pendingProject || '') : '';
-            }
-            r.percentage = this.picker.pendingPct;
-            r.description = this.picker.pendingDesc;
-            r.sub_pillar_id = this.picker.pendingSub || '';
-            if (r.percentage !== '') r.suggested = false;
+
+            const iso = this.selected;
+            if (!this.rows[iso]) this.rows[iso] = [];
+            this.rows[iso].push({
+                id: null,
+                work_item_id: null,
+                category_id: this.picker.pendingCat,
+                project_id: this.picker.pendingProject || '',
+                sub_pillar_id: this.picker.pendingSub || '',
+                percentage: this.picker.pendingPct,
+                description: this.picker.pendingDesc,
+                suggested: false,
+            });
             this.closePicker();
             this.save();
         },
@@ -801,10 +890,6 @@ export function registerTimesheetCapture(Alpine) {
                     // A row with no category cannot be stored (the server requires one) and
                     // would take the whole week's save down with it.
                     .filter((r) => !this.needsCategory(r))
-                    // An abandoned manual line (added, never given a category+percentage) is
-                    // dropped rather than sent as a 0% row — unlike a board row, nothing put
-                    // it there but the staffer, so quietly forgetting it is the right default.
-                    .filter((r) => r.work_item_id || !this.isBlank(r))
                     // A manual line whose category demands a project but has none yet is
                     // withheld the same way a missing category is, until the picker fills it.
                     .filter((r) => !this.needsProject(r));

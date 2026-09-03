@@ -4556,6 +4556,10 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    :hover rule, so setting background:#fff inline made this hover rule a no-op until that
    binding was narrowed to the disabled case only (see timesheets.blade.php). */
 
+.uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
+.uj-ts-opt:hover { background: var(--canvas); border-color: var(--muted-soft); }
+.uj-ts-opt:active { transform: scale(0.98); }
+
 .uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-pill:hover { border-color: var(--muted-soft); }
 .uj-ts-pill:active { transform: scale(0.97); }
@@ -4568,8 +4572,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ts-step-enter-start { opacity: 0; transform: translateY(4px); }
 .uj-ts-step-enter-end { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-    .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
-    .uj-ts-pill:active { transform: none; }
+    .uj-ts-opt, .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
+    .uj-ts-opt:active, .uj-ts-pill:active { transform: none; }
     .uj-ts-step-enter { transition: opacity .15s ease; }
     .uj-ts-step-enter-start, .uj-ts-step-enter-end { transform: none; }
 }
