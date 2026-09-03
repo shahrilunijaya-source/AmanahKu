@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Scopes\ParentOnly;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ use Illuminate\Support\Carbon;
  * the string the schema reports.
  *
  * @property Carbon|null $due_at
+ * @property int|null $parent_id
  */
 class WorkItem extends Model
 {
@@ -41,6 +43,70 @@ class WorkItem extends Model
     protected function casts(): array
     {
         return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+    }
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new ParentOnly);
+    }
+
+    /**
+     * Route-model binding must reach a child: /app/board/{workItem} is how the drawer
+     * opens one. Every other query keeps the ParentOnly scope.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        return static::withoutGlobalScope(ParentOnly::class)
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->first();
+    }
+
+    /** @return BelongsTo<WorkItem, $this> */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(WorkItem::class, 'parent_id');
+    }
+
+    /**
+     * This card's subtasks, in the order they were added. Bypasses ParentOnly: it is
+     * the one relation whose whole point is the rows that scope hides.
+     *
+     * @return HasMany<WorkItem, $this>
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(WorkItem::class, 'parent_id')
+            ->withoutGlobalScope(ParentOnly::class)
+            ->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function isChild(): bool
+    {
+        return $this->parent_id !== null;
+    }
+
+    /** Subtasks not yet ticked. Reads the loaded relation when present, else one query. */
+    public function openChildCount(): int
+    {
+        return $this->relationLoaded('children')
+            ? $this->children->where('status', '!=', 'done')->count()
+            : $this->children()->where('status', '!=', 'done')->count();
+    }
+
+    /**
+     * Done/total for the card face's "2/3" badge. Null when the card has no subtasks,
+     * so the badge simply does not render.
+     *
+     * @return array{done:int,total:int}|null
+     */
+    public function childSummary(): ?array
+    {
+        $children = $this->relationLoaded('children') ? $this->children : $this->children()->get();
+        if ($children->isEmpty()) {
+            return null;
+        }
+
+        return ['done' => $children->where('status', 'done')->count(), 'total' => $children->count()];
     }
 
     public function employee(): BelongsTo
