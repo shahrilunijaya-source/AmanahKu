@@ -1,4 +1,4 @@
-<header class="uj-header">
+<header class="uj-header" style="{{ $headerStyle ?? '' }}">
     <button @click="toggleSb()" class="uj-nav-toggle uj-hd-ib" :aria-label="$store.ui.lang==='en' ? 'Open navigation' : 'Buka navigasi'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"></path></svg>
     </button>

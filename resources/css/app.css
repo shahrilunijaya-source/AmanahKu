@@ -863,6 +863,32 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .5) 50%, transparent 100%);
 }
 
+/* ── Personal wallpaper (users.appearance) ──
+   One fixed layer under everything, a dim over it, and three things that change
+   when it is on: the header goes translucent, the page title gets a paper plate,
+   nothing else moves. Cards stay opaque: the ledger is still the ledger. The blur
+   is inline on the elements (see .uj-hd-fade for why not here). */
+.uj-wallpaper { position: fixed; inset: 0; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
+.uj-wallpaper::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--canvas) 30%, transparent); }
+.uj-wallpaper[data-dim="none"]::after { background: transparent; }
+.uj-wallpaper[data-dim="strong"]::after { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
+/* No z-index here: .uj-shell-main already paints above the fixed .uj-wallpaper
+   from plain DOM order (it comes later in the shell, both at stack level 0), and
+   an explicit z-index would make it a stacking context of its own — trapping
+   every non-teleported high-z-index overlay inside it (e.g. the dashboard
+   widget picker, z-index:190) below the sidebar (z-index:30). Verified with a
+   throwaway elementFromPoint repro; see the .wd z-index trap lesson elsewhere
+   in this file. */
+.uj-has-wallpaper .uj-shell-main { background: transparent; }
+.uj-has-wallpaper .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
+.uj-has-wallpaper .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
+.uj-plate { display: inline-block; padding: 8px 12px 9px; margin-left: -12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
+/* Small screens show more bare canvas than card, so the dim steps up one level. */
+@media (max-width: 520px) {
+    .uj-wallpaper[data-dim="none"]::after { background: color-mix(in srgb, var(--canvas) 30%, transparent); }
+    .uj-wallpaper[data-dim="soft"]::after { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
+}
+
 .uj-hd-ib { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
 .uj-hd-ib:hover { background: #eae9e3; }
 .uj-hd-ib:active { transform: scale(.95); }

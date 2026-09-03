@@ -21,6 +21,20 @@
     $embed = $embed ?? false;
     // Notices that hang off the header rather than scrolling with the page.
     $hasPins = ! $embed && (session('reset_password') || ($qaTsOverdue ?? false));
+
+    // Personal wallpaper (users.appearance). Only the owner sees it, never in an
+    // embedded panel. Presets are gradients from config; an upload is a public-disk URL.
+    $wp = null;
+    $appearance = null;
+    if (! $embed && ($appearance = auth()->user()?->appearance)) {
+        $choice = $appearance['wallpaper'] ?? 'none';
+        if (str_starts_with($choice, 'preset:') && ($css = config('amanahku.wallpaper_presets.'.substr($choice, 7)))) {
+            $wp = $css;
+        } elseif ($choice === 'upload' && ! empty($appearance['wallpaper_path'])) {
+            $wp = 'url('.e(\Illuminate\Support\Facades\Storage::disk('public')->url($appearance['wallpaper_path'])).')';
+        }
+    }
+    $wpDim = $appearance['dim'] ?? 'soft';
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
@@ -40,9 +54,14 @@
         } }"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
+     class="{{ $wp ? 'uj-has-wallpaper' : '' }}"
      {{-- No bottom dock inside an embedded panel, so nothing there should reserve
           room for one (see --uj-dock-h in app.css). --}}
      style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
+
+    @if ($wp)
+        <div class="uj-wallpaper" data-dim="{{ $wpDim }}" style="background-image:{{ $wp }};"></div>
+    @endif
 
     @unless ($embed)
         @include('partials.sidebar')
@@ -51,7 +70,7 @@
 
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;position:relative;' }}">
         @unless ($embed)
-        @include('partials.header')
+        @include('partials.header', ['headerStyle' => $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : ''])
         {{-- Content scrolls under the header and dissolves into the page canvas
              here, rather than meeting a border. See .uj-hd-fade in app.css.
              The blur is inline, not in that rule: Lightning CSS (Tailwind v4)
@@ -184,7 +203,7 @@
                                  heading reading "Messages"), and the sidebar already marks where
                                  you are. --}}
                             @unless ($screen === 'dash')
-                                <div x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
+                                <div class="{{ $wp ? 'uj-plate' : '' }}" style="{{ $wp ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : '' }}" x-data="{ t: { en: @js($pageTitle), ms: @js($pageTitleMs) }, s: { en: @js($pageSub), ms: @js($pageSubMs) } }">
                                     <h1 x-text="t[$store.ui.lang] ?? t.en">{{ $pageTitle }}</h1>
                                     <p x-text="s[$store.ui.lang] ?? s.en">{{ $pageSub }}</p>
                                 </div>

@@ -165,4 +165,43 @@ class AppearanceTest extends TestCase
     {
         $this->postJson(route('account.appearance'), ['wallpaper' => 'none'])->assertUnauthorized();
     }
+
+    public function test_layout_renders_the_preset_wallpaper_for_its_owner_only(): void
+    {
+        $this->user->appearance = ['wallpaper' => 'preset:dusk', 'wallpaper_path' => null, 'dim' => 'strong'];
+        $this->user->save();
+
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('uj-has-wallpaper', $html);
+        $this->assertStringContainsString('class="uj-wallpaper" data-dim="strong"', $html);
+        $this->assertStringContainsString(config('amanahku.wallpaper_presets.dusk'), $html);
+
+        $other = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
+        $other->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $html = $this->actingAs($other)->withSession(['current_tenant' => $this->tenant->id])->get(route('app.screen', 'security'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('uj-has-wallpaper', $html);
+    }
+
+    public function test_layout_renders_the_uploaded_wallpaper_url(): void
+    {
+        $this->user->appearance = ['wallpaper' => 'upload', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'dim' => 'soft'];
+        $this->user->save();
+
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+
+        $this->assertStringContainsString('/storage/wallpapers/1/a.jpg', $html);
+        $this->assertStringContainsString('data-dim="soft"', $html);
+    }
+
+    public function test_wallpaper_none_renders_nothing(): void
+    {
+        $this->user->appearance = ['wallpaper' => 'none', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'dim' => 'soft'];
+        $this->user->save();
+
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+
+        $this->assertStringNotContainsString('uj-has-wallpaper', $html);
+        $this->assertStringNotContainsString('uj-wallpaper"', $html);
+    }
 }
