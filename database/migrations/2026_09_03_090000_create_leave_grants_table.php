@@ -32,7 +32,11 @@ return new class extends Migration
         // A granted type's denominator is however much HR has granted, so the seeded yearly
         // figure (5) is now a number nothing should read.
         $grantedTypeIds = DB::table('leave_types')->where('is_hr_granted_only', true)->pluck('id');
-        DB::table('leave_types')->whereIn('id', $grantedTypeIds)->update(['entitlement' => 0]);
+        // The notice rule never bit while HR booked these days itself. Now that staff apply
+        // for the day they worked back, a notice period would refuse the very next day off,
+        // so clear it. HR can still set one on the Leave types tab if it ever wants one.
+        DB::table('leave_types')->whereIn('id', $grantedTypeIds)
+            ->update(['entitlement' => 0, 'min_notice_days' => 0]);
 
         // Balances that already exist keep their days — HR asked for that — but they would
         // otherwise appear from nowhere in a history that is meant to explain every day.

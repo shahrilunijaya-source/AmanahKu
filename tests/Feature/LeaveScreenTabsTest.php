@@ -515,6 +515,35 @@ class LeaveScreenTabsTest extends TestCase
     }
 
     /**
+     * A replacement day is taken whenever it suits, including tomorrow, so a granted type
+     * must carry no notice period. The live data had three days on it from when HR booked
+     * the day itself; the leave_grants migration clears it.
+     */
+    public function test_a_granted_type_can_be_applied_for_tomorrow(): void
+    {
+        $hr = $this->member('hr', 'Hana');
+        $staff = $this->member('employee', 'Staff');
+        $type = $this->replacement();
+
+        $this->assertSame(0, (int) $type->min_notice_days);
+
+        $this->grantAsHr($hr, [
+            'employee_id' => $staff->id, 'leave_type_id' => $type->id,
+            'days' => 1, 'remark' => 'Worked yesterday',
+        ])->assertRedirect();
+
+        $tomorrow = now()->addDay()->toDateString();
+
+        $this->applyAs($staff, [
+            'leave_type_id' => $type->id,
+            'date_from' => $tomorrow, 'date_to' => $tomorrow, 'reason' => 'Rest.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('submitted', LeaveRequest::where('leave_type_id', $type->id)
+            ->sole()->status);
+    }
+
+    /**
      * A granted quota is a hard ceiling. Every other type lets the excess through as
      * unpaid leave; replacement days are days already worked, so there is no such thing
      * as taking more than were earned.
