@@ -24,6 +24,7 @@ use Laravel\Sanctum\NewAccessToken;
  * type and hands DashboardPrefs a string.
  *
  * @property array<string, array{hidden?: array<int, string>, order?: array<int, string>}>|null $dashboard_prefs
+ * @property array{wallpaper?: string, wallpaper_path?: string, dim?: string}|null $appearance
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
@@ -45,6 +46,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password_change_required' => 'boolean',
             'is_super_admin' => 'boolean',
             'dashboard_prefs' => 'array',
+            'appearance' => 'array',
         ];
     }
 
