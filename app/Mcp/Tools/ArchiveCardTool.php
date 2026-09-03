@@ -6,12 +6,14 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Models\AuditLog;
+use App\Models\Scopes\ParentOnly;
 use App\Models\WorkItem;
 use App\Support\ApiCaller;
 use App\Support\BoardRules;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
+use Illuminate\Support\Facades\DB;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -50,10 +52,11 @@ class ArchiveCardTool extends Tool
         $data = $request->validate(['work_item_id' => ['required', 'integer']]);
 
         $result = $this->guarded(function () use ($httpRequest, $employee, $data, $tid) {
-            $item = WorkItem::query()->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($data['work_item_id'])->where('tenant_id', $tid)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $this->boardRules->authorizeManage($httpRequest, $item, $employee);
+            abort_if($item->isChild(), 422, 'A subtask is archived with its parent.');
             abort_unless($item->status === 'done', 422, 'Only a Done card can be archived.');
 
             return ['item' => $item];
@@ -79,16 +82,20 @@ class ArchiveCardTool extends Tool
     public function applyConfirmed(array $payload, HttpRequest $httpRequest, int $tenantId): array
     {
         return $this->guarded(function () use ($payload, $httpRequest, $tenantId) {
-            $item = WorkItem::query()->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $employee = ApiCaller::employee($httpRequest);
             abort_unless($employee !== null, 403, 'No employee profile in this workspace.');
 
             $this->boardRules->authorizeManage($httpRequest, $item, $employee);
+            abort_if($item->isChild(), 422, 'A subtask is archived with its parent.');
             abort_unless($item->status === 'done', 422, 'Only a Done card can be archived.');
 
-            $item->update(['archived_at' => now()]);
+            DB::transaction(function () use ($item) {
+                $item->update(['archived_at' => now()]);
+                $item->children()->update(['archived_at' => now()]);
+            });
 
             AuditLog::record('Archived board card'.$this->keySuffix($httpRequest), $item->title);
 
