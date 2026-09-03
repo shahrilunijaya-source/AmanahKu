@@ -55,17 +55,15 @@
     <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover + identity band. With a cover the band rides up over its lower third. --}}
-        @if ($p->cover_path)
-            @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => $isOwn, 'canRemove' => $canEdit])
-        @elseif ($isOwn)
-            <form method="post" action="{{ route('employees.cover.update', $p) }}" enctype="multipart/form-data" x-data>
-                @csrf
-                <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" x-ref="f" style="display:none;" @change="$el.form.requestSubmit()">
-                <button type="button" class="uj-cover-invite" @click="$refs.f.click()">
-                    + <span x-text="$store.ui.lang==='en' ? 'Add a cover photo' : 'Tambah foto cover'">Add a cover photo</span>
-                </button>
-                @error('photo')<p style="margin:6px 0 0;font-size:12px;color:var(--error);">{{ $message }}</p>@enderror
-            </form>
+        @if ($isOwn)
+            <div x-data="{ pick: {{ $p->cover_path ? 'false' : 'true' }} }" @cover-pick.window="pick = !pick">
+                <div x-show="pick" x-transition.opacity.duration.150ms>@include('partials.profile-cover-picker', ['employee' => $p])</div>
+                @if ($p->cover_path)
+                    @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => true, 'canRemove' => $canEdit])
+                @endif
+            </div>
+        @elseif ($p->cover_path)
+            @include('partials.profile-cover', ['employee' => $p, 'height' => 200, 'isOwn' => false, 'canRemove' => $canEdit])
         @endif
         <div class="uj-card {{ $p->cover_path ? 'uj-card--over-cover' : '' }}" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
             <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;" class="{{ $p->cover_path ? 'uj-avatar-ring' : '' }}">{{ $p->initials }}</div>

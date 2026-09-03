@@ -10,6 +10,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 /**
  * The cover photo across the top of an employee's profile (employees.cover_path).
@@ -30,19 +31,25 @@ class EmployeeCoverController extends Controller
         abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 404);
         abort_unless($employee->user_id === $request->user()->id, 403);
 
+        $presets = array_keys(config('amanahku.wallpaper_presets'));
         $request->validate([
-            'photo' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'preset' => ['nullable', 'string', Rule::in($presets), 'required_without:photo'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120', 'required_without:preset'],
         ]);
 
-        $file = $request->file('photo');
-        $path = $file->store('covers/'.$employee->id, self::DISK);
-        abort_unless($path !== false, 500, 'Photo could not be stored.');
-        ImageCompressor::compress(Storage::disk(self::DISK)->path($path), (string) $file->getMimeType());
+        if ($request->filled('preset')) {
+            $newPath = 'preset:'.$request->input('preset');
+        } else {
+            $file = $request->file('photo');
+            $newPath = $file->store('covers/'.$employee->id, self::DISK);
+            abort_unless($newPath !== false, 500, 'Photo could not be stored.');
+            ImageCompressor::compress(Storage::disk(self::DISK)->path($newPath), (string) $file->getMimeType());
+        }
 
-        if ($employee->cover_path && $employee->cover_path !== $path) {
+        if ($employee->coverIsFile() && $employee->cover_path !== $newPath) {
             Storage::disk(self::DISK)->delete($employee->cover_path);
         }
-        $employee->update(['cover_path' => $path]);
+        $employee->update(['cover_path' => $newPath]);
 
         return back()->with('ok', 'Cover updated.');
     }
@@ -55,7 +62,7 @@ class EmployeeCoverController extends Controller
             403
         );
 
-        if ($employee->cover_path) {
+        if ($employee->coverIsFile()) {
             Storage::disk(self::DISK)->delete($employee->cover_path);
         }
         $employee->update(['cover_path' => null]);

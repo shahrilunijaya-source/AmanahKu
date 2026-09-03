@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -21,6 +22,11 @@ use Illuminate\Support\Str;
  * raw column type and reports ->format() or ->gt() as a call on a string.
  *
  * `position`, `workload`, `workload_label` and `display_name` are accessors, not columns.
+ *
+ * `cover_path` holds one of two shapes: a file path on the `public` disk
+ * (`covers/{id}/…`), or the literal `preset:<key>` naming a gradient in
+ * `config('amanahku.wallpaper_presets')`. Use `coverBackground()` /
+ * `coverIsFile()` rather than reading the column directly.
  *
  * @property Carbon|null $date_of_birth
  * @property Carbon|null $joined_at
@@ -396,5 +402,24 @@ class Employee extends Model
     public function payslips(): HasMany
     {
         return $this->hasMany(Payslip::class);
+    }
+
+    /** CSS background-image for the profile cover, or null when there is none. */
+    public function coverBackground(): ?string
+    {
+        if (! $this->cover_path) {
+            return null;
+        }
+        if (str_starts_with($this->cover_path, 'preset:')) {
+            return config('amanahku.wallpaper_presets.'.substr($this->cover_path, 7));
+        }
+
+        return "url('".Storage::disk('public')->url($this->cover_path)."')";
+    }
+
+    /** True when cover_path names a preset, not a stored file. */
+    public function coverIsFile(): bool
+    {
+        return (bool) $this->cover_path && ! str_starts_with($this->cover_path, 'preset:');
     }
 }

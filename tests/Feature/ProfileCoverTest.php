@@ -181,13 +181,69 @@ class ProfileCoverTest extends TestCase
         $me = $this->person('employee');
 
         $own = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
-        $this->assertStringContainsString('Add a cover photo', $own);
+        $this->assertStringContainsString('Pick a colour or upload a photo', $own);
         $this->assertStringNotContainsString('class="uj-cover"', $own);
 
         $hr = $this->person('hr');
         $other = $this->signIn($hr)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
-        $this->assertStringNotContainsString('Add a cover photo', $other);
+        $this->assertStringNotContainsString('Pick a colour or upload a photo', $other);
         $this->assertStringNotContainsString('Remove cover', $other);
+    }
+
+    public function test_owner_picks_a_preset_and_the_previous_photo_file_is_deleted(): void
+    {
+        $me = $this->person('employee');
+        Storage::disk('public')->put("covers/{$me->id}/old.jpg", 'x');
+        $me->update(['cover_path' => "covers/{$me->id}/old.jpg"]);
+
+        $this->signIn($me)->post(route('employees.cover.update', $me), ['preset' => 'moss'])
+            ->assertRedirect();
+
+        $this->assertSame('preset:moss', $me->fresh()->cover_path);
+        Storage::disk('public')->assertMissing("covers/{$me->id}/old.jpg");
+    }
+
+    public function test_an_unknown_preset_is_rejected(): void
+    {
+        $me = $this->person('employee');
+
+        $this->signIn($me)->post(route('employees.cover.update', $me), ['preset' => 'neon'])
+            ->assertSessionHasErrors('preset');
+        $this->signIn($me)->post(route('employees.cover.update', $me), [])
+            ->assertSessionHasErrors('photo');
+    }
+
+    public function test_a_colleague_cannot_pick_a_preset_for_someone_else(): void
+    {
+        $me = $this->person('employee');
+        $them = $this->person('employee');
+
+        $this->signIn($me)->post(route('employees.cover.update', $them), ['preset' => 'moss'])
+            ->assertForbidden();
+        $this->assertNull($them->fresh()->cover_path);
+    }
+
+    public function test_removing_a_preset_cover_touches_no_file(): void
+    {
+        $me = $this->person('employee');
+        $me->update(['cover_path' => 'preset:sand']);
+
+        $this->signIn($me)->post(route('employees.cover.destroy', $me))->assertRedirect();
+
+        $this->assertNull($me->fresh()->cover_path);
+    }
+
+    public function test_a_preset_cover_renders_as_a_gradient_and_marks_the_chip(): void
+    {
+        $me = $this->person('employee');
+        $me->update(['cover_path' => 'preset:moss']);
+
+        $html = $this->signIn($me)->get(route('app.screen', ['screen' => 'profile', 'emp' => $me->id]))->getContent();
+
+        $this->assertStringContainsString('class="uj-cover"', $html);
+        $this->assertStringContainsString(config('amanahku.wallpaper_presets.moss'), $html);
+        $this->assertMatchesRegularExpression('/value="moss"[^>]*data-on="1"/', $html);
+        $this->assertMatchesRegularExpression('/value="dawn"[^>]*data-on="0"/', $html);
     }
 
     public function test_a_failed_replacement_shows_the_error_on_the_profile(): void

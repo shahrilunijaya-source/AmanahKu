@@ -28,8 +28,8 @@
       link_text: "Choose a background"
       link_text_ms: "Pilih latar belakang"
     - tag: added
-      text: "You can also put a cover photo across the top of your profile, which everyone who opens your profile sees."
-      text_ms: "Anda juga boleh letak foto cover di bahagian atas profil anda, yang dilihat semua orang yang membuka profil anda."
+      text: "You can also put a cover across the top of your profile, a colour or your own photo, which everyone who opens your profile sees."
+      text_ms: "Anda juga boleh letak cover di bahagian atas profil anda, sama ada warna atau foto sendiri, yang dilihat semua orang yang membuka profil anda."
 
 - version: "1.7.4"
   date: "2026-09-03"
