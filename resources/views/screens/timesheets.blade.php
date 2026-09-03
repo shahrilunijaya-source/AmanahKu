@@ -131,6 +131,7 @@
                  means. It used to read "100 / 100" with no unit, forty pixels from the
                  week's "20% of the week allocated" — two bare numbers measuring different
                  things. ---- --}}
+            <div style="display:flex;align-items:flex-start;gap:10px;">
             <div class="uj-ts-day-total">
                 <div style="font-size:22px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums;"
                     :style="{ color: { empty:'var(--muted)', partial:'var(--ink)', done:'var(--success-ink)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }"
@@ -147,24 +148,45 @@
                                 ? ($store.ui.lang==='en' ? 'this day is done' : 'hari ini selesai')
                                 : ($store.ui.lang==='en' ? 'of this day' : 'daripada hari ini')"></div>
             </div>
-        </div>
-
-        {{-- The staffer's own switch for the board prefill. Hidden once the week is
-             locked — flipping it would change nothing a locked week can act on anyway. ---- --}}
-        <div x-show="!readonly" x-cloak
-             style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline-soft);flex-wrap:wrap;">
-            <div style="min-width:0;">
-                <div style="font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fill from board' : 'Isi dari papan'"></div>
-                <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;"
-                    x-text="$store.ui.lang==='en'
-                        ? 'On: cards you worked appear by themselves. Off: you add each line yourself.'
-                        : 'Hidup: kad yang anda kerjakan muncul sendiri. Mati: anda tambah setiap baris sendiri.'"></div>
+            {{-- The staffer's own switch for the board prefill lives behind a cog, not on the
+                 face of the screen: it is set once and left, so a permanent On/Off strip was
+                 taking header space from the day it never changes. Hidden once the week is
+                 locked — flipping it would change nothing a locked week can act on. ---- --}}
+            <div x-show="!readonly" x-cloak x-data="{ prefsOpen: false }" @click.outside="prefsOpen = false"
+                 @keydown.escape.window="prefsOpen = false" style="position:relative;flex-shrink:0;">
+                <button type="button" class="uj-dw-gear" @click="prefsOpen = !prefsOpen"
+                    :aria-expanded="prefsOpen ? 'true' : 'false'" aria-haspopup="true"
+                    style="width:30px;height:30px;border-radius:8px;box-shadow:none;"
+                    :aria-label="$store.ui.lang==='en' ? 'Timesheet settings' : 'Tetapan timesheet'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.76 1 1.4 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
+                <div x-show="prefsOpen" x-cloak role="menu"
+                     x-transition:enter="uj-overlay-enter" x-transition:enter-start="uj-overlay-from" x-transition:enter-end="uj-overlay-to"
+                     style="position:absolute;right:0;top:36px;z-index:30;width:min(300px,calc(100vw - 48px));background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 12px 36px rgba(31,30,26,.16);padding:12px;">
+                    <div style="font-size:12.5px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Fill from board' : 'Isi dari papan'"></div>
+                    <div style="font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.4;"
+                        x-text="$store.ui.lang==='en'
+                            ? 'On: cards you worked appear by themselves. Off: you add what you worked on yourself.'
+                            : 'Hidup: kad yang anda kerjakan muncul sendiri. Mati: anda tambah apa yang anda kerjakan sendiri.'"></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <template x-for="opt in [true, false]" :key="String(opt)">
+                            <button type="button" role="menuitemradio" :aria-checked="fillFromBoard === opt ? 'true' : 'false'"
+                                @click="prefsOpen = false; if (fillFromBoard !== opt) setFillFromBoard(opt)"
+                                class="uj-ts-pill" style="display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 12px;border-radius:9px;font-size:12.5px;cursor:pointer;text-align:left;"
+                                :style="fillFromBoard === opt
+                                    ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' }
+                                    : { border:'1px solid var(--hairline)', background:'#fff', color:'var(--body)' }">
+                                <span style="width:8px;height:8px;border-radius:999px;flex:none;" :style="{ background: fillFromBoard === opt ? 'var(--success)' : 'var(--hairline)' }"></span>
+                                <span x-text="opt ? ($store.ui.lang==='en' ? 'On' : 'Hidup') : ($store.ui.lang==='en' ? 'Off' : 'Mati')"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
             </div>
-            <button type="button" role="switch" :aria-checked="fillFromBoard ? 'true' : 'false'"
-                @click="setFillFromBoard(!fillFromBoard)" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12px;flex-shrink:0;"
-                :style="fillFromBoard ? { border:'1px solid var(--success)', background:'color-mix(in srgb, var(--success) 8%, #fff)', color:'var(--success-ink)' } : {}">
-                <span x-text="fillFromBoard ? ($store.ui.lang==='en' ? 'On' : 'Hidup') : ($store.ui.lang==='en' ? 'Off' : 'Mati')"></span>
-            </button>
+            </div>
         </div>
 
         {{-- The bar is segmented, one piece per line in the day, so it shows the split and
