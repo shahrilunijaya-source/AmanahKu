@@ -238,6 +238,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'My profile' : 'Profil saya'">My profile</span>
                 </a>
+                <a href="{{ route('app.screen', 'security') }}#appearance" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);text-decoration:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+                    <span x-text="$store.ui.lang==='en' ? 'Background' : 'Latar belakang'">Background</span>
+                </a>
                 <a href="{{ route('app.screen', 'security') }}" class="uj-acct-item" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;font-size:var(--t-base);color:var(--body);text-decoration:none;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     <span x-text="$store.ui.lang==='en' ? 'Account & security' : 'Akaun & keselamatan'">Account &amp; security</span>

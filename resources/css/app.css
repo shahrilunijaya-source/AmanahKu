@@ -889,6 +889,22 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-wallpaper[data-dim="soft"]::after { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
 }
 
+/* Appearance card tiles (Account & security). A press scales, the chosen one is
+   ringed in the action red because choosing IS the action here. */
+.uj-wp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 640px) { .uj-wp-grid { grid-template-columns: repeat(3, 1fr); } }
+.uj-wp-tile { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--hairline); border-radius: 9px; overflow: hidden; cursor: pointer; padding: 0; background-size: cover; background-position: center; text-align: left; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-wp-tile:active { transform: scale(.97); }
+.uj-wp-tile:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-wp-tile[data-on] { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-wp-tile[data-on]::after { content: "✓"; position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--red); color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+.uj-wp-name { position: absolute; left: 8px; bottom: 6px; font-size: 10.5px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.uj-wp-tile--none { background: var(--canvas); }
+.uj-wp-tile--none .uj-wp-name { color: var(--ink); text-shadow: none; }
+.uj-wp-tile--upload { background: #fff; border-style: dashed; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 11px; }
+.uj-wp-tile--upload b { font-size: 18px; font-weight: 400; color: var(--ink); line-height: 1; }
+@media (prefers-reduced-motion: reduce) { .uj-wp-tile, .uj-wallpaper { transition: none !important; } }
+
 .uj-hd-ib { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
 .uj-hd-ib:hover { background: #eae9e3; }
 .uj-hd-ib:active { transform: scale(.95); }

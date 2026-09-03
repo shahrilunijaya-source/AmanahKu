@@ -173,14 +173,14 @@ class AppearanceTest extends TestCase
 
         $html = $this->actingInTenant()->get(route('app.screen', 'security'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('uj-has-wallpaper', $html);
+        $this->assertStringContainsString('class="uj-has-wallpaper"', $html);
         $this->assertStringContainsString('class="uj-wallpaper" data-dim="strong"', $html);
         $this->assertStringContainsString(config('amanahku.wallpaper_presets.dusk'), $html);
 
         $other = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
         $other->tenants()->attach($this->tenant->id, ['role' => 'employee']);
         $html = $this->actingAs($other)->withSession(['current_tenant' => $this->tenant->id])->get(route('app.screen', 'security'))->assertOk()->getContent();
-        $this->assertStringNotContainsString('uj-has-wallpaper', $html);
+        $this->assertStringNotContainsString('class="uj-has-wallpaper"', $html);
     }
 
     public function test_layout_renders_the_uploaded_wallpaper_url(): void
@@ -201,7 +201,37 @@ class AppearanceTest extends TestCase
 
         $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
 
-        $this->assertStringNotContainsString('uj-has-wallpaper', $html);
+        $this->assertStringNotContainsString('class="uj-has-wallpaper"', $html);
         $this->assertStringNotContainsString('uj-wallpaper"', $html);
+    }
+
+    public function test_security_screen_shows_the_appearance_card_with_every_preset(): void
+    {
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Appearance', $html);
+        foreach (['dawn', 'dusk', 'paper', 'moss', 'slate', 'sand'] as $key) {
+            $this->assertStringContainsString('data-wallpaper="preset:'.$key.'"', $html);
+        }
+        $this->assertStringContainsString('data-wallpaper="none"', $html);
+        $this->assertStringNotContainsString('data-wallpaper="upload"', $html, 'no photo tile before an upload');
+    }
+
+    public function test_security_screen_shows_the_photo_tile_after_an_upload(): void
+    {
+        $this->user->appearance = ['wallpaper' => 'upload', 'wallpaper_path' => 'wallpapers/1/a.jpg', 'dim' => 'soft'];
+        $this->user->save();
+
+        $html = $this->actingInTenant()->get(route('app.screen', 'security'))->getContent();
+
+        $this->assertStringContainsString('data-wallpaper="upload"', $html);
+        $this->assertStringContainsString('Remove photo', $html);
+    }
+
+    public function test_account_menu_links_to_the_background_card(): void
+    {
+        $html = $this->actingInTenant()->get(route('app.screen', 'dash'))->getContent();
+
+        $this->assertStringContainsString(route('app.screen', 'security').'#appearance', $html);
     }
 }

@@ -52,6 +52,7 @@
             this.sbStyle = this.sbStyle === 'tree' ? 'sections' : 'tree';
             localStorage.setItem('amanahku-sb-style', this.sbStyle);
         } }"
+     id="uj-shell"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
      class="{{ $wp ? 'uj-has-wallpaper' : '' }}"
