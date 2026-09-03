@@ -4619,6 +4619,11 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-opt:hover { background: var(--canvas); border-color: var(--muted-soft); }
 .uj-ts-opt:active { transform: scale(0.98); }
+/* Manual mode's "+ Add what you worked on": the old capture screen's dashed, muted, full-width
+   strip that only turns red under the pointer, so it reads as an affordance, not an action. */
+.uj-ts-add { display: block; width: 100%; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px; background: none; cursor: pointer; font: inherit; font-size: 12.5px; color: var(--muted); transition: color .12s ease, border-color .12s ease; }
+.uj-ts-add:hover { color: var(--red); border-color: var(--red); }
+.uj-ts-add:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 .uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-pill:hover { border-color: var(--muted-soft); }
@@ -4705,10 +4710,10 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    is still ink on white. `uj-surface` is measured, not guessed: dark-surfaces.js reads
    every element's computed background and tags the light ones. `.uj-card` is also
    listed statically so the common case never flashes white before the script runs. */
-.uj-on-dark .uj-main { --ink: #fff; --body: #eae8e1; --muted: #d6d3c9; --muted-soft: #c0bdb3; }
+.uj-on-dark .uj-main { --ink: #fff; --body: #eae8e1; --muted: #d6d3c9; --muted-soft: #c0bdb3; --amber: #f6c46f; }
 .uj-on-dark .uj-main > .uj-head-stack > .uj-pagehead :is(h1, p),
 .uj-on-dark .uj-main .uj-guide-trigger { text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
-.uj-on-dark .uj-main :is(.uj-card, .uj-surface) { --ink: #26251e; --body: #5a5852; --muted: #6f6c61; --muted-soft: #8b887e; }
+.uj-on-dark .uj-main :is(.uj-card, .uj-surface) { --ink: #26251e; --body: #5a5852; --muted: #6f6c61; --muted-soft: #8b887e; --amber: #c08532; }
 .uj-cover-change:active { transform: scale(.97); }
 .uj-cover-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .uj-cover-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }

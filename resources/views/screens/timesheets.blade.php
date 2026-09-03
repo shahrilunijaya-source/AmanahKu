@@ -377,7 +377,7 @@
                          it themselves. Absent in board mode: there, a line only ever arrives
                          from a card. --}}
                     <div x-show="isEditable(selected) && !fillFromBoard" x-cloak style="margin-top:12px;">
-                        <button type="button" @click="openAddPicker()" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;">
+                        <button type="button" @click="openAddPicker()" class="uj-ts-add">
                             <span x-text="$store.ui.lang==='en' ? '+ Add what you worked on' : '+ Tambah apa yang anda kerjakan'"></span>
                         </button>
                     </div>
