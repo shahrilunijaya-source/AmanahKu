@@ -268,6 +268,40 @@ class TimesheetScreenDataTest extends TestCase
         $this->assertSame('Tender ISCAF', $response->viewData('existingGrid')['2026-06-15'][0]['title']);
     }
 
+    /**
+     * The per-user switch (default on): off drops the board prefill entirely, on leaves
+     * it exactly as it was before this switch existed.
+     */
+    public function test_fill_from_board_off_empties_the_board_prefill(): void
+    {
+        $this->user->forceFill(['timesheet_fill_from_board' => false])->save();
+        $this->employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Build the thing', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $this->assertFalse($response->viewData('tsFillFromBoard'));
+        $this->assertSame([], $response->viewData('tsSuggested'));
+        $this->assertSame([], $response->viewData('tsDismissed'));
+    }
+
+    public function test_fill_from_board_on_is_unchanged(): void
+    {
+        $this->employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Build the thing', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+        ]);
+
+        $response = $this->actingInTenant()->get('/app/timesheets?week=2026-06-15');
+
+        $response->assertOk();
+        $this->assertTrue($response->viewData('tsFillFromBoard'));
+        $this->assertNotSame([], $response->viewData('tsSuggested'));
+    }
+
     public function test_a_failure_building_suggestions_does_not_take_the_screen_down(): void
     {
         // BoardSuggestions is final, so it cannot be mocked as a subclass — Mockery only
