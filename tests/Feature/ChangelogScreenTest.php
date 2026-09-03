@@ -146,13 +146,11 @@ class ChangelogScreenTest extends TestCase
         }
     }
 
-    public function test_release_1_8_announces_subtasks(): void
+    public function test_the_newest_release_announces_subtasks(): void
     {
-        // 1.8 is no longer the newest release (1.9 landed on top of it), but its own
-        // subtask copy must still render on the changelog screen.
-        $release = collect(Changelog::releases())->firstWhere('version', '1.8');
+        $newest = Changelog::releases()[0];
 
-        $this->assertNotNull($release, 'Release 1.8 is missing from the changelog.');
+        $this->assertSame('1.8', $newest['version']);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
@@ -169,7 +167,7 @@ class ChangelogScreenTest extends TestCase
 
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
-        foreach ($release['entries'] as $entry) {
+        foreach ($newest['entries'] as $entry) {
             $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.8 entry has no Malay copy of its own.');
         }
     }

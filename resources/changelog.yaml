@@ -17,17 +17,6 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
-- version: "1.9"
-  date: "2026-09-03"
-  entries:
-    - tag: added
-      major: true
-      text: "Your timesheet can now fill itself from the board, or you can add lines yourself.\nSwitch it on the Timesheet screen. Off, you pick the kind of work, a project if that kind needs one, what you were doing, and the share of the day, per line. On is unchanged from before. Either way, your existing lines are untouched."
-      text_ms: "Timesheet anda kini boleh mengisi sendiri daripada papan, atau anda boleh tambah baris sendiri.\nTukar di skrin Timesheet. Apabila mati, anda pilih jenis kerja, projek jika jenis itu memerlukannya, apa yang anda buat, dan bahagian hari, bagi setiap baris. Apabila hidup, tiada perubahan daripada sebelum ini. Kedua-duanya, baris sedia ada anda tidak terjejas."
-      link: "/app/timesheets"
-      link_text: "Open Timesheet"
-      link_text_ms: "Buka Timesheet"
-
 - version: "1.8"
   date: "2026-09-03"
   entries:
@@ -49,6 +38,12 @@
       major: true
       text: "A T.A.A. card now appears on every day of the week it was worked, not only the day it moved on the board.\nBefore, a card you moved to In Progress today for work done yesterday never showed on yesterday's timesheet. Now any card that was In Progress or In Review at some point in the week is offered on every working day of that week up to today. Strike off the days it does not belong to, and it stays off."
       text_ms: "Kad T.A.A. kini muncul pada setiap hari dalam minggu ia dikerjakan, bukan hanya hari ia digerakkan di papan.\nSebelum ini, kad yang anda gerakkan ke In Progress hari ini untuk kerja semalam tidak pernah muncul pada timesheet semalam. Kini mana-mana kad yang In Progress atau In Review pada bila-bila masa dalam minggu itu ditawarkan pada setiap hari bekerja minggu tersebut sehingga hari ini. Buang hari yang tidak berkenaan, dan ia kekal dibuang."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: added
+      text: "Your timesheet can now fill itself from the board, or you can add lines yourself.\nThe cog beside the Record and Review tabs switches it. Off, you pick the kind of work, a project if that kind needs one, what you were doing, and the share of the day, per line. On is unchanged from before. Either way, your existing lines are untouched."
+      text_ms: "Timesheet anda kini boleh mengisi sendiri daripada papan, atau anda boleh tambah baris sendiri.\nGear di sebelah tab Rekod dan Semak menukarnya. Apabila mati, anda pilih jenis kerja, projek jika jenis itu memerlukannya, apa yang anda buat, dan bahagian hari, bagi setiap baris. Apabila hidup, tiada perubahan daripada sebelum ini. Kedua-duanya, baris sedia ada anda tidak terjejas."
       link: "/app/timesheets"
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
