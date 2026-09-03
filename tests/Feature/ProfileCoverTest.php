@@ -93,6 +93,23 @@ class ProfileCoverTest extends TestCase
         Storage::disk('public')->assertMissing("covers/{$them->id}/a.jpg");
     }
 
+    public function test_director_cannot_upload_for_someone_else_but_can_remove(): void
+    {
+        // Directors have no seat of their own in Permissions::ROLE_PERMISSIONS; they
+        // reach the same ['management', 'hr'] gate as HR only through effectiveRole()
+        // folding 'director' into 'management'. This is the only coverage of that path.
+        $director = $this->person('director');
+        $them = $this->person('employee');
+        Storage::disk('public')->put("covers/{$them->id}/a.jpg", 'x');
+        $them->update(['cover_path' => "covers/{$them->id}/a.jpg"]);
+
+        $this->signIn($director)->post(route('employees.cover.update', $them), ['photo' => UploadedFile::fake()->image('c.jpg')])->assertForbidden();
+
+        $this->signIn($director)->post(route('employees.cover.destroy', $them))->assertRedirect();
+        $this->assertNull($them->fresh()->cover_path);
+        Storage::disk('public')->assertMissing("covers/{$them->id}/a.jpg");
+    }
+
     public function test_owner_removes_own_cover(): void
     {
         $me = $this->person('employee');
