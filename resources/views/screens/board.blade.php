@@ -129,7 +129,8 @@
 
     {{-- Phone only (see .wb-strip): one pill per column, follows the snapped column
          and jumps to it on tap. The columns themselves snap one per swipe. --}}
-    <div class="wb-strip" x-data="{ idx: 0 }" x-init="$nextTick(() => { const c = $refs.cols; c.addEventListener('scroll', () => { idx = Math.round(c.scrollLeft / (c.firstElementChild.offsetWidth + 12)); }, { passive: true }); })">
+    <div class="wb-strip" x-data="{ idx: 0 }" x-init="$nextTick(() => { const c = $refs.cols; c.addEventListener('scroll', () => { idx = Math.round(c.scrollLeft / (c.firstElementChild.offsetWidth + 12)); }, { passive: true }); })"
+         x-effect="$el.children[idx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })">
         @foreach ($columns as $key => $col)
             <button type="button" class="wb-pill" :class="{ 'is-on': idx === {{ $loop->index }} }"
                     @click="$refs.cols.children[{{ $loop->index }}].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })">
