@@ -1074,13 +1074,18 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     }
     .wb-pill:active { transform: scale(.96); }
     .wb-pill i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 9999px; background: var(--hairline-soft); color: var(--muted); }
-    .wb-pill.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .wb-pill.is-on { background: #26251e; color: #fff; border-color: #26251e; }
+    /* Dark wallpaper: the pill plate stays paper, so its ink stays ink. */
+    .wb-pill { --ink: #26251e; --muted: #6f6c61; }
+    .uj-on-dark .wb-pill.is-on { background: var(--red); border-color: var(--red); }
     .wb-pill.is-on i { background: rgba(255,255,255,.18); color: #fff; }
     .wb-cols { gap: 12px; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 24px; }
     .wb-cols::-webkit-scrollbar { display: none; }
     .wb-cols.is-dragging { scroll-snap-type: none; }
     .wb-col { flex: 0 0 calc(100% - 28px); min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
     .wb-colh { position: sticky; top: 0; z-index: 1; background: var(--canvas); padding-top: 2px; }
+    /* On a dark wallpaper a canvas plate reads as a stuck light bar; the header just sits on the picture. */
+    .uj-on-dark .wb-colh { position: static; background: transparent; }
 }
 
 /* ── Work-board cards ──
