@@ -67,6 +67,13 @@ final class BoardSuggestions
             $from = $start;
             $until = $today;
 
+            // An archived card is offered up to the day it was archived and no further:
+            // nothing was worked on it after that.
+            $archivedAt = $cards[(int) $stint->work_item_id]->archived_at;
+            if ($archivedAt !== null) {
+                $until = $until->min(CarbonImmutable::parse($archivedAt)->startOfDay());
+            }
+
             for ($day = $from->max($start); $day->lessThanOrEqualTo($until->min($end)); $day = $day->addDay()) {
                 $iso = $day->toDateString();
 
@@ -166,17 +173,18 @@ final class BoardSuggestions
 
     /**
      * The cards this employee may log against: their own, plus any they were added to as
-     * a participant. Archived cards are excluded — an archived card is finished business.
+     * a participant. Archived cards stay in: archiving is filing, not un-working, and a
+     * card archived before its days were costed would otherwise take that work off the
+     * timesheet with it. Its days stop at archived_at (see forWeek()).
      *
      * @return Collection<int, WorkItem>
      */
     private function cardsFor(Employee $employee): Collection
     {
         return WorkItem::query()
-            ->whereNull('archived_at')
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->where('employees.id', $employee->id)))
-            ->get(['id', 'title', 'project_id', 'timesheet_category_id'])
+            ->get(['id', 'title', 'project_id', 'timesheet_category_id', 'archived_at'])
             ->keyBy('id');
     }
 
