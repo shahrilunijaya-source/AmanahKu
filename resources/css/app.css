@@ -1051,6 +1051,38 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     .wz-grid2 { grid-template-columns: 1fr; }
 }
 
+/* ── Work-board columns (screens/board.blade.php) ──
+   Desktop: four columns side by side, sideways scroll if the window is narrow.
+   Phone (<=640px): one column per swipe with scroll-snap, and a pill strip above
+   that follows the visible column and jumps on tap. The strip is the only way to
+   see all four columns' counts at once on a phone. */
+.wb-cols { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+.wb-col { flex: 1; min-width: 272px; }
+.wb-colh { display: flex; align-items: center; gap: 8px; padding: 0 4px 12px; }
+.wb-strip { display: none; }
+@media (max-width: 640px) {
+    /* <main> scrolls vertically, which makes it x-scrollable too; Sortable's
+       autoscroll would then slide the whole page sideways mid-drag. */
+    .uj-main { overflow-x: hidden; }
+    .wb-strip { display: flex; gap: 6px; margin: 0 0 10px; padding: 2px 0; overflow-x: auto; scrollbar-width: none; }
+    .wb-strip::-webkit-scrollbar { display: none; }
+    .wb-pill {
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px;
+        border-radius: 9999px; border: 1px solid var(--hairline); background: var(--card); font: inherit;
+        font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer;
+        transition: background-color .16s var(--ease), color .16s var(--ease), transform .12s var(--ease);
+    }
+    .wb-pill:active { transform: scale(.96); }
+    .wb-pill i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 9999px; background: var(--hairline-soft); color: var(--muted); }
+    .wb-pill.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .wb-pill.is-on i { background: rgba(255,255,255,.18); color: #fff; }
+    .wb-cols { gap: 12px; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 24px; }
+    .wb-cols::-webkit-scrollbar { display: none; }
+    .wb-cols.is-dragging { scroll-snap-type: none; }
+    .wb-col { flex: 0 0 calc(100% - 28px); min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+    .wb-colh { position: sticky; top: 0; z-index: 1; background: var(--canvas); padding-top: 2px; }
+}
+
 /* ── Work-board cards ──
    One source of truth for the card anatomy: resources/views/partials/work-card.blade.php,
    rendered on the personal board, the read-only team board (.wc--sm, compact),
@@ -1066,6 +1098,12 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc:hover { border-color: var(--muted-soft); box-shadow: 0 3px 10px rgba(31,30,26,.07); }
 .wc:active { transform: scale(.993); }
 .wc:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+/* Sortable's chosenClass. On a mouse the pick-up is instant so this barely shows;
+   on touch it lands after the 300ms hold and tells the thumb "you have it now". */
+.wc.wc--held { transform: scale(1.03) rotate(-1deg); box-shadow: 0 18px 40px -12px rgba(31,30,26,.45); border-color: var(--muted-soft); position: relative; z-index: 5; }
+.wc.wc--held.uj-drag-ghost { transform: none; box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { .wc.wc--held { transform: none; box-shadow: none; z-index: auto; } }
+.wb-cols .wc { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
 .wc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
 .wc-type {
@@ -1307,7 +1345,43 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active, .wd-ov-x { transform: none; }
     .wd-ov-child-title > span::after { transition: none; }
 }
-@media (max-width: 1100px) { .wd-ov { display: none; } }
+/* Phone and tablet: no room beside a full-width drawer, so the overview is a
+   bottom sheet over it, opened from the drawer's Subtasks pill (.wd-subpill).
+   Same markup; the scrim it lives in is lifted above the drawer while open. */
+.wd-ov-grab { display: none; }
+.wd-subpill-wrap { display: none; }
+@media (max-width: 1100px) {
+    .wd-ov { display: none; }
+    .wd-scrim:has(.wd-ov--open) { z-index: 62; background: rgba(31,30,26,.42); backdrop-filter: blur(7px); }
+    .wd-scrim:not(:has(.wd-ov--open)) { background: rgba(31,30,26,.18); backdrop-filter: none; }
+    .wd-ov--open {
+        display: block; position: fixed; top: auto; bottom: 0; left: 0; right: 0; transform: none;
+        width: auto; max-width: none; max-height: 78vh; max-height: 78dvh; padding: 10px 14px 26px;
+        padding-bottom: calc(26px + env(safe-area-inset-bottom)); animation: wd-ov-up 320ms var(--drawer-ease, cubic-bezier(.32,.72,0,1)) both;
+    }
+    .wd-ov--open .wd-ov-grab { display: block; width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.55); margin: 0 auto 6px; }
+    .wd-ov--open .wd-ov-child { min-height: 56px; padding: 13px 12px 13px 16px; grid-template-columns: auto 1fr auto auto; gap: 12px; }
+    .wd-ov--open .wd-ov-x { position: static; margin: 0; opacity: 1; transform: none; width: 32px; height: 32px; background: var(--hairline-soft); color: var(--muted); }
+    .wd-ov--open .wd-ov-x:hover { background: var(--hairline-soft); }
+    .wd-subpill-wrap { display: block; margin-bottom: 4px; }
+    .wd-subpill {
+        display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px;
+        border: 1px solid var(--hairline); border-radius: 14px; background: var(--canvas); font: inherit; color: var(--ink);
+        text-align: left; cursor: pointer; transition: transform .14s var(--ease), background-color .14s ease;
+    }
+    .wd-subpill:active { transform: scale(.985); }
+    .wd-subpill-ring {
+        width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+        background: conic-gradient(var(--success) 0 var(--p, 0%), var(--hairline) var(--p, 0%) 100%);
+    }
+    .wd-subpill-ring i { width: 24px; height: 24px; border-radius: 50%; background: var(--canvas); display: grid; place-items: center; font-style: normal; font-size: 10px; font-weight: 600; }
+    .wd-subpill-txt { min-width: 0; }
+    .wd-subpill-txt b { display: block; font-size: 13.5px; font-weight: 600; }
+    .wd-subpill-txt small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wd-subpill-chev { margin-left: auto; color: var(--muted-soft); font-size: 20px; line-height: 1; }
+}
+@keyframes wd-ov-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .wd-ov--open { animation: uj-fade .15s ease both; } }
 /* Card drawer opened FROM the team board's own person window (.tb-win-modal,
    z-index 61): .wd-scrim/.wd are shared with that window's own backdrop+shell,
    so bumping their bare z-index here would also lift the window's OWN scrim

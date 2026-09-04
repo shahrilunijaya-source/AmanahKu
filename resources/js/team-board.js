@@ -87,6 +87,7 @@ export function registerTeamBoard(Alpine) {
             // Overview beside the drawer, see partials.work-overview. Navigation only here:
             // the team board is view + comment only, so canAddChild never turns true.
             family: null,
+            ovOpen: false,
             canAddChild: false,
             newChildTitle: '',
             addingChild: false,
@@ -438,6 +439,7 @@ export function registerTeamBoard(Alpine) {
             this.drawer.error = '';
             // Previous card's family would flash beside the drawer until the fetch lands.
             this.drawer.family = null;
+            this.drawer.ovOpen = false;
             this.drawer.newComment = '';
             this.drawer.labelMenuOpen = false;
             this.closeMention();
