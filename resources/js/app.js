@@ -1,6 +1,7 @@
 import Alpine from 'alpinejs';
 import Sortable from 'sortablejs';
 import './passkeys';
+import { registerAppearanceCard } from './appearance-card';
 import { registerDarkSurfaces } from './dark-surfaces';
 import { registerDashboardWidgets } from './dashboard-widgets';
 import { registerTicketAttach } from './ticket-attach';
@@ -60,6 +61,7 @@ registerNotifier(Alpine);
 registerOrgChart(Alpine);
 registerPartialNav();
 registerPasskeyManager(Alpine);
+registerAppearanceCard(Alpine);
 registerRolesAdmin(Alpine);
 registerSidebarRail(Alpine);
 registerTeamBoard(Alpine);
