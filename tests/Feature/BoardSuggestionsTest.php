@@ -170,7 +170,7 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
     }
 
-    public function test_a_public_holiday_receives_no_suggestions(): void
+    public function test_a_public_holiday_still_receives_suggestions(): void
     {
         PublicHoliday::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Merdeka', 'date' => '2026-08-25',
@@ -180,7 +180,7 @@ class BoardSuggestionsTest extends TestCase
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
-        $this->assertSame([], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
     }
 
