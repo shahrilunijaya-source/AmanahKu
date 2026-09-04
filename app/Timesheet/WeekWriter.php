@@ -135,10 +135,14 @@ final class WeekWriter
 
         $locked = $this->lockedDays->forWeek($employee, $weekStartCarbon);
 
-        // D4: a fully locked day (public holiday or whole-day leave) is a fact HR owns —
-        // anything typed against it is wrong by definition, so it is dropped. A half-day
-        // leave locks only 50%, leaving the staffer to fill the other half, so their rows
-        // on a partially locked day are kept and merged with the 50% leave row.
+        // D4: a day locked to its full capacity by something other than a holiday (a
+        // whole-day leave) is a fact HR owns — anything typed against it is wrong by
+        // definition, so it is dropped. A half-day leave locks only 50%, leaving the
+        // staffer to fill the other half, so their rows on a partially locked day are kept
+        // and merged with the 50% leave row. A public holiday keeps typed rows too: the
+        // generated Public Holiday row shrinks to the remainder instead (see
+        // LockedDays::entryRows()). LockedDays::keepsTypedRows() is the one place this
+        // decision is made.
         //
         // Dropped rows are collected (not just discarded) so the MCP preview can tell the
         // model which typed rows a locked day overrode, instead of the resulting week just
@@ -149,7 +153,7 @@ final class WeekWriter
             function (array $e) use ($locked, &$dropped) {
                 $date = Carbon::parse($e['entry_date']);
                 $day = $locked[$date->toDateString()] ?? null;
-                $keep = $day === null || $day['percentage'] < DayCapacity::for($date);
+                $keep = $this->lockedDays->keepsTypedRows($day, $date);
 
                 if (! $keep) {
                     $dropped[] = $e;

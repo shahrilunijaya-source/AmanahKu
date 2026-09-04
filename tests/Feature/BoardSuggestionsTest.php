@@ -205,14 +205,28 @@ class BoardSuggestionsTest extends TestCase
         $this->assertSame([$shared->id], $this->idsOn($result, '2026-08-24'));
     }
 
-    public function test_an_archived_card_is_not_suggested(): void
+    public function test_an_archived_card_is_still_suggested_for_the_days_it_was_worked(): void
+    {
+        $card = $this->card(['archived_at' => Carbon::parse('2026-08-25 12:00:00')]);
+        $this->stint($card, '2026-08-24 09:00:00', '2026-08-25 12:00:00');
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
+    }
+
+    public function test_an_archived_card_with_a_dangling_open_stint_stops_at_the_archive_date(): void
     {
         $card = $this->card(['archived_at' => Carbon::parse('2026-08-25 12:00:00')]);
         $this->stint($card, '2026-08-24 09:00:00', null);
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
-        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_the_category_comes_from_the_card(): void

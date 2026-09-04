@@ -151,14 +151,14 @@ test('the TOT Saturday goes over past 50%', () => {
     expect(c.dayState(TOT_SATURDAY)).toBe('over');
 });
 
-test('a holiday locking the TOT Saturday at 50% reads as fully locked', () => {
+test('a holiday on the TOT Saturday is never fully locked, and reads as locked (grey) with no rows yet', () => {
     const c = makeComponent({
         weekStart: TOT_WEEK,
         locked: { [TOT_SATURDAY]: { label: 'Cuti Peristiwa', source: 'holiday', percentage: 50 } },
     });
 
-    expect(c.isFullyLocked(TOT_SATURDAY)).toBe(true);
-    expect(c.isPartlyLocked(TOT_SATURDAY)).toBe(false);
+    expect(c.isFullyLocked(TOT_SATURDAY)).toBe(false);
+    expect(c.lockedPct(TOT_SATURDAY)).toBe(50);
     expect(c.dayTotal(TOT_SATURDAY)).toBe(50);
     expect(c.dayState(TOT_SATURDAY)).toBe('locked');
 });
@@ -363,7 +363,18 @@ test('init() appends cfg.suggested rows after saved rows, flagged suggested with
     expect(c.rows[THURSDAY][1].percentage).toBe('');
 });
 
-test('init() skips a cfg.suggested row on a fully locked day', () => {
+test('init() skips a cfg.suggested row on a fully locked (whole-day leave) day', () => {
+    const c = makeComponent({
+        days: 5,
+        locked: { [THURSDAY]: { label: 'Annual Leave', source: 'leave', percentage: 100 } },
+        suggested: { [THURSDAY]: [{ work_item_id: 42, category_id: 1, description: '' }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+test('init() skips a cfg.suggested row on a public holiday too, even though it is editable', () => {
     const c = makeComponent({
         days: 5,
         locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } },
@@ -371,6 +382,8 @@ test('init() skips a cfg.suggested row on a fully locked day', () => {
     });
     c.init();
 
+    // isEditable() is true for a holiday, so this specifically checks the holiday guard,
+    // not just the fully-locked guard the case above already covers.
     expect(c.rows[THURSDAY]).toBeUndefined();
 });
 
@@ -723,4 +736,70 @@ test('openEditRow() never asks for a project on a card row, even under a categor
 
     expect(c.picker.isManual).toBe(false);
     expect(c.picker.askProject).toBe(false);
+});
+
+// ---- Feature: a public holiday no longer fully locks the day --------------------------
+
+test('isFullyLocked() is false for a holiday even at full capacity, but true for a whole-day leave', () => {
+    const holiday = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } } });
+    const leave = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Annual Leave', source: 'leave', percentage: 100 } } });
+
+    expect(holiday.isFullyLocked(THURSDAY)).toBe(false);
+    expect(leave.isFullyLocked(THURSDAY)).toBe(true);
+});
+
+test('lockedPct() on a holiday shrinks by the typed rows, floored at 0', () => {
+    const c = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } } });
+
+    expect(c.lockedPct(THURSDAY)).toBe(100); // nothing typed yet
+
+    c.rows[THURSDAY] = [{ category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 60 }];
+    expect(c.lockedPct(THURSDAY)).toBe(40);
+
+    c.rows[THURSDAY].push({ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 50 });
+    expect(c.lockedPct(THURSDAY)).toBe(0); // typed rows already exceed capacity — floored, not negative
+});
+
+test('dayState() on a holiday: locked (grey) with no rows, done once rows fill it, over past capacity', () => {
+    const c = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } } });
+
+    expect(c.dayState(THURSDAY)).toBe('locked');
+
+    // category 2 (Sales) needs no project — this test is about dayState, not project gating.
+    // Partly typed: the generated Public Holiday row backfills the remainder, so the day
+    // still reads exactly at capacity (and 'done'), same as it would with nothing typed
+    // at all — the shrink is invisible to dayState, only lockedPct() shows it moving.
+    c.rows[THURSDAY] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 60 }];
+    expect(c.dayState(THURSDAY)).toBe('done');
+
+    c.rows[THURSDAY] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 }];
+    expect(c.dayState(THURSDAY)).toBe('done');
+
+    c.rows[THURSDAY] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 120 }];
+    expect(c.dayState(THURSDAY)).toBe('over');
+});
+
+test('a holiday is editable, and isPartlyLocked() stays true even once rows fill it', () => {
+    const c = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } } });
+
+    expect(c.isEditable(THURSDAY)).toBe(true);
+    expect(c.isPartlyLocked(THURSDAY)).toBe(true); // no rows yet, full capacity still locked-but-shrinkable
+
+    c.rows[THURSDAY] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 }];
+    expect(c.isPartlyLocked(THURSDAY)).toBe(true); // banner stays so the day still reads as a holiday
+    expect(c.lockedPct(THURSDAY)).toBe(0);
+});
+
+test('dayPercentOfCapacity() scales the TOT Saturday so a full 50%-capacity day reads 100%', () => {
+    const c = makeComponent({ weekStart: TOT_WEEK });
+    c.rows = { [TOT_SATURDAY]: [{ category_id: 2, percentage: 50 }] };
+
+    expect(c.dayPercentOfCapacity(TOT_SATURDAY)).toBe(100);
+});
+
+test('dayPercentOfCapacity() reads 100 on an ordinary day at 100% and matches dayTotal 1:1', () => {
+    const c = makeComponent({ days: 5 });
+    c.rows[THURSDAY] = [{ category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 }];
+
+    expect(c.dayPercentOfCapacity(THURSDAY)).toBe(100);
 });
