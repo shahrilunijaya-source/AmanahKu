@@ -815,6 +815,24 @@ export function registerWorkBoard(Alpine) {
 
         // Tick / untick a subtask: a move between todo and done. Access-wide on the
         // server, so it runs even while drawer.locked (a participant may tick).
+        async deleteChild(child) {
+            if (this.drawer.locked) return;
+            if (!window.confirm(this.t('Delete this subtask? This cannot be undone.', 'Padam subtugas ini? Ini tidak boleh dibatalkan.'))) return;
+            try {
+                const { parent_html } = await this.api(`/app/board/${child.id}`, { method: 'DELETE' });
+                const { children, parent } = this.drawer.family;
+                const idx = children.findIndex((c) => String(c.id) === String(child.id));
+                if (idx >= 0) children.splice(idx, 1);
+                parent.child_summary = children.length
+                    ? { done: children.filter((c) => c.status === 'done').length, total: children.length }
+                    : null;
+                this.repaintCardById(parent.id, parent_html);
+                if (String(this.drawer.id) === String(child.id)) await this.backToParent();
+                this.flashSaved();
+            } catch (err) {
+                this.$store.toast.error(this.t('Could not delete that subtask.', 'Tidak dapat padam subtugas itu.'));
+            }
+        },
         async tickChild(child) {
             const next = child.status === 'done' ? 'todo' : 'done';
             const was = child.status;
@@ -884,6 +902,9 @@ export function registerWorkBoard(Alpine) {
 
         async deleteCard() {
             if (this.drawer.locked) return;
+            // A subtask's drawer.node is the PARENT's board card (openChild opens against
+            // it), so the whole-card path below would pull the parent off the board.
+            if (this.drawer.card.parent_id) return this.deleteChild(this.drawer.card);
             if (!window.confirm(this.t('Delete this card? This cannot be undone.', 'Padam kad ini? Ini tidak boleh dibatalkan.'))) return;
             const node = this.drawer.node;
             try {

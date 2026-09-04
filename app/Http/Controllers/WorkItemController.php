@@ -389,9 +389,11 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
 
+        $parent = $workItem->parent_id ? $workItem->parent : null;
         $workItem->delete();
 
-        return response()->json(['ok' => true]);
+        // A deleted subtask changes the parent's face (the "1/2" count), so hand it back.
+        return response()->json(['ok' => true, 'parent_html' => $parent ? $this->cardHtml($parent->fresh()) : null]);
     }
 
     /**

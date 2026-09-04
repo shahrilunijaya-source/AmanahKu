@@ -116,6 +116,26 @@ class WorkItemChildTest extends TestCase
         $this->assertNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id));
     }
 
+    public function test_deleting_a_child_keeps_the_parent_and_returns_its_refreshed_face(): void
+    {
+        $parent = $this->parent();
+        $child = $this->child($parent);
+        $this->child($parent, ['status' => 'done']);
+
+        $response = $this->as($this->owner)->deleteJson("/app/board/{$child->id}")->assertOk();
+
+        $this->assertNotNull($parent->fresh());
+        $this->assertNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id));
+        $this->assertStringContainsString('1/1', $response->json('parent_html'));
+    }
+
+    public function test_deleting_a_parent_returns_no_parent_face(): void
+    {
+        $parent = $this->parent();
+
+        $this->as($this->owner)->deleteJson("/app/board/{$parent->id}")->assertOk()->assertJson(['parent_html' => null]);
+    }
+
     public function test_done_gate_refuses_a_parent_with_an_open_child(): void
     {
         $parent = $this->parent();
