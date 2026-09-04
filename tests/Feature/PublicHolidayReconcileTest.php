@@ -103,17 +103,22 @@ class PublicHolidayReconcileTest extends TestCase
 
         foreach ([$sheetOne, $sheetTwo] as $sheet) {
             $rows = $this->dayEntries($sheet);
-            $this->assertCount(1, $rows, 'the typed work row is dropped by the holiday');
-            $this->assertSame('holiday', $rows->first()->source);
+            // The typed work row already fills the day, so it is kept as-is and the
+            // generated Public Holiday row has no remainder left to cover — it is omitted
+            // entirely rather than persisted at 0%.
+            $this->assertCount(1, $rows, 'the typed work row survives the holiday, and no 0% holiday row is added');
+            $this->assertNull($rows->first()->source);
             $this->assertEqualsWithDelta(100.0, (float) $rows->first()->percentage, 0.001);
         }
 
-        // Entered by mistake: removing it must not leave the day locked.
+        // Entered by mistake: removing it must not change anything (nothing was locked).
         $holiday = PublicHoliday::firstWhere('name', 'Cuti Peristiwa');
         $this->actingAsEmployee($hr)->post(route('holiday.delete', $holiday))->assertRedirect();
 
         foreach ([$sheetOne, $sheetTwo] as $sheet) {
-            $this->assertCount(0, $this->dayEntries($sheet), 'the generated holiday row is taken back out');
+            $rows = $this->dayEntries($sheet);
+            $this->assertCount(1, $rows, 'the typed work row is untouched');
+            $this->assertNull($rows->first()->source);
         }
     }
 

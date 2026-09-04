@@ -175,7 +175,7 @@
             <div class="uj-ts-day-total">
                 <div style="font-size:22px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums;"
                     :style="{ color: { empty:'var(--muted)', partial:'var(--ink)', done:'var(--success-ink)', over:'var(--error)', locked:'var(--muted)', future:'var(--muted)' }[dayState(selected)] }"
-                    x-text="dayTotal(selected) + '%'"></div>
+                    x-text="dayPercentOfCapacity(selected) + '%'"></div>
                 <div style="font-size:11px;margin-top:5px;white-space:nowrap;"
                     :style="{ color: dayState(selected) === 'over' ? 'var(--error)'
                         : hasBlankRows(selected) ? 'var(--amber-ink)'
@@ -228,7 +228,8 @@
         {{-- ---- Day: locked banners + editable rows (date/total/bar hoisted into the header above) ---- --}}
         <div style="border:1px solid var(--hairline);border-radius:12px;padding:16px;margin-top:16px;">
 
-            {{-- Fully locked: an approved whole-day leave or public holiday. Read-only. --}}
+            {{-- Fully locked: an approved whole-day leave. Read-only. A public holiday is
+                 never fully locked — see the partly-locked banner below. --}}
             <template x-if="isFullyLocked(selected)">
                 <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:8px;background:var(--canvas);">
                     <span>&#128274;</span>
@@ -241,10 +242,12 @@
                 </div>
             </template>
 
-            {{-- Half-day leave: 50% is locked to "On Leave", the staffer fills the rest below. --}}
+            {{-- Half-day leave: 50% is locked to "On Leave", the staffer fills the rest below.
+                 A public holiday lands here too: its row shrinks live as rows are added, so
+                 it reads as "partly locked" for as long as any capacity is left unclaimed. --}}
             <template x-if="isPartlyLocked(selected)">
                 <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:8px;background:var(--canvas);margin-bottom:8px;">
-                    <span>&#189;</span>
+                    <span x-text="locked[selected].source === 'holiday' ? '🔒' : '½'"></span>
                     <div style="flex:1;">
                         <div style="font-size:12.5px;">
                             <span x-text="locked[selected].label"></span>
@@ -252,7 +255,9 @@
                                 x-text="'(' + (locked[selected].period === 'am' ? ($store.ui.lang==='en' ? 'morning' : 'pagi') : ($store.ui.lang==='en' ? 'afternoon' : 'petang')) + ')'"></span>
                         </div>
                         <div style="font-size:11px;color:var(--muted);"
-                            x-text="$store.ui.lang==='en' ? 'Fill the other half of the day below.' : 'Isi separuh hari yang lagi satu di bawah.'"></div>
+                            x-text="locked[selected].source === 'holiday'
+                                ? ($store.ui.lang==='en' ? 'Worked on this holiday? Add a line below.' : 'Bekerja pada cuti umum ini? Tambah baris di bawah.')
+                                : ($store.ui.lang==='en' ? 'Fill the other half of the day below.' : 'Isi separuh hari yang lagi satu di bawah.')"></div>
                     </div>
                     <span style="font-family:var(--font-mono);font-size:13px;" x-text="lockedPct(selected) + '%'"></span>
                 </div>
@@ -759,7 +764,7 @@
                     <div style="border:1px solid var(--hairline);border-radius:12px;padding:12px 15px;">
                         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
                             <span style="font-size:13px;font-weight:700;" x-text="dayLong(d)"></span>
-                            <span style="font-size:12.5px;font-family:var(--font-mono);font-weight:600;color:var(--success-ink,#1f8a65);" x-text="dayTotal(d) + '%'"></span>
+                            <span style="font-size:12.5px;font-family:var(--font-mono);font-weight:600;color:var(--success-ink,#1f8a65);" x-text="dayPercentOfCapacity(d) + '%'"></span>
                         </div>
                         <template x-if="locked[d]">
                             <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-soft);">
