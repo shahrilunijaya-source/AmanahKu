@@ -54,6 +54,10 @@
       text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
       text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
 
+    - tag: fixed
+      text: "Archiving a T.A.A. card no longer takes its work off your timesheet. Before, a card archived before you had costed its days simply vanished from the grid, and the hours went unlogged. The card now stays offered for the days of that week up to the day it was archived, and no further. Lines you had already saved were never affected."
+      text_ms: "Mengarkibkan kad T.A.A. tidak lagi membuang kerjanya dari lembaran masa anda. Sebelum ini, kad yang diarkibkan sebelum anda sempat mengisi peratusan harinya terus hilang dari grid, dan jam kerja itu tidak direkodkan. Kad itu kini kekal ditawarkan untuk hari-hari minggu tersebut sehingga hari ia diarkibkan, dan tidak lebih daripada itu. Baris yang sudah anda simpan tidak pernah terjejas."
+
 - version: "1.7.3"
   date: "2026-09-03"
   entries:
