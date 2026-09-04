@@ -162,10 +162,9 @@ export function registerTimesheetCapture(Alpine) {
             // cleared the moment the staffer gives it a percentage.
             const suggested = cfg.suggested || {};
             for (const iso of Object.keys(suggested)) {
-                // A holiday is editable now, but board suggestions still must not spray
-                // themselves onto it unasked — a staffer who genuinely worked through a
-                // holiday adds that row by hand.
-                if (this.isFullyLocked(iso) || !this.isEditable(iso) || this.locked[iso]?.source === 'holiday') continue;
+                // A public holiday is editable, so it takes suggestions like any other
+                // day; a staffer who did not work strikes the card off as usual.
+                if (this.isFullyLocked(iso) || !this.isEditable(iso)) continue;
                 this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
                     id: null,
                     work_item_id: s.work_item_id,

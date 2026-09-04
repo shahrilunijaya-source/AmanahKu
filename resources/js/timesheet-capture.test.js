@@ -374,7 +374,7 @@ test('init() skips a cfg.suggested row on a fully locked (whole-day leave) day',
     expect(c.rows[THURSDAY]).toBeUndefined();
 });
 
-test('init() skips a cfg.suggested row on a public holiday too, even though it is editable', () => {
+test('init() offers a cfg.suggested row on a public holiday, since the day is editable', () => {
     const c = makeComponent({
         days: 5,
         locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } },
@@ -382,9 +382,8 @@ test('init() skips a cfg.suggested row on a public holiday too, even though it i
     });
     c.init();
 
-    // isEditable() is true for a holiday, so this specifically checks the holiday guard,
-    // not just the fully-locked guard the case above already covers.
-    expect(c.rows[THURSDAY]).toBeUndefined();
+    expect(c.rows[THURSDAY]).toHaveLength(1);
+    expect(c.rows[THURSDAY][0].work_item_id).toBe(42);
 });
 
 test('init() skips a cfg.suggested row on a non-editable day (before the earliest editable week)', () => {

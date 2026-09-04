@@ -92,8 +92,9 @@ final class BoardSuggestions
                     continue;
                 }
 
-                $lockedDay = $locked[$iso] ?? null;
-                if ($lockedDay !== null && $lockedDay['percentage'] >= DayCapacity::for($day)) {
+                // Same keep-or-drop rule the save path applies: a whole-day leave takes
+                // the day, a public holiday still offers the card.
+                if (! $this->lockedDays->keepsTypedRows($locked[$iso] ?? null, $day)) {
                     continue;
                 }
 
