@@ -1222,9 +1222,10 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-ov {
     /* Centred in the space left of the drawer, vertically too. */
     position: fixed; top: 50%; left: calc((100vw - min(560px, 94vw)) / 2); transform: translate(-50%, -50%);
-    width: 420px; max-width: calc(100vw - min(560px, 94vw) - 48px);
+    width: 456px; max-width: calc(100vw - min(560px, 94vw) - 48px);
     max-height: calc(100vh - 48px); overflow-y: auto; z-index: 61; cursor: default;
-    padding: 4px; scrollbar-width: none;
+    /* Right gutter keeps the row's delete button inside the scroll box. */
+    padding: 4px 40px 4px 4px; scrollbar-width: none;
     animation: wd-ov-in 320ms var(--ease) both;
 }
 .wd-ov-h { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.72); margin: 18px 4px 8px; }
@@ -1273,6 +1274,21 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transform: scaleX(0); transform-origin: left; transition: transform 140ms var(--ease);
 }
 .wd-ov-child-title:active { transform: scale(.98); }
+/* Delete sits outside the row's right edge and only shows while the row is hovered
+   or holds focus, so the list stays quiet. Touch has no hover, so it is always there. */
+.wd-ov-x {
+    position: absolute; top: 50%; right: -34px; width: 28px; height: 28px; margin-top: -14px;
+    display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%;
+    background: rgba(255,255,255,.14); color: #fff; cursor: pointer; padding: 0;
+    opacity: 0; transform: translateX(-4px) scale(.9);
+    transition: opacity 140ms ease, transform 160ms var(--ease), background-color 120ms ease;
+}
+.wd-ov-x svg { width: 14px; height: 14px; }
+.wd-ov-x:hover { background: var(--red); }
+.wd-ov-x:active { transform: scale(.9); }
+.wd-ov-child:hover .wd-ov-x, .wd-ov-child:focus-within .wd-ov-x, .wd-ov-x:focus-visible { opacity: 1; transform: none; }
+@media (hover: none) { .wd-ov-x { opacity: 1; transform: none; } }
+.wd-ov-child { position: relative; }
 .wd-ov-child.is-done .wd-ov-child-title { color: var(--muted); }
 .wd-ov-child.is-done .wd-ov-child-title > span::after { transform: scaleX(1); transition-duration: 260ms; }
 .wd-ov-add .wd-inline {
@@ -1288,7 +1304,7 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-back:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
     .wd-ov, .wd-ov-parent, .wd-ov-child, .wd-ov-add { animation: uj-fade .15s ease both; animation-delay: 0s; }
-    .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active { transform: none; }
+    .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active, .wd-ov-x { transform: none; }
     .wd-ov-child-title > span::after { transition: none; }
 }
 @media (max-width: 1100px) { .wd-ov { display: none; } }

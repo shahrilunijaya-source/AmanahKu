@@ -36,6 +36,12 @@
                 </template>
                 <span x-show="!child.people.length" x-text="child.due_label"></span>
             </span>
+            @if ($interactive)
+                <button type="button" class="wd-ov-x" x-show="!drawer.locked" @click="deleteChild(child)"
+                        :aria-label="$store.ui.lang==='en' ? 'Delete subtask' : 'Padam subtugas'" :title="$store.ui.lang==='en' ? 'Delete subtask' : 'Padam subtugas'">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                </button>
+            @endif
         </div>
     </template>
 
