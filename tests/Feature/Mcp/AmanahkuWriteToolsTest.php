@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mcp;
 
+use App\Mcp\Tools\ArchiveCardTool;
 use App\Mcp\Tools\AssignTaskTool;
 use App\Mcp\Tools\ConfirmWriteTool;
 use App\Mcp\Tools\CreateCardTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
+use App\Mcp\Tools\MoveCardTool;
 use App\Mcp\Tools\SaveTimesheetDraftTool;
 use App\Mcp\Tools\TimesheetOptionsTool;
 use App\Mcp\Tools\UpdateCardTool;
@@ -15,6 +17,7 @@ use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\PublicHoliday;
+use App\Models\Scopes\ParentOnly;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -1718,5 +1721,80 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertSame($projectB->id, $stored->first()->project_id);
         $this->assertEquals(50.0, (float) $stored->first()->percentage);
         app(CurrentTenant::class)->set(null);
+    }
+
+    private function childOf(WorkItem $parent, string $status = 'todo'): WorkItem
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $child = $parent->children()->create(['tenant_id' => $parent->tenant_id, 'employee_id' => $parent->employee_id, 'title' => 'Sub', 'type' => 'task', 'priority' => 'low', 'status' => $status, 'progress' => 0]);
+        app(CurrentTenant::class)->set(null);
+
+        return $child;
+    }
+
+    public function test_create_card_with_a_parent_makes_a_subtask_on_the_parents_board(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+        $parent = $this->card();
+
+        $preview = $this->callTool(CreateCardTool::class, [
+            'title' => 'Sub', 'priority' => 'low', 'parent_id' => $parent->id,
+        ], $headers);
+        $this->assertFalse($this->toolIsError($preview), $preview->getContent());
+        $confirmed = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $child = WorkItem::withoutGlobalScope(ParentOnly::class)->find($this->toolData($confirmed)['card']['id']);
+        $this->assertSame($parent->id, $child->parent_id);
+        $this->assertSame('todo', $child->status);
+        $this->assertSame($parent->type, $child->type);
+        app(CurrentTenant::class)->set(null);
+    }
+
+    public function test_create_card_refuses_a_subtask_under_a_subtask(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+        $child = $this->childOf($this->card());
+
+        $preview = $this->callTool(CreateCardTool::class, ['title' => 'Grandchild', 'priority' => 'low', 'parent_id' => $child->id], $headers);
+
+        $this->assertTrue($this->toolIsError($preview));
+    }
+
+    public function test_move_card_refuses_a_move_to_done_with_an_open_subtask(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+        $parent = $this->card();
+        $this->childOf($parent);
+
+        $preview = $this->callTool(MoveCardTool::class, ['work_item_id' => $parent->id, 'status' => 'done'], $headers);
+
+        $this->assertTrue($this->toolIsError($preview));
+        $this->assertStringContainsString('subtask', $preview->json('result.content.0.text'));
+    }
+
+    public function test_move_card_ticks_a_subtask_done(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+        $child = $this->childOf($this->card());
+
+        $preview = $this->callTool(MoveCardTool::class, ['work_item_id' => $child->id, 'status' => 'done'], $headers);
+        $this->assertFalse($this->toolIsError($preview), $preview->getContent());
+        $this->confirm($this->toolData($preview)['confirm_token'], $headers);
+
+        $this->assertSame('done', WorkItem::withoutGlobalScope(ParentOnly::class)->withoutGlobalScope('tenant')->find($child->id)->status);
+
+        $preview = $this->callTool(MoveCardTool::class, ['work_item_id' => $child->id, 'status' => 'prog'], $headers);
+        $this->assertTrue($this->toolIsError($preview));
+    }
+
+    public function test_archive_card_refuses_a_subtask(): void
+    {
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+        $child = $this->childOf($this->card(), 'done');
+
+        $preview = $this->callTool(ArchiveCardTool::class, ['work_item_id' => $child->id], $headers);
+
+        $this->assertTrue($this->toolIsError($preview));
     }
 }

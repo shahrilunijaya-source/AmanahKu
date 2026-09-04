@@ -20,6 +20,12 @@ class WorkItemObserver
 {
     public function saved(WorkItem $item): void
     {
+        // A child card (subtask) has no column, so no stint, and its due date is not
+        // the one the calendar cares about: the parent's is.
+        if ($item->parent_id !== null) {
+            return;
+        }
+
         $this->recordProgressStint($item);
 
         // isDirty() works here because Eloquent's `saved` event fires BEFORE

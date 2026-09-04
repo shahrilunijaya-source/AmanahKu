@@ -2,6 +2,13 @@
 
 @php use App\Support\Amanahku; $p = $profile; $pers = $p?->personality ?? []; @endphp
 
+@if ($p?->cover_path)
+    @section('hero')
+        @include('partials.profile-cover-hero', ['employee' => $p])
+    @endsection
+    @section('hero-tone', $p->coverIsDark() ? 'dark' : 'light')
+@endif
+
 @section('screen')
 @include('partials.guide', [
     'key' => 'profile',
@@ -49,7 +56,18 @@
     @endphp
     <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
-        {{-- Identity band --}}
+        {{-- Cover controls. The cover picture itself is the full-width hero yielded in
+             the layout (see @section('hero') above); this band only carries the pills. --}}
+        @if ($isOwn)
+            <div x-data="{ pick: {{ ($p->cover_path && ! $errors->has('photo') && ! $errors->has('preset')) ? 'false' : 'true' }} }" @cover-pick.window="pick = !pick">
+                <div x-show="pick" x-transition.opacity.duration.150ms>@include('partials.profile-cover-picker', ['employee' => $p])</div>
+                @if ($p->cover_path)
+                    @include('partials.profile-cover-actions', ['employee' => $p, 'isOwn' => true])
+                @endif
+            </div>
+        @elseif ($p->cover_path && $canEdit)
+            @include('partials.profile-cover-actions', ['employee' => $p, 'isOwn' => false])
+        @endif
         <div class="uj-card" style="padding:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
             <div style="width:76px;height:76px;flex-shrink:0;border-radius:50%;background:{{ $p->avatar_color }};color:#fff;font-size:26px;font-weight:600;display:flex;align-items:center;justify-content:center;">{{ $p->initials }}</div>
             <div style="flex:1;min-width:220px;">

@@ -125,6 +125,82 @@
     </div>
     @endif
 
+    @php
+        $ap = auth()->user()->appearance ?? [];
+        $apChoice = $ap['wallpaper'] ?? 'none';
+        $apPath = $ap['wallpaper_path'] ?? null;
+        $apUrl = $apPath ? \Illuminate\Support\Facades\Storage::disk('public')->url($apPath) : null;
+    @endphp
+    {{-- Personal workspace wallpaper. Picking a tile saves at once and swaps the
+         wallpaper behind this page in place; there is no Save button to scroll to. --}}
+    <div class="uj-card" id="appearance" style="padding:24px;"
+         x-data="appearanceCard({
+            url: @js(route('account.appearance')),
+            deleteUrl: @js(route('account.appearance.photo.destroy')),
+            choice: @js($apChoice),
+            dim: @js($ap['dim'] ?? 'soft'),
+            photoUrl: @js($apUrl),
+            photoLum: @js($ap['wallpaper_lum'] ?? null),
+            presets: @js(config('amanahku.wallpaper_presets')),
+            lums: @js(array_map(fn (string $css) => \App\Support\Tone::ofCss($css), config('amanahku.wallpaper_presets'))),
+            dims: @js(config('amanahku.wallpaper_dims')),
+            canvasLum: @js(\App\Support\Tone::CANVAS),
+            darkBelow: @js(\App\Support\Tone::DARK_BELOW),
+         })">
+        <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Appearance' : 'Penampilan'">Appearance</h3>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en' ? 'A background for your workspace. Only you see it.' : 'Latar belakang untuk ruang kerja anda. Hanya anda yang melihatnya.'">A background for your workspace. Only you see it.</p>
+
+        <div class="uj-wp-grid">
+            <button type="button" class="uj-wp-tile uj-wp-tile--none" data-wallpaper="none" :data-on="choice === 'none'" @click="pick('none')">
+                <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'">None</span>
+            </button>
+            {{-- Always rendered (not gated on an existing photo) so x-if stays
+                 reactive to a first-ever upload with no reload. data-wallpaper
+                 is Alpine-bound rather than a static attribute so the server
+                 HTML never literally contains data-wallpaper="upload" before
+                 an upload happens; it's a client-rendered marker only. --}}
+            <template x-if="photoUrl">
+                <button type="button" class="uj-wp-tile" :data-wallpaper="'upload'" :data-on="choice === 'upload'" :style="'background-image:url(' + photoUrl + ')'" @click="pick('upload')">
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'Your photo' : 'Foto anda'">Your photo</span>
+                </button>
+            </template>
+            @foreach (config('amanahku.wallpaper_presets') as $key => $css)
+                @php
+                    $presetNames = [
+                        'dawn' => ['Dawn', 'Subuh'],
+                        'dusk' => ['Dusk', 'Senja'],
+                        'paper' => ['Paper', 'Kertas'],
+                        'moss' => ['Moss', 'Lumut'],
+                        'slate' => ['Slate', 'Batu'],
+                        'sand' => ['Sand', 'Pasir'],
+                    ][$key] ?? [ucfirst($key), ucfirst($key)];
+                @endphp
+                <button type="button" class="uj-wp-tile" data-wallpaper="preset:{{ $key }}" :data-on="choice === 'preset:{{ $key }}'" style="background:{{ $css }};" @click="pick('preset:{{ $key }}')">
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? '{{ $presetNames[0] }}' : '{{ $presetNames[1] }}'">{{ $presetNames[0] }}</span>
+                </button>
+            @endforeach
+            <label class="uj-wp-tile uj-wp-tile--upload">
+                <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" @change="upload($event)">
+                <b>+</b>
+                <span x-text="busy ? ($store.ui.lang==='en' ? 'Uploading…' : 'Memuat naik…') : ($store.ui.lang==='en' ? 'Upload photo' : 'Muat naik foto')">Upload photo</span>
+            </label>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--hairline-soft);font-size:12.5px;flex-wrap:wrap;">
+            <span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Dim' : 'Malap'">Dim</span>
+            <div class="uj-seg">
+                <button type="button" :data-on="dim === 'none'" @click="setDim('none')" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'">None</button>
+                <button type="button" :data-on="dim === 'soft'" @click="setDim('soft')" x-text="$store.ui.lang==='en' ? 'Soft' : 'Lembut'">Soft</button>
+                <button type="button" :data-on="dim === 'strong'" @click="setDim('strong')" x-text="$store.ui.lang==='en' ? 'Strong' : 'Kuat'">Strong</button>
+            </div>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--muted-soft);" x-show="!photoUrl" x-text="$store.ui.lang==='en' ? 'JPEG, PNG, WebP · 5 MB' : 'JPEG, PNG, WebP · 5 MB'">JPEG, PNG, WebP · 5 MB</span>
+            <button type="button" x-show="photoUrl" x-cloak class="uj-btn-ghost" style="margin-left:auto;height:32px;font-size:12px;padding:0 12px;border:0;color:var(--muted);" @click="removePhoto()">
+                <span x-text="$store.ui.lang==='en' ? 'Remove photo' : 'Buang foto'">Remove photo</span>
+            </button>
+            <p x-show="error" x-cloak x-text="error" style="flex-basis:100%;margin:0;color:var(--error);font-size:12px;"></p>
+        </div>
+    </div>
+
     <div class="uj-card" style="padding:24px;">
         <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'AI access key' : 'Kunci akses AI'">AI access key</h3>
         <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en'
@@ -204,4 +280,85 @@
         @endif
     </div>
 </div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('appearanceCard', (cfg) => ({
+        choice: cfg.choice, dim: cfg.dim, photoUrl: cfg.photoUrl, photoLum: cfg.photoLum, reply: null, busy: false, error: '',
+        csrf: document.querySelector('meta[name=csrf-token]').content,
+
+        /* The wallpaper behind this page is swapped in place, so the pick is seen at
+           once. A short blur over the crossfade keeps two pictures from reading as
+           two objects mid-swap. */
+        paint() {
+            const shell = document.getElementById('uj-shell');
+            const header = document.querySelector('.uj-header');
+            let layer = document.querySelector('.uj-wallpaper');
+            let bg = null;
+            if (this.choice.startsWith('preset:')) bg = cfg.presets[this.choice.slice(7)];
+            else if (this.choice === 'upload' && this.photoUrl) bg = 'url(' + this.photoUrl + ')';
+
+            /* Everything a wallpaper toggles, kept in this one list so it can't drift
+               from the $wp branch in layouts/app.blade.php: the shell + layer, the
+               header blur, and the dark flag (same blend as App\Support\Tone). */
+            const blur = bg ? 'blur(14px)' : '';
+            const lum = this.choice.startsWith('preset:') ? cfg.lums[this.choice.slice(7)] : (this.choice === 'upload' ? this.photoLum : null);
+            const d = (cfg.dims[this.dim] ?? 30) / 100;
+            const dark = !!bg && lum != null && (lum * (1 - d) + cfg.canvasLum * d) < cfg.darkBelow;
+            shell?.classList.toggle('uj-has-wallpaper', !!bg);
+            shell?.classList.toggle('uj-on-dark', dark);
+            window.ujMarkSurfaces?.();
+            if (header) { header.style.backdropFilter = blur; header.style.webkitBackdropFilter = blur; }
+
+            if (!bg) { layer?.remove(); return; }
+            if (!layer) { layer = document.createElement('div'); layer.className = 'uj-wallpaper'; shell.prepend(layer); }
+            layer.dataset.dim = this.dim;
+            layer.style.transition = 'opacity 220ms cubic-bezier(.23,1,.32,1), filter 220ms cubic-bezier(.23,1,.32,1)';
+            layer.style.filter = 'blur(6px)'; layer.style.opacity = '0.6';
+            requestAnimationFrame(() => { layer.style.backgroundImage = bg; layer.style.filter = ''; layer.style.opacity = ''; });
+        },
+        async send(body) {
+            this.error = '';
+            const fallback = Alpine.store('ui').lang === 'en' ? 'Could not save.' : 'Tidak dapat disimpan.';
+            try {
+                const res = await fetch(cfg.url, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' }, body });
+                if (res.status === 422) { const j = await res.json(); this.error = Object.values(j.errors ?? {})[0]?.[0] ?? fallback; return false; }
+                if (!res.ok) { this.error = fallback; return false; }
+                this.reply = await res.json().catch(() => null);
+                return true;
+            } catch (e) {
+                this.error = fallback;
+                return false;
+            }
+        },
+        form(extra = {}) {
+            const f = new FormData(); f.append('wallpaper', this.choice); f.append('dim', this.dim);
+            Object.entries(extra).forEach(([k, v]) => f.append(k, v));
+            return f;
+        },
+        async pick(c) { const prev = this.choice; this.choice = c; this.paint(); if (!await this.send(this.form())) { this.choice = prev; this.paint(); } },
+        async setDim(d) { const prev = this.dim; this.dim = d; this.paint(); if (!await this.send(this.form())) { this.dim = prev; this.paint(); } },
+        async upload(e) {
+            const file = e.target.files[0]; if (!file) return;
+            this.busy = true;
+            const prev = this.choice; this.choice = 'upload';
+            const ok = await this.send(this.form({ photo: file }));
+            this.busy = false; e.target.value = '';
+            if (!ok) { this.choice = prev; return; }
+            this.photoUrl = URL.createObjectURL(file); this.photoLum = this.reply?.luminance ?? null; this.paint();
+        },
+        async removePhoto() {
+            const fallback = Alpine.store('ui').lang === 'en' ? 'Could not remove the photo.' : 'Foto tidak dapat dibuang.';
+            try {
+                const res = await fetch(cfg.deleteUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' } });
+                if (!res.ok) { this.error = fallback; return; }
+            } catch (e) {
+                this.error = fallback;
+                return;
+            }
+            this.photoUrl = null; this.photoLum = null; if (this.choice === 'upload') this.choice = 'none'; this.paint();
+        },
+    }));
+});
+</script>
 @endsection

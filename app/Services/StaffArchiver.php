@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LoanRequest;
 use App\Models\OvertimeRequest;
+use App\Models\Scopes\ParentOnly;
 use App\Models\TravelRequest;
 use App\Models\WorkItem;
 use Illuminate\Support\Facades\DB;
@@ -69,6 +70,14 @@ class StaffArchiver
         if ($employee->reports_to_id) {
             WorkItem::where('employee_id', $employee->id)
                 ->where('status', '!=', 'done')
+                ->update(['employee_id' => $employee->reports_to_id]);
+
+            // Subtasks follow their parent to the manager, done or not: a child's
+            // employee_id must always equal its parent's.
+            WorkItem::withoutGlobalScope(ParentOnly::class)
+                ->whereNotNull('parent_id')
+                ->where('employee_id', $employee->id)
+                ->whereHas('parent', fn ($q) => $q->where('employee_id', $employee->reports_to_id))
                 ->update(['employee_id' => $employee->reports_to_id]);
         }
 

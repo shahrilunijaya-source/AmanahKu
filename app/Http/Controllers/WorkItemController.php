@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class WorkItemController extends Controller
@@ -34,20 +35,36 @@ class WorkItemController extends Controller
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:160'],
-            'type' => ['required', 'in:assignment,task,adhoc'],
-            'priority' => ['required', 'in:high,medium,low'],
+            // A child copies the parent's type; a parent must name its own.
+            'type' => ['required_without:parent_id', 'in:assignment,task,adhoc'],
+            'priority' => ['nullable', 'in:high,medium,low'],
             'status' => ['nullable', 'in:'.implode(',', self::STATUSES)],
             'due_label' => ['nullable', 'string', 'max:60'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            // Looked up through the default (ParentOnly) scope on purpose: a child's id
+            // is not found, which is what refuses a grandchild.
+            'parent_id' => ['nullable', 'integer', Rule::exists('work_items', 'id')->where('tenant_id', app(CurrentTenant::class)->id())->whereNull('parent_id')],
+        ], [
+            'parent_id.exists' => 'That card cannot take subtasks: it does not exist, or it is a subtask itself.',
         ]);
+
+        if (! empty($data['parent_id'])) {
+            $item = $this->storeChild($request, $employee, WorkItem::findOrFail($data['parent_id']), $data);
+
+            return response()->json([
+                'card' => $this->cardPayload($item),
+                'html' => $this->cardHtml($item),
+                'parent_html' => $this->cardHtml($item->parent->fresh()),
+            ], 201);
+        }
 
         $status = $data['status'] ?? 'todo';
 
         $item = $employee->workItems()->create([
             'title' => $data['title'],
             'type' => $data['type'],
-            'priority' => $data['priority'],
+            'priority' => $data['priority'] ?? 'medium',
             'due_label' => $data['due_label'] ?? null,
             'project_id' => $data['project_id'] ?? null,
             'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
@@ -68,6 +85,34 @@ class WorkItemController extends Controller
         }
 
         return back()->with('ok', 'Work item added.');
+    }
+
+    /**
+     * A subtask lands on the PARENT's board, whoever adds it: it belongs to the parent,
+     * and the parent belongs to its owner. Anyone who can open the parent may add one
+     * (authorizeAccess, the same grant as moving or commenting). Type, project and
+     * category are copied so the drawer has something to show and never asks again;
+     * the child's only state is todo or done.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function storeChild(Request $request, Employee $actor, WorkItem $parent, array $data): WorkItem
+    {
+        $this->boardRules->authorizeAccess($request, $parent, $actor);
+
+        return $parent->children()->create([
+            'tenant_id' => $parent->tenant_id,
+            'employee_id' => $parent->employee_id,
+            'title' => $data['title'],
+            'type' => $parent->type,
+            'priority' => $data['priority'] ?? 'medium',
+            'due_label' => $data['due_label'] ?? null,
+            'project_id' => $parent->project_id,
+            'timesheet_category_id' => $parent->timesheet_category_id,
+            'status' => 'todo',
+            'progress' => 0,
+            'sort_order' => (int) $parent->children()->max('sort_order') + 1,
+        ]);
     }
 
     /** A privileged user assigns an adhoc task onto a staff member's board. */
@@ -152,7 +197,7 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee']);
+        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee', 'children.participants']);
 
         // The same call the write gate makes, so the drawer's read-only state can
         // never disagree with what the server will accept. A participant opens the
@@ -172,6 +217,7 @@ class WorkItemController extends Controller
                 // Feeds the drawer's @-mention picker. Participants + assigner only —
                 // see mentionableEmployees() for why the roster stops there.
                 'mentionable' => $this->mentionablePayload($workItem),
+                'family' => $this->familyPayload($workItem->parent_id ? $workItem->parent : $workItem),
             ],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
         ]);
@@ -208,6 +254,8 @@ class WorkItemController extends Controller
         }
 
         $data = $request->validate([
+            // A card is born a child or a parent; it does not change sides.
+            'parent_id' => ['missing'],
             'title' => ['sometimes', 'required', 'string', 'max:160'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'type' => ['sometimes', 'required', 'in:assignment,task,adhoc'],
@@ -284,6 +332,15 @@ class WorkItemController extends Controller
             'ids.*' => ['integer'],
         ]);
 
+        if ($workItem->isChild()) {
+            // A subtask is open or done, nothing in between, and it has no column to
+            // be ordered in.
+            abort_unless(in_array($data['status'], ['todo', 'done'], true), 422, 'A subtask is either open or done.');
+            unset($data['ids']);
+        }
+
+        $this->boardRules->assertChildrenDoneForStatus($workItem, $data['status']);
+
         $wasDone = $workItem->status === 'done';
 
         $workItem->update([
@@ -314,7 +371,13 @@ class WorkItemController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'status' => $workItem->status, 'html' => $this->cardHtml($workItem)]);
+            return response()->json([
+                'ok' => true,
+                'status' => $workItem->status,
+                'html' => $this->cardHtml($workItem),
+                // A ticked subtask changes the parent's face (the 1/3 badge), so hand it back.
+                'parent_html' => $workItem->parent_id ? $this->cardHtml($workItem->parent->fresh()) : null,
+            ]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
@@ -340,9 +403,13 @@ class WorkItemController extends Controller
     {
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'A subtask is archived with its parent.');
         abort_unless($workItem->status === 'done', 422, 'Only a Done card can be archived.');
 
-        $workItem->update(['archived_at' => now()]);
+        DB::transaction(function () use ($workItem) {
+            $workItem->update(['archived_at' => now()]);
+            $workItem->children()->update(['archived_at' => now()]);
+        });
 
         return response()->json(['ok' => true]);
     }
@@ -353,11 +420,14 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
 
-        $workItem->update([
-            'archived_at' => null,
-            'status' => 'todo',
-            'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
-        ]);
+        DB::transaction(function () use ($workItem, $employee) {
+            $workItem->update([
+                'archived_at' => null,
+                'status' => 'todo',
+                'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
+            ]);
+            $workItem->children()->update(['archived_at' => null]);
+        });
 
         return response()->json(['ok' => true, 'html' => $this->cardHtml($workItem)]);
     }
@@ -554,9 +624,46 @@ class WorkItemController extends Controller
      */
     private function cardHtml(WorkItem $item): string
     {
-        $item->loadMissing(['participants', 'projectRef', 'assignedBy'])->loadCount('comments');
+        $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children'])->loadCount('comments');
 
         return view('partials.work-card', ['c' => $item])->render();
+    }
+
+    /**
+     * The overview beside the drawer: the top-level card and its subtasks, the same
+     * shape whether the drawer is showing the parent or one of its children.
+     *
+     * @return array{parent: array<string, mixed>, children: array<int, array<string, mixed>>}
+     */
+    private function familyPayload(WorkItem $top): array
+    {
+        $top->loadMissing(['children.participants', 'projectRef']);
+
+        return [
+            'parent' => [
+                'id' => $top->id,
+                'title' => $top->title,
+                'type' => $top->type,
+                'due_label' => $top->dueText(),
+                'project' => $top->projectRef?->name,
+                'child_summary' => $top->childSummary(),
+            ],
+            'children' => $top->children->map(fn (WorkItem $c) => $this->childPayload($c))->values()->all(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function childPayload(WorkItem $child): array
+    {
+        return [
+            'id' => $child->id,
+            'title' => $child->title,
+            'status' => $child->status,
+            'due_label' => $child->dueText(),
+            'people' => $child->participants->map(fn (Employee $e) => [
+                'name' => $e->display_name, 'initials' => $e->initials, 'color' => $e->avatar_color,
+            ])->values()->all(),
+        ];
     }
 
     private function cardPayload(WorkItem $item): array
@@ -567,6 +674,8 @@ class WorkItemController extends Controller
             'type' => $item->type,
             'priority' => $item->priority,
             'status' => $item->status,
+            'parent_id' => $item->parent_id,
+            'child_summary' => $item->parent_id ? null : $item->childSummary(),
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
             'labels' => $item->labels ?? [],

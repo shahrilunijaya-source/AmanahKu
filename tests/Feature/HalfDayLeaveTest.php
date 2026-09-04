@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -297,14 +298,14 @@ class HalfDayLeaveTest extends TestCase
 
     /**
      * A multi-day range spanning the TOT Saturday (first Saturday of the month) discounts
-     * that day to 0.5, same as timesheet capacity does elsewhere. Ordinary weekend days in
-     * the range stay full.
+     * that day to 0.5, same as timesheet capacity does elsewhere. The Sunday in the range
+     * is not a working day and costs nothing.
      */
     public function test_multi_day_range_discounts_the_tot_saturday(): void
     {
         $report = $this->member('employee', 'Reportee');
 
-        // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday.
+        // Fri 31 Jul – Mon 3 Aug 2026: 1 Aug is the TOT Saturday, 2 Aug a Sunday.
         $this->actingAsEmployee($report)->post('/app/leave', [
             'reason' => 'Family matters.',
             'leave_type_id' => $this->annual->id,
@@ -314,6 +315,26 @@ class HalfDayLeaveTest extends TestCase
 
         $req = LeaveRequest::firstWhere('employee_id', $report->id);
         $this->assertNotNull($req);
-        $this->assertEqualsWithDelta(3.5, (float) $req->days, 0.001);
+        $this->assertEqualsWithDelta(2.5, (float) $req->days, 0.001);
+    }
+
+    /**
+     * A public holiday inside the range is not a working day either, so it costs nothing.
+     */
+    public function test_multi_day_range_skips_public_holidays(): void
+    {
+        $report = $this->member('employee', 'Reportee');
+        PublicHoliday::create(['tenant_id' => $report->tenant_id, 'name' => 'Merdeka', 'date' => '2026-08-31']);
+
+        // Mon 31 Aug – Wed 2 Sep 2026: 31 Aug is a public holiday.
+        $this->actingAsEmployee($report)->post('/app/leave', [
+            'reason' => 'Family matters.',
+            'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-08-31',
+            'date_to' => '2026-09-02',
+        ])->assertSessionHasNoErrors();
+
+        $req = LeaveRequest::firstWhere('employee_id', $report->id);
+        $this->assertEqualsWithDelta(2.0, (float) $req->days, 0.001);
     }
 }

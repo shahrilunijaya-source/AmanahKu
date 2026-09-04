@@ -21,6 +21,39 @@
     $embed = $embed ?? false;
     // Notices that hang off the header rather than scrolling with the page.
     $hasPins = ! $embed && (session('reset_password') || ($qaTsOverdue ?? false));
+
+    // Personal wallpaper (users.appearance). Only the owner sees it, never in an
+    // embedded panel. Presets are gradients from config; an upload is a public-disk URL.
+    $wp = null;
+    $appearance = null;
+    if (! $embed && ($appearance = auth()->user()?->appearance)) {
+        $choice = $appearance['wallpaper'] ?? 'none';
+        if (str_starts_with($choice, 'preset:') && ($css = config('amanahku.wallpaper_presets.'.substr($choice, 7)))) {
+            $wp = $css;
+        } elseif ($choice === 'upload' && ! empty($appearance['wallpaper_path'])) {
+            $wp = 'url('.\Illuminate\Support\Facades\Storage::disk('public')->url($appearance['wallpaper_path']).')';
+        }
+    }
+    $wpDim = $appearance['dim'] ?? 'soft';
+
+    // Whether the current screen yielded a hero backdrop (see @section('hero') in
+    // profile.blade.php). Read here because the child view's section is captured
+    // before the layout renders, so this only works once, not inside @yield('hero') itself.
+    $hero = ! $embed && \Illuminate\Support\Facades\View::hasSection('hero');
+    // A cover replaces the wallpaper on that screen: the hero fades into the plain canvas.
+    if ($hero) {
+        $wp = null;
+    }
+
+    // Dark background, white text. A wallpaper flips the page tokens (uj-on-dark);
+    // a cover only flips the title row over it (uj-cover-dark), the rest of the
+    // profile sits on the plain canvas below the fade.
+    $onDark = false;
+    if ($wp) {
+        $wpLum = str_starts_with($choice, 'preset:') ? \App\Support\Tone::ofCss($wp) : $appearance['wallpaper_lum'] ?? null;
+        $onDark = \App\Support\Tone::isDark($wpLum === null ? null : (float) $wpLum, (int) config('amanahku.wallpaper_dims.'.$wpDim, 30));
+    }
+    $coverDark = $hero && \Illuminate\Support\Facades\View::getSection('hero-tone') === 'dark';
 @endphp
 <div x-data="{ ai: false, kb: @js((bool) old('kbform')), kbView: @js(old('kbform') ?: 'feed'), msg: false,
         sbCollapsed: localStorage.getItem('amanahku-sb-collapsed') === '1',
@@ -38,11 +71,17 @@
             this.sbStyle = this.sbStyle === 'tree' ? 'sections' : 'tree';
             localStorage.setItem('amanahku-sb-style', this.sbStyle);
         } }"
+     id="uj-shell"
      @keydown.window.ctrl.b.prevent="toggleSb()" @keydown.window.meta.b.prevent="toggleSb()"
      :class="{ 'uj-sb-collapsed': sbCollapsed, 'uj-sb-tree': sbStyle === 'tree' }"
+     class="{{ trim(($wp ? 'uj-has-wallpaper ' : '').($onDark ? 'uj-on-dark ' : '').($hero ? 'uj-has-cover ' : '').($coverDark ? 'uj-cover-dark' : '')) }}"
      {{-- No bottom dock inside an embedded panel, so nothing there should reserve
           room for one (see --uj-dock-h in app.css). --}}
      style="{{ $embed ? '--uj-dock-h:0px;background:var(--canvas);' : 'display:flex;height:100vh;overflow:hidden;background:var(--canvas);' }}">
+
+    @if ($wp)
+        <div class="uj-wallpaper" data-dim="{{ $wpDim }}" style="background-image:{{ $wp }};"></div>
+    @endif
 
     @unless ($embed)
         @include('partials.sidebar')
@@ -51,7 +90,7 @@
 
     <div class="uj-shell-main" style="{{ $embed ? 'min-width:0;' : 'flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;position:relative;' }}">
         @unless ($embed)
-        @include('partials.header')
+        @include('partials.header', ['headerStyle' => ($wp || $hero) ? 'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);' : ''])
         {{-- Content scrolls under the header and dissolves into the page canvas
              here, rather than meeting a border. See .uj-hd-fade in app.css.
              The blur is inline, not in that rule: Lightning CSS (Tailwind v4)
@@ -145,6 +184,9 @@
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
         <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $hasPins ? 'uj-main--pinned' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
+            @unless ($embed)
+                @yield('hero')
+            @endunless
             <div class="uj-head-stack {{ $embed ? 'uj-head-stack--embed' : '' }}">
                 {{-- The install and alert-opt-in banners live INSIDE the head stack, not as
                      siblings of <main>. The header is position:absolute, so it takes no flow

@@ -669,6 +669,30 @@ class TimesheetTest extends TestCase
         $this->assertSame('submitted', $sheet->refresh()->status);
     }
 
+    // ---- Preferences: the per-user "fill from board" switch --------------------------
+
+    public function test_turning_off_fill_from_board_persists(): void
+    {
+        $this->actingInTenant()->postJson('/app/timesheets/preferences', ['fill_from_board' => false])
+            ->assertOk()->assertJson(['ok' => true, 'fill_from_board' => false]);
+
+        $this->assertFalse($this->user->refresh()->timesheet_fill_from_board);
+    }
+
+    public function test_turning_off_fill_from_board_leaves_another_users_flag_untouched(): void
+    {
+        $other = $this->member('employee', 'Someone Else');
+
+        $this->actingInTenant()->postJson('/app/timesheets/preferences', ['fill_from_board' => false])->assertOk();
+
+        $this->assertTrue($other->user->refresh()->timesheet_fill_from_board);
+    }
+
+    public function test_setting_the_preference_while_signed_out_is_rejected(): void
+    {
+        $this->postJson('/app/timesheets/preferences', ['fill_from_board' => false])->assertUnauthorized();
+    }
+
     public function test_the_capture_screen_renders_for_an_employee(): void
     {
         $this->actingInTenant()->get('/app/timesheets?week=2026-06-15')
@@ -748,5 +772,77 @@ class TimesheetTest extends TestCase
             ['2026-06-16' => [$card->id]],
             Timesheet::where('employee_id', $this->employee->id)->first()->fresh()->dismissed_suggestions,
         );
+    }
+
+    // ---- Manual mode: rows with no work_item_id behind them --------------------------
+
+    /**
+     * The whole point of manual mode: a row nobody's board card ever proposed still
+     * saves like any other, as long as it has an active category and a percentage.
+     */
+    public function test_a_row_with_no_card_and_an_active_category_saves(): void
+    {
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 40, 'work_item_id' => null],
+            ],
+        ])->assertRedirect();
+
+        $entry = TimesheetEntry::first();
+        $this->assertNotNull($entry);
+        $this->assertNull($entry->work_item_id);
+        $this->assertSame(40.0, (float) $entry->percentage);
+    }
+
+    /**
+     * A category switched off after it was last used must not be pickable for a NEW
+     * line — the capture picker only ever offers active categories, so a request naming
+     * a retired one did not come from the screen.
+     */
+    public function test_a_retired_category_is_rejected_for_a_new_line(): void
+    {
+        $retired = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Charity', 'requires_project' => false, 'is_active' => false,
+        ]);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $retired->id, 'percentage' => 100],
+            ],
+        ])->assertSessionHasErrors('entries.0.category_id');
+
+        $this->assertNull(Timesheet::where('employee_id', $this->employee->id)->first());
+    }
+
+    /**
+     * The same retired category, but this draft already carries a line filed under it —
+     * a plain resave (fixing the percentage, say) must not suddenly fail on a category
+     * nobody just picked. Mirrors categoryOptions($keepIds) on the read side.
+     */
+    public function test_a_retired_category_already_on_this_draft_may_be_resaved(): void
+    {
+        $retired = TimesheetCategory::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'HR and Admin', 'requires_project' => false,
+        ]);
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
+            'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
+        ]);
+        TimesheetEntry::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'category_id' => $retired->id, 'percentage' => 100, 'hours' => 8,
+        ]);
+        $retired->update(['is_active' => false]);
+
+        $this->actingInTenant()->post('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [
+                ['entry_date' => '2026-06-15', 'category_id' => $retired->id, 'percentage' => 60],
+            ],
+        ])->assertRedirect();
+
+        $this->assertSame(60.0, (float) TimesheetEntry::where('timesheet_id', $sheet->id)->first()->percentage);
     }
 }
