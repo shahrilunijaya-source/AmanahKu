@@ -325,7 +325,9 @@ test('the row overlay writes what the staffer was doing back onto the row', () =
 test('an uncosted suggestion does not block dayState() from reading done, or count as a blank row', () => {
     const c = makeComponent({ days: 5 });
     c.rows[THURSDAY] = [
-        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
+        // category 2 (Sales) needs no project — this test is about the suggestion, not
+        // about project-requirement gating (see the manual-mode tests for that).
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 },
         { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
     ];
 
@@ -388,7 +390,9 @@ test('init() skips a cfg.suggested row on a non-editable day (before the earlies
 test('flatRows() drops an uncosted suggestion so it can never block the week submit', () => {
     const c = makeComponent({ days: 5 });
     c.rows[THURSDAY] = [
-        { category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
+        // category 2 (Sales) needs no project — this test is about the suggestion, not
+        // about project-requirement gating (see the manual-mode tests for that).
+        { category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100, work_item_id: null },
         { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
     ];
 
@@ -444,7 +448,6 @@ test('confirmEntry() clears suggested when editing an existing suggested row in 
         { work_item_id: 42, category_id: 1, project_id: '', sub_pillar_id: '', description: '', percentage: '', suggested: true },
     ];
     c.picker.editingIndex = 0;
-    c.picker.pendingItem = c.pickerItem(CATEGORIES[0], null, null);
     c.picker.pendingPct = 80;
     c.picker.pendingDesc = 'Filled it in';
 
@@ -548,4 +551,176 @@ test('a row still without a category never reaches the server', () => {
     ];
 
     expect(c.flatRows()).toEqual([]);
+});
+
+// ---- Manual mode: a row nobody's board card ever proposed --------------------------
+// PROJECTS[0] (KPT: RMS) is used as the manual line's project below; its category_ids
+// is [] on purpose (see PROJECTS above), so it stays reachable under any category.
+
+test('fillFromBoard defaults true, and reflects cfg.fillFromBoard when given', () => {
+    expect(makeComponent({ days: 5 }).fillFromBoard).toBe(true);
+    expect(makeComponent({ days: 5, fillFromBoard: false }).fillFromBoard).toBe(false);
+});
+
+test('fillFromBoard: false does not touch rows already saved for the week', () => {
+    const c = makeComponent({
+        days: 5,
+        fillFromBoard: false,
+        existing: { [THURSDAY]: [{ id: 9, category_id: 1, percentage: 40 }] },
+    });
+    c.init();
+
+    expect(c.rows[THURSDAY]).toHaveLength(1);
+    expect(c.rows[THURSDAY][0].id).toBe(9);
+});
+
+test('openAddPicker() opens the overlay on the category step without pushing a row', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+
+    c.openAddPicker();
+
+    expect(c.rows[THURSDAY]).toBeUndefined();
+    expect(c.picker.open).toBe(true);
+    expect(c.picker.step).toBe('category');
+    expect(c.picker.isManual).toBe(true);
+    expect(c.picker.editingIndex).toBeNull();
+});
+
+test('pickerBack() on the first step cancels a fresh add and leaves rows untouched', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+
+    c.pickerBack();
+
+    expect(c.picker.open).toBe(false);
+    expect(c.rows[THURSDAY]).toBeUndefined();
+});
+
+test('pickCategory() goes to the project step for a category that requires one', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+
+    c.pickCategory(1); // Development, requires_project: true
+
+    expect(c.picker.step).toBe('project');
+    expect(c.picker.askProject).toBe(true);
+});
+
+test('pickCategory() skips straight to the sub step for a standalone category, when sub-pillars exist', () => {
+    const c = makeComponent({ days: 5, subPillars: [{ id: 50, name: 'Technical' }] });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+
+    c.pickCategory(2); // Sales, requires_project: false
+
+    expect(c.picker.step).toBe('sub');
+    expect(c.picker.askProject).toBe(false);
+});
+
+test('pickCategory() goes straight to details when the category needs no project and there are no sub-pillars', () => {
+    const c = makeComponent({ days: 5 });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+
+    c.pickCategory(2);
+
+    expect(c.picker.step).toBe('details');
+});
+
+test('pickProject() goes to the sub step when sub-pillars exist, else straight to details', () => {
+    const withSub = makeComponent({ days: 5, projects: PROJECTS, subPillars: [{ id: 50, name: 'Technical' }] });
+    withSub.selected = THURSDAY;
+    withSub.openAddPicker();
+    withSub.pickCategory(1);
+    withSub.pickProject(5);
+    expect(withSub.picker.step).toBe('sub');
+
+    const withoutSub = makeComponent({ days: 5, projects: PROJECTS });
+    withoutSub.selected = THURSDAY;
+    withoutSub.openAddPicker();
+    withoutSub.pickCategory(1);
+    withoutSub.pickProject(5);
+    expect(withoutSub.picker.step).toBe('details');
+});
+
+test('pickSub() with the Skip choice (empty id) advances to details with no sub-pillar chosen', () => {
+    const c = makeComponent({ days: 5, subPillars: [{ id: 50, name: 'Technical' }] });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+    c.pickCategory(2);
+    expect(c.picker.step).toBe('sub');
+
+    c.pickSub('');
+
+    expect(c.picker.step).toBe('details');
+    expect(c.picker.pendingSub).toBe('');
+});
+
+test('confirmEntry() pushes a new manual row only once details is confirmed, with work_item_id null and the chosen ids', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.openAddPicker();
+    c.pickCategory(1);
+    c.pickProject(5);
+    c.picker.pendingPct = 50;
+    c.picker.pendingDesc = 'Worked on it';
+
+    expect(c.rows[THURSDAY]).toBeUndefined(); // still nothing on the day mid-flow
+
+    c.confirmEntry();
+
+    expect(c.rows[THURSDAY]).toHaveLength(1);
+    const row = c.rows[THURSDAY][0];
+    expect(row.work_item_id).toBeNull();
+    expect(row.category_id).toBe(1);
+    expect(row.project_id).toBe(5);
+    expect(row.percentage).toBe(50);
+    expect(row.description).toBe('Worked on it');
+    expect(c.picker.open).toBe(false);
+});
+
+test('openEditRow() on a manual row opens straight on details, with the trail showing its category, project and sub', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS, subPillars: [{ id: 50, name: 'Technical' }] });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { id: 9, work_item_id: null, category_id: 1, project_id: 5, sub_pillar_id: 50, description: '', percentage: 40 },
+    ];
+
+    c.openEditRow(0);
+
+    expect(c.picker.step).toBe('details');
+    expect(c.picker.isManual).toBe(true);
+    expect(c.picker.editingIndex).toBe(0);
+    expect(c.pickerHeaderLabel()).toBe('Development · KPT: RMS · Technical');
+});
+
+test('pickerBack() from details on a manual edit returns to the category step to re-pick the classification', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { id: 9, work_item_id: null, category_id: 1, project_id: 5, sub_pillar_id: '', description: '', percentage: 40 },
+    ];
+    c.openEditRow(0);
+
+    c.pickerBack();
+
+    expect(c.picker.step).toBe('category');
+    // The row itself is untouched until confirmEntry() runs again.
+    expect(c.rows[THURSDAY][0].category_id).toBe(1);
+});
+
+test('openEditRow() never asks for a project on a card row, even under a category that requires one', () => {
+    const c = makeComponent({ days: 5, projects: PROJECTS });
+    c.selected = THURSDAY;
+    c.rows[THURSDAY] = [
+        { work_item_id: 42, category_id: 1, project_id: 5, sub_pillar_id: '', description: '', percentage: 50 },
+    ];
+
+    c.openEditRow(0);
+
+    expect(c.picker.isManual).toBe(false);
+    expect(c.picker.askProject).toBe(false);
 });

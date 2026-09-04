@@ -9,7 +9,7 @@
     2026-07-29-taa-board-redesign-design.md ("Card face") for the rationale.
 
     @param \App\Models\WorkItem $c        Must have participants, projectRef,
-                                            assignedBy loaded and comments_count set.
+                                            assignedBy, children loaded and comments_count set.
     @param bool $compact                   Smaller type, used by team-board.
 --}}
 @php
@@ -58,8 +58,9 @@
     }
     $wcAvatarsShown = $wcAvatars->take(3);
     $wcAvatarOverflow = max(0, $wcAvatars->count() - 3);
+    $wcChildren = $c->childSummary();
 @endphp
-<div class="wc @if ($wcCompact) wc--sm @endif"
+<div class="wc @if ($wcCompact) wc--sm @endif @if ($wcChildren) wc--stack @endif"
      data-card
      data-id="{{ $c->id }}"
      data-status="{{ $c->status }}"
@@ -116,6 +117,11 @@
                     @if ($wcAvatarOverflow > 0)
                         <span class="wa wa--more">+{{ $wcAvatarOverflow }}</span>
                     @endif
+                </span>
+            @endif
+            @if ($wcChildren)
+                <span class="wc-sub @if ($wcChildren['done'] === $wcChildren['total']) wc-sub--all @endif" title="Subtasks">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>{{ $wcChildren['done'] }}/{{ $wcChildren['total'] }}
                 </span>
             @endif
             @if (($c->comments_count ?? 0) > 0)

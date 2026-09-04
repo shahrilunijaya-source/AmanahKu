@@ -66,7 +66,7 @@
         </div>
     </div>
 @else
-<div style="border:1px solid var(--hairline-soft);border-radius:12px;padding:14px 15px;margin-bottom:14px;background:var(--canvas);">
+<div style="border:1px solid var(--hairline-soft);border-radius:12px;padding:14px 15px;margin:12px 0 14px;background:var(--canvas);">
     <h4 style="margin:0 0 3px;font-size:12.5px;font-weight:650;color:var(--ink);">
         <span x-text="$store.ui.lang==='en' ? 'Who signs off your request' : 'Siapa meluluskan permohonan anda'">Who signs off your request</span>
     </h4>

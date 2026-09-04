@@ -59,11 +59,11 @@
                     {{-- Every declaration lives in the binding: Alpine rewrites the whole
                          style attribute, so anything left in a static one is wiped on the
                          first toggle. --}}
-                    :style="'cursor:pointer;border:1px solid ' + (cats.includes({{ $cat->id }})
-                        ? 'color-mix(in srgb, {{ $cat->colour() }} 35%, transparent);background:color-mix(in srgb, {{ $cat->colour() }} 15%, var(--card));color:{{ $cat->colour() }};'
-                        : 'var(--hairline);background:var(--canvas);color:var(--muted);')">
-                <span style="width:6px;height:6px;border-radius:50%;background:{{ $cat->colour() }};display:inline-block;margin-right:6px;"></span>{{ $cat->name }}
-            </button>
+                    {{-- At rest a chip is the row pill exactly (same tint, same text); a
+                         pressed chip fills solid so the selection reads at a glance. --}}
+                    :style="'cursor:pointer;border:0;' + (cats.includes({{ $cat->id }})
+                        ? 'background:{{ $cat->colour() }};color:#fff;'
+                        : 'background:color-mix(in srgb, {{ $cat->colour() }} 13%, var(--card));color:{{ $cat->colour() }};')">{{ $cat->name }}</button>
         @endforeach
         <button type="button" x-show="cats.length" x-cloak @click="cats = []"
                 style="background:none;border:0;cursor:pointer;font-size:12px;color:var(--muted);text-decoration:underline;">

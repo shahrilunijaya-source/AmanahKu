@@ -19,7 +19,8 @@ class ImageCompressor
 
     private const QUALITY = 82;
 
-    public static function compress(string $absolutePath, string $mime): void
+    /** Decode a JPEG, PNG or WebP into GD, or null for anything else or a broken file. */
+    public static function open(string $absolutePath, string $mime): ?\GdImage
     {
         $image = match ($mime) {
             'image/jpeg', 'image/jpg' => @imagecreatefromjpeg($absolutePath),
@@ -28,7 +29,14 @@ class ImageCompressor
             default => null,
         };
 
-        if ($image === null || $image === false) {
+        return $image instanceof \GdImage ? $image : null;
+    }
+
+    public static function compress(string $absolutePath, string $mime): void
+    {
+        $image = self::open($absolutePath, $mime);
+
+        if ($image === null) {
             return;
         }
 

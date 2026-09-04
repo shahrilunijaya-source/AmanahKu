@@ -6,6 +6,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\AppController;
+use App\Http\Controllers\AppearanceController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AttendanceAdminController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForcePasswordChangeController;
@@ -289,6 +291,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
+        // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
+        Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');
+        Route::post('/app/employees/{employee}/cover/delete', [EmployeeCoverController::class, 'destroy'])->name('employees.cover.destroy');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
@@ -343,6 +348,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
         Route::post('/app/security/ai-key/generate', [SecurityController::class, 'generateAiKey'])->middleware('throttle:10,1,ai-key-generate')->name('security.ai-key.generate');
         Route::post('/app/security/ai-key/revoke', [SecurityController::class, 'revokeAiKey'])->name('security.ai-key.revoke');
+
+        // Personal workspace wallpaper (Account & security → Appearance). Own row only.
+        Route::post('/app/account/appearance', [AppearanceController::class, 'update'])->name('account.appearance');
+        Route::post('/app/account/appearance/photo/delete', [AppearanceController::class, 'destroyPhoto'])->name('account.appearance.photo.destroy');
         Route::post('/app/assistant', [AssistantController::class, 'reply'])->middleware('throttle:20,1,assistant')->name('assistant.reply');
         Route::post('/app/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
         Route::post('/app/notifications/{notification}/read', [NotificationController::class, 'readOne'])->name('notifications.read-one');
@@ -470,6 +479,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/app/compliance/{item}', [ComplianceController::class, 'destroy'])->name('compliance.destroy');
         // Timesheets (weekly hours, parent + entries; staff self-finalise, no approval)
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
+        Route::post('/app/timesheets/preferences', [TimesheetController::class, 'preferences'])->name('timesheets.preferences');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Timesheet categories — privileged (management / HR)

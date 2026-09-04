@@ -148,11 +148,11 @@ class LeaveReportAccuracyTest extends TestCase
 
         $ytd = $this->report(['period' => 'ytd']);
 
-        // 1–6 Jan is six days, but 3 Jan is the TOT Saturday (first Saturday of the
-        // month), which counts as 0.5.
-        $this->assertSame(5.5, $ytd['kpis']['totalDays'], '1–6 Jan is six days of the ten, discounted for the TOT Saturday');
-        $this->assertSame(5.5, (float) $ytd['byStaff'][0]['totalDays']);
-        $this->assertSame(5.5, (float) $ytd['byType'][0]['days']);
+        // 1–6 Jan is six calendar days: Thu, Fri, the TOT Saturday (first Saturday of
+        // the month, 0.5), a Sunday (not a working day), Mon, Tue.
+        $this->assertSame(4.5, $ytd['kpis']['totalDays'], '1–6 Jan is four and a half working days of the ten');
+        $this->assertSame(4.5, (float) $ytd['byStaff'][0]['totalDays']);
+        $this->assertSame(4.5, (float) $ytd['byType'][0]['days']);
     }
 
     public function test_a_half_day_counts_as_half_a_day(): void

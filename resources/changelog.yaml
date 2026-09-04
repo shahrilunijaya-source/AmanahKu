@@ -17,6 +17,43 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "1.7.4"
+  date: "2026-09-03"
+  entries:
+    - tag: added
+      major: true
+      text: "Make Amanahku yours: pick a background for your workspace, or upload your own photo, from Account & security → Appearance. Only you see it."
+      text_ms: "Jadikan Amanahku milik anda: pilih latar belakang untuk ruang kerja anda, atau muat naik foto sendiri, dari Akaun & keselamatan → Penampilan. Hanya anda yang melihatnya."
+      link: "/app/security#appearance"
+      link_text: "Choose a background"
+      link_text_ms: "Pilih latar belakang"
+    - tag: added
+      major: true
+      text: "A T.A.A. card can now hold subtasks, and it cannot reach Done until every one of them is done.\nOpen a card and add subtasks from the panel beside it. Each subtask is a small card of its own: it can carry a description, a due date, people and comments, and it is either open or done. The parent shows on the board as a stack with a count (\"2/5\"), green once everything is ticked. Anyone on the parent can add a subtask or tick one; only the parent's owner can rename or remove one."
+      text_ms: "Kad T.A.A. kini boleh mempunyai subtugas, dan tidak boleh masuk ke Done sehingga semuanya siap.\nBuka kad dan tambah subtugas dari panel di sebelahnya. Setiap subtugas ialah kad kecil tersendiri: boleh ada penerangan, tarikh akhir, orang dan komen, dan ia sama ada terbuka atau siap. Kad induk dipaparkan di papan sebagai timbunan dengan kiraan (\"2/5\"), hijau apabila semuanya ditanda. Sesiapa yang ada pada kad induk boleh menambah atau menanda subtugas; hanya pemilik kad induk boleh menamakan semula atau membuangnya."
+      link: "/app/board"
+      link_text: "Open My Work"
+      link_text_ms: "Buka Kerja Saya"
+    - tag: added
+      major: true
+      text: "Your timesheet can now fill itself from the board, or you can add lines yourself.\nThe cog beside the Record and Review tabs switches it. Off, you pick the kind of work, a project if that kind needs one, what you were doing, and the share of the day, per line. On is unchanged from before. Either way, your existing lines are untouched."
+      text_ms: "Timesheet anda kini boleh mengisi sendiri daripada papan, atau anda boleh tambah baris sendiri.\nGear di sebelah tab Rekod dan Semak menukarnya. Apabila mati, anda pilih jenis kerja, projek jika jenis itu memerlukannya, apa yang anda buat, dan bahagian hari, bagi setiap baris. Apabila hidup, tiada perubahan daripada sebelum ini. Kedua-duanya, baris sedia ada anda tidak terjejas."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: added
+      text: "You can also put a cover across the top of your profile, a colour or your own photo, which everyone who opens your profile sees."
+      text_ms: "Anda juga boleh letak cover di bahagian atas profil anda, sama ada warna atau foto sendiri, yang dilihat semua orang yang membuka profil anda."
+    - tag: improved
+      text: "A T.A.A. card now appears on every day of the week it was worked, not only the day it moved on the board.\nBefore, a card you moved to In Progress today for work done yesterday never showed on yesterday's timesheet. Now any card that was In Progress or In Review at some point in the week is offered on every working day of that week up to today. Strike off the days it does not belong to, and it stays off."
+      text_ms: "Kad T.A.A. kini muncul pada setiap hari dalam minggu ia dikerjakan, bukan hanya hari ia digerakkan di papan.\nSebelum ini, kad yang anda gerakkan ke In Progress hari ini untuk kerja semalam tidak pernah muncul pada timesheet semalam. Kini mana-mana kad yang In Progress atau In Review pada bila-bila masa dalam minggu itu ditawarkan pada setiap hari bekerja minggu tersebut sehingga hari ini. Buang hari yang tidak berkenaan, dan ia kekal dibuang."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: improved
+      text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
+      text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
+
 - version: "1.7.3"
   date: "2026-09-03"
   entries:

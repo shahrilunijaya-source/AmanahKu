@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\PublicHoliday;
+use App\Models\Scopes\ParentOnly;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
@@ -92,14 +93,14 @@ class BoardSuggestionsTest extends TestCase
         return array_column($result[$day] ?? [], 'work_item_id');
     }
 
-    public function test_a_card_is_suggested_on_every_day_of_its_stint(): void
+    public function test_a_card_is_suggested_on_every_worked_day_of_the_week_up_to_today(): void
     {
         $card = $this->card();
         $this->stint($card, '2026-08-25 10:00:00', '2026-08-26 08:00:00');
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
-        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
         $this->assertSame([], $this->idsOn($result, '2026-08-27'));
@@ -113,9 +114,9 @@ class BoardSuggestionsTest extends TestCase
 
         $result = $this->suggestions->forWeek($this->employee, self::WEEK);
 
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
         $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
-        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
-        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_an_open_stint_runs_to_today_and_no_further(): void
@@ -130,6 +131,31 @@ class BoardSuggestionsTest extends TestCase
         // Thursday and Friday have not happened yet.
         $this->assertSame([], $this->idsOn($result, '2026-08-27'));
         $this->assertSame([], $this->idsOn($result, '2026-08-28'));
+    }
+
+    public function test_a_card_moved_onto_the_board_today_for_work_done_earlier_in_the_week_is_offered_on_those_days(): void
+    {
+        $card = $this->card();
+        $this->stint($card, '2026-08-26 10:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([$card->id], $this->idsOn($result, '2026-08-26'));
+    }
+
+    public function test_a_stint_that_touches_only_next_week_is_not_offered_this_week(): void
+    {
+        $card = $this->card();
+        WorkItemProgressStint::withoutGlobalScope('tenant')->where('work_item_id', $card->id)->delete();
+        $this->stint($card, '2026-08-31 09:00:00', null);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame([], $this->idsOn($result, '2026-08-24'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-25'));
+        $this->assertSame([], $this->idsOn($result, '2026-08-26'));
     }
 
     public function test_a_card_already_logged_on_a_day_is_not_suggested_again_for_that_day(): void
@@ -348,5 +374,74 @@ class BoardSuggestionsTest extends TestCase
             'entry_date' => $day, 'category_id' => $categoryId ?? $this->work->id, 'project_id' => $projectId,
             'percentage' => 100, 'hours' => 8, 'work_item_id' => $card->id,
         ]);
+    }
+
+    private function childOf(WorkItem $parent, string $title, string $status, ?string $doneAt = null, array $people = []): WorkItem
+    {
+        $child = WorkItem::withoutGlobalScope(ParentOnly::class)->create([
+            'tenant_id' => $parent->tenant_id, 'employee_id' => $parent->employee_id, 'parent_id' => $parent->id,
+            'title' => $title, 'type' => $parent->type, 'priority' => 'low', 'status' => $status, 'progress' => 0,
+            'done_at' => $doneAt,
+        ]);
+        $child->participants()->sync($people);
+
+        return $child;
+    }
+
+    private function noteOn(array $result, string $day, int $cardId): string
+    {
+        foreach ($result[$day] ?? [] as $row) {
+            if ($row['work_item_id'] === $cardId) {
+                return $row['description'];
+            }
+        }
+
+        return 'ROW MISSING';
+    }
+
+    public function test_the_note_lists_my_subtasks_ticked_that_day_and_nothing_else(): void
+    {
+        $card = $this->card(['timesheet_category_id' => $this->work->id]);
+        $this->stint($card, '2026-08-24 09:00:00', null);
+
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
+
+        $this->childOf($card, 'Mine, Tuesday', 'done', '2026-08-25 15:00:00');                       // unassigned: the owner's
+        $this->childOf($card, 'Mine too', 'done', '2026-08-25 16:00:00', [$this->employee->id]);
+        $this->childOf($card, 'Theirs', 'done', '2026-08-25 16:30:00', [$other->id]);
+        $this->childOf($card, 'Monday', 'done', '2026-08-24 10:00:00');
+        $this->childOf($card, 'Still open', 'todo');
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame('<ul><li>Mine, Tuesday</li><li>Mine too</li></ul>', $this->noteOn($result, '2026-08-25', $card->id));
+        $this->assertSame('<ul><li>Monday</li></ul>', $this->noteOn($result, '2026-08-24', $card->id));
+        $this->assertSame('', $this->noteOn($result, '2026-08-26', $card->id));
+    }
+
+    public function test_a_participant_sees_only_the_subtasks_they_are_on(): void
+    {
+        $owner = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Owner', 'status' => 'active', 'workload' => 'green']);
+        $card = $this->card(['timesheet_category_id' => $this->work->id], $owner);
+        $card->participants()->attach($this->employee->id);
+        $this->stint($card, '2026-08-24 09:00:00', null);
+
+        $this->childOf($card, 'Unassigned', 'done', '2026-08-25 15:00:00');
+        $this->childOf($card, 'On me', 'done', '2026-08-25 16:00:00', [$this->employee->id]);
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame('<ul><li>On me</li></ul>', $this->noteOn($result, '2026-08-25', $card->id));
+    }
+
+    public function test_subtask_titles_are_escaped_in_the_note(): void
+    {
+        $card = $this->card(['timesheet_category_id' => $this->work->id]);
+        $this->stint($card, '2026-08-24 09:00:00', null);
+        $this->childOf($card, '<b>bold</b> & co', 'done', '2026-08-25 15:00:00');
+
+        $result = $this->suggestions->forWeek($this->employee, self::WEEK);
+
+        $this->assertSame('<ul><li>&lt;b&gt;bold&lt;/b&gt; &amp; co</li></ul>', $this->noteOn($result, '2026-08-25', $card->id));
     }
 }

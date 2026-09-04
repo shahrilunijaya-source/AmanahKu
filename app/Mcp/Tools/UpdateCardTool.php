@@ -9,6 +9,7 @@ use App\Mcp\Tools\Concerns\ResolvesEmployeeNames;
 use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\Scopes\ParentOnly;
 use App\Models\WorkItem;
 use App\Support\ApiCaller;
 use App\Support\BoardRules;
@@ -55,7 +56,7 @@ class UpdateCardTool extends Tool
         $tid = app(CurrentTenant::class)->id();
 
         $result = $this->guarded(function () use ($request, $httpRequest, $employee, $args, $tid) {
-            $item = WorkItem::query()->whereKey($args['work_item_id'])->where('tenant_id', $tid)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($args['work_item_id'])->where('tenant_id', $tid)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $this->boardRules->authorizeManage($httpRequest, $item, $employee);
@@ -136,7 +137,7 @@ class UpdateCardTool extends Tool
     public function applyConfirmed(array $payload, HttpRequest $httpRequest, int $tenantId): array
     {
         return $this->guarded(function () use ($payload, $httpRequest, $tenantId) {
-            $item = WorkItem::query()->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
+            $item = WorkItem::withoutGlobalScope(ParentOnly::class)->whereKey($payload['work_item_id'])->where('tenant_id', $tenantId)->first();
             abort_unless($item !== null, 404, 'Card not found.');
 
             $employee = ApiCaller::employee($httpRequest);

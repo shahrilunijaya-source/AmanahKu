@@ -655,7 +655,10 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     .uj-sb-collapsed .uj-sb-hide { display: none !important; }
     .uj-sb-collapsed .uj-sb-brand { padding: 0; justify-content: center; }
     .uj-sb-collapsed .uj-sb-today { margin: 0 8px 4px; padding: 6px 0; gap: 2px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--sidebar-line); border-radius: 0; }
-    .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; }
+    .uj-sb-collapsed .uj-nav-row { justify-content: center; padding: 9px 0; gap: 0; position: relative; }
+    /* The attention dot has no label to sit after in the rail, so it becomes a badge
+       on the icon's top-right corner, ringed in the sidebar colour instead of the halo. */
+    .uj-sb-collapsed .uj-nav-row > .uj-nav-dot { position: absolute; top: 7px; left: calc(50% + 6px); margin: 0; width: 6px; height: 6px; box-shadow: 0 0 0 2px var(--sidebar); }
     .uj-sb-collapsed .uj-sb-foot { padding: 10px 8px; }
     .uj-sb-collapsed .uj-sb-ws { justify-content: center; padding: 9px 0; gap: 0; }
     .uj-sb-collapsed .uj-feedback-btn { justify-content: center; padding: 9px 0 !important; gap: 0 !important; }
@@ -863,6 +866,53 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .5) 50%, transparent 100%);
 }
 
+/* ── Personal wallpaper (users.appearance) ──
+   One fixed layer under everything, a dim over it, and two things that change
+   when it is on: the header goes translucent and its fade tints to match.
+   Nothing else moves. Cards stay opaque: the ledger is still the ledger. The blur
+   is inline on the elements (see .uj-hd-fade for why not here). */
+.uj-wallpaper { position: fixed; inset: 0; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
+.uj-wallpaper::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--canvas) 30%, transparent); }
+.uj-wallpaper[data-dim="none"]::after { background: transparent; }
+.uj-wallpaper[data-dim="strong"]::after { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
+/* No z-index here: .uj-shell-main already paints above the fixed .uj-wallpaper
+   from plain DOM order (it comes later in the shell, both at stack level 0), and
+   an explicit z-index would make it a stacking context of its own — trapping
+   every non-teleported high-z-index overlay inside it (e.g. the dashboard
+   widget picker, z-index:190) below the sidebar (z-index:30). Verified with a
+   throwaway elementFromPoint repro; see the .wd z-index trap lesson elsewhere
+   in this file. */
+.uj-has-wallpaper .uj-shell-main { background: transparent; }
+.uj-has-wallpaper .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
+.uj-has-wallpaper .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
+/* Small screens show more bare canvas than card, so the dim steps up one level. */
+@media (max-width: 520px) {
+    .uj-wallpaper[data-dim="none"]::after { background: color-mix(in srgb, var(--canvas) 30%, transparent); }
+    .uj-wallpaper[data-dim="soft"]::after { background: color-mix(in srgb, var(--canvas) 55%, transparent); }
+}
+
+/* Appearance card tiles (Account & security). A press scales, the chosen one is
+   ringed in the action red because choosing IS the action here. */
+.uj-wp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 640px) { .uj-wp-grid { grid-template-columns: repeat(3, 1fr); } }
+.uj-wp-tile { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--hairline); border-radius: 9px; overflow: hidden; cursor: pointer; padding: 0; background-size: cover; background-position: center; text-align: left; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-wp-tile:active { transform: scale(.97); }
+.uj-wp-tile:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-wp-tile[data-on] { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-wp-tile[data-on]::after { content: "✓"; position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--red); color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+.uj-wp-name { position: absolute; left: 8px; bottom: 6px; font-size: 10.5px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.uj-wp-tile--none { background: var(--canvas); }
+.uj-wp-tile--none .uj-wp-name { color: var(--ink); text-shadow: none; }
+.uj-wp-tile--upload { background: #fff; border-style: dashed; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 11px; }
+.uj-wp-tile--upload b { font-size: 18px; font-weight: 400; color: var(--ink); line-height: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .uj-wp-tile, .uj-cover-change, .uj-cover-chip { transition: none !important; }
+    /* Keep the opacity crossfade paint() sets inline, drop only the blur motion —
+       transition-property here overrides just the property list, so opacity keeps
+       the same duration/easing paint() already assigned it. */
+    .uj-wallpaper { transition-property: opacity !important; }
+}
+
 .uj-hd-ib { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--body); background: none; border: none; flex-shrink: 0; position: relative; cursor: pointer; }
 .uj-hd-ib:hover { background: #eae9e3; }
 .uj-hd-ib:active { transform: scale(.95); }
@@ -1052,6 +1102,25 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-right { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 .wc-cmt { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
 .wc-cmt svg { width: 12px; height: 12px; }
+.wc-sub { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.wc-sub svg { width: 12px; height: 12px; }
+.wc-sub--all { color: var(--success-ink); }
+/* A parent with subtasks reads as a stack: two hairline layers peek out below it.
+   Pure CSS so the card's markup and drag behaviour are untouched. */
+/* Two sheets peeking out under a card that has subtasks. Each layer is a shade
+   darker than the one above so the stack reads as depth, not as three outlines;
+   the shadow sits on the front card and falls onto them. */
+.wc--stack { position: relative; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(31,30,26,.05); }
+.wc--stack::before, .wc--stack::after {
+    content: ""; position: absolute; top: 100%; left: 7px; right: 7px; height: 6px;
+    background: #ebe9e3; border: 1px solid #d9d7cf; border-top: 0; border-radius: 0 0 10px 10px;
+    transition: transform .14s cubic-bezier(.23,1,.32,1);
+}
+.wc--stack::after { top: calc(100% + 6px); left: 14px; right: 14px; height: 5px; background: #dcdad3; border-color: #cbc9c1; }
+@media (hover: hover) and (pointer: fine) {
+    .wc--stack:hover::before { transform: translateY(1px); }
+    .wc--stack:hover::after { transform: translateY(2px); }
+}
 .wc-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 /* Compact modifier — the team board's smaller-type variant, replacing .wi-sm. */
@@ -1127,6 +1196,11 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     opacity: 0; transition: opacity 260ms cubic-bezier(.32,.72,0,1);
 }
 .wd-scrim[data-open] { opacity: 1; }
+/* Heavier dim + blur only while the overview is showing: the board behind it is
+   context, not content, and the family is what the eye should land on. */
+.wd-scrim:has(.wd-ov:not([style*="display: none"])) {
+    background: rgba(31,30,26,.42); backdrop-filter: blur(7px);
+}
 .wd {
     position: fixed; top: 0; right: 0; z-index: 61;
     width: 560px; max-width: 94vw; height: 100vh; height: 100dvh;
@@ -1137,6 +1211,87 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     transition: transform 280ms cubic-bezier(.32,.72,0,1);
 }
 .wd[data-open] { transform: translateX(0); }
+/* Overview beside the drawer: the parent card and its subtasks, inside the scrim.
+   Sits on the dimmed board, so the cards carry no hairline: on a dark ground a 1px
+   edge reads as a cut-out, and depth comes from a layered shadow instead. The
+   active card wears a soft ring (--red-tint halo) rather than a hard outline.
+   One authored entrance: the panel settles up into place and the rows follow with
+   a short stagger; ticks and presses answer with a small transform. */
+@keyframes wd-ov-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes wd-ov-row { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.wd-ov {
+    /* Centred in the space left of the drawer, vertically too. */
+    position: fixed; top: 50%; left: calc((100vw - min(560px, 94vw)) / 2); transform: translate(-50%, -50%);
+    width: 420px; max-width: calc(100vw - min(560px, 94vw) - 48px);
+    max-height: calc(100vh - 48px); overflow-y: auto; z-index: 61; cursor: default;
+    padding: 4px; scrollbar-width: none;
+    animation: wd-ov-in 320ms var(--ease) both;
+}
+.wd-ov-h { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.72); margin: 18px 4px 8px; }
+.wd-ov-parent, .wd-ov-child {
+    display: block; width: 100%; text-align: left; background: var(--card); border: 0;
+    border-radius: 18px; padding: 16px 20px; margin-bottom: 10px; font: inherit; color: var(--ink); cursor: pointer;
+    box-shadow: 0 1px 2px rgba(31,30,26,.06), 0 14px 34px -10px rgba(31,30,26,.32);
+    animation: wd-ov-row 260ms var(--ease) both;
+    transition: transform 160ms var(--ease), box-shadow 200ms var(--ease);
+}
+.wd-ov-child:nth-of-type(1) { animation-delay: 40ms; }
+.wd-ov-child:nth-of-type(2) { animation-delay: 80ms; }
+.wd-ov-child:nth-of-type(3) { animation-delay: 120ms; }
+.wd-ov-child:nth-of-type(4) { animation-delay: 160ms; }
+.wd-ov-child:nth-of-type(n+5) { animation-delay: 200ms; }
+.wd-ov-add { animation: wd-ov-row 260ms var(--ease) 240ms both; }
+.wd-ov-parent.is-active, .wd-ov-child.is-active {
+    box-shadow: 0 0 0 1.5px var(--red), 0 0 0 6px rgba(214,35,43,.18), 0 14px 34px -10px rgba(31,30,26,.32);
+}
+@media (hover: hover) and (pointer: fine) {
+    .wd-ov-parent:hover { transform: translateY(-1px); box-shadow: 0 1px 2px rgba(31,30,26,.06), 0 18px 40px -10px rgba(31,30,26,.38); }
+    .wd-ov-parent.is-active:hover { box-shadow: 0 0 0 1.5px var(--red), 0 0 0 6px rgba(214,35,43,.18), 0 18px 40px -10px rgba(31,30,26,.38); }
+}
+.wd-ov-parent:active { transform: scale(.985); }
+.wd-ov-type { display: block; font-size: 11px; color: var(--muted); text-transform: capitalize; }
+.wd-ov-title { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin: 3px 0 8px; }
+.wd-ov-meta { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.wd-ov-child { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; cursor: pointer; padding: 15px 20px; }
+.wd-ov-child input[type="checkbox"] {
+    margin: 0; width: 18px; height: 18px; accent-color: var(--success); cursor: pointer;
+    transition: transform 140ms var(--ease);
+}
+.wd-ov-child input[type="checkbox"]:active { transform: scale(.85); }
+.wd-ov-child input[type="checkbox"]:disabled { cursor: default; }
+/* Strike-through drawn as a bar that sweeps in from the left; text-decoration can't
+   animate. Untick clears it faster than tick draws it. */
+/* The title button fills the row so the whole card is the click target; the strike
+   bar lives on the inner span so it only spans the words. */
+.wd-ov-child-title {
+    align-self: stretch; background: none; border: 0; padding: 0; font: inherit; font-size: 15px;
+    color: var(--ink); text-align: left; cursor: pointer; transition: color 200ms ease, transform 120ms var(--ease);
+}
+.wd-ov-child-title > span { position: relative; }
+.wd-ov-child-title > span::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 55%; height: 1.5px; background: currentColor;
+    transform: scaleX(0); transform-origin: left; transition: transform 140ms var(--ease);
+}
+.wd-ov-child-title:active { transform: scale(.98); }
+.wd-ov-child.is-done .wd-ov-child-title { color: var(--muted); }
+.wd-ov-child.is-done .wd-ov-child-title > span::after { transform: scaleX(1); transition-duration: 260ms; }
+.wd-ov-add .wd-inline {
+    width: 100%; margin: 0; padding: 14px 20px; font-size: 14px; color: #fff;
+    background: rgba(255,255,255,.12); border: 1px dashed rgba(255,255,255,.5); border-radius: 18px;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.wd-ov-add .wd-inline::placeholder { color: rgba(255,255,255,.82); }
+.wd-ov-add .wd-inline:hover { background: rgba(255,255,255,.2); }
+.wd-ov-add .wd-inline:focus { color: var(--ink); background: var(--card); border-style: solid; }
+.wd-ov-add .wd-inline:focus::placeholder { color: var(--muted-soft); }
+.wd-back { background: none; border: 0; padding: 0 0 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; transition: color 120ms ease; }
+.wd-back:hover { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+    .wd-ov, .wd-ov-parent, .wd-ov-child, .wd-ov-add { animation: uj-fade .15s ease both; animation-delay: 0s; }
+    .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active { transform: none; }
+    .wd-ov-child-title > span::after { transition: none; }
+}
+@media (max-width: 1100px) { .wd-ov { display: none; } }
 /* Card drawer opened FROM the team board's own person window (.tb-win-modal,
    z-index 61): .wd-scrim/.wd are shared with that window's own backdrop+shell,
    so bumping their bare z-index here would also lift the window's OWN scrim
@@ -1345,6 +1500,16 @@ select.wd-inline {
 }
 .wd-foot textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .wd-post { height: 38px; padding: 0 15px; font-size: var(--t-sm); flex-shrink: 0; border: 0; cursor: pointer; }
+/* Board drawer only: Post stays out of the way until the box is focused or holds text. */
+.wd-foot--reveal .wd-post {
+    max-width: 0; padding: 0; margin-left: -8px; opacity: 0; overflow: hidden; white-space: nowrap;
+    transform: translateX(6px); pointer-events: none;
+    transition: max-width 200ms var(--ease), padding 200ms var(--ease), margin 200ms var(--ease), opacity 140ms ease, transform 200ms var(--ease);
+}
+.wd-foot--reveal:focus-within .wd-post, .wd-foot--reveal.has-text .wd-post {
+    max-width: 120px; padding: 0 15px; margin-left: 0; opacity: 1; transform: none; pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) { .wd-foot--reveal .wd-post { transition: opacity 140ms ease; } }
 
 /* ── Mentions (Stage 3) ────────────────────────────────────────
    The picker only lists people already on the card — participants plus the
@@ -4451,6 +4616,15 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    :hover rule, so setting background:#fff inline made this hover rule a no-op until that
    binding was narrowed to the disabled case only (see timesheets.blade.php). */
 
+.uj-ts-opt { background: #fff; color: var(--ink); cursor: pointer; transition: background .12s ease, border-color .12s ease, transform .1s ease; }
+.uj-ts-opt:hover { background: var(--canvas); border-color: var(--muted-soft); }
+.uj-ts-opt:active { transform: scale(0.98); }
+/* Manual mode's "+ Add what you worked on": the old capture screen's dashed, muted, full-width
+   strip that only turns red under the pointer, so it reads as an affordance, not an action. */
+.uj-ts-add { display: block; width: 100%; padding: 10px; border: 1px dashed var(--hairline); border-radius: 10px; background: none; cursor: pointer; font: inherit; font-size: 12.5px; color: var(--muted); transition: color .12s ease, border-color .12s ease, background .12s ease; }
+.uj-ts-add:hover { color: #fff; background: var(--red); border-color: var(--red); border-style: solid; }
+.uj-ts-add:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
 .uj-ts-pill { transition: background .12s ease, border-color .12s ease, transform .1s ease; }
 .uj-ts-pill:hover { border-color: var(--muted-soft); }
 .uj-ts-pill:active { transform: scale(0.97); }
@@ -4463,8 +4637,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ts-step-enter-start { opacity: 0; transform: translateY(4px); }
 .uj-ts-step-enter-end { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-    .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
-    .uj-ts-pill:active { transform: none; }
+    .uj-ts-opt, .uj-ts-pill { transition: background .12s ease, border-color .12s ease; }
+    .uj-ts-opt:active, .uj-ts-pill:active { transform: none; }
     .uj-ts-step-enter { transition: opacity .15s ease; }
     .uj-ts-step-enter-start, .uj-ts-step-enter-end { transform: none; }
 }
@@ -4502,3 +4676,55 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
        flex-basis:0% and no media query can out-rank an inline style, at any width.) */
     .uj-ts-row-label { flex: 1 1 100%; }
 }
+
+/* ── Profile cover ──
+   A backdrop pinned to the top of <main>, full width, scrolling with the page.
+   Sharp on top, a blurred copy carries the colour down, both gone before the box
+   ends. Masks, not JS. The two in-flow children of <main> are positioned so they
+   paint above it without any stacking context (no z-index anywhere here). */
+.uj-main { position: relative; }
+.uj-main > .uj-head-stack, .uj-main > .uj-fade { position: relative; }
+.uj-cover-hero { position: absolute; top: 0; left: 0; right: 0; height: 380px; overflow: hidden; pointer-events: none; }
+.uj-cover-img, .uj-cover-blur { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.uj-cover-img { mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 85%); -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 85%); }
+.uj-cover-blur { filter: blur(18px); transform: scale(1.08); mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 25%, #000 55%, transparent 100%); }
+.uj-has-cover .uj-header { background: color-mix(in srgb, var(--canvas) 72%, transparent); }
+.uj-has-cover .uj-hd-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent) 0%, transparent 100%); }
+/* Text over a cover sits on the picture, never on a plate. A light cover gets a soft
+   canvas glow behind the ink; a dark one (uj-cover-dark, decided server-side from the
+   picture's luminance) turns the title row and the pills white. */
+.uj-has-cover .uj-main > .uj-head-stack > .uj-pagehead h1,
+.uj-has-cover .uj-main > .uj-head-stack > .uj-pagehead p,
+.uj-has-cover .uj-guide-trigger { text-shadow: 0 0 14px var(--canvas), 0 0 4px var(--canvas); }
+.uj-cover-dark .uj-main > .uj-head-stack > .uj-pagehead h1,
+.uj-cover-dark .uj-main > .uj-head-stack > .uj-pagehead p,
+.uj-cover-dark .uj-guide-trigger, .uj-cover-dark .uj-guide-trigger:hover { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 0 12px rgba(0, 0, 0, .25); }
+@media (max-width: 640px) { .uj-cover-hero { height: 260px; } }
+.uj-cover-change { height: 30px; padding: 0 11px; border-radius: 7px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: color-mix(in srgb, var(--canvas) 78%, transparent); border: 1px solid rgba(255, 255, 255, .5); cursor: pointer; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-cover-dark .uj-cover-change { color: #fff; background: rgba(0, 0, 0, .32); border-color: rgba(255, 255, 255, .35); }
+
+/* ── Dark wallpaper ──
+   uj-on-dark (server-side, from the wallpaper's luminance blended with its dim) flips
+   the text tokens for everything that sits straight on the picture. Anything with its
+   own light, opaque background sets the page tokens back, so the ledger inside a card
+   is still ink on white. `uj-surface` is measured, not guessed: dark-surfaces.js reads
+   every element's computed background and tags the light ones. `.uj-card` is also
+   listed statically so the common case never flashes white before the script runs. */
+.uj-on-dark .uj-main { --ink: #fff; --body: #eae8e1; --muted: #d6d3c9; --muted-soft: #c0bdb3; --amber: #f6c46f; }
+.uj-on-dark .uj-main > .uj-head-stack > .uj-pagehead :is(h1, p),
+.uj-on-dark .uj-main .uj-guide-trigger { text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.uj-on-dark .uj-main :is(.uj-card, .uj-surface) { --ink: #26251e; --body: #5a5852; --muted: #6f6c61; --muted-soft: #8b887e; --amber: #c08532; }
+.uj-cover-change:active { transform: scale(.97); }
+.uj-cover-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.uj-cover-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+/* On a wallpaper or a cover the strip rides on its own paper plate, so the label never sits on a photograph. */
+.uj-has-wallpaper .uj-cover-picker, .uj-has-cover .uj-cover-picker { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--canvas) 74%, transparent); }
+.uj-cover-picker-label { font-size: 12.5px; color: var(--muted); margin-right: 4px; }
+.uj-cover-chips { display: contents; }
+.uj-cover-chip { width: 44px; height: 28px; border-radius: 7px; border: 1px solid rgba(38, 37, 30, .12); cursor: pointer; padding: 0; transition: transform 160ms cubic-bezier(.23, 1, .32, 1), box-shadow 160ms ease; }
+.uj-cover-chip:hover { transform: translateY(-1px); }
+.uj-cover-chip:active { transform: scale(.96); }
+.uj-cover-chip[data-on="1"] { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--red); }
+.uj-cover-chip--upload { width: auto; padding: 0 10px; background: none; border-style: dashed; color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.uj-cover-chip--upload:hover { color: var(--ink); border-color: var(--muted-soft); }
+.uj-cover-picker-error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--error); }

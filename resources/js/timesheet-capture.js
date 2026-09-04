@@ -55,6 +55,35 @@ export function registerTimesheetCapture(Alpine) {
     // boundary to the tab bar.
     Alpine.store('tsReview', { open: false });
 
+    // The cog on the tab row: the staffer's own "fill from board" switch. Its own
+    // component because the tab row sits outside timesheetCapture(). Saves server-side,
+    // then reloads: the row set the screen shows is a genuinely different shape either
+    // way (board prefill vs. an empty day with Add what you worked on), and rebuilding
+    // it in place would just be a second, buggier copy of what the next page load
+    // already does correctly.
+    Alpine.data('timesheetPrefs', (cfg) => ({
+        open: false,
+        fillFromBoard: cfg.fillFromBoard !== false,
+        async set(on) {
+            if (on === this.fillFromBoard) return;
+            try {
+                const res = await fetch(cfg.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({ fill_from_board: on }),
+                });
+                if (!res.ok) throw new Error('bad status');
+                window.location.reload();
+            } catch (e) {
+                this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not save that setting.' : 'Tidak dapat simpan tetapan itu.');
+            }
+        },
+    }));
+
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
         // 5 on an ordinary week, 6 when the week holds the first Saturday of the month —
@@ -70,6 +99,10 @@ export function registerTimesheetCapture(Alpine) {
         // What the staffer was doing on a line (Technical, Meeting, ...) — the one thing
         // a board card cannot say for them, asked in the row's own edit overlay.
         subPillars: cfg.subPillars || [],
+        // Per-user switch (Settings live on the screen itself, not a settings page): on
+        // prefills from the board same as always; off hides the prefill server-side
+        // (cfg.suggested arrives empty) and turns on the Add line button instead.
+        fillFromBoard: cfg.fillFromBoard !== false,
         // Board cards struck off a day, keyed by ISO date. Seeded from what the last save
         // stored, so a removed row stays removed across a reload.
         dismissed: {},
@@ -334,6 +367,20 @@ export function registerTimesheetCapture(Alpine) {
         dismissedFor(iso) {
             return this.dismissed[iso] || [];
         },
+        // Manual mode's own way of putting a line on the day — the board-prefill
+        // equivalent of a card landing In Progress, except the staffer starts it. Opens
+        // the overlay on the classification question, one step at a time; nothing is
+        // pushed onto the day until the details step is confirmed, so cancelling at any
+        // step along the way leaves the day exactly as it was.
+        openAddPicker() {
+            this.picker = {
+                open: true, step: 'category',
+                pendingCat: '', pendingProject: '', pendingSub: '',
+                pendingPct: '', pendingDesc: '', pendingItem: null,
+                askCat: false, askProject: false, isManual: true, editingIndex: null,
+            };
+            this.focusPickerTitle();
+        },
         remainder(iso) {
             return Math.max(0, Math.round((100 - this.dayTotal(iso)) * 100) / 100);
         },
@@ -352,8 +399,10 @@ export function registerTimesheetCapture(Alpine) {
             // A suggestion the staffer has costed is an ordinary row.
             if (row.percentage !== '') row.suggested = false;
         },
-        // A line the staffer added but has not costed yet. It is kept and flagged rather than
-        // dropped: the day cannot be submitted while one exists, but it survives a reload.
+        // A line with no percentage yet. It is kept and flagged rather than dropped: the day
+        // cannot be submitted while one exists, but it survives a reload. A manual row always
+        // has a category by the time it exists — the wizard requires one to reach confirmEntry()
+        // — so this is purely about the percentage half.
         isBlank(row) {
             return !(parseFloat(row.percentage) > 0);
         },
@@ -364,12 +413,26 @@ export function registerTimesheetCapture(Alpine) {
         needsCategory(row) {
             return !row.category_id;
         },
+        // A manual row whose category requires a project (see categoryRequiresProject())
+        // but has none picked yet. Card rows never hit this — their project rides in with
+        // the card and is never asked here.
+        needsProject(row) {
+            return !row.work_item_id && this.categoryRequiresProject(row.category_id) && !row.project_id;
+        },
+        // Whether a category (by id) requires a project, read off the same `categories`
+        // list the picker's pills render from — one definition of "requires a project" on
+        // this screen.
+        categoryRequiresProject(categoryId) {
+            const cat = this.categories.find((c) => String(c.id) === String(categoryId));
+
+            return !!(cat && cat.requires_project);
+        },
         // Gates dayState() and the submit blockers. An uncosted suggestion is excluded here
         // (but stays `isBlank()` for its own row styling) — it is never sent (flatRows()),
         // so it must never be able to stop the week from being sent either. A row the
         // staffer actually typed is never `suggested: true`, so this changes nothing for it.
         hasBlankRows(iso) {
-            return (this.rows[iso] || []).some((r) => (!r.suggested && this.isBlank(r)) || this.needsCategory(r));
+            return (this.rows[iso] || []).some((r) => (!r.suggested && this.isBlank(r)) || this.needsCategory(r) || this.needsProject(r));
         },
         // Give this line whatever is unallocated. Shown only while something is left, so it
         // can never subtract — the old day-level "give the rest to the last line" set the
@@ -410,40 +473,136 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- the row overlay ------------------------------------------------------
-        // One popup, one job: the row already knows its project (it comes from the board
-        // card), so this asks what the card cannot answer — what the staffer was doing, how
-        // much of the day it took, and any notes. Plus the category, but only for a card
-        // that never set one: without it the line can never be saved at all.
+        // A card row still asks only what the card cannot answer — what the staffer was
+        // doing, how much of the day it took, and any notes, plus its category when the
+        // card never set one. A manual row has no card to answer for it, so it walks the
+        // classification itself first: category, then project (only when the category
+        // needs one), then the optional "what were you doing" tag, and only then details —
+        // one question per step, matching how this screen worked before board prefill
+        // replaced it (see 84dc9cf^).
         picker: {
             open: false, step: 'category', pendingItem: null, pendingPct: null,
-            pendingDesc: '', pendingSub: '', pendingCat: '', askCat: false, editingIndex: null,
+            pendingDesc: '', pendingSub: '', pendingCat: '', pendingProject: '',
+            askCat: false, askProject: false, isManual: false, editingIndex: null,
         },
 
         // Opens the row's overlay, pre-filled from the row itself, so a rich-text note is
         // edited through the same Quill instance that wrote it rather than a plain input
-        // showing its raw HTML tags. Project is shown, not asked: it comes from the board
-        // card, and the card is where it gets corrected. Category too — unless the card
-        // arrived without one, in which case askCat turns the picker on.
+        // showing its raw HTML tags. A card row keeps today's behaviour: details only,
+        // project shown (not asked — it rides in with the card), category asked only the
+        // first time (needsCategory()). A manual row has already been through the
+        // category → project → sub steps once (openAddPicker()/confirmEntry() below), so
+        // editing it also opens straight on details — its own back arrow (pickerBack())
+        // is what sends it back to 'category' to re-walk the classification.
         openEditRow(i) {
             const r = this.rows[this.selected][i];
-            const cat = this.categories.find((c) => String(c.id) === String(r.category_id));
-            const proj = this.projects.find((p) => String(p.id) === String(r.project_id));
+            const isManual = !r.work_item_id;
             this.picker = {
                 open: true, step: 'details',
-                pendingItem: { label: this.rowTitle(r), category_id: r.category_id, project_id: r.project_id || '' },
+                pendingItem: isManual ? null : { label: this.rowTitle(r) },
                 pendingPct: r.percentage, pendingDesc: r.description || '',
                 pendingSub: r.sub_pillar_id || '',
                 pendingCat: r.category_id || '',
-                // Snapshotted, not read off the live row: once a category is picked the row
-                // stops needing one, and a live check would make the picker vanish mid-edit.
-                askCat: this.needsCategory(r),
+                pendingProject: r.project_id || '',
+                askCat: !isManual && this.needsCategory(r),
+                askProject: isManual && this.categoryRequiresProject(r.category_id),
+                isManual,
                 editingIndex: i,
             };
             this.focusPickerTitle();
         },
-        // The overlay is one step deep now, so Back is simply Cancel.
+        // Category pill click on a card's details step (askCat), unrelated to the manual
+        // flow's own category step (pickCategory() below) — a card's category, once asked,
+        // is answered right there without a separate step.
+        pickManualCategory(categoryId) {
+            this.picker.pendingCat = categoryId;
+        },
+        // Step 1 of the manual flow: category chosen, decide what's next — the project
+        // step when this category needs one, else straight to the optional sub step (or
+        // details, when there is no sub-pillar list to offer).
+        pickCategory(categoryId) {
+            this.picker.pendingCat = categoryId;
+            this.picker.askProject = this.categoryRequiresProject(categoryId);
+            this.picker.pendingProject = '';
+            this.picker.step = this.picker.askProject ? 'project' : (this.subPillars.length ? 'sub' : 'details');
+            this.focusPickerTitle();
+        },
+        // Step 2 (only for a category that requires one): project chosen, on to the
+        // optional sub step, or straight to details when there isn't one.
+        pickProject(projectId) {
+            this.picker.pendingProject = projectId;
+            this.picker.step = this.subPillars.length ? 'sub' : 'details';
+            this.focusPickerTitle();
+        },
+        // Step 3, optional: '' from the Skip row leaves the line without one.
+        pickSub(subId) {
+            this.picker.pendingSub = subId || '';
+            this.picker.step = 'details';
+            this.focusPickerTitle();
+        },
+        // Projects offered for the manual row's project step, narrowed to the chosen
+        // category the way the board prefill already narrows by card — falls back to
+        // every project when none declare that category, so an uncategorized project
+        // stays reachable (same reasoning as `category_ids` in
+        // TimesheetController::projectOptions()).
+        pickerProjects() {
+            const catId = this.picker.pendingCat;
+            if (!catId) return this.projects;
+            const narrowed = this.projects.filter((p) => (p.category_ids || []).map(String).includes(String(catId)));
+
+            return narrowed.length ? narrowed : this.projects;
+        },
+        // Whether the back arrow (below) would close the overlay outright rather than
+        // step backward — a card's details step has nothing behind it, and the manual
+        // flow's own category step is where its drill-down began. Drives the header's
+        // ×-vs-← and its label.
+        pickerAtFirstStep() {
+            return this.picker.step === 'category'
+                || (this.picker.step === 'details' && this.picker.editingIndex != null && !this.picker.isManual);
+        },
+        // One step back, clearing the choice made at the step being returned to (it is
+        // about to be re-picked) — same rule the old drill-down used. Editing an existing
+        // manual row is the one exception: its details step has no drill-down behind it in
+        // this visit, so Back sends it to 'category' to start the classification over.
         pickerBack() {
-            this.closePicker();
+            if (this.picker.step === 'details') {
+                if (this.picker.editingIndex != null) {
+                    if (!this.picker.isManual) {
+                        this.closePicker();
+
+                        return;
+                    }
+                    this.picker.pendingCat = '';
+                    this.picker.pendingProject = '';
+                    this.picker.pendingSub = '';
+                    this.picker.step = 'category';
+                } else if (this.subPillars.length) {
+                    this.picker.pendingSub = '';
+                    this.picker.step = 'sub';
+                } else if (this.picker.askProject) {
+                    this.picker.pendingProject = '';
+                    this.picker.step = 'project';
+                } else {
+                    this.picker.pendingCat = '';
+                    this.picker.step = 'category';
+                }
+            } else if (this.picker.step === 'sub') {
+                if (this.picker.askProject) {
+                    this.picker.pendingProject = '';
+                    this.picker.step = 'project';
+                } else {
+                    this.picker.pendingCat = '';
+                    this.picker.step = 'category';
+                }
+            } else if (this.picker.step === 'project') {
+                this.picker.pendingCat = '';
+                this.picker.step = 'category';
+            } else {
+                this.closePicker();
+
+                return;
+            }
+            this.focusPickerTitle();
         },
         // Shared by every way the popup can shut (pick, back-out, Escape, backdrop click) so
         // keyboard/screen-reader focus always lands back on the button that opened it, instead
@@ -461,16 +620,29 @@ export function registerTimesheetCapture(Alpine) {
         categoryName(c) {
             return this.$store.ui.lang === 'en' ? c.name : (c.name_ms || c.name);
         },
-        // How a row names itself in the overlay's header: its category, and its project
-        // when it has one.
-        pickerItem(category, project, sub) {
-            return {
-                key: `c${category.id}-${project ? project.id : ''}-${sub ? sub.id : ''}`,
-                label: [this.categoryName(category), project && project.name, sub && sub.name].filter(Boolean).join(' · '),
-                category_id: category.id,
-                project_id: project ? project.id : '',
-                sub_pillar_id: sub ? sub.id : '',
-            };
+        // The header's title, one per step. A manual row's details step asks a narrower
+        // question than a card's — classification already happened in the steps before it.
+        pickerStepTitle() {
+            const en = this.$store.ui.lang === 'en';
+            if (this.picker.step === 'category') return en ? 'What kind of work was this?' : 'Kerja jenis apa ini?';
+            if (this.picker.step === 'project') return en ? 'Which project?' : 'Projek mana?';
+            if (this.picker.step === 'sub') return en ? 'What were you doing?' : 'Anda buat apa?';
+            if (this.picker.isManual && this.picker.editingIndex == null) {
+                return en ? 'How much of the day?' : 'Berapa banyak hari?';
+            }
+
+            return en ? 'What were you doing, and how much of the day?' : 'Anda buat apa, dan berapa banyak hari?';
+        },
+        // The header's trail pill: a card keeps showing its own title (set once, in
+        // openEditRow()); a manual row shows what has been picked so far, filling in as
+        // each step is answered.
+        pickerHeaderLabel() {
+            if (!this.picker.isManual) return (this.picker.pendingItem && this.picker.pendingItem.label) || '';
+            const cat = this.categories.find((c) => String(c.id) === String(this.picker.pendingCat));
+            const proj = this.projects.find((p) => String(p.id) === String(this.picker.pendingProject));
+            const sub = this.subPillars.find((s) => String(s.id) === String(this.picker.pendingSub));
+
+            return [cat && this.categoryName(cat), proj && proj.name, sub && sub.name].filter(Boolean).join(' · ');
         },
         // Moves focus to the picker dialog's own step heading (tabindex="-1", script-focus
         // only) — called after any step change so focus tracks the step instead of dropping
@@ -507,18 +679,44 @@ export function registerTimesheetCapture(Alpine) {
                 }
             }
         },
-        // Overlay Submit: writes what the staffer was doing, how much of the day it took
-        // and any notes back into the row it was opened from.
+        // Overlay Submit. Editing a row (card or manual) writes what changed back into it.
+        // A fresh manual add has no row yet — that's the point of openAddPicker() not
+        // pushing one — so this is where it is finally created, fully formed, with
+        // whatever category/project/sub the earlier steps settled on.
         confirmEntry() {
-            if (this.picker.editingIndex == null) return;
-            const r = this.rows[this.selected][this.picker.editingIndex];
-            if (this.picker.askCat && this.picker.pendingCat) {
-                this.applyCategory(r, this.picker.pendingCat);
+            if (this.picker.editingIndex != null) {
+                const r = this.rows[this.selected][this.picker.editingIndex];
+                if (this.picker.askCat && this.picker.pendingCat) {
+                    this.applyCategory(r, this.picker.pendingCat);
+                }
+                // A card row's category/project ride in with the card (or, for category,
+                // are answered once via askCat above) and are otherwise left untouched here.
+                if (this.picker.isManual) {
+                    r.category_id = this.picker.pendingCat;
+                    r.project_id = this.picker.pendingProject || '';
+                }
+                r.percentage = this.picker.pendingPct;
+                r.description = this.picker.pendingDesc;
+                r.sub_pillar_id = this.picker.pendingSub || '';
+                if (r.percentage !== '') r.suggested = false;
+                this.closePicker();
+                this.save();
+
+                return;
             }
-            r.percentage = this.picker.pendingPct;
-            r.description = this.picker.pendingDesc;
-            r.sub_pillar_id = this.picker.pendingSub || '';
-            if (r.percentage !== '') r.suggested = false;
+
+            const iso = this.selected;
+            if (!this.rows[iso]) this.rows[iso] = [];
+            this.rows[iso].push({
+                id: null,
+                work_item_id: null,
+                category_id: this.picker.pendingCat,
+                project_id: this.picker.pendingProject || '',
+                sub_pillar_id: this.picker.pendingSub || '',
+                percentage: this.picker.pendingPct,
+                description: this.picker.pendingDesc,
+                suggested: false,
+            });
             this.closePicker();
             this.save();
         },
@@ -698,7 +896,10 @@ export function registerTimesheetCapture(Alpine) {
                     .filter((r) => !(r.suggested && (r.percentage === '' || r.percentage === null)))
                     // A row with no category cannot be stored (the server requires one) and
                     // would take the whole week's save down with it.
-                    .filter((r) => !this.needsCategory(r));
+                    .filter((r) => !this.needsCategory(r))
+                    // A manual line whose category demands a project but has none yet is
+                    // withheld the same way a missing category is, until the picker fills it.
+                    .filter((r) => !this.needsProject(r));
                 for (const r of dayRows) {
                     // A 0% line IS sent. It used to be dropped here, which meant a line the
                     // staffer had added but not yet costed vanished on the next reload with

@@ -24,6 +24,7 @@ use Laravel\Sanctum\NewAccessToken;
  * type and hands DashboardPrefs a string.
  *
  * @property array<string, array{hidden?: array<int, string>, order?: array<int, string>}>|null $dashboard_prefs
+ * @property array{wallpaper?: string, wallpaper_path?: string, wallpaper_lum?: float|null, dim?: string}|null $appearance
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
@@ -31,6 +32,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    /**
+     * The DB default is true too, but a model built with create() and used in memory
+     * (actingAs() in tests) never reads the column back, so the default lives here as well.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'timesheet_fill_from_board' => true,
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -45,6 +56,8 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password_change_required' => 'boolean',
             'is_super_admin' => 'boolean',
             'dashboard_prefs' => 'array',
+            'appearance' => 'array',
+            'timesheet_fill_from_board' => 'boolean',
         ];
     }
 

@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board child cards (subtasks) design, 2026-09-03</title>
+<style>
+  :root {
+    --ink:#26251e; --body:#5a5852; --muted:#6f6c61; --muted-soft:#8b887e;
+    --hairline:#e6e5e0; --hairline-soft:#efeee8; --canvas:#f6f6f3; --card:#fff;
+    --shelf:#ece9e1; --shelf-line:#ddd9cf; --red:#d6232b; --info:#3a6ea5;
+    --success:#1f8a65; --success-ink:#14614a; --amber:#c08532;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.55 Poppins, system-ui, sans-serif; color:var(--ink); background:var(--canvas); }
+  main { max-width:980px; margin:0 auto; padding:40px 24px 80px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:40px 0 10px; padding-top:14px; border-top:1px solid var(--hairline); }
+  h3 { font-size:14px; margin:20px 0 6px; }
+  p, li { color:var(--body); }
+  .meta { color:var(--muted); font-size:12px; margin-bottom:24px; }
+  code { font:12px/1.4 'JetBrains Mono', ui-monospace, monospace; background:var(--shelf); padding:1px 5px; border-radius:4px; }
+  pre { background:var(--shelf); padding:12px 14px; border-radius:8px; overflow-x:auto; font-size:12px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  .callout { background:#fff; border:1px solid var(--hairline); padding:10px 14px; border-radius:8px; margin:14px 0; }
+  .decision b { color:var(--info); }
+
+  /* ── Mockup ── */
+  .mock { background:var(--canvas); border:1px solid var(--hairline); border-radius:12px; overflow:hidden; margin:16px 0 8px; }
+  .mock-bar { font-size:11px; color:var(--muted); padding:6px 12px; border-bottom:1px solid var(--hairline); background:#fff; }
+  .board { display:flex; gap:16px; padding:18px; }
+  .col { width:230px; flex:none; }
+  .col-h { font-size:12px; font-weight:600; margin-bottom:8px; }
+  .col-h b { font-weight:500; color:var(--muted); background:var(--shelf); border-radius:10px; padding:0 6px; margin-left:6px; font-size:11px; }
+  .wc { background:var(--card); border:1px solid var(--hairline); border-radius:10px; padding:10px 12px; margin-bottom:8px; font-size:12px; position:relative; }
+  .wc-type { color:var(--muted); font-size:10px; }
+  .wc-dot { display:inline-block; width:5px; height:5px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  .wc-title { font-weight:600; font-size:13px; margin:3px 0 6px; }
+  .wc-foot { display:flex; gap:6px; color:var(--muted); font-size:11px; align-items:center; }
+  .wc-right { margin-left:auto; display:inline-flex; gap:8px; }
+  .wc-sub { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .wc-sub--all { color:var(--success-ink); }
+  /* the stack: two hairline layers peeking below the parent */
+  .wc--stack { margin-bottom:16px; }
+  .wc--stack::before, .wc--stack::after {
+    content:""; position:absolute; left:6px; right:6px; bottom:-4px; height:8px;
+    background:var(--card); border:1px solid var(--hairline); border-top:0; border-radius:0 0 9px 9px; z-index:-1;
+  }
+  .wc--stack::after { left:12px; right:12px; bottom:-8px; }
+  .board { position:relative; z-index:0; }
+
+  .overlay { display:grid; grid-template-columns:1fr 340px; height:420px; border-top:1px solid var(--hairline); }
+  .ov { background:rgba(31,30,26,.18); padding:24px; display:flex; justify-content:center; align-items:flex-start; }
+  .ov-panel { width:300px; }
+  .ov-h { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#fff; margin:12px 0 6px; opacity:.85; }
+  .ov .wc { margin-bottom:6px; }
+  .ov .wc--child { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; padding:8px 10px; }
+  .ov .wc--child.is-active { outline:2px solid var(--red); }
+  .ov .wc--child.is-done .ct { text-decoration:line-through; color:var(--muted); }
+  .tick { width:14px; height:14px; border:1.5px solid var(--muted-soft); border-radius:4px; display:inline-block; }
+  .tick.on { background:var(--success); border-color:var(--success); }
+  .ov-add { border:1px dashed rgba(255,255,255,.7); color:#fff; border-radius:8px; padding:7px; font-size:12px; text-align:center; }
+  .dr { background:var(--card); border-left:1px solid var(--hairline); padding:16px 18px; font-size:12px; }
+  .dr-back { color:var(--muted); font-size:11px; margin-bottom:8px; }
+  .dr-tabs { display:inline-flex; background:var(--shelf); border-radius:8px; padding:2px; gap:2px; margin-bottom:12px; }
+  .dr-tabs span { padding:3px 9px; border-radius:6px; font-size:11px; color:var(--muted); }
+  .dr-tabs span.on { background:#fff; color:var(--ink); font-weight:600; }
+  .dr h4 { margin:0 0 2px; font-size:16px; }
+  .dr .sm { color:var(--muted); font-size:11px; }
+  .dr dl { display:grid; grid-template-columns:70px 1fr; row-gap:6px; margin:14px 0; color:var(--body); }
+  .dr dt { color:var(--muted); } .dr dd { margin:0; }
+  .dr .sech { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-top:12px; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Board child cards (subtasks)</h1>
+<div class="meta">Design spec · 2026-09-03 · replaces the JSON checklist built earlier the same day · status: awaiting Shazwan's review</div>
+
+<p>A T.A.A. card can hold child cards. On the board the parent looks like a stack. Opening the parent shows an overview of parent plus children in the space beside the drawer. Clicking a child switches the drawer to it. The parent cannot reach Done while a child is open.</p>
+
+<h2>1. Mockup</h2>
+
+<div class="mock">
+  <div class="mock-bar">Board, no drawer open. "2.0 Release - dark mode" has 3 children, 1 done. The two hairline layers under it are the stack.</div>
+  <div class="board">
+    <div class="col">
+      <div class="col-h">To Do <b>3</b></div>
+      <div class="wc wc--stack">
+        <div class="wc-type"><span class="wc-dot" style="background:var(--info)"></span>Task</div>
+        <div class="wc-title">2.0 Release - dark mode</div>
+        <div class="wc-foot">No due date · AmanahKu <span class="wc-right"><span class="wc-sub">☑ 1/3</span></span></div>
+      </div>
+      <div class="wc">
+        <div class="wc-type"><span class="wc-dot" style="background:var(--info)"></span>Task</div>
+        <div class="wc-title">2.0 Release - MCP connection</div>
+        <div class="wc-foot">No due date · AmanahKu</div>
+      </div>
+      <div class="wc">
+        <div class="wc-type"><span class="wc-dot" style="background:var(--red)"></span>Assignment</div>
+        <div class="wc-title">Untitled card</div>
+        <div class="wc-foot">No due date</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="col-h">In Progress <b>1</b></div>
+      <div class="wc wc--stack">
+        <div class="wc-type"><span class="wc-dot" style="background:var(--amber)"></span>Adhoc</div>
+        <div class="wc-title">Payroll Module</div>
+        <div class="wc-foot">12 Sep · AmanahKu <span class="wc-right"><span class="wc-sub wc-sub--all">☑ 2/2</span></span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="col-h">In Review <b>0</b></div>
+    </div>
+  </div>
+
+  <div class="mock-bar">Parent opened. Left: the overview replaces the bare scrim. Right: the drawer as today. The drawer here shows the parent.</div>
+  <div class="overlay">
+    <div class="ov">
+      <div class="ov-panel">
+        <div class="ov-h">Parent</div>
+        <div class="wc">
+          <div class="wc-type"><span class="wc-dot" style="background:var(--info)"></span>Task</div>
+          <div class="wc-title">2.0 Release - dark mode</div>
+          <div class="wc-foot">No due date · AmanahKu <span class="wc-right"><span class="wc-sub">☑ 1/3</span></span></div>
+        </div>
+        <div class="ov-h">Subtasks · 1 of 3 done</div>
+        <div class="wc wc--child is-done"><span class="tick on"></span><span class="ct">Audit colour tokens</span><span class="sm">SS</span></div>
+        <div class="wc wc--child"><span class="tick"></span><span class="ct">Dark palette for sidebar</span><span class="sm">10 Sep</span></div>
+        <div class="wc wc--child"><span class="tick"></span><span class="ct">Toggle in Settings</span><span class="sm"></span></div>
+        <div class="ov-add">+ Add a subtask</div>
+      </div>
+    </div>
+    <div class="dr">
+      <div class="dr-tabs"><span class="on">To Do</span><span>In Progress</span><span>In Review</span><span>Done</span></div>
+      <h4>2.0 Release - dark mode</h4>
+      <div class="sm">Opened 25 Aug 2026 by Shazwan · #131</div>
+      <dl><dt>Type</dt><dd>Task</dd><dt>Priority</dt><dd>Medium</dd><dt>Due</dt><dd>Set a due date</dd><dt>People</dt><dd>Just you</dd></dl>
+      <div class="sech">Description</div><div class="sm">Add more detail…</div>
+      <div class="sech">Links</div><div class="sm">+ Add a link</div>
+      <div class="sech">Comments</div><div class="sm">No comments yet.</div>
+    </div>
+  </div>
+
+  <div class="mock-bar">Child clicked. The overview stays, the child is outlined, the drawer now shows the child with a back link. No column tabs: a child is only open or done.</div>
+  <div class="overlay">
+    <div class="ov">
+      <div class="ov-panel">
+        <div class="ov-h">Parent</div>
+        <div class="wc">
+          <div class="wc-type"><span class="wc-dot" style="background:var(--info)"></span>Task</div>
+          <div class="wc-title">2.0 Release - dark mode</div>
+          <div class="wc-foot">No due date · AmanahKu <span class="wc-right"><span class="wc-sub">☑ 1/3</span></span></div>
+        </div>
+        <div class="ov-h">Subtasks · 1 of 3 done</div>
+        <div class="wc wc--child is-done"><span class="tick on"></span><span class="ct">Audit colour tokens</span><span class="sm">SS</span></div>
+        <div class="wc wc--child is-active"><span class="tick"></span><span class="ct">Dark palette for sidebar</span><span class="sm">10 Sep</span></div>
+        <div class="wc wc--child"><span class="tick"></span><span class="ct">Toggle in Settings</span><span class="sm"></span></div>
+        <div class="ov-add">+ Add a subtask</div>
+      </div>
+    </div>
+    <div class="dr">
+      <div class="dr-back">← 2.0 Release - dark mode</div>
+      <div class="dr-tabs"><span class="on">Open</span><span>Done</span></div>
+      <h4>Dark palette for sidebar</h4>
+      <div class="sm">Subtask · added 3 Sep 2026 by Kussairi · #140</div>
+      <dl><dt>Priority</dt><dd>Medium</dd><dt>Due</dt><dd>10 Sep 2026</dd><dt>People</dt><dd>Just you</dd></dl>
+      <div class="sech">Description</div><div class="sm">Sidebar tokens only, the canvas is another subtask.</div>
+      <div class="sech">Links</div><div class="sm">+ Add a link</div>
+      <div class="sech">Comments</div><div class="sm">No comments yet.</div>
+    </div>
+  </div>
+</div>
+<p class="meta">Mockup only shows layout and hierarchy. Real spacing, type sizes and colours come from the existing <code>.wc</code> and <code>.wd</code> rules in <code>resources/css/app.css</code>.</p>
+
+<h2>2. What a child card is</h2>
+<p>A child is a normal <code>work_items</code> row with <code>parent_id</code> set. It reuses everything a card already has: title, description, priority, due date, labels, links, participants, comments, mentions. It differs in four ways.</p>
+<table>
+  <tr><th>Field</th><th>Parent (as today)</th><th>Child</th></tr>
+  <tr><td><code>status</code></td><td>todo / prog / review / done</td><td>todo or done only. "Open" in the UI. Never prog or review, so it never records a progress stint.</td></tr>
+  <tr><td><code>type</code></td><td>task / assignment / adhoc</td><td>Copied from the parent at creation, then ignored. The drawer hides the picker.</td></tr>
+  <tr><td><code>project_id</code>, <code>timesheet_category_id</code></td><td>Own values</td><td>Copied from the parent at creation, drawer hides the pickers. Children never produce timesheet rows of their own, the parent's stint carries the hours. They do feed the parent row's note, see section 6.</td></tr>
+  <tr><td><code>employee_id</code></td><td>Board owner</td><td>Same as the parent's. The child lives on the parent's board and nowhere else.</td></tr>
+  <tr><td><code>parent_id</code></td><td>null</td><td>The parent's id. One level only: a child cannot have children.</td></tr>
+  <tr><td><code>sort_order</code></td><td>Position in its column</td><td>Position under the parent.</td></tr>
+  <tr><td><code>due_at</code></td><td>Synced to Google Calendar</td><td>Not synced. The parent's date is the one that matters to the calendar.</td></tr>
+  <tr><td><code>archived_at</code></td><td>Own</td><td>Follows the parent: archiving, restoring or deleting the parent does the same to every child.</td></tr>
+</table>
+
+<div class="callout decision"><b>Decision:</b> children are rows on the same table, not a new table, and not JSON. It is the only shape where "click a child, the drawer shows it" costs nothing: the drawer, comments, mentions, participants and the <code>show</code> endpoint already work on a <code>WorkItem</code>.</div>
+
+<h2>3. Rules</h2>
+<ul>
+  <li><b>Add a child:</b> anyone who can open the parent (<code>BoardRules::authorizeAccess</code>): owner, assigner, participant, a manager over the owner, or anyone <code>canSeeAll</code> admits within their scope.</li>
+  <li><b>Tick / untick a child:</b> same grant as above. Ticking is moving the child between todo and done, so it is the existing <code>move</code> rule.</li>
+  <li><b>Edit or delete a child's fields:</b> <code>authorizeManage</code> evaluated against the <b>parent</b>, so the person who can edit the parent can edit its children. A participant who added a child cannot rename it afterwards. Simple, one rule, and it matches how the checklist was gated.</li>
+  <li><b>Done gate:</b> a parent cannot move to <code>done</code> while any child is <code>todo</code>. Enforced in <code>BoardRules::assertChildrenDoneForStatus()</code>, called by <code>WorkItemController::move()</code> and <code>MoveCardTool</code>. Message: "2 subtasks still open. Tick them off before moving this card to Done."</li>
+  <li><b>Parent moves elsewhere freely.</b> Todo, In Progress, In Review carry no gate.</li>
+  <li><b>Depth one.</b> <code>store()</code> refuses a <code>parent_id</code> that itself has a parent (422). Same in <code>CreateCardTool</code>.</li>
+  <li><b>Cross-tenant and cross-board:</b> the parent must belong to the current tenant, and the child is always created on the parent's board (<code>employee_id</code> copied), never on the caller's.</li>
+  <li><b>Shared-card due date rule</b> (<code>assertDueDateRetained</code>) applies to children as it does to parents. No exception.</li>
+</ul>
+
+<h2>4. Board (personal)</h2>
+<ul>
+  <li>Children never render in a column. The column lists, counts, filters, sorts and the archived list all ignore them.</li>
+  <li>A parent with children gets <code>wc--stack</code>: two hairline layers peeking out below (pure CSS, <code>::before</code>/<code>::after</code>) and the existing <code>wc-sub</code> counter (<code>1/3</code>, green when complete).</li>
+  <li>Dragging the parent drags the stack as one card, nothing new there.</li>
+  <li>Team board (<code>team-board.blade.php</code>, <code>team-board.js</code>): same stack look, same overview, but the overview is read only. No add, no tick, consistent with that board being view and comment only.</li>
+  <li>Dashboard "work" widget and <code>BuildsNav</code> counts: parents only.</li>
+</ul>
+
+<h2>5. Overview and drawer</h2>
+<ul>
+  <li>Opening any card opens the drawer as today. When the card is a parent with children, or a child, the scrim to the left carries an overview panel (300px, centred vertically near the top): the parent card face, then the children as compact rows (tick, title, due or first participant initials), then <code>+ Add a subtask</code> for anyone with access. A parent with no children shows nothing extra: no empty panel, the add button lives in the drawer under a new <b>Subtasks</b> heading so the first child can be created.</li>
+  <li>Clicking the parent face in the overview, or the back link, switches the drawer to the parent. Clicking a child row switches the drawer to that child. It is the same drawer, the same <code>openCard()</code> path, with <code>drawer.parent</code> set so the back link and the overview know what to show. The URL keeps tracking the card shown (<code>pushState</code>, already in place for deep links).</li>
+  <li>Ticking from the overview calls <code>move</code> with <code>todo</code> or <code>done</code> on the child, then repaints the parent's card face from the response. The child drawer shows an Open / Done toggle in place of the four column tabs.</li>
+  <li>Adding from the overview: an inline title input, Enter creates via <code>store()</code> with <code>parent_id</code>, the new row appears, the parent's face repaints.</li>
+  <li>Child drawer hides: type picker, category and project pickers, the archive action. Shows everything else.</li>
+  <li>Clicking the scrim outside both panels still closes the drawer.</li>
+</ul>
+
+<h2>6. Timesheet</h2>
+<p>Children never become rows on the capture grid. The parent's row is offered exactly as today (every day it sits in In Progress or In Review, and the day it goes straight to Done). What changes is the row's note, which starts empty today.</p>
+<ul>
+  <li><b>Prefill:</b> when the parent's row is offered for a day, its note is prefilled with the child cards that are <b>yours</b> and were <b>ticked done on that day</b> (<code>done_at</code> on that date). One bullet per child, the child's title. A day with no such ticks keeps an empty note, same as now.</li>
+  <li><b>Yours</b> means you are on the child's people list. A child with nobody on it counts as the parent owner's, so the owner sees the unassigned ones and a participant sees only the ones they were put on. Whoever the parent row is offered to (owner or participant of the parent, per <code>BoardSuggestions::cardsFor()</code>) gets their own view of the note.</li>
+  <li><b>Prefill only, never overwrite.</b> The note is filled on the suggested row before the staffer saves it. A row already saved keeps whatever note it has; a child ticked later that day does not rewrite it. The staffer can edit or clear the prefilled note like any other.</li>
+  <li><b>Untick after save:</b> nothing happens to the saved note. The note is a record of what the person wrote down, not a live view.</li>
+  <li><b>Format:</b> the note field holds sanitised HTML (the row editor is Quill), so the prefill is a <code>&lt;ul&gt;</code> of <code>&lt;li&gt;</code> titles, escaped. It renders through the existing <code>.uj-markdown</code> block on the grid.</li>
+  <li><b>Code:</b> <code>BoardSuggestions::forWeek()</code> gains one query: children of the offered cards, with participants, done between week start and end, grouped by parent and done date. The <code>description</code> in the row array is built from it. No change to <code>WeekWriter</code>, the MCP timesheet tool, or the grid markup.</li>
+</ul>
+
+<h2>7. Data and code changes</h2>
+<h3>Migration</h3>
+<pre>work_items
+  + parent_id  unsignedBigInteger nullable, index, FK work_items.id ON DELETE CASCADE
+  - subtasks   (drop the JSON column from the checklist build; nothing has shipped on it)</pre>
+
+<h3>Model</h3>
+<ul>
+  <li><code>WorkItem::parent()</code>, <code>WorkItem::children()</code> (ordered by <code>sort_order</code>), <code>isChild()</code>, <code>openChildCount()</code>, <code>childSummary()</code>.</li>
+  <li><b>Global scope <code>ParentOnly</code></b>: <code>whereNull('parent_id')</code> on every query by default. This is what keeps the twenty existing query sites (board data, dashboard, nav counts, timesheet suggestions, workforce insights, archive command, staff archiver, assistant, people data) correct without touching them. Paths that want children call <code>children()</code> (the relation bypasses the scope) or <code>withoutGlobalScope(ParentOnly::class)</code>.</li>
+  <li>Route model binding must resolve a child: override <code>resolveRouteBinding()</code> to drop the scope, otherwise <code>/app/board/{child}</code> 404s. Same for the MCP tools' <code>whereKey()</code> lookups.</li>
+  <li><code>WorkItemObserver::saved()</code>: return early for a child before calendar sync and stint recording.</li>
+</ul>
+
+<h3>Controller</h3>
+<ul>
+  <li><code>store()</code>: optional <code>parent_id</code>. When present: load the parent without the scope, check tenant, <code>authorizeAccess</code> on the parent, refuse a grandchild, copy <code>employee_id</code>, <code>type</code>, <code>project_id</code>, <code>timesheet_category_id</code>, force <code>status = todo</code>, <code>sort_order</code> = next under that parent. Return the child payload plus the parent's fresh card html.</li>
+  <li><code>show()</code>: payload gains <code>parent</code> (id, title) for a child, and <code>children</code> (id, title, status, due_label, first participant) for a parent.</li>
+  <li><code>move()</code>: for a child, status limited to todo/done, no <code>ids</code> reorder, response includes the parent's card html. For a parent, the done gate.</li>
+  <li><code>update()</code> / <code>destroy()</code>: authorise against the parent when the item is a child. <code>parent_id</code> is not editable (prohibited).</li>
+  <li><code>archive()</code> / <code>restore()</code>: cascade to children in the same transaction. Children cannot be archived on their own (422).</li>
+  <li>Remove <code>toggleSubtask()</code> and its route from the checklist build.</li>
+</ul>
+
+<h3>MCP</h3>
+<ul>
+  <li><code>CreateCardTool</code>: optional <code>parent_id</code>, same rules as <code>store()</code>.</li>
+  <li><code>MoveCardTool</code>: done gate on a parent, todo/done only on a child.</li>
+  <li><code>ArchiveCardTool</code> / <code>RestoreCardTool</code>: cascade, refuse a child.</li>
+  <li>The read tools that list cards keep listing parents only (the scope does that), and add <code>children</code> to a single card's detail.</li>
+</ul>
+
+<h3>Front end</h3>
+<ul>
+  <li><code>work-card.blade.php</code>: <code>wc--stack</code> class and <code>wc-sub</code> counter from <code>childSummary()</code>. Needs <code>children</code> loaded, add it to <code>cardHtml()</code>'s <code>loadMissing</code> and the board query's eager load.</li>
+  <li>New partial <code>partials/work-overview.blade.php</code> rendered inside the scrim, driven by <code>drawer.parent</code> / <code>drawer.children</code>. Used by both boards.</li>
+  <li><code>work-board.js</code>: <code>drawer.parent</code>, <code>drawer.children</code>, <code>openChild(id)</code>, <code>backToParent()</code>, <code>addChild(title)</code>, <code>tickChild(id)</code>. The 422 from the done gate already surfaces verbatim in <code>setStatus()</code> and <code>persistMove()</code>.</li>
+  <li><code>team-board.js</code>: same state, no write methods.</li>
+  <li>CSS: <code>.wc--stack</code>, <code>.wd-overview</code> and rows, child drawer's two-state toggle. Remove <code>.wd-sub-row</code> from the checklist build.</li>
+</ul>
+
+<h2>8. Not in scope</h2>
+<ul>
+  <li>Grandchildren.</li>
+  <li>Children in their own columns, or dragging a child between parents.</li>
+  <li>Children as their own timesheet rows, or on the calendar.</li>
+  <li>Converting an existing card into a child, or a child back into a parent.</li>
+  <li>Reordering children by drag. They keep creation order. Add when someone asks.</li>
+</ul>
+
+<h2>9. Testing</h2>
+<ul>
+  <li><code>tests/Feature/WorkItemChildTest.php</code> replaces <code>WorkItemSubtaskTest.php</code>: create as owner and as participant, stranger 403, grandchild 422, employee_id and project copied, child hidden from the board query and from counts, tick via move, done gate 422 and success, parent archive cascades, child archive refused, delete cascades, participant cannot rename, route binding resolves a child, child never gets a stint or a calendar job.</li>
+  <li><code>WorkItemCardHtmlTest</code>: stack class and counter.</li>
+  <li><code>AmanahkuWriteToolsTest</code>: create with parent, move gate, archive cascade.</li>
+  <li><code>BoardSuggestionsTest</code>: note prefilled with your children ticked that day, not with another person's, not with ones ticked on another day, unassigned child goes to the owner, empty note when nothing ticked, saved row's note untouched by a later tick.</li>
+  <li>Existing board, dashboard, timesheet suggestion and nav tests stay green, which is the proof the global scope covers the query sites.</li>
+</ul>
+
+</main>
+</body>
+</html>

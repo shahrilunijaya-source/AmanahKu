@@ -1,6 +1,8 @@
 import Alpine from 'alpinejs';
 import Sortable from 'sortablejs';
 import './passkeys';
+import { registerAppearanceCard } from './appearance-card';
+import { registerDarkSurfaces } from './dark-surfaces';
 import { registerDashboardWidgets } from './dashboard-widgets';
 import { registerTicketAttach } from './ticket-attach';
 import { registerMapPicker } from './map-picker';
@@ -51,6 +53,7 @@ window.addEventListener('vite:preloadError', (event) => {
 // itself on first use instead of taxing every page's bundle.
 // First, so a fault thrown while any of the registrations below run is still reported.
 registerSentry();
+registerDarkSurfaces();
 registerTicketAttach(Alpine);
 registerMapPicker(Alpine);
 registerMapView(Alpine);
@@ -58,6 +61,7 @@ registerNotifier(Alpine);
 registerOrgChart(Alpine);
 registerPartialNav();
 registerPasskeyManager(Alpine);
+registerAppearanceCard(Alpine);
 registerRolesAdmin(Alpine);
 registerSidebarRail(Alpine);
 registerTeamBoard(Alpine);

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Custom backgrounds design, 2026-09-03</title>
+<style>
+  :root {
+    --ink:#26251e; --body:#5a5852; --muted:#6f6c61; --muted-soft:#8b887e;
+    --hairline:#e6e5e0; --hairline-soft:#efeee8; --canvas:#f6f6f3; --card:#fff;
+    --shelf:#ece9e1; --shelf-line:#ddd9cf; --red:#d6232b; --red-tint:#fcebec; --info:#3a6ea5;
+    --success:#1f8a65; --success-ink:#14614a; --amber:#c08532; --sidebar:#211f1b;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.55 Poppins, system-ui, sans-serif; color:var(--ink); background:var(--canvas); }
+  main { max-width:1040px; margin:0 auto; padding:40px 24px 90px; }
+  h1 { font-size:26px; margin:0 0 4px; letter-spacing:-0.02em; }
+  h2 { font-size:17px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--hairline); }
+  h3 { font-size:14px; margin:22px 0 6px; }
+  p, li { color:var(--body); }
+  .meta { color:var(--muted); font-size:12px; margin-bottom:24px; }
+  code { font:12px/1.4 'JetBrains Mono', ui-monospace, monospace; background:var(--shelf); padding:1px 5px; border-radius:4px; }
+  pre { background:var(--shelf); padding:12px 14px; border-radius:8px; overflow-x:auto; font-size:12px; line-height:1.5; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  .callout { background:#fff; border:1px solid var(--hairline); padding:10px 14px; border-radius:8px; margin:14px 0; }
+  .ask { border-color:var(--amber); background:#fffaf1; }
+  .ask b { color:#7a5210; }
+  .cap { font-size:11px; color:var(--muted); padding:6px 12px; border-bottom:1px solid var(--hairline); background:#fff; }
+  .mock { border:1px solid var(--hairline); border-radius:12px; overflow:hidden; margin:16px 0 8px; background:var(--canvas); }
+  .num { font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+
+  /* ── Shell mock (wallpaper) ── */
+  .shell { display:flex; height:440px; position:relative; overflow:hidden; }
+  .sb { width:196px; flex:none; background:var(--sidebar); color:#b8b6ad; padding:16px 12px; font-size:12px; position:relative; z-index:3; }
+  .sb .brand { color:#fff; font-weight:600; font-size:13px; margin-bottom:18px; }
+  .sb .row { padding:7px 10px; border-radius:7px; margin-bottom:2px; }
+  .sb .row.on { color:#fff; background:#2b2a25; }
+  .sb .row.on::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--red); margin-right:8px; vertical-align:middle; }
+  .stage { flex:1; position:relative; min-width:0; overflow:hidden; }
+  /* the wallpaper: one fixed layer, one dim layer on top */
+  .wall { position:absolute; inset:0; z-index:0;
+    background:
+      radial-gradient(60% 45% at 20% 15%, rgba(255,214,170,.85), transparent 60%),
+      radial-gradient(50% 60% at 85% 20%, rgba(150,190,220,.9), transparent 62%),
+      radial-gradient(70% 55% at 55% 100%, rgba(58,110,165,.75), transparent 65%),
+      linear-gradient(180deg, #e9d8c4 0%, #b7c9d9 55%, #45678b 100%);
+  }
+  .wall::after { content:""; position:absolute; inset:0; background:color-mix(in srgb, var(--canvas) 30%, transparent); }
+  .wall--strong::after { background:color-mix(in srgb, var(--canvas) 55%, transparent); }
+  .hd { position:absolute; top:0; left:0; right:0; height:48px; z-index:2; display:flex; align-items:center; gap:10px; padding:0 18px;
+        background:color-mix(in srgb, var(--canvas) 72%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .hd .srch { flex:1; max-width:300px; height:30px; border:1px solid var(--hairline); border-radius:8px; background:#fff; font-size:11px; color:var(--muted); display:flex; align-items:center; padding:0 10px; }
+  .hd .av { width:26px; height:26px; border-radius:50%; background:var(--info); color:#fff; font-size:10px; font-weight:600; display:flex; align-items:center; justify-content:center; margin-left:auto; }
+  .hd-fade { position:absolute; top:48px; left:0; right:0; height:22px; z-index:1; pointer-events:none;
+        background:linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 60%, transparent), transparent);
+        mask-image:linear-gradient(to bottom,#000,rgba(0,0,0,.5) 50%,transparent); -webkit-mask-image:linear-gradient(to bottom,#000,rgba(0,0,0,.5) 50%,transparent); }
+  .pg { position:absolute; inset:0; z-index:1; padding:66px 24px 0; max-width:640px; margin:0 auto; }
+  /* the one thing that changes on a wallpaper: text that sits on the canvas gets a paper backplate */
+  .plate { display:inline-block; padding:8px 12px 9px; border-radius:10px; margin-left:-12px;
+        background:color-mix(in srgb, var(--canvas) 74%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .plate h4 { display:block; margin:0; font-size:20px; font-weight:500; letter-spacing:-0.025em; }
+  .plate p { display:block; margin:2px 0 0; font-size:12px; color:var(--body); }
+  .cards { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:16px; }
+  .c { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:14px; font-size:12px; }
+  .c .l { color:var(--muted); font-size:11px; margin-bottom:3px; }
+  .c .v { font:600 22px/1.1 'JetBrains Mono', ui-monospace, monospace; letter-spacing:-0.02em; }
+  .c.wide { grid-column:1 / -1; }
+  .c .rowl { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--hairline-soft); }
+  .c .rowl:last-child { border-bottom:0; }
+  .stamp { font-size:10px; font-weight:600; color:var(--success-ink); background:var(--hairline-soft); border-radius:6px; padding:2px 7px; }
+
+  /* ── Appearance card mock ── */
+  .app { padding:22px; max-width:620px; margin:0 auto; }
+  .card { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:22px; }
+  .card h4 { margin:0 0 3px; font-size:16px; font-weight:600; }
+  .card .sub { color:var(--muted); font-size:12.5px; margin:0 0 16px; }
+  .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  .tile { aspect-ratio:4/3; border-radius:9px; border:1px solid var(--hairline); position:relative; overflow:hidden; cursor:pointer;
+        transition:transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out); }
+  .tile:active { transform:scale(.97); }
+  .tile.on { outline:2px solid var(--red); outline-offset:2px; }
+  .tile.on::after { content:"✓"; position:absolute; right:6px; top:6px; width:18px; height:18px; border-radius:50%; background:var(--red); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; }
+  .tile .nm { position:absolute; left:8px; bottom:6px; font-size:10.5px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+  .tile.none { background:var(--canvas); }
+  .tile.none .nm { color:var(--ink); text-shadow:none; }
+  .tile.up { background:#fff; border-style:dashed; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--muted); font-size:11px; }
+  .tile.up b { font-size:18px; font-weight:400; color:var(--ink); line-height:1; }
+  .t-dawn { background:linear-gradient(160deg,#f7d9c4 0%,#e9b7a8 45%,#8fa9c9 100%); }
+  .t-dusk { background:linear-gradient(160deg,#2f3f5c 0%,#6b5b7b 55%,#d78f6a 100%); }
+  .t-paper { background:radial-gradient(70% 70% at 30% 20%, #fff 0%, #ece9e1 60%, #ddd9cf 100%); }
+  .t-moss { background:linear-gradient(160deg,#dfe8d6 0%,#9fb59a 55%,#4d6b55 100%); }
+  .t-slate { background:linear-gradient(160deg,#3a3f4a 0%,#5b6470 55%,#a9b1bb 100%); }
+  .t-sand { background:linear-gradient(160deg,#f3e6cf 0%,#d9bf98 55%,#8d6f4c 100%); }
+  .t-photo { background:
+      radial-gradient(60% 45% at 20% 15%, rgba(255,214,170,.85), transparent 60%),
+      radial-gradient(50% 60% at 85% 20%, rgba(150,190,220,.9), transparent 62%),
+      linear-gradient(180deg, #e9d8c4 0%, #b7c9d9 55%, #45678b 100%); }
+  .ctl { display:flex; align-items:center; gap:14px; margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline-soft); font-size:12.5px; }
+  .ctl .lab { color:var(--muted); }
+  .seg { display:flex; background:var(--hairline-soft); border:1px solid var(--hairline); border-radius:9px; padding:3px; gap:2px; }
+  .seg span { height:26px; padding:0 11px; display:inline-flex; align-items:center; border-radius:7px; font-size:12px; font-weight:500; color:var(--muted); }
+  .seg span.on { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(38,37,30,.08); }
+  .btn { height:34px; padding:0 14px; border-radius:7px; font-size:12.5px; font-weight:500; display:inline-flex; align-items:center; border:1px solid var(--hairline); background:#fff; color:var(--ink); }
+  .btn.pri { background:var(--red); color:#fff; border-color:var(--red); }
+  .btn.quiet { border:0; color:var(--muted); }
+
+  /* ── Profile cover mock ── */
+  .prof { position:relative; padding:0 0 22px; max-width:760px; margin:0 auto; }
+  .cover { position:relative; height:200px; overflow:hidden; border-radius:0 0 2px 2px; }
+  .cover .img, .cover .img-blur { position:absolute; inset:0; background:
+      radial-gradient(55% 60% at 70% 30%, rgba(255,235,205,.9), transparent 60%),
+      radial-gradient(60% 50% at 20% 80%, rgba(80,120,150,.9), transparent 65%),
+      linear-gradient(180deg,#d9c3a7 0%,#9db2c4 50%,#3f5f7f 100%); }
+  /* sharp layer fades out from 45% down; blurred copy fades IN over the same run, then both fade to canvas */
+  .cover .img { mask-image:linear-gradient(to bottom,#000 35%,transparent 80%); -webkit-mask-image:linear-gradient(to bottom,#000 35%,transparent 80%); }
+  .cover .img-blur { filter:blur(18px); transform:scale(1.08);
+      mask-image:linear-gradient(to bottom,transparent 30%,#000 60%,transparent 88%); -webkit-mask-image:linear-gradient(to bottom,transparent 30%,#000 60%,transparent 88%); }
+  .cover .chg { position:absolute; right:14px; top:14px; height:30px; padding:0 11px; border-radius:7px; font-size:11.5px; font-weight:500; display:inline-flex; align-items:center; gap:6px;
+      background:color-mix(in srgb, var(--canvas) 78%, transparent); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:var(--ink); border:1px solid rgba(255,255,255,.5); }
+  .ident { position:relative; z-index:1; margin:-64px 24px 0; background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:22px; display:flex; gap:18px; align-items:center;
+      box-shadow:0 8px 24px -12px rgba(38,37,30,.28); }
+  .ident .avt { width:72px; height:72px; border-radius:50%; background:var(--info); color:#fff; font-size:24px; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none;
+      box-shadow:0 0 0 4px #fff; }
+  .ident h4 { margin:0; font-size:19px; font-weight:600; display:flex; align-items:center; gap:10px; }
+  .ident .st { font-size:11px; font-weight:600; color:var(--success); background:var(--canvas); padding:3px 11px; border-radius:999px; }
+  .ident p { margin:4px 0 0; font-size:13px; color:var(--muted); }
+  .ident .acts { margin-left:auto; display:flex; gap:8px; }
+  .below { margin:16px 24px 0; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .below .c { font-size:12px; }
+  /* mobile */
+  .m { width:300px; margin:0 auto; border:1px solid var(--hairline); border-radius:22px; overflow:hidden; background:var(--canvas); }
+  .m .cover { height:150px; }
+  .m .ident { margin:-54px 14px 0; padding:16px; flex-direction:column; text-align:center; gap:10px; }
+  .m .ident .acts { margin:0; }
+  .m .ident h4 { justify-content:center; flex-wrap:wrap; }
+  .m .cover .chg { right:10px; top:10px; }
+  .m .below { grid-template-columns:1fr; margin:12px 14px 16px; }
+
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:760px) { .two, .cards, .grid { grid-template-columns:1fr 1fr; } .shell { height:auto; flex-direction:column; } .sb { display:none; } .stage { height:420px; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Custom backgrounds</h1>
+<div class="meta">Design spec · 2026-09-03 · branch <code>worktree-custom-backgrounds</code> · status: awaiting Shazwan's review</div>
+
+<p>Two things. A <b>workspace background</b> (the Gmail theme idea): the paper canvas behind every screen becomes an image the signed-in person picked, seen only by them. A <b>profile cover</b>: a picture across the top of one person's profile page, seen by everyone who opens that profile, which fades and blurs out into the page instead of filling it.</p>
+
+<h2>1. What I understood (please confirm)</h2>
+
+<table>
+<tr><th style="width:170px">Feature</th><th>Workspace background</th><th>Profile cover</th></tr>
+<tr><td>What it is</td><td>Full-page wallpaper behind the cards, like Gmail themes.</td><td>Banner at the top of the profile page only. Not full page.</td></tr>
+<tr><td>Who sets it</td><td>Each person, for themselves.</td><td>The employee, on their own profile. HR can remove any cover.</td></tr>
+<tr><td>Who sees it</td><td>Only the person who set it. Nobody else's screen changes.</td><td>Everyone who views that profile, including the slim card a restricted viewer gets.</td></tr>
+<tr><td>Where it shows</td><td>Every app screen: dashboard, boards, timesheets, all of it. Not the login page, not the wizard, not embedded panels.</td><td>Profile screen only. Not the directory tile, not the org chart, not the header avatar.</td></tr>
+<tr><td>Source</td><td>Six built-in presets, or upload your own photo.</td><td>Upload your own photo only. No presets.</td></tr>
+<tr><td>Bottom edge</td><td>n/a, fills the viewport.</td><td>Sharp at the top. From roughly 40% down it blurs, and from 70% down it fades, so by the bottom it is plain canvas. The identity card overlaps it.</td></tr>
+</table>
+
+<div class="callout ask"><b>Assumptions I made without asking.</b> These are the ones that change the work if wrong.
+<ol style="margin:6px 0 0;padding-left:18px;">
+  <li>The cover is <b>public inside the company</b>. Anyone who can open the profile sees it. If covers should be visible only to the owner, the profile cover becomes a personal decoration and the spec shrinks to one column.</li>
+  <li>The workspace background lives in <b>Account &amp; security</b> as a new "Appearance" card, with a shortcut in the account menu. There is no personal settings page today, and that screen is the only one that is about <i>you</i> rather than the company.</li>
+  <li>Cards stay <b>opaque white</b> on a wallpaper. Only the header and text that sits directly on the canvas get a frosted paper backplate. Making cards translucent would hurt the ledger's readability everywhere for a decoration.</li>
+  <li><b>No tenant on/off switch.</b> Both are personal choices, they change nothing for anyone else, and a switch in the Features card can be added in an hour if a client asks.</li>
+  <li>Presets are <b>CSS gradients</b>, not photos. No image files to license, nothing to ship in <code>public/</code>, and they load instantly. Real photos can replace them later without touching the data model.</li>
+</ol></div>
+
+<h2>2. Workspace background</h2>
+
+<p>The shell keeps its shape. The dark sidebar is untouched: it is the one heavy element and stays the anchor. The header stops being opaque canvas and becomes a frosted band so the picture reads through it (this is the Gmail move). Cards stay white. The page title and any subline that sits on bare canvas get a translucent paper backplate so ink never sits on a photograph.</p>
+
+<div class="mock">
+  <div class="cap">Dashboard with the "Dawn" preset and Dim: Soft. Sidebar unchanged, header frosted, cards opaque, title on a paper backplate.</div>
+  <div class="shell">
+    <div class="sb">
+      <div class="brand">Amanahku</div>
+      <div class="row on">Dashboard</div>
+      <div class="row">Attendance</div>
+      <div class="row">Timesheets</div>
+      <div class="row">Leave</div>
+      <div class="row">Claims</div>
+      <div class="row">Board</div>
+      <div class="row">Directory</div>
+    </div>
+    <div class="stage">
+      <div class="wall"></div>
+      <div class="hd"><span style="font-size:12px;color:var(--muted);">☰</span><div class="srch">Search people…</div><div class="av">SS</div></div>
+      <div class="hd-fade"></div>
+      <div class="pg">
+        <div class="plate"><h4>Good morning, Shazwan</h4><p>Wednesday 3 September · Week 36</p></div>
+        <div class="cards">
+          <div class="c"><div class="l">Clocked in</div><div class="v">08:52</div></div>
+          <div class="c"><div class="l">Timesheet this week</div><div class="v">62%</div></div>
+          <div class="c"><div class="l">Leave balance</div><div class="v">11.5</div></div>
+          <div class="c wide">
+            <div class="rowl"><span>Leave request · 8 Sep</span><span class="stamp">Verified</span></div>
+            <div class="rowl"><span>Claim · Parking, RM 24.00</span><span class="stamp" style="color:#7a5210">Pending</span></div>
+            <div class="rowl"><span>Board · 2.0 Release - dark mode</span><span class="num" style="color:var(--muted)">1/3</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="two" style="margin-top:14px;">
+  <div class="mock">
+    <div class="cap">Same screen, Dim: Strong. For busy photos.</div>
+    <div class="shell" style="height:230px;">
+      <div class="stage">
+        <div class="wall wall--strong"></div>
+        <div class="hd"><div class="srch">Search people…</div><div class="av">SS</div></div>
+        <div class="hd-fade"></div>
+        <div class="pg" style="padding-top:60px;">
+          <div class="plate"><h4>Good morning, Shazwan</h4><p>Wednesday 3 September</p></div>
+          <div class="cards" style="grid-template-columns:1fr 1fr;"><div class="c"><div class="l">Clocked in</div><div class="v">08:52</div></div><div class="c"><div class="l">Timesheet</div><div class="v">62%</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mock">
+    <div class="cap">No background (today's default). Nothing changes for anyone who never touches this.</div>
+    <div class="shell" style="height:230px;">
+      <div class="stage">
+        <div class="hd" style="background:var(--canvas);backdrop-filter:none;"><div class="srch">Search people…</div><div class="av">SS</div></div>
+        <div class="hd-fade"></div>
+        <div class="pg" style="padding-top:60px;">
+          <div class="plate" style="background:none;backdrop-filter:none;"><h4>Good morning, Shazwan</h4><p>Wednesday 3 September</p></div>
+          <div class="cards" style="grid-template-columns:1fr 1fr;"><div class="c"><div class="l">Clocked in</div><div class="v">08:52</div></div><div class="c"><div class="l">Timesheet</div><div class="v">62%</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>How the layers stack</h3>
+<pre>body.uj-has-wallpaper
+  .uj-wallpaper        position:fixed; inset:0; z-index:0; background-image:url(…) | preset gradient
+                       background-size:cover; background-position:center
+  .uj-wallpaper::after  the dim: canvas at 30% (soft) or 55% (strong) over the image
+  .uj-sidebar          unchanged, z-index above the wallpaper
+  .uj-header           background: color-mix(in srgb, var(--canvas) 72%, transparent) + blur(14px) inline
+  .uj-hd-fade          unchanged
+  .uj-head-stack       gets .uj-plate on the title block: canvas 74% + blur(14px), radius 10px
+  .uj-card             unchanged, opaque white</pre>
+<p>Only three rules change when a wallpaper is on, all scoped under <code>body.uj-has-wallpaper</code>: the wallpaper layer, the header background, the title backplate. Nothing moves; no screen needs editing. The blur goes inline the way <code>.uj-hd-fade</code> already does, because Lightning CSS drops the unprefixed <code>backdrop-filter</code> (see the comment in app.css).</p>
+<p>Mobile: the wallpaper is <code>position:fixed</code> so it does not repaint on scroll. The dock at the bottom stays opaque. Under 520px the dim steps up one level automatically, because small screens have less card and more bare canvas showing.</p>
+
+<h3>Choosing it: the Appearance card</h3>
+
+<div class="mock">
+  <div class="cap">Account &amp; security, new card between "Passkeys" and "AI access key". Picking a tile saves immediately (no Save button); the page behind updates in place.</div>
+  <div class="app">
+    <div class="card">
+      <h4>Appearance</h4>
+      <p class="sub">A background for your workspace. Only you see it.</p>
+      <div class="grid">
+        <div class="tile none"><span class="nm">None</span></div>
+        <div class="tile t-dawn on"><span class="nm">Dawn</span></div>
+        <div class="tile t-dusk"><span class="nm">Dusk</span></div>
+        <div class="tile t-paper"><span class="nm">Paper</span></div>
+        <div class="tile t-moss"><span class="nm">Moss</span></div>
+        <div class="tile t-slate"><span class="nm">Slate</span></div>
+        <div class="tile t-sand"><span class="nm">Sand</span></div>
+        <div class="tile up"><b>+</b>Upload photo</div>
+      </div>
+      <div class="ctl">
+        <span class="lab">Dim</span>
+        <div class="seg"><span>None</span><span class="on">Soft</span><span>Strong</span></div>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted-soft);">JPEG, PNG or WebP · up to 5 MB</span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <h4 style="font-size:14px;">Same card after an upload</h4>
+      <div class="grid" style="margin-top:10px;">
+        <div class="tile none"><span class="nm">None</span></div>
+        <div class="tile t-photo on"><span class="nm">Your photo</span></div>
+        <div class="tile t-dawn"><span class="nm">Dawn</span></div>
+        <div class="tile t-dusk"><span class="nm">Dusk</span></div>
+      </div>
+      <div class="ctl"><span class="lab">Dim</span><div class="seg"><span>None</span><span>Soft</span><span class="on">Strong</span></div><span class="btn quiet" style="margin-left:auto;">Remove photo</span></div>
+    </div>
+  </div>
+</div>
+
+<ul>
+  <li><b>Selecting is saving.</b> One click per tile, one POST, the wallpaper behind the card swaps at once. A form with a Save button would make people pick, scroll, save, scroll back to compare. Gmail does the same.</li>
+  <li><b>Upload replaces the previous upload</b> and becomes the selected tile. One personal photo per account, not a gallery. Picking a preset afterwards keeps the photo tile so they can switch back without re-uploading.</li>
+  <li><b>Dim</b> is the only knob. It exists because a bright photo behind a page of leave rows is unreadable, and because a single value would be wrong for half the photos. None / Soft / Strong, default Soft.</li>
+  <li><b>Account menu</b> gets one row, "Background", under "My profile", linking to this card. Discovery, nothing more.</li>
+</ul>
+
+<h2>3. Profile cover</h2>
+
+<p><i>Revised 2026-09-03 after review: the cover is a full-width backdrop from the top of the main area that fades into the wallpaper, not a boxed image; the page title has no plate. The mockup below predates this.</i></p>
+
+<p>The cover is not a hero. It is a strip of colour and place at the top of a person's record that dissolves into the ledger below. The sharp image holds the top 40%. Over the next 30% a blurred copy of the same image takes over. From 70% down everything fades to canvas. The identity card rides up over the lower third with a soft shadow, so it reads as sitting on top of the picture rather than under it.</p>
+
+<div class="mock">
+  <div class="cap">Profile, own record, desktop. The cover is 200px tall. "Change cover" shows for the owner and for HR (as "Remove cover"). The rest of the page is exactly as it is today.</div>
+  <div class="prof">
+    <div class="cover">
+      <div class="img-blur"></div>
+      <div class="img"></div>
+      <span class="chg">✎ Change cover</span>
+    </div>
+    <div class="ident">
+      <div class="avt">SS</div>
+      <div>
+        <h4>Shazwan Shah <span class="st">Active</span></h4>
+        <p>Software Developer</p>
+        <p style="font-size:12px;">Technology · HQ</p>
+        <p style="font-size:12px;margin-top:8px;">Staff ID: <span class="num" style="color:var(--ink)">UR-0042</span> &nbsp;&nbsp; Joined: <span class="num" style="color:var(--ink)">02 Jan 2025</span></p>
+      </div>
+      <div class="acts"><span class="btn">Edit</span><span class="btn">Org chart</span></div>
+    </div>
+    <div class="below">
+      <div class="c"><div class="l">Leave balance</div><div class="v">11.5</div></div>
+      <div class="c"><div class="l">KPI progress</div><div class="v">68%</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="two" style="margin-top:14px;">
+  <div class="mock">
+    <div class="cap">No cover set, viewed by the owner: a thin dashed invitation, not an empty grey block.</div>
+    <div class="prof" style="padding-top:18px;">
+      <div style="margin:0 24px;height:64px;border:1px dashed var(--shelf-line);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--muted);">+ Add a cover photo</div>
+      <div class="ident" style="margin-top:12px;box-shadow:none;">
+        <div class="avt" style="box-shadow:none;">SS</div>
+        <div><h4>Shazwan Shah <span class="st">Active</span></h4><p>Software Developer</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="mock">
+    <div class="cap">Phone. Cover 150px, card centred, control stays reachable.</div>
+    <div style="padding:16px 0;">
+      <div class="m">
+        <div class="cover"><div class="img-blur"></div><div class="img"></div><span class="chg">✎</span></div>
+        <div class="ident">
+          <div class="avt">SS</div>
+          <div><h4>Shazwan Shah</h4><p>Software Developer</p><p style="font-size:12px;">Technology · HQ</p></div>
+          <div class="acts"><span class="btn">Message</span><span class="btn">Org chart</span></div>
+        </div>
+        <div class="below"><div class="c"><div class="l">Leave balance</div><div class="v">11.5</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>The fade, exactly</h3>
+<pre>.uj-cover            position:relative; height:200px (150px ≤ 640px); overflow:hidden
+.uj-cover-img        the photo, object-fit:cover, object-position:center
+                     mask: linear-gradient(to bottom, #000 35%, transparent 80%)
+.uj-cover-blur       same photo, filter:blur(18px), transform:scale(1.08) to hide blurred edges
+                     mask: linear-gradient(to bottom, transparent 30%, #000 60%, transparent 88%)
+                     (both reach fully transparent before the box ends, so there is never a hard bottom edge)
+.uj-cover-change     top-right; canvas 78% + blur(10px) pill; owner and HR only
+identity .uj-card    margin-top:-64px (−54px on phones); shadow 0 8px 24px -12px rgba(38,37,30,.28)
+avatar               4px white ring so the initials disc separates from the photo</pre>
+<p>Two copies of one image, two masks. No JavaScript, no canvas work, and the blur is a <code>filter</code> on an element (not a <code>backdrop-filter</code>) so the Lightning CSS problem does not apply. The blurred copy is also what makes the fade look like depth rather than a gradient sticker: as the sharp image thins out the soft one carries the colour down, then lets go.</p>
+
+<ul>
+  <li><b>Who sees the control.</b> Owner: "Change cover" (upload replaces). Owner with a cover: also "Remove". HR on someone else's profile: "Remove cover" only, for moderation. Anyone else: no control, no hint.</li>
+  <li><b>Restricted viewers</b> (the slim card) get the cover on top of that card at 120px. It is part of who the person is, like their name.</li>
+  <li><b>No cropping tool.</b> Centre crop, 2000px max edge after compression. A vertical focal-point picker is the first upgrade if people complain heads get cut off; the column for it (<code>cover_focus</code>, 0–100) is deliberately not added now.</li>
+</ul>
+
+<h2>4. Decisions I made silently</h2>
+<table>
+<tr><th style="width:230px">Decision</th><th>Chosen</th><th>Why</th></tr>
+<tr><td>Where the user preference lives</td><td>New <code>users.appearance</code> json column, cast to array: <code>{"wallpaper": "preset:dawn" | "upload", "wallpaper_path": "…", "dim": "soft"}</code></td><td>Mirrors <code>users.dashboard_prefs</code>. One column, one migration, room for a future theme key without another migration.</td></tr>
+<tr><td>Where the cover lives</td><td>New <code>employees.cover_path</code> string, nullable</td><td>The cover belongs to the employee record (what others see), not the login (what you see). <code>employees.photo</code> already exists but is unused and named for an avatar; leaving it alone avoids a future collision.</td></tr>
+<tr><td>Storage disk</td><td><code>public</code> disk, <code>wallpapers/{user}/…</code> and <code>covers/{employee}/…</code>, hashed filenames</td><td>Same as the tenant logo (<code>AdminController</code>). Served by the web server, no PHP per image. Filenames are unguessable; a background is not a payslip.</td></tr>
+<tr><td>Image limits</td><td>jpeg/png/webp, 5 MB, then <code>ImageCompressor::compress</code> (2000px max edge, q82)</td><td>Existing helper, existing rule set from the knowledge bank uploads.</td></tr>
+<tr><td>Replace deletes old file</td><td>Yes, on upload and on Remove</td><td>Shared hosting disk is finite; nothing references the old file.</td></tr>
+<tr><td>Wallpaper on login and wizard</td><td>No</td><td>Not signed in on one, not settled in on the other.</td></tr>
+<tr><td>Embedded panels (<code>$embed</code>)</td><td>No wallpaper</td><td>They already sit inside a card on the parent screen.</td></tr>
+<tr><td>Dark text on light photos</td><td>Handled by the backplate and dim, not by switching the type to white</td><td>One ink colour system-wide is the design; the plate keeps that true.</td></tr>
+<tr><td>Preset set</td><td>Six gradients: Dawn, Dusk, Paper, Moss, Slate, Sand</td><td>Warm and cool, light and dark, one that is barely a change (Paper) for people who want texture without a picture.</td></tr>
+</table>
+
+<h2>5. Data, routes, permissions</h2>
+
+<h3>Migrations</h3>
+<pre>users:      appearance json nullable, after dashboard_prefs
+employees:  cover_path string(200) nullable, after photo</pre>
+
+<h3>Routes (inside the existing authed <code>/app</code> group)</h3>
+<table>
+<tr><th>Method · path</th><th>Name</th><th>Does</th><th>Who</th></tr>
+<tr><td><code>POST /app/account/appearance</code></td><td><code>account.appearance</code></td><td>Fields: <code>wallpaper</code> (none | preset:&lt;key&gt; | upload), <code>dim</code> (none | soft | strong), optional file <code>photo</code>. Saves, returns 204 for fetch or redirects back.</td><td>Any signed-in user, own row only</td></tr>
+<tr><td><code>POST /app/account/appearance/photo/delete</code></td><td><code>account.appearance.photo.destroy</code></td><td>Deletes the upload, falls back to <code>wallpaper: none</code> if it was selected.</td><td>Same</td></tr>
+<tr><td><code>POST /app/employees/{employee}/cover</code></td><td><code>employees.cover.update</code></td><td>Upload replaces cover.</td><td>Owner only</td></tr>
+<tr><td><code>POST /app/employees/{employee}/cover/delete</code></td><td><code>employees.cover.destroy</code></td><td>Removes cover and file.</td><td>Owner, or anyone who passes the profile's existing <code>$canEdit</code></td></tr>
+</table>
+<div class="callout"><b>Tenant check is explicit.</b> Route-model binding is not tenant-scoped here (SubstituteBindings runs before ResolveTenant). Both cover routes <code>abort_unless($employee->tenant_id === $tenant->id, 404)</code> before anything else, same as the other employee routes.</div>
+
+<h3>Rendering</h3>
+<ul>
+  <li><code>layouts/app.blade.php</code> reads <code>auth()->user()->appearance</code>, sets <code>uj-has-wallpaper</code> on the shell and renders the <code>.uj-wallpaper</code> div with an inline <code>background-image</code> (upload URL or preset gradient from <code>config/amanahku.php</code> → <code>wallpaper_presets</code>). Server-rendered, so no flash of plain canvas.</li>
+  <li><code>screens/profile.blade.php</code> renders the cover block above the identity band when <code>$p->cover_path</code> is set, or the dashed invitation when <code>$isOwn</code> and nothing is set.</li>
+  <li>Appearance card in <code>screens/security.blade.php</code>. Tile clicks POST via fetch and swap the wallpaper div's inline style in place; the file input submits the same way. No full-page reload.</li>
+</ul>
+
+<h2>6. Motion</h2>
+<table>
+<tr><th style="width:230px">Moment</th><th>What</th><th>Values</th></tr>
+<tr><td>Tile press</td><td>Scale down on press, back on release</td><td><code>transform 160ms cubic-bezier(.23,1,.32,1)</code>, <code>scale(.97)</code></td></tr>
+<tr><td>Wallpaper swap after a pick</td><td>Crossfade with a touch of blur so the two pictures do not read as two objects</td><td>opacity + <code>filter: blur(6px)</code> for 220ms ease-out on the wallpaper layer, then clear</td></tr>
+<tr><td>Cover upload finishing</td><td>New cover fades in over the old, same blur trick</td><td>220ms ease-out</td></tr>
+<tr><td>Page load</td><td>Nothing. The wallpaper is in the first paint.</td><td>Animating it would make every page open feel slower.</td></tr>
+<tr><td>Reduced motion</td><td>Keep the opacity crossfades, drop the blur and the scale</td><td><code>@media (prefers-reduced-motion: reduce)</code></td></tr>
+</table>
+
+<h2>7. Tests</h2>
+<ul>
+  <li><b>AppearanceTest</b>: preset saves; unknown preset rejected (422); dim saves; upload stores under <code>wallpapers/{user}</code>, replaces and deletes the previous file, sets <code>wallpaper: upload</code>; delete-photo removes file and resets selection; oversize and non-image rejected; the layout renders <code>uj-has-wallpaper</code> and the URL for a user with a wallpaper, and not for one without; embed and login render none.</li>
+  <li><b>ProfileCoverTest</b>: owner uploads, cover renders on own profile and on a colleague's view and on the slim card; other employee cannot upload (403); HR can remove someone else's cover; other tenant's employee id returns 404; remove deletes the file; invitation shows only to the owner with no cover.</li>
+  <li>Storage faked with <code>Storage::fake('public')</code> throughout.</li>
+</ul>
+
+<h2>8. Not in this round</h2>
+<ul>
+  <li>Photo presets (needs licensed images). Data model already fits them.</li>
+  <li>Focal-point / crop tool for the cover.</li>
+  <li>Tenant switch to disable backgrounds.</li>
+  <li>Dark theme. "Appearance" is named so it can hold that later, but it is a separate spec.</li>
+  <li>Text or vignette options beyond Dim.</li>
+</ul>
+
+</main>
+</body>
+</html>

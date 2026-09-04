@@ -125,6 +125,82 @@
     </div>
     @endif
 
+    @php
+        $ap = auth()->user()->appearance ?? [];
+        $apChoice = $ap['wallpaper'] ?? 'none';
+        $apPath = $ap['wallpaper_path'] ?? null;
+        $apUrl = $apPath ? \Illuminate\Support\Facades\Storage::disk('public')->url($apPath) : null;
+    @endphp
+    {{-- Personal workspace wallpaper. Picking a tile saves at once and swaps the
+         wallpaper behind this page in place; there is no Save button to scroll to. --}}
+    <div class="uj-card" id="appearance" style="padding:24px;"
+         x-data="appearanceCard({
+            url: @js(route('account.appearance')),
+            deleteUrl: @js(route('account.appearance.photo.destroy')),
+            choice: @js($apChoice),
+            dim: @js($ap['dim'] ?? 'soft'),
+            photoUrl: @js($apUrl),
+            photoLum: @js($ap['wallpaper_lum'] ?? null),
+            presets: @js(config('amanahku.wallpaper_presets')),
+            lums: @js(array_map(fn (string $css) => \App\Support\Tone::ofCss($css), config('amanahku.wallpaper_presets'))),
+            dims: @js(config('amanahku.wallpaper_dims')),
+            canvasLum: @js(\App\Support\Tone::CANVAS),
+            darkBelow: @js(\App\Support\Tone::DARK_BELOW),
+         })">
+        <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Appearance' : 'Penampilan'">Appearance</h3>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en' ? 'A background for your workspace. Only you see it.' : 'Latar belakang untuk ruang kerja anda. Hanya anda yang melihatnya.'">A background for your workspace. Only you see it.</p>
+
+        <div class="uj-wp-grid">
+            <button type="button" class="uj-wp-tile uj-wp-tile--none" data-wallpaper="none" :data-on="choice === 'none'" @click="pick('none')">
+                <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'">None</span>
+            </button>
+            {{-- Always rendered (not gated on an existing photo) so x-if stays
+                 reactive to a first-ever upload with no reload. data-wallpaper
+                 is Alpine-bound rather than a static attribute so the server
+                 HTML never literally contains data-wallpaper="upload" before
+                 an upload happens; it's a client-rendered marker only. --}}
+            <template x-if="photoUrl">
+                <button type="button" class="uj-wp-tile" :data-wallpaper="'upload'" :data-on="choice === 'upload'" :style="'background-image:url(' + photoUrl + ')'" @click="pick('upload')">
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? 'Your photo' : 'Foto anda'">Your photo</span>
+                </button>
+            </template>
+            @foreach (config('amanahku.wallpaper_presets') as $key => $css)
+                @php
+                    $presetNames = [
+                        'dawn' => ['Dawn', 'Subuh'],
+                        'dusk' => ['Dusk', 'Senja'],
+                        'paper' => ['Paper', 'Kertas'],
+                        'moss' => ['Moss', 'Lumut'],
+                        'slate' => ['Slate', 'Batu'],
+                        'sand' => ['Sand', 'Pasir'],
+                    ][$key] ?? [ucfirst($key), ucfirst($key)];
+                @endphp
+                <button type="button" class="uj-wp-tile" data-wallpaper="preset:{{ $key }}" :data-on="choice === 'preset:{{ $key }}'" style="background:{{ $css }};" @click="pick('preset:{{ $key }}')">
+                    <span class="uj-wp-name" x-text="$store.ui.lang==='en' ? '{{ $presetNames[0] }}' : '{{ $presetNames[1] }}'">{{ $presetNames[0] }}</span>
+                </button>
+            @endforeach
+            <label class="uj-wp-tile uj-wp-tile--upload">
+                <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" @change="upload($event)">
+                <b>+</b>
+                <span x-text="busy ? ($store.ui.lang==='en' ? 'Uploading…' : 'Memuat naik…') : ($store.ui.lang==='en' ? 'Upload photo' : 'Muat naik foto')">Upload photo</span>
+            </label>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--hairline-soft);font-size:12.5px;flex-wrap:wrap;">
+            <span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Dim' : 'Malap'">Dim</span>
+            <div class="uj-seg">
+                <button type="button" :data-on="dim === 'none'" @click="setDim('none')" x-text="$store.ui.lang==='en' ? 'None' : 'Tiada'">None</button>
+                <button type="button" :data-on="dim === 'soft'" @click="setDim('soft')" x-text="$store.ui.lang==='en' ? 'Soft' : 'Lembut'">Soft</button>
+                <button type="button" :data-on="dim === 'strong'" @click="setDim('strong')" x-text="$store.ui.lang==='en' ? 'Strong' : 'Kuat'">Strong</button>
+            </div>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--muted-soft);" x-show="!photoUrl" x-text="$store.ui.lang==='en' ? 'JPEG, PNG, WebP · 5 MB' : 'JPEG, PNG, WebP · 5 MB'">JPEG, PNG, WebP · 5 MB</span>
+            <button type="button" x-show="photoUrl" x-cloak class="uj-btn-ghost" style="margin-left:auto;height:32px;font-size:12px;padding:0 12px;border:0;color:var(--muted);" @click="removePhoto()">
+                <span x-text="$store.ui.lang==='en' ? 'Remove photo' : 'Buang foto'">Remove photo</span>
+            </button>
+            <p x-show="error" x-cloak x-text="error" style="flex-basis:100%;margin:0;color:var(--error);font-size:12px;"></p>
+        </div>
+    </div>
+
     <div class="uj-card" style="padding:24px;">
         <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'AI access key' : 'Kunci akses AI'">AI access key</h3>
         <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;" x-text="$store.ui.lang==='en'

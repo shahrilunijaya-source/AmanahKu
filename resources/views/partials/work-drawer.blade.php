@@ -29,7 +29,9 @@
          inside .tb-win-modal, which shares this same .wd-scrim/.wd shell for
          its OWN backdrop — without the modifier, the two would tie at the
          same z-index and stacking would depend on DOM order. --}}
-    <div class="wd-scrim @unless ($interactive) wd--over-modal @endunless" x-show="drawer.show" x-cloak :data-open="drawer.open ? '' : null" @click="closeDrawer()"></div>
+    <div class="wd-scrim @unless ($interactive) wd--over-modal @endunless" x-show="drawer.show" x-cloak :data-open="drawer.open ? '' : null" @click="closeDrawer()">
+        @include('partials.work-overview', ['interactive' => $interactive])
+    </div>
 
     <aside class="wd @unless ($interactive) wd--over-modal @endunless" x-show="drawer.show" x-cloak :data-open="drawer.open ? '' : null" x-ref="drawerEl"
            tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="wd-title"
@@ -37,11 +39,21 @@
 
         <div class="wd-head">
             @if ($interactive)
-                <div class="wd-seg" role="group" aria-label="Status">
+                <div class="wd-seg" role="group" aria-label="Status" x-show="!drawer.card.parent_id">
                     @foreach ($statusLabels as $sv => $sl)
                         <button type="button" :aria-pressed="drawer.card.status === '{{ $sv }}' ? 'true' : 'false'"
                                 :disabled="drawer.locked" @click="setStatus('{{ $sv }}')">{{ $sl }}</button>
                     @endforeach
+                </div>
+                {{-- A subtask is open or done. Ticking is access-wide (a participant may), so it
+                     is not disabled by drawer.locked: tickChild() goes through move, not update. --}}
+                <div class="wd-seg" role="group" aria-label="Status" x-show="drawer.card.parent_id" x-cloak>
+                    <button type="button" :aria-pressed="drawer.card.status !== 'done' ? 'true' : 'false'" @click="drawer.card.status === 'done' && tickChild(drawer.card)">
+                        <span x-text="$store.ui.lang==='en' ? 'Open' : 'Buka'"></span>
+                    </button>
+                    <button type="button" :aria-pressed="drawer.card.status === 'done' ? 'true' : 'false'" @click="drawer.card.status !== 'done' && tickChild(drawer.card)">
+                        <span x-text="$store.ui.lang==='en' ? 'Done' : 'Siap'"></span>
+                    </button>
                 </div>
                 <span class="wd-saved" :data-on="drawer.saved ? '' : null">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -53,7 +65,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div class="wd-menu" x-show="drawer.menuOpen" x-cloak @click.outside="drawer.menuOpen = false" role="menu">
-                        <button type="button" role="menuitem" x-show="!drawer.locked && drawer.card.status === 'done'" @click="drawer.menuOpen = false; archiveCard()">
+                        <button type="button" role="menuitem" x-show="!drawer.locked && drawer.card.status === 'done' && !drawer.card.parent_id" @click="drawer.menuOpen = false; archiveCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Archive card' : 'Arkibkan kad'">Archive card</span>
                         </button>
                         <button type="button" role="menuitem" class="is-danger" x-show="!drawer.locked" @click="drawer.menuOpen = false; deleteCard()">
@@ -62,7 +74,7 @@
                     </div>
                 </div>
             @else
-                <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="(@js($statusLabels))[drawer.card.status] || ''"></span>
+                <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="drawer.card.parent_id ? (drawer.card.status === 'done' ? 'Done' : 'Open') : ((@js($statusLabels))[drawer.card.status] || '')"></span>
             @endif
             <button type="button" class="wd-ico" @click="closeDrawer()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -84,6 +96,9 @@
                     </div>
 
                     {{-- title: a click-to-edit heading on the personal board; plain text on the team board --}}
+                    <button type="button" class="wd-back" x-show="drawer.card.parent_id" x-cloak @click="backToParent()">
+                        <span aria-hidden="true">&larr;</span> <span x-text="drawer.family?.parent.title"></span>
+                    </button>
                     @if ($interactive)
                         <h2 class="wd-title" id="wd-title" x-ref="titleEl" :contenteditable="!drawer.locked ? 'true' : 'false'" spellcheck="false"
                             role="textbox" :aria-label="$store.ui.lang==='en' ? 'Card title' : 'Tajuk kad'"
@@ -94,8 +109,8 @@
                     <p class="wd-sub" x-text="drawer.sub"></p>
 
                     <div class="wd-props">
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
-                        <span class="wd-pval">
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
+                        <span class="wd-pval" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.type" :disabled="drawer.locked" @change="commitField('type', drawer.card.type)">
                                     @foreach ($typeLabels as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
@@ -147,8 +162,8 @@
                              Development and Maintenance are done on a job, HR and Admin, Charity
                              and Others are not. An empty project list is the server saying the
                              question does not arise — see WorkItem::projectOptions(). --}}
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
-                        <span class="wd-pval wd-ppair">
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-pval wd-ppair" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
                                         :aria-label="$store.ui.lang==='en' ? 'Category' : 'Kategori'"
@@ -256,6 +271,19 @@
                               :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
                               @input="scheduleCommit('description')" @blur="commitFieldFromCard('description')"></textarea>
 
+                    @if ($interactive)
+                        {{-- The first subtask is added from here; once one exists the overview beside
+                             the drawer carries the list and the add row. --}}
+                        <template x-if="!drawer.card.parent_id && drawer.canAddChild && drawer.family && !drawer.family.children.length">
+                            <div>
+                                <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Subtasks' : 'Subtugas'">Subtasks</h3>
+                                <input class="wd-inline" style="margin:0 0 12px;" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
+                                       :placeholder="$store.ui.lang==='en' ? '+ Add a subtask' : '+ Tambah subtugas'"
+                                       @keydown.enter.prevent="addChild()">
+                            </div>
+                        </template>
+                    @endif
+
                     <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Links' : 'Pautan'">Links</h3>
                     <template x-if="!drawer.locked">
                         <div>
@@ -323,7 +351,7 @@
              Typing "@" at a word boundary opens the mention picker above it —
              see mentionActiveQuery()/paintMention()/insertMention() in
              work-board.js (and its team-board.js counterpart). --}}
-        <div class="wd-foot">
+        <div class="wd-foot wd-foot--reveal" :class="{ 'has-text': drawer.newComment.trim().length }">
             <div class="wd-ment" role="listbox" :data-open="drawer.mention.open ? '' : null"
                  :aria-label="$store.ui.lang==='en' ? 'Mention someone on this card' : 'Sebut seseorang pada kad ini'">
                 <template x-if="drawer.mention.open && !mentionPool.length">

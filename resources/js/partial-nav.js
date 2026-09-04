@@ -92,6 +92,41 @@ function syncNavState(doc) {
     });
 }
 
+/**
+ * The wallpaper and cover state live on the shell, outside <main>: the flag classes
+ * (uj-has-wallpaper, uj-on-dark, uj-has-cover, uj-cover-dark), the fixed .uj-wallpaper
+ * layer, and the header's inline blur. A profile with a cover drops the wallpaper, and
+ * a dark wallpaper flips the text tokens, so a partial nav into or out of such a screen
+ * must carry these across; otherwise the board arrives under a stale flag and its chips
+ * paint white on white until a full reload.
+ */
+const BACKDROP_FLAGS = ['uj-has-wallpaper', 'uj-on-dark', 'uj-has-cover', 'uj-cover-dark'];
+function syncBackdrop(doc) {
+    const shell = document.getElementById('uj-shell');
+    const freshShell = doc.getElementById('uj-shell');
+    if (!shell || !freshShell) { return; }
+    for (const flag of BACKDROP_FLAGS) { shell.classList.toggle(flag, freshShell.classList.contains(flag)); }
+
+    const layer = shell.querySelector(':scope > .uj-wallpaper');
+    const freshLayer = freshShell.querySelector(':scope > .uj-wallpaper');
+    if (freshLayer && layer) {
+        layer.dataset.dim = freshLayer.dataset.dim;
+        layer.style.backgroundImage = freshLayer.style.backgroundImage;
+    } else if (freshLayer) {
+        shell.prepend(freshLayer.cloneNode(true));
+    } else {
+        layer?.remove();
+    }
+
+    const header = document.querySelector('.uj-header');
+    const freshHeader = doc.querySelector('.uj-header');
+    if (header && freshHeader) {
+        header.style.backdropFilter = freshHeader.style.backdropFilter;
+        header.style.webkitBackdropFilter = freshHeader.style.webkitBackdropFilter;
+    }
+    window.ujMarkSurfaces?.();
+}
+
 async function go(url, { push = true } = {}) {
     const main = document.querySelector(MAIN);
     if (!main) { window.location.assign(url); return; }
@@ -141,6 +176,7 @@ async function go(url, { push = true } = {}) {
     main.removeAttribute('data-nav-busy');
     document.title = doc.title;
     syncNavState(doc);
+    syncBackdrop(doc);
     currentUrl = url;
 
     if (push) { history.pushState({ partialNav: true }, '', url); }

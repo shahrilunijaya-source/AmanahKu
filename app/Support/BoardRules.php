@@ -37,6 +37,17 @@ class BoardRules
     public const ASSIGNER_ROLES = ['manager', 'management', 'hr'];
 
     /**
+     * The card a rule is judged against. A child card (subtask) carries no rights of
+     * its own: whoever may open, move or edit the parent may do the same to its
+     * children, and nobody else may. Every public rule below resolves through this, so
+     * the controller and the MCP tools never have to know which kind they hold.
+     */
+    private function subject(WorkItem $item): WorkItem
+    {
+        return $item->parent_id ? $item->parent : $item;
+    }
+
+    /**
      * View / comment / move: the owner, a (tac) assigner, an included participant, a
      * manager whose data scope covers the card's owner, or anyone whose role passes
      * Permissions::canSeeAll() (management, HR, or an immediate superior) — bounded,
@@ -50,10 +61,13 @@ class BoardRules
      * else canSeeAll() admits) could open any card in the tenant by putting its id in
      * the URL — the same hole AK-AUTHZ-01 exists to close, reintroduced through a
      * different door.
+     *
+     * A child card is judged as its parent, see subject().
      */
     public function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $item = $this->subject($item);
         $role = $request->attributes->get('tenantRole', 'employee');
         abort_unless(
             $item->employee_id === $employee->id
@@ -71,11 +85,13 @@ class BoardRules
     /**
      * Edit fields / delete: the owner of a self-made card, or the assigner of a tac.
      * The assignee of a tac is deliberately locked out — their intent stays the
-     * assigner's; they can only move it and comment.
+     * assigner's; they can only move it and comment. A child card is judged as its
+     * parent, see subject().
      */
     public function authorizeManage(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $item = $this->subject($item);
         abort_unless($this->canManage($request, $item, $employee), 403);
     }
 
@@ -99,6 +115,7 @@ class BoardRules
      */
     public function canManage(Request $request, WorkItem $item, Employee $employee): bool
     {
+        $item = $this->subject($item);
         $owns = $item->assigned_by_id === null
             ? $item->employee_id === $employee->id
             : $this->isAssigner($item, $employee);
@@ -129,6 +146,7 @@ class BoardRules
      */
     public function coversCardOwner(Request $request, WorkItem $item, Employee $employee): bool
     {
+        $item = $this->subject($item);
         // A null return means company scope — every employee is in reach.
         $visible = $this->dataScope->visibleEmployeeIds(
             $request->attributes->get('tenantScope', 'company'),
@@ -140,6 +158,8 @@ class BoardRules
 
     public function isAssigner(WorkItem $item, Employee $employee): bool
     {
+        $item = $this->subject($item);
+
         return $item->assigned_by_id !== null && $item->assigned_by_id === $employee->id;
     }
 
@@ -164,6 +184,30 @@ class BoardRules
         if (! $due && ($hasOthers || $item->assigned_by_id)) {
             throw ValidationException::withMessages([
                 'due_at' => 'A task shared with someone else needs a due date.',
+            ]);
+        }
+    }
+
+    /**
+     * A card cannot land on Done while any of its subtasks is still open. Lives here,
+     * not in the controller, for the same reason assertDueDateRetained() does: one rule
+     * shared by WorkItemController::move() and App\Mcp\Tools\MoveCardTool, so the
+     * browser and MCP surfaces cannot disagree on when Done is allowed. A child has no
+     * children of its own, so the check is free for it.
+     */
+    public function assertChildrenDoneForStatus(WorkItem $item, string $status): void
+    {
+        if ($status !== 'done') {
+            return;
+        }
+
+        $open = $item->openChildCount();
+
+        if ($open > 0) {
+            throw ValidationException::withMessages([
+                'status' => $open === 1
+                    ? '1 subtask still open. Tick it off before moving this card to Done.'
+                    : "{$open} subtasks still open. Tick them off before moving this card to Done.",
             ]);
         }
     }

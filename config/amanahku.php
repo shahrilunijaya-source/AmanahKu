@@ -33,4 +33,18 @@ return [
      * tuned for fills and icons, not for text on top of them.
      */
     'avatar_palette' => ['#3a6ea5', '#1d825f', '#d6232b', '#996a28', '#7a5bb0', '#287f7f'],
+
+    // Workspace wallpaper presets (Account & security → Appearance). Key is what
+    // users.appearance stores as "preset:<key>"; value is the CSS background. Gradients,
+    // not photos: nothing to license, nothing to ship, instant to paint.
+    'wallpaper_presets' => [
+        'dawn' => 'linear-gradient(160deg, #f7d9c4 0%, #e9b7a8 45%, #8fa9c9 100%)',
+        'dusk' => 'linear-gradient(160deg, #2f3f5c 0%, #6b5b7b 55%, #d78f6a 100%)',
+        'paper' => 'radial-gradient(70% 70% at 30% 20%, #ffffff 0%, #ece9e1 60%, #ddd9cf 100%)',
+        'moss' => 'linear-gradient(160deg, #dfe8d6 0%, #9fb59a 55%, #4d6b55 100%)',
+        'slate' => 'linear-gradient(160deg, #3a3f4a 0%, #5b6470 55%, #a9b1bb 100%)',
+        'sand' => 'linear-gradient(160deg, #f3e6cf 0%, #d9bf98 55%, #8d6f4c 100%)',
+    ],
+    // How much page canvas is laid over the wallpaper, as a percentage.
+    'wallpaper_dims' => ['none' => 0, 'soft' => 30, 'strong' => 55],
 ];

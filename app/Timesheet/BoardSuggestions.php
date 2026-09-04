@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Timesheet;
 
 use App\Models\Employee;
+use App\Models\Scopes\ParentOnly;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
@@ -16,6 +17,12 @@ use Illuminate\Support\Collection;
 /**
  * Which board cards belong on which day of a capture week: the ones that sat in In
  * Progress or In Review, which is what the card's stints record.
+ *
+ * A stint says which week a card belongs to, not which day: the day a card is moved on
+ * the board is often not the day the work happened (a card opened and closed today for
+ * yesterday's work is a stint that never touches yesterday). So a card whose stint touches
+ * the week is offered on every working day of that week up to today, and the staffer
+ * strikes off the days that do not apply.
  *
  * Sits beside LockedDays: both turn a fact the staffer did not type into rows for the
  * capture grid. The difference is ownership. LockedDays rows are HR's (approved leave,
@@ -49,14 +56,16 @@ final class BoardSuggestions
         $logged = $this->loggedCardDays($employee, $start, $end);
         $dismissed = $this->dismissedCardDays($employee, $start);
         $categories = $this->categoryFor($cards);
+        $notes = $this->childNotes($employee, $cards, $start, $end);
 
         $out = [];
 
         foreach ($this->stintsFor($cards->keys()->all(), $start, $end) as $stint) {
-            $from = CarbonImmutable::parse($stint->started_at)->startOfDay();
-            $until = $stint->ended_at
-                ? CarbonImmutable::parse($stint->ended_at)->startOfDay()
-                : $today;
+            // Not the stint's own started_at/ended_at: the stint only proves the card
+            // touched this week, not which day the work happened, so it is offered on
+            // every day of the week up to today rather than just the days it covers.
+            $from = $start;
+            $until = $today;
 
             for ($day = $from->max($start); $day->lessThanOrEqualTo($until->min($end)); $day = $day->addDay()) {
                 $iso = $day->toDateString();
@@ -100,9 +109,10 @@ final class BoardSuggestions
                     // The staffer tags what they were doing (Technical, Meeting, ...) in
                     // the row's own overlay; the card does not carry it.
                     'sub_pillar_id' => null,
-                    // The note starts empty: the card's title names the line by itself
-                    // now, and the card's description is spec text, not a staffer note.
-                    'description' => '',
+                    // The note starts as the viewer's subtasks ticked that day, see
+                    // childNotes(); otherwise empty. The card's title names the line by
+                    // itself, and the card's description is spec text, not a staffer note.
+                    'description' => $notes[$cardId][$iso] ?? '',
                 ];
             }
         }
@@ -110,6 +120,48 @@ final class BoardSuggestions
         ksort($out);
 
         return array_map(fn (array $rows) => array_values($rows), $out);
+    }
+
+    /**
+     * What goes in the parent row's note: the viewer's subtasks ticked done on that
+     * day, one bullet each. "The viewer's" means they are on the child's people list,
+     * or the child has nobody on it and the viewer owns the parent. A prefill only:
+     * WeekWriter never reads this, so a saved row keeps whatever note it was saved with.
+     *
+     * @param  Collection<int, WorkItem>  $cards  keyed by id
+     * @return array<int, array<string, string>> [parent id][ISO day] => sanitised HTML
+     */
+    private function childNotes(Employee $employee, Collection $cards, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $children = WorkItem::withoutGlobalScope(ParentOnly::class)
+            ->whereIn('parent_id', $cards->keys()->all())
+            ->where('status', 'done')
+            ->whereNotNull('done_at')
+            ->whereDate('done_at', '>=', $start->toDateString())
+            ->whereDate('done_at', '<=', $end->toDateString())
+            ->with('participants:employees.id')
+            ->orderBy('done_at')
+            ->get(['id', 'parent_id', 'employee_id', 'title', 'done_at']);
+
+        $titles = [];
+        foreach ($children as $child) {
+            $mine = $child->participants->isEmpty()
+                ? $child->employee_id === $employee->id
+                : $child->participants->contains('id', $employee->id);
+            if (! $mine) {
+                continue;
+            }
+            $titles[(int) $child->parent_id][CarbonImmutable::parse($child->done_at)->toDateString()][] = e($child->title);
+        }
+
+        $out = [];
+        foreach ($titles as $parentId => $days) {
+            foreach ($days as $iso => $list) {
+                $out[$parentId][$iso] = '<ul><li>'.implode('</li><li>', $list).'</li></ul>';
+            }
+        }
+
+        return $out;
     }
 
     /**
