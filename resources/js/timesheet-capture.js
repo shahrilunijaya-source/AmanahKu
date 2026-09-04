@@ -834,10 +834,12 @@ export function registerTimesheetCapture(Alpine) {
         // A day blocks the week when it is not at 100% OR still carries a line with no
         // percentage. The two are reported separately below, because "not at 100% yet" is
         // the wrong sentence for a day that has gone over it.
+        // 'locked' is a public holiday nobody worked through: the Public Holiday row
+        // fills it on the server, so it never blocks.
         blockingDays() {
             const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
             return this.dayDates()
-                .filter((d) => this.isEditable(d) && (this.dayState(d) !== 'done' || this.hasBlankRows(d)))
+                .filter((d) => this.isEditable(d) && (!['done', 'locked'].includes(this.dayState(d)) || this.hasBlankRows(d)))
                 .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
         },
         // Days that have gone past 100%, named for the footer. Kept apart from blockingDays()
