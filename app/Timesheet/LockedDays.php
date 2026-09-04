@@ -193,17 +193,41 @@ final class LockedDays
     }
 
     /**
+     * Whether a locked day's staffer-typed rows survive the merge, or get dropped in favour
+     * of the generated row filling the whole day. A public holiday always keeps them — see
+     * entryRows(), which shrinks the generated Public Holiday row to whatever capacity the
+     * typed rows leave, rather than dropping the typed rows. A day with no locked fact at
+     * all, or one locked to less than its own capacity (a half-day leave), also keeps them.
+     * Only a day locked to its FULL capacity by something other than a holiday — a
+     * whole-day approved leave — drops them: that generated row is a fact HR owns, and it
+     * already fills the day, so anything typed against it is wrong by definition.
+     *
+     * @param  array{label: string, source: string, percentage: float, period: ?string}|null  $day
+     */
+    public function keepsTypedRows(?array $day, CarbonInterface|string $date): bool
+    {
+        return $day === null || $day['source'] === 'holiday' || $day['percentage'] < DayCapacity::for($date);
+    }
+
+    /**
      * The same locked days shaped as timesheet_entries rows, ready to persist.
      *
      * Categories are matched by name because timesheet_categories has no stable key beyond
      * unique(tenant_id, name). A tenant that renamed or deleted the category gets no rows,
      * which is the intended fail-open: the day simply behaves as a normal working day.
      *
+     * $userRows (already filtered to the rows keepsTypedRows() keeps — normally the caller's
+     * $kept) lets a Public Holiday row shrink to the remainder: capacity minus whatever the
+     * staffer typed that date, floored at 0 and omitted entirely once it hits 0. Leave rows
+     * are unaffected — a whole-day leave never receives typed rows to begin with, and a
+     * half-day leave already carries only half the capacity regardless of what is typed.
+     *
      * @param  CarbonInterface|string  $weekStart  See forWeek() for why this is widened beyond
      *                                             the brief's CarbonInterface-only signature.
+     * @param  array<int, array{entry_date: string, percentage: float|int|string}>  $userRows
      * @return array<int, array<string, mixed>>
      */
-    public function entryRows(Employee $employee, CarbonInterface|string $weekStart): array
+    public function entryRows(Employee $employee, CarbonInterface|string $weekStart, array $userRows = []): array
     {
         $locked = $this->forWeek($employee, $weekStart);
 
@@ -217,6 +241,12 @@ final class LockedDays
 
         $hoursPerDay = (float) config('manday.hours_per_day', 8);
 
+        $typedByDate = [];
+        foreach ($userRows as $row) {
+            $date = CarbonImmutable::parse($row['entry_date'])->toDateString();
+            $typedByDate[$date] = ($typedByDate[$date] ?? 0.0) + (float) $row['percentage'];
+        }
+
         $rows = [];
 
         foreach ($locked as $iso => $day) {
@@ -227,9 +257,21 @@ final class LockedDays
             }
 
             // The day's full capacity for a holiday or whole-day leave, half of it for a
-            // half day. Hours track the percentage so manday RM costing (hours * rate)
-            // stays correct for a half day and for the TOT Saturday.
+            // half day. A holiday's row shrinks by whatever the staffer typed that date —
+            // see the docblock above — and is skipped once nothing is left to fill.
             $percentage = (float) $day['percentage'];
+
+            if ($day['source'] === 'holiday') {
+                $percentage = max(0.0, $percentage - ($typedByDate[$iso] ?? 0.0));
+
+                if ($percentage <= 0.0) {
+                    continue;
+                }
+            }
+
+            // Hours track the (possibly shrunk) percentage so manday RM costing
+            // (hours * rate) stays correct for a half day, the TOT Saturday, and a
+            // partly-worked holiday alike.
             $periodSuffix = ['am' => ' (morning)', 'pm' => ' (afternoon)'][$day['period']] ?? '';
 
             $rows[] = [

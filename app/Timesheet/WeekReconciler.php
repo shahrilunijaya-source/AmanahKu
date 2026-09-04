@@ -28,11 +28,15 @@ final class WeekReconciler
 
     /**
      * Merge staffer-typed rows with the generated locked rows for a week, then append the
-     * generated rows. A fully locked day (public holiday, whole-day leave) is a fact HR
-     * owns, not a claim, so anything typed against it is dropped. A half-day leave locks
-     * only half the day: the staffer still fills the other half, so their rows on a partly
-     * locked day are kept and the day reaches its capacity from the leave half plus those
-     * rows. Returns entry arrays ready to persist.
+     * generated rows. A day locked to its full capacity by something other than a holiday
+     * (a whole-day approved leave) is a fact HR owns, not a claim, so anything typed against
+     * it is dropped. A half-day leave locks only half the day: the staffer still fills the
+     * other half, so their rows on a partly locked day are kept and the day reaches its
+     * capacity from the leave half plus those rows. A public holiday keeps typed rows too —
+     * the generated Public Holiday row shrinks to whatever capacity they leave (see
+     * LockedDays::entryRows()) rather than being dropped, so a staffer who worked through a
+     * holiday still gets credit for it. See LockedDays::keepsTypedRows() for the one place
+     * this decision is made. Returns entry arrays ready to persist.
      *
      * @param  array<int, array<string, mixed>>  $userRows  normalised, source=null rows
      * @return array<int, array<string, mixed>>
@@ -41,20 +45,17 @@ final class WeekReconciler
     {
         $locked = $this->lockedDays->forWeek($employee, $weekStart);
 
-        $kept = array_filter(
+        $kept = array_values(array_filter(
             $userRows,
             function (array $e) use ($locked) {
                 $date = CarbonImmutable::parse($e['entry_date']);
                 $day = $locked[$date->toDateString()] ?? null;
 
-                // "Fully locked" is measured against the day's own capacity: the TOT
-                // Saturday is full at 50%, so a holiday there drops typed rows just as a
-                // 100% weekday holiday does.
-                return $day === null || $day['percentage'] < DayCapacity::for($date);
+                return $this->lockedDays->keepsTypedRows($day, $date);
             }
-        );
+        ));
 
-        return array_merge(array_values($kept), $this->lockedDays->entryRows($employee, $weekStart));
+        return array_merge($kept, $this->lockedDays->entryRows($employee, $weekStart, $kept));
     }
 
     /**

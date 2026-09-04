@@ -434,9 +434,10 @@ class SaveTimesheetDraftTool extends Tool
     }
 
     /**
-     * The typed rows a locked day (public holiday, whole-day leave) overrode, for the
-     * preview to say why the resulting week differs from what was submitted — see
-     * WeekWriter::resolveWeek(). These are raw, un-normalised rows straight from the
+     * The typed rows a whole-day approved leave overrode, for the preview to say why the
+     * resulting week differs from what was submitted — see WeekWriter::resolveWeek(). A
+     * public holiday no longer drops typed rows (see LockedDays::keepsTypedRows()), so this
+     * is whole-day leave only now. These are raw, un-normalised rows straight from the
      * request, same as $entries in renderByDate() before normalisation.
      *
      * @param  array<int, array<string, mixed>>  $dropped
@@ -458,7 +459,7 @@ class SaveTimesheetDraftTool extends Tool
             'category' => $categories->get($e['category_id'])?->name,
             'project' => ($e['project_id'] ?? null) ? $projects->get($e['project_id'])?->name : null,
             'percentage' => (float) $e['percentage'],
-            'reason' => 'Overridden by a locked day (public holiday or approved leave).',
+            'reason' => 'Overridden by a whole-day approved leave.',
         ], $dropped));
     }
 

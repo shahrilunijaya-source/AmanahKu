@@ -53,6 +53,19 @@
     - tag: improved
       text: "On your timesheet, a card's row now starts with a note listing the subtasks you ticked that day, ready to edit or clear before you save.\nA subtask counts as yours when you are on its people list, or when it has nobody on it and the card is your own."
       text_ms: "Pada lembaran masa anda, baris kad kini bermula dengan nota yang menyenaraikan subtugas yang anda tanda pada hari itu, sedia untuk disunting atau dikosongkan sebelum disimpan.\nSubtugas dikira milik anda apabila anda ada dalam senarai orangnya, atau apabila tiada sesiapa padanya dan kad itu kad anda sendiri."
+    - tag: improved
+      text: "Worked on a public holiday? You can now record it on your timesheet.\nBefore, a public holiday was locked shut and anything you typed on it was thrown away. Now the day opens for lines like any other, and the Public Holiday line shrinks to cover whatever you did not fill, so the day still adds up. Your effort reaches the project, so your manager sees it in Track. Approved leave days stay locked as before."
+      text_ms: "Bekerja pada cuti umum? Kini anda boleh merekodkannya pada lembaran masa anda.\nSebelum ini, cuti umum dikunci sepenuhnya dan apa sahaja yang anda taip padanya dibuang. Kini hari itu dibuka untuk baris seperti hari lain, dan baris Cuti Umum mengecil untuk menampung bahagian yang tidak anda isi, jadi jumlah hari itu tetap genap. Usaha anda sampai ke projek, jadi pengurus anda melihatnya dalam Track. Hari cuti yang diluluskan kekal dikunci seperti sebelum ini."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: improved
+      text: "The first Saturday of the month is a half day, and your timesheet now says so plainly: a filled half day reads 100%, not 50%."
+      text_ms: "Sabtu pertama setiap bulan ialah setengah hari, dan lembaran masa anda kini menyatakannya dengan jelas: setengah hari yang penuh dipaparkan sebagai 100%, bukan 50%."
+
+    - tag: fixed
+      text: "Archiving a T.A.A. card no longer takes its work off your timesheet. Before, a card archived before you had costed its days simply vanished from the grid, and the hours went unlogged. The card now stays offered for the days of that week up to the day it was archived, and no further. Lines you had already saved were never affected."
+      text_ms: "Mengarkibkan kad T.A.A. tidak lagi membuang kerjanya dari lembaran masa anda. Sebelum ini, kad yang diarkibkan sebelum anda sempat mengisi peratusan harinya terus hilang dari grid, dan jam kerja itu tidak direkodkan. Kad itu kini kekal ditawarkan untuk hari-hari minggu tersebut sehingga hari ia diarkibkan, dan tidak lebih daripada itu. Baris yang sudah anda simpan tidak pernah terjejas."
 
 - version: "1.7.3"
   date: "2026-09-03"

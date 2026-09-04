@@ -8,11 +8,13 @@
  * and on a laptop and nothing scrolls sideways.
  *
  * State is `rows`, an ISO date → array of allocations. Locked days (approved leave, public
- * holidays) come from the server. A fully locked day (holiday, whole-day leave) counts as a
- * full day and is never editable. A half-day leave locks only 50%: the staffer still fills
- * the other half, so that day is editable and must reach 100% from the 50% leave plus their
- * own rows. The POST body is unchanged: one entry per (day, allocation); the server
- * re-appends the leave portion itself.
+ * holidays) come from the server. A whole-day approved leave counts as a full day and is
+ * never editable. A half-day leave locks only 50%: the staffer still fills the other half,
+ * so that day is editable and must reach 100% from the 50% leave plus their own rows. A
+ * public holiday is editable too: it stays a full day (its generated row shrinks live to
+ * whatever the staffer's own rows leave), but nothing forces them to add anything. The POST
+ * body is unchanged: one entry per (day, allocation); the server re-appends the leave/holiday
+ * portion itself.
  */
 
 /** Find which day + row index carries this entry id, for the Review tab's "open this
@@ -137,8 +139,9 @@ export function registerTimesheetCapture(Alpine) {
 
             const seed = cfg.existing || {};
             for (const iso of Object.keys(seed)) {
-                // Fully locked days never carry editable rows (the server drops them and
-                // owns the day). A half day keeps the staffer's work rows, so seed those.
+                // A whole-day-leave day never carries editable rows (the server drops them
+                // and owns the day). A half day and a public holiday both keep the
+                // staffer's work rows, so seed those.
                 if (this.isFullyLocked(iso)) continue;
                 this.rows[iso] = seed[iso].map((e) => ({
                     id: e.id,
@@ -159,6 +162,8 @@ export function registerTimesheetCapture(Alpine) {
             // cleared the moment the staffer gives it a percentage.
             const suggested = cfg.suggested || {};
             for (const iso of Object.keys(suggested)) {
+                // A public holiday is editable, so it takes suggestions like any other
+                // day; a staffer who did not work strikes the card off as usual.
                 if (this.isFullyLocked(iso) || !this.isEditable(iso)) continue;
                 this.rows[iso] = (this.rows[iso] || []).concat(suggested[iso].map((s) => ({
                     id: null,
@@ -236,10 +241,21 @@ export function registerTimesheetCapture(Alpine) {
         isLocked(iso) {
             return !!this.locked[iso];
         },
-        // Percentage HR has already claimed on this day: the day's whole capacity (holiday
-        // / whole-day leave), half of it (half-day leave), or 0 (nothing locked).
+        // Percentage HR has already claimed on this day: the day's whole capacity (whole-day
+        // leave), half of it (half-day leave), the remainder left after typed rows (public
+        // holiday — see below), or 0 (nothing locked).
         lockedPct(iso) {
-            return this.locked[iso] ? parseFloat(this.locked[iso].percentage) || 0 : 0;
+            const day = this.locked[iso];
+            if (!day) return 0;
+            // A public holiday no longer blocks the day: the generated row shrinks live to
+            // whatever capacity the staffer's own rows leave, mirroring
+            // LockedDays::entryRows() on the server, so the chip and dayTotal() never
+            // disagree with what actually gets saved.
+            if (day.source === 'holiday') {
+                const typed = (this.rows[iso] || []).reduce((sum, r) => sum + (parseFloat(r.percentage) || 0), 0);
+                return Math.max(0, this.capacityFor(iso) - typed);
+            }
+            return parseFloat(day.percentage) || 0;
         },
         // How much this day asks to be filled: 50% on the first Saturday of the month (the
         // TOT half day), 100% on every other day. Mirrors App\Timesheet\DayCapacity, which
@@ -248,11 +264,17 @@ export function registerTimesheetCapture(Alpine) {
             return isFirstSaturday(iso) ? 50 : 100;
         },
         isFullyLocked(iso) {
+            // A public holiday is never fully locked: unlike whole-day leave, the staffer
+            // may still work through it, so the day always stays editable (see
+            // LockedDays::keepsTypedRows() on the server for the matching rule).
+            if (this.locked[iso]?.source === 'holiday') return false;
             return this.lockedPct(iso) >= this.capacityFor(iso);
         },
         isPartlyLocked(iso) {
-            const pct = this.lockedPct(iso);
-            return pct > 0 && pct < this.capacityFor(iso);
+            // A holiday keeps its banner even once the staffer's rows fill the day and the
+            // generated row has shrunk to 0, so the day still reads as a holiday.
+            if (this.locked[iso]?.source === 'holiday') return true;
+            return this.lockedPct(iso) > 0 && !this.isFullyLocked(iso);
         },
         isFuture(iso) {
             return iso > this.today;
@@ -278,11 +300,22 @@ export function registerTimesheetCapture(Alpine) {
         },
         dayTotal(iso) {
             if (this.isFullyLocked(iso)) return this.capacityFor(iso);
-            // The leave half (if any) plus the staffer's own rows.
+            // The leave/holiday portion (if any) plus the staffer's own rows.
             return this.lockedPct(iso) + (this.rows[iso] || []).reduce((sum, r) => sum + (parseFloat(r.percentage) || 0), 0);
+        },
+        // dayTotal() scaled against the day's own capacity, so the TOT Saturday (capacity
+        // 50) reads 100% once filled instead of 50 — the header figure and the "over by"
+        // wording are the two things this screen shows that mean "how done is this day";
+        // row/chip percentages stay raw (a half-day leave row still says 50%).
+        dayPercentOfCapacity(iso) {
+            return Math.round((this.dayTotal(iso) / this.capacityFor(iso)) * 100);
         },
         dayState(iso) {
             if (this.isFullyLocked(iso)) return 'locked';
+            // A holiday nobody has worked through yet reads the same grey padlock a
+            // whole-day leave does, even though it is technically editable — there is
+            // nothing to show until a row is added.
+            if (this.locked[iso]?.source === 'holiday' && !(this.rows[iso] || []).length) return 'locked';
             if (this.isFuture(iso)) return 'future';
             const total = this.dayTotal(iso);
             if (total === 0) return 'empty';

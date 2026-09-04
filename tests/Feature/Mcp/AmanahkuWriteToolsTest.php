@@ -1306,11 +1306,12 @@ class AmanahkuWriteToolsTest extends TestCase
 
     /**
      * Bug 3 (black-box): the preview must render the SAME resulting week confirm actually
-     * stores. A typed row on a fully-locked public holiday must be dropped from the preview
-     * (not shown as submitted), the generated Public Holiday row must appear in its place,
-     * and the drop must be named in `changes.dropped` — not just a silently different week.
+     * stores. A public holiday no longer drops a typed row — it keeps it and shrinks the
+     * generated Public Holiday row to the remainder (LockedDays::entryRows()). At 100%
+     * typed, that remainder is 0, so the holiday row is omitted entirely and only the
+     * typed row appears, in both the preview and what confirm stores.
      */
-    public function test_preview_matches_what_confirm_stores_when_a_locked_day_drops_the_typed_row(): void
+    public function test_preview_matches_what_confirm_stores_on_a_public_holiday_now_that_typed_rows_survive_it(): void
     {
         app(CurrentTenant::class)->set($this->tenantA);
         TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Public Holiday', 'requires_project' => false, 'is_active' => true]);
@@ -1332,16 +1333,11 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertFalse($this->toolIsError($preview));
         $data = $this->toolData($preview);
 
-        // The typed "Project Work" row is absent; the generated holiday row is present.
+        // The typed "Project Work" row survives; no generated holiday row is left to add.
         $rows = $data['changes']['resulting_week'][self::WEEK];
         $this->assertCount(1, $rows);
-        $this->assertSame('Public Holiday', $rows[0]['category']);
-
-        // The drop is surfaced, not silent.
-        $dropped = $data['changes']['dropped'];
-        $this->assertCount(1, $dropped);
-        $this->assertSame(self::WEEK, $dropped[0]['entry_date']);
-        $this->assertSame('Project Work', $dropped[0]['category']);
+        $this->assertSame('Project Work', $rows[0]['category']);
+        $this->assertSame([], $data['changes']['dropped']);
 
         $confirm = $this->confirm($data['confirm_token'], $headers);
         $this->assertFalse($this->toolIsError($confirm));
@@ -1350,8 +1346,35 @@ class AmanahkuWriteToolsTest extends TestCase
         $timesheet = Timesheet::forWeek(self::WEEK)->where('employee_id', $this->staffEmpA->id)->first();
         $stored = TimesheetEntry::where('timesheet_id', $timesheet->id)->whereDate('entry_date', self::WEEK)->get();
         $this->assertCount(1, $stored, 'exactly what the preview showed is what got stored');
-        $this->assertSame('holiday', $stored->first()->source);
+        $this->assertNull($stored->first()->source);
         app(CurrentTenant::class)->set(null);
+    }
+
+    /**
+     * assertMergeWithinCapacity() (the MCP draft-time over-capacity guard) still fires on a
+     * public holiday: since the holiday row shrinks to 0 once typed rows reach capacity,
+     * pushing past 100% must still be refused rather than silently accepted.
+     */
+    public function test_merging_past_capacity_on_a_public_holiday_is_still_refused(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        TimesheetCategory::create(['tenant_id' => $this->tenantA->id, 'name' => 'Public Holiday', 'requires_project' => false, 'is_active' => true]);
+        PublicHoliday::create(['tenant_id' => $this->tenantA->id, 'name' => 'Test Holiday', 'date' => self::WEEK]);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['timesheets:write']);
+        $card = $this->card();
+
+        $preview = $this->callTool(SaveTimesheetDraftTool::class, [
+            'week_start' => self::WEEK,
+            'entries' => [[
+                'entry_date' => self::WEEK,
+                'work_item_id' => $card->id,
+                'percentage' => 120,
+            ]],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($preview));
     }
 
     // --- confirm_write throttle ---------------------------------------------
