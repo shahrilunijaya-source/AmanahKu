@@ -638,7 +638,7 @@
                             </template>
                         </div>
                         <div style="font-size:11px;margin-top:5px;" :style="d === selected ? { color:'var(--ink)', fontWeight:600 } : { color:'var(--muted)' }">
-                            <span x-show="isPartlyLocked(d)" x-cloak style="font-size:9px;">&#189;</span><span x-text="dayName(d)"></span>
+                            <span x-show="isPartlyLocked(d) && locked[d].source !== 'holiday'" x-cloak style="font-size:9px;">&#189;</span><span x-text="dayName(d)"></span>
                         </div>
                     </button>
                 </template>
