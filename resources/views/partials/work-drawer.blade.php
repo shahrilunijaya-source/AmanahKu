@@ -29,7 +29,7 @@
          inside .tb-win-modal, which shares this same .wd-scrim/.wd shell for
          its OWN backdrop — without the modifier, the two would tie at the
          same z-index and stacking would depend on DOM order. --}}
-    <div class="wd-scrim @unless ($interactive) wd--over-modal @endunless" x-show="drawer.show" x-cloak :data-open="drawer.open ? '' : null" @click="closeDrawer()">
+    <div class="wd-scrim @unless ($interactive) wd--over-modal @endunless" x-show="drawer.show" x-cloak :data-open="drawer.open ? '' : null" @click="drawer.ovOpen ? (drawer.ovOpen = false) : closeDrawer()">
         @include('partials.work-overview', ['interactive' => $interactive])
     </div>
 
@@ -270,6 +270,22 @@
                     <textarea class="wd-desc" x-model="drawer.card.description" :readonly="drawer.locked" maxlength="5000"
                               :placeholder="$store.ui.lang==='en' ? 'Add more detail…' : 'Tambah butiran…'"
                               @input="scheduleCommit('description')" @blur="commitFieldFromCard('description')"></textarea>
+
+                    {{-- Phone only (.wd-subpill): the overview cannot sit beside a full-width
+                         drawer, so this pill opens it as a bottom sheet. Desktop hides it. --}}
+                    <template x-if="drawer.family && (drawer.family.children.length || drawer.card.parent_id)">
+                        <div class="wd-subpill-wrap" x-data="{ get done() { return drawer.family.children.filter(c => c.status === 'done').length; }, get total() { return drawer.family.children.length; }, get next() { return drawer.family.children.find(c => c.status !== 'done'); } }">
+                            <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Subtasks' : 'Subtugas'">Subtasks</h3>
+                            <button type="button" class="wd-subpill" @click="drawer.ovOpen = true" :style="'--p:' + Math.round(100 * done / Math.max(1, total)) + '%'">
+                                <span class="wd-subpill-ring"><i x-text="done + '/' + total"></i></span>
+                                <span class="wd-subpill-txt">
+                                    <b x-text="$store.ui.lang==='en' ? (done + ' of ' + total + ' done') : (done + ' daripada ' + total + ' selesai')"></b>
+                                    <small x-text="next ? (($store.ui.lang==='en' ? 'Next: ' : 'Seterusnya: ') + next.title) : ($store.ui.lang==='en' ? 'All done' : 'Semua selesai')"></small>
+                                </span>
+                                <span class="wd-subpill-chev" aria-hidden="true">&rsaquo;</span>
+                            </button>
+                        </div>
+                    </template>
 
                     @if ($interactive)
                         {{-- The first subtask is added from here; once one exists the overview beside

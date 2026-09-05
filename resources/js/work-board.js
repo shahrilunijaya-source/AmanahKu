@@ -88,6 +88,9 @@ export function registerWorkBoard(Alpine) {
             // The overview beside the drawer: { parent, children } from the server, for a
             // parent and for a child alike (null until loaded). See partials.work-overview.
             family: null,
+            // Phone: the overview is a bottom sheet over the drawer, opened from the
+            // Subtasks pill. Desktop ignores this (the panel sits beside the drawer).
+            ovOpen: false,
             // Anyone who can open a parent may add a subtask to it (server: authorizeAccess),
             // so this is true whenever a parent is shown, locked or not. False for a child.
             canAddChild: false,
@@ -159,8 +162,19 @@ export function registerWorkBoard(Alpine) {
                     group: 'board',
                     animation: 150,
                     ghostClass: 'uj-drag-ghost',
+                    chosenClass: 'wc--held',
                     draggable: '[data-card]',
-                    onEnd: (evt) => this.persistMove(evt),
+                    // Touch: a plain swipe scrolls the columns, a 300ms hold picks the
+                    // card up. Without the delay a sideways scroll grabbed the card under
+                    // the thumb and dropped it in the next column. Mouse is unchanged.
+                    delay: 300,
+                    delayOnTouchOnly: true,
+                    touchStartThreshold: 4,
+                    onChoose: () => { if (navigator.vibrate) navigator.vibrate(10); },
+                    // Phone columns snap one per swipe (.wb-cols); snapping fights
+                    // Sortable's autoscroll toward the next column, so it is off mid-drag.
+                    onStart: () => list.closest('.wb-cols')?.classList.add('is-dragging'),
+                    onEnd: (evt) => { list.closest('.wb-cols')?.classList.remove('is-dragging'); this.persistMove(evt); },
                 });
             });
             // Open the drawer when a card (not the composer) is clicked...
@@ -358,8 +372,8 @@ export function registerWorkBoard(Alpine) {
             this.$root.querySelectorAll('[data-list]').forEach((list) => {
                 // Count only cards visible under the active filter.
                 const n = [...list.querySelectorAll('[data-card]')].filter((el) => el.style.display !== 'none').length;
-                const badge = this.$root.querySelector(`[data-count="${list.dataset.list}"]`);
-                if (badge) badge.textContent = n;
+                // Two badges per column: the column header and the phone pill strip.
+                this.$root.querySelectorAll(`[data-count="${list.dataset.list}"]`).forEach((badge) => { badge.textContent = n; });
                 const empty = list.querySelector('[data-empty]');
                 if (empty) empty.style.display = n > 0 ? 'none' : '';
             });
@@ -699,6 +713,7 @@ export function registerWorkBoard(Alpine) {
             this.drawer.error = '';
             // Previous card's family would flash beside the drawer until the fetch lands.
             this.drawer.family = null;
+            this.drawer.ovOpen = false;
             this.drawer.newComment = '';
             this.drawer.menuOpen = false;
             this.drawer.labelMenuOpen = false;

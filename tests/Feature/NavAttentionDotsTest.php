@@ -243,7 +243,9 @@ class NavAttentionDotsTest extends TestCase
 
     /**
      * A TOT slot is the first Saturday of its month, so "inside a fortnight" depends on
-     * today's date. Walk forward until a month's first Saturday lands in that window.
+     * today's date, and on many real dates (any first Saturday itself, or the days right
+     * after it) no slot falls in the window at all. Travel to a week before the next
+     * first Saturday so the window always holds exactly that slot.
      *
      * @return array{int, int}
      */
@@ -252,12 +254,14 @@ class NavAttentionDotsTest extends TestCase
         $cursor = now()->startOfMonth();
         for ($i = 0; $i < 24; $i++) {
             $date = TotSession::firstSaturday((int) $cursor->year, (int) $cursor->month);
-            if ($date->isFuture() && $date->lte(now()->addDays(14))) {
+            if ($date->isFuture()) {
+                $this->travelTo($date->copy()->subWeek()->setTime(9, 0));
+
                 return [(int) $cursor->year, (int) $cursor->month];
             }
             $cursor->addMonth();
         }
 
-        $this->fail('No TOT slot falls inside the next fortnight.');
+        $this->fail('No TOT slot falls in the next two years.');
     }
 }

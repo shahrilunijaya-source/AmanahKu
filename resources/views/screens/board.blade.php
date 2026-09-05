@@ -127,10 +127,22 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;">
+    {{-- Phone only (see .wb-strip): one pill per column, follows the snapped column
+         and jumps to it on tap. The columns themselves snap one per swipe. --}}
+    <div class="wb-strip" x-data="{ idx: 0 }" x-init="$nextTick(() => { const c = $refs.cols; c.addEventListener('scroll', () => { idx = Math.round(c.scrollLeft / (c.firstElementChild.offsetWidth + 12)); }, { passive: true }); })"
+         x-effect="$el.children[idx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })">
         @foreach ($columns as $key => $col)
-            <div style="flex:1;min-width:272px;">
-                <div style="display:flex;align-items:center;gap:8px;padding:0 4px 12px;">
+            <button type="button" class="wb-pill" :class="{ 'is-on': idx === {{ $loop->index }} }"
+                    @click="$refs.cols.children[{{ $loop->index }}].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })">
+                {{ $col['title'] }} <i data-count="{{ $key }}">{{ $col['cards']->count() }}</i>
+            </button>
+        @endforeach
+    </div>
+
+    <div class="wb-cols" x-ref="cols">
+        @foreach ($columns as $key => $col)
+            <div class="wb-col">
+                <div class="wb-colh">
                     <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $col['title'] }}</span>
                     <span data-count="{{ $key }}" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 8px;border-radius:9999px;">{{ $col['cards']->count() }}</span>
                     @if ($key === 'done' && $employee)
