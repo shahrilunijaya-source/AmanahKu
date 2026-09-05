@@ -6,7 +6,8 @@
 
     Read-only on the team board ($interactive = false): no add row, no ticks.
 --}}
-<div class="wd-ov" x-show="drawer.family && (drawer.family.children.length || drawer.card.parent_id)" x-cloak @click.stop>
+<div class="wd-ov" :class="{ 'wd-ov--open': drawer.ovOpen }" x-show="drawer.family && (drawer.family.children.length || drawer.card.parent_id)" x-cloak @click.stop>
+    <span class="wd-ov-grab" aria-hidden="true"></span>
     <p class="wd-ov-h" x-text="$store.ui.lang==='en' ? 'Parent' : 'Induk'"></p>
     <button type="button" class="wd-ov-parent" :class="{ 'is-active': drawer.family && String(drawer.card.id) === String(drawer.family.parent.id) }" @click="backToParent()">
         <span class="wd-ov-type" x-text="drawer.family?.parent.type"></span>

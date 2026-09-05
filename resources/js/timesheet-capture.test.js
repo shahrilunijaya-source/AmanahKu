@@ -802,3 +802,11 @@ test('dayPercentOfCapacity() reads 100 on an ordinary day at 100% and matches da
 
     expect(c.dayPercentOfCapacity(THURSDAY)).toBe(100);
 });
+
+test('a public holiday with nothing typed does not block submit', () => {
+    const c = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Public Holiday', source: 'holiday', percentage: 100 } } });
+    for (const d of c.dayDates()) if (d !== THURSDAY) c.rows[d] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 }];
+
+    expect(c.dayState(THURSDAY)).toBe('locked');
+    expect(c.blockingDays()).toEqual([]);
+});
