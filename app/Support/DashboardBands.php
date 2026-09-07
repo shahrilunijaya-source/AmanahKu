@@ -22,7 +22,7 @@ use Carbon\CarbonImmutable;
  * Bands are not widgets: they are not in the picker, not draggable and not
  * hideable. "Keep it plain" strips their ornament in the view, not here.
  *
- * @phpstan-type Moment array{kind: string, kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}, cta: array{label: array{en: string, ms: string}, url: string}|null, art: string|null}
+ * @phpstan-type Moment array{kind: string, kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}, cta: array{label: array{en: string, ms: string}, url: string}|null, art: string|null, date?: string, employee?: array<string, mixed>}
  */
 final class DashboardBands
 {
@@ -30,9 +30,10 @@ final class DashboardBands
 
     /**
      * @param  list<Moment>  $moments
-     * @return array{moments: list<Moment>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
+     * @param  list<array{name: string, date: string}>  $upcoming
+     * @return array{moments: list<Moment>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null, upcoming: list<array{name: string, date: string}>}
      */
-    public static function compose(array $moments, ?array $management, ?array $awards, CarbonImmutable $today): array
+    public static function compose(array $moments, ?array $management, ?array $awards, CarbonImmutable $today, array $upcoming = []): array
     {
         return [
             'moments' => $moments,
@@ -40,25 +41,94 @@ final class DashboardBands
             'moments_start' => $moments === [] ? 0 : $today->dayOfYear % count($moments),
             'management' => $management,
             'awards' => $awards,
+            'upcoming' => $upcoming,
         ];
     }
 
     /**
-     * One moment per colleague whose birthday is today. Names come from the same
-     * active-staff, month+day match the calendar uses, so both agree.
+     * The calendar dates (this run) whose birthdays show today (CR-13).
+     *
+     * A birthday always shows on its own actual day. On top of that, when today is a
+     * working day, any birthday that falls in the non-working run immediately after
+     * today (a weekend and/or public holidays) shows early too — so it always lands
+     * on the last working day before it, never lost inside days nobody is at work.
+     *
+     * @return list<CarbonImmutable>
+     */
+    public static function celebratedOn(CarbonImmutable $today, callable $isWorkingDay): array
+    {
+        $dates = [$today];
+
+        if ($isWorkingDay($today)) {
+            $cursor = $today->addDay();
+            while (! $isWorkingDay($cursor)) {
+                $dates[] = $cursor;
+                $cursor = $cursor->addDay();
+            }
+        }
+
+        return $dates;
+    }
+
+    /**
+     * One moment per colleague celebrated today (CR-13, see celebratedOn()). Each
+     * moment carries the real birthday date and a slimmed-down employee payload so
+     * the band can show an avatar/role and the wishes composer can target the right
+     * person, even on the advance (weekend/holiday) case.
      *
      * @param  iterable<Employee>  $people
-     * @return list<Moment>
+     * @param  list<CarbonImmutable>  $celebratedDates  from celebratedOn(), same $today
+     * @return list<Moment&array{date: string, employee: array<string, mixed>}>
      */
-    public static function birthdayMoments(iterable $people, CarbonImmutable $today, ?int $selfId = null): array
+    public static function birthdayMoments(iterable $people, CarbonImmutable $today, array $celebratedDates, string $tenantName, ?int $selfId = null): array
     {
         $out = [];
         foreach ($people as $person) {
-            if ($person->date_of_birth === null || (int) $person->date_of_birth->format('n') !== $today->month
-                || (int) $person->date_of_birth->format('j') !== $today->day) {
+            if ($person->date_of_birth === null) {
                 continue;
             }
+
+            $on = null;
+            foreach ($celebratedDates as $date) {
+                if ((int) $person->date_of_birth->format('n') === $date->month
+                    && (int) $person->date_of_birth->format('j') === $date->day) {
+                    $on = $date;
+
+                    break;
+                }
+            }
+            if ($on === null) {
+                continue;
+            }
+
             $name = $person->display_name;
+            $employeePayload = [
+                'id' => $person->id,
+                'display_name' => $name,
+                'position' => $person->position,
+                'initials' => $person->initials,
+                'avatar_color' => $person->avatar_color,
+            ];
+
+            if (! $on->isSameDay($today)) {
+                $formatted = $on->format('D j M');
+                $out[] = [
+                    'kind' => 'birthday',
+                    'kicker' => ['en' => 'This weekend', 'ms' => 'Hujung minggu ini'],
+                    'title' => [
+                        'en' => "{$name}'s birthday is on {$formatted}",
+                        'ms' => "Hari lahir {$name} pada {$formatted}",
+                    ],
+                    'sub' => ['en' => 'Wish them before the weekend.', 'ms' => 'Ucapkan sebelum hujung minggu.'],
+                    'cta' => null,
+                    'art' => 'cake',
+                    'date' => $on->toDateString(),
+                    'employee' => $employeePayload,
+                ];
+
+                continue;
+            }
+
             if ($person->id === $selfId) {
                 $out[] = [
                     'kind' => 'birthday',
@@ -67,17 +137,25 @@ final class DashboardBands
                     'sub' => ['en' => 'From everyone here. Have a good one.', 'ms' => 'Daripada kami semua. Semoga ceria.'],
                     'cta' => null,
                     'art' => 'cake',
+                    'date' => $on->toDateString(),
+                    'employee' => $employeePayload,
                 ];
 
                 continue;
             }
+
             $out[] = [
                 'kind' => 'birthday',
                 'kicker' => ['en' => 'Today', 'ms' => 'Hari ini'],
                 'title' => ['en' => "It's {$name}'s birthday", 'ms' => "Hari lahir {$name}"],
-                'sub' => ['en' => 'Drop them a wish before 5 PM.', 'ms' => 'Ucapkan selamat sebelum 5 petang.'],
-                'cta' => ['label' => ['en' => 'Send a wish', 'ms' => 'Hantar ucapan'], 'url' => route('app.screen', 'directory')],
+                'sub' => [
+                    'en' => "Happy birthday, {$name}! \u{2013} from all of us at {$tenantName}",
+                    'ms' => "Selamat Hari Lahir, {$name}! \u{2013} daripada kami semua di {$tenantName}",
+                ],
+                'cta' => null,
                 'art' => 'cake',
+                'date' => $on->toDateString(),
+                'employee' => $employeePayload,
             ];
         }
 
@@ -114,5 +192,33 @@ final class DashboardBands
             'cta' => null,
             'art' => 'stamp',
         ];
+    }
+
+    /**
+     * "Coming up" line under the moments block: non-private active staff whose
+     * birthday falls tomorrow..+7 days, excluding anyone already celebrated today
+     * (they are in the band, not the coming-up line). Chronological order.
+     *
+     * @param  iterable<Employee>  $people
+     * @param  array<int, bool>  $celebratedTodayIds  employee id => true, for exclusion
+     * @return list<array{name: string, date: string}>
+     */
+    public static function upcomingBirthdays(iterable $people, CarbonImmutable $today, array $celebratedTodayIds = []): array
+    {
+        $out = [];
+        foreach (range(1, 7) as $offset) {
+            $day = $today->addDays($offset);
+            foreach ($people as $person) {
+                if ($person->date_of_birth === null || isset($celebratedTodayIds[$person->id])) {
+                    continue;
+                }
+                if ((int) $person->date_of_birth->format('n') === $day->month
+                    && (int) $person->date_of_birth->format('j') === $day->day) {
+                    $out[] = ['name' => $person->display_name, 'date' => $day->toDateString()];
+                }
+            }
+        }
+
+        return $out;
     }
 }
