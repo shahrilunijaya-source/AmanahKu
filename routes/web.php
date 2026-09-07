@@ -14,6 +14,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
 use App\Http\Controllers\BenefitController;
+use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
@@ -444,6 +445,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');
         Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');
         Route::post('/app/tot/{session}/react', [TotController::class, 'react'])->name('tot.react');
+        // Birthday band wishes (CR-13).
+        Route::post('/app/birthday/{employee}/wish', [BirthdayWishController::class, 'wish'])->name('birthday.wish');
+        Route::post('/app/birthday/{employee}/thanks', [BirthdayWishController::class, 'thanks'])->name('birthday.thanks');
+        Route::post('/app/birthday/wish/{wish}/react', [BirthdayWishController::class, 'react'])->name('birthday.react');
         Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
         Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');

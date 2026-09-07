@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Concerns;
 
 use App\Attendance\HolidayEve;
+use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
 use App\Models\AttendanceRecord;
 use App\Models\Claim;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\ArchetypeCatalog;
@@ -87,25 +89,58 @@ trait BuildsDashboardWidgets
      * list grows as CR-13/22/24/28 land; the management and awards slots stay
      * null until CR-17 and CR-14.
      *
-     * @return array{moments: list<array<string, mixed>>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
+     * @return array{moments: list<array<string, mixed>>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null, upcoming: list<array{name: string, date: string}>}
      */
     private function dashboardBands(?Employee $employee, string $role): array
     {
         $today = CarbonImmutable::now();
         $moments = [];
+        $upcoming = [];
 
         if ($employee !== null) {
             $eve = DashboardBands::holidayEveMoment(app(HolidayEve::class), $today);
             if ($eve !== null) {
                 $moments[] = $eve;
             }
-            $people = Employee::active()->whereNotNull('date_of_birth')
-                ->whereMonth('date_of_birth', $today->month)->whereDay('date_of_birth', $today->day)
-                ->get(['id', 'name', 'nickname', 'date_of_birth']);
-            $moments = [...$moments, ...DashboardBands::birthdayMoments($people, $today, $employee->id)];
+
+            // Weekend or a public-holiday row for this tenant — the only two ways a day
+            // is not a working day (CR-13's celebratedOn()).
+            $isWorkingDay = fn (CarbonImmutable $day): bool => ! $day->isWeekend()
+                && ! PublicHoliday::whereDate('date', $day->toDateString())->exists();
+
+            $celebratedDates = DashboardBands::celebratedOn($today, $isWorkingDay);
+            $monthDayPairs = collect($celebratedDates)->map(fn (CarbonImmutable $d) => [$d->month, $d->day]);
+
+            $people = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')
+                ->where(function ($q) use ($monthDayPairs) {
+                    foreach ($monthDayPairs as [$month, $day]) {
+                        $q->orWhere(fn ($sub) => $sub->whereMonth('date_of_birth', $month)->whereDay('date_of_birth', $day));
+                    }
+                })
+                ->get();
+            $tenantName = (string) (app(CurrentTenant::class)->get()->name ?? '');
+            $birthdayMoments = DashboardBands::birthdayMoments($people, $today, $celebratedDates, $tenantName, $employee->id);
+
+            // Each birthday moment carries its wishes region pre-rendered, so the band
+            // shows the composer/list on first paint rather than an extra round trip.
+            $wishController = app(BirthdayWishController::class);
+            $peopleById = $people->keyBy('id');
+            foreach ($birthdayMoments as &$moment) {
+                $celebrant = $peopleById->get($moment['employee']['id']);
+                if ($celebrant !== null) {
+                    $moment['wishesHtml'] = $wishController->wishesPartial($celebrant, $employee);
+                }
+            }
+            unset($moment);
+
+            $moments = [...$moments, ...$birthdayMoments];
+
+            $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
+            $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();
+            $upcoming = DashboardBands::upcomingBirthdays($upcomingPeople, $today, $celebratedTodayIds);
         }
 
-        return DashboardBands::compose($moments, null, null, $today);
+        return DashboardBands::compose($moments, null, null, $today, $upcoming);
     }
 
     /**
