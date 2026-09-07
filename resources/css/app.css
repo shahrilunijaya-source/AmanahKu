@@ -4890,7 +4890,11 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-s { color:var(--body); font-size:var(--t-base); }
 .uj-db-cta { margin-left:auto; white-space:nowrap; font-weight:500; font-size:var(--t-base); color:var(--ink); background:var(--shelf); border-radius:8px; padding:7px 12px; transition:transform 160ms ease-out; }
 .uj-db-cta:active { transform:scale(.97); }
-.uj-db-more { margin-left:auto; font:500 12px var(--font-mono); color:var(--muted-soft); white-space:nowrap; }
+.uj-db-more { margin-left:auto; font:500 12px var(--font-mono); color:var(--muted-soft); white-space:nowrap; background:none; border:0; padding:4px 6px; border-radius:6px; cursor:pointer; transition:transform 160ms ease-out, background 160ms ease; }
+.uj-db-more:hover { background:rgba(0,0,0,.05); color:var(--ink); }
+.uj-db-more:active { transform:scale(.97); }
+.uj-db-cake { font-size:28px; line-height:1; filter:drop-shadow(0 3px 5px rgba(38,37,30,.18)); }
+.uj-db-band:has(.uj-db-art) .uj-db-more { position:relative; z-index:1; }
 .uj-db-cta + .uj-db-more { margin-left:0; }
 .uj-db-moment { background:var(--red-tint); border-color:#f3c9cc; }
 .uj-db-moment .uj-db-k { color:var(--red); }

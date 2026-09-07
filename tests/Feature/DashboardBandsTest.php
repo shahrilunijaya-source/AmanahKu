@@ -52,7 +52,7 @@ class DashboardBandsTest extends TestCase
         $response = $this->get('/app/dash')->assertOk()->assertDontSee('uj-db-band', false);
 
         $bands = $response->viewData('bands');
-        $this->assertNull($bands['moments']);
+        $this->assertSame([], $bands['moments']);
         $this->assertNull($bands['management']);
         $this->assertNull($bands['awards']);
     }
@@ -96,9 +96,9 @@ class DashboardBandsTest extends TestCase
         $day1 = DashboardBands::compose([$a, $b], null, null, CarbonImmutable::parse('2026-09-15'));
         $day2 = DashboardBands::compose([$a, $b], null, null, CarbonImmutable::parse('2026-09-16'));
 
-        $this->assertSame(2, $day1['moments_count']);
-        $this->assertNotSame($day1['moments']['kind'], $day2['moments']['kind']);
-        $this->assertNull(DashboardBands::compose([], null, null, CarbonImmutable::parse('2026-09-15'))['moments']);
+        $this->assertCount(2, $day1['moments']);
+        $this->assertNotSame($day1['moments_start'], $day2['moments_start']);
+        $this->assertSame(0, DashboardBands::compose([], null, null, CarbonImmutable::parse('2026-09-15'))['moments_start']);
     }
 
     /** Keep it plain drops the ornament but keeps the words. */
@@ -149,5 +149,35 @@ class DashboardBandsTest extends TestCase
         // A saved drag order still outranks the anchor.
         $dragged = DashboardWidgets::layoutWith($registry, $available, ['left' => ['signoff', 'summary'], 'right' => []], []);
         $this->assertSame(['signoff', 'summary', 'clock', 'tasks', 'leave'], $dragged['left']);
+    }
+
+    /** A colleague's birthday today is a moment; every moment is in the page, the pill steps through them. */
+    public function test_birthday_today_is_a_moment_and_stacks_with_holiday_eve(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-15 09:00'));
+        $this->signIn();
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Hari Malaysia', 'date' => '2026-09-16']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Ahmad Yusof', 'nickname' => 'Ahmad', 'status' => 'active', 'workload' => 'green', 'date_of_birth' => '1990-09-15']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Not Today', 'status' => 'active', 'workload' => 'green', 'date_of_birth' => '1990-09-14']);
+
+        $response = $this->get('/app/dash')->assertOk()
+            ->assertSee("It's Ahmad's birthday")
+            ->assertSee('1 / 2', false)
+            ->assertSee('uj-db-cake', false);
+
+        $kinds = array_column($response->viewData('bands')['moments'], 'kind');
+        $this->assertSame(['holiday-eve', 'birthday'], $kinds);
+    }
+
+    /** Your own birthday greets you; it does not tell you to wish yourself. */
+    public function test_own_birthday_greets_the_viewer(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-15 09:00'));
+        $this->signIn();
+        Employee::where('tenant_id', $this->tenant->id)->update(['date_of_birth' => '1995-09-15']);
+
+        $this->get('/app/dash')->assertOk()
+            ->assertSee('Happy birthday, Emysha!')
+            ->assertDontSee('Send a wish');
     }
 }

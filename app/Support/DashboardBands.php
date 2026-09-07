@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Attendance\HolidayEve;
+use App\Models\Employee;
 use Carbon\CarbonImmutable;
 
 /**
@@ -29,16 +30,58 @@ final class DashboardBands
 
     /**
      * @param  list<Moment>  $moments
-     * @return array{moments: Moment|null, moments_count: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
+     * @return array{moments: list<Moment>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
      */
     public static function compose(array $moments, ?array $management, ?array $awards, CarbonImmutable $today): array
     {
         return [
-            'moments' => $moments === [] ? null : $moments[$today->dayOfYear % count($moments)],
-            'moments_count' => count($moments),
+            'moments' => $moments,
+            // Which one opens today. Every moment is in the page; the pill steps through the rest.
+            'moments_start' => $moments === [] ? 0 : $today->dayOfYear % count($moments),
             'management' => $management,
             'awards' => $awards,
         ];
+    }
+
+    /**
+     * One moment per colleague whose birthday is today. Names come from the same
+     * active-staff, month+day match the calendar uses, so both agree.
+     *
+     * @param  iterable<Employee>  $people
+     * @return list<Moment>
+     */
+    public static function birthdayMoments(iterable $people, CarbonImmutable $today, ?int $selfId = null): array
+    {
+        $out = [];
+        foreach ($people as $person) {
+            if ($person->date_of_birth === null || (int) $person->date_of_birth->format('n') !== $today->month
+                || (int) $person->date_of_birth->format('j') !== $today->day) {
+                continue;
+            }
+            $name = $person->display_name;
+            if ($person->id === $selfId) {
+                $out[] = [
+                    'kind' => 'birthday',
+                    'kicker' => ['en' => 'Today', 'ms' => 'Hari ini'],
+                    'title' => ['en' => "Happy birthday, {$name}!", 'ms' => "Selamat hari lahir, {$name}!"],
+                    'sub' => ['en' => 'From everyone here. Have a good one.', 'ms' => 'Daripada kami semua. Semoga ceria.'],
+                    'cta' => null,
+                    'art' => 'cake',
+                ];
+
+                continue;
+            }
+            $out[] = [
+                'kind' => 'birthday',
+                'kicker' => ['en' => 'Today', 'ms' => 'Hari ini'],
+                'title' => ['en' => "It's {$name}'s birthday", 'ms' => "Hari lahir {$name}"],
+                'sub' => ['en' => 'Drop them a wish before 5 PM.', 'ms' => 'Ucapkan selamat sebelum 5 petang.'],
+                'cta' => ['label' => ['en' => 'Send a wish', 'ms' => 'Hantar ucapan'], 'url' => route('app.screen', 'directory')],
+                'art' => 'cake',
+            ];
+        }
+
+        return $out;
     }
 
     /**

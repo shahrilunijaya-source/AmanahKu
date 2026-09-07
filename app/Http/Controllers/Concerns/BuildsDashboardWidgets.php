@@ -87,7 +87,7 @@ trait BuildsDashboardWidgets
      * list grows as CR-13/22/24/28 land; the management and awards slots stay
      * null until CR-17 and CR-14.
      *
-     * @return array{moments: array<string, mixed>|null, moments_count: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
+     * @return array{moments: list<array<string, mixed>>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
      */
     private function dashboardBands(?Employee $employee, string $role): array
     {
@@ -99,6 +99,10 @@ trait BuildsDashboardWidgets
             if ($eve !== null) {
                 $moments[] = $eve;
             }
+            $people = Employee::active()->whereNotNull('date_of_birth')
+                ->whereMonth('date_of_birth', $today->month)->whereDay('date_of_birth', $today->day)
+                ->get(['id', 'name', 'nickname', 'date_of_birth']);
+            $moments = [...$moments, ...DashboardBands::birthdayMoments($people, $today, $employee->id)];
         }
 
         return DashboardBands::compose($moments, null, null, $today);
