@@ -147,6 +147,8 @@ export function registerWorkBoard(Alpine) {
             // CR-30 Request help: who to ask and the one message.
             helpId: '',
             helpMessage: '',
+            // CR-18 Linked event: the event picked in the drawer, until it is linked.
+            eventId: '',
             _timers: {},
             _savedTimer: null,
             _closeTimer: null,
@@ -672,6 +674,30 @@ export function registerWorkBoard(Alpine) {
                 this.$store.toast.success(this.t('Asked. They have been tagged as a Helper.', 'Diminta. Mereka ditanda sebagai Pembantu.'));
             } catch (err) {
                 this.drawer.error = err.validation ? err.message : this.t('Could not send that request.', 'Tidak dapat menghantar permintaan itu.');
+            }
+        },
+
+        // CR-18: link the Event the social activity produced. The server refuses until
+        // every active colleague is on the event, ticks the Create Event subtask, and
+        // hands back the family so the tick shows without a reopen.
+        async linkEvent() {
+            const id = Number(this.drawer.eventId);
+            if (!this.drawer.id || this.drawer.locked || !id) return;
+            this.drawer.error = '';
+            try {
+                const { card, html } = await this.api(`/app/board/${this.drawer.id}/link-event`, {
+                    method: 'POST',
+                    body: JSON.stringify({ company_event_id: id }),
+                });
+                this.drawer.card.company_event = card.company_event ?? null;
+                this.drawer.card.company_event_id = card.company_event_id ?? id;
+                this.drawer.card.event_options = [];
+                if (card.family) this.drawer.family = card.family;
+                this.drawer.eventId = '';
+                if (html) this.repaintCardById(this.drawer.id, html);
+                this.$store.toast.success(this.t('Event linked. "Create Event" is ticked.', 'Acara dipautkan. "Create Event" ditanda.'));
+            } catch (err) {
+                this.drawer.error = err.validation ? err.message : this.t('Could not link that event.', 'Tidak dapat memautkan acara itu.');
             }
         },
 

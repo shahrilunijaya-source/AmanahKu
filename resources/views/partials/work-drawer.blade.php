@@ -305,6 +305,32 @@
                             </span>
                         </template>
 
+                        {{-- CR-18 Linked event: a recurring card (the company social) names the Event its
+                             "Create Event" step produced. Everyone must be on the event first; the server
+                             ticks that subtask, and the card cannot reach Done until the event is closed out. --}}
+                        <template x-if="drawer.card.company_event || (drawer.card.event_options || []).length">
+                            <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Linked event' : 'Acara berkaitan'">Linked event</span>
+                        </template>
+                        <template x-if="drawer.card.company_event">
+                            <span class="wd-pval" data-linked-event>
+                                <span x-text="drawer.card.company_event.title + (drawer.card.company_event.date ? ' · ' + drawer.card.company_event.date : '')"></span>
+                            </span>
+                        </template>
+                        <template x-if="!drawer.card.company_event && (drawer.card.event_options || []).length">
+                            <span class="wd-pval">
+                                <span class="wd-help-row">
+                                    <select class="wd-inline" x-model="drawer.eventId" :disabled="drawer.locked" :aria-label="$store.ui.lang==='en' ? 'Which event' : 'Acara mana'">
+                                        <option value="" x-text="$store.ui.lang==='en' ? 'Which event?' : 'Acara mana?'"></option>
+                                        <template x-for="e in drawer.card.event_options" :key="'ev'+e.id">
+                                            <option :value="e.id" x-text="e.title + (e.date ? ' · ' + e.date : '')"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" class="wd-add" @click="linkEvent()" :disabled="drawer.locked || !drawer.eventId"
+                                            x-text="$store.ui.lang==='en' ? 'Link' : 'Pautkan'"></button>
+                                </span>
+                            </span>
+                        </template>
+
                         {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
                         <span class="wd-pval">

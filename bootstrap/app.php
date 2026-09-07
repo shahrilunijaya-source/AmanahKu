@@ -66,6 +66,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // a fixed daily tick. Idempotent: archived_at is only ever set once.
         $schedule->command('work:archive-done')->hourly()
             ->withoutOverlapping()->onFailure($onFailure('work:archive-done'));
+        // CR-18: recurring schedules spawn their card on the first working day of each
+        // period. Daily at 06:00 so the card is on the board before anyone starts; a
+        // period is keyed unique, so a second run the same day makes nothing.
+        $schedule->command('work:recurring')->dailyAt('06:00')
+            ->withoutOverlapping()->onFailure($onFailure('work:recurring'));
         // Clock nudges: every 5 minutes across the working day. The cadence has to be
         // this short because one of the four nudges fires 5 minutes BEFORE the shift
         // boundary — a 15-minute tick would miss that window. Each bell carries its own

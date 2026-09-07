@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
@@ -42,6 +43,8 @@ class WorkItem extends Model implements HasAuditedFields
         'blocked' => ['Blocked', '#f76808'],
         'client' => ['Client', '#8a4bdb'],
         'internal' => ['Internal', '#5a6b7b'],
+        // CR-18: stamped by the recurring engine on every card it makes.
+        'recurring' => ['Recurring', '#1c7c54'],
     ];
 
     protected function casts(): array
@@ -73,7 +76,7 @@ class WorkItem extends Model implements HasAuditedFields
     {
         return [
             'due_at', 'priority', 'status', 'done_at', 'employee_id', 'archived_at', 'cancelled_at',
-            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id', 'reviewer_id',
+            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id', 'reviewer_id', 'company_event_id',
         ];
     }
 
@@ -317,5 +320,26 @@ class WorkItem extends Model implements HasAuditedFields
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'reviewer_id');
+    }
+
+    /**
+     * CR-18: the Event this card produced (the social activity's "Create Event" step).
+     * Set through WorkItemController::linkEvent(); the done rule reads it.
+     *
+     * @return BelongsTo<CompanyEvent, $this>
+     */
+    public function companyEvent(): BelongsTo
+    {
+        return $this->belongsTo(CompanyEvent::class);
+    }
+
+    /**
+     * The recurring period this card was made for, when the engine made it.
+     *
+     * @return HasOne<RecurringTaskOccurrence, $this>
+     */
+    public function recurringOccurrence(): HasOne
+    {
+        return $this->hasOne(RecurringTaskOccurrence::class);
     }
 }

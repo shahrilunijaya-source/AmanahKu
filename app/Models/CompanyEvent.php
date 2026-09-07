@@ -16,11 +16,29 @@ class CompanyEvent extends Model
 {
     use BelongsToTenant;
 
+    /**
+     * CR-18 pulls the smallest CR-11 lifecycle forward: an event is drafted, approved by
+     * a director or PM, marked Held by its organiser (never by the date alone), or
+     * cancelled. CR-11 builds the screens; the columns and the done rule live here.
+     */
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_APPROVED = 'approved';
+
+    public const STATUS_HELD = 'held';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUSES = [self::STATUS_DRAFT, self::STATUS_APPROVED, self::STATUS_HELD, self::STATUS_CANCELLED];
+
+    /** An RSVP response recorded after the event: the person was there. */
+    public const RESPONSE_ATTENDED = 'attended';
+
     protected $guarded = [];
 
     protected function casts(): array
     {
-        return ['event_date' => 'date', 'tagged_employee_ids' => 'array'];
+        return ['event_date' => 'date', 'tagged_employee_ids' => 'array', 'approved_at' => 'datetime'];
     }
 
     public function rsvps(): HasMany

@@ -59,6 +59,7 @@ use App\Http\Controllers\ProfileTestController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\RecruitmentController;
+use App\Http\Controllers\RecurringTaskController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ResignationController;
@@ -284,6 +285,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
         // CR-30: explicit escalation, the one thing a reaction never is.
         Route::post('/app/board/{workItem}/request-help', [WorkItemController::class, 'requestHelp'])->name('work.request-help');
+        // CR-18: the social activity's event link and HR's off-boarding hand-over.
+        Route::post('/app/board/{workItem}/link-event', [WorkItemController::class, 'linkEvent'])->name('work.link-event');
+        Route::post('/app/board/{workItem}/reassign', [WorkItemController::class, 'reassign'])->name('work.reassign');
         Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
         Route::post('/app/board/{workItem}/cancel', [WorkItemController::class, 'cancel'])->name('work.cancel');
         Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
@@ -338,6 +342,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/reactions', [ReactionController::class, 'index'])->name('reactions.index');
         Route::post('/app/admin/reactions', [ReactionController::class, 'store'])->name('admin.reactions.store');
         Route::post('/app/admin/reactions/{key}/retire', [ReactionController::class, 'retire'])->name('admin.reactions.retire');
+        // CR-18 recurring schedules: HR and management create, skip a period, pause, resume.
+        Route::post('/app/admin/recurring', [RecurringTaskController::class, 'store'])->name('admin.recurring.store');
+        Route::post('/app/admin/recurring/{recurringTask}/skip', [RecurringTaskController::class, 'skip'])->name('admin.recurring.skip');
+        Route::post('/app/admin/recurring/{recurringTask}/pause', [RecurringTaskController::class, 'pause'])->name('admin.recurring.pause');
+        Route::post('/app/admin/recurring/{recurringTask}/resume', [RecurringTaskController::class, 'resume'])->name('admin.recurring.resume');
         Route::post('/app/admin/greetings/{greetingLine}', [GreetingLineController::class, 'update'])->name('admin.greetings.update');
         Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
         // Any signed-in employee can suggest a line; HR approves it above.

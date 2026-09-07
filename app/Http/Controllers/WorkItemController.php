@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
 use App\Models\AuditLog;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Project;
+use App\Models\RecurringTask;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
@@ -252,6 +254,9 @@ class WorkItemController extends Controller
                 // see mentionableEmployees() for why the roster stops there.
                 'mentionable' => $this->mentionablePayload($workItem),
                 'family' => $this->familyPayload($workItem->parent_id ? $workItem->parent : $workItem),
+                // CR-18: a recurring card can carry the Event its "Create Event" step made.
+                'company_event' => $this->eventPayload($workItem->companyEvent),
+                'event_options' => $this->eventOptions($workItem),
             ],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
         ]);
@@ -424,6 +429,7 @@ class WorkItemController extends Controller
 
         $this->boardRules->assertChildrenDoneForStatus($workItem, $data['status']);
         $this->boardRules->assertReviewerMovesToDone($workItem, $data['status'], $employee);
+        $this->boardRules->assertLinkedEventSatisfiesDoneRule($workItem, $data['status']);
 
         $wasDone = $workItem->status === 'done';
 
@@ -701,6 +707,90 @@ class WorkItemController extends Controller
         return response()->json(['ok' => true, 'card' => $this->cardPayload($workItem->fresh(['participants', 'reviewer']))]);
     }
 
+    /**
+     * CR-18: link the Event the card's "Create Event" step produced. Everyone still with
+     * the company must be on the event's attendee list before it counts, because the
+     * social activity is for all staff. Linking ticks the Create Event subtask.
+     */
+    public function linkEvent(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'Link the event on the main card, not a subtask.');
+
+        $data = $request->validate([
+            'company_event_id' => ['required', 'integer', Rule::exists('company_events', 'id')->where('tenant_id', $workItem->tenant_id)],
+        ]);
+        $event = CompanyEvent::findOrFail($data['company_event_id']);
+
+        $staff = Employee::active()->where('tenant_id', $workItem->tenant_id)->pluck('id');
+        $missing = $staff->diff($event->rsvps()->pluck('employee_id'));
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'company_event_id' => 'Add everyone as an attendee first: '.$missing->count().' of '.$staff->count().' staff are not on this event yet.',
+            ]);
+        }
+
+        $workItem->update(['company_event_id' => $event->id]);
+
+        $createStep = $workItem->children()->where('status', '!=', 'done')
+            ->get()->first(fn (WorkItem $c) => str_starts_with(mb_strtolower($c->title), 'create event'));
+        if ($createStep) {
+            $createStep->update(['status' => 'done', 'progress' => 100, 'done_at' => now()]);
+        }
+
+        $fresh = $workItem->fresh(['participants', 'reviewer', 'companyEvent']);
+
+        return response()->json([
+            'ok' => true,
+            'card' => $this->cardPayload($fresh) + [
+                'company_event' => $this->eventPayload($fresh->companyEvent),
+                'family' => $this->familyPayload($fresh),
+            ],
+            'html' => $this->cardHtml($fresh),
+        ]);
+    }
+
+    /**
+     * CR-18 off-boarding: HR or management hands an open card (and the open subtasks the
+     * departing owner held) to someone else, with a reason. The due date stays locked.
+     */
+    public function reassign(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $actor = $this->employee($request);
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+        abort_unless($workItem->tenant_id === app(CurrentTenant::class)->id(), 404);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $workItem->tenant_id)->whereNull('archived_at')],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+        $to = Employee::findOrFail($data['employee_id']);
+        if ($to->id === $workItem->employee_id) {
+            throw ValidationException::withMessages(['employee_id' => 'That person already owns this card.']);
+        }
+
+        $from = $workItem->employee_id;
+        AuditContext::reason($data['reason']);
+        try {
+            $workItem->participants()->detach($to->id);
+            $workItem->update(['employee_id' => $to->id]);
+            $workItem->children()->where('employee_id', $from)->where('status', '!=', 'done')
+                ->get()->each(fn (WorkItem $c) => $c->update(['employee_id' => $to->id]));
+        } finally {
+            AuditContext::reason(null);
+        }
+
+        AppNotification::send(
+            $to->user_id,
+            $actor->display_name.' handed you a card: '.$workItem->title,
+            $data['reason'],
+            route('app.screen', 'board').'?card='.$workItem->id,
+        );
+
+        return response()->json(['ok' => true, 'card' => $this->cardPayload($workItem->fresh(['participants', 'reviewer']))]);
+    }
+
     private function syncParticipants(WorkItem $item, array $roles, Employee $actor, bool $notify = true): void
     {
         // Keep only real, active employees in this tenant; never the owner themselves.
@@ -823,6 +913,32 @@ class WorkItemController extends Controller
      * one place every write response's HTML comes from — keep it in sync with
      * cardPayload() below, which still feeds the detail modal's in-memory state.
      */
+    /** @return array{id:int,title:string,date:?string,status:?string}|null */
+    private function eventPayload(?CompanyEvent $event): ?array
+    {
+        return $event ? ['id' => $event->id, 'title' => $event->title, 'date' => $event->event_date?->format('d M Y'), 'status' => $event->status] : null;
+    }
+
+    /**
+     * The events a recurring card may link: this tenant's, from a month back onward, so
+     * the organiser finds the one they just posted on The Playground. Empty for any
+     * other card, so the drawer shows no picker there.
+     *
+     * @return list<array{id:int,title:string,date:?string}>
+     */
+    private function eventOptions(WorkItem $item): array
+    {
+        if ($item->parent_id || ! in_array(RecurringTask::LABEL, $item->labels ?? [], true) || $item->company_event_id) {
+            return [];
+        }
+
+        return CompanyEvent::where('tenant_id', $item->tenant_id)
+            ->whereDate('event_date', '>=', now()->subMonth()->toDateString())
+            ->orderBy('event_date')->limit(40)->get()
+            ->map(fn (CompanyEvent $e) => ['id' => $e->id, 'title' => $e->title, 'date' => $e->event_date?->format('d M Y')])
+            ->values()->all();
+    }
+
     private function cardHtml(WorkItem $item): string
     {
         $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children', 'parent'])->loadCount('comments');
@@ -886,6 +1002,7 @@ class WorkItemController extends Controller
             'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'project_id' => $item->project_id,
+            'company_event_id' => $item->company_event_id,
             // Which effort type this card's hours are costed as once they reach a
             // timesheet. Null means the card still owes an answer and its rows are held
             // back — see BoardSuggestions::categoryFor().

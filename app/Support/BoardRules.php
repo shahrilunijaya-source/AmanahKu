@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -285,6 +287,43 @@ class BoardRules
         throw ValidationException::withMessages([
             'status' => "Still open: {$names}. Tick them off before moving this card to Done.",
         ]);
+    }
+
+    /**
+     * CR-18 done rule for a card that carries a linked Event: Done only once the event is
+     * approved, its organiser has marked it Held, its date has passed, at least
+     * `min_attended` people were marked attended, and post-event evidence is on it. A
+     * Draft or Cancelled event, or a past one nobody attended, keeps the card open. The
+     * attendance floor comes from the schedule the card belongs to (default 1).
+     */
+    public function assertLinkedEventSatisfiesDoneRule(WorkItem $item, string $status): void
+    {
+        if ($status !== 'done' || ! $item->company_event_id) {
+            return;
+        }
+
+        $event = $item->companyEvent;
+        if ($event === null) {
+            return;
+        }
+
+        $floor = max(1, (int) ($item->recurringOccurrence?->schedule->min_attended ?? 1));
+        $attended = $event->rsvps()->where('response', CompanyEvent::RESPONSE_ATTENDED)->count();
+        $today = CarbonImmutable::now()->startOfDay();
+
+        $missing = collect([
+            'approved' => $event->approved_at !== null,
+            'held' => $event->status === CompanyEvent::STATUS_HELD,
+            'date passed' => CarbonImmutable::parse($event->event_date->toDateString())->lt($today),
+            "attendance ({$attended} of {$floor})" => $attended >= $floor,
+            'evidence' => filled($event->evidence_note),
+        ])->reject(fn (bool $ok) => $ok)->keys();
+
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'status' => 'The linked event is not closed out yet. Missing: '.$missing->implode(', ').'.',
+            ]);
+        }
     }
 
     /**
