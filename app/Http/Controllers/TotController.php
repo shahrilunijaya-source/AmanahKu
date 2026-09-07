@@ -8,6 +8,7 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
+use App\Models\Reaction;
 use App\Models\TotComment;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
@@ -398,9 +399,11 @@ class TotController extends Controller
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
+        // CR-30: a key from the tenant's reaction set, stored in the emoji column.
         $data = $request->validate([
-            'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
+            'reaction' => ['required', 'string', 'in:'.implode(',', Reaction::activeKeys())],
         ]);
+        $data['emoji'] = $data['reaction'];
 
         // One emoji per person per session. Whatever they had goes, and only a
         // genuinely different emoji comes back — pressing the one you already

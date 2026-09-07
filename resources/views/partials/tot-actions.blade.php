@@ -1,13 +1,9 @@
 <div class="tot-actions">
     <span class="tot-fw">
-        <span class="tot-fly" x-show="flyout === 'react'" x-cloak
+        <span class="tot-fly tot-fly-react" x-show="flyout === 'react'" x-cloak
               @mouseleave="flyout = null" @keydown.escape.window="flyout = null">
-            @foreach (\App\Models\TotSession::EMOJI as $i => $emoji)
-                <button type="button" class="tot-fly-e" style="--d:{{ $i * 30 }}ms"
-                        @click="react(@js($emoji)); flyout = null"
-                        :data-mine="mine.includes(@js($emoji)) ? '1' : null"
-                        aria-label="React {{ $emoji }}">{{ $emoji }}</button>
-            @endforeach
+            {{-- CR-30: the tenant's own set, not generic emoji. --}}
+            @include('partials.reaction-picker', ['onPick' => "react('KEY'); flyout = null"])
         </span>
         <button type="button" class="tot-act" :data-on="mine.length ? '1' : null"
                 @click="heartPress()"
@@ -19,6 +15,7 @@
             <span x-text="reactionTotal || ''"></span>
         </button>
     </span>
+    @include('partials.reaction-tally', ['counts' => $reactionCounts[$session->id] ?? [], 'live' => true])
 
     <button type="button" class="tot-act" :data-on="iWatched ? '1' : null"
             @click="toggleWatched()" x-show="canParticipate"

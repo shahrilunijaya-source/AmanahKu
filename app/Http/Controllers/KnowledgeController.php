@@ -14,6 +14,7 @@ use App\Models\KnowledgeReaction;
 use App\Models\KnowledgeRead;
 use App\Models\KnowledgeSegment;
 use App\Models\KnowledgeStar;
+use App\Models\Reaction;
 use App\Services\FeatureManager;
 use App\Support\Amanahku;
 use App\Support\ImageCompressor;
@@ -471,8 +472,9 @@ class KnowledgeController extends Controller
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
         $data = $request->validate([
-            'emoji' => ['required', 'string', 'in:'.implode(',', KnowledgeEntry::EMOJI)],
+            'reaction' => ['required', 'string', 'in:'.implode(',', Reaction::activeKeys())],
         ]);
+        $data['emoji'] = $data['reaction'];
 
         $had = KnowledgeReaction::where('entry_id', $entry->id)
             ->where('employee_id', $employee->id)

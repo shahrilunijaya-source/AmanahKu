@@ -281,6 +281,29 @@
                             </span>
                         </span>
 
+                        {{-- CR-30 Request Help: the explicit escalation. Tags a Helper and sends one message.
+                             A reaction, Send Help included, never does this. --}}
+                        <template x-if="!drawer.locked && availablePeople.length">
+                            <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Request help' : 'Minta bantuan'">Request help</span>
+                        </template>
+                        <template x-if="!drawer.locked && availablePeople.length">
+                            <span class="wd-pval">
+                                <span class="wd-help-row">
+                                    <select class="wd-inline" x-model="drawer.helpId" :aria-label="$store.ui.lang==='en' ? 'Who to ask' : 'Siapa untuk diminta'">
+                                        <option value="" x-text="$store.ui.lang==='en' ? 'Who?' : 'Siapa?'"></option>
+                                        <template x-for="p in availablePeople" :key="'hp'+p.id">
+                                            <option :value="p.id" x-text="p.name"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" class="wd-inline" maxlength="200" x-model="drawer.helpMessage"
+                                           :placeholder="$store.ui.lang==='en' ? 'What do you need?' : 'Apa yang anda perlukan?'"
+                                           @keydown.enter.prevent="requestHelp()">
+                                    <button type="button" class="wd-add" @click="requestHelp()" :disabled="!drawer.helpId || !drawer.helpMessage.trim()"
+                                            x-text="$store.ui.lang==='en' ? 'Ask' : 'Minta'"></button>
+                                </span>
+                            </span>
+                        </template>
+
                         {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
                         <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
                         <span class="wd-pval">

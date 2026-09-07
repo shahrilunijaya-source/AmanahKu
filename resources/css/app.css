@@ -1769,6 +1769,24 @@ select.wd-inline {
   to { opacity:1; transform:none; } }
 .tot-fly-e:hover { transform:scale(1.4) translateY(-5px); transition:transform 140ms cubic-bezier(.2,.9,.3,1.35); }
 .tot-fly-e[data-mine] { filter:none; }
+/* CR-30 reaction picker + tally. The flyout wraps because eight labelled picks do not fit one row. */
+.tot-fly-react { flex-wrap:wrap; white-space:normal; width:max-content; max-width:min(400px, calc(100vw - 48px)); gap:4px 6px;
+  bottom:auto; top:100%; margin-bottom:0; margin-top:8px; border-radius:14px; padding:8px 10px; }
+.uj-react-pick { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--hairline); border-radius:999px; background:var(--card); padding:3px 9px 3px 6px; font:500 12px var(--font-sans); color:var(--ink); cursor:pointer; animation:tot-e-in 260ms var(--d) both; }
+.uj-react-pick:hover { border-color:var(--red); background:var(--red-tint); }
+.uj-react-pick[data-mine] { border-color:var(--red); background:var(--red-tint); color:var(--red); }
+.uj-react-ico { font-size:15px; line-height:1; }
+.uj-react-lbl { white-space:nowrap; }
+/* CR-30 Request help row in the card drawer: who, why, ask. */
+.wd-help-row { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-left:-8px; }
+.wd-help-row > .wd-inline { margin-left:0; }
+.wd-help-row > input.wd-inline { flex:1 1 140px; cursor:text; border-color:var(--hairline); }
+.wd-help-row > .wd-add:disabled { opacity:.45; cursor:default; }
+.uj-react-tally { display:inline-flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.uj-react-chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--hairline); border-radius:999px; padding:1px 8px; font-size:11.5px; color:var(--body); background:var(--card); }
+.uj-react-chip b { font-family:var(--font-mono); font-weight:600; color:var(--ink); }
+.uj-react-chip[data-retired] { border-style:dashed; color:var(--muted); }
+@media (prefers-reduced-motion: reduce) { .uj-react-pick { animation:none; } }
 .tot-fly-e:not([data-mine]) { filter:grayscale(.35); }
 
 .tot-sc { width:30px; height:30px; border-radius:50%; border:1px solid var(--hairline);
@@ -4973,6 +4991,7 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db[data-plain] .uj-db-band { background:var(--card); border-color:var(--hairline); }
 .uj-db[data-plain] .uj-db-k { color:var(--muted-soft); }
 .uj-db[data-plain] .uj-db-cta { background:var(--shelf); color:var(--ink); }
+.uj-db[data-plain] .uj-react-pick { animation:none; }
 @media (prefers-reduced-motion: reduce) { .uj-db-art i { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
 @media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
 

@@ -57,6 +57,7 @@ use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\RecruitmentController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
@@ -281,6 +282,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/board/archived', [WorkItemController::class, 'archived'])->name('work.archived');
         Route::get('/app/board/{workItem}', [WorkItemController::class, 'show'])->name('work.show');
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
+        // CR-30: explicit escalation, the one thing a reaction never is.
+        Route::post('/app/board/{workItem}/request-help', [WorkItemController::class, 'requestHelp'])->name('work.request-help');
         Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
         Route::post('/app/board/{workItem}/cancel', [WorkItemController::class, 'cancel'])->name('work.cancel');
         Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
@@ -331,6 +334,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
         // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
         Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
+        // CR-30 reaction set: read by every picker, curated by HR on Company Settings.
+        Route::get('/app/reactions', [ReactionController::class, 'index'])->name('reactions.index');
+        Route::post('/app/admin/reactions', [ReactionController::class, 'store'])->name('admin.reactions.store');
+        Route::post('/app/admin/reactions/{key}/retire', [ReactionController::class, 'retire'])->name('admin.reactions.retire');
         Route::post('/app/admin/greetings/{greetingLine}', [GreetingLineController::class, 'update'])->name('admin.greetings.update');
         Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
         // Any signed-in employee can suggest a line; HR approves it above.

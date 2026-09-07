@@ -206,7 +206,8 @@
                         @if ($session->exists)
                             <div class="tot-meta-mobile">
                                 @foreach ($top3 as $emoji => $count)
-                                    <span>{{ $emoji }}<b>{{ $count }}</b></span>
+                                    @php $rd = \App\Models\Reaction::describe($emoji); @endphp
+                                    <span title="{{ $rd['label'] }}">{{ $rd['icon'] }}<b>{{ $count }}</b></span>
                                 @endforeach
                                 @if ($watched > 0)
                                     <span x-text="$store.ui.lang==='en' ? @js($watched.' watched') : @js($watched.' sudah tonton')">{{ $watched }} watched</span>
@@ -219,7 +220,8 @@
                     <div class="tot-meta">
                         @if ($session->exists)
                             @foreach ($top3 as $emoji => $count)
-                                <span class="tot-rx">{{ $emoji }}<b>{{ $count }}</b></span>
+                                @php $rd = \App\Models\Reaction::describe($emoji); @endphp
+                                <span class="tot-rx" title="{{ $rd['label'] }}">{{ $rd['icon'] }}<b>{{ $count }}</b></span>
                             @endforeach
                             @if ($watched > 0)
                                 <span class="tot-wt" x-text="$store.ui.lang==='en' ? @js($watched.' watched') : @js($watched.' sudah tonton')">{{ $watched }} watched</span>

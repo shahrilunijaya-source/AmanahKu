@@ -104,14 +104,10 @@
                 <div class="tot-actions">
                     <span class="tot-fw">
                         @if ($canSubmit)
-                            <span class="tot-fly" x-show="flyout === 'react'" x-cloak
+                            <span class="tot-fly tot-fly-react" x-show="flyout === 'react'" x-cloak
                                   @mouseleave="flyout = null" @keydown.escape.window="flyout = null">
-                                @foreach (\App\Models\KnowledgeEntry::EMOJI as $i => $em)
-                                    <button type="button" class="tot-fly-e" style="--d:{{ $i * 30 }}ms"
-                                            @click="react(@js($em)); flyout = null"
-                                            :data-mine="mine.includes(@js($em)) ? '1' : null"
-                                            aria-label="React {{ $em }}">{{ $em }}</button>
-                                @endforeach
+                                {{-- CR-30: the tenant's own set, not generic emoji. --}}
+                                @include('partials.reaction-picker', ['onPick' => "react('KEY'); flyout = null"])
                             </span>
                             <button type="button" class="tot-act" :data-on="mine.length ? '1' : null"
                                     @click="heartPress()" @mouseenter="flyout = 'react'"
@@ -128,6 +124,7 @@
                             </span>
                         @endif
                     </span>
+                    @include('partials.reaction-tally', ['counts' => $reactionCounts[$e->id] ?? [], 'live' => true])
 
                     @if ($canSubmit)
                         <button type="button" class="tot-act" :data-on="starred ? '1' : null" @click="helpful()"

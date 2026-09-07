@@ -667,7 +667,41 @@ class WorkItemController extends Controller
     /**
      * @param  array<int, string>  $roles  employee id => helper | fyi
      */
-    private function syncParticipants(WorkItem $item, array $roles, Employee $actor): void
+    /**
+     * CR-30 Request Help: the explicit escalation a reaction never is. Whoever may
+     * edit the card names a colleague and says why; that person becomes a Helper
+     * (CR-04) and gets one notification carrying the message. Asking again sends
+     * another message without touching the tag.
+     */
+    public function requestHelp(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $workItem->tenant_id)->whereNull('archived_at')],
+            'message' => ['required', 'string', 'max:200'],
+        ]);
+        $helper = Employee::findOrFail($data['employee_id']);
+        if ($helper->id === $workItem->employee_id) {
+            throw ValidationException::withMessages(['employee_id' => 'That person already owns this card.']);
+        }
+
+        $roles = $workItem->participants()->get()->mapWithKeys(fn (Employee $e) => [$e->id => $e->pivot->role ?? 'helper'])->all();
+        $roles[$helper->id] = 'helper';
+        $this->syncParticipants($workItem, $roles, $employee, notify: false);
+
+        AppNotification::send(
+            $helper->user_id,
+            $employee->display_name.' asked for your help',
+            $workItem->title.' — '.$data['message'],
+            route('app.screen', 'board').'?card='.$workItem->id,
+        );
+
+        return response()->json(['ok' => true, 'card' => $this->cardPayload($workItem->fresh(['participants', 'reviewer']))]);
+    }
+
+    private function syncParticipants(WorkItem $item, array $roles, Employee $actor, bool $notify = true): void
     {
         // Keep only real, active employees in this tenant; never the owner themselves.
         $ids = Employee::active()
@@ -683,6 +717,10 @@ class WorkItemController extends Controller
         if ($after->all() != $before->all()) {
             $describe = fn ($map) => collect($map)->map(fn ($role, $id) => $id.':'.$role)->values()->all();
             AuditLog::change($item, 'participants', $describe($before), $describe($after));
+        }
+
+        if (! $notify) {
+            return;
         }
 
         foreach ($ids->diff($before->keys()) as $addedId) {

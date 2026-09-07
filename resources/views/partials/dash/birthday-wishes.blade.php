@@ -39,7 +39,7 @@
                 $store.toast.error($store.ui.lang==='en' ? 'That did not save. Try again.' : 'Tidak berjaya disimpan. Cuba lagi.');
             } finally { this.busy = false; }
         },
-        async react(wishId, emoji) {
+        async react(wishId, reaction) {
             if (this.busy) return;
             const root = this.$root;
             this.busy = true;
@@ -47,7 +47,7 @@
                 const res = await fetch(@js(url('/app/birthday/wish')) + '/' + wishId + '/react', {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, Accept: 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emoji }),
+                    body: JSON.stringify({ reaction }),
                 });
                 if (!res.ok) throw new Error(res.status);
                 const data = await res.json();

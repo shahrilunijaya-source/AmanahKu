@@ -15,12 +15,15 @@
             <span class="uj-db-wish-at">{{ $w->created_at?->diffForHumans() }}</span>
         </div>
         <div class="uj-db-wish-text">{{ $w->body }}</div>
+        @php
+            // The viewer's own keys as a literal, not a nested x-data: react() swaps $root,
+            // and a nested scope would make $root this span instead of the whole region.
+            $mineKeys = json_encode($w->reactions->where('employee_id', $viewerId)->pluck('emoji')->values()->all(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        @endphp
         <div class="uj-db-wish-reactions">
-            @foreach (\App\Models\TotSession::EMOJI as $emoji)
-                @php $group = $byEmoji->get($emoji); @endphp
-                <button type="button" class="uj-db-wish-chip" data-mine="{{ $group && $group->contains('employee_id', $viewerId) ? '1' : '' }}" data-count="{{ $group ? '1' : '' }}"
-                        @click="react({{ $w->id }}, @js($emoji))">{{ $emoji }}@if ($group) {{ $group->count() }}@endif</button>
-            @endforeach
+            {{-- CR-30: the tenant's own set; the tally keeps a retired reaction readable. --}}
+            @include('partials.reaction-picker', ['onPick' => 'react('.$w->id.", 'KEY')", 'mine' => $mineKeys])
+            @include('partials.reaction-tally', ['counts' => $byEmoji->map->count()->all()])
         </div>
     </div>
 </div>

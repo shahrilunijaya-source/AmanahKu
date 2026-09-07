@@ -144,6 +144,9 @@ export function registerWorkBoard(Alpine) {
             // "+ Add someone" picker: menu visibility plus its search box.
             peopleMenuOpen: false,
             peopleQuery: '',
+            // CR-30 Request help: who to ask and the one message.
+            helpId: '',
+            helpMessage: '',
             _timers: {},
             _savedTimer: null,
             _closeTimer: null,
@@ -649,6 +652,27 @@ export function registerWorkBoard(Alpine) {
             if (!person || person.role === role) return;
             person.role = role;
             this.commitField('tagged', this.taggedPayload());
+        },
+
+        // CR-30 Request Help: name a colleague and say why. The server tags them as a
+        // Helper and sends the one message; the drawer just reflects the new tag.
+        async requestHelp() {
+            const id = Number(this.drawer.helpId);
+            const message = (this.drawer.helpMessage || '').trim();
+            if (!this.drawer.id || this.drawer.locked || !id || !message) return;
+            this.drawer.error = '';
+            try {
+                const { card } = await this.api(`/app/board/${this.drawer.id}/request-help`, {
+                    method: 'POST',
+                    body: JSON.stringify({ employee_id: id, message }),
+                });
+                this.drawer.card.participants = card.participants ?? this.drawer.card.participants;
+                this.drawer.helpId = '';
+                this.drawer.helpMessage = '';
+                this.$store.toast.success(this.t('Asked. They have been tagged as a Helper.', 'Diminta. Mereka ditanda sebagai Pembantu.'));
+            } catch (err) {
+                this.drawer.error = err.validation ? err.message : this.t('Could not send that request.', 'Tidak dapat menghantar permintaan itu.');
+            }
         },
 
         removePerson(id) {

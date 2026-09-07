@@ -187,7 +187,7 @@ class CrossTenantDenialTest extends TestCase
 
         $this->denied("/app/tot/{$session->id}", ['title' => 'Hijacked']);
         $this->denied("/app/tot/{$session->id}/comment", ['body' => 'Injected']);
-        $this->denied("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->denied("/app/tot/{$session->id}/react", ['reaction' => 'power']);
         $this->denied("/app/tot/{$session->id}/watched");
         $this->denied("/app/tot/{$session->id}/rate", ['score' => 5]);
         $this->denied("/app/tot/{$session->id}/delete");

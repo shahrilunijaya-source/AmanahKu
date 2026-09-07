@@ -187,17 +187,17 @@ class BirthdayWishesTest extends TestCase
         $celebrant = $this->colleague('Celebrant', '1990-09-08');
         $wish = BirthdayWish::create(['tenant_id' => $this->tenant->id, 'employee_id' => $celebrant->id, 'author_id' => $author->id, 'body' => 'Hi', 'celebrated_on' => '2026-09-08']);
 
-        $this->postJson(route('birthday.react', $wish), ['emoji' => '👍'])->assertOk();
+        $this->postJson(route('birthday.react', $wish), ['reaction' => 'power'])->assertOk();
         $this->assertSame(1, BirthdayWishReaction::where('wish_id', $wish->id)->where('employee_id', $author->id)->count());
 
-        $this->postJson(route('birthday.react', $wish), ['emoji' => '👍'])->assertOk();
+        $this->postJson(route('birthday.react', $wish), ['reaction' => 'power'])->assertOk();
         $this->assertSame(0, BirthdayWishReaction::where('wish_id', $wish->id)->count());
 
-        $this->postJson(route('birthday.react', $wish), ['emoji' => '👍'])->assertOk();
-        $this->postJson(route('birthday.react', $wish), ['emoji' => '🔥'])->assertOk();
+        $this->postJson(route('birthday.react', $wish), ['reaction' => 'power'])->assertOk();
+        $this->postJson(route('birthday.react', $wish), ['reaction' => 'legend'])->assertOk();
         $reactions = BirthdayWishReaction::where('wish_id', $wish->id)->where('employee_id', $author->id)->get();
         $this->assertCount(1, $reactions);
-        $this->assertSame('🔥', $reactions->first()->emoji);
+        $this->assertSame('legend', $reactions->first()->emoji);
     }
 
     /** ---- Cross-tenant: route-model binding is not tenant-scoped, controller must check ---- */
@@ -220,7 +220,7 @@ class BirthdayWishesTest extends TestCase
 
         $this->postJson(route('birthday.wish', $otherCelebrant), ['body' => 'Hi'])->assertStatus(404);
         $this->postJson(route('birthday.thanks', $otherCelebrant), ['body' => 'Hi'])->assertStatus(404);
-        $this->postJson(route('birthday.react', $otherWish), ['emoji' => '👍'])->assertStatus(404);
+        $this->postJson(route('birthday.react', $otherWish), ['reaction' => 'power'])->assertStatus(404);
     }
 
     /** ---- Next day: band gone, wish appears on the Wall ---- */

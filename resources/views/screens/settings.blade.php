@@ -440,6 +440,42 @@
             @endif
         </div>
         @endif
+
+        @if (!empty($canManageFeatures) && (! $only || $only === 'reactions'))
+        {{-- CR-30: the tenant's reaction set. Add or retire, never rename, ten active at most. --}}
+        @php $reactionSet = \App\Models\Reaction::set(); $activeReactions = $reactionSet->whereNull('retired_at')->count(); @endphp
+        <div class="uj-card" style="padding:20px;" x-data="{ adding:false }">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Reactions' : 'Reaksi'">Reactions</h3>
+                @if ($activeReactions < \App\Models\Reaction::MAX_ACTIVE)
+                    <button type="button" @click="adding=!adding" style="font-size:12.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? '+ Add reaction' : '+ Tambah reaksi'">+ Add reaction</button>
+                @endif
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">
+                <span x-show="$store.ui.lang==='en'">Up to ten active. Retiring one keeps it on the items it was already given; nothing is ever renamed. {{ $activeReactions }} of {{ \App\Models\Reaction::MAX_ACTIVE }} active.</span>
+                <span x-show="$store.ui.lang!=='en'" x-cloak>Sehingga sepuluh aktif. Reaksi yang dibersarakan kekal pada item lama; tiada yang dinamakan semula. {{ $activeReactions }} daripada {{ \App\Models\Reaction::MAX_ACTIVE }} aktif.</span>
+            </p>
+            @php $rfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
+            <form x-show="adding" x-cloak method="post" action="{{ route('admin.reactions.store') }}" style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:8px;">
+                @csrf
+                <input name="icon" required maxlength="16" placeholder="Icon (emoji or 1-2 letters)" style="{{ $rfs }}width:200px;" />
+                <input name="label" required maxlength="60" placeholder="Label, e.g. GOAT" style="{{ $rfs }}width:200px;" />
+                <input name="key" required maxlength="40" pattern="[a-z][a-z0-9_]*" placeholder="key, e.g. goat" style="{{ $rfs }}width:160px;" />
+                <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
+            </form>
+            @foreach ($reactionSet as $r)
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--hairline-soft);" data-reaction-row="{{ $r->key }}">
+                    <span style="font-size:18px;line-height:1;width:24px;text-align:center;" aria-hidden="true">{{ $r->icon }}</span>
+                    <span style="font-size:12.5px;color:{{ $r->retired_at ? 'var(--muted)' : 'var(--ink)' }};min-width:0;flex:1;">{{ $r->label }} <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">{{ $r->key }}</span></span>
+                    @if ($r->retired_at)
+                        <span style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Retired' : 'Bersara'">Retired</span>
+                    @else
+                        <form method="post" action="{{ route('admin.reactions.retire', $r->key) }}" onsubmit="return confirm('Retire {{ addslashes($r->label) }}? Old items keep showing it.')">@csrf<button type="submit" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Retire':'Bersarakan'">Retire</button></form>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+        @endif
     </div>
 </div>
 

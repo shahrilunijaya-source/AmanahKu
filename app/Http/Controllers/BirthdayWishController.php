@@ -8,7 +8,7 @@ use App\Models\BirthdayWish;
 use App\Models\BirthdayWishReaction;
 use App\Models\Employee;
 use App\Models\PublicHoliday;
-use App\Models\TotSession;
+use App\Models\Reaction;
 use App\Support\DashboardBands;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
@@ -82,8 +82,9 @@ class BirthdayWishController extends Controller
         abort_unless($reactor, 403, 'No employee profile in this workspace.');
 
         $data = $request->validate([
-            'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
+            'reaction' => ['required', 'string', 'in:'.implode(',', Reaction::activeKeys())],
         ]);
+        $data['emoji'] = $data['reaction'];
 
         $had = BirthdayWishReaction::where('wish_id', $wish->id)->where('employee_id', $reactor->id)->pluck('emoji');
         BirthdayWishReaction::where('wish_id', $wish->id)->where('employee_id', $reactor->id)->delete();
@@ -105,15 +106,22 @@ class BirthdayWishController extends Controller
 
         $employee = Employee::findOrFail($wish->employee_id);
 
-        return $this->respond($request, $employee);
+        // The wish's own tallies ride along with the re-rendered region (CR-30 shape).
+        $rows = BirthdayWishReaction::where('wish_id', $wish->id)->get();
+
+        return $this->respond($request, $employee, [
+            'reactions' => $rows->groupBy('emoji')->map->count()->all(),
+            'mine' => $rows->where('employee_id', $reactor->id)->pluck('emoji')->values()->all(),
+        ]);
     }
 
-    private function respond(Request $request, Employee $employee): RedirectResponse|JsonResponse
+    /** @param  array<string, mixed>  $extra */
+    private function respond(Request $request, Employee $employee, array $extra = []): RedirectResponse|JsonResponse
     {
         $html = $this->wishesPartial($employee, $request->attributes->get('employee'));
 
         return $request->expectsJson()
-            ? response()->json(['ok' => true, 'html' => $html])
+            ? response()->json(['ok' => true, 'html' => $html] + $extra)
             : back()->with('ok', 'Saved.');
     }
 

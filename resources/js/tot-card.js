@@ -40,8 +40,8 @@ export function registerTotCard(Alpine) {
             }
         },
 
-        react(emoji) {
-            return this.act(`/app/tot/${this.id}/react`, { emoji });
+        react(reaction) {
+            return this.act(`/app/tot/${this.id}/react`, { reaction });
         },
 
         // The outer icon is the toggle; the flyout is only for choosing. With a
