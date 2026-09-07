@@ -4894,14 +4894,16 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-more:hover { background:rgba(0,0,0,.05); color:var(--ink); }
 .uj-db-more:active { transform:scale(.97); }
 .uj-db-cake { font-size:28px; line-height:1; filter:drop-shadow(0 3px 5px rgba(38,37,30,.18)); }
-.uj-db-band:has(.uj-db-art) .uj-db-more { position:relative; z-index:1; }
+
 .uj-db-cta + .uj-db-more { margin-left:0; }
 .uj-db-moment { background:var(--red-tint); border-color:#f3c9cc; }
 .uj-db-moment .uj-db-k { color:var(--red); }
 .uj-db-moment .uj-db-cta { background:var(--red); color:#fff; }
 /* ornament zone on the right; the copy never runs under it */
 .uj-db-art { position:absolute; right:0; top:0; bottom:0; width:240px; pointer-events:none; }
-.uj-db-band:has(.uj-db-art) { padding-right:250px; }
+/* copy keeps clear of the ornament; the button and the pill sit on top of it */
+.uj-db-band:has(.uj-db-art):not(:has(.uj-db-cta, .uj-db-more)) { padding-right:250px; }
+.uj-db-cta, .uj-db-more { position:relative; z-index:1; }
 .uj-db-art i { position:absolute; width:7px; height:11px; border-radius:2px; transform:rotate(var(--r)); opacity:.9; animation:uj-db-drift 900ms var(--ease) var(--d, 0ms) both; }
 .uj-db-art i:nth-child(4n) { background:var(--red); } .uj-db-art i:nth-child(4n+1) { background:var(--amber); }
 .uj-db-art i:nth-child(4n+2) { background:var(--success); } .uj-db-art i:nth-child(4n+3) { background:var(--info); }
@@ -4913,4 +4915,4 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db[data-plain] .uj-db-k { color:var(--muted-soft); }
 .uj-db[data-plain] .uj-db-cta { background:var(--shelf); color:var(--ink); }
 @media (prefers-reduced-motion: reduce) { .uj-db-art i { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
-@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px; } .uj-db-s { flex-basis:100%; } }
+@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-s { flex-basis:100%; } }
