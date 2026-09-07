@@ -125,3 +125,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: custom SVG or uploaded icons. Rejected, an upload path is a new surface with no acceptance item behind it, and a glyph is what the birthday composer already uses. A new polymorphic `reaction_uses` table. Rejected, the three tables already carry per-person uniqueness and the acceptance shapes only fix the API. Restricting Request Help to managers. Rejected, the spec calls it "the explicit action for a person who needs help", so the owner asks too. Treating the second press as a no-op (count stays 1). Rejected, that contradicts "once per person per item" as an undo and the toggle every existing react endpoint already had.
 - Reversal cost: cheap for the icon rule (one validation rule in `ReactionController::store` and the settings form); medium for the storage column (a data move out of `emoji` into a new table); cheap for the Request Help gate (one call in `WorkItemController::requestHelp`).
 - Source: spec silent / QA test contradicts itself.
+
+### QA / CR-30 / CR30Test line 103 corrected after S05
+- Question: `CR30Test` item 1 asserted that a second press of the same reaction by the same person leaves the tally at 1 while also leaving that person's own list empty; the two cannot both hold.
+- Decided: the second press is the undo, as the spec's "once per person per item" and every existing react endpoint already read it: tally back to 0, own list empty. One assertion changed, nothing else in the file. QA edited it, not the session.
+- Alternatives: keep the count at 1 and treat the second press as a no-op. Rejected, then the person could never take a reaction back, and the file's own next line already expects the undo.
+- Reversal cost: cheap, one line in `tests/Acceptance/CR30Test.php`.
+- Source: QA test contradicted itself.

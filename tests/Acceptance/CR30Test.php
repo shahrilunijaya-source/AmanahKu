@@ -100,7 +100,7 @@ class CR30Test extends TestCase
             $this->assertSame(['power'], $this->mine($state));
 
             $state = $this->actingInTenantAs($yati)->postJson($url, ['reaction' => 'power'])->assertOk()->json();
-            $this->assertSame(1, $this->tally($state, 'power'), "{$url}: the same person counted twice");
+            $this->assertSame(0, $this->tally($state, 'power'), "{$url}: pressing Power again should undo it, never count twice");
             $this->assertNotContains('power', $this->mine($state), "{$url}: pressing Power again did not undo it");
 
             $this->actingInTenantAs($yati)->postJson($url, ['reaction' => 'legend'])->assertOk();
