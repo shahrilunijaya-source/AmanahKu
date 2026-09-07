@@ -68,6 +68,9 @@
                         <button type="button" role="menuitem" x-show="!drawer.locked && drawer.card.status === 'done' && !drawer.card.parent_id" @click="drawer.menuOpen = false; archiveCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Archive card' : 'Arkibkan kad'">Archive card</span>
                         </button>
+                        <button type="button" role="menuitem" x-show="!drawer.locked && !drawer.card.parent_id && !drawer.card.cancelled_at" @click="drawer.menuOpen = false; cancelCard()">
+                            <span x-text="$store.ui.lang==='en' ? 'Cancel card (with reason)' : 'Batalkan kad (dengan sebab)'">Cancel card (with reason)</span>
+                        </button>
                         <button type="button" role="menuitem" class="is-danger" x-show="!drawer.locked" @click="drawer.menuOpen = false; deleteCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Delete card' : 'Padam kad'">Delete card</span>
                         </button>
@@ -140,12 +143,16 @@
                                      transparent, so the tap itself lands on the native control — iOS only raises its
                                      date wheel from a direct tap, a synthetic .click()/.focus() on a hidden 1px
                                      input (the old approach) is silently ignored on iOS Safari without showPicker(). --}}
-                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked"
+                                {{-- Once a work card has a due date it never changes (date-calendar-rules §1):
+                                     the picker is disabled and the hint below says how to move the work. --}}
+                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked || !!drawer.card.due_at"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
-                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked"
+                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked || !!drawer.card.due_at"
                                        @click="openDuePicker()"
                                        @change="commitField('due_at', $event.target.value || null)"
                                        style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
+                                <span class="wd-due-lock" x-show="!drawer.locked && !!drawer.card.due_at" x-cloak
+                                      x-text="$store.ui.lang==='en' ? 'Locked. If the work has moved, cancel this card with a reason and create a new one.' : 'Dikunci. Jika kerja ini berubah tarikh, batalkan kad ini dengan sebab dan cipta kad baharu.'"></span>
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir')"></span>
                             @endif
@@ -229,6 +236,10 @@
                                         <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 4px;border:1px solid var(--hairline);border-radius:9999px;font-size:12px;font-weight:500;color:var(--ink);background:#fff;">
                                             <span class="wa" :style="'margin-left:0;width:22px;height:22px;font-size:9px;background:' + (p.color || 'var(--muted)')" x-text="p.initials"></span>
                                             <span x-text="p.name"></span>
+                                            {{-- CR-04: Helper does part of the work, FYI only watches. Click to flip. --}}
+                                            <button type="button" class="wd-role-toggle" @click="setPersonRole(p.id, p.role === 'fyi' ? 'helper' : 'fyi')"
+                                                    :title="$store.ui.lang==='en' ? 'Click to switch between Helper and FYI' : 'Klik untuk tukar antara Pembantu dan FYI'"
+                                                    x-text="p.role === 'fyi' ? 'FYI' : ($store.ui.lang==='en' ? 'Helper' : 'Pembantu')"></button>
                                             <button type="button" @click="removePerson(p.id)" :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + p.name"
                                                     style="border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0;">×</button>
                                         </span>
@@ -237,7 +248,7 @@
                                 <template x-if="drawer.locked && drawer.card.participants.length">
                                     <span class="wa-stack">
                                         <template x-for="p in drawer.card.participants" :key="'ro'+p.id">
-                                            <span class="wa" :style="'background:' + (p.color || 'var(--muted)')" :title="p.name" x-text="p.initials"></span>
+                                            <span class="wa" :style="'background:' + (p.color || 'var(--muted)')" :title="p.name + (p.role === 'fyi' ? ' (FYI)' : ' (Helper)')" x-text="p.initials"></span>
                                         </template>
                                     </span>
                                 </template>
@@ -255,7 +266,12 @@
                                                :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
                                                :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'" autocomplete="off">
                                         <template x-for="p in filteredPeople" :key="p.id">
-                                            <button type="button" role="menuitem" @click="addPerson(p.id); drawer.peopleQuery = ''" x-text="p.name"></button>
+                                            <div class="wd-tag-row" role="none">
+                                                <span x-text="p.name"></span>
+                                                <button type="button" role="menuitem" class="wd-role-pick" @click="addPerson(p.id, 'helper'); drawer.peopleQuery = ''"
+                                                        x-text="$store.ui.lang==='en' ? 'Helper' : 'Pembantu'"></button>
+                                                <button type="button" role="menuitem" class="wd-role-pick" @click="addPerson(p.id, 'fyi'); drawer.peopleQuery = ''">FYI</button>
+                                            </div>
                                         </template>
                                         <template x-if="!filteredPeople.length">
                                             <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'Nobody found' : 'Tiada sesiapa dijumpai'"></span>
@@ -263,6 +279,26 @@
                                     </div>
                                 </span>
                             </span>
+                        </span>
+
+                        {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
+                        <span class="wd-pval">
+                            {{-- The server says who may set it (PM and above, covering the owner), so the
+                                 control follows can_set_reviewer rather than the drawer lock: the team board
+                                 is otherwise read-only, yet it is where a PM meets a staff member's card. --}}
+                            <template x-if="drawer.card.can_set_reviewer">
+                                <select class="wd-inline" :value="drawer.card.reviewer_id || ''" @change="setReviewer($event.target.value)">
+                                    <option value="" x-text="$store.ui.lang==='en' ? 'No reviewer' : 'Tiada penyemak'"></option>
+                                    <template x-for="p in reviewerOptions" :key="'rv'+p.id">
+                                        <option :value="p.id" :selected="p.id === drawer.card.reviewer_id" x-text="p.name"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <template x-if="!drawer.card.can_set_reviewer">
+                                <span class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.reviewer }" style="margin:0;padding-left:0;"
+                                      x-text="drawer.card.reviewer ? drawer.card.reviewer.name : ($store.ui.lang==='en' ? 'None' : 'Tiada')"></span>
+                            </template>
                         </span>
                     </div>
 
@@ -293,8 +329,12 @@
                         <template x-if="!drawer.card.parent_id && drawer.canAddChild && drawer.family && !drawer.family.children.length">
                             <div>
                                 <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Subtasks' : 'Subtugas'">Subtasks</h3>
-                                <input class="wd-inline" style="margin:0 0 12px;" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
+                                <input class="wd-inline" style="margin:0 0 6px;" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
                                        :placeholder="$store.ui.lang==='en' ? '+ Add a subtask' : '+ Tambah subtugas'"
+                                       @keydown.enter.prevent="addChild()">
+                                {{-- Due date first: a subtask's date locks on first save. --}}
+                                <input type="date" class="wd-inline" style="margin:0 0 12px;" x-model="drawer.newChildDueAt" :disabled="drawer.addingChild"
+                                       :aria-label="$store.ui.lang==='en' ? 'Subtask due date' : 'Tarikh akhir subtugas'"
                                        @keydown.enter.prevent="addChild()">
                             </div>
                         </template>

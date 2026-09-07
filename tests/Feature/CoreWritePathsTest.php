@@ -64,7 +64,7 @@ class CoreWritePathsTest extends TestCase
     {
         $this->actingInTenant()->post('/app/board', [
             'title' => 'Draft the Q3 plan', 'type' => 'task', 'priority' => 'high',
-            'due_label' => 'Fri 26 Jun',
+            'due_label' => 'Fri 26 Jun', 'due_at' => '2026-06-26',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('work_items', [

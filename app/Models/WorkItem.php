@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use RuntimeException;
 
 /**
  * `due_at` has a `date` cast, so it reads back as a Carbon instance rather than
@@ -45,21 +46,74 @@ class WorkItem extends Model implements HasAuditedFields
 
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
     }
 
     protected static function booted(): void
     {
         static::addGlobalScope(new ParentOnly);
+
+        // Backstop for BoardRules::assertDueDateLocked(): every writer (controller, MCP
+        // tool) is expected to call that guard before saving, but a stray
+        // `$item->update(['due_at' => ...])` anywhere else must not slip past it. See
+        // docs/build/contracts/dates.md Rule 1.
+        static::saving(function (WorkItem $model) {
+            if ($model->exists
+                && $model->isDirty('due_at')
+                && $model->getOriginal('due_at') !== null
+                && $model->type !== 'event'
+            ) {
+                throw new RuntimeException('Work item due dates are locked after the first save (work_items.due_at).');
+            }
+        });
     }
 
     /** Fields the Global Clause requires an audit entry for on change. */
     public function audited(): array
     {
         return [
-            'due_at', 'priority', 'status', 'done_at', 'employee_id', 'archived_at',
-            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id',
+            'due_at', 'priority', 'status', 'done_at', 'employee_id', 'archived_at', 'cancelled_at',
+            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id', 'reviewer_id',
         ];
+    }
+
+    /** Card roles a tagged person may hold (docs/build/contracts/roles.md). */
+    public const TAG_ROLES = ['helper', 'fyi'];
+
+    /** Visible label per card role for someone who is not the Assigned owner. */
+    public const ROLE_LABELS = [
+        'helper' => 'Tagged – Helper',
+        'fyi' => 'Tagged – FYI',
+        'reviewer' => 'Reviewer',
+    ];
+
+    /**
+     * This card's role for one person: assigned, reviewer, helper, fyi, or null when
+     * they hold none. Reads the loaded participants when present so a board render
+     * never lazy-loads per card.
+     */
+    public function roleFor(int $employeeId): ?string
+    {
+        if ($this->employee_id === $employeeId) {
+            return 'assigned';
+        }
+        if ($this->reviewer_id === $employeeId) {
+            return 'reviewer';
+        }
+        $participants = $this->relationLoaded('participants') ? $this->participants : $this->participants()->get();
+        $row = $participants->firstWhere('id', $employeeId);
+
+        return $row ? ($row->pivot->role ?? 'helper') : null;
+    }
+
+    public function isEvent(): bool
+    {
+        return $this->type === 'event';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
     }
 
     /**
@@ -251,6 +305,17 @@ class WorkItem extends Model implements HasAuditedFields
      */
     public function participants(): BelongsToMany
     {
-        return $this->belongsToMany(Employee::class, 'work_item_participant');
+        return $this->belongsToMany(Employee::class, 'work_item_participant')->withPivot('role');
+    }
+
+    /**
+     * The one person who may move this card from In Review to Done when set. Never
+     * the Assigned owner. See docs/build/contracts/roles.md.
+     *
+     * @return BelongsTo<Employee, $this>
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'reviewer_id');
     }
 }

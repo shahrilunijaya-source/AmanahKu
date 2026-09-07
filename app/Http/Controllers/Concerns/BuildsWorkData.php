@@ -173,8 +173,10 @@ trait BuildsWorkData
         // A card belongs to one owner, but may also include participants — the same
         // shared card then shows on each included person's board. Load both: cards I
         // own, plus cards I'm a participant on.
+        // CR-04: a card I review sits on my board too, under the Reviewing chip.
         $items = $employee ? WorkItem::query()
             ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhere('reviewer_id', $employee->id)
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->whereNull('archived_at')
             ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')
@@ -196,15 +198,20 @@ trait BuildsWorkData
                 ->orderBy('sort_order')->orderBy('id')->get();
             $items = $items->concat($assignedChildren);
         }
+        // `assigned` is the column badge: cards this person owns, never the ones they
+        // help on or review (contracts/roles.md, counters count Assigned only).
         $cols = [
-            'todo' => ['title' => 'To Do', 'cards' => collect()],
-            'prog' => ['title' => 'In Progress', 'cards' => collect()],
-            'review' => ['title' => 'In Review', 'cards' => collect()],
-            'done' => ['title' => 'Done', 'cards' => collect()],
+            'todo' => ['title' => 'To Do', 'cards' => collect(), 'assigned' => 0],
+            'prog' => ['title' => 'In Progress', 'cards' => collect(), 'assigned' => 0],
+            'review' => ['title' => 'In Review', 'cards' => collect(), 'assigned' => 0],
+            'done' => ['title' => 'Done', 'cards' => collect(), 'assigned' => 0],
         ];
         foreach ($items as $i) {
             if (isset($cols[$i->status])) {
                 $cols[$i->status]['cards']->push($i);
+                if ($employee && $i->employee_id === $employee->id) {
+                    $cols[$i->status]['assigned']++;
+                }
             }
         }
 
@@ -236,24 +243,53 @@ trait BuildsWorkData
                     ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')->orderBy('sort_order')->orderBy('id'),
             ])
             ->orderBy('name')
-            ->get()
-            ->filter(fn ($e) => $e->workItems->isNotEmpty());
+            ->get();
+
+        // CR-04: the cards each person helps on, is kept informed of, or reviews.
+        // Shown in their lane with the role label and reported beside the counters
+        // ("helping on 3 / reviewing 2"), never inside them (contracts/roles.md).
+        $ids = $employees->pluck('id')->all();
+        $tagged = WorkItem::query()
+            ->whereNull('archived_at')
+            ->where(fn ($q) => $q->whereIn('reviewer_id', $ids)
+                ->orWhereHas('participants', fn ($p) => $p->whereIn('employees.id', $ids)))
+            ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')
+            ->orderBy('sort_order')->orderBy('id')->get();
+        $taggedFor = fn (Employee $e) => $tagged
+            ->map(fn (WorkItem $i) => ['item' => $i, 'role' => $i->roleFor($e->id)])
+            ->filter(fn (array $row) => in_array($row['role'], ['helper', 'fyi', 'reviewer'], true))
+            ->values();
+        $employees = $employees
+            ->each(fn (Employee $e) => $e->setAttribute('tagged_rows', $taggedFor($e)))
+            ->filter(fn ($e) => $e->workItems->isNotEmpty() || $e->tagged_rows->isNotEmpty());
 
         $today = today();
 
-        // Flat rows: one entry per work item, carrying owner info.
+        // Flat rows: one entry per work item, carrying owner info; a person's tagged
+        // and reviewed cards follow their own, keyed to their lane with the role.
         // Ordered by owner name (from the query), then sort_order, then id (from the eager load).
         $teamRows = $employees->flatMap(function ($e) {
-            return $e->workItems->map(fn ($item) => [
+            $own = $e->workItems->map(fn ($item) => [
                 'item' => $item,
+                'role' => 'assigned',
                 'owner_id' => $e->id,
                 'owner_name' => $e->display_name,
                 'owner_initials' => $e->initials,
                 'owner_avatar_color' => $e->avatar_color,
-            ])->all();
+            ]);
+            $extra = $e->tagged_rows->map(fn (array $row) => [
+                'item' => $row['item'],
+                'role' => $row['role'],
+                'owner_id' => $e->id,
+                'owner_name' => $e->display_name,
+                'owner_initials' => $e->initials,
+                'owner_avatar_color' => $e->avatar_color,
+            ]);
+
+            return $own->concat($extra)->all();
         })->values();
 
-        // Per-person aggregates.
+        // Per-person aggregates. The four counters count Assigned cards only.
         $teamPeople = $employees->map(function ($e) use ($today) {
             $items = $e->workItems;
 
@@ -265,10 +301,12 @@ trait BuildsWorkData
                 'position' => $e->positionBand?->title,
                 'department' => $e->department?->name,
                 'open' => $items->where('status', '!=', 'done')->count(),
-                'overdue' => $items->filter(fn ($i) => $i->due_at && $i->status !== 'done' && $i->due_at->lt($today))->count(),
+                'overdue' => $items->filter(fn ($i) => $i->due_at && $i->status !== 'done' && $i->due_at->lt($today) && $i->type !== 'event' && ! $i->cancelled_at)->count(),
                 'blocked' => $items->filter(fn ($i) => in_array('blocked', $i->labels ?? [], true))->count(),
                 'in_review' => $items->where('status', 'review')->count(),
                 'done' => $items->where('status', 'done')->count(),
+                'helping' => $e->tagged_rows->where('role', 'helper')->filter(fn (array $r) => $r['item']->status !== 'done')->count(),
+                'reviewing' => $e->tagged_rows->where('role', 'reviewer')->filter(fn (array $r) => $r['item']->status !== 'done')->count(),
             ];
         })->values();
 

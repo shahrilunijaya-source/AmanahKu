@@ -51,8 +51,8 @@
             <input class="wd-inline" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
                    :placeholder="$store.ui.lang==='en' ? '+ Add a subtask' : '+ Tambah subtugas'"
                    @keydown.enter.prevent="addChild()">
-            {{-- Optional assignee + due date, applied when Enter is pressed above. Left
-                 blank, storeChild() gives the subtask to the parent's own owner. --}}
+            {{-- Assignee (optional) + due date (required, locks on first save), applied when
+                 Enter is pressed. Left blank, storeChild() gives the subtask to the parent's owner. --}}
             <div class="wd-ov-add-row">
                 <select class="wd-ov-add-select" x-model="drawer.newChildAssigneeId" :disabled="drawer.addingChild">
                     <option value="" x-text="$store.ui.lang==='en' ? 'Same as parent' : 'Sama seperti induk'"></option>
@@ -60,7 +60,9 @@
                         <option :value="p.id" x-text="p.name"></option>
                     </template>
                 </select>
-                <input type="date" class="wd-ov-add-date" x-model="drawer.newChildDueAt" :disabled="drawer.addingChild">
+                <input type="date" class="wd-ov-add-date" x-model="drawer.newChildDueAt" :disabled="drawer.addingChild" required
+                       :title="$store.ui.lang==='en' ? 'Due date, locked once saved' : 'Tarikh akhir, dikunci selepas disimpan'"
+                       @keydown.enter.prevent="addChild()">
             </div>
         </div>
     @endif

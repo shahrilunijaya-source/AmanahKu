@@ -162,6 +162,8 @@ trait BuildsDashboardData
                 ->whereNull('archived_at')
                 ->whereNotNull('due_at')
                 ->where('due_at', '<', $now->toDateString())
+                ->where('type', '!=', 'event')
+                ->whereNull('cancelled_at')
                 ->exists()
         ) {
             $triggers[] = 'overdue';

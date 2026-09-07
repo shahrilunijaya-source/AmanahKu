@@ -97,7 +97,7 @@ class BoardCardTest extends TestCase
     public function test_inline_add_returns_card_json(): void
     {
         $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Quick card', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog',
+            'title' => 'Quick card', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog', 'due_at' => '2026-07-01',
         ])->assertCreated()->assertJsonPath('card.title', 'Quick card')->assertJsonPath('card.status', 'prog');
 
         $this->assertDatabaseHas('work_items', ['title' => 'Quick card', 'status' => 'prog']);
@@ -673,7 +673,7 @@ class BoardCardTest extends TestCase
         $rms->categories()->sync([$sales->id]);
 
         $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Sold work', 'type' => 'task', 'priority' => 'low',
+            'title' => 'Sold work', 'type' => 'task', 'priority' => 'low', 'due_at' => '2026-07-01',
             'timesheet_category_id' => $sales->id, 'project_id' => $iris->id,
         ])->assertCreated();
 

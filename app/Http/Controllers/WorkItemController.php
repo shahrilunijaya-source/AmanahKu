@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class WorkItemController extends Controller
 {
@@ -51,7 +52,9 @@ class WorkItemController extends Controller
             // parent_id set (storeChild() is the only reader of these three); a
             // top-level card ignores them.
             'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
-            'due_at' => ['nullable', 'date'],
+            // Mandatory on every work row now (docs/build/contracts/dates.md Rule 1):
+            // the only legal write to due_at, so it must happen at creation.
+            'due_at' => ['required', 'date'],
             'helper_ids' => ['nullable', 'array'],
             'helper_ids.*' => ['integer'],
         ], [
@@ -75,6 +78,7 @@ class WorkItemController extends Controller
             'type' => $data['type'],
             'priority' => $data['priority'] ?? 'medium',
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'],
             'project_id' => $data['project_id'] ?? null,
             'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
             'status' => $status,
@@ -133,7 +137,8 @@ class WorkItemController extends Controller
 
         if (! empty($data['helper_ids'])) {
             $child->participants()->sync(
-                Employee::active()->whereIn('id', $data['helper_ids'])->where('id', '!=', $child->employee_id)->pluck('id'),
+                Employee::active()->whereIn('id', $data['helper_ids'])->where('id', '!=', $child->employee_id)->pluck('id')
+                    ->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all(),
             );
         }
 
@@ -222,7 +227,7 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee', 'children.participants']);
+        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'reviewer', 'projectRef', 'employee', 'children.participants']);
 
         // The same call the write gate makes, so the drawer's read-only state can
         // never disagree with what the server will accept. A participant opens the
@@ -233,6 +238,10 @@ class WorkItemController extends Controller
             'card' => $this->cardPayload($workItem) + [
                 'description' => $workItem->description,
                 'can_manage' => $canManage,
+                // CR-04: PM and above set the reviewer; the card's role for this viewer
+                // drives the drawer's "you are the reviewer" hint.
+                'can_set_reviewer' => $canManage && in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true),
+                'viewer_role' => $workItem->roleFor($employee->id),
                 // Drawer subline only: "Opened 12 Jul 2026 by X" for a self-made card,
                 // "Assigned 12 Jul 2026 by X" for a tac. Fetched once on open — later
                 // write responses don't repeat these, so the merge in the client just
@@ -297,6 +306,14 @@ class WorkItemController extends Controller
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
+            // CR-04: the tagged set with a role each. Replaces the whole set, like
+            // participant_ids (which still works and means helper).
+            'tagged' => ['sometimes', 'array', 'prohibits:participant_ids'],
+            'tagged.*.employee_id' => ['required', 'integer'],
+            'tagged.*.role' => ['required', Rule::in(WorkItem::TAG_ROLES)],
+            // CR-04: the one person who may move the card from In Review to Done. Set
+            // by PM and above only (checked below), never the Assigned owner.
+            'reviewer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             // A subtask's assignee may be reassigned after the fact; a top-level
             // card's owner never changes, so this is rejected unless the card is a
             // child (checked below, once we know which we're holding).
@@ -320,10 +337,31 @@ class WorkItemController extends Controller
         // behind, not the raw body, because the drawer autosaves one field at a time.
         $this->boardRules->assertDueDateRetained($workItem, $data);
 
+        if (array_key_exists('due_at', $data)) {
+            $this->boardRules->assertDueDateLocked($workItem, $data['due_at']);
+        }
+
+        if (array_key_exists('reviewer_id', $data)) {
+            $role = $request->attributes->get('tenantRole', 'employee');
+            abort_unless(in_array(Permissions::effectiveRole($role), BoardRules::ASSIGNER_ROLES, true), 403, 'Only a manager can set a reviewer.');
+            if ($data['reviewer_id'] !== null && (int) $data['reviewer_id'] === $workItem->employee_id) {
+                throw ValidationException::withMessages(['reviewer_id' => 'The reviewer cannot be the person the card is assigned to.']);
+            }
+            $data['reviewer_id'] = $data['reviewer_id'] === null ? null : (int) $data['reviewer_id'];
+        }
+
         // Participants are a relation, not a column — pull them out before the fill.
         if (array_key_exists('participant_ids', $data)) {
-            $this->syncParticipants($workItem, $data['participant_ids'], $employee);
+            $this->syncParticipants($workItem, array_fill_keys(array_filter($data['participant_ids']), 'helper'), $employee);
             unset($data['participant_ids']);
+        }
+        if (array_key_exists('tagged', $data)) {
+            $roles = [];
+            foreach ($data['tagged'] as $tag) {
+                $roles[(int) $tag['employee_id']] = $tag['role'];
+            }
+            $this->syncParticipants($workItem, $roles, $employee);
+            unset($data['tagged']);
         }
 
         AuditContext::reason($reason);
@@ -341,7 +379,7 @@ class WorkItemController extends Controller
             BoardRules::dropProjectTheCategoryDisallows($workItem);
         }
 
-        $workItem->load('participants');
+        $workItem->load(['participants', 'reviewer']);
 
         return response()->json([
             'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
@@ -385,6 +423,7 @@ class WorkItemController extends Controller
         }
 
         $this->boardRules->assertChildrenDoneForStatus($workItem, $data['status']);
+        $this->boardRules->assertReviewerMovesToDone($workItem, $data['status'], $employee);
 
         $wasDone = $workItem->status === 'done';
 
@@ -474,11 +513,43 @@ class WorkItemController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Close a card out as Cancelled instead of moving its due date: the only honest way
+     * to change a locked due date is to cancel and create a new card (dates.md Rule 1).
+     * Behaves like archive() otherwise — takes the card and its subtasks off the board,
+     * reversible only in the sense that they still exist in the archived list — plus a
+     * mandatory reason, carried onto the audit row for `cancelled_at` on each row.
+     */
+    public function cancel(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'A subtask is cancelled with its parent.');
+        abort_if($workItem->isCancelled(), 422, 'This card is already cancelled.');
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        AuditContext::reason($data['reason']);
+        try {
+            DB::transaction(function () use ($workItem) {
+                $workItem->update(['cancelled_at' => now(), 'archived_at' => now()]);
+                $workItem->children->each(fn (WorkItem $child) => $child->update(['cancelled_at' => now(), 'archived_at' => now()]));
+            });
+        } finally {
+            AuditContext::reset();
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Bring an archived card back to the board, at To Do. */
     public function restore(Request $request, WorkItem $workItem): JsonResponse
     {
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isCancelled(), 422, 'A cancelled card stays cancelled. Create a new card instead.');
 
         DB::transaction(function () use ($workItem, $employee) {
             $workItem->update([
@@ -502,13 +573,14 @@ class WorkItemController extends Controller
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->whereNotNull('archived_at')
             ->orderByDesc('archived_at')
-            ->get(['id', 'title', 'archived_at']);
+            ->get(['id', 'title', 'archived_at', 'cancelled_at']);
 
         return response()->json([
             'items' => $items->map(fn (WorkItem $i) => [
                 'id' => $i->id,
                 'title' => $i->title,
                 'archived_at' => $i->archived_at?->format('d M Y'),
+                'cancelled' => $i->cancelled_at !== null,
             ])->values(),
         ]);
     }
@@ -592,22 +664,28 @@ class WorkItemController extends Controller
      * people are notified once; re-saving with an unchanged set does not re-ping
      * the survivors.
      */
-    private function syncParticipants(WorkItem $item, array $ids, Employee $actor): void
+    /**
+     * @param  array<int, string>  $roles  employee id => helper | fyi
+     */
+    private function syncParticipants(WorkItem $item, array $roles, Employee $actor): void
     {
         // Keep only real, active employees in this tenant; never the owner themselves.
-        $target = Employee::active()
-            ->whereIn('id', array_filter($ids))
+        $ids = Employee::active()
+            ->whereIn('id', array_keys($roles))
             ->where('id', '!=', $item->employee_id)
             ->pluck('id');
+        $target = $ids->mapWithKeys(fn (int $id) => [$id => ['role' => $roles[$id] ?? 'helper']]);
 
-        $before = $item->participants()->pluck('employees.id');
-        $item->participants()->sync($target);
+        $before = $item->participants()->get()->mapWithKeys(fn (Employee $e) => [$e->id => $e->pivot->role ?? 'helper']);
+        $item->participants()->sync($target->all());
+        $after = $target->map(fn (array $row) => $row['role']);
 
-        if ($target->diff($before)->isNotEmpty() || $before->diff($target)->isNotEmpty()) {
-            AuditLog::change($item, 'participants', $before->values()->all(), $target->values()->all());
+        if ($after->all() != $before->all()) {
+            $describe = fn ($map) => collect($map)->map(fn ($role, $id) => $id.':'.$role)->values()->all();
+            AuditLog::change($item, 'participants', $describe($before), $describe($after));
         }
 
-        foreach ($target->diff($before) as $addedId) {
+        foreach ($ids->diff($before->keys()) as $addedId) {
             AppNotification::send(
                 Employee::find($addedId)?->user_id,
                 $actor->display_name.' added you to a task',
@@ -711,7 +789,9 @@ class WorkItemController extends Controller
     {
         $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children', 'parent'])->loadCount('comments');
 
-        return view('partials.work-card', ['c' => $item])->render();
+        // The card face carries the role it holds for whoever asked (CR-04), so a
+        // write response repaints the same label the board rendered.
+        return view('partials.work-card', ['c' => $item, 'viewerId' => request()->attributes->get('employee')?->id])->render();
     }
 
     /**
@@ -760,6 +840,7 @@ class WorkItemController extends Controller
             'priority' => $item->priority,
             'status' => $item->status,
             'parent_id' => $item->parent_id,
+            'employee_id' => $item->employee_id,
             'child_summary' => $item->parent_id ? null : $item->childSummary(),
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
@@ -796,8 +877,16 @@ class WorkItemController extends Controller
                     'name' => $e->display_name,
                     'initials' => $e->initials,
                     'color' => $e->avatar_color,
+                    'role' => $e->pivot->role ?? 'helper',
                 ])->values()->all()
                 : [],
+            'reviewer_id' => $item->reviewer_id,
+            'reviewer' => $item->reviewer_id ? [
+                'id' => $item->reviewer_id,
+                'name' => $item->reviewer?->display_name,
+                'initials' => $item->reviewer?->initials,
+                'color' => $item->reviewer?->avatar_color,
+            ] : null,
         ];
     }
 

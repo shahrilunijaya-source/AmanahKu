@@ -32,6 +32,8 @@ const FIELD_DERIVED = {
     timesheet_category_id: ['timesheet_category_name', 'project_options', 'project_id', 'project'],
     project_id: ['project'],
     participant_ids: ['participants'],
+    tagged: ['participants'],
+    reviewer_id: ['reviewer', 'reviewer_id'],
 };
 
 export function registerWorkBoard(Alpine) {
@@ -61,8 +63,16 @@ export function registerWorkBoard(Alpine) {
         // Whether the collapsible secondary-filter panel (label + project) is open.
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
+        // CR-04 role chip: which of my roles the board shows. Assigned is the default
+        // (the column badges count it alone); Tagged is helper + fyi; Reviewing is
+        // reviewer; All shows every card I hold any role on.
+        roleFilter: 'assigned',
+        roleCounts: { assigned: 0, tagged: 0, reviewing: 0, all: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         busy: false,
+        // "+ Add a card" composer: which column is open, and the date it will carry.
+        adding: null,
+        addingDue: '',
         // The roster to pick from when including people on a card. Every role gets
         // it; `drawer.locked` decides per-card whether the picker is usable.
         people,
@@ -122,7 +132,7 @@ export function registerWorkBoard(Alpine) {
             newComment: '',
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
-                due_at: '', due_label: '', status: 'todo', labels: [], participants: [],
+                due_at: '', due_label: '', status: 'todo', labels: [], participants: [], reviewer: null, reviewer_id: null,
                 project_id: '', project: null, project_options: [], timesheet_category_id: '',
                 timesheet_category_name: '', timesheet_category_options: [], comments_count: 0, mentionable: [],
             },
@@ -143,6 +153,13 @@ export function registerWorkBoard(Alpine) {
         get availablePeople() {
             const on = new Set((this.drawer.card.participants || []).map((p) => p.id));
             return this.people.filter((p) => !on.has(p.id));
+        },
+
+        // Who may be the reviewer: anyone on the roster but the card's owner (the
+        // server refuses that pairing too). The roster already omits the viewer.
+        get reviewerOptions() {
+            const ownerId = this.drawer.card.employee_id;
+            return this.people.filter((p) => p.id !== ownerId);
         },
 
         // What the "add someone" menu lists: addable people matching the search box.
@@ -215,6 +232,19 @@ export function registerWorkBoard(Alpine) {
         setFilter(f) {
             this.filter = f;
             this.applyFilter();
+        },
+
+        setRoleFilter(r) {
+            this.roleFilter = r;
+            this.applyFilter();
+        },
+
+        roleInFilter(el) {
+            const role = el.dataset.role || 'assigned';
+            if (this.roleFilter === 'all') return true;
+            if (this.roleFilter === 'tagged') return role === 'helper' || role === 'fyi';
+            if (this.roleFilter === 'reviewing') return role === 'reviewer';
+            return role === 'assigned';
         },
 
         // Toggle the label filter: click an active label to clear it.
@@ -302,7 +332,7 @@ export function registerWorkBoard(Alpine) {
         // filter) so autosave never has to re-touch the other cards on the board.
         applyFilterTo(node) {
             if (!node) return;
-            node.style.display = this.typeInFilter(node.dataset.type) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
+            node.style.display = this.typeInFilter(node.dataset.type) && this.roleInFilter(node) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
         },
 
         // Switches the column ordering. Manual is the drag order already on the
@@ -348,6 +378,13 @@ export function registerWorkBoard(Alpine) {
                 task: cards.filter((el) => el.dataset.type === 'task').length,
                 assignment: cards.filter((el) => el.dataset.type === 'assignment').length,
                 adhoc: cards.filter((el) => el.dataset.type === 'adhoc').length,
+            };
+            const role = (el) => el.dataset.role || 'assigned';
+            this.roleCounts = {
+                assigned: cards.filter((el) => role(el) === 'assigned').length,
+                tagged: cards.filter((el) => role(el) === 'helper' || role(el) === 'fyi').length,
+                reviewing: cards.filter((el) => role(el) === 'reviewer').length,
+                all: cards.length,
             };
         },
 
@@ -582,26 +619,51 @@ export function registerWorkBoard(Alpine) {
             this.commitFieldFromCard('links');
         },
 
-        async addPerson(id) {
+        // The tagged set as the server takes it: every participant with their role.
+        taggedPayload() {
+            return this.drawer.card.participants.map((p) => ({ employee_id: p.id, role: p.role || 'helper' }));
+        },
+
+        // Tag someone as a Helper (does part of the work) or FYI (kept informed) — the
+        // tagger picks which (CR-04).
+        async addPerson(id, role = 'helper') {
             const pid = Number(id);
             if (!pid || this.drawer.locked) return;
             const person = this.people.find((p) => p.id === pid);
             if (person && !this.drawer.card.participants.some((p) => p.id === pid)) {
-                this.drawer.card.participants.push(person);
+                this.drawer.card.participants.push({ ...person, role });
                 // The server refuses to share a card that has no due date, so take
                 // the person back off the list when it does — otherwise the chip
                 // sits there looking saved next to the error.
-                const ok = await this.commitField('participant_ids', this.drawer.card.participants.map((p) => p.id));
+                const ok = await this.commitField('tagged', this.taggedPayload());
                 if (!ok) {
                     this.drawer.card.participants = this.drawer.card.participants.filter((p) => p.id !== pid);
                 }
             }
         },
 
+        // Flip one tagged person between Helper and FYI.
+        setPersonRole(id, role) {
+            if (this.drawer.locked) return;
+            const person = this.drawer.card.participants.find((p) => p.id === id);
+            if (!person || person.role === role) return;
+            person.role = role;
+            this.commitField('tagged', this.taggedPayload());
+        },
+
         removePerson(id) {
             if (this.drawer.locked) return;
             this.drawer.card.participants = this.drawer.card.participants.filter((p) => p.id !== id);
-            this.commitField('participant_ids', this.drawer.card.participants.map((p) => p.id));
+            this.commitField('tagged', this.taggedPayload());
+        },
+
+        // PM and above only (the server gates it; the drawer hides the control
+        // otherwise). Empty value clears the reviewer.
+        setReviewer(value) {
+            if (this.drawer.locked || !this.drawer.card.can_set_reviewer) return;
+            const id = value ? Number(value) : null;
+            this.drawer.card.reviewer_id = id;
+            this.commitField('reviewer_id', id);
         },
 
         // Reveals the native date picker from the formatted-date button, so the
@@ -679,6 +741,18 @@ export function registerWorkBoard(Alpine) {
 
         lockedReasonText(card) {
             const who = card.owner_name || this.t('Someone else', 'Orang lain');
+            if (card.viewer_role === 'reviewer') {
+                return this.t(
+                    `${who} owns this card. You are its reviewer: once it reaches In Review, only you can move it to Done.`,
+                    `${who} memiliki kad ini. Anda penyemaknya: apabila ia sampai ke Disemak, hanya anda boleh gerakkannya ke Selesai.`,
+                );
+            }
+            if (card.viewer_role === 'fyi') {
+                return this.t(
+                    `${who} owns this card. You were tagged FYI, so it is read-only here — nothing on it is counted against you.`,
+                    `${who} memiliki kad ini. Anda ditanda FYI, jadi ia baca-sahaja di sini — tiada apa padanya dikira ke atas anda.`,
+                );
+            }
             return this.t(
                 `${who} owns this card. The details belong to them, so they are read-only here. You can still move it between columns and comment.`,
                 `${who} memiliki kad ini. Butirannya milik mereka, jadi ia baca-sahaja di sini. Anda masih boleh gerakkan antara lajur dan komen.`,
@@ -738,6 +812,8 @@ export function registerWorkBoard(Alpine) {
                     labels: card.labels ?? [],
                     links: card.links ?? [],
                     participants: card.participants ?? [],
+                    reviewer: card.reviewer ?? null,
+                    reviewer_id: card.reviewer_id ?? null,
                     mentionable: card.mentionable ?? [],
                     project_id: '',
                     project_options: card.project_options ?? [],
@@ -814,11 +890,15 @@ export function registerWorkBoard(Alpine) {
             const title = (this.drawer.newChildTitle || '').trim();
             const parentId = this.drawer.family?.parent.id ?? this.drawer.id;
             if (!title || this.drawer.addingChild || !this.drawer.canAddChild) return;
+            // A subtask's due date locks on first save, so it has to be chosen up front.
+            if (!this.drawer.newChildDueAt) {
+                this.drawer.error = this.t('Pick a due date for the subtask first. It cannot change later.', 'Pilih tarikh akhir subtugas dahulu. Ia tidak boleh diubah kemudian.');
+                return;
+            }
             this.drawer.addingChild = true;
             try {
-                const body = { title, parent_id: parentId };
+                const body = { title, parent_id: parentId, due_at: this.drawer.newChildDueAt };
                 if (this.drawer.newChildAssigneeId) body.employee_id = Number(this.drawer.newChildAssigneeId);
-                if (this.drawer.newChildDueAt) body.due_at = this.drawer.newChildDueAt;
                 const { card, parent_html } = await this.api('/app/board', {
                     method: 'POST',
                     body: JSON.stringify(body),
@@ -997,6 +1077,40 @@ export function registerWorkBoard(Alpine) {
             }, { once: true });
         },
 
+        // Cancel a card whose work has moved: the due date is locked, so the honest
+        // path is close-with-reason and create a new card. Server stamps
+        // cancelled_at + archived_at and audits the reason; the card leaves the
+        // board the way an archived one does.
+        async cancelCard() {
+            if (this.drawer.locked || this.drawer.card.cancelled_at) return;
+            const reason = (window.prompt(this.t(
+                'Why is this card being cancelled? The reason goes into the audit log.',
+                'Kenapa kad ini dibatalkan? Sebabnya direkod dalam log audit.',
+            )) || '').trim();
+            if (!reason) return;
+            const node = this.drawer.node;
+            const id = this.drawer.id;
+            try {
+                await this.api(`/app/board/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+            } catch (err) {
+                this.drawer.error = err.validation ? err.message : this.t('Could not cancel this card.', 'Tidak dapat batalkan kad ini.');
+                return;
+            }
+            this.closeDrawer();
+            this.archivedCount += 1;
+            if (!node) {
+                this.recount();
+                this.refreshCounts();
+                return;
+            }
+            node.classList.add('wc--archiving-out');
+            node.addEventListener('animationend', () => {
+                node.remove();
+                this.recount();
+                this.refreshCounts();
+            }, { once: true });
+        },
+
         openArchived() {
             this.archivedOpen = true;
             this.loadArchived();
@@ -1163,8 +1277,14 @@ export function registerWorkBoard(Alpine) {
             }
         },
 
+        openAdd(status) {
+            this.adding = status;
+            this.addingDue = '';
+            this.$nextTick(() => this.$refs[`addDue-${status}`]?.focus());
+        },
+
         async addCard(status) {
-            if (this.busy) return;
+            if (this.busy || !this.addingDue) return;
             this.busy = true;
             try {
                 // Same type-from-active-filter rule the old inline composer used, so
@@ -1174,8 +1294,10 @@ export function registerWorkBoard(Alpine) {
                 const title = this.t('Untitled card', 'Kad tanpa tajuk');
                 const { card, html } = await this.api('/app/board', {
                     method: 'POST',
-                    body: JSON.stringify({ title, status, type, priority: 'medium' }),
+                    body: JSON.stringify({ title, status, type, priority: 'medium', due_at: this.addingDue }),
                 });
+                this.adding = null;
+                this.addingDue = '';
                 const list = this.$root.querySelector(`[data-list="${status}"]`);
                 const empty = list.querySelector('[data-empty]');
                 if (empty) empty.remove();

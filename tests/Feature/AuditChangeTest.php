@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Support\AuditContext;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -129,5 +130,25 @@ class AuditChangeTest extends TestCase
         $csv = $response->streamedContent();
         $this->assertStringContainsString('id,created_at,actor_name,action,target', $csv);
         $this->assertStringContainsString('priority', $csv);
+    }
+
+    public function test_audit_screen_shows_field_old_new_and_reason(): void
+    {
+        $this->actingInTenant();
+        $item = $this->card(['title' => 'Prototype POC']);
+        AuditContext::reason('Client agreed the date');
+        try {
+            $item->update(['due_at' => '2026-10-01']);
+        } finally {
+            AuditContext::reset();
+        }
+
+        $hrUser = User::create(['name' => 'HR', 'email' => 'hr@example.com', 'password' => Hash::make('password')]);
+        $hrUser->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+
+        $this->actingAs($hrUser)->withSession(['current_tenant' => $this->tenant->id])->get('/app/audit')->assertOk()
+            ->assertSee('due_at: <span style="color:var(--muted);">—</span> &rarr; 2026-10-01 00:00:00', false)
+            ->assertSee('Reason</span>: Client agreed the date', false)
+            ->assertSee('Prototype POC');
     }
 }

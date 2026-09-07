@@ -195,7 +195,7 @@ class WorkItemChildTest extends TestCase
     {
         $parent = $this->parent(['type' => 'adhoc']);
 
-        $res = $this->as($this->owner)->postJson('/app/board', ['title' => 'Step one', 'parent_id' => $parent->id]);
+        $res = $this->as($this->owner)->postJson('/app/board', ['title' => 'Step one', 'parent_id' => $parent->id, 'due_at' => '2026-07-01']);
 
         $res->assertCreated()->assertJsonPath('card.parent_id', $parent->id)->assertJsonStructure(['parent_html']);
         $child = WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'));
@@ -211,7 +211,7 @@ class WorkItemChildTest extends TestCase
         $parent = $this->parent(['due_at' => now()->addWeek()]);
         $parent->participants()->attach($this->participantEmp->id);
 
-        $res = $this->as($this->participant)->postJson('/app/board', ['title' => 'Mine', 'parent_id' => $parent->id]);
+        $res = $this->as($this->participant)->postJson('/app/board', ['title' => 'Mine', 'parent_id' => $parent->id, 'due_at' => '2026-07-01']);
 
         $res->assertCreated();
         $this->assertSame($this->ownerEmp->id, WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'))->employee_id);
@@ -221,7 +221,7 @@ class WorkItemChildTest extends TestCase
     {
         $parent = $this->parent();
 
-        $this->as($this->stranger)->postJson('/app/board', ['title' => 'Nope', 'parent_id' => $parent->id])->assertForbidden();
+        $this->as($this->stranger)->postJson('/app/board', ['title' => 'Nope', 'parent_id' => $parent->id, 'due_at' => '2026-07-01'])->assertForbidden();
     }
 
     public function test_a_child_cannot_have_children(): void

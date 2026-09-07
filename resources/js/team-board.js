@@ -211,6 +211,9 @@ export function registerTeamBoard(Alpine) {
                 `${p.overdue} ${this.t('overdue', 'lewat')}`,
                 `${p.blocked} ${this.t('blocked', 'tersekat')}`,
                 `${p.in_review} ${this.t('in review', 'disemak')}`,
+                // CR-04: helper and reviewer load, reported beside the four counters.
+                ...(p.helping > 0 ? [`${this.t('helping on', 'membantu')} ${p.helping}`] : []),
+                ...(p.reviewing > 0 ? [`${this.t('reviewing', 'menyemak')} ${p.reviewing}`] : []),
             ].join(' · ');
         },
 
@@ -399,6 +402,31 @@ export function registerTeamBoard(Alpine) {
         },
 
         // ── Card detail drawer ─────────────────────────────────────
+        // CR-04: the one write this read-only drawer allows. A PM appoints the
+        // reviewer from here because the team board is the only place they see a
+        // staff member's card; the server gates it (manager tier + covers the owner).
+        get reviewerOptions() {
+            const ownerId = this.drawer.card.employee_id;
+            return this.people.filter((p) => p.id !== ownerId);
+        },
+
+        async setReviewer(value) {
+            if (!this.drawer.id || !this.drawer.card.can_set_reviewer) return;
+            const id = value ? Number(value) : null;
+            this.drawer.error = '';
+            try {
+                const { card, html } = await this.api(`/app/board/${this.drawer.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ reviewer_id: id }),
+                });
+                this.drawer.card.reviewer_id = card.reviewer_id;
+                this.drawer.card.reviewer = card.reviewer;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not set the reviewer.', 'Tidak dapat menetapkan penyemak.');
+            }
+        },
+
         async api(url, opts = {}) {
             const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
             if (opts.body) headers['Content-Type'] = 'application/json';
@@ -456,6 +484,8 @@ export function registerTeamBoard(Alpine) {
                     labels: card.labels ?? [],
                     links: card.links ?? [],
                     participants: card.participants ?? [],
+                    reviewer: card.reviewer ?? null,
+                    reviewer_id: card.reviewer_id ?? null,
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
                 };

@@ -86,6 +86,9 @@ class UpdateCardTool extends Tool
             $names = $this->namesToParticipantIds($data, $tid);
 
             $this->boardRules->assertDueDateRetained($item, $data);
+            if (array_key_exists('due_at', $data)) {
+                $this->boardRules->assertDueDateLocked($item, $data['due_at']);
+            }
 
             return ['item' => $item, 'data' => $data, 'participant_names' => $names];
         });
@@ -147,6 +150,9 @@ class UpdateCardTool extends Tool
 
             $data = $payload['data'];
             $this->boardRules->assertDueDateRetained($item, $data);
+            if (array_key_exists('due_at', $data)) {
+                $this->boardRules->assertDueDateLocked($item, $data['due_at']);
+            }
 
             if (array_key_exists('participant_ids', $data)) {
                 $this->syncParticipants($item, $data['participant_ids'], $employee);

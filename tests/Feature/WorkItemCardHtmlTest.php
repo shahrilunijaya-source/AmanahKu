@@ -74,7 +74,7 @@ class WorkItemCardHtmlTest extends TestCase
     public function test_store_returns_html_for_the_new_card(): void
     {
         $res = $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Fresh from the composer', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog',
+            'title' => 'Fresh from the composer', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog', 'due_at' => '2026-07-01',
         ])->assertCreated();
 
         $this->assertStringContainsString('Fresh from the composer', $res->json('html'));

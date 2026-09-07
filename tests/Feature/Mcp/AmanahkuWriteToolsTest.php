@@ -181,7 +181,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $response = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
 
         $this->assertFalse($this->toolIsError($response));
@@ -200,7 +200,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -218,7 +218,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -236,7 +236,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -256,7 +256,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headersOther = $this->bearer($this->hrA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headersA);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -275,7 +275,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headersA = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headersA);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -296,7 +296,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $readOnly = $this->bearer($this->staffA, $this->tenantA, ['board:read']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'New card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'New card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $readOnly);
         $this->assertTrue($this->toolIsError($preview));
         $this->assertStringContainsString('board:write', $preview->json('result.content.0.text'));
@@ -308,7 +308,7 @@ class AmanahkuWriteToolsTest extends TestCase
         // refuses this.
         $writeKey = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
         $validPreview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Another card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Another card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $writeKey);
         $token = $this->toolData($validPreview)['confirm_token'];
 
@@ -330,7 +330,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Alpha-only card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Alpha-only card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
         $token = $this->toolData($preview)['confirm_token'];
 
@@ -353,7 +353,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Categorised card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Categorised card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             'timesheet_category_id' => $this->categoryA->id, 'project_id' => $this->projectA->id,
         ], $headers);
         $this->assertFalse($this->toolIsError($preview));
@@ -387,7 +387,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Mismatched card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Mismatched card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             'timesheet_category_id' => $this->categoryA->id, 'project_id' => $taggedProject->id,
         ], $headers);
         $this->assertFalse($this->toolIsError($preview));
@@ -414,7 +414,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Admin card', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'Admin card', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             'timesheet_category_id' => $standalone->id, 'project_id' => $this->projectA->id,
         ], $headers);
         $confirm = $this->confirm($this->toolData($preview)['confirm_token'], $headers);
@@ -1388,7 +1388,7 @@ class AmanahkuWriteToolsTest extends TestCase
         // throttle:60,1 has room to spare.
         for ($i = 0; $i < 20; $i++) {
             $preview = $this->callTool(CreateCardTool::class, [
-                'title' => "Card {$i}", 'type' => 'task', 'priority' => 'medium',
+                'title' => "Card {$i}", 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
             ], $headers);
             $token = $this->toolData($preview)['confirm_token'];
             $confirm = $this->confirm($token, $headers);
@@ -1396,7 +1396,7 @@ class AmanahkuWriteToolsTest extends TestCase
         }
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'One too many', 'type' => 'task', 'priority' => 'medium',
+            'title' => 'One too many', 'type' => 'task', 'priority' => 'medium', 'due_at' => '2026-07-01',
         ], $headers);
         $token = $this->toolData($preview)['confirm_token'];
         $response = $this->confirm($token, $headers);
@@ -1761,7 +1761,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $parent = $this->card();
 
         $preview = $this->callTool(CreateCardTool::class, [
-            'title' => 'Sub', 'priority' => 'low', 'parent_id' => $parent->id,
+            'title' => 'Sub', 'priority' => 'low', 'parent_id' => $parent->id, 'due_at' => '2026-07-01',
         ], $headers);
         $this->assertFalse($this->toolIsError($preview), $preview->getContent());
         $confirmed = $this->confirm($this->toolData($preview)['confirm_token'], $headers);

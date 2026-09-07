@@ -1119,6 +1119,30 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 /* Priority is only ever drawn for High. Medium is the default and Low is noise. */
 .wc-pri { margin-left: auto; font-size: var(--t-micro); font-weight: 600; color: var(--error); letter-spacing: .2px; }
 
+/* CR-04 role label on a card face that is not the viewer's own: Tagged – Helper,
+   Tagged – FYI, Reviewer. Assigned carries none. */
+.wc-role {
+    margin-left: auto; font-size: var(--t-micro); font-weight: 600; letter-spacing: .2px;
+    padding: 1px 7px; border-radius: 9999px; color: var(--body); background: var(--hairline-soft);
+}
+.wc-pri + .wc-role { margin-left: 6px; }
+.wc-role--helper { color: #8a4bdb; background: rgba(138, 75, 219, .1); }
+.wc-role--fyi { color: var(--muted); }
+.wc-role--reviewer { color: var(--info); background: rgba(45, 120, 200, .1); }
+
+/* Drawer: the Helper / FYI flip on a tagged chip, and the two picks in the add menu. */
+.wd-role-toggle {
+    border: 1px solid var(--hairline); background: var(--canvas); color: var(--muted); cursor: pointer;
+    font-size: var(--t-micro); font-weight: 600; padding: 0 6px; border-radius: 9999px; line-height: 16px;
+}
+.wd-tag-row { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: var(--t-sm); color: var(--ink); }
+.wd-tag-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wd-menu button.wd-role-pick {
+    width: auto; padding: 3px 9px; font-size: var(--t-micro); font-weight: 600;
+    border: 1px solid var(--hairline); border-radius: 9999px; color: var(--body);
+}
+.wd-menu button.wd-role-pick:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+
 .wc-title {
     font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.4;
     letter-spacing: -0.005em; margin: 0 0 9px; text-wrap: pretty;
@@ -1175,6 +1199,18 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     .wc--stack:hover::after { transform: translateY(2px); }
 }
 .wc-empty { border: 1px dashed var(--hairline); border-radius: 10px; padding: 18px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+/* "+ Add a card" composer: the due date is chosen before the card exists, because it
+   locks on first save (date-calendar-rules §1). */
+.wc-add { border: 1px dashed var(--hairline); border-radius: 10px; padding: 9px 12px; background: var(--canvas); }
+.wc-add-label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+.wc-add-row { display: flex; gap: 6px; align-items: center; }
+.wc-add-date { flex: 1; min-width: 0; padding: 6px 8px; font-size: 12.5px; color: var(--ink); background: var(--card); border: 1px solid var(--hairline); border-radius: 8px; }
+.wc-add-go { padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: #fff; background: var(--red); border: 0; border-radius: 8px; cursor: pointer; }
+.wc-add-go:disabled { opacity: .5; cursor: default; }
+.wc-add-x { width: 28px; height: 28px; font-size: 16px; line-height: 1; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+.wc-add-x:hover { background: var(--hairline-soft); }
+/* Drawer: a due date that can no longer change. */
+.wd-due-lock { display: block; font-size: 11.5px; color: var(--muted); margin: 2px 0 0; line-height: 1.4; }
 
 /* Compact modifier — the team board's smaller-type variant, replacing .wi-sm. */
 .wc--sm { padding: 10px 11px; }
@@ -3850,6 +3886,8 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 }
 .tb-strip-name { font-size: var(--t-base); font-weight: 500; color: var(--ink); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tb-strip-sub { font-size: var(--t-micro); color: var(--muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* CR-04: "helping on 3 · reviewing 2", beside the counters, never inside them. */
+.tb-strip-roles { display: block; color: #8a4bdb; font-weight: 600; }
 .tb-num { font-variant-numeric: tabular-nums; font-size: var(--t-base); font-weight: 600; color: var(--ink); text-align: right; }
 /* Zero renders as an en dash (see the row partial / Blade), so it reads as
    "nothing to see" rather than competing with real counts for attention. */

@@ -282,6 +282,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/board/{workItem}', [WorkItemController::class, 'show'])->name('work.show');
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
         Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
+        Route::post('/app/board/{workItem}/cancel', [WorkItemController::class, 'cancel'])->name('work.cancel');
         Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
         Route::patch('/app/board/{workItem}', [WorkItemController::class, 'update'])->name('work.update');
         Route::delete('/app/board/{workItem}', [WorkItemController::class, 'destroy'])->name('work.destroy');

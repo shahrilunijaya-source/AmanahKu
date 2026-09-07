@@ -11,13 +11,15 @@
     @param \App\Models\WorkItem $c        Must have participants, projectRef,
                                             assignedBy, children loaded and comments_count set.
     @param bool $compact                   Smaller type, used by team-board.
+    @param int|null $viewerId              Whose board this face sits on (CR-04): sets
+                                            data-role and the Tagged / Reviewer label.
 --}}
 @php
     $wcTag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
     [$wcTypeLabel, $wcTypeColor] = $wcTag[$c->type] ?? ['Task', 'var(--info)'];
     $wcLabelDef = \App\Models\WorkItem::LABELS;
     $wcCompact = $compact ?? false;
-    $wcOverdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today());
+    $wcOverdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today()) && $c->type !== 'event' && ! $c->cancelled_at;
 
     // How many days late (+) or early (-) against due_at: done cards compare
     // against done_at (stamped once on the done transition), open cards
@@ -65,13 +67,18 @@
     // muted line is the only thing that marks it as belonging to a bigger card.
     $wcParentTitle = $c->parent_id ? $c->parent?->title : null;
 
+    // CR-04: the role this card holds for the person whose lane it is drawn in.
+    // Assigned is the default and carries no label; the other three are named.
+    $wcRole = isset($viewerId) ? ($c->roleFor((int) $viewerId) ?? 'assigned') : 'assigned';
+    $wcRoleLabel = \App\Models\WorkItem::ROLE_LABELS[$wcRole] ?? null;
+
     // The earliest still-open subtask past its due date, shown red next to the
     // "n/m" badge — reuses the wc-when--over COLOR only, never that class name
     // itself: BoardCardTest counts occurrences of that exact string to count how
     // many cards on the page are overdue, and this badge is not a card.
     $wcChildOverdue = $wcChildren ? ($c->relationLoaded('children') ? $c->children : $c->children()->get())
         ->where('status', '!=', 'done')
-        ->filter(fn ($ch) => $ch->due_at && $ch->due_at->lt(today()))
+        ->filter(fn ($ch) => $ch->due_at && $ch->due_at->lt(today()) && $ch->type !== 'event' && ! $ch->cancelled_at)
         ->sortBy('due_at')
         ->first()?->due_at : null;
 @endphp
@@ -84,6 +91,7 @@
      data-labels="{{ implode(',', $c->labels ?? []) }}"
      data-project="{{ $c->project_id }}"
      data-due-at="{{ $c->due_at?->toDateString() }}"
+     data-role="{{ $wcRole }}"
      @if ($owner ?? null) data-owner-id="{{ $owner['id'] }}" @endif
      @if ($c->assigned_by_id) data-assigned="1" @endif
      {{-- Keyboard path to the drawer — both the personal board and the team board's
@@ -95,6 +103,9 @@
         <span class="wc-type"><span class="wc-dot" style="--wc-type:{{ $wcTypeColor }};"></span>{{ $wcTypeLabel }}</span>
         @if ($c->priority === 'high')
             <span class="wc-pri">High</span>
+        @endif
+        @if ($wcRoleLabel)
+            <span class="wc-role wc-role--{{ $wcRole }}">{{ $wcRoleLabel }}</span>
         @endif
     </div>
 

@@ -64,6 +64,7 @@ class MoveCardTool extends Tool
                 abort_unless(in_array($data['status'], ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
             }
             $this->boardRules->assertChildrenDoneForStatus($item, $data['status']);
+            $this->boardRules->assertReviewerMovesToDone($item, $data['status'], $employee);
 
             return ['item' => $item];
         });
@@ -102,6 +103,7 @@ class MoveCardTool extends Tool
                 abort_unless(in_array($status, ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
             }
             $this->boardRules->assertChildrenDoneForStatus($item, $status);
+            $this->boardRules->assertReviewerMovesToDone($item, $status, $employee);
             $wasDone = $item->status === 'done';
 
             $item->update([

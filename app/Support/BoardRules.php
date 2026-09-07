@@ -8,7 +8,9 @@ use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Tenancy\CurrentTenant;
+use DateTimeInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -82,6 +84,7 @@ class BoardRules
             $item->employee_id === $employee->id
             || $this->isAssigner($item, $employee)
             || $item->participants()->whereKey($employee->id)->exists()
+            || $item->reviewer_id === $employee->id
             // A manager who may edit the card must also be able to open it. Without
             // this they hold edit rights they can never reach: show() would 403 and
             // the drawer would never render.
@@ -173,6 +176,24 @@ class BoardRules
     }
 
     /**
+     * When a card carries a Reviewer, that person alone moves it from In Review to
+     * Done: owner, helpers and managers are refused (CR-04, contracts/roles.md). Every
+     * other move is untouched, and a card with no reviewer moves as it always did.
+     * A subtask is never in review, so it is judged as itself.
+     */
+    public function assertReviewerMovesToDone(WorkItem $item, string $status, Employee $actor): void
+    {
+        abort_if(
+            $status === 'done'
+            && $item->status === 'review'
+            && $item->reviewer_id !== null
+            && $item->reviewer_id !== $actor->id,
+            403,
+            'Only the reviewer can move this card from In Review to Done.',
+        );
+    }
+
+    /**
      * A card that involves anyone but its owner (a tac, or a card with
      * participants) must carry a due date. Checked against the state the change
      * would LEAVE BEHIND, not the raw input, because the drawer autosaves one
@@ -193,6 +214,44 @@ class BoardRules
         if (! $due && ($hasOthers || $item->assigned_by_id)) {
             throw ValidationException::withMessages([
                 'due_at' => 'A task shared with someone else needs a due date.',
+            ]);
+        }
+    }
+
+    /**
+     * Rule 1 of docs/build/contracts/dates.md: a work item's due date locks after its
+     * first save. Allowed through untouched: a brand-new item (still unsaved), an Event
+     * (dates 2 of that contract reschedule freely), or a card that has never had a due
+     * date set (null to a value is the one legal write). Anything else must match the
+     * date already on the row exactly, compared as Y-m-d — a same-day resend (the
+     * drawer autosaves every field back) is a no-op, not a violation.
+     *
+     * Compared against getOriginal() rather than the live attribute so this also works
+     * called from the model's own `saving` hook, where the attribute may already be
+     * dirty with the incoming value by the time this runs.
+     */
+    public function assertDueDateLocked(WorkItem $item, mixed $incoming): void
+    {
+        if (! $item->exists || $item->isEvent()) {
+            return;
+        }
+
+        $original = $item->getOriginal('due_at');
+        $originalDate = $original instanceof DateTimeInterface ? $original->format('Y-m-d') : ($original ? Carbon::parse($original)->format('Y-m-d') : null);
+
+        if ($originalDate === null) {
+            return;
+        }
+
+        $incomingDate = match (true) {
+            $incoming === null => null,
+            $incoming instanceof DateTimeInterface => $incoming->format('Y-m-d'),
+            default => Carbon::parse($incoming)->format('Y-m-d'),
+        };
+
+        if ($incomingDate !== $originalDate) {
+            throw ValidationException::withMessages([
+                'due_at' => 'Due dates are locked after the first save. Cancel this card with a reason and create a new one if the work has moved.',
             ]);
         }
     }
