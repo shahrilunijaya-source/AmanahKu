@@ -10,7 +10,7 @@
     A birthday moment (CR-13) also carries `wishesHtml` (the pre-rendered
     partials.dash.birthday-wishes region), a once-per-day confetti burst, and
     a "×" dismiss that hides it for the rest of the day — both gated on
-    localStorage `uj-bday-<Y-m-d>`, wrapped in try/catch since a private
+    localStorage `uj-bday-<Y-m-d>-<employee id>`; dismissing steps the cycler on, wrapped in try/catch since a private
     window or blocked storage must not break the band.
 
     $bands  ['moments' => list<Moment>, 'moments_start' => int, 'management' => null, 'awards' => null, 'upcoming' => list<array{name,date}>]
@@ -33,7 +33,7 @@
                          x-data="{
                             dismissed: false,
                             confetti: false,
-                            key: 'uj-bday-{{ $todayKey }}',
+                            key: 'uj-bday-{{ $todayKey }}-{{ $m['employee']['id'] ?? $idx }}',
                             init() {
                                 try {
                                     const seen = localStorage.getItem(this.key);
@@ -41,11 +41,13 @@
                                     if (!seen) {
                                         this.confetti = {{ $plain ? 'false' : 'true' }} && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                                         localStorage.setItem(this.key, 'seen');
+                                        setTimeout(() => { this.confetti = false; }, 2200);
                                     }
                                 } catch (e) {}
                             },
                             dismiss() {
                                 this.dismissed = true;
+                                this.i = (this.i + 1) % this.n;
                                 try { localStorage.setItem(this.key, 'hide'); } catch (e) {}
                             },
                          }"

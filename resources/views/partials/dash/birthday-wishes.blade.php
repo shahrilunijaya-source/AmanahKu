@@ -24,6 +24,7 @@
         emoji: @js(\App\Models\TotSession::EMOJI),
         async post(url, body) {
             if (this.busy || !body.trim()) return;
+            const root = this.$root;
             this.busy = true;
             try {
                 const res = await fetch(url, {
@@ -33,13 +34,14 @@
                 });
                 if (!res.ok) throw new Error(res.status);
                 const data = await res.json();
-                this.$el.outerHTML = data.html;
+                root.outerHTML = data.html;
             } catch (e) {
                 $store.toast.error($store.ui.lang==='en' ? 'That did not save. Try again.' : 'Tidak berjaya disimpan. Cuba lagi.');
             } finally { this.busy = false; }
         },
         async react(wishId, emoji) {
             if (this.busy) return;
+            const root = this.$root;
             this.busy = true;
             try {
                 const res = await fetch(@js(url('/app/birthday/wish')) + '/' + wishId + '/react', {
@@ -49,7 +51,7 @@
                 });
                 if (!res.ok) throw new Error(res.status);
                 const data = await res.json();
-                this.$el.outerHTML = data.html;
+                root.outerHTML = data.html;
             } catch (e) {
                 // silent — a failed toggle just leaves the chip as it was
             } finally { this.busy = false; }

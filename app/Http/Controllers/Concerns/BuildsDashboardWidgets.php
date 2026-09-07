@@ -118,7 +118,8 @@ trait BuildsDashboardWidgets
                     }
                 })
                 ->get();
-            $tenantName = (string) (app(CurrentTenant::class)->get()->name ?? '');
+            // The trading name reads better in a wish than the registered one ("Unijaya", not "Unijaya Resources Sdn Bhd").
+            $tenantName = trim((string) preg_replace('/\s+(Resources|Holdings|Enterprise|Group)?\s*(Sdn\.?\s*Bhd\.?|Berhad|Bhd\.?)$/i', '', (string) (app(CurrentTenant::class)->get()->name ?? '')));
             $birthdayMoments = DashboardBands::birthdayMoments($people, $today, $celebratedDates, $tenantName, $employee->id);
 
             // Each birthday moment carries its wishes region pre-rendered, so the band
