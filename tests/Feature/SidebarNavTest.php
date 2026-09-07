@@ -155,4 +155,21 @@ class SidebarNavTest extends TestCase
             ));
         }
     }
+
+    /**
+     * CR-16: "Learning" is "The Playground" now (same in BM: it is a name), and Events
+     * moved under it from Workplace, sitting after Knowledge Bank and TOT Sessions.
+     */
+    public function test_the_playground_holds_knowledge_bank_tot_then_events(): void
+    {
+        $nav = collect(Amanahku::nav());
+
+        $this->assertFalse($nav->contains('section', 'Learning'));
+        $this->assertSame('The Playground', $nav->firstWhere('id', 'events')['section']);
+        $this->assertSame('The Playground', $nav->firstWhere('id', 'events')['section_ms']);
+        $this->assertFalse($nav->where('section', 'Workplace')->contains('id', 'events'));
+
+        $ids = $nav->where('section', 'The Playground')->pluck('id')->values()->all();
+        $this->assertSame(['knowledge-bank', 'tot', 'events'], array_slice($ids, 0, 3));
+    }
 }

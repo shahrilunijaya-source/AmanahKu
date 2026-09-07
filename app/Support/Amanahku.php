@@ -101,16 +101,18 @@ class Amanahku
             ]]),
             $s('My Team', 'Pasukan Saya', ['id' => 'workload', 'label' => 'AI Workforce Intel', 'label_ms' => 'Risikan Tenaga Kerja AI', 'icon' => 'M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z']),
 
-            // ── Learning ──────────────────────────────────────────────────────
-            $s('Learning', 'Pembelajaran', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
-            $s('Learning', 'Pembelajaran', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
-            $s('Learning', 'Pembelajaran', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
+            // ── The Playground ────────────────────────────────────────────────
+            // Renamed from "Learning" and given Events (CR-16). Same label in BM, on
+            // purpose: it is a name, not a word to translate.
+            $s('The Playground', 'The Playground', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
+            $s('The Playground', 'The Playground', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
+            $s('The Playground', 'The Playground', ['id' => 'events', 'label' => 'Events', 'label_ms' => 'Acara', 'icon' => 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14h.01M16 14h.01M8 18h.01M12 18h.01']),
+            $s('The Playground', 'The Playground', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
+            $s('The Playground', 'The Playground', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
+            $s('The Playground', 'The Playground', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
+            $s('The Playground', 'The Playground', ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
 
             // ── Workplace ─────────────────────────────────────────────────────
-            $s('Workplace', 'Tempat Kerja', ['id' => 'events', 'label' => 'Events', 'label_ms' => 'Acara', 'icon' => 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14h.01M16 14h.01M8 18h.01M12 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'rooms', 'label' => 'Room Booking', 'label_ms' => 'Tempahan Bilik', 'icon' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'vehicles', 'label' => 'Vehicle Booking', 'label_ms' => 'Tempahan Kenderaan', 'icon' => 'M5 17h14M5 17a2 2 0 1 0 4 0M5 17a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0M3 17V9l2-4h10l3 4h1a2 2 0 0 1 2 2v6M3 9h15']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'assets', 'label' => 'Assets', 'label_ms' => 'Aset', 'icon' => 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z']),
@@ -213,7 +215,7 @@ class Amanahku
             'Workplace' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01',
             'Pay & Benefits' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8',
             'Talent & Growth' => 'M12 3l9 5-9 5-9-5zM5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5',
-            'Learning' => 'M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22zM8 7h8M8 11h5',
+            'The Playground' => 'M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7zM5 17l.6 1.4 1.4.6-1.4.6L5 21l-.6-1.4L3 19l1.4-.6z',
             'Compliance & Docs' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4',
             'Administration' => 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
         ][$section] ?? 'M12 12h.01';
