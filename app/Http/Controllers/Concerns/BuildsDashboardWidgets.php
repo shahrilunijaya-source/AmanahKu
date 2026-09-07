@@ -55,9 +55,15 @@ trait BuildsDashboardWidgets
         // Role gate first, then the tenant's module switches: a widget whose module
         // is off reads as absent rather than as empty, the same rule screen() applies
         // to whole screens.
+        $now = CarbonImmutable::now();
         $available = array_values(array_filter(
             DashboardWidgets::forRole($role),
-            function (string $id) use ($features, $tenant): bool {
+            function (string $id) use ($features, $tenant, $now): bool {
+                // The Friday sign-off (CR-32 slot) is a card only inside its window;
+                // outside it the card is absent, not empty, so it leaves the picker too.
+                if ($id === 'friday' && ! DashboardWidgets::fridaySignOffOpen($now)) {
+                    return false;
+                }
                 $screen = DashboardWidgets::gatingScreen($id);
 
                 return $screen === null || $features->screenAllowed($tenant, $screen);
@@ -106,6 +112,8 @@ trait BuildsDashboardWidgets
         $today = CarbonImmutable::now();
         $moments = [];
         $upcoming = [];
+        $management = null;
+        $awards = null;
 
         if ($employee !== null) {
             $eve = DashboardBands::holidayEveMoment(app(HolidayEve::class), $today);
@@ -149,9 +157,18 @@ trait BuildsDashboardWidgets
             $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
             $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();
             $upcoming = DashboardBands::upcomingBirthdays($upcomingPeople, $today, $celebratedTodayIds);
+
+            // CR-32 slots: management for the final-approval roles every day (CR-17
+            // fills it), awards from the first working day to the 7th (CR-14 fills it).
+            if (in_array($role, Permissions::FINAL_APPROVAL_ROLES, true)) {
+                $management = DashboardBands::managementSlot();
+            }
+            if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
+                $awards = DashboardBands::awardsSlot($today);
+            }
         }
 
-        return DashboardBands::compose($moments, null, null, $today, $upcoming);
+        return DashboardBands::compose($moments, $management, $awards, $today, $upcoming);
     }
 
     /**
@@ -182,6 +199,7 @@ trait BuildsDashboardWidgets
             'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
             'flowers' => $this->flowersWidget($request),
+            'friday' => ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             'claims' => $this->claimsWidget($employee, $when),
             'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),

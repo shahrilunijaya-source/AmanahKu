@@ -4952,6 +4952,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 
 .uj-db-cta + .uj-db-more { margin-left:0; }
 .uj-db-moment { background:var(--red-tint); border-color:#f3c9cc; }
+.uj-db-management { background:var(--shelf); }
+.uj-db-awards { background:var(--amber-tint); border-color:var(--amber-line); }
 .uj-db-moment .uj-db-k { color:var(--red); }
 .uj-db-moment .uj-db-cta { background:var(--red); color:#fff; }
 /* ornament zone on the right; the copy never runs under it */

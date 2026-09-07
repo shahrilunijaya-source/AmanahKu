@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Carbon\CarbonImmutable;
+
 /**
  * The dashboard's widget registry — one row per card, listed in the order a
  * brand-new user meets them. Ported from the approved public/_dash-unified.html
@@ -57,6 +59,12 @@ final class DashboardWidgets
             'blurb' => 'Everything still waiting on you, grouped.',
             'blurb_ms' => 'Semua yang masih menunggu tindakan anda, dikumpulkan.',
             'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'left',
+        ],
+        'friday' => [
+            'title' => 'Friday sign-off', 'title_ms' => 'Penutup Jumaat',
+            'blurb' => 'Wrap up the week. Shows from Friday 3 PM to Monday 9 AM.',
+            'blurb_ms' => 'Tutup minggu. Dipaparkan dari Jumaat 3 petang hingga Isnin 9 pagi.',
+            'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'left', 'after' => 'tasks',
         ],
         'leave' => [
             'title' => 'My leave summary', 'title_ms' => 'Ringkasan cuti saya',
@@ -167,6 +175,20 @@ final class DashboardWidgets
             self::ids(),
             fn (string $id): bool => self::ALL[$id]['roles'] === null || in_array($role, self::ALL[$id]['roles'], true),
         ));
+    }
+
+    /**
+     * Whether the Friday sign-off card (CR-29, slot owned by CR-32) is on the page:
+     * Friday 15:00 up to, not including, Monday 09:00, on the tenant clock.
+     */
+    public static function fridaySignOffOpen(CarbonImmutable $now): bool
+    {
+        return match ($now->dayOfWeek) {
+            CarbonImmutable::FRIDAY => $now->hour >= 15,
+            CarbonImmutable::SATURDAY, CarbonImmutable::SUNDAY => true,
+            CarbonImmutable::MONDAY => $now->hour < 9,
+            default => false,
+        };
     }
 
     /** The period slice a widget's arrows move by, or null when it has none. */

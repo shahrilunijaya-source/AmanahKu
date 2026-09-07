@@ -13,7 +13,8 @@
     localStorage `uj-bday-<Y-m-d>-<employee id>`; dismissing steps the cycler on, wrapped in try/catch since a private
     window or blocked storage must not break the band.
 
-    $bands  ['moments' => list<Moment>, 'moments_start' => int, 'management' => null, 'awards' => null, 'upcoming' => list<array{name,date}>]
+    $bands  ['moments' => list<Moment>, 'moments_start' => int, 'management' => slot|null, 'awards' => slot|null, 'upcoming' => list<array{name,date}>]
+            a slot is ['kicker' => {en,ms}, 'title' => {en,ms}, 'sub' => {en,ms}]
     $plain  bool
 --}}
 @php
@@ -23,7 +24,7 @@
     $todayKey = now()->toDateString();
 @endphp
 @if ($moments !== [] || ($bands['management'] ?? null) || ($bands['awards'] ?? null))
-<div class="uj-db" data-plain="{{ $plain ? '' : null }}">
+<div class="uj-db"@if ($plain) data-plain=""@endif>
     @if ($moments !== [])
         <div class="uj-db-moments" x-data="{ i: {{ (int) ($bands['moments_start'] ?? 0) }}, n: {{ count($moments) }} }">
         @foreach ($moments as $idx => $m)
@@ -99,7 +100,18 @@
         @endforeach
         </div>
     @endif
-    {{-- management (CR-17) and awards (CR-14) slots render here, in this order, once they exist. --}}
+    {{-- CR-32: the management (CR-17) and awards (CR-14) slots, in this order. Text only;
+         the words are the whole band until those CRs fill them. --}}
+    @foreach (['management', 'awards'] as $slot)
+        @if ($bands[$slot] ?? null)
+            @php $b = $bands[$slot]; @endphp
+            <section class="uj-db-band uj-db-{{ $slot }}" data-band="{{ $slot }}" aria-label="{{ $b['title']['en'] }}">
+                <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
+                <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
+                <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
+            </section>
+        @endif
+    @endforeach
     @if ($upcoming !== [])
         <div class="uj-db-upcoming">
             <span x-text="$store.ui.lang==='en' ? 'Coming up:' : 'Akan datang:'">Coming up:</span>

@@ -57,13 +57,16 @@ class DashboardBandsTest extends TestCase
         $this->assertNull($bands['awards']);
     }
 
-    /** Acceptance 2: the director sees no band either until CR-17 fills the slot. */
-    public function test_a_director_gets_no_band_yet_on_an_ordinary_day(): void
+    /** Acceptance 2 (CR-32, S04): the director sees the management slot and nothing else on an ordinary day. */
+    public function test_a_director_gets_only_the_management_band_on_an_ordinary_day(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-08 10:00:00'));
         $this->signIn('director');
 
-        $this->get('/app/dash')->assertOk()->assertDontSee('uj-db-band', false);
+        $html = $this->get('/app/dash')->assertOk()->assertSee('data-band="management"', false)->getContent();
+        $this->assertSame(1, substr_count($html, 'data-band='));
+        // Not plain, so the wrapper carries no data-plain (it used to render the attribute always).
+        $this->assertStringContainsString('<div class="uj-db">', $html);
     }
 
     /** The holiday-eve moment is the first band occupant: shown on the eve, gone after. */

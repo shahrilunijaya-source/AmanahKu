@@ -221,4 +221,56 @@ final class DashboardBands
 
         return $out;
     }
+
+    /**
+     * The management slot (CR-32 owns the slot, CR-17 fills it): director, HR and
+     * senior management, every day. Until CR-17 lands it names what will be here.
+     *
+     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}}
+     */
+    public static function managementSlot(): array
+    {
+        return [
+            'kicker' => ['en' => 'Management', 'ms' => 'Pengurusan'],
+            'title' => ['en' => 'Lateness today and overdue by Primary Owner', 'ms' => 'Lewat hari ini dan tertunggak mengikut Pemilik Utama'],
+            'sub' => ['en' => 'The panels open here once the figures are wired in.', 'ms' => 'Panel akan dibuka di sini setelah angka disambungkan.'],
+        ];
+    }
+
+    /**
+     * The awards slot (CR-32 owns the window, CR-14 fills it): everyone, from the
+     * first working day of the month to the 7th inclusive.
+     *
+     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}}
+     */
+    public static function awardsSlot(CarbonImmutable $today): array
+    {
+        $month = $today->format('F');
+
+        return [
+            'kicker' => ['en' => 'Awards', 'ms' => 'Anugerah'],
+            'title' => ['en' => "{$month}'s awards", 'ms' => "Anugerah {$today->locale('ms')->translatedFormat('F')}"],
+            'sub' => ['en' => 'The carousel opens here, one award per slide, once awards are given.', 'ms' => 'Karusel dibuka di sini, satu anugerah setiap slaid, setelah anugerah diberikan.'],
+        ];
+    }
+
+    /**
+     * Whether today falls in the awards window: from the month's first working day
+     * (weekends and public holidays are not working days) through the 7th.
+     *
+     * @param  callable(CarbonImmutable): bool  $isWorkingDay
+     */
+    public static function awardsWindowOpen(CarbonImmutable $today, callable $isWorkingDay): bool
+    {
+        if ($today->day > 7) {
+            return false;
+        }
+
+        $first = $today->startOfMonth();
+        while (! $isWorkingDay($first) && $first->day <= 7) {
+            $first = $first->addDay();
+        }
+
+        return $today->day >= $first->day;
+    }
 }
