@@ -547,6 +547,22 @@
             setInterval(check, 300000);
             document.addEventListener('visibilitychange', () => { if (! document.hidden) { check(); } });
         })();
+
+        // CR-12: a tab left open overnight still shows yesterday in the sidebar's TODAY
+        // widget (date, clock-in state, timesheet %) — all server-rendered. The date is
+        // stamped in the app's timezone (not the device's) so it matches what the widget
+        // shows; when the tab comes back into view on a later day, reload the page.
+        (() => {
+            const renderedDay = @js(now()->toDateString());
+            const tz = @js(config('app.timezone'));
+            const today = () => new Date().toLocaleDateString('en-CA', { timeZone: tz });
+            const rollover = () => {
+                if (! document.hidden && today() !== renderedDay) { window.location.reload(); }
+            };
+            document.addEventListener('visibilitychange', rollover);
+            window.addEventListener('focus', rollover);
+            setInterval(rollover, 60000);
+        })();
     });
 </script>
 @include('partials.toast-host')
