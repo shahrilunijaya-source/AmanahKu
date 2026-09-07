@@ -79,8 +79,11 @@ class LockedDaysTest extends TestCase
         $this->assertSame([], $this->svc->forWeek($this->employee, '2026-07-20'));
     }
 
-    /** Whole-day leave on the TOT Saturday takes all 50%; a half day there takes 25%. */
-    public function test_leave_on_the_tot_saturday_scales_to_the_half_day(): void
+    /**
+     * Whole-day leave on the TOT Saturday takes all 50%, and so does a half day: the
+     * morning is the whole working day there (see LockedDays::leaveEntry()).
+     */
+    public function test_leave_on_the_tot_saturday_locks_the_whole_half_day_either_way(): void
     {
         $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
         $leave = LeaveRequest::create([
@@ -95,7 +98,7 @@ class LockedDaysTest extends TestCase
         $leave->update(['half_day_period' => 'am', 'days' => 0.5]);
 
         $locked = $this->svc->forWeek($this->employee, '2026-07-27');
-        $this->assertEqualsWithDelta(25.0, $locked['2026-08-01']['percentage'], 0.001);
+        $this->assertEqualsWithDelta(50.0, $locked['2026-08-01']['percentage'], 0.001);
     }
 
     public function test_approved_leave_locks_every_weekday_it_covers(): void
