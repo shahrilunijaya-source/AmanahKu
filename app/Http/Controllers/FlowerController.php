@@ -32,7 +32,7 @@ class FlowerController extends Controller
         $giver = $request->attributes->get('employee');
         abort_unless($giver, 403, 'No employee profile in this workspace.');
         abort_if($giver->id === $employee->id, 422, 'Cannot give yourself a flower.');
-        abort_unless($employee->status === 'active', 422, 'That person is not active.');
+        abort_if($employee->isArchived(), 422, 'That person has left the company.');
 
         $month = CarbonImmutable::now()->format('Y-m');
 
