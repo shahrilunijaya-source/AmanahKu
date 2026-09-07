@@ -84,7 +84,7 @@ trait BuildsDashboardWidgets
         }
 
         return [
-            'head' => $this->meHead($employee),
+            'head' => $this->meHead($request, $employee),
             'bands' => $this->dashboardBands($employee, $role),
             'widgetCatalog' => DashboardWidgets::catalog($available),
             'widgetLayout' => $layout,

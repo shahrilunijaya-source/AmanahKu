@@ -29,6 +29,7 @@ use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
+use App\Http\Controllers\GreetingLineController;
 use App\Http\Controllers\HandbookController;
 use App\Http\Controllers\HelpdeskController;
 use App\Http\Controllers\IdeaController;
@@ -326,6 +327,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1,welcome-cert')->name('welcome.certificate');
         Route::post('/app/welcome/finish', [WelcomeWizardController::class, 'finish'])->name('welcome.finish');
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
+        // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
+        Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
+        Route::post('/app/admin/greetings/{greetingLine}', [GreetingLineController::class, 'update'])->name('admin.greetings.update');
+        Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
+        // Any signed-in employee can suggest a line; HR approves it above.
+        Route::post('/app/greetings/suggest', [GreetingLineController::class, 'suggest'])->name('greetings.suggest');
         Route::post('/app/admin/features', [AdminController::class, 'updateFeatures'])->name('admin.features.update');
         Route::post('/app/admin/roles/{user}', [AdminController::class, 'updateRole'])->name('admin.roles.update');
         Route::post('/app/admin/scope/{user}', [AdminController::class, 'updateScope'])->name('admin.scope.update');

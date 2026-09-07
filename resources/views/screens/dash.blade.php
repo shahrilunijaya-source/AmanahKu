@@ -25,7 +25,7 @@
 
 @section('screen')
 @php
-    $head = $head ?? ['h1' => '', 'sub' => ''];
+    $head = $head ?? ['h1' => '', 'h1_ms' => '', 'sub' => ''];
     $widgetCatalog = $widgetCatalog ?? [];
     $widgetLayout = $widgetLayout ?? ['left' => [], 'right' => []];
     $widgetPrefs = $widgetPrefs ?? ['hidden' => [], 'order' => []];
@@ -46,7 +46,7 @@
     {{-- The dashboard owns its heading; the shared layout suppresses its page-title
          block for this screen (layouts/app.blade.php) so the greeting prints once. --}}
     <div class="uj-dw-head">
-        <h1>{{ $head['h1'] }}</h1>
+        <h1 x-text="$store.ui.lang==='en' ? @js($head['h1']) : @js($head['h1_ms'] ?? $head['h1'])">{{ $head['h1'] }}</h1>
         <span class="uj-dw-today">{{ $head['sub'] }}</span>
         <button type="button" class="uj-dw-gear" @click="openPicker()"
                 :aria-label="$store.ui.lang==='en' ? 'Choose widgets' : 'Pilih widget'">
@@ -117,6 +117,25 @@
                     <small x-text="$store.ui.lang==='en' ? 'Banners and newer cards show as text, no confetti or stamps.' : 'Sepanduk dan kad baharu dipapar sebagai teks, tanpa hiasan.'">Banners and newer cards show as text, no confetti or stamps.</small>
                 </span>
             </label>
+
+            @if (\Illuminate\Support\Facades\Route::has('greetings.suggest'))
+            {{-- CR-33: any employee can suggest a greeting line for HR to approve. --}}
+            <div x-data="{ suggesting: false }" style="border-top:1px solid var(--hairline-soft);margin-top:14px;padding-top:12px;">
+                <button type="button" @click="suggesting = !suggesting" style="font-size:12.5px;color:var(--ink);text-decoration:underline;"
+                        x-text="$store.ui.lang==='en' ? 'Suggest a greeting line' : 'Cadangkan ucapan'">Suggest a greeting line</button>
+                <form x-show="suggesting" x-cloak method="post" action="{{ route('greetings.suggest') }}" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                    @csrf
+                    <select name="trigger" required style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;">
+                        @foreach (\App\Models\GreetingLine::TRIGGERS as $key => $t)
+                            <option value="{{ $key }}">{{ $t['label_en'] }} / {{ $t['label_ms'] }}</option>
+                        @endforeach
+                    </select>
+                    <input name="text_en" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'English line' : 'Baris Bahasa Inggeris'" style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
+                    <input name="text_ms" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Bahasa Melayu line' : 'Baris Bahasa Melayu'" style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
+                    <button type="submit" class="uj-dw-btn uj-dw-btn-ghost" style="align-self:flex-start;" x-text="$store.ui.lang==='en' ? 'Send' : 'Hantar'">Send</button>
+                </form>
+            </div>
+            @endif
             <div class="uj-dw-sheet-ft">
                 <span class="n" x-text="$store.ui.lang==='en'
                     ? draft.length + ' of ' + catalog.length + ' on'

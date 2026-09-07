@@ -8,12 +8,14 @@ use App\Http\Controllers\AdminController;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\EmploymentType;
+use App\Models\GreetingLine;
 use App\Models\StaffLevel;
 use App\Models\Tenant;
 use App\Services\FeatureManager;
 use App\Support\Features;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Company Settings screen data (org lists + the module/feature toggle panel)
@@ -36,7 +38,20 @@ trait BuildsSettingsData
             'locationTypes' => app(AdminController::class)->locationTypes(),
             'canManageFeatures' => $canManage,
             'featureRows' => $canManage ? $this->featureRows($tenant) : [],
+            'greetingLines' => $canManage ? $this->greetingLinesOrdered() : collect(),
+            'greetingPending' => $canManage ? GreetingLine::whereNull('approved_at')->orderBy('created_at')->get() : collect(),
+            'greetingTriggers' => GreetingLine::TRIGGERS,
         ];
+    }
+
+    /** Approved greeting lines, bucket priority order then trigger. */
+    private function greetingLinesOrdered(): Collection
+    {
+        $bucketOrder = array_flip(GreetingLine::BUCKETS);
+
+        return GreetingLine::approved()->get()
+            ->sortBy(fn (GreetingLine $l) => sprintf('%02d-%s', $bucketOrder[$l->bucket] ?? 99, $l->trigger))
+            ->values();
     }
 
     /**

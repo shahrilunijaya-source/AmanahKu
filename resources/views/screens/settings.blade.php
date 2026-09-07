@@ -343,6 +343,103 @@
             @endif
         </div>
         @endif
+
+        @if (! $only || $only === 'greetings')
+        {{-- CR-33: rotating dashboard greeting bank. HR approves/edits/deletes; any
+             employee can suggest a line from the dashboard picker. --}}
+        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Dashboard greetings' : 'Ucapan papan pemuka'">Dashboard greetings</h3>
+                @if ($canManageFeatures)
+                    <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
+                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                    </button>
+                @endif
+            </div>
+            @include('partials.hint', ['en' => 'These lines rotate on everyone\'s dashboard greeting. Use {name} where the person\'s first name should go.', 'ms' => 'Baris ini berputar pada ucapan papan pemuka semua orang. Guna {name} di tempat nama pertama orang itu patut muncul.'])
+
+            @if ($canManageFeatures)
+                @if ($greetingPending->isNotEmpty())
+                <div style="background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;padding:12px;margin-bottom:14px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px;" x-text="$store.ui.lang==='en' ? 'Pending suggestions' : 'Cadangan menunggu'">Pending suggestions</div>
+                    @foreach ($greetingPending as $p)
+                        <div style="padding:6px 0;border-bottom:1px solid var(--hairline-soft);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <div style="min-width:0;">
+                                <div style="font-size:12.5px;color:var(--ink);">{{ $p->text_en }}</div>
+                                <div style="font-size:12px;color:var(--muted);">{{ $p->text_ms }}</div>
+                                <div style="font-size:11px;color:var(--muted);margin-top:2px;">{{ $greetingTriggers[$p->trigger]['label_en'] ?? $p->trigger }} · {{ $p->suggestedBy?->display_name ?? 'Unknown' }}</div>
+                            </div>
+                            <div style="display:flex;gap:10px;flex-shrink:0;">
+                                <form method="post" action="{{ route('admin.greetings.update', $p) }}">@csrf<input type="hidden" name="approve" value="1"><button type="submit" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Approve':'Luluskan'">Approve</button></form>
+                                <button type="submit" form="del-greeting-{{ $p->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
+                            </div>
+                        </div>
+                        <form id="del-greeting-{{ $p->id }}" method="post" action="{{ route('admin.greetings.delete', $p) }}" onsubmit="return confirm('Delete this suggestion?')">@csrf</form>
+                    @endforeach
+                </div>
+                @endif
+
+                @php $gfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.greetings.store') }}" style="margin-bottom:14px;display:flex;flex-direction:column;gap:8px;">
+                    @csrf
+                    <select name="trigger" required style="{{ $gfs }}">
+                        @foreach ($greetingTriggers as $key => $t)
+                            <option value="{{ $key }}">{{ $t['label_en'] }} / {{ $t['label_ms'] }}</option>
+                        @endforeach
+                    </select>
+                    <input name="text_en" required maxlength="200" placeholder="English line" style="{{ $gfs }}" />
+                    <input name="text_ms" required maxlength="200" placeholder="Baris Bahasa Melayu" style="{{ $gfs }}" />
+                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;align-self:flex-start;"><span x-text="$store.ui.lang==='en'?'Add line':'Tambah baris'">Add line</span></button>
+                </form>
+            @endif
+
+            @forelse ($greetingLines->groupBy('trigger') as $trigger => $lines)
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px;">{{ $greetingTriggers[$trigger]['label_en'] ?? $trigger }} / {{ $greetingTriggers[$trigger]['label_ms'] ?? $trigger }}</div>
+                    @foreach ($lines as $l)
+                        <div style="padding:6px 0;border-bottom:1px solid var(--hairline-soft);">
+                            <div @if ($canManageFeatures) x-show="editId !== {{ $l->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                <div style="min-width:0;">
+                                    <div style="font-size:12.5px;color:var(--ink);">{{ $l->text_en }}</div>
+                                    <div style="font-size:12px;color:var(--muted);">{{ $l->text_ms }}</div>
+                                </div>
+                                @if ($canManageFeatures)
+                                    <div style="display:flex;gap:10px;flex-shrink:0;">
+                                        <button type="button" @click="editId={{ $l->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
+                                        <button type="submit" form="del-greeting-{{ $l->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
+                                    </div>
+                                @endif
+                            </div>
+                            @if ($canManageFeatures)
+                                <form x-show="editId === {{ $l->id }}" x-cloak method="post" action="{{ route('admin.greetings.update', $l) }}" style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+                                    @csrf
+                                    <select name="trigger" required style="{{ $gfs }}">
+                                        @foreach ($greetingTriggers as $key => $t)
+                                            <option value="{{ $key }}" @selected($l->trigger === $key)>{{ $t['label_en'] }} / {{ $t['label_ms'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input name="text_en" value="{{ $l->text_en }}" required maxlength="200" style="{{ $gfs }}" />
+                                    <input name="text_ms" value="{{ $l->text_ms }}" required maxlength="200" style="{{ $gfs }}" />
+                                    <div style="display:flex;gap:8px;">
+                                        <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
+                                        <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                                    </div>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @empty
+                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No greeting lines yet.':'Tiada ucapan lagi.'">No greeting lines yet.</p>
+            @endforelse
+
+            @if ($canManageFeatures)
+                @foreach ($greetingLines as $l)
+                    <form id="del-greeting-{{ $l->id }}" method="post" action="{{ route('admin.greetings.delete', $l) }}" onsubmit="return confirm('Delete this line?')">@csrf</form>
+                @endforeach
+            @endif
+        </div>
+        @endif
     </div>
 </div>
 

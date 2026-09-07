@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Attendance\HolidayEve;
 use App\Models\Achievement;
 use App\Models\Announcement;
 use App\Models\Claim;
@@ -16,7 +17,10 @@ use App\Models\LeaveRequest;
 use App\Models\PerformanceReview;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Models\WorkItem;
 use App\Services\FeatureManager;
+use App\Support\DashboardPrefs;
+use App\Support\GreetingBank;
 use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
@@ -52,32 +56,136 @@ trait BuildsDashboardData
         ['claim', 'Claim', 'claims'],
     ];
 
-    /** "Good afternoon, {firstName}." greeting + today's date and clock state. */
-    private function meHead(?Employee $employee): array
+    /**
+     * CR-33: rotating, context-aware greeting. "Keep it plain" (or no employee record)
+     * keeps the original static "Good morning/afternoon/evening, {name}." behaviour;
+     * otherwise a line is picked from App\Support\GreetingBank based on which triggers
+     * are active right now, and the picked id is remembered in session so the next
+     * pageview doesn't repeat it.
+     */
+    private function meHead(Request $request, ?Employee $employee): array
     {
-        $hour = (int) now()->hour;
-        $greeting = match (true) {
-            $hour < 12 => 'Good morning',
-            $hour < 18 => 'Good afternoon',
-            default => 'Good evening',
-        };
-
+        $now = now();
         $name = trim((string) ($employee->display_name ?? ''));
         $firstName = $name === '' ? '' : (string) Str::of($name)->squish()->explode(' ')->first();
-        $h1 = $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
 
         // Prefer the still-open punch: an overnight shift's open record is dated
         // yesterday, so an onDate() lookup greeted someone mid-shift with "not clocked
         // in yet". Falls back to today's row so a closed day still reports its times.
-        $today = $employee?->attendanceRecords()->openPunch(now())->first()
-            ?? $employee?->attendanceRecords()->onDate(now())->first();
+        $today = $employee?->attendanceRecords()->openPunch($now)->first()
+            ?? $employee?->attendanceRecords()->onDate($now)->first();
         $clockState = match (true) {
             $today === null || ! $today->clock_in => 'not clocked in yet',
             (bool) $today->clock_out => 'clocked out',
             default => 'clocked in at '.$today->clock_in,
         };
+        $sub = $now->format('l, j F Y')." · {$clockState}.";
 
-        return ['h1' => $h1, 'sub' => now()->format('l, j F Y')." · {$clockState}."];
+        $plain = DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain'];
+
+        if ($plain || ! $employee) {
+            return ['h1' => $this->plainGreeting($now, $firstName, 'en'), 'h1_ms' => $this->plainGreeting($now, $firstName, 'ms'), 'sub' => $sub];
+        }
+
+        $triggers = $this->activeGreetingTriggers($employee, $today, $now);
+        $lastId = (string) session('greeting.last', '');
+        $line = GreetingBank::pick($employee->tenant_id, $triggers, $lastId !== '' ? $lastId : null);
+
+        if ($line === null) {
+            return ['h1' => $this->plainGreeting($now, $firstName, 'en'), 'h1_ms' => $this->plainGreeting($now, $firstName, 'ms'), 'sub' => $sub];
+        }
+
+        session(['greeting.last' => (string) $line->id]);
+
+        return [
+            'h1' => $this->fillGreetingName($line->text_en, $firstName),
+            'h1_ms' => $this->fillGreetingName($line->text_ms, $firstName),
+            'sub' => $sub,
+        ];
+    }
+
+    /** The original static "Good morning/afternoon/evening, {name}." fallback. */
+    private function plainGreeting(CarbonInterface $now, string $firstName, string $lang): string
+    {
+        $hour = (int) $now->hour;
+        $greeting = $lang === 'en'
+            ? match (true) {
+                $hour < 12 => 'Good morning',
+                $hour < 18 => 'Good afternoon',
+                default => 'Good evening',
+            }
+        : match (true) {
+            $hour < 12 => 'Selamat pagi',
+            $hour < 18 => 'Selamat petang',
+            default => 'Selamat malam',
+        };
+
+        return $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
+    }
+
+    /** Replace {name}, or cleanly strip it (and its leading ", ") when there is none. */
+    private function fillGreetingName(string $text, string $firstName): string
+    {
+        if ($firstName !== '') {
+            return str_replace('{name}', $firstName, $text);
+        }
+
+        return str_replace('{name}', '', str_replace(', {name}', '', $text));
+    }
+
+    /**
+     * Real signals that decide which greeting bucket/trigger fires. Every active
+     * trigger is passed to GreetingBank::pick(), which walks buckets in priority
+     * order (personal, situation, day, time) and matches within the first
+     * non-empty one.
+     *
+     * @return list<string>
+     */
+    private function activeGreetingTriggers(Employee $employee, ?Model $today, CarbonInterface $now): array
+    {
+        $triggers = [];
+
+        $dob = $employee->date_of_birth;
+        if ($dob !== null && $dob->month === $now->month && $dob->day === $now->day) {
+            $triggers[] = 'birthday';
+        }
+
+        if (app(HolidayEve::class)->forDay($now) !== null) {
+            $triggers[] = 'holiday_eve';
+        }
+
+        $isWeekday = $now->isWeekday();
+
+        if ($isWeekday
+            && WorkItem::where('employee_id', $employee->id)
+                ->where('status', '!=', 'done')
+                ->whereNull('archived_at')
+                ->whereNotNull('due_at')
+                ->where('due_at', '<', $now->toDateString())
+                ->exists()
+        ) {
+            $triggers[] = 'overdue';
+        }
+
+        if ($isWeekday && (int) $now->hour >= 10 && ($today === null || ! $today->clock_in)) {
+            $triggers[] = 'not_clocked_in';
+        }
+
+        $triggers[] = match (true) {
+            $now->isMonday() => 'monday',
+            $now->isFriday() => 'friday',
+            $now->isWeekend() => 'weekend',
+            default => null,
+        };
+
+        $triggers[] = match (true) {
+            (int) $now->hour < 12 => 'morning',
+            (int) $now->hour < 18 => 'afternoon',
+            (int) $now->hour < 22 => 'evening',
+            default => 'late',
+        };
+
+        return array_values(array_filter($triggers));
     }
 
     /** Trim a float to its shortest useful string: 12.0 → "12", 12.5 → "12.5". */

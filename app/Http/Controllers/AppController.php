@@ -194,7 +194,7 @@ class AppController extends Controller
             // Legacy title/sub kept in sync from $head so anything still reading
             // pageTitle/pageSub (the shared layout's <title> tag, breadcrumb h1) shows the
             // real greeting rather than the static "Dashboard" placeholder.
-            $page = array_merge($page, ['title' => $dashData['head']['h1'], 'title_ms' => $dashData['head']['h1'], 'sub' => $dashData['head']['sub'], 'sub_ms' => $dashData['head']['sub']]);
+            $page = array_merge($page, ['title' => $dashData['head']['h1'], 'title_ms' => $dashData['head']['h1_ms'] ?? $dashData['head']['h1'], 'sub' => $dashData['head']['sub'], 'sub_ms' => $dashData['head']['sub']]);
         }
         // Profile header reflects the actual employee being viewed.
         if ($screen === 'profile' && ! empty($data['profile'])) {
