@@ -153,3 +153,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: a per-port top-level key (`ports.calendar.driver`). Rejected, the contract's own words are "`config('ports.driver')` per port". A `subject` argument on `upsertEvent`. Rejected, it changes the frozen signature; the value object carries it instead. Testing never-throw with a throwing fake adapter. Rejected, that would pin a base class the contract does not name.
 - Reversal cost: cheap for config keys and class names (one provider, one config file); cheap for the value-object fields (named arguments, callers are all after S07).
 - Source: contract silent.
+
+### S07 / ports / tenant on the outbox row and the driver guard
+- Question: the contract gives the outbox a `tenant_id` but not where it comes from for a call with no employee (`pullProjects`, `withdrawComment`, `send`), and says "stub is the only driver enabled in this run" without saying what happens when an env variable names another driver.
+- Decided: the row's tenant is the employee the call is for or by, else `CurrentTenant`, else the subject row's `tenant_id`; with none of those the row cannot be written (the tenant trait refuses), and the call returns `ok = false` with `outboxId = 0` and a log line instead of throwing. A driver name with no enabled adapter logs a warning and resolves to the stub; real adapters are listed in `PortsServiceProvider::realAdapters()` (empty now).
+- Alternatives: a nullable tenant with no guard. Rejected, an outbox row nobody can see again is worse than a failed result. Throwing on an unknown driver at boot. Rejected, a typo in `.env` would take the whole app down, and the contract wants the stub to be the only thing that can run.
+- Reversal cost: cheap, both live in one method each (`Outbox::call`, `PortsServiceProvider::register`).
+- Source: contract silent.
