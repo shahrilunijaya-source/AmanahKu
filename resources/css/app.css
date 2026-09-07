@@ -4886,8 +4886,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
     opacity:1; transform:none; filter:none; transition:opacity 280ms var(--ease), transform 280ms var(--ease), filter 280ms var(--ease); }
 @starting-style { .uj-db-band { opacity:0; transform:translateY(-6px); filter:blur(2px); } }
 .uj-db-k { font:600 11px var(--font-sans); letter-spacing:.12em; text-transform:uppercase; color:var(--muted-soft); white-space:nowrap; }
-.uj-db-t { font-size:var(--t-lg); font-weight:600; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; }
-.uj-db-s { color:var(--body); font-size:var(--t-base); }
+.uj-db-t { font-size:var(--t-lg); font-weight:600; letter-spacing:-.01em; color:var(--ink); white-space:nowrap; flex:none; }
+.uj-db-s { color:var(--body); font-size:var(--t-base); flex:1 1 auto; min-width:0; }
 .uj-db-cta { margin-left:auto; white-space:nowrap; font-weight:500; font-size:var(--t-base); color:var(--ink); background:var(--shelf); border-radius:8px; padding:7px 12px; transition:transform 160ms ease-out; }
 .uj-db-cta:active { transform:scale(.97); }
 .uj-db-more { margin-left:auto; font:500 12px var(--font-mono); color:var(--muted-soft); white-space:nowrap; background:none; border:0; padding:4px 6px; border-radius:6px; cursor:pointer; transition:transform 160ms ease-out, background 160ms ease; }
@@ -4902,17 +4902,18 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 /* ornament zone on the right; the copy never runs under it */
 .uj-db-art { position:absolute; right:0; top:0; bottom:0; width:240px; pointer-events:none; }
 /* copy keeps clear of the ornament; the button and the pill sit on top of it */
-.uj-db-band:has(.uj-db-art):not(:has(.uj-db-cta, .uj-db-more)) { padding-right:250px; }
+.uj-db-band:has(.uj-db-art) { padding-right:250px; }
+.uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more):last-child { position:absolute; right:16px; top:50%; translate:0 -50%; margin:0; }
 .uj-db-cta, .uj-db-more { position:relative; z-index:1; }
 .uj-db-art i { position:absolute; width:7px; height:11px; border-radius:2px; transform:rotate(var(--r)); opacity:.9; animation:uj-db-drift 900ms var(--ease) var(--d, 0ms) both; }
 .uj-db-art i:nth-child(4n) { background:var(--red); } .uj-db-art i:nth-child(4n+1) { background:var(--amber); }
 .uj-db-art i:nth-child(4n+2) { background:var(--success); } .uj-db-art i:nth-child(4n+3) { background:var(--info); }
 @keyframes uj-db-drift { from { transform:translateY(-14px) rotate(0); opacity:0; } to { transform:translateY(0) rotate(var(--r)); opacity:.9; } }
-.uj-db-stamp { position:absolute; right:40px; top:50%; translate:0 -50%; rotate:-10deg; width:62px; height:62px; border-radius:50%; border:3px double var(--red); display:grid; place-items:center; font:600 13px var(--font-mono); color:var(--red); opacity:.7; mix-blend-mode:multiply; }
+.uj-db-stamp { position:absolute; right:120px; top:50%; translate:0 -50%; rotate:-10deg; width:62px; height:62px; border-radius:50%; border:3px double var(--red); display:grid; place-items:center; font:600 13px var(--font-mono); color:var(--red); opacity:.7; mix-blend-mode:multiply; }
 .uj-db-stamp::after { content:""; position:absolute; inset:5px; border-radius:50%; border:1px solid var(--red); }
 /* Keep it plain: same words, no tint, no ornament */
 .uj-db[data-plain] .uj-db-band { background:var(--card); border-color:var(--hairline); }
 .uj-db[data-plain] .uj-db-k { color:var(--muted-soft); }
 .uj-db[data-plain] .uj-db-cta { background:var(--shelf); color:var(--ink); }
 @media (prefers-reduced-motion: reduce) { .uj-db-art i { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
-@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-s { flex-basis:100%; } }
+@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more):last-child { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
