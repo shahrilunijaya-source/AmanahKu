@@ -104,7 +104,7 @@ final class DashboardWidgets
             'title' => 'My working style', 'title_ms' => 'Gaya kerja saya',
             'blurb' => 'Your Profile Test result: archetype and the four-way split.',
             'blurb_ms' => 'Keputusan Ujian Profil anda: arketip dan pecahan empat hala.',
-            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right',
+            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right', 'after' => 'work',
         ],
         'pulse' => [
             'title' => 'Company pulse', 'title_ms' => 'Nadi syarikat',
