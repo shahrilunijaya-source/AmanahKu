@@ -282,16 +282,17 @@
                         </span>
 
                         {{-- CR-30 Request Help: the explicit escalation. Tags a Helper and sends one message.
+                             Anyone but the owner may be asked; an FYI person becomes a Helper.
                              A reaction, Send Help included, never does this. --}}
-                        <template x-if="!drawer.locked && availablePeople.length">
+                        <template x-if="!drawer.locked && reviewerOptions.length">
                             <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Request help' : 'Minta bantuan'">Request help</span>
                         </template>
-                        <template x-if="!drawer.locked && availablePeople.length">
+                        <template x-if="!drawer.locked && reviewerOptions.length">
                             <span class="wd-pval">
                                 <span class="wd-help-row">
                                     <select class="wd-inline" x-model="drawer.helpId" :aria-label="$store.ui.lang==='en' ? 'Who to ask' : 'Siapa untuk diminta'">
                                         <option value="" x-text="$store.ui.lang==='en' ? 'Who?' : 'Siapa?'"></option>
-                                        <template x-for="p in availablePeople" :key="'hp'+p.id">
+                                        <template x-for="p in reviewerOptions" :key="'hp'+p.id">
                                             <option :value="p.id" x-text="p.name"></option>
                                         </template>
                                     </select>
