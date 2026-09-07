@@ -67,6 +67,15 @@ class BoardRules
     public function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        // A subtask handed to someone else is theirs to open, tick and comment on. Every
+        // other right on it still comes from the parent (see subject()) — the same split
+        // the assignee of a tac already gets: move + comment, never edit. Must run before
+        // subject() collapses $item to the parent, or employee_id here is the wrong person.
+        if ($item->parent_id !== null && $item->employee_id === $employee->id) {
+            return;
+        }
+
         $item = $this->subject($item);
         $role = $request->attributes->get('tenantRole', 'employee');
         abort_unless(
@@ -201,15 +210,49 @@ class BoardRules
             return;
         }
 
-        $open = $item->openChildCount();
+        $openTitles = ($item->relationLoaded('children') ? $item->children : $item->children()->get())
+            ->where('status', '!=', 'done')
+            ->pluck('title');
 
-        if ($open > 0) {
-            throw ValidationException::withMessages([
-                'status' => $open === 1
-                    ? '1 subtask still open. Tick it off before moving this card to Done.'
-                    : "{$open} subtasks still open. Tick them off before moving this card to Done.",
-            ]);
+        if ($openTitles->isEmpty()) {
+            return;
         }
+
+        $names = $openTitles->take(5)->implode(', ');
+        if ($openTitles->count() > 5) {
+            $names .= ', +'.($openTitles->count() - 5).' more';
+        }
+
+        throw ValidationException::withMessages([
+            'status' => "Still open: {$names}. Tick them off before moving this card to Done.",
+        ]);
+    }
+
+    /**
+     * When a child reaches Done and that closes out its parent's last open subtask, the
+     * parent moves itself to Review — the point of the last piece of legwork finishing is
+     * usually a second pair of eyes, not sitting untouched in To Do/In Progress until
+     * someone notices by hand. Only fires while the parent is still todo or prog; a parent
+     * already in review or done is left alone. Deleting a subtask never calls this — see
+     * WorkItemController::destroy(), which stays a plain removal.
+     *
+     * @return WorkItem|null the parent, moved, when it fired; null otherwise (caller uses
+     *                       this to decide whether to notify and repaint)
+     */
+    public function autoReviewParentOnLastChildDone(WorkItem $child): ?WorkItem
+    {
+        if (! $child->isChild()) {
+            return null;
+        }
+
+        $parent = $child->parent;
+        if (! in_array($parent->status, ['todo', 'prog'], true) || $parent->openChildCount() > 0) {
+            return null;
+        }
+
+        $parent->update(['status' => 'review']);
+
+        return $parent;
     }
 
     /**

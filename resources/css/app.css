@@ -1124,6 +1124,13 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     letter-spacing: -0.005em; margin: 0 0 9px; text-wrap: pretty;
 }
 
+/* A subtask assigned off the parent's owner, shown on the assignee's own board —
+   this is the only marker that it belongs to a bigger card. */
+.wc-parent-of {
+    font-size: var(--t-micro); font-weight: 600; color: var(--muted); margin: -2px 0 4px;
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+
 .wc-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
 /* Tinted, not filled: --wc-l is the hue (set inline per label from WorkItem::LABELS),
    the fill is that hue at low alpha. */
@@ -1148,6 +1155,9 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-sub { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
 .wc-sub svg { width: 12px; height: 12px; }
 .wc-sub--all { color: var(--success-ink); }
+/* Earliest overdue-open-subtask date beside the "n/m" badge. Same color as
+   .wc-when--over but never that class name — see the comment in work-card.blade.php. */
+.wc-sub-overdue { color: var(--error); font-weight: 600; font-variant-numeric: tabular-nums; }
 /* A parent with subtasks reads as a stack: two hairline layers peek out below it.
    Pure CSS so the card's markup and drag behaviour are untouched. */
 /* Two sheets peeking out under a card that has subtasks. Each layer is a shade
@@ -1343,6 +1353,13 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-ov-add .wd-inline:hover { background: rgba(255,255,255,.2); }
 .wd-ov-add .wd-inline:focus { color: var(--ink); background: var(--card); border-style: solid; }
 .wd-ov-add .wd-inline:focus::placeholder { color: var(--muted-soft); }
+.wd-ov-add-row { display: flex; gap: 6px; margin-top: 6px; }
+.wd-ov-add-select, .wd-ov-add-date {
+    flex: 1; min-width: 0; padding: 7px 8px; font-size: 12px; color: #fff;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); border-radius: 10px;
+}
+.wd-ov-add-select:disabled, .wd-ov-add-date:disabled { opacity: .6; }
+.wd-ov-add-select option { color: var(--ink); }
 .wd-back { background: none; border: 0; padding: 0 0 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; transition: color 120ms ease; }
 .wd-back:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {

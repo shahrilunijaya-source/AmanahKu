@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\TimesheetCategory;
@@ -45,6 +46,13 @@ class WorkItemController extends Controller
             // Looked up through the default (ParentOnly) scope on purpose: a child's id
             // is not found, which is what refuses a grandchild.
             'parent_id' => ['nullable', 'integer', Rule::exists('work_items', 'id')->where('tenant_id', app(CurrentTenant::class)->id())->whereNull('parent_id')],
+            // A subtask's own assignee, due date and helpers — only meaningful with
+            // parent_id set (storeChild() is the only reader of these three); a
+            // top-level card ignores them.
+            'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'due_at' => ['nullable', 'date'],
+            'helper_ids' => ['nullable', 'array'],
+            'helper_ids.*' => ['integer'],
         ], [
             'parent_id.exists' => 'That card cannot take subtasks: it does not exist, or it is a subtask itself.',
         ]);
@@ -88,11 +96,14 @@ class WorkItemController extends Controller
     }
 
     /**
-     * A subtask lands on the PARENT's board, whoever adds it: it belongs to the parent,
-     * and the parent belongs to its owner. Anyone who can open the parent may add one
-     * (authorizeAccess, the same grant as moving or commenting). Type, project and
-     * category are copied so the drawer has something to show and never asks again;
-     * the child's only state is todo or done.
+     * A subtask lands on the PARENT's board by default, but may carry its own
+     * assignee: whoever it's given to gets it on THEIR board too (see
+     * BuildsWorkData::boardColumns()), still shown as a subtask of the parent.
+     * Whoever can open the parent may add one (authorizeAccess, the same grant
+     * as moving or commenting) — the assignee need not be the actor. Type,
+     * project and category are copied from the parent so the drawer has
+     * something to show and never asks again; the child's only status is todo
+     * or done.
      *
      * @param  array<string, mixed>  $data
      */
@@ -100,19 +111,32 @@ class WorkItemController extends Controller
     {
         $this->boardRules->authorizeAccess($request, $parent, $actor);
 
-        return $parent->children()->create([
+        $assignee = isset($data['employee_id']) ? Employee::findOrFail($data['employee_id']) : null;
+        // Same guard assign() applies: no new work onto an archived person.
+        abort_if($assignee?->isArchived(), 422, 'You cannot assign a subtask to an archived staff member.');
+
+        $child = $parent->children()->create([
             'tenant_id' => $parent->tenant_id,
-            'employee_id' => $parent->employee_id,
+            'employee_id' => $assignee?->id ?? $parent->employee_id,
             'title' => $data['title'],
             'type' => $parent->type,
             'priority' => $data['priority'] ?? 'medium',
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'] ?? null,
             'project_id' => $parent->project_id,
             'timesheet_category_id' => $parent->timesheet_category_id,
             'status' => 'todo',
             'progress' => 0,
             'sort_order' => (int) $parent->children()->max('sort_order') + 1,
         ]);
+
+        if (! empty($data['helper_ids'])) {
+            $child->participants()->sync(
+                Employee::active()->whereIn('id', $data['helper_ids'])->where('id', '!=', $child->employee_id)->pluck('id'),
+            );
+        }
+
+        return $child;
     }
 
     /** A privileged user assigns an adhoc task onto a staff member's board. */
@@ -272,7 +296,18 @@ class WorkItemController extends Controller
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
+            // A subtask's assignee may be reassigned after the fact; a top-level
+            // card's owner never changes, so this is rejected unless the card is a
+            // child (checked below, once we know which we're holding).
+            'employee_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
         ]);
+
+        if (array_key_exists('employee_id', $data)) {
+            abort_unless($workItem->isChild(), 422, "A card's owner cannot be changed; only a subtask's assignee can.");
+            $assignee = $data['employee_id'] ? Employee::findOrFail($data['employee_id']) : null;
+            abort_if($assignee?->isArchived(), 422, 'You cannot assign a subtask to an archived staff member.');
+            $data['employee_id'] = $assignee?->id ?? $workItem->parent->employee_id;
+        }
 
         // A card that involves anyone but its owner (a tac, or a card with
         // participants) must carry a due date. See BoardRules::assertDueDateRetained()
@@ -363,6 +398,14 @@ class WorkItemController extends Controller
             );
         }
 
+        // The last open subtask just closed: send the parent to Review on its own.
+        if (! $wasDone && $workItem->status === 'done') {
+            $reviewedParent = $this->boardRules->autoReviewParentOnLastChildDone($workItem);
+            if ($reviewedParent) {
+                $this->notifyParentAutoReview($reviewedParent, $employee);
+            }
+        }
+
         // Persist the destination column order. Only the employee's own cards are touched.
         if (! empty($data['ids'])) {
             foreach (array_values($data['ids']) as $i => $id) {
@@ -390,7 +433,12 @@ class WorkItemController extends Controller
         $this->boardRules->authorizeManage($request, $workItem, $employee);
 
         $parent = $workItem->parent_id ? $workItem->parent : null;
+        $title = $workItem->title;
         $workItem->delete();
+
+        if ($parent) {
+            AuditLog::record('Deleted subtask', $title.' (of '.$parent->title.')');
+        }
 
         // A deleted subtask changes the parent's face (the "1/2" count), so hand it back.
         return response()->json(['ok' => true, 'parent_html' => $parent ? $this->cardHtml($parent->fresh()) : null]);
@@ -495,6 +543,27 @@ class WorkItemController extends Controller
             'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    /**
+     * Tell the parent's owner (and its assigner, if a tac and different) that their card
+     * just moved itself to Review because its last subtask ticked off.
+     */
+    private function notifyParentAutoReview(WorkItem $parent, Employee $actor): void
+    {
+        $parent->loadMissing(['employee', 'assignedBy']);
+
+        $recipients = collect([$parent->employee?->user_id, $parent->assigned_by_id ? $parent->assignedBy?->user_id : null])
+            ->filter()->unique();
+
+        foreach ($recipients as $userId) {
+            AppNotification::send(
+                $userId,
+                $actor->display_name.' finished the last subtask of: '.$parent->title,
+                null,
+                route('app.screen', 'board'),
+            );
+        }
     }
 
     private function employee(Request $request): Employee
@@ -626,7 +695,7 @@ class WorkItemController extends Controller
      */
     private function cardHtml(WorkItem $item): string
     {
-        $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children'])->loadCount('comments');
+        $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children', 'parent'])->loadCount('comments');
 
         return view('partials.work-card', ['c' => $item])->render();
     }

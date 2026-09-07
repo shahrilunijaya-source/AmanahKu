@@ -1793,7 +1793,7 @@ class AmanahkuWriteToolsTest extends TestCase
         $preview = $this->callTool(MoveCardTool::class, ['work_item_id' => $parent->id, 'status' => 'done'], $headers);
 
         $this->assertTrue($this->toolIsError($preview));
-        $this->assertStringContainsString('subtask', $preview->json('result.content.0.text'));
+        $this->assertStringContainsString('Still open: Sub.', $preview->json('result.content.0.text'));
     }
 
     public function test_move_card_ticks_a_subtask_done(): void

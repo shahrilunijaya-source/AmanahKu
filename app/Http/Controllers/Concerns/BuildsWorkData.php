@@ -16,6 +16,7 @@ use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Project;
+use App\Models\Scopes\ParentOnly;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Services\DataScope;
@@ -178,6 +179,23 @@ trait BuildsWorkData
             ->whereNull('archived_at')
             ->with(['assignedBy', 'participants', 'projectRef', 'children'])->withCount('comments')
             ->orderBy('sort_order')->orderBy('id')->get() : collect();
+
+        // A subtask handed to someone other than its parent's owner shows on THAT
+        // person's board too, as an ordinary card (see partials.work-card's "Subtask
+        // of ..." line) — bypasses ParentOnly on purpose, the one other place besides
+        // WorkItem::children() that wants child rows. A subtask left at the parent's
+        // own owner never duplicates onto their board; it stays visible only through
+        // the parent's "n/m" badge, same as before this feature.
+        if ($employee) {
+            $assignedChildren = WorkItem::withoutGlobalScope(ParentOnly::class)
+                ->whereNotNull('parent_id')
+                ->where('employee_id', $employee->id)
+                ->whereNull('archived_at')
+                ->whereHas('parent', fn ($q) => $q->where('employee_id', '!=', $employee->id))
+                ->with(['assignedBy', 'participants', 'projectRef', 'parent'])->withCount('comments')
+                ->orderBy('sort_order')->orderBy('id')->get();
+            $items = $items->concat($assignedChildren);
+        }
         $cols = [
             'todo' => ['title' => 'To Do', 'cards' => collect()],
             'prog' => ['title' => 'In Progress', 'cards' => collect()],

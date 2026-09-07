@@ -95,6 +95,10 @@ export function registerWorkBoard(Alpine) {
             // so this is true whenever a parent is shown, locked or not. False for a child.
             canAddChild: false,
             newChildTitle: '',
+            // '' means "same as the parent's owner" — the default storeChild() applies
+            // server-side too when employee_id is omitted.
+            newChildAssigneeId: '',
+            newChildDueAt: '',
             addingChild: false,
             // Index of the link row currently forced open for editing, even though
             // it already has both a label and a url (otherwise a saved link renders
@@ -812,13 +816,22 @@ export function registerWorkBoard(Alpine) {
             if (!title || this.drawer.addingChild || !this.drawer.canAddChild) return;
             this.drawer.addingChild = true;
             try {
+                const body = { title, parent_id: parentId };
+                if (this.drawer.newChildAssigneeId) body.employee_id = Number(this.drawer.newChildAssigneeId);
+                if (this.drawer.newChildDueAt) body.due_at = this.drawer.newChildDueAt;
                 const { card, parent_html } = await this.api('/app/board', {
                     method: 'POST',
-                    body: JSON.stringify({ title, parent_id: parentId }),
+                    body: JSON.stringify(body),
                 });
                 this.drawer.newChildTitle = '';
+                this.drawer.newChildAssigneeId = '';
+                this.drawer.newChildDueAt = '';
+                const assignee = body.employee_id ? this.people.find((p) => p.id === body.employee_id) : null;
                 const { children, parent } = this.drawer.family;
-                children.push({ id: card.id, title: card.title, status: card.status, due_label: card.due_label, people: [] });
+                children.push({
+                    id: card.id, title: card.title, status: card.status, due_label: card.due_label,
+                    people: assignee ? [{ name: assignee.name, initials: assignee.initials, color: assignee.color }] : [],
+                });
                 parent.child_summary = { done: children.filter((c) => c.status === 'done').length, total: children.length };
                 this.repaintCardById(parentId, parent_html);
             } catch (err) {
