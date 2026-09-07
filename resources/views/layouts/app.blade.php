@@ -551,7 +551,7 @@
 </script>
 @include('partials.toast-host')
 @if (app()->isLocal())
-<form method="POST" action="{{ route('dev.clock') }}" style="position:fixed;bottom:8px;left:8px;z-index:9999;background:#fde68a;color:#111;padding:4px 8px;border-radius:6px;font:12px monospace;display:flex;gap:6px;align-items:center">
+<form method="POST" action="{{ route('dev.clock') }}" style="position:fixed;bottom:8px;left:8px;z-index:9999;background:#fde68a;color:#111;padding:4px 8px;border-radius:6px;font:var(--t-micro) var(--font-mono);display:flex;gap:6px;align-items:center">
     @csrf
     <span>clock</span>
     <input type="datetime-local" name="now" value="{{ session('dev_now') ? \Illuminate\Support\Carbon::parse(session('dev_now'))->format('Y-m-d\TH:i') : '' }}" style="font:inherit">
