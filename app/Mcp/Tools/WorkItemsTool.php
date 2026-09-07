@@ -22,7 +22,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * week's suggestions.
  */
 #[IsReadOnly]
-#[Description('Search the board for work item cards (id, title, status, priority, labels, due date, assignee, project). The id is the work_item_id save_timesheet_draft takes. Privileged callers (management/HR) see the whole board; everyone else sees cards assigned to them, unassigned, or ones they participate in.')]
+#[Description('Search the board for work item cards (id, title, status, priority, labels, due date, assignee, project, subtasks). Each card carries its subtasks as {id, title, status todo|done}; tick one with move_card. The id is the work_item_id save_timesheet_draft takes. Privileged callers (management/HR) see the whole board; everyone else sees cards assigned to them, unassigned, or ones they participate in.')]
 class WorkItemsTool extends Tool
 {
     public function handle(Request $request): Response
@@ -40,7 +40,7 @@ class WorkItemsTool extends Tool
             'include_archived' => ['sometimes', 'boolean'],
         ]);
 
-        $query = WorkItem::query()->with(['employee:id,name', 'projectRef:id,code,name']);
+        $query = WorkItem::query()->with(['employee:id,name', 'projectRef:id,code,name', 'children:id,parent_id,title,status,sort_order']);
 
         if (! ($args['include_archived'] ?? false)) {
             $query->whereNull('archived_at');
@@ -73,7 +73,7 @@ class WorkItemsTool extends Tool
     }
 
     /**
-     * @return array{id: int, title: string, status: string, priority: ?string, labels: array<int, string>, due_date: ?string, assignee: ?string, project: ?string}
+     * @return array{id: int, title: string, status: string, priority: ?string, labels: array<int, string>, due_date: ?string, assignee: ?string, project: ?string, subtasks: array<int, array{id: int, title: string, status: string}>}
      */
     private function cardRow(WorkItem $item): array
     {
@@ -86,6 +86,9 @@ class WorkItemsTool extends Tool
             'due_date' => $item->due_at?->toDateString(),
             'assignee' => $item->employee?->name,
             'project' => $item->projectRef?->name,
+            // Subtasks never list as cards of their own (ParentOnly); this is how a
+            // caller learns their ids to tick them with move_card.
+            'subtasks' => $item->children->map(fn (WorkItem $c) => ['id' => (int) $c->id, 'title' => $c->title, 'status' => $c->status])->values()->all(),
         ];
     }
 

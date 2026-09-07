@@ -337,4 +337,37 @@ class HalfDayLeaveTest extends TestCase
         $req = LeaveRequest::firstWhere('employee_id', $report->id);
         $this->assertEqualsWithDelta(2.0, (float) $req->days, 0.001);
     }
+
+    /**
+     * A half-day request on the TOT Saturday (already only a half day) locks the whole
+     * 50% capacity, not 25%: the morning is the entire working day. Covers rows that
+     * were filed before the form stopped offering the option.
+     */
+    public function test_half_day_on_tot_saturday_locks_the_full_half_day(): void
+    {
+        $report = $this->member('employee', 'Reportee');
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $report->id, 'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-08-01', 'date_to' => '2026-08-01', 'half_day_period' => 'am',
+            'days' => 0.5, 'reason' => 'Legacy row.', 'status' => 'approved', 'approved_at' => now(),
+        ]);
+
+        $locked = app(LockedDays::class)->forWeek($report, '2026-07-27');
+        $this->assertEqualsWithDelta(50.0, $locked['2026-08-01']['percentage'], 0.001);
+    }
+
+    public function test_half_day_on_a_weekend_or_public_holiday_is_rejected(): void
+    {
+        $report = $this->member('employee', 'Reportee');
+        LeaveBalance::updateOrCreate(['employee_id' => $report->id, 'leave_type_id' => $this->annual->id], ['balance' => 10]);
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'date' => '2026-07-27', 'name' => 'Test Holiday']);
+
+        foreach (['2026-08-01', '2026-08-02', '2026-07-27'] as $date) {
+            $this->actingAsEmployee($report)->post('/app/leave', [
+                'reason' => 'Family matters.', 'leave_type_id' => $this->annual->id,
+                'date_from' => $date, 'date_to' => $date, 'half_day_period' => 'am',
+            ])->assertSessionHasErrors('half_day_period');
+        }
+        $this->assertSame(0, LeaveRequest::where('employee_id', $report->id)->count());
+    }
 }

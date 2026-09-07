@@ -48,12 +48,19 @@ class LeaveController extends Controller
             'reason.required' => 'Say why you need this leave — your manager reads it.',
         ]);
 
-        // A half day only makes sense on a single date: you cannot take "the morning off"
-        // across a range. Reject the combination rather than silently ignoring the marker.
+        // A half day only makes sense on a single full working day: you cannot take "the
+        // morning off" across a range, and a weekend or public holiday is at most a half
+        // day already (the TOT Saturday) or not a working day at all. Reject rather than
+        // silently ignore the marker.
         $isHalfDay = ($data['half_day_period'] ?? null) !== null;
         if ($isHalfDay && ! Carbon::parse($data['date_from'])->isSameDay(Carbon::parse($data['date_to']))) {
             return back()->withInput()->withErrors([
                 'half_day_period' => 'Half day leave must start and end on the same day.',
+            ]);
+        }
+        if ($isHalfDay && LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_from'])) !== 1.0) {
+            return back()->withInput()->withErrors([
+                'half_day_period' => 'Half day leave is only for a full working day, not a weekend or public holiday.',
             ]);
         }
 

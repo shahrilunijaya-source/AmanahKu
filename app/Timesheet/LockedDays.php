@@ -176,18 +176,20 @@ final class LockedDays
     /**
      * Shape one covering leave request as a locked-day array. A half-day request locks half
      * the day's capacity (the staffer fills the rest); a whole-day request locks all of it.
-     * On the TOT Saturday capacity is 50%, so a whole day there locks 50 and a half day 25.
+     * On the TOT Saturday capacity is already only half a day, so a half-day request there
+     * locks the full 50%: the morning is the whole working day.
      *
      * @return array{label: string, source: string, percentage: float, period: ?string}
      */
     private function leaveEntry(LeaveRequest $leave, CarbonImmutable $day): array
     {
         $capacity = DayCapacity::for($day);
+        $halves = $leave->isHalfDay() && ! DayCapacity::isFirstSaturday($day);
 
         return [
             'label' => $leave->leaveType?->name ?: 'Leave',
             'source' => 'leave',
-            'percentage' => $leave->isHalfDay() ? $capacity / 2 : $capacity,
+            'percentage' => $halves ? $capacity / 2 : $capacity,
             'period' => $leave->half_day_period,
         ];
     }
