@@ -916,7 +916,7 @@ export function registerTimesheetCapture(Alpine) {
             const empty = this.emptyDays();
             if (empty.length) {
                 return this.joinDays(empty) + (en
-                    ? ' has no lines. Submit it on its own with a reason, or add a line.'
+                    ? (empty.length > 1 ? ' have no lines. Submit each on its own with a reason, or add a line.' : ' has no lines. Submit it on its own with a reason, or add a line.')
                     : ' tiada baris. Hantar secara berasingan dengan sebab, atau tambah baris.');
             }
             const days = this.blockingDays();
