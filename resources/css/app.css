@@ -4903,7 +4903,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-art { position:absolute; right:0; top:0; bottom:0; width:240px; pointer-events:none; }
 /* copy keeps clear of the ornament; the button and the pill sit on top of it */
 .uj-db-band:has(.uj-db-art) { padding-right:250px; }
-.uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more):last-child { position:absolute; right:16px; top:50%; translate:0 -50%; margin:0; }
+.uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:absolute; right:16px; top:50%; translate:0 -50%; margin:0; }
+.uj-db-band:has(.uj-db-art) > .uj-db-cta:has(+ .uj-db-more) { right:92px; }
 .uj-db-cta, .uj-db-more { position:relative; z-index:1; }
 .uj-db-art i { position:absolute; width:7px; height:11px; border-radius:2px; transform:rotate(var(--r)); opacity:.9; animation:uj-db-drift 900ms var(--ease) var(--d, 0ms) both; }
 .uj-db-art i:nth-child(4n) { background:var(--red); } .uj-db-art i:nth-child(4n+1) { background:var(--amber); }
@@ -4916,4 +4917,4 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db[data-plain] .uj-db-k { color:var(--muted-soft); }
 .uj-db[data-plain] .uj-db-cta { background:var(--shelf); color:var(--ink); }
 @media (prefers-reduced-motion: reduce) { .uj-db-art i { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
-@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more):last-child { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
+@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
