@@ -147,6 +147,7 @@ class Employee extends Model
             'salary' => 'decimal:2',
             'hybrid_office_days' => 'array',
             'archived_at' => 'datetime',
+            'birthday_private' => 'boolean',
         ];
     }
 
