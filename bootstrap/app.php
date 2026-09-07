@@ -81,6 +81,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.
         $schedule->command('tot:remind')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('tot:remind'));
+        // Birthday notice (CR-13): everyone but the celebrant, including the advance
+        // case shown early on the last working day before a weekend/holiday.
+        $schedule->command('birthday:notify')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('birthday:notify'));
         // Close punches nobody clocked out of, stamped at the shift end. Last thing at
         // night so the whole working day has had its chance to clock out honestly, and
         // late enough that an overnight shift started this evening is still inside its
