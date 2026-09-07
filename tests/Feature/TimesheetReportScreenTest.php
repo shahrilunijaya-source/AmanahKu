@@ -222,6 +222,43 @@ class TimesheetReportScreenTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_a_team_scoped_manager_sees_only_their_own_team_in_the_report(): void
+    {
+        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
+
+        $mgrUser = User::create([
+            'name' => 'Team Manager',
+            'email' => 'teammgr@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        $mgrUser->tenants()->attach($this->tenant->id, ['role' => 'manager', 'data_scope' => 'team']);
+        $mgrEmp = Employee::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $mgrUser->id,
+            'name' => 'Team Manager',
+            'status' => 'active',
+            'workload' => 'green',
+            'position_id' => $this->position->id,
+        ]);
+
+        // Direct report: reports_to_id puts them in the manager's team subtree.
+        [,$report] = $this->createEmployee('Direct Report', $this->position);
+        $report->update(['reports_to_id' => $mgrEmp->id]);
+        $this->createTimesheetWithEntry($report, $cat, '2026-06-15', 100);
+
+        // Another team's employee, no reporting relationship to this manager.
+        [,$stranger] = $this->createEmployee('Other Team Person', $this->position);
+        $this->createTimesheetWithEntry($stranger, $cat, '2026-06-15', 100);
+
+        $response = $this->actingAs($mgrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee('Direct Report')
+            ->assertDontSee('Other Team Person');
+    }
+
     public function test_the_project_lens_explains_itself_when_no_time_is_project_linked(): void
     {
         $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'General Admin', 'requires_project' => false]);
