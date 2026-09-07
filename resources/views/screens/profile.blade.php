@@ -122,6 +122,17 @@
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></label><input name="staff_id" type="text" value="{{ old('staff_id', $p->staff_id) }}" placeholder="UR-0000" style="{{ $fs }}font-family:var(--font-mono);" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span></label><input name="joined_at" type="date" value="{{ old('joined_at', $p->joined_at?->format('Y-m-d')) }}" style="{{ $fs }}margin-bottom:6px;" />@include('partials.hint', ['en' => 'Leave blank to keep the current hire date.', 'ms' => 'Biar kosong untuk kekalkan tarikh menyertai semasa.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Date of birth' : 'Tarikh lahir'">Date of birth</span></label><input name="date_of_birth" type="date" value="{{ old('date_of_birth', $p->date_of_birth?->format('Y-m-d')) }}" style="{{ $fs }}" /></div>
+                        @if ($isOwn)
+                            <div>
+                                <input type="hidden" name="birthday_private" value="0" />
+                                <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);">
+                                    <input type="checkbox" name="birthday_private" value="1" @checked(old('birthday_private', $p->birthday_private))
+                                           style="width:16px;height:16px;" />
+                                    <span x-text="$store.ui.lang==='en' ? 'Keep my birthday private' : 'Rahsiakan hari lahir saya'">Keep my birthday private</span>
+                                </label>
+                                @include('partials.hint', ['en' => 'No banner, no wishes, no 8 AM notice. The calendar still shows the day.', 'ms' => 'Tiada sepanduk, tiada ucapan, tiada notis 8 pagi. Kalendar masih memaparkan hari itu.'])
+                            </div>
+                        @endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Position band' : 'Band pangkat'">Position band</span></label><select name="position_id" x-model="pid" style="{{ $fs }}"><option value="">—</option>@foreach ($bandsByDept as $deptName => $group)<optgroup label="{{ $deptName }}">@foreach ($group as $pos)<option value="{{ $pos->id }}" @selected((int) old('position_id', $p->position_id) === $pos->id)>{{ $pos->title }}@if ($pos->staffLevel) · {{ $pos->staffLevel->name }}@endif · RM {{ number_format((float) $pos->max_salary, 0) }}</option>@endforeach</optgroup>@endforeach</select></div>
                         @if ($canSeeSalary ?? false)<div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Salary (RM)' : 'Gaji (RM)'">Salary (RM)</span></label><input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $p->salary) }}" placeholder="0.00" style="{{ $fs }}font-family:var(--font-mono);" /><div x-show="pid && max[pid] !== undefined" x-cloak style="font-size:11px;color:var(--muted);margin-top:4px;"><span x-text="$store.ui.lang==='en' ? 'Band max:' : 'Maks band:'">Band max:</span> RM <span x-text="(max[pid] ?? 0).toLocaleString('en-MY',{minimumFractionDigits:2})"></span></div></div>@endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span></label><select name="branch_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allBranches as $b)<option value="{{ $b->id }}" @selected((int) old('branch_id', $p->branch_id) === $b->id)>{{ $b->name }}</option>@endforeach</select></div>
@@ -183,6 +194,34 @@
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Workload' : 'Beban kerja'">Workload</span></div><div style="font-size:15px;font-weight:600;color:{{ Amanahku::SWATCH[$p->workload] }};margin-top:5px;">● {{ $p->workload_label }}</div></div>
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Open tasks' : 'Tugas terbuka'">Open tasks</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->workItems->whereIn('status', ['todo','prog','review'])->count() }}</div></div>
         </div>
+
+        {{-- Wall (CR-13): every birthday wish this person has received, newest year first.
+             Hidden entirely when empty — nothing to see yet is not a card worth a row. --}}
+        @if (($wall ?? collect())->isNotEmpty())
+            <div class="uj-card" style="padding:20px;">
+                <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Wall' : 'Dinding'">Wall</span></div>
+                @foreach ($wall as $year => $wishesInYear)
+                    <div style="margin-bottom:16px;">
+                        <div style="font-size:11px;font-weight:600;color:var(--muted-soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">{{ $year }}</div>
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            @foreach ($wishesInYear as $w)
+                                <div style="display:flex;gap:10px;">
+                                    <span style="flex:none;width:26px;height:26px;border-radius:50%;background:{{ $w->author->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">{{ $w->author->initials }}</span>
+                                    <div style="min-width:0;flex:1 1 auto;">
+                                        <div style="display:flex;align-items:baseline;gap:6px;">
+                                            <span style="font-size:12.5px;font-weight:600;color:var(--ink);">{{ $w->author->display_name }}</span>
+                                            @if ($w->is_thanks)<span style="font-size:12px;">🙏</span>@endif
+                                            <span style="font-size:11px;color:var(--muted-soft);margin-left:auto;">{{ $w->celebrated_on->format('j M Y') }}</span>
+                                        </div>
+                                        <div style="font-size:12.5px;color:var(--body);word-break:break-word;">{{ $w->body }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
 
         @php
             // Read-only lookup maps for the profile tabs (mirrors the standalone screens).
