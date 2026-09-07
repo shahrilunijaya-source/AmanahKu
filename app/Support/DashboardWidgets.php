@@ -88,6 +88,12 @@ final class DashboardWidgets
             'blurb_ms' => 'Pengumuman syarikat.',
             'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'right',
         ],
+        'flowers' => [
+            'title' => 'Flowers', 'title_ms' => 'Bunga',
+            'blurb' => 'Colleagues caught being brilliant this month.',
+            'blurb_ms' => 'Rakan sekerja yang ditangkap cemerlang bulan ini.',
+            'category' => 'Team', 'roles' => null, 'screen' => null, 'column' => 'right', 'after' => 'notices',
+        ],
         'claims' => [
             'title' => 'My claim summary', 'title_ms' => 'Ringkasan tuntutan saya',
             'blurb' => 'What you claimed this year and where it stands.',

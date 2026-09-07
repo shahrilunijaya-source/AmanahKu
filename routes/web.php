@@ -24,6 +24,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FlowerController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
 use App\Http\Controllers\GoalController;
@@ -449,6 +450,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/birthday/{employee}/wish', [BirthdayWishController::class, 'wish'])->name('birthday.wish');
         Route::post('/app/birthday/{employee}/thanks', [BirthdayWishController::class, 'thanks'])->name('birthday.thanks');
         Route::post('/app/birthday/wish/{wish}/react', [BirthdayWishController::class, 'react'])->name('birthday.react');
+        // Flowers (CR-23) — "Caught Being Brilliant" recognition on the profile Wall.
+        Route::post('/app/flowers/{employee}', [FlowerController::class, 'store'])->name('flowers.store');
+        Route::post('/app/flowers/{flower}/hide', [FlowerController::class, 'hide'])->name('flowers.hide');
         Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
         Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');

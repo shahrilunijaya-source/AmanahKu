@@ -10,6 +10,7 @@ use App\Http\Controllers\CalendarController;
 use App\Models\AttendanceRecord;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\Flower;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
@@ -70,6 +71,15 @@ trait BuildsDashboardWidgets
         foreach ($layout as $ids) {
             foreach ($ids as $id) {
                 $widgets[$id] = $this->dashboardWidget($id, $request, $employee);
+            }
+        }
+
+        // Flowers (CR-23) doesn't exist as a card when nobody has been given one this
+        // month — unlike every other widget here, it has no useful empty state.
+        if (($widgets['flowers']['rows'] ?? null) === []) {
+            unset($widgets['flowers']);
+            foreach (DashboardWidgets::COLUMNS as $column) {
+                $layout[$column] = array_values(array_diff($layout[$column], ['flowers']));
             }
         }
 
@@ -171,6 +181,7 @@ trait BuildsDashboardWidgets
             'calendar' => $this->calendarWidget($request, $employee, $when),
             'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
+            'flowers' => $this->flowersWidget($request),
             'claims' => $this->claimsWidget($employee, $when),
             'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),
@@ -866,6 +877,33 @@ trait BuildsDashboardWidgets
             'tagline' => $key ? $meta['tagline_en'] : '',
             'bars' => $bars,
             'url' => route('app.screen', 'profile-test'),
+        ];
+    }
+
+    /**
+     * Latest 10 "Caught Being Brilliant" flowers given anywhere in the tenant
+     * this month (CR-23), newest first. Absent as a card entirely when there
+     * are none to show — see dashboardData(), which strips it before layout.
+     *
+     * @return array{rows: list<array{title: string, sub: string, meta: string}>, plain: bool}
+     */
+    private function flowersWidget(Request $request): array
+    {
+        $rows = Flower::with(['giver', 'recipient'])->visible()
+            ->where('month', now()->format('Y-m'))
+            ->orderByDesc('created_at')
+            ->take(10)
+            ->get()
+            ->map(fn (Flower $f): array => [
+                'title' => ($f->giver?->display_name ?? '—').' → '.($f->recipient?->display_name ?? '—'),
+                'sub' => (string) $f->note,
+                'meta' => (string) $f->created_at?->diffForHumans(),
+            ])->all();
+
+        return [
+            'rows' => $rows,
+            // "Keep it plain": text still shows, the card just drops the emoji burst.
+            'plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain'],
         ];
     }
 

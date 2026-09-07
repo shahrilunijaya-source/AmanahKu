@@ -86,6 +86,9 @@
                 @if (($msgEnabled ?? false) && ! $isOwn)
                     <a href="{{ route('app.screen', 'messages') }}?to={{ $p->id }}" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Message' : 'Mesej'">Message</span></a>
                 @endif
+                @if ($canGiveFlower ?? false)
+                    @include('partials.flower-give', ['employee' => $p, 'flowersLeft' => $flowersLeft ?? 0, 'alreadyGaveThisMonth' => $alreadyGaveThisMonth ?? false])
+                @endif
                 @if ($canEdit)<button type="button" @click="edit = true" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</span></button>@endif
                 <a href="{{ route('app.screen', 'orgchart') }}" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Org chart' : 'Carta organisasi'">Org chart</span></a>
             </div>
@@ -195,33 +198,10 @@
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Open tasks' : 'Tugas terbuka'">Open tasks</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->workItems->whereIn('status', ['todo','prog','review'])->count() }}</div></div>
         </div>
 
-        {{-- Wall (CR-13): every birthday wish this person has received, newest year first.
-             Hidden entirely when empty — nothing to see yet is not a card worth a row. --}}
-        @if (($wall ?? collect())->isNotEmpty())
-            <div class="uj-card" style="padding:20px;">
-                <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Wall' : 'Dinding'">Wall</span></div>
-                @foreach ($wall as $year => $wishesInYear)
-                    <div style="margin-bottom:16px;">
-                        <div style="font-size:11px;font-weight:600;color:var(--muted-soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">{{ $year }}</div>
-                        <div style="display:flex;flex-direction:column;gap:10px;">
-                            @foreach ($wishesInYear as $w)
-                                <div style="display:flex;gap:10px;">
-                                    <span style="flex:none;width:26px;height:26px;border-radius:50%;background:{{ $w->author->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">{{ $w->author->initials }}</span>
-                                    <div style="min-width:0;flex:1 1 auto;">
-                                        <div style="display:flex;align-items:baseline;gap:6px;">
-                                            <span style="font-size:12.5px;font-weight:600;color:var(--ink);">{{ $w->author->display_name }}</span>
-                                            @if ($w->is_thanks)<span style="font-size:12px;">🙏</span>@endif
-                                            <span style="font-size:11px;color:var(--muted-soft);margin-left:auto;">{{ $w->celebrated_on->format('j M Y') }}</span>
-                                        </div>
-                                        <div style="font-size:12.5px;color:var(--body);word-break:break-word;">{{ $w->body }}</div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        @endif
+        {{-- Wall (CR-13 wishes + CR-23 flowers): everything this person has received,
+             newest first. Always included (the give-a-flower button above targets it
+             by id); the partial itself hides when there is nothing on it yet. --}}
+        @include('partials.wall', ['employee' => $p, 'wall' => $wall ?? collect(), 'canHideFlowers' => $canHideFlowers ?? false])
 
         @php
             // Read-only lookup maps for the profile tabs (mirrors the standalone screens).

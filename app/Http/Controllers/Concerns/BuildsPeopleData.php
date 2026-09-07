@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Http\Controllers\FlowerController;
 use App\Models\Asset;
-use App\Models\BirthdayWish;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
@@ -228,14 +228,12 @@ trait BuildsPeopleData
             ? EmployeeSkill::where('employee_id', $e->id)->with('skill')->get()
             : collect();
 
-        // CR-13 Wall: every wish this person has received, newest year first, thank-you
-        // pinned above the rest within a year. Same visibility as the rest of the profile.
-        $wall = ($e && $canViewFull)
-            ? BirthdayWish::with('author')->where('employee_id', $e->id)
-                ->orderByDesc('celebrated_on')->orderByDesc('is_thanks')->orderByDesc('created_at')
-                ->get()
-                ->groupBy(fn (BirthdayWish $w) => $w->celebrated_on->year)
-            : collect();
+        // CR-13/CR-23 Wall: every birthday wish and flower this person has received,
+        // newest first. Same visibility as the rest of the profile. wallViewData()
+        // also backs FlowerController's AJAX re-render, so the two never drift apart.
+        $wallData = ($e && $canViewFull)
+            ? app(FlowerController::class)->wallViewData($request, $e, $own)
+            : ['wall' => collect(), 'canGiveFlower' => false, 'flowersLeft' => 0, 'alreadyGaveThisMonth' => false, 'canHideFlowers' => false];
 
         return array_merge([
             'profile' => $e,
@@ -264,7 +262,11 @@ trait BuildsPeopleData
             'probation' => $probation,
             'skillsGate' => $skillsGate,
             'skills' => $skills,
-            'wall' => $wall,
+            'wall' => $wallData['wall'],
+            'canGiveFlower' => $wallData['canGiveFlower'],
+            'flowersLeft' => $wallData['flowersLeft'],
+            'alreadyGaveThisMonth' => $wallData['alreadyGaveThisMonth'],
+            'canHideFlowers' => $wallData['canHideFlowers'],
             'payrollGate' => $payrollGate,
             'payslips' => $payslips,
             'claimsGate' => $claimsGate,
