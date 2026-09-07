@@ -100,6 +100,19 @@ class AuditLog extends Model
     }
 
     /** A short label for the changed row: its title/name if it has one, else the id. */
+    /** Human form of a stored JSON value for the Audit Logs screen. */
+    public function displayValue(string $column): string
+    {
+        $value = json_decode((string) $this->{$column}, true);
+
+        return match (true) {
+            $value === null => '—',
+            is_bool($value) => $value ? 'yes' : 'no',
+            is_array($value) => implode(', ', array_map(fn ($v) => is_scalar($v) ? (string) $v : json_encode($v), $value)) ?: '[]',
+            default => (string) $value,
+        };
+    }
+
     private static function targetLabel(Model $subject): string
     {
         foreach (['title', 'name'] as $attribute) {

@@ -501,6 +501,10 @@ class AppController extends Controller
                 'target' => $log->target,
                 'actor_name' => $emp?->display_name ?? $log->actor_name,
                 'created_at' => $log->created_at,
+                'field' => $log->field,
+                'old' => $log->displayValue('old_value'),
+                'new' => $log->displayValue('new_value'),
+                'reason' => $log->reason,
             ];
         });
     }

@@ -8,6 +8,7 @@
 - `PATCH /app/board/{id}` accepts an optional `reason`; it lands on every row that update produces.
 - One `attendance_record.clock_in` / `clock_out` row per successful punch. Timesheet draft saves write `timesheet.entries` with old and new line counts; submit and recall keep their existing lines.
 - CSV export at `GET /app/audit/export` (`audit.export`), HR and management tier only, tenant-scoped, times in Asia/Kuala_Lumpur, with an Export CSV button on the Audit Logs screen for those roles.
+- Audit Logs screen shows `field: old → new` and `Reason: …` under each field-level row (`AppController::auditLogsData`, `AuditLog::displayValue`, `screens/audit.blade.php`). Added after QA grade F1. Legacy action-only rows render as before.
 - Items 2 and 3 remain incomplete by design (award freeze S17, Awards page S18).
 
 ## Schema changes
