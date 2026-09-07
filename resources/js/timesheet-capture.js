@@ -100,7 +100,7 @@ export function registerTimesheetCapture(Alpine) {
         // Per-day submit status ({status, late, resubmitted, zero_reason, return_reason,
         // unlocked}), keyed by ISO date — refreshed from the server's response on every
         // save() so a day just submitted/returned reads its new state without a reload.
-        days: cfg.dayStatuses || {},
+        dayStatuses: cfg.dayStatuses || {},
         locked: cfg.locked || {},
         categories: cfg.categories || [],
         projects: cfg.projects || [],
@@ -305,7 +305,7 @@ export function registerTimesheetCapture(Alpine) {
         // This day's CR-03 submit state ({status, late, resubmitted, zero_reason,
         // return_reason, unlocked}), or null when nothing has ever been saved against it.
         dayInfo(iso) {
-            return this.days[iso] || null;
+            return this.dayStatuses[iso] || null;
         },
         dayStatus(iso) {
             return this.dayInfo(iso)?.status || 'draft';
@@ -1052,7 +1052,7 @@ export function registerTimesheetCapture(Alpine) {
                         return;
                     }
                     this.locked = body.locked || {};
-                    this.days = body.days || this.days;
+                    this.dayStatuses = body.days || this.dayStatuses;
                     this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                     // Submit reloads the page (the server re-renders the locked/submitted view),
                     // so only the manual draft save needs an in-place toast.
@@ -1114,7 +1114,7 @@ export function registerTimesheetCapture(Alpine) {
 
                     return;
                 }
-                this.days = body.days || this.days;
+                this.dayStatuses = body.days || this.dayStatuses;
                 this.locked = body.locked || this.locked;
                 this.dayReasonOpen = false;
                 this.dayReason = '';
