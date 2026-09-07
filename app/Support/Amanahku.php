@@ -110,7 +110,8 @@ class Amanahku
             $s('The Playground', 'The Playground', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
             $s('The Playground', 'The Playground', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
             $s('The Playground', 'The Playground', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
-            $s('The Playground', 'The Playground', ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
+            // 'profile-test' has no sidebar row (CR-15): it is reached from the dashboard's
+            // 'My working style' card and from the profile page. The screen itself stays.
 
             // ── Workplace ─────────────────────────────────────────────────────
             $s('Workplace', 'Tempat Kerja', ['id' => 'rooms', 'label' => 'Room Booking', 'label_ms' => 'Tempahan Bilik', 'icon' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01']),

@@ -13,6 +13,7 @@ use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\Amanahku;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -679,5 +680,41 @@ class DashboardWidgetsTest extends TestCase
         $w = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => 'not-a-month']))->assertOk()->viewData('w');
 
         $this->assertSame('Sep 2026', $w['pnav']['label']);
+    }
+
+    /** CR-15: the Profile Test lives on the dashboard now, not in the sidebar. */
+    public function test_working_style_card_invites_the_untested_and_shows_the_result_after(): void
+    {
+        $user = $this->userWithRole('employee', 'style@acme.test');
+        $employee = $this->employeeFor($user);
+        $this->actAs($user);
+
+        $this->assertContains('style', $this->shownWidgets());
+
+        $page = $this->get('/app/dash')->assertOk();
+        $page->assertSee('Discover your working style');
+        $page->assertSee('/app/profile-test');
+        $this->assertNull($page->viewData('widgets')['style']['archetype']);
+
+        $employee->profileTestResult()->create([
+            'animal_archetype' => 'fox',
+            'totals' => ['rabbit' => 1, 'tortoise' => 0, 'fox' => 3, 'sloth' => 0],
+            'submitted_at' => now(),
+        ]);
+
+        $page = $this->get('/app/dash')->assertOk();
+        $page->assertSee('Retake the test')->assertSee('Fox')->assertSee('75%');
+        $bars = collect($page->viewData('widgets')['style']['bars'])->pluck('pct', 'key')->all();
+        $this->assertSame(['rabbit' => 25, 'tortoise' => 0, 'fox' => 75, 'sloth' => 0], $bars);
+    }
+
+    public function test_the_profile_test_left_the_sidebar_but_still_opens(): void
+    {
+        $user = $this->userWithRole('employee', 'style2@acme.test');
+        $this->employeeFor($user);
+        $this->actAs($user);
+
+        $this->assertFalse(collect(Amanahku::nav())->contains('id', 'profile-test'));
+        $this->get('/app/profile-test')->assertOk();
     }
 }

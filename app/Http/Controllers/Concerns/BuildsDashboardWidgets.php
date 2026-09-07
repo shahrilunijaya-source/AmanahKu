@@ -12,6 +12,8 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\ArchetypeCatalog;
+use App\Support\ArchetypeScorer;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
 use App\Support\Permissions;
@@ -105,6 +107,7 @@ trait BuildsDashboardWidgets
             'notices' => ['rows' => $this->newsRows($employee)],
             'claims' => $this->claimsWidget($employee, $when),
             'work' => $this->workWidget($employee, $when),
+            'style' => $this->styleWidget($employee),
             'pulse' => $this->pulseWidget(),
             default => [],
         };
@@ -763,6 +766,41 @@ trait BuildsDashboardWidgets
             ])->all();
 
         return ['rows' => $rows];
+    }
+
+    /**
+     * The viewer's Profile Test outcome (CR-15): the sidebar entry is gone, so this
+     * card is where the test is discovered and where its result is read back.
+     *
+     * @return array{archetype: ?string, label: string, emoji: string, tagline: string, bars: list<array{key: string, label: string, emoji: string, pct: int, accent: string}>, url: string}
+     */
+    private function styleWidget(?Employee $employee): array
+    {
+        $result = $employee?->profileTestResult;
+        $key = $result?->animal_archetype;
+        $totals = is_array($result?->totals) ? $result->totals : [];
+        $answered = array_sum($totals);
+        $meta = ArchetypeCatalog::get($key);
+
+        $bars = [];
+        foreach (ArchetypeScorer::ORDER as $animal) {
+            $bars[] = [
+                'key' => $animal,
+                'label' => ArchetypeCatalog::get($animal)['label'],
+                'emoji' => ArchetypeCatalog::emoji($animal),
+                'pct' => $answered ? (int) round(($totals[$animal] ?? 0) / $answered * 100) : 0,
+                'accent' => ArchetypeCatalog::get($animal)['accent'],
+            ];
+        }
+
+        return [
+            'archetype' => $key,
+            'label' => $key ? $meta['label'] : '',
+            'emoji' => ArchetypeCatalog::emoji($key),
+            'tagline' => $key ? $meta['tagline_en'] : '',
+            'bars' => $bars,
+            'url' => route('app.screen', 'profile-test'),
+        ];
     }
 
     /**

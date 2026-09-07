@@ -96,6 +96,12 @@ final class DashboardWidgets
             'blurb_ms' => 'Masuk dan keluar, hari demi hari.',
             'category' => 'Attendance', 'roles' => null, 'screen' => 'attendance', 'column' => 'right',
         ],
+        'style' => [
+            'title' => 'My working style', 'title_ms' => 'Gaya kerja saya',
+            'blurb' => 'Your Profile Test result: archetype and the four-way split.',
+            'blurb_ms' => 'Keputusan Ujian Profil anda: arketip dan pecahan empat hala.',
+            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right',
+        ],
         'pulse' => [
             'title' => 'Company pulse', 'title_ms' => 'Nadi syarikat',
             'blurb' => 'Headcount, timesheets past lock, claims outstanding.',
