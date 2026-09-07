@@ -9,6 +9,7 @@ use App\Attendance\HolidayEve;
 use App\Models\AppNotification;
 use App\Models\AttendanceAttempt;
 use App\Models\AttendanceRecord;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
@@ -94,6 +95,21 @@ class AttendanceController extends Controller
             $lat !== null && $lng !== null,
             $request->file('photo'),
         );
+
+        // One audit line per successful punch (contract: audit-log.md). The service
+        // writes/updates the record but returns only a status/message pair, so the row
+        // is re-read here rather than threaded back through ClockService's return shape.
+        if ($result['status'] === 'ok') {
+            $record = $employee->attendanceRecords()->onDate($now)->first();
+            if ($record) {
+                AuditLog::change(
+                    $record,
+                    $validated['action'] === 'in' ? 'clock_in' : 'clock_out',
+                    null,
+                    $now->format('H:i:s'),
+                );
+            }
+        }
 
         // Understood and declined — a second clock-in on a day already punched. Not a
         // success: a green tick here reads as "punched again", which is the one thing it

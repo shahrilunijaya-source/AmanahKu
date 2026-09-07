@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsChanges;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasAuditedFields;
 use App\Models\Scopes\ParentOnly;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -18,8 +20,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $due_at
  * @property int|null $parent_id
  */
-class WorkItem extends Model
+class WorkItem extends Model implements HasAuditedFields
 {
+    use AuditsChanges;
     use BelongsToTenant;
 
     protected $guarded = [];
@@ -48,6 +51,15 @@ class WorkItem extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new ParentOnly);
+    }
+
+    /** Fields the Global Clause requires an audit entry for on change. */
+    public function audited(): array
+    {
+        return [
+            'due_at', 'priority', 'status', 'done_at', 'employee_id', 'archived_at',
+            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id',
+        ];
     }
 
     /**

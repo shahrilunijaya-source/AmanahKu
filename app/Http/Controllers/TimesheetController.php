@@ -206,10 +206,12 @@ class TimesheetController extends Controller
         // rows" means; a bad week_start just yields no kept ids, caught by the 'date'
         // rule below.
         $keepCategoryIds = [];
+        $oldEntryCount = null;
         try {
             if ($request->filled('week_start')) {
-                $keepCategoryIds = collect($this->weekWriter->existingUserEntries($employee, $request->input('week_start')))
-                    ->pluck('category_id')->filter()->map(fn ($id) => (int) $id)->unique()->all();
+                $existing = collect($this->weekWriter->existingUserEntries($employee, $request->input('week_start')));
+                $oldEntryCount = $existing->count();
+                $keepCategoryIds = $existing->pluck('category_id')->filter()->map(fn ($id) => (int) $id)->unique()->all();
             }
         } catch (\Throwable) {
             // Bad week_start is reported by the 'date' rule right below instead.
@@ -259,6 +261,8 @@ class TimesheetController extends Controller
 
         if ($submitNow) {
             AuditLog::record('Submitted timesheet', ($timesheet->week_label ?: $timesheet->week_start->toDateString()).' · '.count($entries).' entries');
+        } else {
+            AuditLog::change($timesheet, 'entries', $oldEntryCount, count($entries));
         }
 
         // The day-first screen autosaves over fetch(); the plain form POST still redirects.

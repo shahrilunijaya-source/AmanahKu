@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
+use App\Support\AuditContext;
 use App\Support\BoardRules;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
@@ -300,7 +301,11 @@ class WorkItemController extends Controller
             // card's owner never changes, so this is rejected unless the card is a
             // child (checked below, once we know which we're holding).
             'employee_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
+
+        $reason = $data['reason'] ?? null;
+        unset($data['reason']);
 
         if (array_key_exists('employee_id', $data)) {
             abort_unless($workItem->isChild(), 422, "A card's owner cannot be changed; only a subtask's assignee can.");
@@ -321,7 +326,12 @@ class WorkItemController extends Controller
             unset($data['participant_ids']);
         }
 
-        $workItem->update($data);
+        AuditContext::reason($reason);
+        try {
+            $workItem->update($data);
+        } finally {
+            AuditContext::reset();
+        }
 
         // Changing either half of the pair can leave the other one stranded: a category
         // that needs no project at all, or one tagged to a different set of projects than
@@ -458,7 +468,7 @@ class WorkItemController extends Controller
 
         DB::transaction(function () use ($workItem) {
             $workItem->update(['archived_at' => now()]);
-            $workItem->children()->update(['archived_at' => now()]);
+            $workItem->children->each(fn (WorkItem $child) => $child->update(['archived_at' => now()]));
         });
 
         return response()->json(['ok' => true]);
@@ -476,7 +486,7 @@ class WorkItemController extends Controller
                 'status' => 'todo',
                 'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
             ]);
-            $workItem->children()->update(['archived_at' => null]);
+            $workItem->children->each(fn (WorkItem $child) => $child->update(['archived_at' => null]));
         });
 
         return response()->json(['ok' => true, 'html' => $this->cardHtml($workItem)]);
@@ -592,6 +602,10 @@ class WorkItemController extends Controller
 
         $before = $item->participants()->pluck('employees.id');
         $item->participants()->sync($target);
+
+        if ($target->diff($before)->isNotEmpty() || $before->diff($target)->isNotEmpty()) {
+            AuditLog::change($item, 'participants', $before->values()->all(), $target->values()->all());
+        }
 
         foreach ($target->diff($before) as $addedId) {
             AppNotification::send(

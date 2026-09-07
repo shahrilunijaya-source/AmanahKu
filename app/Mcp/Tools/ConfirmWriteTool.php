@@ -6,6 +6,7 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\PendingWrite;
 use App\Support\ApiCaller;
+use App\Support\AuditContext;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\RateLimiter;
@@ -117,7 +118,12 @@ class ConfirmWriteTool extends Tool
             return Response::error("This token lacks the {$scope} scope.");
         }
 
-        $result = app($applierClass)->applyConfirmed($entry['payload'], $httpRequest, (int) $tenantId);
+        AuditContext::source('mcp');
+        try {
+            $result = app($applierClass)->applyConfirmed($entry['payload'], $httpRequest, (int) $tenantId);
+        } finally {
+            AuditContext::reset();
+        }
 
         if (isset($result['error'])) {
             return Response::error($result['error']);

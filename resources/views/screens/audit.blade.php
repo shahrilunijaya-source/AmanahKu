@@ -23,7 +23,11 @@
     ],
 ])
 <div class="uj-card">
-    <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Activity log' : 'Log aktiviti'">Activity log</h3><span style="font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Last' : 'Terkini'">Last</span> {{ $logs->count() }} <span x-text="$store.ui.lang==='en' ? 'events' : 'acara'">events</span></span></div>
+    <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Activity log' : 'Log aktiviti'">Activity log</h3><span style="font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:12px;"><span><span x-text="$store.ui.lang==='en' ? 'Last' : 'Terkini'">Last</span> {{ $logs->count() }} <span x-text="$store.ui.lang==='en' ? 'events' : 'acara'">events</span></span>
+        @if (in_array(\App\Support\Permissions::effectiveRole(request()->attributes->get('tenantRole', 'employee')), ['management', 'hr'], true))
+            <a href="{{ route('audit.export') }}" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? 'Export CSV' : 'Eksport CSV'">Export CSV</a>
+        @endif
+    </span></div>
     @forelse ($logs as $log)
         @php $verb = explode(' ', $log->action)[0]; [$col, $path] = $icon[$verb] ?? ['var(--muted)', 'M12 8v4l3 2']; @endphp
         <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">

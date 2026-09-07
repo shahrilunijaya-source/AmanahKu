@@ -31,6 +31,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\View;
 use Illuminate\View\View as ViewContract;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Workspace entry (branded login → tenant select → enter) and the shared
@@ -302,6 +303,45 @@ class AppController extends Controller
         $user->save();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * CSV export of the tenant's audit log, newest first. Management-tier and HR only —
+     * the same tier that gets final approval on requests (Permissions::FINAL_APPROVAL_ROLES
+     * minus the distinction between them here: both may see the whole company's ledger).
+     */
+    public function auditExport(Request $request): StreamedResponse
+    {
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        abort_unless(in_array($role, ['management', 'hr'], true), 403);
+
+        $columns = ['id', 'created_at', 'actor_name', 'action', 'target', 'subject_type', 'subject_id', 'field', 'old_value', 'new_value', 'reason', 'source'];
+
+        return response()->streamDownload(function () use ($columns) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $columns);
+
+            AuditLog::query()->latest('id')->chunk(500, function ($rows) use ($out) {
+                foreach ($rows as $row) {
+                    fputcsv($out, [
+                        $row->id,
+                        $row->created_at?->timezone('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s'),
+                        $row->actor_name,
+                        $row->action,
+                        $row->target,
+                        $row->subject_type,
+                        $row->subject_id,
+                        $row->field,
+                        $row->old_value,
+                        $row->new_value,
+                        $row->reason,
+                        $row->source,
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, 'audit-log.csv', ['Content-Type' => 'text/csv']);
     }
 
     /**
