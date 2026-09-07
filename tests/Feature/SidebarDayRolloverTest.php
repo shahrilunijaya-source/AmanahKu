@@ -34,7 +34,11 @@ class SidebarDayRolloverTest extends TestCase
         $response->assertOk()
             ->assertSee("const renderedDay = '2026-09-05'", false)
             ->assertSee('timeZone: tz', false)
-            ->assertSee("const tz = 'Asia\\/Kuala_Lumpur'", false);
+            ->assertSee("const tz = 'Asia\\/Kuala_Lumpur'", false)
+            // The check reads the shared clock helper, not the device's clock directly,
+            // so the local dev clock injector cannot make it reload every minute.
+            ->assertSee('window.ujNow().toLocaleDateString', false)
+            ->assertSee('const offset = 0;', false);
 
         Carbon::setTestNow();
     }

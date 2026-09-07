@@ -15,6 +15,15 @@
     {{-- Reveals the mobile-only camera-capture trigger in the messages composer (side panel is
          global, so this lives in the layout rather than a single screen). --}}
     <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
+    {{-- The browser's idea of "now". Under the local dev clock injector the server is faked
+         but the device is not, so tickers and the day-rollover check ran on real time and
+         fought the injected date. Offset by the gap this render was served with. --}}
+    <script>
+        window.ujNow = (() => {
+            const offset = @js(app()->isLocal() && session('dev_now') ? now()->getTimestampMs() - (int) round(microtime(true) * 1000) : 0);
+            return () => new Date(Date.now() + offset);
+        })();
+    </script>
 </head>
 <body>
 @php
@@ -555,7 +564,7 @@
         (() => {
             const renderedDay = @js(now()->toDateString());
             const tz = @js(config('app.timezone'));
-            const today = () => new Date().toLocaleDateString('en-CA', { timeZone: tz });
+            const today = () => window.ujNow().toLocaleDateString('en-CA', { timeZone: tz });
             const rollover = () => {
                 if (! document.hidden && today() !== renderedDay) { window.location.reload(); }
             };

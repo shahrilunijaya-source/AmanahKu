@@ -225,7 +225,7 @@
                   );
               },
               tick() {
-                  const d = new Date();
+                  const d = window.ujNow();
                   const nowMins = d.getHours() * 60 + d.getMinutes();
                   this.wallTime = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 
@@ -304,13 +304,13 @@
               lateNow() {
                   if (!this.expectedStart) return false;
                   const p = this.expectedStart.split(':');
-                  const now = new Date();
+                  const now = window.ujNow();
                   return (now.getHours()*60 + now.getMinutes()) >= (Number(p[0])*60 + Number(p[1]) + this.graceMin);
               },
               earlyNow() {
                   if (!this.expectedEnd) return false;
                   const p = this.expectedEnd.split(':');
-                  const now = new Date();
+                  const now = window.ujNow();
                   return (now.getHours()*60 + now.getMinutes()) < (Number(p[0])*60 + Number(p[1]));
               },
               proceed(lat, lng) {
