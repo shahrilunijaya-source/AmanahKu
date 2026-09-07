@@ -37,11 +37,13 @@ class ArchiveDoneWorkItems extends Command
             ->update(['archived_at' => now()]);
 
         // Children follow their parent off the board. Their own done_at is irrelevant:
-        // an archived parent is finished business, subtasks included.
+        // an archived parent is finished business, subtasks included. Two queries, not
+        // a whereHas: MySQL refuses an UPDATE whose subquery reads the same table (1093),
+        // and sqlite (the test DB) does not, so the tests never saw it fail.
+        $archivedParentIds = WorkItem::query()->whereNotNull('archived_at')->pluck('id');
         WorkItem::withoutGlobalScope(ParentOnly::class)
-            ->whereNotNull('parent_id')
+            ->whereIn('parent_id', $archivedParentIds)
             ->whereNull('archived_at')
-            ->whereHas('parent', fn ($q) => $q->whereNotNull('archived_at'))
             ->update(['archived_at' => now()]);
 
         $this->info("Archived {$count} done work item(s).");

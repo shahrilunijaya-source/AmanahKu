@@ -74,10 +74,12 @@ class StaffArchiver
 
             // Subtasks follow their parent to the manager, done or not: a child's
             // employee_id must always equal its parent's.
+            // Parent ids read first: MySQL refuses an UPDATE whose subquery reads the
+            // same table (1093); sqlite in the tests does not.
+            $managerParentIds = WorkItem::query()->where('employee_id', $employee->reports_to_id)->pluck('id');
             WorkItem::withoutGlobalScope(ParentOnly::class)
-                ->whereNotNull('parent_id')
+                ->whereIn('parent_id', $managerParentIds)
                 ->where('employee_id', $employee->id)
-                ->whereHas('parent', fn ($q) => $q->where('employee_id', $employee->reports_to_id))
                 ->update(['employee_id' => $employee->reports_to_id]);
         }
 

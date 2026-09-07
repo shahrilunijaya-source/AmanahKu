@@ -29,7 +29,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('move_card')]
 #[IsReadOnly]
-#[Description('Preview moving a board card to a different column (todo/prog/review/done). Anyone who can open the card (owner, assigner, participant, or a manager over the owner) may move it. Requires board:write. Returns a summary and a confirm_token — nothing changes until confirm_write is called.')]
+#[Description('Preview moving a board card to a different column (todo/prog/review/done). Also how a subtask is ticked off: pass the subtask id (from work_items, under the parent\'s subtasks) with status done, or todo to reopen it; a subtask takes no other status. A parent refuses done while any of its subtasks is still open, so tick them first. Anyone who can open the card (owner, assigner, participant, or a manager over the owner) may move it. Requires board:write. Returns a summary and a confirm_token — nothing changes until confirm_write is called.')]
 class MoveCardTool extends Tool
 {
     use PreviewsWrites;
@@ -132,8 +132,8 @@ class MoveCardTool extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'work_item_id' => $schema->integer()->description('The card to move.')->required(),
-            'status' => $schema->string()->enum(['todo', 'prog', 'review', 'done'])->required(),
+            'work_item_id' => $schema->integer()->description('The card to move, or a subtask id to tick it off.')->required(),
+            'status' => $schema->string()->enum(['todo', 'prog', 'review', 'done'])->description('Target column. A subtask only takes done (tick) or todo (untick).')->required(),
         ];
     }
 }

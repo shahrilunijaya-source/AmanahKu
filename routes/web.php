@@ -84,6 +84,7 @@ use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
 use App\Support\Changelog;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
@@ -607,3 +608,14 @@ Route::middleware('auth')->group(function () {
             ->name('app.screen');
     });
 });
+
+if (app()->isLocal()) {
+    Route::post('/dev/clock', function (Request $request) {
+        $request->validate(['now' => ['nullable', 'date']]);
+        $request->filled('now')
+            ? $request->session()->put('dev_now', $request->input('now'))
+            : $request->session()->forget('dev_now');
+
+        return back();
+    })->name('dev.clock');
+}

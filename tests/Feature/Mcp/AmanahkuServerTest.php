@@ -399,6 +399,25 @@ class AmanahkuServerTest extends TestCase
         $this->assertContains('Omar card', $titles);
     }
 
+    public function test_work_items_tool_lists_a_parents_subtasks_and_never_a_subtask_as_a_card(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $parent = WorkItem::create(['tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id, 'title' => 'Parent card', 'status' => 'prog']);
+        $parent->children()->create(['tenant_id' => $this->tenantA->id, 'title' => 'First step', 'status' => 'done', 'sort_order' => 1]);
+        $parent->children()->create(['tenant_id' => $this->tenantA->id, 'title' => 'Second step', 'status' => 'todo', 'sort_order' => 2]);
+        WorkItem::create(['tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id, 'title' => 'Plain card', 'status' => 'todo']);
+        app(CurrentTenant::class)->set(null);
+
+        $response = $this->callTool(WorkItemsTool::class, [], $this->bearer($this->hrA, $this->tenantA, ['board:read']));
+
+        $items = collect($this->toolData($response)['work_items'])->keyBy('title');
+        $this->assertArrayNotHasKey('First step', $items->all());
+        $this->assertSame([], $items['Plain card']['subtasks']);
+        $this->assertSame(['First step', 'Second step'], array_column($items['Parent card']['subtasks'], 'title'));
+        $this->assertSame(['done', 'todo'], array_column($items['Parent card']['subtasks'], 'status'));
+        $this->assertIsInt($items['Parent card']['subtasks'][0]['id']);
+    }
+
     public function test_work_items_tool_non_privileged_sees_own_and_unassigned_only(): void
     {
         app(CurrentTenant::class)->set($this->tenantA);
