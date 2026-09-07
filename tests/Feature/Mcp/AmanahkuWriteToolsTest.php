@@ -94,10 +94,18 @@ class AmanahkuWriteToolsTest extends TestCase
         Employee::create(['tenant_id' => $this->tenantB->id, 'user_id' => $hrB->id, 'name' => 'HR Bea', 'status' => 'active', 'workload' => 'green']);
 
         app(CurrentTenant::class)->set(null);
+
+        // The fixtures below sit in the week of self::WEEK (2026-08-03, a Monday). Pin
+        // "now" to that same week's Wednesday so self::WEEK stays inside the CR-03
+        // 3-working-day backdate edit window across a first AND a second save, instead
+        // of drifting further behind the real clock over time. A couple of tests that
+        // touch dates further into the week override this locally.
+        Carbon::setTestNow('2026-08-05 12:00:00');
     }
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
         app(CurrentTenant::class)->set(null);
         parent::tearDown();
     }
@@ -840,6 +848,10 @@ class AmanahkuWriteToolsTest extends TestCase
 
     public function test_saving_one_day_leaves_the_rest_of_the_draft_week_untouched(): void
     {
+        // This one touches every day of the week (through Friday), so "now" needs to be
+        // at or after that Friday for none of them to read as "not happened yet".
+        Carbon::setTestNow('2026-08-07 12:00:00');
+
         app(CurrentTenant::class)->set($this->tenantA);
         $timesheet = Timesheet::create([
             'tenant_id' => $this->tenantA->id, 'employee_id' => $this->staffEmpA->id,

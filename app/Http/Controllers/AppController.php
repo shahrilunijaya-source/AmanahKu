@@ -24,10 +24,14 @@ use App\Support\DashboardWidgets;
 use App\Support\Permissions;
 use App\Support\ProfileCompletion;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\DayCapacity;
+use App\Timesheet\DayRules;
+use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\View;
 use Illuminate\View\View as ViewContract;
@@ -363,20 +367,33 @@ class AppController extends Controller
         $today = $employee->attendanceRecords()->openPunch(now())->first()
             ?? $employee->attendanceRecords()->onDate(now())->first();
 
-        // This week's allocated % for today, surfaced as the timesheet tile's progress.
+        // CR-03: approved days divided by working days from Monday to today (this
+        // week), excluding days fully locked by leave/holiday — the sidebar's only
+        // "Timesheet %" figure.
         $tsEnabled = app(FeatureManager::class)->screenAllowed($tenant, 'timesheets');
         $tsPct = 0.0;
         $ts = null;
         if ($tsEnabled) {
-            $ts = Timesheet::with('entries')
+            $ts = Timesheet::with(['entries', 'days'])
                 ->where('employee_id', $employee->id)
                 ->forWeek(now()->startOfWeek())
                 ->first();
-            if ($ts) {
-                $todayStr = now()->toDateString();
-                $tsPct = (float) $ts->entries
-                    ->filter(fn ($e) => $e->entry_date->toDateString() === $todayStr)
-                    ->sum(fn ($e) => (float) $e->percentage);
+
+            $weekStart = now()->startOfWeek();
+            $locked = app(LockedDays::class)->forWeek($employee, $weekStart);
+            $rules = app(DayRules::class);
+            $todayDate = now()->startOfDay();
+
+            $workingDays = array_filter(
+                $rules->weekWorkingDays($weekStart),
+                fn (string $iso) => Carbon::parse($iso)->lte($todayDate) && ($locked[$iso]['percentage'] ?? 0) < DayCapacity::for($iso),
+            );
+
+            if ($workingDays !== []) {
+                $approved = $ts
+                    ? $ts->days->filter(fn ($d) => $d->status === 'approved' && in_array($d->entry_date->toDateString(), $workingDays, true))->count()
+                    : 0;
+                $tsPct = round($approved / count($workingDays) * 100, 1);
             }
         }
 

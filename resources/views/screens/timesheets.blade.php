@@ -139,7 +139,9 @@
             suggested: @js($tsSuggested),
             dismissed: @js($tsDismissed),
             existing: @js($existingGrid),
-            readonly: @js($weekLocked),
+            readonly: false,
+            dayStatuses: @js($tsDays ?? []),
+            earliestEditable: @js($tsEarliestEditable),
             weekLabel: @js($weekLabel ?? null),
             editEntryId: @js(request()->query('edit')),
             fillFromBoard: @js($tsFillFromBoard),
@@ -167,6 +169,36 @@
                         :aria-label="$store.ui.lang==='en' ? 'Next day' : 'Hari seterusnya'">&rarr;</button>
                 </div>
                 <div style="font-size:12px;color:var(--muted);margin-top:3px;">{{ $weekStartC->format('j M') }} &ndash; {{ $weekStartC->copy()->addDays(4)->format('j M') }} · <span style="color:{{ $sc[$weekStatus ?? 'draft'] }};">{{ ucfirst($weekStatus ?? 'draft') }}</span> · <span x-text="$store.ui.lang==='en' ? 'tap the date to jump' : 'ketik tarikh untuk lompat'"></span></div>
+
+                {{-- Per-day CR-03 status: submitted/approved/returned badge, plus late,
+                     resubmitted, lock and zero-hour-reason notes for the selected day. --}}
+                <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <span x-show="dayStatus(selected) === 'submitted'" x-cloak
+                            style="font-size:10.5px;font-weight:600;color:var(--amber-ink);background:#f8ecd8;padding:2px 8px;border-radius:999px;"
+                            x-text="$store.ui.lang==='en' ? 'Submitted' : 'Dihantar'"></span>
+                        <span x-show="dayStatus(selected) === 'approved'" x-cloak
+                            style="font-size:10.5px;font-weight:600;color:var(--success-ink);background:color-mix(in srgb, var(--success) 12%, #fff);padding:2px 8px;border-radius:999px;"
+                            x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'"></span>
+                        <span x-show="dayStatus(selected) === 'returned'" x-cloak
+                            style="font-size:10.5px;font-weight:600;color:var(--error);background:var(--red-tint);padding:2px 8px;border-radius:999px;"
+                            x-text="$store.ui.lang==='en' ? 'Returned' : 'Dikembalikan'"></span>
+                        <span x-show="dayInfo(selected)?.late" x-cloak
+                            style="font-size:10.5px;font-weight:600;color:var(--error);"
+                            x-text="$store.ui.lang==='en' ? 'Late' : 'Lewat'"></span>
+                        <span x-show="dayInfo(selected)?.resubmitted" x-cloak
+                            style="font-size:10.5px;color:var(--muted);"
+                            x-text="$store.ui.lang==='en' ? 'Resubmitted' : 'Dihantar semula'"></span>
+                    </div>
+                    <div x-show="dayStatus(selected) === 'returned' && dayInfo(selected)?.return_reason" x-cloak
+                        style="font-size:11px;color:var(--muted);" x-text="dayInfo(selected)?.return_reason"></div>
+                    <div x-show="isFrozen(selected) && dayStatus(selected) !== 'submitted' && dayStatus(selected) !== 'approved'" x-cloak
+                        style="font-size:11px;color:var(--muted);"
+                        x-text="$store.ui.lang==='en' ? 'Locked. Ask your manager to unlock it.' : 'Dikunci. Minta pengurus buka.'"></div>
+                    <div x-show="dayStatus(selected) === 'submitted' && dayInfo(selected)?.zero_reason" x-cloak
+                        style="font-size:11px;color:var(--muted);"
+                        x-text="($store.ui.lang==='en' ? 'No lines: ' : 'Tiada baris: ') + dayInfo(selected)?.zero_reason"></div>
+                </div>
             </div>
             {{-- One number for the day, with its unit, and one word for what that number
                  means. It used to read "100 / 100" with no unit, forty pixels from the
@@ -209,19 +241,15 @@
             </template>
         </div>
 
-        @if ($weekLocked)
+        @if ($weekStatus === 'submitted' && $weekTimesheet)
             <div style="margin-top:6px;font-size:11.5px;color:var(--muted);text-align:center;">
-                @if ($weekStatus === 'submitted' && $weekTimesheet)
-                    <span x-text="$store.ui.lang==='en' ? 'This week is submitted. Reopen it to make changes.' : 'Minggu ini telah dihantar. Buka semula untuk membuat perubahan.'"></span>
-                    <form method="post" action="{{ route('timesheets.recall', $weekTimesheet) }}" style="margin-top:8px;">
-                        @csrf
-                        <button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12px;">
-                            <span x-text="$store.ui.lang==='en' ? 'Reopen this week' : 'Buka semula minggu ini'"></span>
-                        </button>
-                    </form>
-                @else
-                    <span x-text="$store.ui.lang==='en' ? 'This week is locked. Pick another week to edit.' : 'Minggu ini dikunci. Pilih minggu lain untuk menyunting.'"></span>
-                @endif
+                <span x-text="$store.ui.lang==='en' ? 'This week is submitted. Reopen it to make changes.' : 'Minggu ini telah dihantar. Buka semula untuk membuat perubahan.'"></span>
+                <form method="post" action="{{ route('timesheets.recall', $weekTimesheet) }}" style="margin-top:8px;">
+                    @csrf
+                    <button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12px;">
+                        <span x-text="$store.ui.lang==='en' ? 'Reopen this week' : 'Buka semula minggu ini'"></span>
+                    </button>
+                </form>
             </div>
         @endif
 
@@ -628,7 +656,12 @@
                         :style="isOffDay(d) ? { cursor:'default', opacity:.3 } : (isFuture(d) ? { cursor:'pointer', opacity:.5 } : { cursor:'pointer' })">
                         <div style="height:14px;display:flex;align-items:center;justify-content:center;">
                             <template x-if="isFullyLocked(d)"><span style="font-size:12px;color:var(--muted);">&#128274;</span></template>
-                            <template x-if="!isFullyLocked(d)">
+                            {{-- Submitted/approved/returned days show a small glyph instead of the
+                                 state dot, so the strip reads submit status at a glance. --}}
+                            <template x-if="!isFullyLocked(d) && dayStatus(d) === 'submitted'"><span style="font-size:12px;color:var(--amber-ink);">&#10003;</span></template>
+                            <template x-if="!isFullyLocked(d) && dayStatus(d) === 'approved'"><span style="font-size:12px;color:var(--success-ink);">&#10003;</span></template>
+                            <template x-if="!isFullyLocked(d) && dayStatus(d) === 'returned'"><span style="font-size:12px;color:var(--error);">&#10003;</span></template>
+                            <template x-if="!isFullyLocked(d) && !['submitted','approved','returned'].includes(dayStatus(d))">
                                 <span :style="{
                                     width: d === selected ? '13px' : '11px', height: d === selected ? '13px' : '11px',
                                     borderRadius:'50%', display:'inline-block',
@@ -669,9 +702,29 @@
             </div>
             <div style="display:flex;gap:8px;">
                 <button type="button" @click="save(false, true)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
+                <button type="button" id="ts-submit-day-btn" @click="submitDay(selected)" :disabled="!canSubmitDay(selected) || readonly || saving || submittingDay"
+                    :style="(!canSubmitDay(selected) || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
+                    class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="submitDayLabel()">Submit day</span></button>
                 <button type="button" id="ts-submit-btn" @click="openReview()" :disabled="!weekComplete() || readonly || saving"
                     :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
+            </div>
+        </div>
+
+        {{-- Inline zero-hour reason box, opened by Submit day on a day with no lines. ---- --}}
+        <div x-show="dayReasonOpen" x-cloak style="margin-top:10px;padding:12px;border:1px solid var(--hairline);border-radius:10px;background:var(--canvas);">
+            <label style="display:block;font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:6px;"
+                x-text="$store.ui.lang==='en' ? 'Why no lines today?' : 'Kenapa tiada baris hari ini?'"></label>
+            <textarea x-model="dayReason" rows="2"
+                :placeholder="$store.ui.lang==='en' ? 'No allocation, training, offsite…' : 'Tiada peruntukan, latihan, luar pejabat…'"
+                style="width:100%;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;font-family:inherit;resize:vertical;outline:none;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                <button type="button" @click="submitDay(selected)" :disabled="!dayReason.trim() || submittingDay" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Confirm' : 'Sahkan'">Confirm</span>
+                </button>
+                <button type="button" @click="dayReasonOpen = false; dayReason = ''" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:12.5px;">
+                    <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span>
+                </button>
             </div>
         </div>
         <div x-show="error" x-cloak style="margin-top:8px;font-size:12px;color:var(--error);white-space:pre-line;" x-text="error"></div>

@@ -3327,6 +3327,8 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
 .uj-tr-status-badge { display: inline-block; font-size: var(--t-micro); font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
 .uj-tr-status-badge[data-status="draft"] { color: var(--muted); background: var(--hairline-soft); }
 .uj-tr-status-badge[data-status="submitted"] { color: var(--amber-ink); background: #f8ecd8; }
+.uj-tr-status-badge[data-status="approved"] { color: var(--success-ink); background: color-mix(in srgb, var(--success) 12%, #fff); }
+.uj-tr-status-badge[data-status="returned"] { color: var(--error); background: var(--red-tint); }
 
 
 /* Review tab's entry rows are real links into Record; the report screen's own

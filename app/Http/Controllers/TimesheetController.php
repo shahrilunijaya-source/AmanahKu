@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\SubPillar;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Services\DataScope;
@@ -21,6 +22,7 @@ use App\Services\MandayRateService;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\BoardSuggestions;
+use App\Timesheet\DayRules;
 use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use App\Timesheet\WeekWriter;
@@ -31,6 +33,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TimesheetController extends Controller
@@ -90,7 +93,7 @@ class TimesheetController extends Controller
         $lockedDays = app(LockedDays::class);
         $locked = $employee ? $lockedDays->forWeek($employee, $weekStart) : [];
 
-        $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem', 'employee.positionBand'];
+        $with = ['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem', 'employee.positionBand', 'days'];
 
         $myTimesheets = $employee
             ? Timesheet::with($with)->where('employee_id', $employee->id)->latest('week_start')->get()
@@ -184,6 +187,10 @@ class TimesheetController extends Controller
             'tsToday' => Carbon::now()->toDateString(),
             'tsEarliestWeek' => Carbon::now()->startOfWeek()->subWeeks(self::BACKFILL_WEEKS)->toDateString(),
             'tsFillFromBoard' => $tsFillFromBoard,
+            // Per-day submit state (CR-03) for the capture screen's badges/actions.
+            'tsDays' => $weekTimesheet ? $this->dayStatuses($weekTimesheet) : [],
+            // First date still editable without a manager unlock (CR-03 edit window).
+            'tsEarliestEditable' => app(DayRules::class)->earliestEditable(Carbon::now())->toDateString(),
         ];
     }
 
@@ -221,6 +228,8 @@ class TimesheetController extends Controller
             'week_start' => ['required', 'date'],
             'week_label' => ['nullable', 'string', 'max:60'],
             'submit_now' => ['nullable', 'boolean'],
+            'submit_day' => ['nullable', 'date'],
+            'day_reason' => ['nullable', 'string', 'max:500'],
             'entries' => ['present', 'array'],
             'entries.*.entry_date' => ['required', 'date'],
             'entries.*.category_id' => ['required', 'integer', Rule::exists('timesheet_categories', 'id')->where(
@@ -249,17 +258,29 @@ class TimesheetController extends Controller
             : null;
 
         $submitNow = $request->boolean('submit_now');
+        $submitDay = $data['submit_day'] ?? null;
 
-        $result = $this->weekWriter->save($employee, $data['week_start'], $data['entries'], $data['week_label'] ?? null, $submitNow, $dismissed);
+        $result = $this->weekWriter->save(
+            $employee,
+            $data['week_start'],
+            $data['entries'],
+            $data['week_label'] ?? null,
+            $submitNow,
+            $dismissed,
+            $submitDay,
+            $data['day_reason'] ?? null,
+        );
         $timesheet = $result['timesheet'];
         $entries = $result['entries'];
         $locked = $result['locked'];
 
-        $message = $submitNow
-            ? 'Timesheet submitted.'
-            : 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.';
+        $message = match (true) {
+            $submitNow => 'Timesheet submitted.',
+            $submitDay !== null => Carbon::parse($submitDay)->format('D, j M').' submitted.',
+            default => 'Draft saved — '.count($entries).' '.(count($entries) === 1 ? 'entry' : 'entries').'.',
+        };
 
-        if ($submitNow) {
+        if ($submitNow || $submitDay !== null) {
             AuditLog::record('Submitted timesheet', ($timesheet->week_label ?: $timesheet->week_start->toDateString()).' · '.count($entries).' entries');
         } else {
             AuditLog::change($timesheet, 'entries', $oldEntryCount, count($entries));
@@ -271,10 +292,32 @@ class TimesheetController extends Controller
                 'ok' => true,
                 'status' => $timesheet->status,
                 'locked' => $locked,
+                'days' => $this->dayStatuses($timesheet),
             ]);
         }
 
         return back()->with('ok', $message);
+    }
+
+    /**
+     * The per-day status map ({status, late, resubmitted, zero_reason, return_reason,
+     * unlocked}) for every timesheet_days row of $timesheet, keyed by ISO date — the
+     * shape both store()'s JSON response and screenData()/personWeeks() hand the
+     * capture and manager screens.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function dayStatuses(Timesheet $timesheet): array
+    {
+        return $timesheet->days->keyBy(fn (TimesheetDay $d) => $d->entry_date->toDateString())
+            ->map(fn (TimesheetDay $d) => [
+                'status' => $d->status,
+                'late' => (bool) $d->late,
+                'resubmitted' => (bool) $d->resubmitted,
+                'zero_reason' => $d->zero_reason,
+                'return_reason' => $d->return_reason,
+                'unlocked' => $d->unlocked_at !== null,
+            ])->all();
     }
 
     /**
@@ -398,8 +441,16 @@ class TimesheetController extends Controller
         $this->authorizeOwner($request, $timesheet);
         abort_unless($timesheet->status === 'submitted', 422, 'Only a submitted week can be recalled.');
 
-        $timesheet->update(['status' => 'draft', 'submitted_at' => null]);
+        // Week-level 'submitted' means every candidate day is submitted or approved
+        // (Timesheet::refreshStatusFromDays()). Only the submitted ones go back to
+        // draft — an approved day stays locked, HR-only from here.
+        foreach ($timesheet->days()->where('status', TimesheetDay::STATUS_SUBMITTED)->get() as $day) {
+            $day->update(['status' => TimesheetDay::STATUS_DRAFT, 'submitted_at' => null]);
+            AuditLog::change($timesheet, 'day.'.$day->entry_date->toDateString().'.status', TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_DRAFT);
+        }
+
         AuditLog::record('Recalled timesheet', $timesheet->week_label ?: $timesheet->week_start->toDateString());
+        $timesheet->refreshStatusFromDays();
 
         return back()->with('ok', 'Week reopened. Fix it and submit again.');
     }
@@ -769,7 +820,7 @@ class TimesheetController extends Controller
         // Eight weeks back, so the viewer's own prev/next has somewhere to step without
         // a round trip per step. buildWeekBlocks() returns them oldest-first and the
         // Alpine component opens on the last one, which is the week asked for.
-        $timesheets = Timesheet::with(['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem'])
+        $timesheets = Timesheet::with(['entries.category', 'entries.projectRef', 'entries.subPillar', 'entries.workItem', 'days'])
             ->where('employee_id', $employee->id)
             // Half-open upper bound, not whereBetween: the date cast stores a 00:00:00
             // time on sqlite, which sorts after the bare date string and drops the very
@@ -788,6 +839,8 @@ class TimesheetController extends Controller
         return view('partials.timesheet-report.person-weeks', [
             'person' => $employee,
             'weeks' => $this->buildWeekBlocks($timesheets->flatMap->entries, $byWeekStart),
+            'canManage' => $this->managesDays($request, $employee),
+            'manageEmployeeId' => $employee->id,
         ]);
     }
 
@@ -869,6 +922,10 @@ class TimesheetController extends Controller
                 'days' => $weekDays,
                 'cost' => $weekCost,
                 'lines' => $lines,
+                // Per-day submit state (CR-03), keyed by ISO date — 'days' above is
+                // already this block's total in person-days, so this one is named
+                // dayStatuses to avoid the clash.
+                'dayStatuses' => $timesheetsByWeekStart?->get($weekStartStr) ? $this->dayStatuses($timesheetsByWeekStart->get($weekStartStr)) : [],
             ];
         }
 
@@ -951,6 +1008,167 @@ class TimesheetController extends Controller
                 'category_ids' => $p->categories->pluck('id')->values(),
                 'sub_pillars' => $subPillars,
             ])->values();
+    }
+
+    // ---- Manager day actions (CR-03) --------------------------------------
+
+    /**
+     * Return a submitted day for correction. Reopens it (staff may edit and resubmit);
+     * a reason is required.
+     */
+    public function returnDay(Request $request, Employee $employee, string $date): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManagesDays($request, $employee);
+        $iso = $this->validatedDate($date);
+        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+
+        $role = (string) $request->attributes->get('tenantRole', 'employee');
+        $canReturnApproved = in_array(Permissions::effectiveRole($role), ['hr', 'management'], true);
+
+        $day = $this->dayForDate($employee, $iso);
+        $allowed = $canReturnApproved
+            ? [TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED]
+            : [TimesheetDay::STATUS_SUBMITTED];
+        abort_unless($day !== null && in_array($day->status, $allowed, true), 422, 'That day is not submitted.');
+
+        $old = $day->status;
+        $day->update(['status' => TimesheetDay::STATUS_RETURNED, 'return_reason' => $data['reason']]);
+        AuditLog::change($day->timesheet, "day.{$iso}.status", $old, TimesheetDay::STATUS_RETURNED, $data['reason']);
+        $day->timesheet->refreshStatusFromDays();
+
+        return $this->dayActionResponse($request, $day, 'Returned for correction.');
+    }
+
+    /** Approve a submitted day. Locked for everyone but HR from here on (see returnDay). */
+    public function approveDay(Request $request, Employee $employee, string $date): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManagesDays($request, $employee);
+        $iso = $this->validatedDate($date);
+
+        $day = $this->dayForDate($employee, $iso);
+        abort_unless($day !== null && $day->status === TimesheetDay::STATUS_SUBMITTED, 422, 'That day is not submitted.');
+
+        $day->update(['status' => TimesheetDay::STATUS_APPROVED]);
+        AuditLog::change($day->timesheet, "day.{$iso}.status", TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED);
+        $day->timesheet->refreshStatusFromDays();
+
+        return $this->dayActionResponse($request, $day, 'Approved.');
+    }
+
+    /** Lift the 3-working-day backdate window for one day, reason required. */
+    public function unlockDay(Request $request, Employee $employee, string $date): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManagesDays($request, $employee);
+        $iso = $this->validatedDate($date);
+        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+        $actor = $request->attributes->get('employee');
+
+        $weekStart = Carbon::parse($iso)->startOfWeek();
+        $timesheet = Timesheet::firstOrCreate(
+            ['employee_id' => $employee->id, 'week_start' => $weekStart],
+            ['status' => 'draft'],
+        );
+        $day = TimesheetDay::firstOrCreate(
+            ['timesheet_id' => $timesheet->id, 'entry_date' => $iso],
+            ['status' => TimesheetDay::STATUS_DRAFT],
+        );
+        $day->update(['unlocked_at' => now(), 'unlocked_by_id' => $actor->id]);
+        AuditLog::change($timesheet, "day.{$iso}.unlocked", null, true, $data['reason']);
+
+        return $this->dayActionResponse($request, $day, 'Unlocked.');
+    }
+
+    /** Bulk-approve every submitted day of one week. */
+    public function approveWeek(Request $request, Employee $employee): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManagesDays($request, $employee);
+        $data = $request->validate(['week_start' => ['required', 'date']]);
+
+        $timesheet = Timesheet::where('employee_id', $employee->id)
+            ->forWeek(Carbon::parse($data['week_start'])->startOfWeek())
+            ->first();
+
+        $days = $timesheet
+            ? $timesheet->days()->where('status', TimesheetDay::STATUS_SUBMITTED)->get()
+            : collect();
+        abort_if($days->isEmpty(), 422, 'Nothing to approve this week.');
+
+        foreach ($days as $day) {
+            $day->update(['status' => TimesheetDay::STATUS_APPROVED]);
+            AuditLog::change($timesheet, 'day.'.$day->entry_date->toDateString().'.status', TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED);
+        }
+        $timesheet->refreshStatusFromDays();
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'approved' => $days->count()]);
+        }
+
+        return back()->with('ok', $days->count().' day(s) approved.');
+    }
+
+    /**
+     * Who may return, approve or unlock $employee's timesheet days: any of their
+     * verifiers (Employee::verifierIds()), or the hr / management tier — never the
+     * employee themself. 403 on anything else.
+     */
+    private function authorizeManagesDays(Request $request, Employee $employee): void
+    {
+        abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
+        abort_unless($this->managesDays($request, $employee), 403);
+    }
+
+    /**
+     * True when the acting user may return, approve or unlock $employee's timesheet
+     * days: any of their verifiers (Employee::verifierIds()), or the hr / management
+     * tier — never the employee themself. Boolean, non-aborting version of
+     * authorizeManagesDays(), so personWeeks() can pass the same rule to the view
+     * without a 403 short-circuit.
+     */
+    private function managesDays(Request $request, Employee $employee): bool
+    {
+        $actor = $request->attributes->get('employee');
+        if (! $actor || $actor->id === $employee->id) {
+            return false;
+        }
+
+        $role = (string) $request->attributes->get('tenantRole', 'employee');
+
+        return in_array($actor->id, $employee->verifierIds(), true)
+            || in_array(Permissions::effectiveRole($role), ['hr', 'management'], true);
+    }
+
+    private function validatedDate(string $date): string
+    {
+        try {
+            return Carbon::parse($date)->toDateString();
+        } catch (\Throwable) {
+            throw ValidationException::withMessages(['date' => 'Invalid date.']);
+        }
+    }
+
+    private function dayForDate(Employee $employee, string $iso): ?TimesheetDay
+    {
+        $timesheet = Timesheet::where('employee_id', $employee->id)
+            ->forWeek(Carbon::parse($iso)->startOfWeek())
+            ->first();
+
+        return $timesheet?->days()->whereDate('entry_date', $iso)->first();
+    }
+
+    private function dayActionResponse(Request $request, TimesheetDay $day, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'day' => [
+                'status' => $day->status,
+                'late' => (bool) $day->late,
+                'resubmitted' => (bool) $day->resubmitted,
+                'zero_reason' => $day->zero_reason,
+                'return_reason' => $day->return_reason,
+                'unlocked' => $day->unlocked_at !== null,
+            ]]);
+        }
+
+        return back()->with('ok', $message);
     }
 
     private function authorizeOwner(Request $request, Timesheet $timesheet): void

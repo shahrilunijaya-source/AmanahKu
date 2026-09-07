@@ -517,6 +517,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/preferences', [TimesheetController::class, 'preferences'])->name('timesheets.preferences');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
+        // Per-day manager actions (CR-03): return for correction, approve, unlock the
+        // backdate window, or bulk-approve a week — {employee} is the sheet owner, not
+        // the actor (see TimesheetController::authorizeManagesDays).
+        Route::post('/app/timesheets/{employee}/days/{date}/return', [TimesheetController::class, 'returnDay'])->name('timesheets.day.return');
+        Route::post('/app/timesheets/{employee}/days/{date}/approve', [TimesheetController::class, 'approveDay'])->name('timesheets.day.approve');
+        Route::post('/app/timesheets/{employee}/days/{date}/unlock', [TimesheetController::class, 'unlockDay'])->name('timesheets.day.unlock');
+        Route::post('/app/timesheets/{employee}/approve-week', [TimesheetController::class, 'approveWeek'])->name('timesheets.approve-week');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');

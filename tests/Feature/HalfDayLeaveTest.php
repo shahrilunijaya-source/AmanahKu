@@ -143,10 +143,12 @@ class HalfDayLeaveTest extends TestCase
         $leaveRow = collect($rows)->firstWhere('entry_date', '2026-07-22');
         $this->assertEqualsWithDelta(50.0, (float) $leaveRow['percentage'], 0.001);
 
-        // --- the staffer fills the other 50% and the day submits cleanly ---
+        // --- the staffer fills the other 50% and submits that day (CR-03: daily
+        // submit, not a whole-week submit_now — the other four days of this week
+        // carry nothing yet) ---
         $this->actingAsEmployee($report)->post('/app/timesheets', [
             'week_start' => '2026-07-20',
-            'submit_now' => true,
+            'submit_day' => '2026-07-22',
             'entries' => [
                 ['entry_date' => '2026-07-22', 'category_id' => $this->work->id, 'percentage' => 50],
             ],
@@ -154,7 +156,7 @@ class HalfDayLeaveTest extends TestCase
 
         $sheet = Timesheet::firstWhere('employee_id', $report->id);
         $this->assertNotNull($sheet);
-        $this->assertSame('submitted', $sheet->status);
+        $this->assertDatabaseHas('timesheet_days', ['timesheet_id' => $sheet->id, 'entry_date' => '2026-07-22', 'status' => 'submitted']);
 
         $dayEntries = TimesheetEntry::where('timesheet_id', $sheet->id)->whereDate('entry_date', '2026-07-22')->get();
         // Exactly two rows: the staffer's 50% work + the generated 50% leave.
