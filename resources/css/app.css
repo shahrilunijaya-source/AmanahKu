@@ -4823,3 +4823,55 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-cover-chip--upload { width: auto; padding: 0 10px; background: none; border-style: dashed; color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .uj-cover-chip--upload:hover { color: var(--ink); border-color: var(--muted-soft); }
 .uj-cover-picker-error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--error); }
+
+/* ── Holiday-eve greeting (CR-20) ─────────────────────────────────────────────
+   Full-screen sheet on the app's own paper, over the attendance screen, after a
+   clock-out on the eve of a public holiday. One authored moment: the sheet settles
+   in, the stamp thumps 140ms later, a few paper flakes drift for six seconds and
+   stop. Reduce-motion keeps the fade only. */
+.uj-hv { position: fixed; inset: 0; z-index: 60; background: var(--canvas); display: grid; grid-template-rows: auto 1fr auto; padding: clamp(20px, 4vw, 44px) clamp(20px, 6vw, 72px); overflow: hidden; opacity: 1; transform: none; filter: none; transition: opacity 280ms cubic-bezier(.23,1,.32,1), transform 280ms cubic-bezier(.23,1,.32,1), filter 280ms cubic-bezier(.23,1,.32,1); }
+@starting-style { .uj-hv { opacity: 0; transform: scale(.97); filter: blur(2px); } }
+.uj-hv-top { display: flex; align-items: baseline; gap: 14px; font: 500 12.5px var(--font-mono); color: var(--muted); }
+.uj-hv-top b { color: var(--success); font-weight: 600; }
+.uj-hv-dot { width: 6px; height: 6px; border-radius: 99px; background: var(--success); align-self: center; }
+.uj-hv-tag { margin-left: auto; font: 700 11px var(--font-sans); letter-spacing: .13em; text-transform: uppercase; color: var(--muted-soft); }
+.uj-hv-main { display: grid; align-content: center; gap: clamp(14px, 2.2vw, 26px); max-width: 920px; }
+.uj-hv-when { font: 600 clamp(13px, 1.4vw, 15px) var(--font-mono); color: var(--red); display: flex; gap: 16px; align-items: baseline; }
+.uj-hv-when > span:first-child { color: var(--muted); font-weight: 500; }
+.uj-hv-name { font: 600 clamp(40px, 7.2vw, 96px)/.98 var(--font-sans); letter-spacing: -.035em; margin: 0; text-wrap: balance; color: var(--ink); }
+.uj-hv-msg { font: 400 clamp(18px, 2.2vw, 26px)/1.35 var(--font-sans); color: var(--ink); max-width: 30ch; margin: 0; text-wrap: pretty; }
+.uj-hv-see { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: clamp(6px, 1vw, 12px); }
+.uj-hv-see-lbl { font-size: 15px; color: var(--body); }
+.uj-hv-day { font: 600 clamp(20px, 2.6vw, 30px) var(--font-mono); letter-spacing: -.02em; color: var(--ink); background: var(--card); border: 1px solid var(--hairline); border-radius: 9px; padding: 8px 14px; box-shadow: 0 1px 0 var(--hairline-soft), 0 6px 18px -12px rgba(38,37,30,.35); }
+.uj-hv-foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.uj-hv-ok, .uj-hv-ghost { height: 40px; padding: 0 18px; font-size: 14px; }
+.uj-hv-hint { font: 500 12.5px var(--font-mono); color: var(--muted-soft); margin-left: auto; }
+.uj-hv-stamp { position: absolute; right: clamp(16px, 7vw, 110px); top: 50%; translate: 0 -50%; rotate: -12deg; width: clamp(150px, 22vw, 300px); aspect-ratio: 1; border-radius: 50%; border: 4px double var(--red); display: grid; place-items: center; align-content: center; text-align: center; color: var(--red); mix-blend-mode: multiply; opacity: .92; pointer-events: none; animation: uj-hv-thump 360ms cubic-bezier(.23,1,.32,1) 140ms both; }
+.uj-hv-stamp::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; border: 1.5px solid var(--red); }
+.uj-hv-stamp-big { font: 600 clamp(34px, 5vw, 64px)/1 var(--font-mono); letter-spacing: -.03em; }
+.uj-hv-stamp-sm { font: 700 clamp(8px, .75vw, 11px) var(--font-sans); letter-spacing: .18em; text-transform: uppercase; margin-top: 6px; max-width: 78%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes uj-hv-thump { from { opacity: 0; transform: scale(1.35); } to { opacity: .92; transform: none; } }
+.uj-hv-flakes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.uj-hv-flakes i { position: absolute; top: -4vh; width: 9px; height: 14px; border-radius: 2px; opacity: 0; animation: uj-hv-fall var(--d, 6s) cubic-bezier(.3,.1,.6,1) var(--t, 0s) 1 forwards; }
+.uj-hv-flakes i:nth-child(3n) { background: var(--red); }
+.uj-hv-flakes i:nth-child(3n+1) { background: var(--amber); }
+.uj-hv-flakes i:nth-child(3n+2) { background: var(--success); }
+@keyframes uj-hv-fall { 0% { opacity: 0; transform: translateY(0) rotate(0); } 8% { opacity: .85; } 90% { opacity: .85; } 100% { opacity: 0; transform: translateY(110vh) rotate(var(--r, 540deg)) translateX(var(--x, 0)); } }
+@media (prefers-reduced-motion: reduce) {
+  .uj-hv-stamp { animation: none; }
+  .uj-hv-flakes { display: none; }
+  .uj-hv { transition: opacity 200ms ease; }
+  @starting-style { .uj-hv { transform: none; filter: none; } }
+}
+@media (max-width: 720px) {
+  .uj-hv { padding: 18px 20px 20px; overflow: auto; }
+  .uj-hv-stamp { position: static; translate: none; rotate: -10deg; width: 118px; justify-self: end; margin: 0 8px -14px 0; }
+  .uj-hv-stamp-big { font-size: 28px; }
+  .uj-hv-stamp-sm { font-size: 8px; letter-spacing: .14em; max-width: 84%; }
+  .uj-hv-stamp-sm .uj-hv-stamp-co { display: none; }
+  .uj-hv-main { align-content: start; padding-top: 10px; gap: 14px; }
+  .uj-hv-tag { display: none; }
+  .uj-hv-day { font-size: 20px; }
+  .uj-hv-foot { flex-direction: column; align-items: stretch; gap: 10px; padding-top: 16px; }
+  .uj-hv-hint { margin: 0; text-align: center; }
+}

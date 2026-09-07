@@ -39,6 +39,7 @@
 @endphp
 
 @section('screen')
+@include('partials.holiday-eve')
 @include('partials.guide', [
     'key'   => 'attendance',
     'en'  => [

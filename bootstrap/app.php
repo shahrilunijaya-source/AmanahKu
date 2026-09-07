@@ -73,6 +73,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // per staffer per type per day regardless of how many ticks fire.
         $schedule->command('attendance:remind')->everyFiveMinutes()->between('6:00', '22:00')
             ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
+        // CR-20: holiday-eve greeting for whoever never clocked out. Dedupes against the
+        // clock-out card, so it only reaches the people the card did not.
+        $schedule->command('attendance:holiday-eve')->weekdays()->at('17:30')
+            ->withoutOverlapping()->onFailure($onFailure('attendance:holiday-eve'));
         // TOT reminders: 14 days out when the topic is blank, 7 days out for the presenter,
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.
         $schedule->command('tot:remind')->dailyAt('08:00')

@@ -221,6 +221,7 @@ Route::middleware('auth')->group(function () {
         // Public holidays managed alongside leave types on the Leave Setup screen.
         Route::post('/app/leave-setup/holidays', [LeaveSetupController::class, 'storeHoliday'])->name('holiday.store');
         Route::post('/app/leave-setup/holidays/standard', [LeaveSetupController::class, 'loadStandardHolidays'])->name('holiday.standard');
+        Route::post('/app/leave-setup/holidays/{holiday}/greeting', [LeaveSetupController::class, 'updateHolidayGreeting'])->name('holiday.greeting');
         Route::post('/app/leave-setup/holidays/{holiday}/delete', [LeaveSetupController::class, 'deleteHoliday'])->name('holiday.delete');
         // Throttled: every post accepts a 4MB selfie, and a real day needs two punches, not
         // twenty. The cap stops a stuck client (or a bored one) from filling the disk.
