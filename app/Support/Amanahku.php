@@ -164,9 +164,9 @@ class Amanahku
                 ['id' => 'reports', 'label' => 'Workforce Reports', 'label_ms' => 'Laporan Tenaga Kerja'],
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
-                // Management/HR only: the report carries salary-derived RM cost, so it is
-                // gated tighter than its siblings (AppController::screen mirrors this).
-                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
+                // Same gate as its siblings since CR-02; the RM cost inside is hidden from
+                // managers by TimesheetController::MONEY_ROLES, not by the nav.
+                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
                 // Read-only view of everyone's profile-test answers. Rows are scoped in
                 // ProfileTestController::resultsData — a manager sees only their own staff.

@@ -459,9 +459,12 @@ class TimesheetController extends Controller
             ->filter(fn (TimesheetEntry $e) => $e->timesheet && $e->timesheet->employee);
 
         // Attach per-entry RM cost (null when the owner has no salary band — uncosted).
+        // A viewer outside MONEY_ROLES (a line manager, since CR-02 opened this screen to
+        // canSeeAll) gets no cost attached at all, so nothing downstream — rows, totals,
+        // the per-person week blocks — ever carries RM into the page.
         $rates = app(MandayRateService::class);
         foreach ($entries as $e) {
-            $band = $e->timesheet->employee->positionBand;
+            $band = $canSeeCost ? $e->timesheet->employee->positionBand : null;
             $e->cost = $band ? $rates->entryCost($e, $band) : null;
         }
 
@@ -610,10 +613,10 @@ class TimesheetController extends Controller
 
         // ----- Lens staff: person -> days + RM + rate -----
         $lensStaff = $entries->groupBy(fn ($e) => $e->timesheet->employee_id)
-            ->map(function (Collection $rows) use ($days, $cost, $grandDays, $empStatsMap, $empWeekStats) {
+            ->map(function (Collection $rows) use ($days, $cost, $grandDays, $empStatsMap, $empWeekStats, $canSeeCost) {
                 $emp = $rows->first()->timesheet->employee;
                 $positionBand = $emp->positionBand;
-                $rate = $positionBand?->mandayRate();
+                $rate = $canSeeCost ? $positionBand?->mandayRate() : null;
                 $d = $days($rows);
                 $stats = $empStatsMap[$emp->id] ?? $empWeekStats($emp);
 
@@ -696,7 +699,11 @@ class TimesheetController extends Controller
 
     public function nudge(Request $request, Employee $employee): RedirectResponse
     {
-        $this->authorizeTenantRole($request, ['management', 'hr']);
+        // Same gate as the timesheet-reports screen this fragment belongs to (CR-02).
+        abort_unless(Permissions::canSeeAll(
+            $request->attributes->get('employee'),
+            (string) $request->attributes->get('tenantRole', 'employee'),
+        ), 403);
 
         abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
 
@@ -736,7 +743,11 @@ class TimesheetController extends Controller
      */
     public function personWeeks(Request $request, Employee $employee): View
     {
-        $this->authorizeTenantRole($request, ['management', 'hr']);
+        // Same gate as the timesheet-reports screen this fragment belongs to (CR-02).
+        abort_unless(Permissions::canSeeAll(
+            $request->attributes->get('employee'),
+            (string) $request->attributes->get('tenantRole', 'employee'),
+        ), 403);
 
         abort_unless($employee->tenant_id === app(CurrentTenant::class)->id(), 403);
 

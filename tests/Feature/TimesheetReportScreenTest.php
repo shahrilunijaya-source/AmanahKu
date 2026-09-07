@@ -205,15 +205,16 @@ class TimesheetReportScreenTest extends TestCase
             ->assertSee('No submitted time matches this filter');
     }
 
-    public function test_a_manager_and_a_plain_employee_are_both_forbidden(): void
+    public function test_a_manager_is_admitted_and_a_plain_employee_is_forbidden(): void
     {
         [$mgrUser] = $this->createEmployee('Manager Mary', $this->position, 'manager');
         [$empUser] = $this->createEmployee('Employee Ed', $this->position, 'employee');
 
+        // CR-02: managers read staff time here (RM withheld, see TimesheetCostTest).
         $this->actingAs($mgrUser)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/timesheet-reports')
-            ->assertForbidden();
+            ->assertOk();
 
         $this->actingAs($empUser)
             ->withSession(['current_tenant' => $this->tenant->id])

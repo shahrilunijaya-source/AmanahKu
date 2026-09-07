@@ -138,11 +138,11 @@ class TimesheetCostTest extends TestCase
         $this->viewReportAs($this->actor('hr'))->assertOk()->assertSee('cost\\u0022:900', false);
     }
 
-    public function test_manager_cannot_open_the_all_staff_report(): void
+    public function test_manager_opens_the_all_staff_report_without_cost(): void
     {
-        // The all-staff view is a salary-derived cost report, so it is management/HR only.
-        // A line manager reads their team's time on the team screens, never their money.
-        $this->viewReportAs($this->actor('manager'))->assertForbidden();
+        // CR-02: a line manager reads their team's time here, never their money — the
+        // report opens, but every RM figure is withheld (MONEY_ROLES excludes 'manager').
+        $this->viewReportAs($this->actor('manager'))->assertOk()->assertDontSee('cost\\u0022:900', false);
     }
 
     public function test_management_report_shows_cost(): void
