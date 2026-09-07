@@ -62,3 +62,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: delete the client and rebuild behind the port later. Rejected, throws away working code.
 - Reversal cost: cheap.
 - Source: spec vs code.
+
+### QA / global-clause / acceptance items reinterpreted or deferred in GlobalClauseTest
+- Question: item 1 says "change a due date", but the clause itself locks work due dates and Events do not exist until S13. Items 2 and 3 assert on the award freeze and the Awards page, which are S17 and S18.
+- Decided: item 1 is tested on the first set of a due date (null to date, the write that stays legal after S02) plus a priority change with real old and new values, plus web-UI move and archive. Items 2 and 3 are `markTestIncomplete` naming what `CR14Test` must assert; `/qa write CR-14` owes both.
+- Alternatives: test item 1 as a due date change on an existing date. Rejected, it would turn red at S02 and the file is frozen. Wait until S13 for an Event reschedule. Rejected, S01 needs a gate now.
+- Reversal cost: cheap, `/qa write CR-11` adds the Event reschedule audit test.
+- Source: spec vs contract.
