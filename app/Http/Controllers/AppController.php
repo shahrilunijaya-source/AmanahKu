@@ -297,6 +297,7 @@ class AppController extends Controller
             $user->dashboard_prefs,
             $request->input('hidden', []),
             $request->input('order', []),
+            $request->has('plain') ? $request->boolean('plain') : null,
         );
         $user->save();
 

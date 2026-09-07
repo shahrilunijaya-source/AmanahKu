@@ -16,6 +16,10 @@ namespace App\Support;
  * `screen` is the tenant feature gate — a widget whose module is switched off
  * reads as absent, the same rule AppController::screen() applies to whole screens.
  * `column` is only the DEFAULT placement; a user's saved drag order overrides it.
+ * `after` (optional) names the card a new widget sits under by default (CR-32):
+ * without it a widget lands at the bottom of its column. The full-width bands
+ * above the grid (moments, management, awards) are not widgets — see
+ * BuildsDashboardWidgets::dashboardBands().
  */
 final class DashboardWidgets
 {
@@ -33,7 +37,7 @@ final class DashboardWidgets
      * The registry. `roles` null means everyone; `screen` null means core (no
      * module can switch it off); `column` is the default side of the grid.
      *
-     * @var array<string, array{title: string, title_ms: string, blurb: string, blurb_ms: string, category: string, roles: list<string>|null, screen: string|null, column: string}>
+     * @var array<string, array{title: string, title_ms: string, blurb: string, blurb_ms: string, category: string, roles: list<string>|null, screen: string|null, column: string, after?: string}>
      */
     public const ALL = [
         'summary' => [
@@ -210,6 +214,21 @@ final class DashboardWidgets
      */
     public static function layout(array $available, array $order, array $hidden): array
     {
+        return self::layoutWith(self::ALL, $available, $order, $hidden);
+    }
+
+    /**
+     * layout() against a given registry, so the anchor rule can be tested
+     * without a real widget having to carry `after` yet.
+     *
+     * @param  array<string, array{column: string, after?: string}>  $registry
+     * @param  list<string>  $available
+     * @param  array<string, mixed>  $order
+     * @param  list<string>  $hidden
+     * @return array<string, list<string>>
+     */
+    public static function layoutWith(array $registry, array $available, array $order, array $hidden): array
+    {
         $shown = array_values(array_diff($available, array_diff($hidden, self::PINNED)));
         $placed = [];
         $layout = [];
@@ -229,9 +248,18 @@ final class DashboardWidgets
         }
 
         foreach ($shown as $id) {
-            if (! isset($placed[$id])) {
-                $layout[self::ALL[$id]['column']][] = $id;
+            if (isset($placed[$id])) {
+                continue;
             }
+            $column = $registry[$id]['column'];
+            $anchor = $registry[$id]['after'] ?? null;
+            $at = $anchor === null ? false : array_search($anchor, $layout[$column], true);
+            if ($at === false) {
+                $layout[$column][] = $id;
+            } else {
+                array_splice($layout[$column], $at + 1, 0, [$id]);
+            }
+            $placed[$id] = true;
         }
 
         return $layout;

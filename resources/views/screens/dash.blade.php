@@ -15,6 +15,7 @@
         $widgetLayout   ['left' => [id, ...], 'right' => [id, ...]] — what is shown, in order
         $widgetPrefs    ['hidden' => [id, ...], 'order' => ['left' => [...], 'right' => [...]]]
         $widgets        [id => payload] for the shown widgets only
+        $bands          ['moments','moments_count','management','awards'] — full-width bands above the grid (CR-32)
 
     Visibility and drag order POST to route('dashboard.prefs.update'); if that
     route is missing, save() is a silent no-op so the UI still works locally.
@@ -29,12 +30,14 @@
     $widgetLayout = $widgetLayout ?? ['left' => [], 'right' => []];
     $widgetPrefs = $widgetPrefs ?? ['hidden' => [], 'order' => []];
     $widgets = $widgets ?? [];
+    $bands = $bands ?? ['moments' => null, 'moments_count' => 0, 'management' => null, 'awards' => null];
     $categories = \App\Support\DashboardWidgets::CATEGORIES;
     $categoriesMs = ['All' => 'Semua', 'Me' => 'Saya', 'Attendance' => 'Kehadiran', 'Leave' => 'Cuti', 'Claim' => 'Tuntutan', 'Team' => 'Pasukan'];
 @endphp
 
 <div class="uj-dw-page" x-data="ujDashboard({
         hidden: @js(array_values($widgetPrefs['hidden'] ?? [])),
+        plain: @js((bool) ($widgetPrefs['plain'] ?? false)),
         catalog: @js($widgetCatalog),
         prefsUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.prefs.update') ? route('dashboard.prefs.update') : null),
         widgetUrl: @js(\Illuminate\Support\Facades\Route::has('dashboard.widget') ? route('dashboard.widget', '__id__') : null),
@@ -53,6 +56,8 @@
             </svg>
         </button>
     </div>
+
+    @include('partials.dash.bands', ['bands' => $bands, 'plain' => (bool) ($widgetPrefs['plain'] ?? false)])
 
     <div class="uj-dw-grid">
         @foreach (\App\Support\DashboardWidgets::COLUMNS as $column)
@@ -105,6 +110,13 @@
                     </button>
                 </template>
             </div>
+            <label class="uj-dw-plain">
+                <input type="checkbox" x-model="draftPlain">
+                <span>
+                    <b x-text="$store.ui.lang==='en' ? 'Keep it plain' : 'Biar ringkas'">Keep it plain</b>
+                    <small x-text="$store.ui.lang==='en' ? 'Banners and newer cards show as text, no confetti or stamps.' : 'Sepanduk dan kad baharu dipapar sebagai teks, tanpa hiasan.'">Banners and newer cards show as text, no confetti or stamps.</small>
+                </span>
+            </label>
             <div class="uj-dw-sheet-ft">
                 <span class="n" x-text="$store.ui.lang==='en'
                     ? draft.length + ' of ' + catalog.length + ' on'

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Attendance\HolidayEve;
 use App\Http\Controllers\CalendarController;
 use App\Models\AttendanceRecord;
 use App\Models\Claim;
@@ -14,6 +15,7 @@ use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\ArchetypeCatalog;
 use App\Support\ArchetypeScorer;
+use App\Support\DashboardBands;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
 use App\Support\Permissions;
@@ -40,7 +42,7 @@ trait BuildsDashboardWidgets
      * The whole dashboard view-model: greeting, the picker catalog, the two-column
      * layout, and a payload per visible widget.
      *
-     * @return array{head: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
+     * @return array{head: array, bands: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
      */
     private function dashboardData(Request $request, ?Employee $employee, string $role): array
     {
@@ -71,11 +73,35 @@ trait BuildsDashboardWidgets
 
         return [
             'head' => $this->meHead($employee),
+            'bands' => $this->dashboardBands($employee, $role),
             'widgetCatalog' => DashboardWidgets::catalog($available),
             'widgetLayout' => $layout,
             'widgetPrefs' => $prefs,
             'widgets' => $widgets,
         ];
+    }
+
+    /**
+     * The three full-width bands above the grid (CR-32). Each slot is null when
+     * nothing is active; the view renders nothing for a null slot. The moments
+     * list grows as CR-13/22/24/28 land; the management and awards slots stay
+     * null until CR-17 and CR-14.
+     *
+     * @return array{moments: array<string, mixed>|null, moments_count: int, management: array<string, mixed>|null, awards: array<string, mixed>|null}
+     */
+    private function dashboardBands(?Employee $employee, string $role): array
+    {
+        $today = CarbonImmutable::now();
+        $moments = [];
+
+        if ($employee !== null) {
+            $eve = DashboardBands::holidayEveMoment(app(HolidayEve::class), $today);
+            if ($eve !== null) {
+                $moments[] = $eve;
+            }
+        }
+
+        return DashboardBands::compose($moments, null, null, $today);
     }
 
     /**

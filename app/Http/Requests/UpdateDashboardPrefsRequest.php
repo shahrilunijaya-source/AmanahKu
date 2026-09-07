@@ -32,6 +32,7 @@ class UpdateDashboardPrefsRequest extends FormRequest
             'hidden' => ['array'],
             'hidden.*' => ['string', $ids],
             'order' => ['array'],
+            'plain' => ['sometimes', 'boolean'],
         ];
 
         foreach (DashboardWidgets::COLUMNS as $column) {
