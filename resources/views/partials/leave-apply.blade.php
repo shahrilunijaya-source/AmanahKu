@@ -144,11 +144,17 @@
             const mf = this.minFrom();
             if (mf && this.dateFrom && this.dateFrom < mf) this.dateFrom = mf;
             if (this.dateTo && this.dateFrom && this.dateTo < this.dateFrom) this.dateTo = this.dateFrom;
-            // A half day cannot span a range; drop the marker so a multi-day request
-            // always posts whole days, the same combination the server rejects.
-            if (!this.single()) this.half = '';
+            // A half day cannot span a range or land on a weekend or public holiday (the
+            // TOT Saturday is already a half day); drop the marker so the form never posts
+            // what the server rejects.
+            if (!this.halvable()) this.half = '';
         },
         single() { return !!this.dateFrom && this.dateFrom === this.dateTo; },
+        halvable() {
+            if (!this.single() || this.holidays.includes(this.dateFrom)) return false;
+            const dow = new Date(this.dateFrom + 'T00:00').getDay();
+            return dow >= 1 && dow <= 5;
+        },
 
         /**
          * Working days inclusive, or 0.5 for a half day — the same arithmetic as
@@ -341,7 +347,7 @@
                     </div>
                 </div>
 
-                <div x-show="single()" x-cloak style="margin-top:14px;">
+                <div x-show="halvable()" x-cloak style="margin-top:14px;">
                     <span class="uj-lv-field" x-text="$store.ui.lang==='en' ? 'How much of that day?' : 'Berapa banyak hari itu?'">How much of that day?</span>
                     <div class="uj-lv-half">
                         <button type="button" :data-on="half === '' ? '' : null" @click="half = ''"
