@@ -533,6 +533,7 @@ Route::middleware('auth')->group(function () {
         // everyone reads. Sub-pillars are tenant-wide, not nested under a project.
         Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
         Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
+        Route::post('/app/projects/{project}/reopen', [ProjectController::class, 'reopenProject'])->name('projects.reopen');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
         Route::post('/app/projects/{project}/archive', [ProjectController::class, 'archiveProject'])->name('projects.archive');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');

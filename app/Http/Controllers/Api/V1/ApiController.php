@@ -140,7 +140,7 @@ class ApiController extends Controller
 
         // Eager-loaded: without it the map below fires one query per project.
         $projects = Project::where('is_active', true)
-            ->with('categories:id,name')
+            ->with(['categories:id,name', 'pm:id,name,nickname', 'pe:id,name,nickname', 'versions:id,project_id,version_no'])
             ->orderBy('sort')
             ->orderBy('name')
             ->get()
@@ -154,6 +154,20 @@ class ApiController extends Controller
                 // depends on MySQL's query plan — a consumer diffing this array would
                 // see phantom changes between otherwise-identical calls.
                 'categories' => $p->categories->pluck('name')->sort()->values()->all(),
+                // CR-06a master fields: this is what Track pulls instead of re-keying
+                // the same details a second time (docs/specs/CR-06.md §B).
+                'project_code' => $p->project_code,
+                'client' => $p->client,
+                'status' => $p->status,
+                'contract_value' => $p->contract_value,
+                'contract_start' => $p->contract_start,
+                'contract_end' => $p->contract_end,
+                'procurement_method' => $p->procurement_method,
+                'contractor' => $p->contractor,
+                'drive_link' => $p->drive_link,
+                'pm' => $p->pm?->display_name,
+                'pe' => $p->pe?->display_name,
+                'version' => $p->versions->max('version_no'),
             ]);
 
         return $this->ok($projects);

@@ -126,7 +126,7 @@ class ProjectScreenTest extends TestCase
     public function test_a_manager_can_create_a_project(): void
     {
         $this->actingAsRole('manager')
-            ->post(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT'])
+            ->post(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT', 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('projects', [
@@ -269,7 +269,7 @@ class ProjectScreenTest extends TestCase
     public function test_project_ajax_add_returns_a_rendered_row(): void
     {
         $res = $this->actingAsRole('hr')->postJson(route('projects.store'), [
-            'name' => 'KPT: RMS', 'code' => 'KPT', 'sort' => 0,
+            'name' => 'KPT: RMS', 'code' => 'KPT', 'sort' => 0, 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT',
         ]);
 
         $res->assertOk()->assertJsonStructure(['html', 'count_sel']);
@@ -292,7 +292,7 @@ class ProjectScreenTest extends TestCase
         $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
 
         $this->actingAsRole('hr')->postJson(route('projects.store'), [
-            'name' => 'KPT: RMS', 'categories' => [$dev->id],
+            'name' => 'KPT: RMS', 'categories' => [$dev->id], 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT',
         ])->assertOk();
 
         $project = Project::where('name', 'KPT: RMS')->firstOrFail();

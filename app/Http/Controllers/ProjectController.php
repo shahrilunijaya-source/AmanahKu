@@ -5,21 +5,27 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\Project;
 use App\Models\SubPillar;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
+use App\Projects\ProjectMaster;
+use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The Projects register: every project in the tenant plus the shared sub-pillar
  * list they all draw on. Readable by anyone signed in; written by manager,
- * management and HR (director folds into management).
+ * management and HR (director folds into management) — the master fields added
+ * by CR-06a narrow that further per field, see App\Projects\ProjectMaster.
  *
  * Split out of TimesheetAdminController because the edit roles diverged —
  * categories stay management/HR, projects admit managers. Records in use are
@@ -29,11 +35,15 @@ class ProjectController extends Controller
 {
     private const EDITOR_ROLES = ['manager', 'management', 'hr'];
 
+    public function __construct(private readonly ProjectMaster $projectMaster) {}
+
     /** Data for the Projects screen. */
     public function screenData(Request $request): array
     {
+        $role = $this->tenantRole($request);
+
         return [
-            'projects' => Project::with('categories')
+            'projects' => Project::with(['categories', 'versions.createdBy'])
                 ->orderBy('sort')->orderBy('name')->get(),
             'subPillars' => SubPillar::orderBy('sort')->orderBy('name')->get(),
             // Two lists on purpose: the ADD form offers active categories only (a
@@ -43,6 +53,10 @@ class ProjectController extends Controller
             'addCategories' => $this->projectCategories()->where('is_active', true)->values(),
             'projectCategories' => $this->projectCategories(),
             'canEdit' => $this->hasTenantRole($request, self::EDITOR_ROLES),
+            'employees' => Employee::active()->orderBy('name')->get()
+                ->map(fn (Employee $e) => ['id' => $e->id, 'display_name' => $e->display_name])->values(),
+            'editableFields' => $role ? $this->projectMaster->editableFields($role) : [],
+            'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
         ];
     }
 
@@ -53,11 +67,15 @@ class ProjectController extends Controller
         $this->authorizeEditor($request);
         $data = $this->validateProject($request);
         $categories = $data['categories'] ?? [];
-        unset($data['categories']);
+        unset($data['categories'], $data['effective_date'], $data['reason']);
 
-        $project = Project::create($data);
+        $project = $this->projectMaster->create(
+            app(CurrentTenant::class)->id(),
+            $data,
+            $request->attributes->get('employee'),
+            Auth::id(),
+        );
         $project->categories()->sync($categories);
-        AuditLog::record('Added project', $project->name);
 
         if ($request->wantsJson()) {
             $project->load('categories');
@@ -67,6 +85,8 @@ class ProjectController extends Controller
                     'project' => $project,
                     'categories' => $this->projectCategories(),
                     'canEdit' => true,
+                    'editableFields' => $this->projectMaster->editableFields((string) $this->tenantRole($request)),
+                    'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
                 ])->render(),
                 'count_sel' => '#ts-proj-count',
             ]);
@@ -75,21 +95,57 @@ class ProjectController extends Controller
         return back()->with('ok', $project->name.' added.');
     }
 
-    public function updateProject(Request $request, Project $project): RedirectResponse
+    public function updateProject(Request $request, Project $project): JsonResponse|RedirectResponse
     {
         $this->authorizeEditor($request);
         $this->assertTenant($project->tenant_id);
 
         $data = $this->validateProject($request, $project->id);
         $categories = $data['categories'] ?? [];
-        unset($data['categories']);
+        $effectiveDate = $data['effective_date'] ?? null;
+        $reason = $data['reason'] ?? null;
+        unset($data['categories'], $data['effective_date'], $data['reason']);
 
-        $project->update($data);
+        $version = $this->projectMaster->update(
+            $project,
+            $data,
+            (string) $this->tenantRole($request),
+            Auth::id(),
+            $effectiveDate,
+            $reason,
+        );
+
         $project->categories()->sync($categories);
         $this->unbookCardsThisProjectNoLongerFits($project, $categories);
         AuditLog::record('Updated project', $project->name);
 
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'version' => $version]);
+        }
+
         return back()->with('ok', $project->name.' updated.');
+    }
+
+    /** CR-06a §E7: closed projects reopen only through the management tier, with a reason. */
+    public function reopenProject(Request $request, Project $project): JsonResponse|RedirectResponse
+    {
+        $this->authorizeTenantRole($request, Permissions::MANAGEMENT_TIER);
+        $this->assertTenant($project->tenant_id);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        $version = $this->projectMaster->reopen(
+            $project,
+            $data['reason'],
+            $request->attributes->get('employee'),
+            Auth::id(),
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'version' => $version]);
+        }
+
+        return back()->with('ok', $project->name.' reopened.');
     }
 
     /**
@@ -143,6 +199,10 @@ class ProjectController extends Controller
     {
         $this->authorizeEditor($request);
         $this->assertTenant($project->tenant_id);
+
+        if ($project->isClosed()) {
+            throw ValidationException::withMessages(['project' => 'This project is closed. A director must reopen it first.']);
+        }
 
         $project->update(['is_active' => ! $project->is_active]);
 
@@ -206,14 +266,40 @@ class ProjectController extends Controller
     private function validateProject(Request $request, ?int $ignoreId = null): array
     {
         $tid = app(CurrentTenant::class)->id();
+        $creating = $ignoreId === null;
 
         $data = $request->validate([
+            'project_code' => [
+                $creating ? 'required' : 'nullable', 'string', 'max:40',
+                'regex:'.config('projects.code_pattern'),
+                Rule::unique('projects', 'project_code')->where('tenant_id', $tid)->ignore($ignoreId),
+            ],
             'code' => ['nullable', 'string', 'max:40'],
-            'name' => ['required', 'string', 'max:160', Rule::unique('projects', 'name')->where('tenant_id', $tid)->ignore($ignoreId)],
+            'name' => [$creating ? 'required' : 'nullable', 'string', 'max:160', Rule::unique('projects', 'name')->where('tenant_id', $tid)->ignore($ignoreId)],
+            'client' => [$creating ? 'required' : 'nullable', 'string', 'max:160'],
+            'status' => ['nullable', Rule::in(['planning', 'active', 'closed'])],
+            'contract_value' => ['nullable', 'numeric', 'min:0'],
+            'procurement_method' => ['nullable', 'string', 'max:160'],
+            'contractor' => ['nullable', 'string', 'max:160'],
+            'bond_value' => ['nullable', 'numeric', 'min:0'],
+            'bond_submitted_at' => ['nullable', 'date'],
+            'loa_date' => ['nullable', 'date'],
+            'loa_ref' => ['nullable', 'string', 'max:80'],
+            'agreement_date' => ['nullable', 'date'],
+            'agreement_ref' => ['nullable', 'string', 'max:80'],
+            'contract_start' => ['nullable', 'date'],
+            'contract_end' => ['nullable', 'date'],
+            'drive_link' => ['nullable', 'url', 'max:500'],
+            'pm_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            'pe_id' => ['nullable', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
             'sort' => ['nullable', 'integer', 'between:0,9999'],
             'is_active' => ['nullable', 'boolean'],
             'categories' => ['nullable', 'array'],
             'categories.*' => [Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
+            // CR-06a: an update may carry when the resulting version takes effect and why
+            // (a manager backdating a PM handover, say); both stay optional.
+            'effective_date' => ['nullable', 'date'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
