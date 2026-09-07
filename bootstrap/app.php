@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ApiTenant;
 use App\Http\Middleware\BlockRegistrationWhenDisabled;
+use App\Http\Middleware\DevClock;
 use App\Http\Middleware\EnforceTwoFactor;
 use App\Http\Middleware\EnsureCompanyIsActive;
 use App\Http\Middleware\EnsureModuleEnabled;
@@ -110,6 +111,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'profile.complete' => EnsureProfileComplete::class,
         ]);
         $middleware->web(append: [
+            DevClock::class,
             SetLocale::class,
             SecurityHeaders::class,
             ForcePasswordChange::class,
