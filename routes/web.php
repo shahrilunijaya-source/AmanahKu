@@ -410,9 +410,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/shared-resources/{resource}/delete', [SharedResourceController::class, 'destroy'])->name('shared-resources.destroy');
         // Company events
         Route::post('/app/events', [EventController::class, 'store'])->name('events.store');
-        // Static "rsvp" segment registered ahead of the /app/events/{event} wildcard
-        // routes below, or it would bind as {event}'s trailing segment instead.
+        // Static segments registered ahead of the /app/events/{event} wildcard routes
+        // below, or they would bind as {event}'s trailing segment instead.
+        Route::get('/app/events/photos/{photo}', [EventController::class, 'photoShow'])->name('events.photos.show');
         Route::post('/app/events/{event}/rsvp', [EventController::class, 'rsvp'])->name('events.rsvp');
+        Route::post('/app/events/{event}/attendees', [EventController::class, 'attendees'])->name('events.attendees');
+        Route::post('/app/events/{event}/photos', [EventController::class, 'storePhotos'])->name('events.photos.store');
+        Route::post('/app/events/{event}/comments', [EventController::class, 'storeComment'])->name('events.comments.store');
+        Route::post('/app/events/{event}/lessons', [EventController::class, 'storeLesson'])->name('events.lessons.store');
+        Route::post('/app/events/{event}/lessons/{lesson}/react', [EventController::class, 'lessonReact'])->name('events.lessons.react');
+        Route::post('/app/events/{event}/react', [EventController::class, 'react'])->name('events.react');
+        Route::get('/app/events/{event}', [AppController::class, 'eventShow'])->name('events.show');
         Route::post('/app/events/{event}', [EventController::class, 'update'])->name('events.update');
         Route::post('/app/events/{event}/delete', [EventController::class, 'destroy'])->name('events.destroy');
         // Offboarding / exit clearance

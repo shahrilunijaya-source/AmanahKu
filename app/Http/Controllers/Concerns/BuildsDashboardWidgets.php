@@ -9,6 +9,7 @@ use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
 use App\Models\AttendanceRecord;
 use App\Models\Claim;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Flower;
 use App\Models\LeaveBalance;
@@ -62,6 +63,11 @@ trait BuildsDashboardWidgets
                 // The Friday sign-off (CR-32 slot) is a card only inside its window;
                 // outside it the card is absent, not empty, so it leaves the picker too.
                 if ($id === 'friday' && ! DashboardWidgets::fridaySignOffOpen($now)) {
+                    return false;
+                }
+                // Same idea for 'events': absent on any day without a same-day company
+                // event carrying attendees, not just empty.
+                if ($id === 'events' && $this->todaysDashboardEvent($now) === null) {
                     return false;
                 }
                 $screen = DashboardWidgets::gatingScreen($id);
@@ -204,6 +210,7 @@ trait BuildsDashboardWidgets
             'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),
             'pulse' => $this->pulseWidget(),
+            'events' => $this->eventsWidget(),
             default => [],
         };
 
@@ -948,6 +955,60 @@ trait BuildsDashboardWidgets
                 ['v' => (string) Employee::active()->where('status', 'on_leave')->count(), 'label' => 'On leave today', 'hot' => false],
                 ['v' => 'RM '.number_format($owed, 0), 'label' => 'Claims awaiting payout', 'hot' => false],
             ],
+        ];
+    }
+
+    /**
+     * The company event the 'events' widget shows, if any: one with attendees that
+     * either starts within the next 30 days or ended within the last 7 — the window
+     * OPEN.md's "QA / CR-11" entry pins for dashboard-slots.md's "upcoming or
+     * just-past". The date filter is a coarse pre-filter; the exact boundary is
+     * checked against starts_at/ends_at in PHP.
+     */
+    private function todaysDashboardEvent(CarbonImmutable $now): ?CompanyEvent
+    {
+        return CompanyEvent::with(['rsvps.employee:id,name,nickname', 'photos', 'lessons.employee:id,name,nickname'])
+            ->whereDate('event_date', '>=', $now->subDays(8)->toDateString())
+            ->whereDate('event_date', '<=', $now->addDays(31)->toDateString())
+            ->orderBy('event_date')
+            ->orderBy('start_time')
+            ->get()
+            ->first(function (CompanyEvent $e) use ($now) {
+                if ($e->rsvps->isEmpty()) {
+                    return false;
+                }
+                $start = $e->startsAtOrDate();
+                $end = $e->endsAtOrDate();
+
+                return $now->between($start, $end)
+                    || $start->between($now, $now->addDays(30))
+                    || $end->between($now->subDays(7), $now);
+            });
+    }
+
+    /**
+     * The upcoming-or-just-past company event card: who's going before it happens,
+     * a few photos and the newest lesson line once it's over. Absent entirely (see
+     * dashboardData()'s 'events' filter) rather than empty when there is none.
+     *
+     * @return array{event: ?CompanyEvent, isPast: bool, date: string, attendees: list<string>, photos: list<mixed>, lessonLine: ?string}
+     */
+    private function eventsWidget(): array
+    {
+        $event = $this->todaysDashboardEvent(CarbonImmutable::now());
+        if (! $event) {
+            return ['event' => null];
+        }
+
+        $isPast = $event->isOver();
+
+        return [
+            'event' => $event,
+            'isPast' => $isPast,
+            'date' => $event->startsAtOrDate()->format('j M Y'),
+            'attendees' => $event->rsvps->map(fn ($r) => (string) $r->employee?->display_name)->filter()->values()->all(),
+            'photos' => $isPast ? $event->photos->take(4)->values()->all() : [],
+            'lessonLine' => $isPast ? $event->lessons->sortByDesc('id')->first()?->learnt : null,
         ];
     }
 }

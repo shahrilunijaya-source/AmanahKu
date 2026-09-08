@@ -126,6 +126,15 @@ final class DashboardWidgets
             'blurb_ms' => 'Bilangan kakitangan, kad waktu lewat kunci, tuntutan tertunggak.',
             'category' => 'Team', 'roles' => Permissions::FINAL_APPROVAL_ROLES, 'screen' => null, 'column' => 'right',
         ],
+        // CR-11 (docs/build/contracts/dashboard-slots.md): present only for an upcoming or
+        // just-past company event with attendees — see BuildsDashboardWidgets' 'events'
+        // filter, mirrors the 'friday' conditional card.
+        'events' => [
+            'title' => 'Events', 'title_ms' => 'Acara',
+            'blurb' => 'An event coming up or just wrapped, and who is going.',
+            'blurb_ms' => 'Acara yang akan datang atau baru selesai, dan siapa yang hadir.',
+            'category' => 'Team', 'roles' => null, 'screen' => 'events', 'column' => 'right', 'after' => 'attendance',
+        ],
     ];
 
     /**

@@ -13,6 +13,7 @@ use App\Http\Controllers\Concerns\BuildsWorkData;
 use App\Http\Controllers\Concerns\RoutesApprovalsByReportingLine;
 use App\Http\Requests\UpdateDashboardPrefsRequest;
 use App\Models\AuditLog;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Timesheet;
@@ -211,15 +212,32 @@ class AppController extends Controller
             ];
         }
 
+        return $this->wrapScreen($request, $screen, $role, $persona, $employee, $tenant, $page, $data);
+    }
+
+    /**
+     * The page chrome every screen shares: nav, persona strip, quick actions, the
+     * Knowledge/Message header context, and the view resolution (a legacy slug that
+     * was merged into another screen, a `$viewOverride` for a screen rendered from a
+     * route that isn't the `/app/{screen}` catch-all, or `screens.$screen`/`screens.empty`).
+     * Split out of screen() so a one-off page — e.g. the CR-11 event detail page, which
+     * needs its own `/app/events/{event}` route rather than a screen slug — gets exactly
+     * the same shell without duplicating this assembly.
+     *
+     * @param  array{title: string, sub: string, title_ms?: string, sub_ms?: string, crumb?: list<string>}  $page
+     * @param  array<string, mixed>  $data
+     */
+    private function wrapScreen(Request $request, string $screen, string $role, string $persona, ?Employee $employee, Tenant $tenant, array $page, array $data, ?string $viewOverride = null): ViewContract
+    {
         // claim-approvals was merged into the unified claims screen, and
         // project-quick-create into the Projects register; both slugs still resolve
         // (deep links, bookmarks) and land on the screen that replaced them.
-        $viewScreen = match ($screen) {
+        $viewScreen = $viewOverride ?? match ($screen) {
             'claim-approvals' => 'claims',
             'project-quick-create' => 'projects',
             default => $screen,
         };
-        $view = View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty';
+        $view = View::exists($viewScreen) ? $viewScreen : (View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty');
 
         return view($view, array_merge([
             'screen' => $screen,
@@ -254,6 +272,36 @@ class AppController extends Controller
             // the signed-in user has no employee record in this workspace.
             'profileCompletion' => $employee ? app(ProfileCompletion::class)->summary($employee) : null,
         ], $this->quickActions($employee, $role), app(KnowledgeController::class)->context($employee), app(MessageController::class)->context($employee), $data));
+    }
+
+    /**
+     * CR-11: one event's detail page — attendee list, and (once
+     * CompanyEvent::isOver()) the Photos/Comments/Lessons learnt sections. Same shell
+     * as the `events` screen; nav highlighting and the module gate both key off
+     * 'events' even though the URL carries an id, not a screen slug.
+     */
+    public function eventShow(Request $request, CompanyEvent $event): ViewContract
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        abort_unless($event->tenant_id === $tenant?->id, 404);
+        abort_unless(app(FeatureManager::class)->screenAllowed($tenant, 'events'), 404);
+
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $data = app(EventController::class)->show($request, $event, $employee);
+
+        $page = [
+            'title' => $event->title,
+            'sub' => 'Company event',
+            'crumb' => ['Events', $event->title],
+        ];
+
+        return $this->wrapScreen($request, 'events', $role, $persona, $employee, $tenant, $page, $data, 'screens.event-show');
     }
 
     /**
