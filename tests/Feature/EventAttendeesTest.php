@@ -102,6 +102,7 @@ class EventAttendeesTest extends TestCase
 
         $this->actingInTenantAs($hr)->postJson("/app/events/{$event->id}/attendees", ['attendees' => []])->assertSuccessful();
         $this->assertNotNull($firstCard->fresh()->archived_at);
+        $this->assertNotNull($firstCard->fresh()->cancelled_at);
 
         $this->actingInTenantAs($hr)->postJson("/app/events/{$event->id}/attendees", ['attendees' => [$staff->id]])->assertSuccessful();
 
@@ -125,5 +126,63 @@ class EventAttendeesTest extends TestCase
         $this->actingInTenantAs($hr)
             ->postJson("/app/events/{$event->id}/attendees", ['attendees' => [$stranger->id]])
             ->assertStatus(422);
+    }
+
+    /** QA F3 (CR-11 scope 5): the creator may set attendees even without a privileged role. */
+    #[Test]
+    public function the_event_creator_may_set_attendees_without_a_privileged_role(): void
+    {
+        $creator = $this->person('Creator');
+        $guest = $this->person('Guest');
+        $event = $this->event($this->tenant);
+        $event->update(['created_by_employee_id' => $creator->id]);
+
+        $this->actingInTenantAs($creator)
+            ->postJson("/app/events/{$event->id}/attendees", ['attendees' => [$guest->id]])
+            ->assertSuccessful();
+
+        $this->assertDatabaseHas('event_rsvps', ['company_event_id' => $event->id, 'employee_id' => $guest->id]);
+
+        $this->actingInTenantAs($creator)->get("/app/events/{$event->id}")
+            ->assertOk()
+            ->assertSee('data-js="event-attendees-form"', false);
+    }
+
+    /** QA F1/F2 (CR-11): the Events screen links to the event page and its form takes the exact slot. */
+    #[Test]
+    public function the_events_screen_links_to_the_event_page_and_asks_for_start_and_end_times(): void
+    {
+        $hr = $this->person('Hr', 'hr');
+        $event = $this->event($this->tenant);
+
+        $this->actingInTenantAs($hr)->get('/app/events')
+            ->assertOk()
+            ->assertSee(route('events.show', $event), false)
+            ->assertSee('name="starts_at"', false)
+            ->assertSee('name="ends_at"', false);
+    }
+
+    /** QA F4/F5 (CR-11): the plain form redirects back instead of showing JSON, and the organiser can mark attendance from the page. */
+    #[Test]
+    public function the_attendees_form_redirects_back_and_offers_a_status_control_per_attendee(): void
+    {
+        $hr = $this->person('Hr', 'hr');
+        $guest = $this->person('Guest');
+        $event = $this->event($this->tenant);
+
+        $this->actingInTenantAs($hr)
+            ->from("/app/events/{$event->id}")
+            ->post("/app/events/{$event->id}/attendees", ['attendees' => ['', (string) $guest->id]])
+            ->assertRedirect("/app/events/{$event->id}");
+
+        $this->actingInTenantAs($hr)->get("/app/events/{$event->id}")
+            ->assertOk()
+            ->assertSee('data-js="event-attendee-status"', false)
+            ->assertSee('name="employee_id" value="'.$guest->id.'"', false);
+
+        $this->actingInTenantAs($hr)
+            ->post("/app/events/{$event->id}/attendees", ['attendees' => ['']])
+            ->assertRedirect();
+        $this->assertDatabaseMissing('event_rsvps', ['company_event_id' => $event->id, 'employee_id' => $guest->id]);
     }
 }

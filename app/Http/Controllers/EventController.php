@@ -263,7 +263,7 @@ class EventController extends Controller
 
         $target = $employee;
         if (! empty($data['employee_id']) && (int) $data['employee_id'] !== $employee->id) {
-            $this->authorizePrivileged($request);
+            abort_unless($this->canManageAttendees($request, $event), 403, 'Only the event creator, managers, HR and management can mark attendance for someone else.');
             $target = Employee::findOrFail($data['employee_id']);
         }
 
@@ -284,16 +284,19 @@ class EventController extends Controller
     }
 
     /**
-     * CR-11: replace the event's attendee list. Privileged-only, like store(). Diffed
+     * CR-11: replace the event's attendee list. Creator or privileged role (scope 5). Diffed
      * against the current RSVP rows so re-posting the same set is a no-op: newly added
      * ids get a Going RSVP, an Event card, and a calendar upsert intent; dropped ids
      * lose their RSVP row and have their card archived (not deleted — history stays)
      * with a calendar delete intent.
      */
-    public function attendees(Request $request, CompanyEvent $event): JsonResponse
+    public function attendees(Request $request, CompanyEvent $event): JsonResponse|RedirectResponse
     {
         abort_unless($event->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->authorizePrivileged($request);
+        abort_unless($this->canManageAttendees($request, $event), 403, 'Only the event creator, managers, HR and management can set attendees.');
+
+        // QA F4: the plain form's hidden blank keeps "nobody selected" posting an (empty) array.
+        $request->merge(['attendees' => array_values(array_filter((array) $request->input('attendees', []), fn ($v) => $v !== '' && $v !== null))]);
 
         $data = $request->validate([
             'attendees' => ['present', 'array'],
@@ -325,7 +328,7 @@ class EventController extends Controller
             AuditLog::record('Set event attendees', $event->title);
         }
 
-        return response()->json(['ok' => true]);
+        return $request->expectsJson() ? response()->json(['ok' => true]) : back()->with('ok', 'Attendees saved.');
     }
 
     /**
@@ -358,7 +361,7 @@ class EventController extends Controller
             'event' => $event,
             'attendees' => $attendees,
             'isAttendee' => $isAttendee,
-            'canManageAttendees' => $this->hasTenantRole($request, self::PRIVILEGED_ROLES),
+            'canManageAttendees' => $this->canManageAttendees($request, $event),
             'isOver' => $isOver,
             'photos' => $isOver ? $event->photos()->with('employee:id,name,nickname')->get() : collect(),
             'lessons' => $lessons,
@@ -561,6 +564,15 @@ class EventController extends Controller
         ];
     }
 
+    /** QA F3 (CR-11 scope 5): the event creator or a privileged role may set attendees. */
+    private function canManageAttendees(Request $request, CompanyEvent $event): bool
+    {
+        $employee = $request->attributes->get('employee');
+
+        return $this->hasTenantRole($request, self::PRIVILEGED_ROLES)
+            || ($employee && $event->created_by_employee_id === $employee->id);
+    }
+
     private function authorizePrivileged(Request $request): void
     {
         abort_unless(
@@ -618,7 +630,8 @@ class EventController extends Controller
         }
 
         $externalId = $card->google_event_id;
-        $card->update(['archived_at' => now()]);
+        // QA F10: archived AND cancelled, as the CR-11 OPEN shape and the S13 handoff both say.
+        $card->update(['archived_at' => now(), 'cancelled_at' => now()]);
 
         $employee = Employee::find($employeeId);
         if ($externalId && $employee) {

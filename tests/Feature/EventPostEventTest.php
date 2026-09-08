@@ -165,4 +165,23 @@ class EventPostEventTest extends TestCase
             ->assertSee('data-widget="events"', false)
             ->assertSee('Ops Retro');
     }
+
+    /** QA F7/F8 (CR-11 scope 3): the page carries a reply form per comment and live reaction buttons. */
+    #[Test]
+    public function the_event_page_offers_a_reply_form_and_live_reaction_buttons(): void
+    {
+        Carbon::setTestNow('2026-07-02 09:00:00');
+        $hr = $this->person('HR', 'hr');
+        $event = $this->pastEvent();
+        $this->actingInTenantAs($hr)->postJson("/app/events/{$event->id}/attendees", ['attendees' => [$hr->id]])->assertSuccessful();
+        $comment = $this->actingInTenantAs($hr)->postJson("/app/events/{$event->id}/comments", ['body' => 'First'])->json('id');
+        $this->actingInTenantAs($hr)->postJson("/app/events/{$event->id}/lessons", ['learnt' => 'Something'])->assertSuccessful();
+
+        $this->actingInTenantAs($hr)->get("/app/events/{$event->id}")
+            ->assertOk()
+            ->assertSee('data-js="event-reply-form"', false)
+            ->assertSee('name="parent_id" value="'.$comment.'"', false)
+            ->assertSee('button[data-react-url]', false)
+            ->assertSee('data-reaction-key=', false);
+    }
 }

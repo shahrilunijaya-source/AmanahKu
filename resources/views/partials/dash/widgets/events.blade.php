@@ -14,7 +14,16 @@
                         @endif
                     </span>
                     @if (! empty($w['photos']))
-                        <span class="s">{{ count($w['photos']) }} {{ \Illuminate\Support\Str::plural('photo', count($w['photos'])) }}</span>
+                        {{-- QA F9 (scope 6): a photo strip once the event is over; text-only under Keep it Plain. --}}
+                        @if ($w['plain'] ?? false)
+                            <span class="s">{{ count($w['photos']) }} {{ \Illuminate\Support\Str::plural('photo', count($w['photos'])) }}</span>
+                        @else
+                            <span class="s" style="display:flex;gap:4px;margin-top:4px;">
+                                @foreach ($w['photos'] as $photo)
+                                    <img src="{{ route('events.photos.show', $photo) }}" alt="{{ $photo->caption }}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;">
+                                @endforeach
+                            </span>
+                        @endif
                     @endif
                 @else
                     <span class="s">{{ $w['date'] ?? '' }} — {{ implode(', ', $w['attendees'] ?? []) }}</span>

@@ -210,7 +210,7 @@ trait BuildsDashboardWidgets
             'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),
             'pulse' => $this->pulseWidget(),
-            'events' => $this->eventsWidget(),
+            'events' => $this->eventsWidget() + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             default => [],
         };
 

@@ -26,6 +26,7 @@
         <form method="post" action="{{ route('events.attendees', $event) }}" data-js="event-attendees-form">
             @csrf
             @method('POST')
+            <input type="hidden" name="attendees[]" value="">
             <select name="attendees[]" multiple size="8" style="min-width:280px;">
                 @foreach ($assignableEmployees as $person)
                     <option value="{{ $person->id }}" @selected($attendees->firstWhere('employee.id', $person->id))>
@@ -40,7 +41,22 @@
     <h2>Who's going</h2>
     <ul>
         @forelse ($attendees as $a)
-            <li>{{ $a['employee']?->display_name }} — {{ $a['responseLabel'] }}</li>
+            <li>
+                {{ $a['employee']?->display_name }} — {{ $a['responseLabel'] }}
+                @if ($canManageAttendees && $a['employee'])
+                    {{-- QA F5: organiser marks Registered / Attended per person (scope 1), same events.rsvp route with employee_id. --}}
+                    <form method="post" action="{{ route('events.rsvp', $event) }}" style="display:inline;" data-js="event-attendee-status">
+                        @csrf
+                        <input type="hidden" name="employee_id" value="{{ $a['employee']->id }}">
+                        <select name="response">
+                            @foreach ($responseLabel as $value => $label)
+                                <option value="{{ $value }}" @selected($a['response'] === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit">Update</button>
+                    </form>
+                @endif
+            </li>
         @empty
             <li>No attendees yet.</li>
         @endforelse
@@ -86,6 +102,13 @@
                 @foreach ($comments as $comment)
                     <li>
                         <strong>{{ $comment->employee?->display_name }}</strong>: {{ $comment->body }}
+                        {{-- QA F8 (scope 3, "others can react and reply"): a reply posts the same route with parent_id. --}}
+                        <form method="post" action="{{ route('events.comments.store', $event) }}" style="display:inline;" data-js="event-reply-form">
+                            @csrf
+                            <input type="hidden" name="parent_id" value="{{ $comment->id }}">
+                            <input type="text" name="body" required placeholder="Reply">
+                            <button type="submit">Reply</button>
+                        </form>
                         @if ($comment->replies->isNotEmpty())
                             <ul>
                                 @foreach ($comment->replies as $reply)
@@ -121,7 +144,7 @@
                     <div class="uj-reactions" data-reaction-target="lesson-{{ $lesson->id }}">
                         @foreach ($reactionCatalog as $r)
                             <button type="button" data-react-url="{{ route('events.lessons.react', [$event, $lesson]) }}" data-reaction-key="{{ $r['key'] }}">
-                                {{ $r['icon'] }} {{ $lessonReactions[$lesson->id]['reactions'][$r['key']] ?? 0 }}
+                                <span>{{ $r['icon'] }}</span> {{ $lessonReactions[$lesson->id]['reactions'][$r['key']] ?? 0 }}
                             </button>
                         @endforeach
                     </div>
@@ -130,4 +153,24 @@
         </section>
     @endif
 </div>
+{{-- QA F7: the reaction buttons post through fetch and redraw their own counts (toggle semantics, see EventController::toggleReaction). --}}
+<script>
+document.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-react-url]');
+    if (! btn) return;
+    const token = document.querySelector('meta[name=csrf-token]')?.content;
+    const res = await fetch(btn.dataset.reactUrl, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ reaction: btn.dataset.reactionKey }),
+    });
+    if (! res.ok) return;
+    const state = await res.json();
+    btn.parentElement.querySelectorAll('button[data-reaction-key]').forEach((b) => {
+        const key = b.dataset.reactionKey;
+        b.lastChild.textContent = ' ' + (state.reactions[key] ?? 0);
+        b.style.fontWeight = state.mine.includes(key) ? '700' : '';
+    });
+});
+</script>
 @endsection

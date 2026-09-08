@@ -15,7 +15,7 @@
                                             data-role and the Tagged / Reviewer label.
 --}}
 @php
-    $wcTag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)']];
+    $wcTag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)'], 'event' => ['Event', 'var(--success)']]; // QA F6 (CR-11): an Event card is not a Task
     [$wcTypeLabel, $wcTypeColor] = $wcTag[$c->type] ?? ['Task', 'var(--info)'];
     $wcLabelDef = \App\Models\WorkItem::LABELS;
     $wcCompact = $compact ?? false;
