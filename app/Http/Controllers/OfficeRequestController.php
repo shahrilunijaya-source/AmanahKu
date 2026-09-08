@@ -157,7 +157,7 @@ class OfficeRequestController extends Controller
                 ->filter()->unique();
 
             foreach ($recipients as $userId) {
-                AppNotification::send($userId, "Urgent office request: {$officeRequest->title}", $data['description']);
+                AppNotification::send($userId, "Urgent office request: {$officeRequest->title}", $data['description'], url('/app/office-requests'));
             }
         }
 
@@ -264,7 +264,7 @@ class OfficeRequestController extends Controller
         $voterEmployeeIds = OfficeRequestVote::where('office_request_id', $officeRequest->id)->pluck('employee_id');
         $userIds = Employee::whereIn('id', $voterEmployeeIds)->pluck('user_id')->filter()->unique();
         foreach ($userIds as $userId) {
-            AppNotification::send($userId, "Office request done: {$officeRequest->title}", $data['note']);
+            AppNotification::send($userId, "Office request done: {$officeRequest->title}", $data['note'], url('/app/office-requests'));
         }
 
         return response()->json(['ok' => true]);
@@ -318,7 +318,7 @@ class OfficeRequestController extends Controller
         $doneInMonth = OfficeRequest::whereBetween('done_at', [$start, $end])->get(['created_at', 'done_at']);
         $avgDays = $doneInMonth->isEmpty() ? 0.0 : round(
             $doneInMonth->avg(fn (OfficeRequest $r) => $r->created_at->diffInMinutes($r->done_at) / 1440),
-            4
+            2 // QA F5: two decimals in JSON, one on the page
         );
 
         return [
@@ -392,7 +392,7 @@ class OfficeRequestController extends Controller
      */
     private function adminDepartmentEmployees(int $tenantId): Collection
     {
-        $dept = Department::where('tenant_id', $tenantId)->where('name', self::ADMIN_DEPARTMENT)->first();
+        $dept = Department::where('tenant_id', $tenantId)->where('name', 'like', self::ADMIN_DEPARTMENT.'%')->orderBy('id')->first(); // QA F1: the real tenant calls it "Administration"
 
         return $dept
             ? Employee::active()->where('tenant_id', $tenantId)->where('department_id', $dept->id)->get()

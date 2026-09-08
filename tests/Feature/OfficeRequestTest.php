@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OfficeRequest;
 use App\Models\Position;
@@ -167,5 +168,53 @@ class OfficeRequestTest extends TestCase
 
         $this->assertSame(0, DB::table('office_request_votes')->where('office_request_id', $request->id)->where('employee_id', $intruder->id)->count());
         $this->assertSame('open', $request->fresh()->status);
+    }
+
+    /** QA F1: the real tenant's department is "Administration", so the helper roster matches the "Admin" prefix. */
+    #[Test]
+    public function helpers_come_from_a_department_whose_name_starts_with_admin(): void
+    {
+        $dept = Department::create(['tenant_id' => $this->tenant->id, 'name' => 'Administration']);
+        $helper = $this->person($this->tenant, 'Admin Exec', 'employee', ['department_id' => $dept->id]);
+        $requester = $this->person($this->tenant, 'Requester');
+
+        $card = $this->raise($this->tenant, $requester)->workItem;
+
+        $this->assertSame([$helper->id], $card->participants()->wherePivot('role', 'helper')->pluck('employees.id')->all());
+    }
+
+    /** QA F2 to F5: spec category names on the screen, notification links, reopen button only inside the window, one-decimal average. */
+    #[Test]
+    public function the_screens_use_the_spec_category_names_link_notifications_and_hide_reopen_outside_the_window(): void
+    {
+        $requester = $this->person($this->tenant, 'Requester');
+        $boss = Employee::where('name', 'Finance Boss')->firstOrFail();
+        $this->actingIn($this->tenant, $requester)->postJson('/app/office-requests', [
+            'category' => 'it', 'title' => 'Mouse rosak', 'description' => 'Left click dead.',
+            'location' => 'Level 2', 'urgency' => 'urgent', 'urgency_reason' => 'Cannot work.',
+        ])->assertSuccessful();
+        $request = OfficeRequest::where('title', 'Mouse rosak')->firstOrFail();
+
+        $this->actingIn($this->tenant, $requester)->get('/app/office-requests')
+            ->assertOk()
+            ->assertSee('IT &amp; equipment', false)
+            ->assertDontSee('>It<', false);
+
+        $this->assertSame(url('/app/office-requests'), DB::table('app_notifications')->where('user_id', $boss->user_id)->value('url'));
+
+        Carbon::setTestNow('2026-09-02 09:00:00');
+        $this->actingIn($this->tenant, $boss)->postJson("/app/office-requests/{$request->id}/done", ['note' => 'Replaced.'])->assertOk();
+        $this->assertSame(url('/app/office-requests'), DB::table('app_notifications')->where('user_id', $requester->user_id)->value('url'));
+
+        $this->actingIn($this->tenant, $requester)->get('/app/office-requests')->assertOk()->assertSee('Reopen');
+        Carbon::setTestNow('2026-09-06 09:00:00');
+        $this->actingIn($this->tenant, $requester)->get('/app/office-requests')->assertOk()->assertDontSee('Reopen');
+
+        $this->actingIn($this->tenant, $boss)->get('/app/office-requests/insights?month=2026-09')
+            ->assertOk()
+            ->assertSee('1.0')
+            ->assertSee('IT &amp; equipment', false);
+        $this->actingIn($this->tenant, $boss)->getJson('/app/office-requests/insights?month=2026-09')
+            ->assertOk()->assertJson(['avg_days_to_close' => 1.0]);
     }
 }

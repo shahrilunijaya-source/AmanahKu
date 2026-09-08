@@ -60,7 +60,7 @@
                        x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</label>
                 <select name="category" x-model="category" required class="uj-lv-in">
                     @foreach ($orCategories as $c)
-                        <option value="{{ $c }}" @selected(old('category') === $c)>{{ ucfirst($c) }}</option>
+                        <option value="{{ $c }}" @selected(old('category') === $c) x-text="$store.ui.lang==='en' ? @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][0]) : @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][1])">{{ \App\Models\OfficeRequest::CATEGORY_LABELS[$c][0] }}</option>
                     @endforeach
                 </select>
             </div>
@@ -174,9 +174,9 @@
                         <div>
                             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                 <span style="font-size:14px;font-weight:600;color:var(--ink);">{{ $r->title }}</span>
-                                <span class="uj-stamp" style="font-size:10.5px;">{{ ucfirst($r->category) }}</span>
+                                <span class="uj-stamp" style="font-size:10.5px;" x-text="$store.ui.lang==='en' ? @js($r->categoryLabel()) : @js($r->categoryLabel(true))">{{ $r->categoryLabel() }}</span>
                                 @if ($r->urgency === 'urgent')
-                                    <span class="uj-stamp" data-tone="error">{{ $r->urgency === 'urgent' ? 'Urgent' : '' }}</span>
+                                    <span class="uj-stamp" data-tone="error" x-text="$store.ui.lang==='en' ? 'Urgent' : 'Segera'">Urgent</span>
                                 @endif
                             </div>
                             <p style="font-size:12.5px;color:var(--body);margin:5px 0 0;">{{ $r->description }}</p>
@@ -198,7 +198,7 @@
                                 <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptNote({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Note' : 'Nota'">Note</button>
                                 <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptDone({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'">Done</button>
                             @endif
-                            @if ($r->status === 'done' && $r->employee_id === ($employee->id ?? null))
+                            @if ($r->status === 'done' && $r->employee_id === ($employee->id ?? null) && $r->withinReopenWindow())
                                 <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="reopen({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'">Reopen</button>
                             @endif
                         </div>
@@ -221,6 +221,11 @@ function officeRequests() {
         title: @js(old('title', '')),
         urgency: @js(old('urgency', 'normal')),
         similar: [],
+        // QA F4: a refused action (422/403) shows the server's message instead of a silent reload.
+        settle(r) {
+            if (r.ok) { window.location.reload(); return; }
+            r.json().then(d => alert(d.message || 'Something went wrong.')).catch(() => alert('Something went wrong.'));
+        },
         checkSimilar() {
             if (this.title.trim().length < 3) { this.similar = []; return; }
             fetch('{{ route('office-requests.similar') }}?title=' + encodeURIComponent(this.title))
@@ -230,7 +235,7 @@ function officeRequests() {
             fetch(`/app/office-requests/${id}/upvote`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
-            }).then(() => window.location.reload());
+            }).then(r => this.settle(r));
         },
         promptNote(id) {
             const note = prompt(this.$store.ui.lang === 'en' ? 'Note for the requester:' : 'Nota untuk pemohon:');
@@ -239,7 +244,7 @@ function officeRequests() {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note }),
-            }).then(() => window.location.reload());
+            }).then(r => this.settle(r));
         },
         promptDone(id) {
             const note = prompt(this.$store.ui.lang === 'en' ? 'Closing note:' : 'Nota penutup:');
@@ -248,13 +253,13 @@ function officeRequests() {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note }),
-            }).then(() => window.location.reload());
+            }).then(r => this.settle(r));
         },
         reopen(id) {
             fetch(`/app/office-requests/${id}/reopen`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
-            }).then(() => window.location.reload());
+            }).then(r => this.settle(r));
         },
     };
 }

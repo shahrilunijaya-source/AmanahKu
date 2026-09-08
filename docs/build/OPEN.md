@@ -361,3 +361,10 @@ These are already known before the run starts. A session that hits one of them s
   `docs/specs/CR-21.md` scope 4 and 7; the "QA / CR-21 / shapes fixed by CR21Test" entry above
   (own wording quoted); `tests/Acceptance/CR21Test.php` (read in full — no assertion on `due_at`,
   no call to `/eta` or a reassign route).
+
+## QA / CR-21 / grade fixes F1–F6 decided during the S14 grade
+- Question: S14 passed CR21Test but against the real tenant the T.A.A. card had no helpers (department is "Administration", not "Admin"), the categories rendered as raw slugs ("It"), notifications carried no link, the Reopen button lingered past the window and swallowed the 422, the average rendered as `0.0011`, and the Urgent stamp ignored BM.
+- Decided: fixed in the grade commit with the smallest change each time. Helpers come from the first department whose name starts with `Admin`; `OfficeRequest::CATEGORY_LABELS` carries the spec's EN names plus BM; both `AppNotification::send` calls link to `/app/office-requests`; Reopen renders only inside `withinReopenWindow()` and every board action reports a refusal through one `settle()` handler; JSON average rounds to two decimals and the page shows one; Urgent reads "Segera" in BM.
+- Alternatives: rename the tenant's department to "Admin" (rejected, data edits are not fixes); a config key for the helper department (rejected, nothing else in the app is configured that way yet; add it if a second tenant needs a different name); category labels through the `lang/` files (rejected, every other screen keeps EN/BM pairs inline with `$store.ui.lang`); a named route for the board (rejected, the `/app/{screen}` catch-all serves it like every other screen).
+- Reversal cost: cheap. Each fix is one view or one controller line; the label map is additive. The prefix match is the only behavioural change and is described in the S14 grade notes.
+- Source: `docs/specs/CR-21.md` scope 1, 3, 6 and acceptance 1 to 5; `docs/build/sessions/S14/grade.md`.

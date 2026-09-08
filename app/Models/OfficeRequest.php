@@ -34,6 +34,16 @@ class OfficeRequest extends Model implements HasAuditedFields
 
     public const CATEGORIES = ['facilities', 'vehicle', 'pantry', 'it', 'cleaning', 'other'];
 
+    /** QA F2 (CR-21 scope 1): the six categories as the spec names them, EN and BM. */
+    public const CATEGORY_LABELS = [
+        'facilities' => ['Facilities repair', 'Baiki kemudahan'],
+        'vehicle' => ['Vehicle', 'Kenderaan'],
+        'pantry' => ['Pantry & supplies', 'Pantri & bekalan'],
+        'it' => ['IT & equipment', 'IT & peralatan'],
+        'cleaning' => ['Cleaning', 'Pembersihan'],
+        'other' => ['Other', 'Lain-lain'],
+    ];
+
     public const URGENCIES = ['low', 'normal', 'urgent'];
 
     public const STATUSES = ['open', 'in_progress', 'done'];
@@ -71,6 +81,11 @@ class OfficeRequest extends Model implements HasAuditedFields
     public function comments(): HasMany
     {
         return $this->hasMany(OfficeRequestComment::class)->orderBy('created_at');
+    }
+
+    public function categoryLabel(bool $malay = false): string
+    {
+        return self::CATEGORY_LABELS[$this->category][$malay ? 1 : 0] ?? ucfirst((string) $this->category);
     }
 
     /** Reopen window: the requester only, within 3 calendar days of done_at. */

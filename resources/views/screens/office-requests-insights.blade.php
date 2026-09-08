@@ -13,7 +13,7 @@
         </div>
         <div class="uj-card" style="padding:18px 22px;min-width:150px;">
             <p style="font-size:11.5px;color:var(--muted);margin:0 0 4px;" x-text="$store.ui.lang==='en' ? 'Avg days to close' : 'Purata hari selesai'">Avg days to close</p>
-            <p style="font-size:26px;font-weight:700;color:var(--ink);margin:0;">{{ $avg_days_to_close }}</p>
+            <p style="font-size:26px;font-weight:700;color:var(--ink);margin:0;">{{ number_format((float) $avg_days_to_close, 1) }}</p>
         </div>
     </div>
 
@@ -23,7 +23,7 @@
         </div>
         @foreach ($by_category as $category => $count)
             <div style="display:flex;justify-content:space-between;padding:8px 20px;border-top:1px solid var(--hairline-soft);font-size:13px;">
-                <span>{{ ucfirst($category) }}</span>
+                <span x-text="$store.ui.lang==='en' ? @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$category][0] ?? ucfirst($category)) : @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$category][1] ?? ucfirst($category))">{{ \App\Models\OfficeRequest::CATEGORY_LABELS[$category][0] ?? ucfirst($category) }}</span>
                 <span style="color:var(--muted);">{{ $count }}</span>
             </div>
         @endforeach
