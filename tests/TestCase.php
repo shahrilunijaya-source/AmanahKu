@@ -6,6 +6,7 @@ use App\Models\PlatformFeature;
 use App\Services\FeatureManager;
 use App\Support\Features;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
@@ -29,6 +30,15 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // bootstrap/app.php's withSchedule() closure only runs once this test's console
+        // kernel has bootstrapped (Illuminate\Console\Application's constructor, triggered
+        // by any Artisan::call). RefreshDatabase only forces that for the very first test
+        // in the whole run (its migrate:fresh is skipped on every later test), so a test
+        // that reads app(Schedule::class)->events() without calling an Artisan command of
+        // its own first sees an empty schedule purely by test order (docs/build/OPEN.md
+        // S15/CR-17). schedule:list is a harmless read; this warms the hook for everyone.
+        Artisan::call('schedule:list');
 
         if (Schema::hasTable('platform_features')) {
             PlatformFeature::upsert(

@@ -228,12 +228,23 @@ final class DashboardBands
      *
      * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}}
      */
-    public static function managementSlot(): array
+    /**
+     * CR-17: lateness today and overdue-by-Primary-Owner, always rendered for
+     * FINAL_APPROVAL_ROLES (CR32Test pins exactly one band, quiet day or not) — an
+     * empty panel just shows its own "nothing to show" line.
+     *
+     * @param  list<array{employee_id:int,name:string,status_en:string,status_ms:string}>  $lateness
+     * @param  list<array{owner_id:int,owner_name:string,cards:list<array{id:int,title:string,days_overdue:int}>}>  $overdue
+     */
+    public static function managementSlot(array $lateness, array $overdue, string $scope = 'company'): array
     {
         return [
             'kicker' => ['en' => 'Management', 'ms' => 'Pengurusan'],
             'title' => ['en' => 'Lateness today and overdue by Primary Owner', 'ms' => 'Lewat hari ini dan tertunggak mengikut Pemilik Utama'],
-            'sub' => ['en' => 'The panels open here once the figures are wired in.', 'ms' => 'Panel akan dibuka di sini setelah angka disambungkan.'],
+            'sub' => ['en' => 'Excludes leave, WFH and client-site staff. No grace applied.', 'ms' => 'Tidak termasuk cuti, WFH dan lapangan pelanggan. Tiada tempoh bertolak ansur.'],
+            'lateness' => $lateness,
+            'overdue' => $overdue,
+            'scope' => $scope,
         ];
     }
 

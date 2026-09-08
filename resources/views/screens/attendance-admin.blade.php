@@ -71,6 +71,22 @@
         <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
     </form>
     <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.' : 'Terpakai pada setiap susunan — pejabat, klien, kerja-dari-rumah dan hibrid. Staf yang clock in selepas tempoh ini mesti beri sebab sebelum rekod diterima.'">Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.</p>
+    @if ($role === 'hr')
+    {{-- CR-17 item 9 (QA F1): HR marks a system incident window; every clock-in inside it
+         reads "Unverified" on the management lateness panel instead of a late figure. --}}
+    <form method="post" action="{{ route('attendance.incidents.store') }}" data-incident-form style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);">
+        @csrf
+        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Incident from' : 'Insiden dari'">Incident from</span></label><input name="starts_at" type="datetime-local" value="{{ old('starts_at') }}" required style="{{ $fs }}width:200px;" /></div>
+        <div><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Until' : 'Hingga'">Until</span></label><input name="ends_at" type="datetime-local" value="{{ old('ends_at') }}" required style="{{ $fs }}width:200px;" />
+            @error('ends_at')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+        </div>
+        <div style="flex:1;min-width:220px;"><label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Note' : 'Nota'">Note</span></label><input name="note" type="text" maxlength="255" value="{{ old('note') }}" required placeholder="Clock server down" style="{{ $fs }}width:100%;" />
+            @error('note')<div style="color:var(--red);font-size:11.5px;margin-top:4px;">{{ $message }}</div>@enderror
+        </div>
+        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Mark incident window' : 'Tanda tempoh insiden'">Mark incident window</span></button>
+    </form>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Clock-ins inside an incident window show as Unverified on the management lateness panel, not as late.' : 'Clock in dalam tempoh insiden dipaparkan sebagai Tidak disahkan pada panel kelewatan pengurusan, bukan lewat.'">Clock-ins inside an incident window show as Unverified on the management lateness panel, not as late.</p>
+    @endif
 </div>
 
 {{-- ── Tab switcher (segmented control) ─────────────────────────────── --}}

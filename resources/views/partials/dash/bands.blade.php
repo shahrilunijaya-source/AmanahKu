@@ -100,18 +100,26 @@
         @endforeach
         </div>
     @endif
-    {{-- CR-32: the management (CR-17) and awards (CR-14) slots, in this order. Text only;
-         the words are the whole band until those CRs fill them. --}}
-    @foreach (['management', 'awards'] as $slot)
-        @if ($bands[$slot] ?? null)
-            @php $b = $bands[$slot]; @endphp
-            <section class="uj-db-band uj-db-{{ $slot }}" data-band="{{ $slot }}" aria-label="{{ $b['title']['en'] }}">
-                <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
-                <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
-                <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
-            </section>
-        @endif
-    @endforeach
+    {{-- CR-32/CR-17: the management slot — lateness today + overdue by Primary Owner,
+         text only, for FINAL_APPROVAL_ROLES every day. --}}
+    @if ($bands['management'] ?? null)
+        @php $mgmt = $bands['management']; @endphp
+        <section class="uj-db-band uj-db-management" data-band="management" aria-label="{{ $mgmt['title']['en'] }}">
+            <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($mgmt['kicker']['en']) : @js($mgmt['kicker']['ms'])">{{ $mgmt['kicker']['en'] }}</span>
+            <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($mgmt['title']['en']) : @js($mgmt['title']['ms'])">{{ $mgmt['title']['en'] }}</span>
+            <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($mgmt['sub']['en']) : @js($mgmt['sub']['ms'])">{{ $mgmt['sub']['en'] }}</span>
+            @include('partials.dash.management-panels', ['mgmt' => $mgmt])
+        </section>
+    @endif
+    {{-- CR-32: the awards slot (CR-14). Text only until CR-14 fills it. --}}
+    @if ($bands['awards'] ?? null)
+        @php $b = $bands['awards']; @endphp
+        <section class="uj-db-band uj-db-awards" data-band="awards" aria-label="{{ $b['title']['en'] }}">
+            <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
+            <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
+            <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
+        </section>
+    @endif
     @if ($upcoming !== [])
         <div class="uj-db-upcoming">
             <span x-text="$store.ui.lang==='en' ? 'Coming up:' : 'Akan datang:'">Coming up:</span>

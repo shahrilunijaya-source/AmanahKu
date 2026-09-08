@@ -4974,7 +4974,22 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 
 .uj-db-cta + .uj-db-more { margin-left:0; }
 .uj-db-moment { background:var(--red-tint); border-color:#f3c9cc; }
-.uj-db-management { background:var(--shelf); }
+.uj-db-management { background:var(--shelf); flex-wrap:wrap; align-items:flex-start; }
+.uj-db-management .uj-db-s { flex-basis:100%; }
+/* CR-17: the management band's two panels (lateness, overdue by Primary Owner). */
+.uj-mgmt { flex-basis:100%; display:flex; flex-direction:column; gap:10px; margin-top:2px; }
+.uj-mgmt-panel { border-top:1px solid var(--hairline-soft); padding-top:8px; }
+.uj-mgmt-head { display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:0; padding:2px 0; font:600 12.5px var(--font-sans); color:var(--ink); cursor:pointer; }
+.uj-mgmt-body { display:flex; flex-direction:column; gap:2px; margin-top:4px; }
+.uj-mgmt-row, .uj-mgmt-card { display:flex; align-items:center; gap:10px; padding:5px 2px; font-size:12.5px; border-top:1px solid var(--hairline-soft); flex-wrap:wrap; }
+.uj-mgmt-row:first-child, .uj-mgmt-card:first-child { border-top:0; }
+.uj-mgmt-name, .uj-mgmt-card-title { flex:1 1 auto; min-width:0; color:var(--body); }
+.uj-mgmt-status { color:var(--muted); white-space:nowrap; }
+.uj-mgmt-owner { padding:4px 0; }
+.uj-mgmt-owner-name { display:block; font:600 12px var(--font-sans); color:var(--ink); margin-bottom:2px; }
+.uj-mgmt-days { color:var(--muted); white-space:nowrap; font-size:12px; }
+.uj-mgmt-btn { font-size:11.5px; padding:3px 8px; border-radius:6px; border:1px solid var(--hairline); background:var(--card); color:var(--ink); cursor:pointer; }
+.uj-mgmt-empty { color:var(--muted-soft); font-size:12.5px; padding:4px 2px; }
 .uj-db-awards { background:var(--amber-tint); border-color:var(--amber-line); }
 .uj-db-moment .uj-db-k { color:var(--red); }
 .uj-db-moment .uj-db-cta { background:var(--red); color:#fff; }

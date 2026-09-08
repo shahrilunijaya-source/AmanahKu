@@ -90,6 +90,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // case shown early on the last working day before a weekend/holiday.
         $schedule->command('birthday:notify')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('birthday:notify'));
+        // CR-17: management digest — lateness today + overdue by Primary Owner, one
+        // MailPort intent per tenant. Idempotent per tenant per day, so a retry is safe.
+        $schedule->command('management:digest')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:digest'));
         // Close punches nobody clocked out of, stamped at the shift end. Last thing at
         // night so the whole working day has had its chance to clock out honestly, and
         // late enough that an overnight shift started this evening is still inside its

@@ -39,6 +39,7 @@ use App\Http\Controllers\LearningController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\ManagementExceptionsController;
 use App\Http\Controllers\McpDocsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
@@ -437,6 +438,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/office-requests/{officeRequest}/admin-note', [OfficeRequestController::class, 'adminNote'])->name('office-requests.admin-note');
         Route::post('/app/office-requests/{officeRequest}/done', [OfficeRequestController::class, 'done'])->name('office-requests.done');
         Route::post('/app/office-requests/{officeRequest}/reopen', [OfficeRequestController::class, 'reopen'])->name('office-requests.reopen');
+        // Management exceptions (CR-17): lateness + overdue-by-Primary-Owner. The page
+        // needs its own route — /app/{screen?} only matches one path segment — registered
+        // ahead of the {card} wildcard routes, same caution as office-requests above.
+        Route::get('/app/management/exceptions', [AppController::class, 'managementExceptions'])->name('management.exceptions');
+        Route::post('/app/management/overdue/{card}/nudge', [ManagementExceptionsController::class, 'nudge'])->name('management.overdue.nudge');
+        Route::post('/app/management/overdue/{card}/reassign', [ManagementExceptionsController::class, 'reassign'])->name('management.overdue.reassign');
+        Route::post('/app/attendance/incidents', [AttendanceAdminController::class, 'storeIncident'])->name('attendance.incidents.store');
         // Offboarding / exit clearance
         Route::post('/app/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
         Route::post('/app/offboarding/items/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.toggle');

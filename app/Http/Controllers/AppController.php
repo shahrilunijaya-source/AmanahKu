@@ -340,6 +340,37 @@ class AppController extends Controller
     }
 
     /**
+     * CR-17: the dedicated page for a branch/company-scope manager (dashboard-slots.md
+     * keeps the `management` band FINAL_APPROVAL_ROLES-only; CR32Test pins that a manager
+     * never sees it). FINAL_APPROVAL_ROLES read the same page company-wide. Authorization
+     * and scope resolution live in ManagementExceptionsController::pageData(), which
+     * aborts 403 itself for anyone the screen is not for.
+     */
+    public function managementExceptions(Request $request): ViewContract
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+
+        $data = app(ManagementExceptionsController::class)->pageData($request);
+
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $page = [
+            'title' => 'Management Exceptions',
+            'title_ms' => 'Pengecualian Pengurusan',
+            'sub' => 'Lateness today and overdue by Primary Owner.',
+            'sub_ms' => 'Lewat hari ini dan tertunggak mengikut Pemilik Utama.',
+            'crumb' => ['Management Exceptions'],
+        ];
+
+        return $this->wrapScreen($request, 'management-exceptions', $role, $persona, $employee, $tenant, $page, $data, 'screens.management-exceptions');
+    }
+
+    /**
      * One dashboard card, rebuilt for the period its arrows are pointing at.
      *
      * The arrows swap this markup into the card in place rather than reloading

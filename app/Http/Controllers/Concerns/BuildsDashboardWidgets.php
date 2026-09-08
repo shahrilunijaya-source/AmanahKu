@@ -22,6 +22,7 @@ use App\Support\ArchetypeScorer;
 use App\Support\DashboardBands;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
+use App\Support\ManagementExceptions;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
@@ -167,7 +168,11 @@ trait BuildsDashboardWidgets
             // CR-32 slots: management for the final-approval roles every day (CR-17
             // fills it), awards from the first working day to the 7th (CR-14 fills it).
             if (in_array($role, Permissions::FINAL_APPROVAL_ROLES, true)) {
-                $management = DashboardBands::managementSlot();
+                $exceptions = app(ManagementExceptions::class);
+                $management = DashboardBands::managementSlot(
+                    $exceptions->lateness(null),
+                    $exceptions->withReassignFlags($exceptions->overdue(null), $employee, $role),
+                );
             }
             if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
                 $awards = DashboardBands::awardsSlot($today);
