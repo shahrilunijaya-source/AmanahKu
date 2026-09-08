@@ -38,7 +38,6 @@
                 @csrf
                 <input type="hidden" name="year" value="{{ $session->year }}">
                 <input type="hidden" name="month" value="{{ $session->month }}">
-                <input type="hidden" name="nota_url" value="{{ $session->nota_url }}">
                 <input type="hidden" name="next_agenda" value="{{ $session->next_agenda }}">
                 <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Pengerusi' : 'Pengerusi'">Pengerusi</label>
                 <select class="tot-field" name="chair_employee_id">
@@ -47,6 +46,9 @@
                         <option value="{{ $e->id }}" @selected($session->chair_employee_id === $e->id)>{{ $e->name }}</option>
                     @endforeach
                 </select>
+                {{-- QA F1: the nota link had no visible input anywhere on the screen. --}}
+                <label class="tot-lbl" style="margin-top:8px;">Nota Perbincangan (PDF / link)</label>
+                <input type="url" class="tot-field" name="nota_url" placeholder="https://..." value="{{ old('nota_url', $session->nota_url) }}">
                 <button type="submit" class="tot-btn-g" style="margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
             </form>
 

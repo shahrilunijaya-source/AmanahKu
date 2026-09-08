@@ -70,7 +70,7 @@
                             @endif
                         </div>
 
-                        @include('partials.tot-slots', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees])
+                        @include('partials.tot-slots', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees, 'employee' => $employee])
 
                         @include('partials.tot-actions-table', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees, 'role' => $role, 'employee' => $employee])
 

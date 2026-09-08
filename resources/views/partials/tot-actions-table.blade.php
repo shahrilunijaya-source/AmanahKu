@@ -11,6 +11,7 @@
                  actionId: {{ $action->id }},
                  workItemId: {{ $action->work_item_id ?? 'null' }},
                  dueAt: {{ \Illuminate\Support\Js::from($action->workItem?->due_at?->format('Y-m-d')) }},
+                 dueText: {{ \Illuminate\Support\Js::from($action->workItem?->due_at?->format('j M Y')) }},
              })">
             <div style="flex:1;min-width:0;">
                 <div style="font-size:13.5px;color:var(--ink);">{{ $action->action }}</div>
@@ -21,8 +22,11 @@
                         <span>{{ $action->target_date?->format('j M Y') ?? 'Bulan hadapan' }}</span>
                     </template>
                     <template x-if="dueAt">
-                        <span x-text="dueAt"></span>
+                        <span x-text="dueText"></span>
                     </template>
+                    @if ($action->slot)
+                        · <span class="tot-presenter-tag">{{ $action->slot->title }}</span>
+                    @endif
                 </div>
             </div>
             @if ($action->canCreateCardBy($role, $employee))
@@ -52,6 +56,14 @@
                 </select>
                 <label class="tot-lbl" style="margin-top:8px;">Target date (leave blank for Bulan hadapan)</label>
                 <input type="date" class="tot-field" name="target_date">
+                {{-- QA F2: the spec's "linked slot" had no picker on the screen. --}}
+                <label class="tot-lbl" style="margin-top:8px;">Linked slot</label>
+                <select class="tot-field" name="slot_id">
+                    <option value="">—</option>
+                    @foreach ($session->slots as $slot)
+                        <option value="{{ $slot->id }}">{{ $slot->title }}</option>
+                    @endforeach
+                </select>
                 <div style="margin-top:8px;">
                     <button type="submit" class="tot-btn-g" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
                 </div>

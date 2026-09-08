@@ -80,9 +80,18 @@
                 </div>
             @endif
 
-            <div x-data="totSlotThread({ sessionId: {{ $session->id }}, slotId: {{ $slot->id }} })"
+            @php
+                $slotCounts = $slot->reactions->groupBy('emoji')->map->count()->all();
+                $slotMine = $employee ? $slot->reactions->where('employee_id', $employee->id)->pluck('emoji')->values()->all() : [];
+            @endphp
+            <div x-data="totSlotThread({ sessionId: {{ $session->id }}, slotId: {{ $slot->id }}, reactions: @js((object) $slotCounts), mine: @js($slotMine) })"
                  style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
-                <button type="button" class="tot-pillbtn" @click="toggle()"
+                {{-- QA F3: hearts per slot, the tenant's own reaction set, inline (no flyout). --}}
+                <div class="uj-react-tally" data-slot-reactions="{{ $slot->id }}" style="margin-bottom:8px;">
+                    @include('partials.reaction-picker', ['onPick' => "react('KEY')", 'mine' => 'mine'])
+                </div>
+                @include('partials.reaction-tally', ['counts' => $slotCounts, 'live' => true])
+                <button type="button" class="tot-pillbtn" style="margin-top:6px;" @click="toggle()"
                         x-text="open ? ($store.ui.lang==='en' ? 'Hide discussion' : 'Sembunyikan perbincangan') : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</button>
                 <div x-show="open" x-cloak style="margin-top:8px;">
                     <template x-if="thread === null">

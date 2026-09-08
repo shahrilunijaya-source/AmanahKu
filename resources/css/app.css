@@ -1787,6 +1787,8 @@ select.wd-inline {
 .uj-react-chip b { font-family:var(--font-mono); font-weight:600; color:var(--ink); }
 .uj-react-chip[data-retired] { border-style:dashed; color:var(--muted); }
 @media (prefers-reduced-motion: reduce) { .uj-react-pick { animation:none; } }
+/* CR-09 per-slot bar sits inline, never flies out, so it needs no entrance. */
+[data-slot-reactions] .uj-react-pick { animation:none; }
 .tot-fly-e:not([data-mine]) { filter:grayscale(.35); }
 
 .tot-sc { width:30px; height:30px; border-radius:50%; border:1px solid var(--hairline);

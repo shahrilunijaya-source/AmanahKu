@@ -21,6 +21,7 @@ export function registerTotAction(Alpine) {
                 if (!res.ok) throw new Error(payload.message || String(res.status));
                 this.workItemId = payload.work_item.id;
                 this.dueAt = payload.work_item.due_at;
+                this.dueText = payload.work_item.due_text;
                 Alpine.store('toast').success(
                     Alpine.store('ui').lang === 'en' ? 'T.A.A. task created.' : 'Tugasan T.A.A. dicipta.'
                 );

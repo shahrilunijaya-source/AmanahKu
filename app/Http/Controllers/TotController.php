@@ -46,7 +46,7 @@ class TotController extends Controller
 
         $saved = TotSession::with([
             'presenter', 'presenters', 'chair',
-            'slots.presenters', 'attendance.employee',
+            'slots.presenters', 'slots.reactions', 'attendance.employee',
             'actions.owner', 'actions.slot', 'actions.workItem',
         ])
             ->where('year', $year)
@@ -620,7 +620,7 @@ class TotController extends Controller
 
         return response()->json([
             'ok' => true,
-            'work_item' => ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d')],
+            'work_item' => ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')],
         ], 201);
     }
 

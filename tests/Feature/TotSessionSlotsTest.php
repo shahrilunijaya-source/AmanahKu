@@ -194,8 +194,36 @@ class TotSessionSlotsTest extends TestCase
         TotSlot::create(['tenant_id' => $this->tenant()->id, 'session_id' => $session->id, 'position' => 1, 'title' => 'Slot', 'kind' => 'pembentangan']);
         TotAction::create(['tenant_id' => $this->tenant()->id, 'session_id' => $session->id, 'position' => 1, 'action' => 'Do it', 'owner_employee_id' => $hr->id]);
 
-        $this->actingInTenantAs($hr)->get('/app/tot?year=2026')->assertOk();
+        // QA (S11 grade) F1, F2, F3: the nota link input, the linked-slot picker and the
+        // per-slot reaction bar must be on the screen, not only reachable by route.
+        $this->actingInTenantAs($hr)->get('/app/tot?year=2026')
+            ->assertOk()
+            ->assertSee('type="url" class="tot-field" name="nota_url"', false)
+            ->assertSee('name="slot_id"', false)
+            ->assertSee('data-slot-reactions', false);
         $this->actingInTenantAs($chairOnly)->get('/app/tot?year=2026')->assertOk();
+    }
+
+    public function test_creating_the_card_answers_a_readable_due_text_next_to_the_iso_date(): void
+    {
+        // QA (S11 grade) F4: the row showed the raw ISO date once a card existed.
+        $hr = $this->person('Hidayah', 'hr');
+        $owner = $this->person('Rubmin');
+        $session = $this->totSession(['month' => 8]);
+        $action = TotAction::create([
+            'tenant_id' => $this->tenant()->id, 'session_id' => $session->id, 'position' => 1,
+            'action' => 'Bulan hadapan one', 'owner_employee_id' => $owner->id,
+        ]);
+
+        $this->actingInTenantAs($hr)
+            ->postJson("/app/tot/{$session->id}/actions/{$action->id}/card")
+            ->assertStatus(201)
+            ->assertJsonPath('work_item.due_at', '2026-09-05')
+            ->assertJsonPath('work_item.due_text', '5 Sep 2026');
+
+        $this->actingInTenantAs($hr)->get('/app/tot?year=2026')
+            ->assertOk()
+            ->assertSee("dueText: '5 Sep 2026'", false);
     }
 
     public function test_the_chair_may_update_session_fields_by_the_chair_branch_alone_not_a_role(): void
