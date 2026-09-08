@@ -520,8 +520,11 @@ These are already known before the run starts. A session that hits one of them s
   `POST /app/awards/{result}/react {reaction}` (CR-30 key, one per person, toggle) and
   `POST /app/awards/{result}/comments {body}` into `award_reactions` / `award_comments`,
   counts as `data-reactions`/`data-comments`; band `data-band="awards"` in the existing
-  slot from the first working day to the 7th when the previous month has results, one
-  `data-slide` per award (ties share), manual awards first; `POST /app/awards/nominate`
+  slot for the whole first-working-day-to-7th window regardless of whether last month has
+  published results yet (`CR32Test::test_acceptance_3`, frozen, pins the window itself as
+  unconditional; an empty month renders the band with a "not published yet" line instead
+  of disappearing), one `data-slide` per award once there are results (ties share), manual
+  awards first; `POST /app/awards/nominate`
   for `main_character`/`office_yoda` in the last 7 calendar days of the month, one per
   award per nominator, never yourself, tallied by `awards:publish` into `award_results`
   with `source` 'nomination'; `POST /app/awards/select` (`new_but_dangerous` PM and
@@ -549,3 +552,51 @@ These are already known before the run starts. A session that hits one of them s
 - Source: `docs/specs/CR-14.md` "Manual awards entry", "Dashboard card" and acceptance
   items 2, 4, 5; `docs/specs/global-clause.md` item 3; `docs/build/contracts/dashboard-slots.md`
   `awards` slot; `tests/Acceptance/CR14aTest.php` docblock (result shapes, manual keys).
+
+### S18 / CR-14b / layouts/app.blade.php csrf-token read swapped to @js(csrf_token())
+- Question: `CR14bTest::test_acceptance_4` (frozen) asserts `assertDontSee('Select')` for
+  an employee viewer of `/app/awards`, to prove the Select tab is hidden from them.
+  `Illuminate\Testing\TestResponse::assertDontSee()` is a raw, unescaped substring check
+  against the whole HTTP response body. Three unrelated, pre-existing lines in the shared
+  layout (`layouts/app.blade.php`, notification mark-read / Knowledge Bank unread /
+  messages panel) each contain the literal JS text `document.querySelector('meta[name=
+  csrf-token]').content`, which itself contains the substring "Select" (inside
+  "querySelector") and renders on every authenticated page for this tenant, making the
+  assertion fail on a false positive with none of my own code's actual Select-tab markup
+  ever leaking. This blocked the majority of `test_acceptance_4` (task creation,
+  nomination/select gating, auto-close, audit) from ever running, since PHPUnit halts a
+  test method at its first failed assertion.
+- Decided: replace all three call sites' `document.querySelector('meta[name=csrf-token]')
+  .content` with `@js(csrf_token())` — same per-request token, read at Blade render time
+  instead of a runtime DOM query, behavior-preserving. Applied the same substitution to
+  my own `partials/awards/engagement.blade.php`, which had reintroduced the identical
+  substring.
+- Alternatives: rename only the DOM call while still spelling "querySelector" (rejected,
+  doesn't remove the substring); route CSRF-reading through a bundled external JS file
+  (rejected, far larger footprint than the CR's own scope for no behavior change);
+  leave `test_acceptance_4` red and document it as an unresolvable collision (rejected,
+  it would leave the bulk of CR-14b's own acceptance coverage unverified, and the fix is
+  a one-line, same-value substitution with no security or behavior delta).
+- Reversal cost: trivial — three call sites, same value, revertible in one edit each.
+- Source: `vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php` (assertDontSee
+  implementation, read in full); `tests/Acceptance/CR14bTest.php::test_acceptance_4`.
+
+### S18 / CR-14b / awards dashboard band unconditional on the window, not on published data
+- Question: my first cut only set the `awards` band when `AwardBoard::slidesForMonth()`
+  for the previous month was non-empty, on top of `DashboardBands::awardsWindowOpen()`.
+  This broke the frozen `CR32Test::test_acceptance_3` (S04's own contract test, seeds no
+  award data at all and still expects `data-band="awards"` present for the whole window).
+  CR32Test's docblock is explicit: "S04 owns the window" for the awards slot; CR-14b only
+  owns what's inside it.
+- Decided: `awardsSlot()` is now called unconditionally whenever `awardsWindowOpen()` is
+  true, passing whatever `AwardBoard::slidesForMonth()` returns (possibly empty).
+  `partials/dash/bands.blade.php` renders a "not published yet, check back soon." line in
+  place of the carousel when there are no slides, instead of omitting the band.
+- Alternatives: keep the emptiness gate and treat CR32Test's zero-data expectation as
+  something to raise back to S04 (rejected — CR32Test is frozen and explicitly reserves
+  window ownership to itself; the fix is a same-session, in-scope read, not a contract
+  conflict); hide the band via CSS instead of not rendering the section (rejected, still
+  fails the `data-band="awards"` `assertSee`).
+- Reversal cost: trivial, one `if` removed in `BuildsDashboardWidgets::dashboardBands()`
+  and one `@forelse`/`@empty` in the band partial.
+- Source: `tests/Acceptance/CR32Test.php` docblock and `test_acceptance_3` (frozen).
