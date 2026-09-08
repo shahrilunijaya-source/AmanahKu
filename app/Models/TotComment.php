@@ -27,4 +27,12 @@ class TotComment extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+
+    /**
+     * @return BelongsTo<TotSlot, $this>
+     */
+    public function slot(): BelongsTo
+    {
+        return $this->belongsTo(TotSlot::class, 'slot_id');
+    }
 }

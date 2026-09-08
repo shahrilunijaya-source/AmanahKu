@@ -480,6 +480,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/flowers/{flower}/hide', [FlowerController::class, 'hide'])->name('flowers.hide');
         Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
         Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
+        // CR-09: ordered slots, per-slot discussion, attendance and Tindakan Susulan.
+        Route::post('/app/tot/{session}/slots', [TotController::class, 'storeSlot'])->name('tot.slots.store');
+        Route::post('/app/tot/{session}/slots/{slot}', [TotController::class, 'updateSlot'])->name('tot.slots.update');
+        Route::post('/app/tot/{session}/slots/{slot}/delete', [TotController::class, 'destroySlot'])->name('tot.slots.delete');
+        Route::post('/app/tot/{session}/slots/{slot}/comment', [TotController::class, 'slotComment'])->name('tot.slots.comment');
+        Route::get('/app/tot/{session}/slots/{slot}/comments', [TotController::class, 'slotComments'])->name('tot.slots.comments');
+        Route::post('/app/tot/{session}/slots/{slot}/react', [TotController::class, 'slotReact'])->name('tot.slots.react');
+        Route::post('/app/tot/{session}/attendance', [TotController::class, 'storeAttendance'])->name('tot.attendance');
+        Route::post('/app/tot/{session}/actions', [TotController::class, 'storeAction'])->name('tot.actions.store');
+        Route::post('/app/tot/{session}/actions/{action}/card', [TotController::class, 'createActionCard'])->name('tot.actions.card');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so

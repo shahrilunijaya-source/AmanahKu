@@ -21,7 +21,12 @@
                     @php
                         $presenterName = $session->presenterLabel();
                         $isEvent = in_array($session->status, ['not_tot', 'skipped'], true);
+                        $canManageSession = $session->isManagedBy($role, $employee);
                     @endphp
+
+                    @if (! $isEvent)
+                        @include('partials.tot-attendance-summary', ['session' => $session, 'canManageSession' => $session->isManagedBy($role, $employee), 'assignableEmployees' => $assignableEmployees])
+                    @endif
 
                     @if (! $isEvent)
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
@@ -54,6 +59,44 @@
                             <span class="tot-note" x-text="$store.ui.lang==='en' ? 'No material uploaded yet.' : 'Belum ada bahan dimuat naik.'">No material uploaded yet.</span>
                         @endforelse
                     </div>
+
+                    @if (! $isEvent)
+                        <div style="margin-bottom:16px;">
+                            <div class="wd-sech" x-text="$store.ui.lang==='en' ? 'Nota Perbincangan' : 'Nota Perbincangan'">Nota Perbincangan</div>
+                            @if (filled($session->nota_url))
+                                <a class="tot-lk" href="{{ $session->nota_url }}" target="_blank" rel="noopener noreferrer">{{ $session->nota_url }}</a>
+                            @else
+                                <span class="tot-note" x-text="$store.ui.lang==='en' ? 'No link yet.' : 'Belum ada pautan.'">No link yet.</span>
+                            @endif
+                        </div>
+
+                        @include('partials.tot-slots', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees])
+
+                        @include('partials.tot-actions-table', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees, 'role' => $role, 'employee' => $employee])
+
+                        @php $carriedAgenda = $session->carriedAgenda(); @endphp
+                        @if (filled($carriedAgenda))
+                            <div style="margin:0 0 16px;">
+                                <div class="wd-sech" x-text="$store.ui.lang==='en' ? 'Agenda dari bulan lepas' : 'Agenda dari bulan lepas'">Agenda dari bulan lepas</div>
+                                <p style="font-size:13.5px;color:var(--body);line-height:1.65;white-space:pre-line;margin:4px 0 0;">{{ $carriedAgenda }}</p>
+                            </div>
+                        @endif
+
+                        @if ($canManageSession)
+                            <div style="margin-bottom:16px;max-width:620px;">
+                                <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Next-month agenda' : 'Agenda bulan hadapan'">Next-month agenda</label>
+                                <form method="post" action="{{ route('tot.update', $session) }}">
+                                    @csrf
+                                    <input type="hidden" name="year" value="{{ $session->year }}">
+                                    <input type="hidden" name="month" value="{{ $session->month }}">
+                                    <input type="hidden" name="chair_employee_id" value="{{ $session->chair_employee_id }}">
+                                    <input type="hidden" name="nota_url" value="{{ $session->nota_url }}">
+                                    <textarea class="tot-field" name="next_agenda" style="height:64px;padding-top:9px;resize:vertical;">{{ old('next_agenda', $session->next_agenda) }}</textarea>
+                                    <button type="submit" class="tot-btn-g" style="margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Save agenda' : 'Simpan agenda'">Save agenda</button>
+                                </form>
+                            </div>
+                        @endif
+                    @endif
 
                     @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
 

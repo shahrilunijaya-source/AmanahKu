@@ -2,7 +2,7 @@
 <div class="tot-rule">
     <button type="button" class="tot-pillbtn" @click="editing = !editing">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        <span x-text="$store.ui.lang==='en' ? 'Edit slot' : 'Sunting slot'">Edit slot</span>
+        <span x-text="$store.ui.lang==='en' ? 'Edit session' : 'Sunting sesi'">Edit session</span>
     </button>
 
     <div x-show="editing" x-cloak style="margin-top:14px;">
@@ -96,7 +96,7 @@
             @endif
 
             <div class="tot-rule" style="max-width:620px;display:flex;gap:8px;align-items:center;">
-                <button type="submit" class="tot-btn-p" x-text="$store.ui.lang==='en' ? 'Save slot' : 'Simpan slot'">Save slot</button>
+                <button type="submit" class="tot-btn-p" x-text="$store.ui.lang==='en' ? 'Save session' : 'Simpan sesi'">Save session</button>
                 <button type="button" class="tot-btn-g" @click="editing = false" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
                 @if ($canManage && $session->status !== 'done')
                     <div class="tot-note" style="margin-left:auto;"><span x-text="$store.ui.lang==='en' ? @js('Marking this Done credits '.($session->presenter?->display_name ?? 'the presenter').'’s Knowledge Bank month.') : @js('Menandakan ini Selesai mengkredit bulan Bank Pengetahuan '.($session->presenter?->display_name ?? 'pembentang').'.')">Marking this <b style="color:var(--ink);font-weight:600;">Done</b> credits {{ $session->presenter?->display_name ?? 'the presenter' }}&rsquo;s Knowledge Bank month.</span></div>
@@ -105,9 +105,9 @@
         </form>
 
         @if ($canManage)
-            <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this slot? This cannot be undone.' : 'Buang slot ini? Tindakan ini tidak boleh dibatalkan.')) $event.preventDefault();">
+            <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this session? This cannot be undone.' : 'Buang sesi ini? Tindakan ini tidak boleh dibatalkan.')) $event.preventDefault();">
                 @csrf
-                <button type="submit" class="tot-btn-g" style="color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete slot' : 'Padam slot'">Delete slot</button>
+                <button type="submit" class="tot-btn-g" style="color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete session' : 'Padam sesi'">Delete session</button>
             </form>
         @endif
     </div>
@@ -115,5 +115,5 @@
 </div>
 <div class="wd-locked tot-authoring-note">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-    <span x-text="$store.ui.lang==='en' ? 'Editing your slot needs a wider screen. Your topic, description and links are set from a laptop. Everything else here works on a phone.' : 'Menyunting slot anda memerlukan skrin lebih lebar. Topik, penerangan dan pautan ditetapkan dari komputer riba. Selebihnya di sini berfungsi pada telefon.'">Editing your slot needs a wider screen.</span>
+    <span x-text="$store.ui.lang==='en' ? 'Editing your session needs a wider screen. Your topic, description and links are set from a laptop. Everything else here works on a phone.' : 'Menyunting sesi anda memerlukan skrin lebih lebar. Topik, penerangan dan pautan ditetapkan dari komputer riba. Selebihnya di sini berfungsi pada telefon.'">Editing your session needs a wider screen.</span>
 </div>
