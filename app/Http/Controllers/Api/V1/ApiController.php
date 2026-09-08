@@ -160,8 +160,10 @@ class ApiController extends Controller
                 'client' => $p->client,
                 'status' => $p->status,
                 'contract_value' => $p->contract_value,
-                'contract_start' => $p->contract_start,
-                'contract_end' => $p->contract_end,
+                // Plain dates: a Carbon here would serialise as a UTC timestamp and read
+                // as the previous day in Malaysia.
+                'contract_start' => $p->contract_start?->toDateString(),
+                'contract_end' => $p->contract_end?->toDateString(),
                 'procurement_method' => $p->procurement_method,
                 'contractor' => $p->contractor,
                 'drive_link' => $p->drive_link,

@@ -107,6 +107,7 @@ class ProjectMasterTest extends TestCase
         $project = Project::create([
             'tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'project_code' => 'KPT-1',
             'client' => 'KPT', 'status' => 'active', 'contract_value' => 500000, 'is_active' => true,
+            'contract_start' => '2026-10-01', 'contract_end' => '2027-09-30',
         ]);
         $project->versions()->create(['tenant_id' => $this->tenant->id, 'version_no' => 1, 'effective_date' => '2026-06-01', 'snapshot' => $project->masterSnapshot()]);
         $project->versions()->create(['tenant_id' => $this->tenant->id, 'version_no' => 2, 'effective_date' => '2026-07-01', 'snapshot' => $project->masterSnapshot()]);
@@ -122,6 +123,9 @@ class ProjectMasterTest extends TestCase
         $this->assertSame('KPT', $row['client']);
         $this->assertSame('active', $row['status']);
         $this->assertSame(2, $row['version']);
+        // Plain dates, not UTC timestamps that read as the previous day in Malaysia.
+        $this->assertSame('2026-10-01', $row['contract_start']);
+        $this->assertSame('2027-09-30', $row['contract_end']);
     }
 
     public function test_edit_form_disables_fields_outside_the_viewers_set(): void

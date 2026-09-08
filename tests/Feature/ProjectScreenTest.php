@@ -134,6 +134,24 @@ class ProjectScreenTest extends TestCase
         ]);
     }
 
+    /**
+     * The row appended after an AJAX add carries the same PM/PE pickers as the register,
+     * so editing that row straight away keeps the people just chosen instead of wiping
+     * them with an empty "— none —" select.
+     */
+    public function test_the_appended_row_offers_the_pm_and_pe_pickers(): void
+    {
+        $manager = $this->actorWithRole('manager');
+        $pm = Employee::where('user_id', $manager->id)->sole();
+
+        $response = $this->actingAsRole('manager')
+            ->postJson(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT', 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT', 'pm_id' => $pm->id]);
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('<option value="'.$pm->id.'" selected', $html);
+    }
+
     public function test_an_employee_cannot_create_a_project(): void
     {
         $this->actingAsRole('employee')

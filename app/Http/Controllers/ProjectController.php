@@ -53,8 +53,7 @@ class ProjectController extends Controller
             'addCategories' => $this->projectCategories()->where('is_active', true)->values(),
             'projectCategories' => $this->projectCategories(),
             'canEdit' => $this->hasTenantRole($request, self::EDITOR_ROLES),
-            'employees' => Employee::active()->orderBy('name')->get()
-                ->map(fn (Employee $e) => ['id' => $e->id, 'display_name' => $e->display_name])->values(),
+            'employees' => $this->employeePickerList(),
             'editableFields' => $role ? $this->projectMaster->editableFields($role) : [],
             'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
         ];
@@ -85,6 +84,9 @@ class ProjectController extends Controller
                     'project' => $project,
                     'categories' => $this->projectCategories(),
                     'canEdit' => true,
+                    // Same list as the initial render: without it the appended row's edit
+                    // form offers only "— none —" and the first save wipes PM and PE.
+                    'employees' => $this->employeePickerList(),
                     'editableFields' => $this->projectMaster->editableFields((string) $this->tenantRole($request)),
                     'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
                 ])->render(),
@@ -343,6 +345,17 @@ class ProjectController extends Controller
     private function authorizeEditor(Request $request): void
     {
         $this->authorizeTenantRole($request, self::EDITOR_ROLES);
+    }
+
+    /**
+     * Active people for the PM/PE pickers, shared by the register and the AJAX row.
+     *
+     * @return Collection<int, array{id: int, display_name: string}>
+     */
+    private function employeePickerList(): Collection
+    {
+        return Employee::active()->orderBy('name')->get()
+            ->map(fn (Employee $e) => ['id' => $e->id, 'display_name' => $e->display_name])->values();
     }
 
     private function assertTenant(int $tenantId): void

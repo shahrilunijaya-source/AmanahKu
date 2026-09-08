@@ -241,7 +241,7 @@ final class ProjectMaster
         return Employee::withoutGlobalScopes()->where('tenant_id', $tenantId)->where('user_id', $userId)->value('id');
     }
 
-    private static function label(string $field): string
+    public static function label(string $field): string
     {
         return self::LABELS[$field] ?? Str::headline($field);
     }

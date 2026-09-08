@@ -10,6 +10,8 @@
     $hay = mb_strtolower(trim($project->name.' '.$project->code.' '.$project->project_code.' '.$project->client));
     $catIds = $project->categories->pluck('id')->all();
     $statusColours = ['planning' => 'var(--muted)', 'active' => 'var(--info)', 'closed' => 'var(--error)'];
+    // History shows people by name, not employee id.
+    $peopleNames = collect($employees)->pluck('display_name', 'id')->all();
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
      x-data="{ edit: false, history: false }"
@@ -92,7 +94,8 @@
                     @if ($version->changes)
                         <div style="margin-top:2px;color:var(--muted);">
                             @foreach ($version->changes as $field => $delta)
-                                <span>{{ str($field)->headline() }}: {{ $delta['old'] ?? '—' }} → {{ $delta['new'] ?? '—' }}</span>@if (! $loop->last), @endif
+                                @php $show = fn ($v) => $v === null || $v === '' ? '—' : (in_array($field, ['pm_id', 'pe_id'], true) ? ($peopleNames[$v] ?? $v) : $v); @endphp
+                                <span>{{ \App\Projects\ProjectMaster::label($field) }}: {{ $show($delta['old'] ?? null) }} → {{ $show($delta['new'] ?? null) }}</span>@if (! $loop->last), @endif
                             @endforeach
                         </div>
                     @endif
