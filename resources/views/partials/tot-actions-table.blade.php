@@ -63,11 +63,16 @@
                         <form method="post" action="{{ route('tot.actions.update', [$session, $action]) }}" style="max-width:340px;margin-top:6px;">
                             @csrf
                             <input class="tot-field" name="action" value="{{ $action->action }}">
-                            <select class="tot-field" name="owners[]" style="margin-top:6px;">
+                            {{-- QA F1: Pemilik and Sasaran lock with the card; a disabled field is not posted. --}}
+                            <select class="tot-field" name="owners[]" style="margin-top:6px;" @disabled($action->work_item_id !== null)>
                                 @foreach ($assignableEmployees as $e)
                                     <option value="{{ $e->id }}" @selected($e->id === $action->owner_employee_id)>{{ $e->name }}</option>
                                 @endforeach
                             </select>
+                            @if ($action->work_item_id !== null)
+                                <input type="hidden" name="owners[]" value="{{ $action->owner_employee_id }}">
+                                <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Pemilik and Sasaran are locked once the T.A.A. task exists.' : 'Pemilik dan Sasaran dikunci setelah tugasan T.A.A. wujud.'">Pemilik and Sasaran are locked once the T.A.A. task exists.</div>
+                            @endif
                             <select class="tot-field" name="owners[]" multiple style="margin-top:6px;">
                                 @foreach ($assignableEmployees as $e)
                                     <option value="{{ $e->id }}" @selected($action->helpers->contains('id', $e->id))>{{ $e->name }}</option>

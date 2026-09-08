@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TotController extends Controller
 {
@@ -640,12 +641,16 @@ class TotController extends Controller
         $ownerIds = array_key_exists('owners', $data) ? $this->ownerIdsFrom($data) : null;
         $newOwnerId = $ownerIds !== null ? ($ownerIds[0] ?? null) : $action->owner_employee_id;
 
+        // QA F1: ValidationException, not abort(), so the drawer's plain form post lands
+        // back on the screen with a toast instead of a bare 422 page; JSON callers still get 422.
         if ($hasCard && array_key_exists('target_date', $data)) {
             $incoming = $data['target_date'] !== null ? Carbon::parse($data['target_date'])->format('Y-m-d') : null;
-            abort_if($incoming !== $action->target_date?->format('Y-m-d'), 422, 'Sasaran is locked once the T.A.A. task exists.');
+            if ($incoming !== $action->target_date?->format('Y-m-d')) {
+                throw ValidationException::withMessages(['target_date' => 'Sasaran is locked once the T.A.A. task exists.']);
+            }
         }
         if ($hasCard && $ownerIds !== null && $newOwnerId !== $action->owner_employee_id) {
-            abort(422, 'The Pemilik cannot change once the T.A.A. task exists; reassign the card on the board instead.');
+            throw ValidationException::withMessages(['owners' => 'The Pemilik cannot change once the T.A.A. task exists; reassign the card on the board instead.']);
         }
 
         if (array_key_exists('action', $data)) {

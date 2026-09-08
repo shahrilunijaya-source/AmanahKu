@@ -238,6 +238,40 @@ class TotActionsTest extends TestCase
         $this->assertSame($december->id, $january->previousSession()->id);
     }
 
+    /** QA F1: the drawer's plain form post must land back with a toast, not a bare 422 page. */
+    public function test_a_form_post_changing_the_pemilik_after_the_card_exists_redirects_back_with_an_error(): void
+    {
+        $hr = $this->person('Hidayah', 'hr');
+        $rubmin = $this->person('Rubmin');
+        $syafiq = $this->person('Syafiq');
+        $session = $this->totSession();
+
+        $response = $this->actingInTenantAs($hr)
+            ->postJson("/app/tot/{$session->id}/actions", ['action' => 'Locked owner', 'owners' => [$rubmin->id], 'create_card' => 1])
+            ->assertStatus(201);
+        $actionId = $response->json('id');
+
+        $this->actingInTenantAs($hr)
+            ->from('/app/tot?year=2026')
+            ->post("/app/tot/{$session->id}/actions/{$actionId}", ['action' => 'Locked owner', 'owners' => [$syafiq->id]])
+            ->assertRedirect('/app/tot?year=2026')
+            ->assertSessionHasErrors('owners');
+        $this->assertSame($rubmin->id, TotAction::query()->findOrFail($actionId)->owner_employee_id);
+
+        $this->actingInTenantAs($hr)
+            ->from('/app/tot?year=2026')
+            ->post("/app/tot/{$session->id}/actions/{$actionId}", ['action' => 'Locked owner', 'owners' => [$rubmin->id], 'target_date' => '2026-09-10'])
+            ->assertRedirect('/app/tot?year=2026')
+            ->assertSessionHasErrors('target_date');
+
+        // The edit form no longer offers the Pemilik once the card exists.
+        $page = $this->actingInTenantAs($hr)->get('/app/tot?year=2026');
+        $page->assertOk();
+        $page->assertSee('name="owners[]" style="margin-top:6px;" disabled', false);
+        $page->assertSee('<input type="hidden" name="owners[]" value="'.$rubmin->id.'">', false);
+        $page->assertSee('Pemilik and Sasaran are locked once the T.A.A. task exists.');
+    }
+
     public function test_always_checks(): void
     {
         $this->assertDueDateLocked();
