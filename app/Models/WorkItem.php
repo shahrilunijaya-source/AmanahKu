@@ -45,6 +45,8 @@ class WorkItem extends Model implements HasAuditedFields
         'internal' => ['Internal', '#5a6b7b'],
         // CR-18: stamped by the recurring engine on every card it makes.
         'recurring' => ['Recurring', '#1c7c54'],
+        // CR-10: stamped on every card a TOT tindakan makes for its owner.
+        'tot' => ['TOT Action', '#2563eb'],
     ];
 
     protected function casts(): array

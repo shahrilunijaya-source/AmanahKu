@@ -47,7 +47,7 @@ class TotController extends Controller
         $saved = TotSession::with([
             'presenter', 'presenters', 'chair',
             'slots.presenters', 'slots.reactions', 'attendance.employee',
-            'actions.owner', 'actions.slot', 'actions.workItem',
+            'actions.owner', 'actions.slot', 'actions.workItem', 'actions.helpers',
         ])
             ->where('year', $year)
             ->get()
@@ -546,13 +546,21 @@ class TotController extends Controller
             : back()->with('ok', 'Attendance saved.');
     }
 
-    // ── CR-09: Keputusan/Tindakan Susulan ────────────────────────────
+    // ── CR-09/CR-10: Keputusan/Tindakan Susulan ───────────────────────
 
-    /** Add one tindakan row. Gated to canManageSession(). */
+    /**
+     * Add one tindakan row. Gated to canManageSession(). CR-10: `owners[]` (first =
+     * Pemilik written to owner_employee_id, the rest = helpers into tot_action_helper);
+     * `owner_employee_id` alone still works for CR-09 callers. `create_card` (default off,
+     * so the CR-09 two-step flow through tot.actions.card stays valid) makes the card in
+     * the same request when an owner is present.
+     */
     public function storeAction(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
         $this->assertSameTenant($session);
         abort_unless($this->canManageSession($request, $session), 403);
+
+        $this->dropBlankOwnerRows($request);
 
         $tenantId = app(CurrentTenant::class)->id();
         $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
@@ -560,9 +568,16 @@ class TotController extends Controller
         $data = $request->validate([
             'action' => ['required', 'string', 'max:300'],
             'owner_employee_id' => ['nullable', 'integer', $belongsToTenant],
+            'owners' => ['nullable', 'array'],
+            'owners.*' => ['integer', $belongsToTenant],
             'target_date' => ['nullable', 'date'],
             'slot_id' => ['nullable', 'integer', Rule::exists('tot_slots', 'id')->where('session_id', $session->id)],
+            'create_card' => ['nullable', 'boolean'],
         ]);
+
+        $ownerIds = $this->ownerIdsFrom($data);
+        $ownerId = $ownerIds[0] ?? ($data['owner_employee_id'] ?? null);
+        $helperIds = $ownerIds !== [] ? array_slice($ownerIds, 1) : [];
 
         $action = TotAction::create([
             'tenant_id' => $tenantId,
@@ -570,15 +585,129 @@ class TotController extends Controller
             'slot_id' => $data['slot_id'] ?? null,
             'position' => (int) $session->actions()->max('position') + 1,
             'action' => $data['action'],
-            'owner_employee_id' => $data['owner_employee_id'] ?? null,
+            'owner_employee_id' => $ownerId,
             'target_date' => $data['target_date'] ?? null,
         ]);
 
+        if ($helperIds !== []) {
+            $action->helpers()->sync($helperIds);
+        }
+
         AuditLog::record('Added TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action));
 
+        $payload = ['id' => $action->id];
+        $status = 200;
+
+        if ($request->boolean('create_card') && $ownerId !== null) {
+            $card = $this->makeActionCard($session, $action);
+            $payload['work_item'] = ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')];
+            $status = 201;
+        }
+
         return $request->expectsJson()
-            ? response()->json(['id' => $action->id])
+            ? response()->json($payload, $status)
             : back()->with('ok', 'Tindakan added.');
+    }
+
+    /**
+     * CR-10: edit action text, owners[] (Pemilik + helpers), Sasaran and the linked slot.
+     * While no T.A.A. card exists everything here is editable. Once the card exists
+     * (`work_item_id` set), Sasaran and the Pemilik are locked (dates contract Rule 4 —
+     * the card's due date already answers 422 through BoardRules::assertDueDateLocked, this
+     * mirrors the same rule on the row that fed it); action text still updates the card
+     * title and helpers still re-sync to the card's participants.
+     */
+    public function updateAction(Request $request, TotSession $session, TotAction $action): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($action->session_id === $session->id, 404);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $this->dropBlankOwnerRows($request);
+
+        $tenantId = app(CurrentTenant::class)->id();
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
+
+        $data = $request->validate([
+            'action' => ['sometimes', 'required', 'string', 'max:300'],
+            'owners' => ['sometimes', 'array'],
+            'owners.*' => ['integer', $belongsToTenant],
+            'target_date' => ['sometimes', 'nullable', 'date'],
+            'slot_id' => ['sometimes', 'nullable', 'integer', Rule::exists('tot_slots', 'id')->where('session_id', $session->id)],
+        ]);
+
+        $hasCard = $action->work_item_id !== null;
+        $ownerIds = array_key_exists('owners', $data) ? $this->ownerIdsFrom($data) : null;
+        $newOwnerId = $ownerIds !== null ? ($ownerIds[0] ?? null) : $action->owner_employee_id;
+
+        if ($hasCard && array_key_exists('target_date', $data)) {
+            $incoming = $data['target_date'] !== null ? Carbon::parse($data['target_date'])->format('Y-m-d') : null;
+            abort_if($incoming !== $action->target_date?->format('Y-m-d'), 422, 'Sasaran is locked once the T.A.A. task exists.');
+        }
+        if ($hasCard && $ownerIds !== null && $newOwnerId !== $action->owner_employee_id) {
+            abort(422, 'The Pemilik cannot change once the T.A.A. task exists; reassign the card on the board instead.');
+        }
+
+        if (array_key_exists('action', $data)) {
+            $action->action = $data['action'];
+        }
+        if (array_key_exists('target_date', $data) && ! $hasCard) {
+            $action->target_date = $data['target_date'];
+        }
+        if (array_key_exists('slot_id', $data)) {
+            $action->slot_id = $data['slot_id'];
+        }
+        if ($ownerIds !== null) {
+            $action->owner_employee_id = $newOwnerId;
+        }
+        $action->save();
+
+        $helperIds = $ownerIds !== null ? array_slice($ownerIds, 1) : null;
+        if ($helperIds !== null) {
+            $action->helpers()->sync($helperIds);
+        }
+
+        if ($hasCard) {
+            if (array_key_exists('action', $data)) {
+                $action->workItem->update(['title' => $data['action']]);
+            }
+            if ($helperIds !== null) {
+                $action->workItem->participants()->sync(
+                    collect($helperIds)->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all()
+                );
+            }
+        }
+
+        AuditLog::record('Updated TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action));
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Tindakan updated.');
+    }
+
+    /**
+     * CR-10: delete the row. The card, if any, is archived and cancelled — never deleted,
+     * same pair WorkItemController::cancel() writes — so the board's existing
+     * whereNull('archived_at') query drops it and history stays honest.
+     */
+    public function deleteAction(Request $request, TotSession $session, TotAction $action): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($action->session_id === $session->id, 404);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $text = $action->action;
+        $card = $action->workItem;
+        if ($card !== null) {
+            $card->update(['archived_at' => now(), 'cancelled_at' => now()]);
+        }
+        $action->delete();
+
+        AuditLog::record('Deleted TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $text));
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Tindakan deleted.');
     }
 
     /**
@@ -594,8 +723,63 @@ class TotController extends Controller
         abort_if($action->work_item_id !== null, 422, 'This tindakan already has a T.A.A. card.');
         abort_if($action->owner_employee_id === null, 422, 'This tindakan has no owner to create a card for.');
 
+        $card = $this->makeActionCard($session, $action);
+
+        AuditLog::record(
+            'Created T.A.A. task from TOT tindakan',
+            sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action)
+        );
+
+        return response()->json([
+            'ok' => true,
+            'work_item' => ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')],
+        ], 201);
+    }
+
+    /**
+     * The first id posted is the Pemilik, the rest are helpers — same shape whether it
+     * came in as `owners[]` (CR-10) or the caller only ever sent `owner_employee_id`
+     * (CR-09, no `owners` key at all).
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<int>
+     */
+    private function ownerIdsFrom(array $data): array
+    {
+        return collect($data['owners'] ?? [])->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * The screen's Pemilik select carries a blank "—" option so a tindakan can be saved
+     * without an owner; dropped here (never validated) rather than rejected, same rule
+     * WorkItemController::isUntouchedLinkRow() drops an empty link row.
+     */
+    private function dropBlankOwnerRows(Request $request): void
+    {
+        if (is_array($request->input('owners'))) {
+            $request->merge(['owners' => array_values(array_filter(
+                $request->input('owners'),
+                fn ($id) => $id !== null && $id !== '',
+            ))]);
+        }
+    }
+
+    /**
+     * CR-10: build the T.A.A. card for a tindakan row, shared by the one-step
+     * (storeAction with create_card) and the two-step (createActionCard) paths. Tags
+     * the row's own helpers (tot_action_helper) as card participants with role
+     * `helper`, stamps the `tot` label and a link back to the session.
+     */
+    private function makeActionCard(TotSession $session, TotAction $action): WorkItem
+    {
         $hasDate = $action->target_date !== null;
         $dueAt = $hasDate ? $action->target_date : $this->nextTotSaturdayAfter($session);
+
+        $linkLabel = 'TOT '.$session->session_date->format('F Y');
+        if ($action->slot) {
+            $linkLabel .= ' · '.$action->slot->title;
+        }
+        $linkUrl = route('app.screen', 'tot').'?year='.$session->year.'&month='.$session->month;
 
         $card = WorkItem::create([
             'tenant_id' => $session->tenant_id,
@@ -607,21 +791,22 @@ class TotController extends Controller
             'progress' => 0,
             'due_at' => $dueAt,
             'due_label' => $hasDate ? null : 'Bulan hadapan',
+            'labels' => ['tot'],
+            'links' => [['label' => $linkLabel, 'url' => $linkUrl]],
             'sort_order' => (int) WorkItem::where('employee_id', $action->owner_employee_id)->where('status', 'todo')->max('sort_order') + 1,
         ]);
 
         $action->work_item_id = $card->id;
         $action->save();
 
-        AuditLog::record(
-            'Created T.A.A. task from TOT tindakan',
-            sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action)
-        );
+        $helperIds = $action->helpers()->pluck('employees.id')->all();
+        if ($helperIds !== []) {
+            $card->participants()->sync(
+                collect($helperIds)->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all()
+            );
+        }
 
-        return response()->json([
-            'ok' => true,
-            'work_item' => ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')],
-        ], 201);
+        return $card;
     }
 
     /** Anybody in the workspace may post to a session thread. */

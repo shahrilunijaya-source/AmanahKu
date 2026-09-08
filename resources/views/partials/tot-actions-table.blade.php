@@ -1,11 +1,28 @@
-{{-- CR-09: Keputusan/Tindakan Susulan. "Create T.A.A. task" is a fetch (totActionCard,
-     resources/js/tot-action.js) because tot.actions.card answers JSON only, unlike the
-     rest of this drawer's plain form posts. --}}
+{{-- CR-09/CR-10: Keputusan/Tindakan Susulan. "Create T.A.A. task" is a fetch
+     (totActionCard, resources/js/tot-action.js) because tot.actions.card answers JSON only,
+     unlike the rest of this drawer's plain form posts; add/edit/delete stay plain form posts
+     with a redirect back, same as the rest of this drawer. --}}
+@php $previousSession = $session->previousSession(); @endphp
+@if ($previousSession && $previousSession->actions->isNotEmpty())
+    <div style="margin-bottom:16px;">
+        <div class="wd-sech" style="margin-bottom:8px;" x-text="$store.ui.lang==='en' ? 'Tindakan bulan lepas' : 'Tindakan bulan lepas'">Tindakan bulan lepas</div>
+        @foreach ($previousSession->actions as $prevAction)
+            <div style="font-size:13px;color:var(--body);padding:4px 0;border-bottom:1px solid var(--line);">
+                {{ $prevAction->action }}
+                ·
+                {{ $prevAction->owner?->display_name ?? '—' }}
+                ·
+                <span class="tot-presenter-tag">{{ $prevAction->statusLabel() }}</span>
+            </div>
+        @endforeach
+    </div>
+@endif
+
 <div style="margin-bottom:16px;">
     <div class="wd-sech" style="margin-bottom:8px;" x-text="$store.ui.lang==='en' ? 'Tindakan' : 'Tindakan'">Tindakan</div>
 
     @forelse ($session->actions as $action)
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);"
+        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);"
              x-data="totActionCard({
                  sessionId: {{ $session->id }},
                  actionId: {{ $action->id }},
@@ -17,6 +34,9 @@
                 <div style="font-size:13.5px;color:var(--ink);">{{ $action->action }}</div>
                 <div class="wd-sub" style="margin:2px 0 0;">
                     {{ $action->owner?->display_name ?? '—' }}
+                    @if ($action->helpers->isNotEmpty())
+                        · {{ $action->helpers->pluck('display_name')->join(', ') }}
+                    @endif
                     ·
                     <template x-if="!dueAt">
                         <span>{{ $action->target_date?->format('j M Y') ?? 'Bulan hadapan' }}</span>
@@ -27,14 +47,42 @@
                     @if ($action->slot)
                         · <span class="tot-presenter-tag">{{ $action->slot->title }}</span>
                     @endif
+                    · <span class="tot-presenter-tag">{{ $action->statusLabel() }}</span>
                 </div>
             </div>
-            @if ($action->canCreateCardBy($role, $employee))
-                <button type="button" class="tot-pillbtn" :disabled="busy || workItemId" @click="createCard()"
-                        x-text="workItemId ? ($store.ui.lang==='en' ? 'Task created' : 'Tugasan dicipta') : ($store.ui.lang==='en' ? 'Create T.A.A. task' : 'Cipta tugasan T.A.A.')">
-                    Create T.A.A. task
-                </button>
-            @endif
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                @if ($action->canCreateCardBy($role, $employee))
+                    <button type="button" class="tot-pillbtn" :disabled="busy || workItemId" @click="createCard()"
+                            x-text="workItemId ? ($store.ui.lang==='en' ? 'Task created' : 'Tugasan dicipta') : ($store.ui.lang==='en' ? 'Create T.A.A. task' : 'Cipta tugasan T.A.A.')">
+                        Create T.A.A. task
+                    </button>
+                @endif
+                @if ($canManageSession)
+                    <details>
+                        <summary class="tot-pillbtn" style="display:inline-block;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</summary>
+                        <form method="post" action="{{ route('tot.actions.update', [$session, $action]) }}" style="max-width:340px;margin-top:6px;">
+                            @csrf
+                            <input class="tot-field" name="action" value="{{ $action->action }}">
+                            <select class="tot-field" name="owners[]" style="margin-top:6px;">
+                                @foreach ($assignableEmployees as $e)
+                                    <option value="{{ $e->id }}" @selected($e->id === $action->owner_employee_id)>{{ $e->name }}</option>
+                                @endforeach
+                            </select>
+                            <select class="tot-field" name="owners[]" multiple style="margin-top:6px;">
+                                @foreach ($assignableEmployees as $e)
+                                    <option value="{{ $e->id }}" @selected($action->helpers->contains('id', $e->id))>{{ $e->name }}</option>
+                                @endforeach
+                            </select>
+                            <input type="date" class="tot-field" name="target_date" value="{{ $action->target_date?->format('Y-m-d') }}" style="margin-top:6px;" @disabled($action->work_item_id !== null)>
+                            <button type="submit" class="tot-btn-g" style="margin-top:6px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                        </form>
+                    </details>
+                    <form method="post" action="{{ route('tot.actions.delete', [$session, $action]) }}" onsubmit="return confirm('Delete this tindakan?');">
+                        @csrf
+                        <button type="submit" class="tot-pillbtn" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
+                    </form>
+                @endif
+            </div>
         </div>
     @empty
         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No tindakan yet.' : 'Belum ada tindakan.'">No tindakan yet.</div>
@@ -47,9 +95,15 @@
                 @csrf
                 <label class="tot-lbl">Tindakan</label>
                 <input class="tot-field" name="action">
-                <label class="tot-lbl" style="margin-top:8px;">Owner</label>
-                <select class="tot-field" name="owner_employee_id">
+                <label class="tot-lbl" style="margin-top:8px;">Pemilik</label>
+                <select class="tot-field" name="owners[]">
                     <option value="">—</option>
+                    @foreach ($assignableEmployees as $e)
+                        <option value="{{ $e->id }}">{{ $e->name }}</option>
+                    @endforeach
+                </select>
+                <label class="tot-lbl" style="margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Helpers' : 'Pembantu'">Helpers</label>
+                <select class="tot-field" name="owners[]" multiple>
                     @foreach ($assignableEmployees as $e)
                         <option value="{{ $e->id }}">{{ $e->name }}</option>
                     @endforeach
@@ -64,6 +118,10 @@
                         <option value="{{ $slot->id }}">{{ $slot->title }}</option>
                     @endforeach
                 </select>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--body);">
+                    <input type="checkbox" name="create_card" value="1" checked>
+                    <span x-text="$store.ui.lang==='en' ? 'Create the T.A.A. task straight away' : 'Cipta tugasan T.A.A. serta-merta'">Create the T.A.A. task straight away</span>
+                </label>
                 <div style="margin-top:8px;">
                     <button type="submit" class="tot-btn-g" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
                 </div>

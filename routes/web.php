@@ -489,6 +489,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/tot/{session}/slots/{slot}/react', [TotController::class, 'slotReact'])->name('tot.slots.react');
         Route::post('/app/tot/{session}/attendance', [TotController::class, 'storeAttendance'])->name('tot.attendance');
         Route::post('/app/tot/{session}/actions', [TotController::class, 'storeAction'])->name('tot.actions.store');
+        Route::post('/app/tot/{session}/actions/{action}', [TotController::class, 'updateAction'])->name('tot.actions.update');
+        Route::post('/app/tot/{session}/actions/{action}/delete', [TotController::class, 'deleteAction'])->name('tot.actions.delete');
         Route::post('/app/tot/{session}/actions/{action}/card', [TotController::class, 'createActionCard'])->name('tot.actions.card');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
