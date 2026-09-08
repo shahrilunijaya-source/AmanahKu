@@ -263,7 +263,6 @@ trait BuildsDashboardWidgets
             'flowers' => $this->flowersWidget($request),
             'friday' => app(FridayController::class)->widgetData($request, $employee) + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             'claims' => $this->claimsWidget($employee, $when),
-            'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),
             'pulse' => $this->pulseWidget(),
             'events' => $this->eventsWidget() + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
@@ -821,9 +820,53 @@ trait BuildsDashboardWidgets
                 'times' => trim((string) $r->clock_in).' – '.($r->clock_out ? (string) $r->clock_out : 'open'),
                 'status' => $r->clock_out === null ? 'warn' : ($r->status === 'late' ? 'bad' : 'ok'),
                 'label' => $r->clock_out === null ? 'Open' : ($r->status === 'late' ? 'Late' : 'On time'),
+                // Same short codes the HR-facing Attendance Reports ledger uses (see
+                // LedgerBuilder::FLAG_MAP) — an employee is entitled to see on their own
+                // dashboard exactly what HR sees flagged on them, not just "On time"/"Late".
+                'flags' => $this->clockPunchFlags($r),
             ])->all(),
             'totalMinutes' => (int) $recent->sum('worked_minutes'),
         ];
+    }
+
+    /**
+     * Record flag → the short code both this widget and the HR ledger render.
+     * Kept in step with LedgerBuilder::FLAG_MAP by hand: the two read the same
+     * `flags` column but serve different screens, so there is no single method
+     * to share without coupling an HR-report class to a dashboard-widget one.
+     *
+     * @return list<string>
+     */
+    private function clockPunchFlags(AttendanceRecord $r): array
+    {
+        $map = [
+            'out_of_radius_in' => 'off',
+            'out_of_radius_out' => 'off',
+            'short_hours' => 'short',
+            'early_out' => 'early',
+            'no_location' => 'noloc',
+            'amended' => 'amended',
+            'auto_out' => 'auto',
+        ];
+
+        $out = [];
+        foreach ($r->flags ?? [] as $flag) {
+            // 'late' is already the status pill — showing it again as a flag too
+            // would read as two separate problems instead of one.
+            if ($flag === 'late') {
+                continue;
+            }
+            $mapped = $map[$flag] ?? null;
+            if ($mapped !== null && ! in_array($mapped, $out, true)) {
+                $out[] = $mapped;
+            }
+        }
+
+        if ($r->work_mode === 'site_visit' || $r->clock_out_work_mode === 'site_visit') {
+            array_unshift($out, 'visit');
+        }
+
+        return $out;
     }
 
     /**
@@ -875,19 +918,42 @@ trait BuildsDashboardWidgets
 
         $rows = $employee->leaveBalances()->with('leaveType')->get()
             ->filter(fn (LeaveBalance $b) => $b->leaveType !== null)
-            ->map(function (LeaveBalance $b) {
-                $entitlement = (float) ($b->leaveType->entitlement ?? 0);
+            ->map(function (LeaveBalance $b) use ($employee) {
+                $type = $b->leaveType;
                 $balance = (float) $b->balance;
+
+                if ($type->is_hr_granted_only) {
+                    // An ad-hoc HR-granted quota (Replacement) has no yearly entitlement,
+                    // but every top-up HR makes is logged in LeaveGrant, so the running
+                    // total granted so far — not a fixed yearly figure — is the honest
+                    // denominator "taken" is measured against. It grows whenever HR
+                    // grants more, exactly like the balance does, so the bar moves both
+                    // ways: using days fills it, a fresh grant pulls it back down.
+                    $entitlement = (float) $employee->leaveGrants()
+                        ->where('leave_type_id', $type->id)->sum('days');
+                } else {
+                    // Emergency draws from Annual's balance rather than carrying its own,
+                    // so its entitlement is 0 by design — there is no total (yearly or
+                    // granted) for "taken" to be measured against, and the row falls back
+                    // to its balance alone below.
+                    $entitlement = (float) ($type->entitlement ?? 0);
+                }
+
                 $used = max(0.0, $entitlement - $balance);
+                $hasEntitlement = $entitlement > 0;
 
                 return [
-                    'type' => (string) $b->leaveType->name,
+                    'type' => (string) $type->name,
+                    'hasEntitlement' => $hasEntitlement,
+                    // A type with no entitlement either has nothing to show but its balance
+                    // (Replacement, once hasEntitlement above already covers its real case),
+                    // or — like Emergency — spends another type's balance and has no figure
+                    // of its own at all. The row explains that rule instead of a number.
+                    'deductsFrom' => $type->deducts_from_leave_type_id !== null,
                     'entitlement' => $this->trimNumber($entitlement),
                     'used' => $this->trimNumber($used),
                     'balance' => $this->trimNumber($balance),
-                    // Guard the zero-entitlement type (unpaid leave), which would
-                    // otherwise divide by nothing and render a full bar.
-                    'pct' => $entitlement > 0 ? (int) round($used / $entitlement * 100) : 0,
+                    'pct' => $hasEntitlement ? (int) round($used / $entitlement * 100) : 0,
                 ];
             })
             // The card shows the first three and folds the rest away, so the
@@ -1001,36 +1067,6 @@ trait BuildsDashboardWidgets
             'rows' => $rows,
             'awaiting' => (float) $claims->whereIn('status', ['submitted', 'verified', 'approved'])->sum('amount'),
         ];
-    }
-
-    /**
-     * The viewer's own clock-in/clock-out log for one month, newest first.
-     *
-     * @return array{rows: list<array>}
-     */
-    private function workWidget(?Employee $employee, CarbonImmutable $when): array
-    {
-        if (! $employee) {
-            return ['rows' => []];
-        }
-
-        $rows = $employee->attendanceRecords()
-            ->where('date', '>=', $when->startOfMonth()->toDateString())
-            // Exclusive upper bound for the same reason as the clock log: `date`
-            // stores a time, so `<=` the last of the month loses the last of the month.
-            ->where('date', '<', $when->addMonth()->startOfMonth()->toDateString())
-            ->orderByDesc('date')
-            ->take(10)
-            ->get()
-            ->map(fn (AttendanceRecord $r) => [
-                'day' => $r->date->format('D'),
-                'date' => $r->date->format('j M'),
-                'shift' => (string) ($r->location ?: ucfirst((string) $r->type)),
-                'in' => $r->clock_in ? (string) $r->clock_in : '—',
-                'out' => $r->clock_out ? (string) $r->clock_out : '—',
-            ])->all();
-
-        return ['rows' => $rows];
     }
 
     /**
