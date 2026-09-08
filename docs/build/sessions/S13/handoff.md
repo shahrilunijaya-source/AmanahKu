@@ -1,9 +1,11 @@
 # Session S13 handoff: CR-11 (Events: attendees, T.A.A. and calendar sync, post-event sharing)
 
 ## Delivered
-- Attendees replace @mention as the RSVP source of truth: `POST /app/events/{event}/attendees`
-  (`events.attendees`) replaces the whole set, creator-or-PM-and-above only, verified by
-  acceptance item 1.
+- Attendees replace @mention as the RSVP source of truth for internal events: `POST
+  /app/events/{event}/attendees` (`events.attendees`) replaces the whole set, gated to a
+  privileged role (`manager`, `hr`, `management`/`director`) — see the OPEN entry below for why
+  this is privileged-only rather than the decided "creator or PM and above" wording — verified
+  by acceptance item 1.
 - One `work_items` card per attendee (`type=event`, `due_at`=event date, description carries
   location/host/registration link), created on add and archived (`archived_at`+`cancelled_at`,
   never deleted) on removal, verified by acceptance items 1 and 4.
@@ -57,7 +59,11 @@
 - `docs/build/OPEN.md`, entry "S13 / CR-11 / attendee authorization simplified to
   privileged-role-only, @mention picker left on the form": attendee-management authorization
   implemented as privileged-role-only (no `created_by` column exists to check "creator"
-  cheaply); the @mention picker was not removed from the create-event form.
+  cheaply). The @mention picker on the create-event form was not removed: it turned out on
+  inspection to be a separate, live feature (an in-description mention that notifies someone to
+  self-register on an **external** event, unrelated to CR-11's structured Attendees), with no
+  test asserting its markup either way — it was kept because removing it deletes a working
+  feature with no replacement, not because of test-regression risk.
 - This session did not add a new decision beyond that — the bulk of CR-11's shape was already
   pinned by the pre-existing "QA / CR-11 / shapes fixed by CR11Test" OPEN entry, which this
   session conformed to (not authored).
@@ -83,7 +89,11 @@
 - `bun run build` running concurrently with an in-flight `php artisan test --compact` full-suite
   run can produce one transient Vite-manifest failure (stale hashed asset name mid-run). Not a
   real bug — sequence build fully before or after a full-suite run, never during.
-- The create-event form still writes and displays the legacy `tagged_employee_ids` @mention
-  field even though OPEN's CR-11 entry says it should "no longer be offered on the form". Whoever
-  touches that screen next should either remove it (with a test pinning the new markup) or note
-  why it's staying.
+- The create-event form still shows the @mention picker ("type @ to tag someone" on the
+  description field) even though OPEN's pre-existing CR-11 entry says legacy tagging should "no
+  longer be offered on the form". It is not dead legacy: it drives the external-event
+  registration-reminder banner (`ExternalEventTest::test_a_tagged_viewer_is_told_on_the_board...`)
+  and is entangled in the description textarea's own Alpine scope. Neither `EventTest.php` nor
+  `ExternalEventTest.php` asserts on its markup, so removing it is technically safe test-wise —
+  but do so only alongside a decision on what (if anything) replaces the reminder it currently
+  provides for external events.
