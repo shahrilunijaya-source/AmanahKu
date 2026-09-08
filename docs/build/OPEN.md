@@ -417,3 +417,72 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: one command doing freeze and publish on the 1st (rejected, the clause fixes the freeze at 23:59 on the last day and data approved on the 1st before 08:00 would leak in); a snapshot as one JSON blob per month (rejected, rule 9/10 runner-up lookups and the S18 leaderboard need per-person rows); counting completions by `done_at` alone (rejected, the board rewrites `done_at` on a redo, so item 7 could not hold); a `system_generated` boolean on cards (rejected, CR-34 already ships `source` and the `system` label); resolving rule 9 by the person's strongest margin (rejected, the spec gives no margin scale across awards, list order is the only order it states).
 - Reversal cost: cheap for the command names and cron lines (one place each plus this test); medium for the two tables (S18 reads them; renaming a column touches the carousel, the Awards screen and the badge); the award-key strings are shared with S18 and any change means a data migration of `award_results`.
 - Source: `docs/specs/CR-14.md` rules 1 to 10 and acceptance 1, 3, 6 to 10; `docs/specs/global-clause.md` "Frozen award data"; `docs/build/OPEN.md` "QA / global-clause" entry; `docs/specs/CR-34.md` marker; `tests/Acceptance/CR18Test.php` occurrence shape; `App\Timesheet\DayRules` working days.
+
+### S17 / CR-14a / simplest reading chosen for the eight awards CR14aTest does not drive
+- Question: CR-14's award table names never_late, always_here, clockwork_royalty,
+  timesheet_done, mic_drop_mentor, question_department, walking_wikipedia and
+  chief_hype_officer with only a one-line description each and no source table, exact
+  floor, or streak/vote definition; `CR14aTest` (frozen) drives none of them, so nothing
+  fixes the shape.
+- Decided: `never_late` — eligible with at least one `standard` attendance record this
+  month and zero records flagged `late`; value = count of on-time records. `always_here`
+  and `timesheet_done` — eligible only on full-month compliance (an attendance record, or
+  an approved+on-time `TimesheetDay` row, on every working day per `DayRules`), so a
+  single gap disqualifies the whole month rather than awarding a partial count; value = the
+  number of working days that month. `clockwork_royalty` — the longest run of consecutive
+  on-time attendance dates in the month (a late day resets the run, does not disqualify the
+  month); eligible once that run is at least 1. `mic_drop_mentor` — count of `TotReaction`
+  rows this month on sessions the person presented (solo or team); no vote table exists
+  anywhere in the schema, this is the closest sourceable reading. `question_department` —
+  count of distinct `tot_sessions` ids the person left a `TotComment` on this month
+  (structurally capped at 1 a month since `tot_sessions` is unique per tenant per
+  year/month — one roster slot). `walking_wikipedia` — count of `KnowledgeEntry` rows
+  authored this month. `chief_hype_officer` — count of distinct colleagues reacted to this
+  month across `BirthdayWishReaction`, `TotReaction` and `KnowledgeReaction` (recipient =
+  the wish's/session's/entry's owner), excluding reacting to oneself. Also decided: a
+  subtask (`work_items.parent_id` set) never earns a completion award, because `WorkItem`'s
+  own `ParentOnly` global scope already hides it from every award query and no acceptance
+  test exercises a subtask completion; not special-cased, just left to the existing scope.
+  All eight are covered by the new `tests/Feature/AwardsTest.php`, not by `CR14aTest`.
+- Alternatives: a flat count for `always_here`/`timesheet_done` with no full-month floor
+  (rejected, an award literally named "always here" giving credit for a partial month reads
+  against its own name, and a soft floor risks both awards firing on `CR14aTest`'s sparse
+  fixtures and throwing off its exact `results()->count()` assertions); `mic_drop_mentor` as
+  a highest-single-session-reaction-count instead of a monthly total (rejected, no session
+  cap is stated and a monthly total is the simpler read); `chief_hype_officer` counting
+  reaction volume instead of distinct colleagues (rejected, CR-14 rule 7 says exactly this
+  for that award by name, applied here to the sibling award with the same "who, not how
+  much" shape).
+- Reversal cost: cheap. Each formula is one private method in `app/Support/Awards.php`
+  with its own docblock; none of the eight write anything S18 depends on beyond a bare
+  `award_snapshots` row shape shared with every other award.
+- Source: `docs/specs/CR-14.md` award table (all eight rows read only as their one-line
+  description) and rule 7 (chief_hype_officer's own wording, "unique colleagues, not
+  reaction quantity"); `database/migrations/2026_07_28_000000_create_tot_tables.php`
+  (`tot_sessions` unique per tenant/year/month — no vote table anywhere in the TOT schema);
+  `app/Models/WorkItem.php` `ParentOnly` scope.
+
+### S17 / CR-14a / award_snapshots carries its own label, awards:publish idempotency keyed on an audit row
+- Question: the frozen "QA / CR-14a" entry above describes `award_snapshots` without a
+  `label` column, and says only that `awards:publish` is "idempotent" without naming the
+  mechanism. `award_results.label` needs a real per-person figure ("2 cards before the due
+  date"), and a tenant-month where literally no award clears its own floor would have zero
+  `award_results` rows either way, which would make an idempotency check keyed on that
+  table's row count re-run (and re-notify) forever.
+- Decided: added `award_snapshots.label` (string), written once by `Awards::compute()`
+  alongside `value` and carried straight through to `award_results.label` at publish time,
+  rather than recomputing a label from a bare number later. `awards:publish`'s idempotency
+  gate checks for an existing `AuditLog` row (`action = 'awards.published'`,
+  `target = <month>`) instead of `award_results` rows, since that audit row is written on
+  every successful run regardless of how many awards had a winner.
+- Alternatives: recompute the label at publish time from `award_key` + `value` (rejected,
+  duplicates each award's phrasing logic in a second file for no benefit, and the value
+  alone cannot always be turned back into the same words, e.g. `beating_the_traffic`'s
+  early/late direction); key idempotency off `award_results` existence (rejected, breaks
+  silently for a month where every award goes without a winner — an edge case no
+  acceptance test reaches, but cheap to close properly up front).
+- Reversal cost: cheap. `label` is an additive column; the idempotency key change is
+  contained to `AwardsPublish::publishTenant()`.
+- Source: OPEN.md "QA / CR-14a / shapes fixed by CR14aTest" entry (schema paragraph, silent
+  on the label column and the idempotency mechanism); `tests/Acceptance/CR14aTest.php`
+  `test_acceptance_1_*` (`assertNotSame('', trim($row->label), ...)`).
