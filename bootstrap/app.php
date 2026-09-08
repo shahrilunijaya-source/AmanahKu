@@ -108,6 +108,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // own hours and gets left alone until tomorrow's run.
         $schedule->command('attendance:auto-clock-out')->dailyAt('23:59')
             ->withoutOverlapping()->onFailure($onFailure('attendance:auto-clock-out'));
+        // CR-14a / Global Clause: freeze this month's award snapshot at 23:59, acting only
+        // on the last calendar day of the month (the command itself gates the day).
+        $schedule->command('awards:freeze')->dailyAt('23:59')
+            ->withoutOverlapping()->onFailure($onFailure('awards:freeze'));
+        // CR-14a: publish last month's awards from the frozen snapshot, acting only on the
+        // first working day of the month.
+        $schedule->command('awards:publish')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('awards:publish'));
         // Captured faults are a debugging aid, not a record to keep. Without this the
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())
