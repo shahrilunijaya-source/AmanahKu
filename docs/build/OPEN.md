@@ -194,3 +194,17 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: leaving `'guard' => ['web']` and instead forcing `Auth::shouldUse('sanctum')` or clearing the session inside `ApiTenant` middleware per-request. Rejected, that patches the symptom on one middleware instead of the actual guard-resolution order, and any future API middleware would reintroduce the same bug.
 - Reversal cost: cheap, one array value in `config/sanctum.php`.
 - Source: not in contract.md; found live while running the acceptance suite.
+
+### QA / run / dev database restored after S09
+- Question: the dev MySQL was emptied on 2026-09-07 by a `migrate:fresh` that the CR06aTest writer ran with an inline sqlite override through the lerd `php` wrapper (the wrapper drops inline env, so the command hit the real dev DB). Every grade fixture from S01 to S08 went with it. How to get a gradable database back without Shazwan?
+- Decided: restored on 2026-09-08 from the 28 Aug prod dump exactly as CLAUDE.md prescribes (drop, load, null the encrypted NRIC columns, `lerd artisan migrate`, every password to `password`, 2FA cleared), then `php artisan db:seed --class=BuildFixturesSeeder`. Three things the dump does not carry were recreated by hand: Shazwan's NRIC (placeholder `040119-01-0001`, the profile gate otherwise parks him on the welcome wizard), the S00 baseline flower from Hidayah to Ain Akilah, and Shazwan's saved dashboard card order (style under leave, flowers under notices). Run-time data from earlier grades (CR-18 schedules and event, CR-03 timesheet days, port_outbox probes, leave request 27) was not recreated; each grade.md keeps its evidence.
+- Alternatives: rebuilding every earlier grade's fixtures by re-driving S01 to S08 (a day of browser work for data nobody reads again); grading S09 on an empty database (impossible, no users to log in as); pausing the run until Shazwan returns (the run is meant to be unattended). Rejected in that order.
+- Reversal cost: none for the restore itself, it is the documented re-import. The three hand-made rows are one flower, one NRIC and one JSON prefs value; delete or overwrite in a minute if they get in the way.
+- Source: not in any contract; operational recovery.
+
+### QA / CR-06a / Keep it plain still leaves shell animations running
+- Question: under Keep it plain the dashboard shell still runs its page fade-in (`.uj-fade`), the summary-tile entrance (`.uj-dw-tile-in`) and the Knowledge badge pulse (`.kb-pulse-ring`). None of these came from CR-06a, all three predate S00, and every grade since S01 passed with them present. Fail S09 for it?
+- Decided: no. Graded Keep it plain as PASS for CR-06a on the contract's terms (dashboard-slots.md: every new band, widget or moment renders text-only when plain is on; CR-06a added none). Logged here so S21 CR-31, which owns the toggle, switches these three off under plain as part of its scope rather than a stray session touching dashboard CSS.
+- Alternatives: fixing it during the S09 grade (outside the CR's files, and the dashboard is a contract slot); failing S09 (would block the run on a pre-existing behaviour no CR has claimed yet). Rejected.
+- Reversal cost: a `.uj-plain` guard on three CSS rules, minutes.
+- Source: docs/build/contracts/dashboard-slots.md line 47, docs/specs/culture-pack-preamble.md run note.
