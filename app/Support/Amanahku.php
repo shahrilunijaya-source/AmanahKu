@@ -123,6 +123,13 @@ class Amanahku
             // because it is a shared company reference list, not personal work.
             $s('Workplace', 'Tempat Kerja', ['id' => 'projects', 'label' => 'Projects', 'label_ms' => 'Projek', 'icon' => 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z']),
 
+            // ── Office Requests (CR-21) ──────────────────────────────────────
+            // A new top-level section, per the spec's own words ("new top-level left-panel
+            // item, below Workplace") — not a Workplace child. Single item, no module gate
+            // (see docs/build/OPEN.md S14 entry): always on, like the other un-toggleable
+            // core surfaces.
+            $s('Office Requests', 'Permintaan Pejabat', ['id' => 'office-requests', 'label' => 'Office Requests', 'label_ms' => 'Permintaan Pejabat', 'icon' => 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z']),
+
             // ── Pay & Benefits ────────────────────────────────────────────────
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'loans', 'label' => 'Loans & Advances', 'label_ms' => 'Pinjaman & Pendahuluan', 'icon' => 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']),
@@ -216,6 +223,7 @@ class Amanahku
             'My Team' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75',
             'Insights' => 'M3 3v18h18M7 15l4-4 3 3 5-6',
             'Workplace' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01',
+            'Office Requests' => 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z',
             'Pay & Benefits' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8',
             'Talent & Growth' => 'M12 3l9 5-9 5-9-5zM5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5',
             'The Playground' => 'M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7zM5 17l.6 1.4 1.4.6-1.4.6L5 21l-.6-1.4L3 19l1.4-.6z',
@@ -349,6 +357,7 @@ class Amanahku
             'probation' => ['title' => 'Probation Tracking', 'title_ms' => 'Penjejakan Percubaan', 'sub' => 'New-hire probation periods, check-ins and confirmation decisions.', 'sub_ms' => 'Tempoh percubaan pekerja baharu, semakan dan keputusan pengesahan jawatan.', 'crumb' => ['Probation']],
             'helpdesk' => ['title' => 'Helpdesk', 'title_ms' => 'Helpdesk', 'sub' => 'Raise and track IT, facilities and HR support tickets.', 'sub_ms' => 'Bangkitkan dan jejak tiket sokongan IT, fasiliti dan HR.', 'crumb' => ['Helpdesk']],
             'events' => ['title' => 'Company Events', 'title_ms' => 'Acara Syarikat', 'sub' => 'Town halls, training, holidays and socials — RSVP once per event.', 'sub_ms' => 'Town hall, latihan, cuti umum dan acara sosial — RSVP sekali setiap acara.', 'crumb' => ['Events']],
+            'office-requests' => ['title' => 'Office Requests', 'title_ms' => 'Permintaan Pejabat', 'sub' => 'Report an office issue or request an item — a shared wishlist and to-do for the Admin team.', 'sub_ms' => 'Laporkan isu pejabat atau mohon item — senarai hajat dan tugasan dikongsi untuk pasukan Admin.', 'crumb' => ['Office Requests']],
             'offboarding' => ['title' => 'Offboarding', 'title_ms' => 'Offboarding', 'sub' => 'Exit clearance and final sign-offs for departing staff.', 'sub_ms' => 'Penyelesaian exit dan pengesahan akhir bagi staf yang berhenti.', 'crumb' => ['Offboarding']],
             'goals' => ['title' => 'Goals & OKRs', 'title_ms' => 'Matlamat & OKR', 'sub' => 'Set objectives and track key-result progress.', 'sub_ms' => 'Tetapkan objektif dan jejak kemajuan key result.', 'crumb' => ['Performance', 'Goals & OKRs']],
             'recruitment' => ['title' => 'Recruitment', 'title_ms' => 'Pengambilan', 'sub' => 'Open job requisitions and track candidates through the hiring pipeline.', 'sub_ms' => 'Permohonan jawatan terbuka dan jejak calon melalui saluran pengambilan.', 'crumb' => ['Recruitment']],

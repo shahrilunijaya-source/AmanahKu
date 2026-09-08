@@ -47,6 +47,8 @@ class WorkItem extends Model implements HasAuditedFields
         'recurring' => ['Recurring', '#1c7c54'],
         // CR-10: stamped on every card a TOT tindakan makes for its owner.
         'tot' => ['TOT Action', '#2563eb'],
+        // CR-21: stamped on every card an Office Request raises for the Admin team.
+        'office' => ['Office Request', '#0e9488'],
     ];
 
     protected function casts(): array

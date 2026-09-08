@@ -305,6 +305,41 @@ class AppController extends Controller
     }
 
     /**
+     * CR-21: Office Requests Insights — requests per month, average days to close and the
+     * top-voted items. PM and above only (`Permissions::effectiveRole` in manager/hr/
+     * management, director collapses into management). JSON for an API/AJAX caller, the
+     * same numbers rendered as HTML otherwise — same shell as the `office-requests` screen.
+     */
+    public function officeRequestInsights(Request $request): ViewContract|JsonResponse
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        abort_unless(in_array($role, ['manager', 'hr', 'management'], true), 403);
+
+        $data = app(OfficeRequestController::class)->insightsData($request);
+
+        if ($request->wantsJson()) {
+            return response()->json($data);
+        }
+
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $page = [
+            'title' => 'Office Requests — Insights',
+            'title_ms' => 'Permintaan Pejabat — Wawasan',
+            'sub' => 'Requests per month, average time to close, and the top-voted items.',
+            'sub_ms' => 'Permintaan setiap bulan, purata masa untuk selesai, dan item paling banyak undian.',
+            'crumb' => ['Office Requests', 'Insights'],
+        ];
+
+        return $this->wrapScreen($request, 'office-requests', $role, $persona, $employee, $tenant, $page, $data, 'screens.office-requests-insights');
+    }
+
+    /**
      * One dashboard card, rebuilt for the period its arrows are pointing at.
      *
      * The arrows swap this markup into the card in place rather than reloading
@@ -514,6 +549,7 @@ class AppController extends Controller
             'surveys' => app(SurveyController::class)->screenData($request, $employee),
             'helpdesk' => app(HelpdeskController::class)->screenData($request, $employee),
             'events' => app(EventController::class)->screenData($request, $employee),
+            'office-requests' => app(OfficeRequestController::class)->screenData($request, $employee),
             'shared-resources' => app(SharedResourceController::class)->screenData($request),
             'offboarding' => app(OffboardingController::class)->screenData($request, $employee),
             'goals' => app(GoalController::class)->screenData($request, $employee),

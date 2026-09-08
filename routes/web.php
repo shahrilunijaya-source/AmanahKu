@@ -44,6 +44,7 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OffboardingController;
+use App\Http\Controllers\OfficeRequestController;
 use App\Http\Controllers\OidcController;
 use App\Http\Controllers\OnboardingContentController;
 use App\Http\Controllers\OnboardingController;
@@ -423,6 +424,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/events/{event}', [AppController::class, 'eventShow'])->name('events.show');
         Route::post('/app/events/{event}', [EventController::class, 'update'])->name('events.update');
         Route::post('/app/events/{event}/delete', [EventController::class, 'destroy'])->name('events.destroy');
+        // Office Requests (CR-21). GET board itself needs no route here — it rides the
+        // /app/{screen?} catch-all below with $screen = 'office-requests'. Static segments
+        // (similar, insights) registered ahead of the {officeRequest} wildcard routes, same
+        // caution as the events block above.
+        Route::post('/app/office-requests', [OfficeRequestController::class, 'store'])->name('office-requests.store');
+        Route::get('/app/office-requests/similar', [OfficeRequestController::class, 'similar'])->name('office-requests.similar');
+        Route::get('/app/office-requests/insights', [AppController::class, 'officeRequestInsights'])->name('office-requests.insights');
+        Route::get('/app/office-requests/{officeRequest}/photo', [OfficeRequestController::class, 'photoShow'])->name('office-requests.photo');
+        Route::post('/app/office-requests/{officeRequest}/upvote', [OfficeRequestController::class, 'upvote'])->name('office-requests.upvote');
+        Route::post('/app/office-requests/{officeRequest}/comments', [OfficeRequestController::class, 'comment'])->name('office-requests.comments.store');
+        Route::post('/app/office-requests/{officeRequest}/admin-note', [OfficeRequestController::class, 'adminNote'])->name('office-requests.admin-note');
+        Route::post('/app/office-requests/{officeRequest}/done', [OfficeRequestController::class, 'done'])->name('office-requests.done');
+        Route::post('/app/office-requests/{officeRequest}/reopen', [OfficeRequestController::class, 'reopen'])->name('office-requests.reopen');
         // Offboarding / exit clearance
         Route::post('/app/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
         Route::post('/app/offboarding/items/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.toggle');
