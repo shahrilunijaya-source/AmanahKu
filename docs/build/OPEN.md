@@ -509,3 +509,43 @@ These are already known before the run starts. A session that hits one of them s
   `tests/Feature/AwardsTest.php`; dropping a rule is dropping its guard and its test.
 - Source: `docs/build/sessions/S17/grade.md` (fixes table); dev DB August 2026 freeze
   (148 snapshot rows) on the S17 tree vs after the fixes.
+
+### QA / CR-14b / shapes fixed by CR14bTest
+- Question: CR-14's UI half names a carousel, an Awards screen with tabs, nominations
+  "last week of the month", two manual picks, auto tasks "on the last Monday", a profile
+  badge and the Global Clause override, without routes, table names, payloads, markers or
+  what "last week" and "submitted" mean. S18 needs one fixed reading before it starts.
+- Decided: `GET /app/awards` (nav id `awards`, The Playground, everyone; `?month=`),
+  results rendered as `data-award`/`data-winner`, past months as `data-month`;
+  `POST /app/awards/{result}/react {reaction}` (CR-30 key, one per person, toggle) and
+  `POST /app/awards/{result}/comments {body}` into `award_reactions` / `award_comments`,
+  counts as `data-reactions`/`data-comments`; band `data-band="awards"` in the existing
+  slot from the first working day to the 7th when the previous month has results, one
+  `data-slide` per award (ties share), manual awards first; `POST /app/awards/nominate`
+  for `main_character`/`office_yoda` in the last 7 calendar days of the month, one per
+  award per nominator, never yourself, tallied by `awards:publish` into `award_results`
+  with `source` 'nomination'; `POST /app/awards/select` (`new_but_dangerous` PM and
+  above, joined within 6 months; `chosen_one` director only with a reason), `source`
+  'manual', written at once; `awards:tasks` at `0 8 * * *` on the last Monday, cards with
+  `source` 'awards' and `source_ref` 'YYYY-MM-nominate' / 'YYYY-MM-select', auto-done on
+  the owner's first nomination / first pick; `data-award-badge` and `data-hall-of-fame`
+  on the profile; `POST /app/awards/{result}/adjust {employee_id, reason}` director only,
+  `source` 'adjusted', "Result adjusted – <reason>" on screen and slide, audit row on
+  `employee_id`. The carousel's timer, hover pause and swipe are a human check
+  (`markTestIncomplete` at the end of item 2).
+- Alternatives: run the auto tasks through a `recurring_tasks` row as the spec's "CR-18
+  engine" wording suggests (rejected, the engine makes one card per schedule, not one per
+  person, and the due dates differ per audience; CR-34 already set the per-person `source`
+  pattern); hold every auto award until the Director's picks are in ("publish together")
+  (rejected, S17 already publishes on the first working day and a missing pick would
+  block every auto award; manual picks appear when made instead); a nomination that
+  replaces the earlier one (rejected, the spec says one per person; a 422 is the
+  reversible reading); "last week" as the last Monday-to-Sunday (rejected, the last
+  Monday can be the 25th to the 31st, so a calendar-day window is the only one staff can
+  predict).
+- Reversal cost: cheap for routes, markers and windows (one controller, one view, one
+  command); medium for the nomination tally living inside `awards:publish` (S17's
+  resolver has to learn the two nominated keys, which rules 9 and 10 already cover).
+- Source: `docs/specs/CR-14.md` "Manual awards entry", "Dashboard card" and acceptance
+  items 2, 4, 5; `docs/specs/global-clause.md` item 3; `docs/build/contracts/dashboard-slots.md`
+  `awards` slot; `tests/Acceptance/CR14aTest.php` docblock (result shapes, manual keys).
