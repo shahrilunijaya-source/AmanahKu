@@ -14,7 +14,9 @@
     // A field is locked once the project exists: outside the caller's editable set, or
     // one of the contract terms that only move through a Variation (S10).
     $variationFields = ['contract_value', 'contract_start', 'contract_end', 'client'];
-    $locked = fn (string $field) => $p && ($field === 'project_code' || in_array($field, $variationFields, true) || ! in_array($field, $editable, true));
+    // A closed project is read-only for everyone until a director reopens it.
+    $closed = $p && $p->isClosed();
+    $locked = fn (string $field) => $p && ($closed || $field === 'project_code' || in_array($field, $variationFields, true) || ! in_array($field, $editable, true));
 @endphp
 <form method="post" action="{{ $action }}" @isset($ajaxTarget) data-ajax data-target="{{ $ajaxTarget }}" @endisset style="display:flex;flex-direction:column;gap:16px;">
     @csrf
@@ -31,15 +33,15 @@
             </div>
             <div style="width:100px;">
                 <label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Code' : 'Kod'">Code</span></label>
-                <input name="code" value="{{ old('code', $p->code ?? '') }}" placeholder="KPT" style="{{ $inp }}" />
+                <input name="code" value="{{ old('code', $p->code ?? '') }}" placeholder="KPT" @disabled($closed) style="{{ $inp }}" />
             </div>
             <div style="flex:1;min-width:200px;">
                 <label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Project name' : 'Nama projek'">Project name</span></label>
-                <input name="name" required value="{{ old('name', $p->name ?? '') }}" placeholder="KPT: RMS" style="{{ $inp }}" />
+                <input name="name" required value="{{ old('name', $p->name ?? '') }}" placeholder="KPT: RMS" @disabled($closed) style="{{ $inp }}" />
             </div>
             <div style="width:84px;">
                 <label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Order' : 'Susunan'">Order</span></label>
-                <input type="number" name="sort" min="0" max="9999" value="{{ old('sort', $p->sort ?? 0) }}" style="{{ $inp }}font-family:var(--font-mono);" />
+                <input type="number" name="sort" min="0" max="9999" value="{{ old('sort', $p->sort ?? 0) }}" @disabled($closed) style="{{ $inp }}font-family:var(--font-mono);" />
             </div>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
@@ -150,7 +152,7 @@
             <div class="uj-cat-chips" role="group" aria-label="Categories" x-data="{ selected: @js($selectedCategoryIds) }">
                 @foreach ($categories as $cat)
                     <label class="uj-cat-chip" :class="{ 'is-on': selected.includes('{{ $cat->id }}') }">
-                        <input type="checkbox" name="categories[]" value="{{ $cat->id }}" class="uj-sr-only" x-model="selected" />
+                        <input type="checkbox" name="categories[]" value="{{ $cat->id }}" class="uj-sr-only" x-model="selected" @disabled($closed) />
                         <svg class="uj-cat-chip-tick" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                         {{ $cat->name }}
                     </label>
@@ -159,7 +161,9 @@
         </div>
     @endif
 
-    @if ($p)
+    @if ($closed)
+        <p style="font-size:12px;color:var(--muted);margin:0;"><span x-text="$store.ui.lang==='en' ? 'This project is closed. A director must reopen it before anything here can change.' : 'Projek ini ditutup. Pengarah perlu membukanya semula sebelum apa-apa di sini boleh diubah.'">This project is closed. A director must reopen it before anything here can change.</span></p>
+    @elseif ($p)
         <div>
             <label style="{{ $lbl }}"><span x-text="$store.ui.lang==='en' ? 'Reason (optional)' : 'Sebab (pilihan)'">Reason (optional)</span></label>
             <input name="reason" maxlength="500" placeholder="Why this change" style="{{ $inp }}" />
@@ -170,13 +174,15 @@
             <span x-text="$store.ui.lang==='en' ? 'Active (shown to staff)' : 'Aktif (dipaparkan kepada staf)'">Active</span>
         </label>
     @endif
-    <div>
-        <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">
-            @if ($p)
-                <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span>
-            @else
-                <span x-text="$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'">Add project</span>
-            @endif
-        </button>
-    </div>
+    @unless ($closed)
+        <div>
+            <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">
+                @if ($p)
+                    <span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span>
+                @else
+                    <span x-text="$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'">Add project</span>
+                @endif
+            </button>
+        </div>
+    @endunless
 </form>

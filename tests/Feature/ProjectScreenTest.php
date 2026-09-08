@@ -152,6 +152,23 @@ class ProjectScreenTest extends TestCase
         $this->assertStringContainsString('<option value="'.$pm->id.'" selected', $html);
     }
 
+    /**
+     * A closed project's edit form is read-only on screen too, not only on the server.
+     */
+    public function test_a_closed_project_renders_its_edit_form_locked(): void
+    {
+        Project::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'project_code' => 'KPT-1', 'client' => 'KPT',
+            'status' => 'closed', 'closed_at' => now(), 'is_active' => true,
+        ]);
+
+        $html = $this->actingAsRole('manager')->get('/app/projects')->assertOk()->getContent();
+
+        $this->assertStringContainsString('A director must reopen it before anything here can change.', $html);
+        $this->assertStringNotContainsString('Save changes', $html);
+        $this->assertMatchesRegularExpression('/name="contractor"[^>]*disabled/', $html);
+    }
+
     public function test_an_employee_cannot_create_a_project(): void
     {
         $this->actingAsRole('employee')
