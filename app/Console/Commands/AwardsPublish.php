@@ -111,7 +111,7 @@ class AwardsPublish extends Command
 
         AuditLog::record('awards.published', $month->toDateString());
         AppNotification::sendMany(
-            Employee::where('tenant_id', $tenantId)->whereNotNull('user_id')->pluck('user_id'),
+            Employee::where('tenant_id', $tenantId)->active()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
             $month->format('F Y').' awards are out!',
             count($rows) > 0 ? 'See who won this month.' : 'No awards were eligible for a winner this month.',
             '/app/awards',
@@ -136,8 +136,13 @@ class AwardsPublish extends Command
             return [];
         }
 
-        $groups = $candidates->groupBy(fn ($row) => (float) $row->value);
-        $groups = $key === 'beating_the_traffic' ? $groups->sortKeys() : $groups->sortKeysDesc();
+        // QA F4: PHP truncates float array keys to int, so grouping by (float) value merged
+        // -4.53 and -4.90 into one "tie". Group by the two-decimal string the column holds
+        // and order the groups numerically.
+        $groups = $candidates->groupBy(fn ($row) => number_format((float) $row->value, 2, '.', ''));
+        $groups = $key === 'beating_the_traffic'
+            ? $groups->sortBy(fn ($group, $value) => (float) $value)
+            : $groups->sortByDesc(fn ($group, $value) => (float) $value);
 
         foreach ($groups as $group) {
             $eligible = $group->filter(fn ($row) => ! in_array((int) $row->employee_id, $blocked, true)

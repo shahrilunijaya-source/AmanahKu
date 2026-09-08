@@ -486,3 +486,26 @@ These are already known before the run starts. A session that hits one of them s
 - Source: OPEN.md "QA / CR-14a / shapes fixed by CR14aTest" entry (schema paragraph, silent
   on the label column and the idempotency mechanism); `tests/Acceptance/CR14aTest.php`
   `test_acceptance_1_*` (`assertNotSame('', trim($row->label), ...)`).
+
+### QA / CR-14a / grade fixes F1 to F6 decided during the S17 grade
+- Question: `CR14aTest` passed on the S17 tree, but the real August data on the dev database
+  produced five 0-hour `billable` winners, an 18-way `clockwork_royalty` tie at 5 (the streak
+  reset on weekends), `always_here` / `timesheet_done` that nobody on approved leave could
+  ever win, false ties from float array keys in `resolveWinners`, publish notifications to
+  resigned staff, and a team TOT session crediting only its last presenter. None of this is
+  spelled out in `docs/specs/CR-14.md`.
+- Decided: values must be positive to count (`billable` skips `<= 0`); attendance streaks and
+  required-day counts walk `DayRules::isWorkingDay` days only, with approved leave neutral
+  and every attendance type counted; a shift with clock-in and no clock-out disqualifies
+  `always_here`; ties are grouped on the two-decimal string the column stores; publish
+  notifies active staff only; every presenter of a session gets its reactions.
+- Alternatives: leave the spec's silence as "as delivered" and open a CR-14 clarification
+  (rejected, the August result would have shipped five meaningless billable winners and a
+  meaningless streak award); treat weekends as neutral but leave and holidays as resets
+  (rejected, penalises approved absence the company itself granted); notify everyone with a
+  user (rejected, resigned staff still hold logins in the prod copy).
+- Reversal cost: cheap. Each rule is one guard in `app/Support/Awards.php` or
+  `AwardsPublish::resolveWinners` / the recipient query, each pinned by one `f<n>_` test in
+  `tests/Feature/AwardsTest.php`; dropping a rule is dropping its guard and its test.
+- Source: `docs/build/sessions/S17/grade.md` (fixes table); dev DB August 2026 freeze
+  (148 snapshot rows) on the S17 tree vs after the fixes.

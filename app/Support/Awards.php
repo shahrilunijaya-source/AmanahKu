@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\BirthdayWishReaction;
 use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeReaction;
+use App\Models\LeaveRequest;
 use App\Models\Timesheet;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
@@ -215,10 +216,10 @@ final class Awards
      * normalises both sides through SQL's `date()` function, so it works the same on
      * sqlite and MySQL.
      */
-    private function attendanceInMonth(Carbon $start, Carbon $end): Collection
+    private function attendanceInMonth(Carbon $start, Carbon $end, ?string $type = 'standard'): Collection
     {
         return AttendanceRecord::where('tenant_id', $this->tenant->id())
-            ->where('type', 'standard')
+            ->when($type !== null, fn ($q) => $q->where('type', $type))
             ->whereDate('date', '>=', $start->toDateString())
             ->whereDate('date', '<=', $end->toDateString())
             ->orderBy('date')
@@ -242,11 +243,43 @@ final class Awards
         return $rows;
     }
 
-    /** @return array<int, array{value: float, label: string}> */
+    /**
+     * CR-14 rule 5: approved leave and non-working days are neutral for every attendance
+     * award. Per employee, the ISO dates inside the month covered by an approved leave row.
+     *
+     * @return array<int, list<string>>
+     */
+    private function approvedLeaveDays(Carbon $start, Carbon $end): array
+    {
+        $days = [];
+        $rows = LeaveRequest::where('tenant_id', $this->tenant->id())
+            ->where('status', 'approved')
+            ->whereDate('date_from', '<=', $end->toDateString())
+            ->whereDate('date_to', '>=', $start->toDateString())
+            ->get(['employee_id', 'date_from', 'date_to']);
+
+        foreach ($rows as $leave) {
+            $from = Carbon::parse($leave->date_from)->max($start);
+            $to = Carbon::parse($leave->date_to)->min($end);
+            for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
+                $days[$leave->employee_id][] = $day->toDateString();
+            }
+        }
+
+        return $days;
+    }
+
+    /** The month's working days minus the person's approved leave days (rule 5). @return list<string> */
+    private function requiredDays(array $workingDays, array $leaveDays, int $employeeId): array
+    {
+        return array_values(array_diff($workingDays, $leaveDays[$employeeId] ?? []));
+    }
+
+    /** Lateness is a property of any clock-in, office or home (QA F3: no longer standard-only). @return array<int, array{value: float, label: string}> */
     private function neverLate(Carbon $start, Carbon $end): array
     {
         $rows = [];
-        foreach ($this->attendanceInMonth($start, $end)->groupBy('employee_id') as $employeeId => $records) {
+        foreach ($this->attendanceInMonth($start, $end, null)->groupBy('employee_id') as $employeeId => $records) {
             if ($records->contains(fn ($r) => $r->status === 'late')) {
                 continue;
             }
@@ -256,43 +289,66 @@ final class Awards
         return $rows;
     }
 
-    /** Present on every working day of the month. @return array<int, array{value: float, label: string}> */
+    /**
+     * A complete clock-in (office, client or home) on every working day the person was
+     * not on approved leave (rule 5), and no incomplete shift: a clock-in with no clock-out
+     * on a day that is over is a gap, the same reading as the dashboard's month summary.
+     *
+     * @return array<int, array{value: float, label: string}>
+     */
     private function alwaysHere(Carbon $start, Carbon $end): array
     {
         $workingDays = $this->workingDaysBetween($start, $end);
         if ($workingDays === []) {
             return [];
         }
+        $leave = $this->approvedLeaveDays($start, $end);
         $rows = [];
-        foreach ($this->attendanceInMonth($start, $end)->groupBy('employee_id') as $employeeId => $records) {
-            $dates = $records->pluck('date')->map(fn ($d) => Carbon::parse($d)->toDateString())->unique();
-            if ($dates->diff($workingDays)->isEmpty() && collect($workingDays)->diff($dates)->isEmpty()) {
-                $rows[$employeeId] = ['value' => (float) count($workingDays), 'label' => 'present every working day this month'];
+        foreach ($this->attendanceInMonth($start, $end, null)->groupBy('employee_id') as $employeeId => $records) {
+            $required = $this->requiredDays($workingDays, $leave, (int) $employeeId);
+            if ($required === []) {
+                continue;
+            }
+            $incomplete = $records->contains(fn ($r) => $r->clock_in !== null && $r->clock_out === null);
+            $present = $records->filter(fn ($r) => $r->clock_in !== null)
+                ->pluck('date')->map(fn ($d) => Carbon::parse($d)->toDateString())->unique();
+            if (! $incomplete && collect($required)->diff($present)->isEmpty()) {
+                $rows[$employeeId] = ['value' => (float) count($required), 'label' => 'present every working day this month'];
             }
         }
 
         return $rows;
     }
 
-    /** Longest run of consecutive on-time attendance dates. @return array<int, array{value: float, label: string}> */
+    /**
+     * Longest run of on-time working days. Non-working days and approved leave days are
+     * neutral (rule 5): the run continues across them. A late day, or a working day with
+     * no clock-in, breaks it.
+     *
+     * @return array<int, array{value: float, label: string}>
+     */
     private function clockworkRoyalty(Carbon $start, Carbon $end): array
     {
+        $workingDays = $this->workingDaysBetween($start, $end);
+        $leave = $this->approvedLeaveDays($start, $end);
         $rows = [];
-        foreach ($this->attendanceInMonth($start, $end)->groupBy('employee_id') as $employeeId => $records) {
+        foreach ($this->attendanceInMonth($start, $end, null)->groupBy('employee_id') as $employeeId => $records) {
+            $byDate = $records->keyBy(fn ($r) => Carbon::parse($r->date)->toDateString());
+            $onLeave = $leave[$employeeId] ?? [];
             $best = 0;
             $current = 0;
-            $previous = null;
-            foreach ($records->sortBy('date') as $record) {
-                $date = Carbon::parse($record->date);
-                if ($record->status === 'late') {
-                    $current = 0;
-                } elseif ($previous !== null && $previous->copy()->addDay()->isSameDay($date)) {
-                    $current++;
-                } else {
-                    $current = 1;
+            foreach ($workingDays as $date) {
+                if (in_array($date, $onLeave, true)) {
+                    continue;
                 }
+                $record = $byDate->get($date);
+                if ($record === null || $record->clock_in === null || $record->status === 'late') {
+                    $current = 0;
+
+                    continue;
+                }
+                $current++;
                 $best = max($best, $current);
-                $previous = $date;
             }
             if ($best >= 1) {
                 $rows[$employeeId] = ['value' => (float) $best, 'label' => "{$best} on-time days in a row"];
@@ -311,6 +367,7 @@ final class Awards
         }
 
         $rows = [];
+        $leave = $this->approvedLeaveDays($start, $end);
         $employeeByTimesheet = Timesheet::where('tenant_id', $this->tenant->id())->pluck('employee_id', 'id');
         $days = TimesheetDay::where('tenant_id', $this->tenant->id())
             ->whereDate('entry_date', '>=', $start->toDateString())
@@ -321,8 +378,9 @@ final class Awards
         foreach ($days as $employeeId => $entries) {
             $compliant = $entries->filter(fn ($d) => $d->late === false && $d->status === TimesheetDay::STATUS_APPROVED)
                 ->pluck('entry_date')->map(fn ($d) => Carbon::parse($d)->toDateString())->unique();
-            if ($compliant->diff($workingDays)->isEmpty() && collect($workingDays)->diff($compliant)->isEmpty()) {
-                $rows[$employeeId] = ['value' => (float) count($workingDays), 'label' => 'every working day submitted on time'];
+            $required = $this->requiredDays($workingDays, $leave, (int) $employeeId);
+            if ($required !== [] && collect($required)->diff($compliant)->isEmpty()) {
+                $rows[$employeeId] = ['value' => (float) count($required), 'label' => 'every working day submitted on time'];
             }
         }
 
@@ -358,6 +416,10 @@ final class Awards
 
         $rows = [];
         foreach ($sums as $employeeId => $hours) {
+            // QA F1: zero approved hours is no data, not a value to publish.
+            if ($hours <= 0) {
+                continue;
+            }
             $rows[$employeeId] = ['value' => round($hours, 2), 'label' => round($hours, 2).' billable hours approved'];
         }
 
@@ -375,18 +437,19 @@ final class Awards
             ->get()
             ->keyBy('id');
 
+        // QA F6: a team session credits every presenter, not only the last one listed.
         $presenterMap = [];
         foreach ($sessionIds as $session) {
-            foreach ($session->presenterList() as $presenter) {
-                $presenterMap[$session->id] = $presenter->id;
-            }
+            $presenterMap[$session->id] = $session->presenterList()->pluck('id')->all();
         }
 
-        $counts = TotReaction::where('tenant_id', $tenantId)
-            ->whereIn('session_id', $sessionIds->keys())
-            ->get()
-            ->filter(fn (TotReaction $r) => isset($presenterMap[$r->session_id]))
-            ->countBy(fn (TotReaction $r) => $presenterMap[$r->session_id]);
+        $counts = [];
+        foreach (TotReaction::where('tenant_id', $tenantId)->whereIn('session_id', $sessionIds->keys())->get() as $reaction) {
+            foreach ($presenterMap[$reaction->session_id] ?? [] as $presenterId) {
+                $counts[$presenterId] = ($counts[$presenterId] ?? 0) + 1;
+            }
+        }
+        $counts = collect($counts);
 
         return $this->countRows($counts, fn ($n) => "{$n} reaction".($n === 1 ? '' : 's').' on sessions presented this month');
     }
