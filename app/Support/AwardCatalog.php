@@ -25,7 +25,9 @@ final class AwardCatalog
     /** @return list<string> */
     public static function order(): array
     {
-        return ['chosen_one', 'main_character', ...Awards::KEYS];
+        // QA S18 F6: every manual key needs a place, or array_search() returns false and
+        // office_yoda / new_but_dangerous sort ahead of everything.
+        return ['chosen_one', 'main_character', 'office_yoda', 'new_but_dangerous', ...Awards::KEYS];
     }
 
     /** @return array{en: array{name: string, sub: string}, ms: array{name: string, sub: string}} */

@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeSegment;
 use App\Models\LeaveRequest;
+use App\Models\Position;
 use App\Models\Project;
 use App\Models\PublicHoliday;
 use App\Models\Tenant;
@@ -376,6 +377,7 @@ class AwardsTest extends TestCase
     {
         $tenant = $this->tenant();
         $active = $this->person($tenant, 'Active');
+        $probation = $this->person($tenant, 'Probation', ['status' => 'probation']);
         $archived = $this->person($tenant, 'Archived', ['archived_at' => '2026-10-01 00:00:00']);
         $resigned = $this->person($tenant, 'Resigned', ['status' => 'resigned']);
 
@@ -384,6 +386,7 @@ class AwardsTest extends TestCase
 
         $told = DB::table('app_notifications')->where('title', 'like', '%ward%')->pluck('user_id')->all();
         $this->assertContains($active->user_id, $told);
+        $this->assertContains($probation->user_id, $told, 'a person on probation is still staff (S18 grade F1)');
         $this->assertNotContains($archived->user_id, $told, 'an archived person was notified');
         $this->assertNotContains($resigned->user_id, $told, 'a resigned person was notified');
     }
@@ -456,5 +459,102 @@ class AwardsTest extends TestCase
             ->assertOk()->json('html');
         $this->assertStringContainsString('data-reactions="0"', $second, 'the same reaction from the same person toggled off');
         $this->assertSame(0, DB::table('award_reactions')->where('award_result_id', $resultId)->count());
+    }
+
+    #[Test]
+    public function s18_f2_a_plain_form_nomination_comes_back_to_the_tab_with_a_flash_or_the_error(): void
+    {
+        $tenant = $this->tenant();
+        $me = $this->person($tenant, 'Nominator');
+        $colleague = $this->person($tenant, 'Colleague');
+        Carbon::setTestNow('2026-11-26 10:00:00');
+
+        $this->actingInTenantAs($me, $tenant)
+            ->post('/app/awards/nominate', ['award_key' => 'main_character', 'employee_id' => $colleague->id, 'reason' => 'Carried the week'])
+            ->assertRedirect()->assertSessionHas('ok')->assertSessionHas('tab', 'nominate');
+        $this->assertDatabaseHas('award_nominations', ['nominator_employee_id' => $me->id, 'nominee_employee_id' => $colleague->id]);
+
+        $this->actingInTenantAs($me, $tenant)
+            ->from('/app/awards')
+            ->post('/app/awards/nominate', ['award_key' => 'office_yoda', 'employee_id' => $me->id, 'reason' => 'Me'])
+            ->assertRedirect('/app/awards')->assertSessionHasErrors('employee_id');
+        $this->actingInTenantAs($me, $tenant)->from('/app/awards')->followingRedirects()
+            ->post('/app/awards/nominate', ['award_key' => 'office_yoda', 'employee_id' => $me->id, 'reason' => 'Me'])
+            ->assertOk()->assertSee('You cannot nominate yourself.');
+    }
+
+    #[Test]
+    public function s18_f3_only_the_director_sees_an_adjust_form_on_a_result(): void
+    {
+        $tenant = $this->tenant();
+        $winner = $this->person($tenant, 'Winner');
+        $viewer = $this->person($tenant, 'Viewer');
+        $director = $this->person($tenant, 'Director');
+        $director->user->tenants()->updateExistingPivot($tenant->id, ['role' => 'director']);
+        $id = $this->publishedResult($tenant, $winner);
+        Carbon::setTestNow('2026-12-02 10:00:00');
+
+        $this->actingInTenantAs($director, $tenant)->get('/app/awards')->assertOk()->assertSee("/app/awards/{$id}/adjust", false);
+        $this->actingInTenantAs($viewer, $tenant)->get('/app/awards')->assertOk()->assertDontSee("/app/awards/{$id}/adjust", false);
+
+        $this->actingInTenantAs($director, $tenant)
+            ->post("/app/awards/{$id}/adjust", ['employee_id' => $viewer->id, 'reason' => 'Data error'])
+            ->assertRedirect()->assertSessionHas('ok');
+        $this->assertDatabaseHas('award_results', ['id' => $id, 'employee_id' => $viewer->id, 'source' => 'adjusted']);
+    }
+
+    #[Test]
+    public function s18_f4_the_awards_screen_carries_no_backslash_escaped_alpine_strings(): void
+    {
+        $tenant = $this->tenant();
+        $viewer = $this->person($tenant, 'Viewer');
+
+        // A `\"` inside an HTML attribute is not an escape: the attribute ends there and
+        // Alpine throws on every page load.
+        $this->actingInTenantAs($viewer, $tenant)->get('/app/awards')->assertOk()->assertDontSee('? \"', false)->assertSee("This month's winners");
+    }
+
+    #[Test]
+    public function s18_f5_a_pick_goes_to_the_current_month_from_its_last_monday_and_to_the_previous_month_before_that(): void
+    {
+        $tenant = $this->tenant();
+        $director = $this->person($tenant, 'Director');
+        $director->user->tenants()->updateExistingPivot($tenant->id, ['role' => 'director']);
+        $pick = $this->person($tenant, 'Pick');
+        // The previous month is already published, which is the case the old rule got wrong.
+        DB::table('audit_logs')->insert(['tenant_id' => $tenant->id, 'user_id' => $director->user_id, 'actor_name' => 'x', 'action' => 'awards.published', 'target' => '2026-10-01', 'created_at' => '2026-11-02 08:00:00', 'updated_at' => '2026-11-02 08:00:00']);
+
+        foreach (['2026-11-20 10:00:00' => '2026-10-01', '2026-11-30 10:00:00' => '2026-11-01', '2026-12-01 09:00:00' => '2026-11-01'] as $at => $month) {
+            Carbon::setTestNow($at);
+            DB::table('award_results')->delete();
+            $this->actingInTenantAs($director, $tenant)
+                ->postJson('/app/awards/select', ['award_key' => 'chosen_one', 'employee_id' => $pick->id, 'reason' => 'Pick at '.$at])
+                ->assertOk();
+            $this->assertSame($month, substr((string) DB::table('award_results')->where('award_key', 'chosen_one')->value('month'), 0, 10), "pick made at {$at}");
+        }
+    }
+
+    #[Test]
+    public function s18_f6_f7_f8_slides_order_every_manual_award_first_show_the_role_and_the_reaction_labels_with_arrows(): void
+    {
+        $tenant = $this->tenant();
+        $viewer = $this->person($tenant, 'Viewer');
+        $position = Position::create(['tenant_id' => $tenant->id, 'title' => 'Project Engineer', 'status' => 'active']);
+        $winner = $this->person($tenant, 'Winner', ['position_id' => $position->id]);
+        $this->publishedResult($tenant, $winner, 'done_and_dusted', '2026-11-01');
+        $this->publishedResult($tenant, $winner, 'office_yoda', '2026-11-01');
+        $this->publishedResult($tenant, $winner, 'new_but_dangerous', '2026-11-01');
+        $this->publishedResult($tenant, $winner, 'chosen_one', '2026-11-01');
+        Carbon::setTestNow('2026-12-01 10:00:00');
+
+        $html = $this->actingInTenantAs($viewer, $tenant)->get('/app/dash')->assertOk()->getContent();
+        $at = fn (string $key) => strpos($html, 'data-slide="'.$key.'"');
+        $this->assertTrue($at('chosen_one') < $at('office_yoda') && $at('office_yoda') < $at('new_but_dangerous') && $at('new_but_dangerous') < $at('done_and_dusted'), 'manual awards first, in a fixed order, then the auto awards');
+        $this->assertStringContainsString('Project Engineer', $html);
+        $this->assertStringContainsString('⚡ Power', $html);
+        $this->assertStringNotContainsString('>power<', $html);
+        $this->assertStringContainsString('data-carousel-prev', $html);
+        $this->assertStringContainsString('data-carousel-next', $html);
+        $this->assertStringContainsString('@touchstart', $html);
     }
 }

@@ -26,7 +26,7 @@ final class AwardBoard
     /** @return Collection<int, object{award_key:string, winners: Collection<int, AwardResult>, copy: array, primaryResultId: int, label: string, reason: ?string, source: string, reactionCount: int, comments: Collection}> */
     public static function slidesForMonth(string $monthDate): Collection
     {
-        $results = AwardResult::whereDate('month', $monthDate)->with('employee:id,name,nickname,avatar_color,initials')->orderBy('id')->get();
+        $results = AwardResult::whereDate('month', $monthDate)->with('employee:id,name,nickname,position_id,avatar_color,initials')->orderBy('id')->get();
         if ($results->isEmpty()) {
             return collect();
         }

@@ -112,7 +112,7 @@ class AwardsPublish extends Command
 
         AuditLog::record('awards.published', $month->toDateString());
         AppNotification::sendMany(
-            Employee::where('tenant_id', $tenantId)->active()->where('status', 'active')->whereNotNull('user_id')->pluck('user_id'),
+            Employee::where('tenant_id', $tenantId)->active()->where('status', '!=', 'resigned')->whereNotNull('user_id')->pluck('user_id'),
             $month->format('F Y').' awards are out!',
             count($rows) > 0 ? 'See who won this month.' : 'No awards were eligible for a winner this month.',
             '/app/awards',

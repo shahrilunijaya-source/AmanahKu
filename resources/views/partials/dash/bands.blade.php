@@ -120,8 +120,12 @@
         <section class="uj-db-band uj-db-awards" data-band="awards" aria-label="{{ $b['title']['en'] }}"
                  x-data="{ i: 0, n: {{ $awardSlides->count() }}, timer: null,
                     start() { if ({{ $plain ? 'true' : 'false' }} || this.n < 2) return; this.timer = setInterval(() => { this.i = (this.i + 1) % this.n; }, 6000); },
-                    stop() { clearInterval(this.timer); } }"
-                 x-init="start()" @mouseenter="stop()" @mouseleave="start()">
+                    stop() { clearInterval(this.timer); },
+                    go(d) { this.stop(); this.i = (this.i + d + this.n) % this.n; },
+                    tx: null,
+                    swipeStart(e) { this.tx = e.changedTouches[0].clientX; },
+                    swipeEnd(e) { if (this.tx === null) return; const dx = e.changedTouches[0].clientX - this.tx; this.tx = null; if (Math.abs(dx) > 40) this.go(dx < 0 ? 1 : -1); } }"
+                 x-init="start()" @mouseenter="stop()" @mouseleave="start()" @touchstart.passive="swipeStart($event)" @touchend="swipeEnd($event)">
             <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
             <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
             <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
@@ -135,11 +139,15 @@
                 @endforelse
             </div>
             @if ($awardSlides->count() > 1)
-                <div class="uj-db-awards-dots" role="tablist">
+                {{-- QA S18 F8: arrows and dots you can see; swipe is on the section. --}}
+                <div class="uj-db-awards-dots" role="tablist" style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+                    <button type="button" data-carousel-prev aria-label="Previous award" @click="go(-1)" style="border:1px solid var(--hairline);background:transparent;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">&lsaquo;</button>
                     @foreach ($awardSlides as $idx => $group)
                         <button type="button" role="tab" :aria-selected="i === {{ $idx }}" @click="stop(); i = {{ $idx }}"
-                                :class="{ active: i === {{ $idx }} }" aria-label="{{ $group->copy['en']['name'] }}"></button>
+                                :style="{ background: i === {{ $idx }} ? 'var(--ink)' : 'var(--hairline)' }"
+                                style="width:8px;height:8px;border-radius:50%;border:0;padding:0;cursor:pointer;" aria-label="{{ $group->copy['en']['name'] }}"></button>
                     @endforeach
+                    <button type="button" data-carousel-next aria-label="Next award" @click="go(1)" style="border:1px solid var(--hairline);background:transparent;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">&rsaquo;</button>
                 </div>
             @endif
             <a class="uj-db-cta" href="{{ url('/app/awards') }}" x-text="$store.ui.lang==='en' ? 'View all' : 'Lihat semua'">View all</a>

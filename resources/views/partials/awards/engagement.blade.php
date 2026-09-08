@@ -33,8 +33,10 @@
      }">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         @foreach ($activeKeys as $key)
-            <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;"
-                    @click="post('{{ url('/app/awards/'.$resultId.'/react') }}', { reaction: '{{ $key }}' })">{{ $key }}</button>
+            @php $rd = \App\Models\Reaction::describe($key); @endphp
+            {{-- QA S18 F7: the CR-30 icon and label, not the storage key. --}}
+            <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;" title="{{ $rd['label'] }}" data-reaction="{{ $key }}"
+                    @click="post('{{ url('/app/awards/'.$resultId.'/react') }}', { reaction: '{{ $key }}' })">{{ $rd['icon'] }} {{ $rd['label'] }}</button>
         @endforeach
         <span style="font-size:11.5px;color:var(--muted);">{{ $reactionCount }} {{ $reactionCount === 1 ? 'reaction' : 'reactions' }}</span>
     </div>

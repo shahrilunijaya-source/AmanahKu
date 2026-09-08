@@ -4,6 +4,10 @@
     $slides = $slides ?? collect();
     $pastMonths = $pastMonths ?? [];
     $canSelect = ($canSelectNewButDangerous ?? false) || ($canSelectChosenOne ?? false);
+    // QA S18 F2: after a plain form post the page comes back on the tab that was used.
+    $tab = session('tab', $errors->any()
+        ? (old('award_key') === null ? 'winners' : (in_array(old('award_key'), ['new_but_dangerous', 'chosen_one'], true) ? 'select' : 'nominate'))
+        : 'winners');
 @endphp
 
 @section('screen')
@@ -19,10 +23,16 @@
     ],
 ])
 
-<div x-data="{ tab: 'winners' }" style="display:flex;flex-direction:column;gap:16px;">
+<div x-data="{ tab: @js($tab) }" style="display:flex;flex-direction:column;gap:16px;">
+    @if (session('ok'))
+        <div class="uj-card" style="padding:12px 18px;font-size:13px;color:var(--ink);border-left:3px solid var(--green,#1c7c54);">{{ session('ok') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="uj-card" style="padding:12px 18px;font-size:13px;color:var(--ink);border-left:3px solid var(--red,#b42318);">{{ $errors->first() }}</div>
+    @endif
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'winners' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'winners'">
-            <span x-text="$store.ui.lang==='en' ? \"This month's winners\" : 'Pemenang bulan ini'">This month's winners</span>
+            <span x-text="$store.ui.lang==='en' ? @js("This month's winners") : 'Pemenang bulan ini'">This month's winners</span>
         </button>
         <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'nominate' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'nominate'">
             <span x-text="$store.ui.lang==='en' ? 'Nominate' : 'Calonkan'">Nominate</span>
@@ -44,7 +54,7 @@
         @else
             <p style="font-size:12px;color:var(--muted);margin:0 0 6px;">{{ \Carbon\Carbon::parse($month)->format('F Y') }}</p>
             @foreach ($slides as $group)
-                @include('partials.awards.result', ['group' => $group, 'attr' => 'award'])
+                @include('partials.awards.result', ['group' => $group, 'attr' => 'award', 'canAdjust' => $canAdjust ?? false, 'colleagues' => $colleagues ?? collect()])
             @endforeach
         @endif
     </div>

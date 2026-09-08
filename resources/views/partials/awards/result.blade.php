@@ -19,6 +19,9 @@
             <div data-winner="{{ $winner->employee_id }}" style="display:flex;align-items:center;gap:8px;">
                 <span style="width:30px;height:30px;border-radius:50%;background:{{ $winner->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $winner->employee?->initials ?? '?' }}</span>
                 <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $winner->employee?->display_name ?? $winner->employee?->name }}</span>
+                @if ($winner->employee?->position)
+                    <span style="font-size:12px;color:var(--muted);">{{ $winner->employee->position }}</span>
+                @endif
             </div>
         @endforeach
     </div>
@@ -27,6 +30,22 @@
         <p style="font-size:12px;color:var(--amber, #a06a00);margin:4px 0 0;">{{ "Result adjusted \u{2013} {$group->reason}" }}</p>
     @elseif ($group->reason)
         <p style="font-size:12px;color:var(--body);margin:4px 0 0;font-style:italic;">&ldquo;{{ $group->reason }}&rdquo;</p>
+    @endif
+    @if (($canAdjust ?? false) && $attr === 'award')
+        {{-- QA S18 F3: Global Clause item 3, the Director's override, from the page itself. --}}
+        <details style="margin-top:8px;font-size:12.5px;">
+            <summary style="cursor:pointer;color:var(--muted);">Adjust result</summary>
+            <form method="post" action="{{ url('/app/awards/'.$group->primaryResultId.'/adjust') }}" style="display:flex;flex-direction:column;gap:8px;max-width:420px;margin-top:8px;">
+                @csrf
+                <select name="employee_id" style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
+                    @foreach ($colleagues ?? [] as $c)
+                        <option value="{{ $c->id }}">{{ $c->display_name }}</option>
+                    @endforeach
+                </select>
+                <input name="reason" required maxlength="2000" placeholder="Reason (required, shown on the page)" style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;" />
+                <button type="submit" class="uj-btn-ghost" style="height:34px;font-size:12.5px;">Adjust</button>
+            </form>
+        </details>
     @endif
     @include('partials.awards.engagement', [
         'resultId' => $group->primaryResultId,

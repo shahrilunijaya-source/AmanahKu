@@ -14,6 +14,7 @@ use App\Support\AwardCatalog;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -49,13 +50,15 @@ class AwardController extends Controller
             'nominationWindowOpen' => self::inNominationWindow(Carbon::now()),
             'canSelectNewButDangerous' => $this->hasTenantRole($request, ['manager', 'management', 'director']),
             'canSelectChosenOne' => $this->hasTenantRole($request, ['director']),
+            // QA S18 F3: the Global Clause override needs a form on the page, not only a route.
+            'canAdjust' => $this->hasTenantRole($request, ['director']),
             'colleagues' => Employee::active()->where('id', '!=', $employee?->id)->orderBy('name')->get(['id', 'name', 'nickname']),
             'activeReactionKeys' => Reaction::activeKeys(),
         ];
     }
 
     /** CR-14: peer nomination for main_character/office_yoda, last 7 days of the month only. */
-    public function nominate(Request $request): JsonResponse
+    public function nominate(Request $request): JsonResponse|RedirectResponse
     {
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403);
@@ -100,7 +103,11 @@ class AwardController extends Controller
         AuditLog::record('award.nominated', "{$data['award_key']}:{$nominee->id}");
         $this->closeCard($employee->id, $month->format('Y-m').'-nominate');
 
-        return response()->json(['ok' => true]);
+        // QA S18 F2: the screen's forms are plain posts, so a browser lands back on the
+        // tab with a flash; only fetch callers get the JSON.
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Nomination sent.')->with('tab', 'nominate');
     }
 
     /**
@@ -109,7 +116,7 @@ class AwardController extends Controller
      * replacing an earlier pick of the same award and month by anyone (rule: one winner
      * lives per award per month until the Director overrides it via adjust()).
      */
-    public function select(Request $request): JsonResponse
+    public function select(Request $request): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'award_key' => ['required', 'string', 'in:'.implode(',', self::SELECTED_KEYS)],
@@ -160,7 +167,9 @@ class AwardController extends Controller
         AuditLog::record('award.selected', "{$data['award_key']}:{$pick->id}");
         $this->closeCard($employee->id, $month->format('Y-m').'-select');
 
-        return response()->json(['ok' => true]);
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Pick saved.')->with('tab', 'select');
     }
 
     /** CR-30 reaction, one per person per result, toggle semantics (same as TotController::react). */
@@ -232,7 +241,7 @@ class AwardController extends Controller
      * award_results already guarantees that) and writes the field-level audit entry
      * every Global Clause state change requires.
      */
-    public function adjust(Request $request, AwardResult $result): JsonResponse
+    public function adjust(Request $request, AwardResult $result): JsonResponse|RedirectResponse
     {
         $this->assertSameTenant($result);
         $this->authorizeTenantRole($request, ['director']);
@@ -252,7 +261,9 @@ class AwardController extends Controller
 
         AuditLog::change($result, 'employee_id', $oldEmployeeId, $newWinner->id, $data['reason']);
 
-        return response()->json(['ok' => true]);
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Result adjusted.');
     }
 
     /** The engagement region (reactions + comments) for one result, re-rendered for a fetch-and-swap response. */
@@ -288,14 +299,24 @@ class AwardController extends Controller
     }
 
     /** The month currently open for a manual pick: last month once its awards are published, else this month. */
+    /**
+     * QA S18 F5: the month a pick is for. The Select window opens with the Select task
+     * on the month's last Monday and runs to the task's due date on the next month's
+     * first working day, so from the last Monday onward a pick is for the current
+     * month and before that it is for the previous one. Keying on "previous month
+     * already published" sent a 29 Sep pick to August.
+     */
     private function selectionMonth(): Carbon
     {
-        $today = Carbon::now();
-        $previousMonth = $today->copy()->subMonthNoOverflow()->startOfMonth();
-        $published = AuditLog::where('tenant_id', app(CurrentTenant::class)->id())
-            ->where('action', 'awards.published')->where('target', $previousMonth->toDateString())->exists();
+        $today = Carbon::now()->startOfDay();
+        $lastMonday = $today->copy()->endOfMonth()->startOfDay();
+        while (! $lastMonday->isMonday()) {
+            $lastMonday->subDay();
+        }
 
-        return $published ? $previousMonth : $today->copy()->startOfMonth();
+        return $today->gte($lastMonday)
+            ? $today->copy()->startOfMonth()
+            : $today->copy()->subMonthNoOverflow()->startOfMonth();
     }
 
     private function assertSameTenant(AwardResult $result): void

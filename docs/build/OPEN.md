@@ -600,3 +600,34 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: trivial, one `if` removed in `BuildsDashboardWidgets::dashboardBands()`
   and one `@forelse`/`@empty` in the band partial.
 - Source: `tests/Acceptance/CR32Test.php` docblock and `test_acceptance_3` (frozen).
+
+### QA / CR-14b / grade fixes F1 to F8 decided during the S18 grade
+- Question: `CR14bTest` passed on the S18 tree, but driving the full September cycle on
+  the dev database showed the plain Nominate/Select forms landing on a JSON body, no
+  override form on the screen for the Director, a pick made on Tuesday 2026-09-29 filed
+  against October, the Chosen One slide third instead of first, reaction buttons showing
+  raw CR-30 keys, no winner role, a timer-only carousel, a `\"` Alpine string and the five
+  probation staff missing from the publish notice. `docs/specs/CR-14.md` says nothing about
+  form fallbacks, the pick month, the slide order beyond "one award per slide", or who the
+  publish notice reaches.
+- Decided: non-JSON requests to nominate/select/adjust redirect back with a flash and the
+  originating tab, JSON requests keep the JSON answer; the Director gets a `<details>`
+  "Adjust result" form on every result row; a pick belongs to the current month from its
+  last Monday (the `awards:tasks` day) onward and to the previous month before that; slide
+  order is `chosen_one`, `main_character`, `office_yoda`, `new_but_dangerous`, then
+  `Awards::KEYS`; reaction buttons show `Reaction::describe()` icon and label; the winner
+  line shows the role; the carousel has arrows, dots and a 40px swipe; publish notifies
+  every employed person (`Employee::active()` minus `resigned`).
+- Alternatives: convert the forms to `fetch` submits (rejected, more JS for the same
+  outcome and it would hide the validation message from a plain reload); put the override
+  on a separate admin screen (rejected, one more screen for one button); file picks by
+  calendar month only (rejected, the last-Monday task lands in the month it is about, so a
+  pick on that day must too); keep the S18 slide order (rejected, the spec's list puts the
+  Director's pick first); leave the carousel timer-only (rejected, a reader cannot go back
+  to a slide they missed); notify `status='active'` only (rejected, probation staff are
+  employed and on the boards).
+- Reversal cost: small. Each fix is a few lines in `AwardController`, `AwardCatalog::order()`,
+  `AwardsPublish`, the three award partials and the band section, each pinned by one test in
+  `tests/Feature/AwardsTest.php` that would need dropping with it.
+- Source: `docs/build/sessions/S18/grade.md`, `tests/Feature/AwardsTest.php` (`s18_f2_a_`
+  to `s18_f6_f7_f8_`), `tests/Acceptance/CR14bTest.php` (frozen).
