@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\ApiClient;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Tenant;
@@ -149,6 +150,45 @@ class ProjectVariationTest extends TestCase
         $variationId = $project->variations()->sole()->id;
         $this->actingAsRole('management');
         $this->post(route('projects.variations.approve', [$project, $variationId]))->assertRedirect();
+    }
+
+    public function test_a_plain_form_validation_failure_surfaces_as_a_toast_on_the_register(): void
+    {
+        $project = $this->project();
+        $this->actingAsRole('hr');
+        $payload = [
+            'vo_no' => 'VO-01', 'variation_date' => '2026-10-01', 'reason' => 'Scope',
+            'contract_value' => 1500000,
+        ];
+        $this->post(route('projects.variations.store', $project), $payload)->assertRedirect();
+
+        $this->from(route('app.screen', 'projects'))
+            ->followingRedirects()
+            ->post(route('projects.variations.store', $project), $payload)
+            ->assertOk()
+            ->assertSee('The VO number has already been taken.');
+    }
+
+    public function test_approval_writes_exactly_one_audit_row_per_changed_field_with_the_vo_reason(): void
+    {
+        $project = $this->project();
+        $this->actingAsRole('hr');
+        $this->postJson(route('projects.variations.store', $project), [
+            'vo_no' => 'VO-01', 'variation_date' => '2026-10-01', 'reason' => 'Scope',
+            'contract_value' => 1500000, 'client' => 'New client',
+        ])->assertCreated();
+
+        $this->actingAsRole('management');
+        $this->postJson(route('projects.variations.approve', [$project, $project->variations()->sole()->id]))->assertOk();
+
+        $rows = AuditLog::query()
+            ->where('subject_type', (new Project)->getMorphClass())
+            ->where('subject_id', $project->id)
+            ->whereIn('field', ['contract_value', 'client'])
+            ->get();
+
+        $this->assertCount(2, $rows, 'one audit row per changed field, not one per writer');
+        $this->assertSame(['VO VO-01: Scope', 'VO VO-01: Scope'], $rows->pluck('reason')->all());
     }
 
     public function test_attachment_404s_when_the_variation_belongs_to_a_different_project(): void

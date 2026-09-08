@@ -7,6 +7,7 @@ namespace App\Projects;
 use App\Models\AuditLog;
 use App\Models\Project;
 use App\Models\ProjectVariation;
+use App\Support\AuditContext;
 use Carbon\CarbonInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
@@ -94,11 +95,20 @@ final class ProjectVariations
     {
         $this->assertPending($variation);
 
+        $reason = 'VO '.$variation->vo_no.': '.$variation->reason;
+
+        // The AuditsChanges trait on Project already writes one audit row per changed
+        // master field on save; the reason rides in through AuditContext, exactly as
+        // ProjectMaster::update() does it, so nothing is written twice.
         $project->fill($this->newValues($variation));
-        $project->save();
+        AuditContext::reason($reason);
+        try {
+            $project->save();
+        } finally {
+            AuditContext::reason(null);
+        }
 
         $versionNo = ($project->versions()->max('version_no') ?? 0) + 1;
-        $reason = 'VO '.$variation->vo_no.': '.$variation->reason;
 
         $version = $project->versions()->create([
             'tenant_id' => $project->tenant_id,
@@ -109,10 +119,6 @@ final class ProjectVariations
             'reason' => $reason,
             'created_by_id' => $userId,
         ]);
-
-        foreach ($variation->changes as $field => $delta) {
-            AuditLog::change($project, $field, $delta['old'] ?? null, $delta['new'] ?? null, $reason);
-        }
 
         $variation->update([
             'status' => 'approved',

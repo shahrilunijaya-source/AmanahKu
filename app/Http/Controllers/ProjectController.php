@@ -260,7 +260,7 @@ class ProjectController extends Controller
             'contract_end' => ['nullable', 'date'],
             'client' => ['nullable', 'string', 'max:160'],
             'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-        ]);
+        ], [], ['vo_no' => 'VO number']);
 
         if (! $request->hasAny(['contract_value', 'contract_start', 'contract_end', 'client'])) {
             throw ValidationException::withMessages([

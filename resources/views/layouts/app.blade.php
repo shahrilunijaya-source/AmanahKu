@@ -519,6 +519,10 @@
         // redirect result appears once, as a toast, instead of an in-page banner.
         @if (session('error'))
         Alpine.store('toast').error(@js(session('error')));
+        @elseif ($errors->any())
+        {{-- A plain (non-AJAX) form that failed validation lands back here with the
+             error bag and nothing else; without this the page just reloads in silence. --}}
+        Alpine.store('toast').error(@js($errors->first()));
         @endif
         @if (session('ok'))
         Alpine.store('toast').success(@js(session('ok')));
