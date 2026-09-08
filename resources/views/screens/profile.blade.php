@@ -35,6 +35,7 @@
             $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         @endphp
         <span style="display:inline-block;font-size:11px;font-weight:600;color:{{ $stColor }};background:var(--canvas);padding:4px 11px;border-radius:9999px;">{{ $stOpts[$p->status] ?? ucfirst($p->status) }}</span>
+        @include('partials.awards.badges', ['awardBadges' => $awardBadges ?? collect()])
         <div style="margin-top:14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px;">
             <div>{{ $p->department?->name }}@if ($p->branch) · {{ $p->branch->name }}@endif</div>
             <div><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span>: {{ $p->reportsTo?->name ?? '—' }}</div>
@@ -77,6 +78,7 @@
                 </div>
                 <p style="font-size:13.5px;color:var(--muted);margin:5px 0 0;">{{ $p->positionBand?->title ?? '—' }}</p>
                 <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0;">{{ $p->department?->name }}@if ($p->branch) · {{ $p->branch->name }}@endif</p>
+                @include('partials.awards.badges', ['awardBadges' => $awardBadges ?? collect()])
                 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted);">
                     <span><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $p->staff_id ?? '—' }}</span></span>
                     <span><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $p->joined_at?->format('d M Y') ?? '—' }}</span></span>

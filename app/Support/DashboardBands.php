@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Attendance\HolidayEve;
 use App\Models\Employee;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 /**
  * The full-width bands above the dashboard grid (CR-32). Three slots in a fixed
@@ -249,19 +250,24 @@ final class DashboardBands
     }
 
     /**
-     * The awards slot (CR-32 owns the window, CR-14 fills it): everyone, from the
-     * first working day of the month to the 7th inclusive.
+     * The awards slot (CR-32 owns the window, CR-14b fills it): everyone, from the
+     * first working day of the month to the 7th inclusive, every day in that window —
+     * CR32Test pins the band itself as unconditional on the window, regardless of
+     * whether last month has published results yet. An empty `$slides` renders the
+     * band with its own "nothing published yet" line instead of disappearing.
      *
-     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}}
+     * @param  Collection  $slides  App\Support\AwardBoard::slidesForMonth() for the previous month
+     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}, slides: Collection}
      */
-    public static function awardsSlot(CarbonImmutable $today): array
+    public static function awardsSlot(CarbonImmutable $today, Collection $slides): array
     {
-        $month = $today->format('F');
+        $month = $today->copy()->subMonthNoOverflow();
 
         return [
             'kicker' => ['en' => 'Awards', 'ms' => 'Anugerah'],
-            'title' => ['en' => "{$month}'s awards", 'ms' => "Anugerah {$today->locale('ms')->translatedFormat('F')}"],
-            'sub' => ['en' => 'The carousel opens here, one award per slide, once awards are given.', 'ms' => 'Karusel dibuka di sini, satu anugerah setiap slaid, setelah anugerah diberikan.'],
+            'title' => ['en' => "{$month->format('F')}'s awards", 'ms' => "Anugerah {$month->locale('ms')->translatedFormat('F')}"],
+            'sub' => ['en' => 'This month\'s winners, one award per slide.', 'ms' => 'Pemenang bulan ini, satu anugerah setiap slaid.'],
+            'slides' => $slides,
         ];
     }
 

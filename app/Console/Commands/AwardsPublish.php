@@ -8,6 +8,7 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Support\AwardCatalog;
 use App\Support\Awards;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\DayRules;
@@ -81,28 +82,28 @@ class AwardsPublish extends Command
             ->where('tenant_id', $tenantId)->whereDate('month', $previousMonth->toDateString())->get()
             ->groupBy('award_key')->map(fn (Collection $rows) => $rows->pluck('employee_id')->map(fn ($id) => (int) $id)->all());
 
+        // CR-14b: main_character/office_yoda have no award_snapshots row (Awards::compute()
+        // never computes them) — their candidates are this month's peer nominations, one
+        // "value" per nominee = its vote count, same rule 9/10 resolver as every auto award.
+        $nominations = DB::table('award_nominations')
+            ->where('tenant_id', $tenantId)->whereDate('month', $month->toDateString())
+            ->whereIn('award_key', AwardCatalog::NOMINATED_KEYS)
+            ->get()->groupBy('award_key')
+            ->map(fn (Collection $rows) => $rows->groupBy('nominee_employee_id')->map(fn (Collection $votes, $employeeId) => (object) [
+                'employee_id' => $employeeId,
+                'value' => (float) $votes->count(),
+                'label' => $votes->count().' nomination'.($votes->count() === 1 ? '' : 's'),
+            ])->values());
+
         $publishedAt = Carbon::now();
         $winCounts = [];
         $rows = [];
 
         foreach (Awards::KEYS as $key) {
-            $winners = $this->resolveWinners($snapshot->get($key, collect()), $key, $previousWinners->get($key, []), $winCounts);
-            foreach ($winners as $row) {
-                $rows[] = [
-                    'tenant_id' => $tenantId,
-                    'month' => $month->toDateString(),
-                    'award_key' => $key,
-                    'employee_id' => (int) $row->employee_id,
-                    'value' => $row->value,
-                    'label' => $row->label,
-                    'source' => 'auto',
-                    'reason' => null,
-                    'published_at' => $publishedAt,
-                    'created_at' => $publishedAt,
-                    'updated_at' => $publishedAt,
-                ];
-                $winCounts[(int) $row->employee_id] = ($winCounts[(int) $row->employee_id] ?? 0) + 1;
-            }
+            $rows = [...$rows, ...$this->publishAward($key, $snapshot->get($key, collect()), $previousWinners->get($key, []), $winCounts, 'auto', $tenantId, $month, $publishedAt)];
+        }
+        foreach (AwardCatalog::NOMINATED_KEYS as $key) {
+            $rows = [...$rows, ...$this->publishAward($key, $nominations->get($key, collect()), $previousWinners->get($key, []), $winCounts, 'nomination', $tenantId, $month, $publishedAt)];
         }
 
         if ($rows !== []) {
@@ -119,6 +120,40 @@ class AwardsPublish extends Command
         );
 
         return count($rows);
+    }
+
+    /**
+     * Resolves one award's winner(s) and shapes them into `award_results` insert rows,
+     * tagged with the given `source` — 'auto' for the 15 computed awards, 'nomination'
+     * for the two peer-voted ones (CR-14b). Also advances $winCounts by reference so rule
+     * 9 (max two awards per person) is enforced across BOTH loops in publishTenant(), not
+     * just within one of them.
+     *
+     * @param  array<int, int>  &$winCounts
+     * @param  list<int>  $blocked
+     * @return list<array<string, mixed>>
+     */
+    private function publishAward(string $key, Collection $candidates, array $blocked, array &$winCounts, string $source, int $tenantId, Carbon $month, Carbon $publishedAt): array
+    {
+        $rows = [];
+        foreach ($this->resolveWinners($candidates, $key, $blocked, $winCounts) as $winner) {
+            $rows[] = [
+                'tenant_id' => $tenantId,
+                'month' => $month->toDateString(),
+                'award_key' => $key,
+                'employee_id' => (int) $winner->employee_id,
+                'value' => $winner->value,
+                'label' => $winner->label,
+                'source' => $source,
+                'reason' => null,
+                'published_at' => $publishedAt,
+                'created_at' => $publishedAt,
+                'updated_at' => $publishedAt,
+            ];
+            $winCounts[(int) $winner->employee_id] = ($winCounts[(int) $winner->employee_id] ?? 0) + 1;
+        }
+
+        return $rows;
     }
 
     /**

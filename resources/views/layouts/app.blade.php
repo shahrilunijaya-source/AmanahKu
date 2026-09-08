@@ -318,7 +318,7 @@
                 fetch('{{ route('knowledge.read') }}', {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'Accept': 'application/json',
                     },
                 }).catch(() => {});
@@ -384,7 +384,7 @@
                     method: 'POST',
                     keepalive: true,
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'Accept': 'application/json',
                     },
                 }).catch(() => {});
@@ -413,7 +413,7 @@
             error: '',
             lastMessageId: 0,
             pollTimer: null,
-            csrf() { return document.querySelector('meta[name=csrf-token]').content; },
+            csrf() { return @js(csrf_token()); },
 
             /** Fetch the thread fragment and drop it into the panel's pane. */
             async swap(query) {

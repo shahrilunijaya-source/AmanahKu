@@ -235,8 +235,18 @@ trait BuildsPeopleData
             ? app(FlowerController::class)->wallViewData($request, $e, $own)
             : ['wall' => collect(), 'canGiveFlower' => false, 'flowersLeft' => 0, 'alreadyGaveThisMonth' => false, 'canHideFlowers' => false];
 
+        // CR-14b: award badges (one per distinct award key won, ever) and hall-of-fame
+        // (3+ wins of the same award) — shown on BOTH the slim public card and the full
+        // profile, so this sits outside canViewFull entirely, unlike everything above it.
+        $awardBadges = $e
+            ? DB::table('award_results')->where('employee_id', $e->id)
+                ->select('award_key', DB::raw('count(*) as wins'))->groupBy('award_key')->orderBy('award_key')
+                ->get()->map(fn ($row) => ['key' => $row->award_key, 'wins' => (int) $row->wins, 'hallOfFame' => (int) $row->wins >= 3])
+            : collect();
+
         return array_merge([
             'profile' => $e,
+            'awardBadges' => $awardBadges,
             'canViewFull' => $canViewFull,
             'canEdit' => $canEdit,
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),

@@ -92,6 +92,22 @@ class AwardsTest extends TestCase
         return $value === null ? null : (float) $value;
     }
 
+    private function actingInTenantAs(Employee $employee, Tenant $tenant): static
+    {
+        $this->actingAs($employee->user)->withSession(['current_tenant' => $tenant->id]);
+
+        return $this;
+    }
+
+    private function publishedResult(Tenant $tenant, Employee $winner, string $key = 'chosen_one', string $month = '2026-11-01'): int
+    {
+        return DB::table('award_results')->insertGetId([
+            'tenant_id' => $tenant->id, 'month' => $month, 'award_key' => $key,
+            'employee_id' => $winner->id, 'value' => 1.0, 'label' => 'x', 'source' => 'manual',
+            'published_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
     #[Test]
     public function never_late_needs_no_late_day_and_always_here_needs_perfect_attendance(): void
     {
@@ -389,5 +405,56 @@ class AwardsTest extends TestCase
 
         $this->assertSame(1.0, $this->metric($tenant, '2026-11-01', 'mic_drop_mentor', $one));
         $this->assertSame(1.0, $this->metric($tenant, '2026-11-01', 'mic_drop_mentor', $two), 'the second presenter got no credit');
+    }
+
+    /**
+     * CR-14b: route-model binding is not tenant-safe by itself (SubstituteBindings runs
+     * before ResolveTenant, see `docs/build/RULES.md`'s standing trap) — `AwardController`'s
+     * `react`/`comment`/`adjust` all call a private `assertSameTenant()` guard before doing
+     * anything else. Proves it actually fires: a tenant-B result, hit by a tenant-A user.
+     */
+    #[Test]
+    public function f7_award_result_routes_reject_a_cross_tenant_result(): void
+    {
+        $tenantA = $this->tenant('acme');
+        $tenantB = $this->tenant('globex');
+        $intruder = $this->person($tenantA, 'Intruder');
+        $bWinner = $this->person($tenantB, 'B Winner');
+        $resultId = $this->publishedResult($tenantB, $bWinner);
+
+        $this->actingInTenantAs($intruder, $tenantA)
+            ->postJson("/app/awards/{$resultId}/react", ['reaction' => 'power'])
+            ->assertStatus(404);
+        $this->actingInTenantAs($intruder, $tenantA)
+            ->postJson("/app/awards/{$resultId}/comments", ['body' => 'hello'])
+            ->assertStatus(404);
+        $this->actingInTenantAs($intruder, $tenantA)
+            ->postJson("/app/awards/{$resultId}/adjust", ['employee_id' => $intruder->id, 'reason' => 'nope'])
+            ->assertStatus(404);
+
+        $this->assertSame(0, DB::table('award_reactions')->where('award_result_id', $resultId)->count());
+        $this->assertSame(0, DB::table('award_comments')->where('award_result_id', $resultId)->count());
+        $this->assertSame($bWinner->id, DB::table('award_results')->where('id', $resultId)->value('employee_id'), 'tenant B\'s row was untouched');
+    }
+
+    /** CR-14b: a second identical reaction from the same person removes it (delete-then-insert toggle, same as TotReaction). */
+    #[Test]
+    public function f8_a_repeated_reaction_toggles_it_off(): void
+    {
+        $tenant = $this->tenant();
+        $winner = $this->person($tenant, 'Winner');
+        $fan = $this->person($tenant, 'Fan');
+        $resultId = $this->publishedResult($tenant, $winner);
+
+        $first = $this->actingInTenantAs($fan, $tenant)
+            ->postJson("/app/awards/{$resultId}/react", ['reaction' => 'power'])
+            ->assertOk()->json('html');
+        $this->assertStringContainsString('data-reactions="1"', $first);
+
+        $second = $this->actingInTenantAs($fan, $tenant)
+            ->postJson("/app/awards/{$resultId}/react", ['reaction' => 'power'])
+            ->assertOk()->json('html');
+        $this->assertStringContainsString('data-reactions="0"', $second, 'the same reaction from the same person toggled off');
+        $this->assertSame(0, DB::table('award_reactions')->where('award_result_id', $resultId)->count());
     }
 }

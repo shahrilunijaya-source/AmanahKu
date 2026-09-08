@@ -116,6 +116,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // first working day of the month.
         $schedule->command('awards:publish')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('awards:publish'));
+        // CR-14b: create the monthly Nominate/Select award cards, acting only on the
+        // last Monday of the month.
+        $schedule->command('awards:tasks')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('awards:tasks'));
         // Captured faults are a debugging aid, not a record to keep. Without this the
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())

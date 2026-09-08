@@ -13,6 +13,7 @@ use App\Http\Controllers\AttendanceAdminController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
+use App\Http\Controllers\AwardController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CaseController;
@@ -527,6 +528,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/tot/{session}/actions/{action}/card', [TotController::class, 'createActionCard'])->name('tot.actions.card');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
+        // CR-14b: peer nominations, the two director/PM manual picks, reactions/comments on
+        // a result, and the Global Clause item 3 Director override.
+        Route::post('/app/awards/nominate', [AwardController::class, 'nominate'])->name('awards.nominate');
+        Route::post('/app/awards/select', [AwardController::class, 'select'])->name('awards.select');
+        Route::post('/app/awards/{result}/react', [AwardController::class, 'react'])->name('awards.react');
+        Route::post('/app/awards/{result}/comments', [AwardController::class, 'comment'])->name('awards.comments');
+        Route::post('/app/awards/{result}/adjust', [AwardController::class, 'adjust'])->name('awards.adjust');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');

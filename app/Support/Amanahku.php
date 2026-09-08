@@ -110,6 +110,9 @@ class Amanahku
             $s('The Playground', 'The Playground', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
             $s('The Playground', 'The Playground', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
             $s('The Playground', 'The Playground', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
+            // CR-14b: monthly awards — everyone, so no `roles` key. The "Select" tab
+            // inside the screen is what's gated to PM and above.
+            $s('The Playground', 'The Playground', ['id' => 'awards', 'label' => 'Awards', 'label_ms' => 'Anugerah', 'icon' => 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 14L7 22l5-3 5 3-1.5-8']),
             // 'profile-test' has no sidebar row (CR-15): it is reached from the dashboard's
             // 'My working style' card and from the profile page. The screen itself stays.
 
@@ -386,6 +389,7 @@ class Amanahku
             'timesheet-reports' => ['title' => 'Timesheet Reports', 'title_ms' => 'Laporan Lembaran Masa', 'sub' => 'Staff time allocation by project and by person over a period.', 'sub_ms' => 'Peruntukan masa staf mengikut projek dan mengikut individu untuk satu tempoh.', 'crumb' => ['Reports & Audit', 'Timesheet Reports']],
             'reports' => ['title' => 'Workforce Reports', 'title_ms' => 'Laporan Tenaga Kerja', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Insights', 'Workforce Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
+            'awards' => ['title' => 'Awards', 'title_ms' => 'Anugerah', 'sub' => "This month's winners, nominations and past winners.", 'sub_ms' => 'Pemenang bulan ini, pencalonan dan pemenang terdahulu.', 'crumb' => ['Awards']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],

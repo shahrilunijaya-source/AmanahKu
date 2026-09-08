@@ -19,6 +19,7 @@ use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\ArchetypeCatalog;
 use App\Support\ArchetypeScorer;
+use App\Support\AwardBoard;
 use App\Support\DashboardBands;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
@@ -175,7 +176,8 @@ trait BuildsDashboardWidgets
                 );
             }
             if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
-                $awards = DashboardBands::awardsSlot($today);
+                $previousMonth = $today->copy()->subMonthNoOverflow()->startOfMonth()->toDateString();
+                $awards = DashboardBands::awardsSlot($today, AwardBoard::slidesForMonth($previousMonth));
             }
         }
 

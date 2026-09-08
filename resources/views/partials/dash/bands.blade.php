@@ -111,13 +111,38 @@
             @include('partials.dash.management-panels', ['mgmt' => $mgmt])
         </section>
     @endif
-    {{-- CR-32: the awards slot (CR-14). Text only until CR-14 fills it. --}}
+    {{-- CR-32/CR-14b: the awards carousel — one data-slide per award (a tie shares its
+         slide), manual awards first then App\Support\Awards::KEYS order. Auto-rotation,
+         hover-pause and swipe are a human check (CR14bTest item 2); the markup and the
+         reactions/comments underneath are exercised by the acceptance suite. --}}
     @if ($bands['awards'] ?? null)
-        @php $b = $bands['awards']; @endphp
-        <section class="uj-db-band uj-db-awards" data-band="awards" aria-label="{{ $b['title']['en'] }}">
+        @php $b = $bands['awards']; $awardSlides = $b['slides']; @endphp
+        <section class="uj-db-band uj-db-awards" data-band="awards" aria-label="{{ $b['title']['en'] }}"
+                 x-data="{ i: 0, n: {{ $awardSlides->count() }}, timer: null,
+                    start() { if ({{ $plain ? 'true' : 'false' }} || this.n < 2) return; this.timer = setInterval(() => { this.i = (this.i + 1) % this.n; }, 6000); },
+                    stop() { clearInterval(this.timer); } }"
+                 x-init="start()" @mouseenter="stop()" @mouseleave="start()">
             <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
             <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
             <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
+            <div class="uj-db-awards-track">
+                @forelse ($awardSlides as $idx => $group)
+                    <div x-show="i === {{ $idx }}" @if ($idx !== 0) style="display:none" @endif>
+                        @include('partials.awards.result', ['group' => $group, 'attr' => 'slide'])
+                    </div>
+                @empty
+                    <p class="uj-db-awards-empty" x-text="$store.ui.lang==='en' ? 'Not published yet, check back soon.' : 'Belum diterbitkan, sila semak semula tidak lama lagi.'">Not published yet, check back soon.</p>
+                @endforelse
+            </div>
+            @if ($awardSlides->count() > 1)
+                <div class="uj-db-awards-dots" role="tablist">
+                    @foreach ($awardSlides as $idx => $group)
+                        <button type="button" role="tab" :aria-selected="i === {{ $idx }}" @click="stop(); i = {{ $idx }}"
+                                :class="{ active: i === {{ $idx }} }" aria-label="{{ $group->copy['en']['name'] }}"></button>
+                    @endforeach
+                </div>
+            @endif
+            <a class="uj-db-cta" href="{{ url('/app/awards') }}" x-text="$store.ui.lang==='en' ? 'View all' : 'Lihat semua'">View all</a>
         </section>
     @endif
     @if ($upcoming !== [])
