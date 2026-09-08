@@ -86,6 +86,26 @@ class Project extends Model implements HasAuditedFields
         return $this->hasMany(ProjectVersion::class)->orderBy('version_no');
     }
 
+    /** @return HasMany<ProjectVariation, $this> */
+    public function variations(): HasMany
+    {
+        return $this->hasMany(ProjectVariation::class)->latest('id');
+    }
+
+    /**
+     * CR-06b §E5: shown on the register and to Track as `awaiting_approval`. Counts
+     * off the already-loaded `variations` relation when present (the register eager
+     * loads it for every row) rather than firing a fresh query per project.
+     */
+    public function pendingVariationsCount(): int
+    {
+        if ($this->relationLoaded('variations')) {
+            return $this->variations->where('status', 'pending')->count();
+        }
+
+        return $this->variations()->reorder()->where('status', 'pending')->count();
+    }
+
     /** @return BelongsTo<Employee, $this> */
     public function pm(): BelongsTo
     {

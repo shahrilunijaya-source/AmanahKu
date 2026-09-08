@@ -1,20 +1,25 @@
 {{-- One project row on the Projects register. Shared by the initial render and the
-     AJAX append on add. Expects $project (with categories + versions.createdBy loaded),
-     $categories (full list, for the edit form), $canEdit, $employees (for the PM/PE
-     pickers), $editableFields (the viewer's writable master fields) and $canReopen. --}}
+     AJAX append on add. Expects $project (with categories + versions.createdBy +
+     variations.decidedBy loaded), $categories (full list, for the edit form), $canEdit,
+     $employees (for the PM/PE pickers), $editableFields (the viewer's writable master
+     fields), $canReopen, $canRaiseVariation (finance: hr + management tier) and
+     $canDecideVariation (management tier only). --}}
 @php
     $canEdit = $canEdit ?? false;
     $employees = $employees ?? collect();
     $editableFields = $editableFields ?? [];
     $canReopen = $canReopen ?? false;
+    $canRaiseVariation = $canRaiseVariation ?? false;
+    $canDecideVariation = $canDecideVariation ?? false;
     $hay = mb_strtolower(trim($project->name.' '.$project->code.' '.$project->project_code.' '.$project->client));
     $catIds = $project->categories->pluck('id')->all();
     $statusColours = ['planning' => 'var(--muted)', 'active' => 'var(--info)', 'closed' => 'var(--error)'];
     // History shows people by name, not employee id.
     $peopleNames = collect($employees)->pluck('display_name', 'id')->all();
+    $pendingVariations = $project->pendingVariationsCount();
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
-     x-data="{ edit: false, history: false }"
+     x-data="{ edit: false, history: false, variations: false }"
      {{-- Registers this row in the parent's `items` index (search/empty-state banner)
           on both the initial render and an AJAX-appended row (Alpine.initTree runs
           x-init same as first paint) — no separate server-built index to fall stale. --}}
@@ -30,6 +35,9 @@
                 <span style="font-size:14px;color:{{ $project->is_active ? 'var(--ink)' : 'var(--muted)' }};font-weight:500;">{{ $project->name }}</span>
                 @if ($project->status)
                     <span class="uj-stamp" style="color:{{ $statusColours[$project->status] ?? 'var(--muted)' }};border-color:{{ $statusColours[$project->status] ?? 'var(--hairline)' }};">{{ ucfirst($project->status) }}</span>
+                @endif
+                @if ($pendingVariations > 0)
+                    <span class="uj-stamp" data-tone="amber"><span x-text="$store.ui.lang==='en' ? 'Awaiting approval' : 'Menunggu kelulusan'">Awaiting approval</span></span>
                 @endif
             </div>
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:5px;font-size:11.5px;color:var(--muted);">
@@ -54,6 +62,9 @@
         </div>
         @if ($project->versions->isNotEmpty())
             <button @click="history = ! history" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="history ? ($store.ui.lang==='en' ? 'Hide history' : 'Sembunyi sejarah') : ($store.ui.lang==='en' ? 'History' : 'Sejarah')">History</span></button>
+        @endif
+        @if ($project->variations->isNotEmpty() || $canRaiseVariation)
+            <button @click="variations = ! variations" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="variations ? ($store.ui.lang==='en' ? 'Hide variations' : 'Sembunyi variasi') : ($store.ui.lang==='en' ? 'Variations' : 'Variasi')">Variations</span></button>
         @endif
         @if ($canEdit)
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
@@ -104,6 +115,100 @@
                     @endif
                 </div>
             @endforeach
+        </div>
+    @endif
+
+    @if ($project->variations->isNotEmpty() || $canRaiseVariation)
+        <div x-show="variations" x-cloak style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);display:flex;flex-direction:column;gap:12px;">
+            @php $statusLabels = ['pending' => ['Awaiting approval', 'Menunggu kelulusan'], 'approved' => ['Approved', 'Diluluskan'], 'rejected' => ['Rejected', 'Ditolak']]; @endphp
+            @forelse ($project->variations as $variation)
+                <div style="font-size:12px;color:var(--body);padding:10px 12px;border:1px solid var(--hairline-soft);border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span style="font-weight:600;font-family:var(--font-mono);">{{ $variation->vo_no }}</span>
+                        <span style="color:var(--muted);">— {{ $variation->variation_date->format('Y-m-d') }}</span>
+                        @if ($variation->delta !== null)
+                            <span style="font-family:var(--font-mono);color:{{ (float) $variation->delta >= 0 ? 'var(--info)' : 'var(--error)' }};">{{ (float) $variation->delta >= 0 ? '+' : '' }}{{ number_format((float) $variation->delta, 2) }}</span>
+                        @endif
+                        @php $statusLabel = $statusLabels[$variation->status] ?? [ucfirst($variation->status), ucfirst($variation->status)]; @endphp
+                        <span class="uj-stamp" @if($variation->status === 'pending') data-tone="amber" @endif>
+                            <span x-text="$store.ui.lang==='en' ? @js($statusLabel[0]) : @js($statusLabel[1])">{{ $statusLabel[0] }}</span>
+                        </span>
+                        @if ($variation->attachment_path)
+                            <a href="{{ route('projects.variations.attachment', [$project, $variation]) }}" style="font-size:11px;color:var(--info);"><span x-text="$store.ui.lang==='en' ? 'Attachment' : 'Lampiran'">Attachment</span></a>
+                        @endif
+                    </div>
+                    <div style="margin-top:4px;color:var(--muted);">{{ $variation->reason }}</div>
+                    <div style="margin-top:4px;color:var(--muted);">
+                        @foreach ($variation->changes as $field => $delta)
+                            <span>{{ \App\Projects\ProjectMaster::label($field) }}: {{ $delta['old'] ?? '—' }} → {{ $delta['new'] ?? '—' }}</span>@if (! $loop->last), @endif
+                        @endforeach
+                    </div>
+                    @if ($variation->decision_note)
+                        <div style="margin-top:4px;font-style:italic;color:var(--muted);">{{ $variation->decision_note }}</div>
+                    @endif
+                    @if ($variation->status === 'pending' && $canDecideVariation)
+                        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+                            <form method="post" action="{{ route('projects.variations.approve', [$project, $variation]) }}">
+                                @csrf
+                                <button type="submit" class="uj-btn-primary" style="height:32px;padding:0 12px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</span></button>
+                            </form>
+                            <form method="post" action="{{ route('projects.variations.reject', [$project, $variation]) }}" style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;">
+                                @csrf
+                                <input name="note" maxlength="500" placeholder="Reason (optional)" style="height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;outline:none;" />
+                                <button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Reject' : 'Tolak'">Reject</span></button>
+                            </form>
+                        </div>
+                    @endif
+                </div>
+            @empty
+                <p style="font-size:12px;color:var(--muted);margin:0;"><span x-text="$store.ui.lang==='en' ? 'No variations yet.' : 'Tiada variasi lagi.'">No variations yet.</span></p>
+            @endforelse
+
+            @if ($canRaiseVariation && ! $project->isClosed())
+                <form method="post" action="{{ route('projects.variations.store', $project) }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:10px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
+                    @csrf
+                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? 'Raise a variation' : 'Ajukan variasi'">Raise a variation</span></div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <div style="width:130px;">
+                            <label style="{{ $lbl ?? 'display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;' }}"><span x-text="$store.ui.lang==='en' ? 'VO number' : 'No. VO'">VO number</span></label>
+                            <input name="vo_no" required maxlength="40" placeholder="VO-01" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                        <div style="width:150px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</span></label>
+                            <input type="date" name="variation_date" required style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                        <div style="flex:1;min-width:200px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Reason' : 'Sebab'">Reason</span></label>
+                            <input name="reason" required maxlength="500" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <div style="width:150px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'New contract value' : 'Nilai kontrak baharu'">New contract value</span></label>
+                            <input type="number" step="0.01" min="0" name="contract_value" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;font-family:var(--font-mono);" />
+                        </div>
+                        <div style="width:150px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'New contract start' : 'Mula kontrak baharu'">New contract start</span></label>
+                            <input type="date" name="contract_start" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                        <div style="width:150px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'New contract end' : 'Tamat kontrak baharu'">New contract end</span></label>
+                            <input type="date" name="contract_end" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                        <div style="flex:1;min-width:160px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'New client' : 'Pelanggan baharu'">New client</span></label>
+                            <input name="client" maxlength="160" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        </div>
+                        <div style="width:200px;">
+                            <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Attachment (optional)' : 'Lampiran (pilihan)'">Attachment (optional)</span></label>
+                            <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png" style="width:100%;font-size:12px;" />
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Raise variation' : 'Ajukan variasi'">Raise variation</span></button>
+                    </div>
+                </form>
+            @endif
         </div>
     @endif
 

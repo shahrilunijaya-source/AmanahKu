@@ -88,7 +88,7 @@
 
     <div id="ts-projects">
         @forelse ($projects as $project)
-            @include('partials.ts-project-row', ['project' => $project, 'categories' => $projectCategories, 'canEdit' => $canEdit, 'employees' => $employees, 'editableFields' => $editableFields, 'canReopen' => $canReopen])
+            @include('partials.ts-project-row', ['project' => $project, 'categories' => $projectCategories, 'canEdit' => $canEdit, 'employees' => $employees, 'editableFields' => $editableFields, 'canReopen' => $canReopen, 'canRaiseVariation' => $canRaiseVariation, 'canDecideVariation' => $canDecideVariation])
         @empty
             <div data-empty class="uj-card" style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No projects yet.' : 'Tiada projek lagi.'">No projects yet.</span></div>
         @endforelse

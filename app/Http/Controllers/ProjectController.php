@@ -7,10 +7,12 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
+use App\Models\ProjectVariation;
 use App\Models\SubPillar;
 use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Projects\ProjectMaster;
+use App\Projects\ProjectVariations;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -18,8 +20,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The Projects register: every project in the tenant plus the shared sub-pillar
@@ -35,7 +39,10 @@ class ProjectController extends Controller
 {
     private const EDITOR_ROLES = ['manager', 'management', 'hr'];
 
-    public function __construct(private readonly ProjectMaster $projectMaster) {}
+    public function __construct(
+        private readonly ProjectMaster $projectMaster,
+        private readonly ProjectVariations $projectVariations,
+    ) {}
 
     /** Data for the Projects screen. */
     public function screenData(Request $request): array
@@ -43,7 +50,7 @@ class ProjectController extends Controller
         $role = $this->tenantRole($request);
 
         return [
-            'projects' => Project::with(['categories', 'versions.createdBy'])
+            'projects' => Project::with(['categories', 'versions.createdBy', 'variations.decidedBy'])
                 ->orderBy('sort')->orderBy('name')->get(),
             'subPillars' => SubPillar::orderBy('sort')->orderBy('name')->get(),
             // Two lists on purpose: the ADD form offers active categories only (a
@@ -56,6 +63,11 @@ class ProjectController extends Controller
             'employees' => $this->employeePickerList(),
             'editableFields' => $role ? $this->projectMaster->editableFields($role) : [],
             'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
+            // CR-06b: raising a Variation needs finance authority (hr + management
+            // tier, same gate as the finance master-field set); deciding one is
+            // narrower still, management tier only.
+            'canRaiseVariation' => $role !== null && ProjectMaster::financeAuthorized($role),
+            'canDecideVariation' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
         ];
     }
 
@@ -77,7 +89,7 @@ class ProjectController extends Controller
         $project->categories()->sync($categories);
 
         if ($request->wantsJson()) {
-            $project->load('categories');
+            $project->load('categories', 'variations');
 
             return response()->json([
                 'html' => view('partials.ts-project-row', [
@@ -89,6 +101,8 @@ class ProjectController extends Controller
                     'employees' => $this->employeePickerList(),
                     'editableFields' => $this->projectMaster->editableFields((string) $this->tenantRole($request)),
                     'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
+                    'canRaiseVariation' => ProjectMaster::financeAuthorized((string) $this->tenantRole($request)),
+                    'canDecideVariation' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
                 ])->render(),
                 'count_sel' => '#ts-proj-count',
             ]);
@@ -148,6 +162,125 @@ class ProjectController extends Controller
         }
 
         return back()->with('ok', $project->name.' reopened.');
+    }
+
+    // ---- Contract variations (CR-06b §E4, E5) ------------------------------
+
+    /** Finance (hr + management tier) raises a Variation. Never touches the project row. */
+    public function storeVariation(Request $request, Project $project): JsonResponse|RedirectResponse
+    {
+        $this->assertTenant($project->tenant_id);
+        abort_unless(ProjectMaster::financeAuthorized((string) $this->tenantRole($request)), 403);
+
+        if ($project->isClosed()) {
+            throw ValidationException::withMessages([
+                'project' => 'This project is closed. A director must reopen it first.',
+            ]);
+        }
+
+        $data = $this->validateVariation($request, $project);
+
+        $variation = $this->projectVariations->raise($project, $data, $request->file('attachment'), Auth::id());
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'variation' => [
+                    'id' => $variation->id,
+                    'vo_no' => $variation->vo_no,
+                    'variation_date' => $variation->variation_date->toDateString(),
+                    'reason' => $variation->reason,
+                    'changes' => $variation->changes,
+                    'delta' => $variation->delta,
+                    'status' => $variation->status,
+                ],
+            ], 201);
+        }
+
+        return back()->with('ok', 'Variation '.$variation->vo_no.' raised, awaiting approval.');
+    }
+
+    /** Management tier only, pending only. Applies the change and writes the next version. */
+    public function approveVariation(Request $request, Project $project, ProjectVariation $variation): JsonResponse|RedirectResponse
+    {
+        $this->assertTenant($project->tenant_id);
+        $this->authorizeTenantRole($request, Permissions::MANAGEMENT_TIER);
+        abort_unless($variation->project_id === $project->id, 404);
+
+        $version = $this->projectVariations->approve($project, $variation, Auth::id());
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'version' => $version]);
+        }
+
+        return back()->with('ok', 'Variation '.$variation->vo_no.' approved.');
+    }
+
+    /** Management tier only, pending only. Project stays untouched. */
+    public function rejectVariation(Request $request, Project $project, ProjectVariation $variation): JsonResponse|RedirectResponse
+    {
+        $this->assertTenant($project->tenant_id);
+        $this->authorizeTenantRole($request, Permissions::MANAGEMENT_TIER);
+        abort_unless($variation->project_id === $project->id, 404);
+
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:500']]);
+
+        $this->projectVariations->reject($variation, $data['note'] ?? null, Auth::id());
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return back()->with('ok', 'Variation '.$variation->vo_no.' rejected.');
+    }
+
+    /** Any signed-in tenant member who can open the register may pull the attachment. */
+    public function variationAttachment(Request $request, Project $project, ProjectVariation $variation): StreamedResponse
+    {
+        $this->assertTenant($project->tenant_id);
+        abort_unless($variation->project_id === $project->id, 404);
+        abort_unless($variation->attachment_path, 404);
+        abort_unless(Storage::disk('local')->exists($variation->attachment_path), 404);
+
+        return Storage::disk('local')->download($variation->attachment_path);
+    }
+
+    /** @return array<string,mixed> */
+    private function validateVariation(Request $request, Project $project): array
+    {
+        $data = $request->validate([
+            'vo_no' => [
+                'required', 'string', 'max:40',
+                Rule::unique('project_variations', 'vo_no')->where('project_id', $project->id),
+            ],
+            'variation_date' => ['required', 'date'],
+            'reason' => ['required', 'string', 'max:500'],
+            'contract_value' => ['nullable', 'numeric', 'min:0'],
+            'contract_start' => ['nullable', 'date'],
+            'contract_end' => ['nullable', 'date'],
+            'client' => ['nullable', 'string', 'max:160'],
+            'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        if (! $request->hasAny(['contract_value', 'contract_start', 'contract_end', 'client'])) {
+            throw ValidationException::withMessages([
+                'vo_no' => 'A variation must move at least one of contract value, contract start, contract end or client.',
+            ]);
+        }
+
+        if ($request->filled('contract_end')) {
+            $resultingStart = $request->filled('contract_start')
+                ? (string) $request->input('contract_start')
+                : optional($project->contract_start)->toDateString();
+
+            if ($resultingStart !== null && (string) $request->input('contract_end') < $resultingStart) {
+                throw ValidationException::withMessages([
+                    'contract_end' => 'Contract end must be on or after the resulting contract start.',
+                ]);
+            }
+        }
+
+        return $data;
     }
 
     /**

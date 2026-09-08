@@ -30,55 +30,77 @@ class ApiTenant
         $token = $tokenable?->currentAccessToken();
         $tenantId = $token?->tenant_id ?? null;
 
-        if (! $tokenable || ! $token || ! $tenantId) {
-            return $this->unauthenticated();
-        }
+        // auth:sanctum's own success path (Authenticate::authenticate()) calls
+        // Auth::shouldUse('sanctum') once it verifies the token above, which repoints
+        // the app-wide DEFAULT guard at 'sanctum' for the rest of the process — not
+        // just this request. A bare actingAs() call anywhere downstream (no explicit
+        // guard named) then resolves against that leftover default instead of 'web' —
+        // in a test, that means a director's web action between two Track API calls
+        // silently authenticates against the sanctum guard, overwriting its cached
+        // identity and 401ing the next bearer call. Only a machine caller (an
+        // ApiClient/app key, never a person) is put right here: a machine token can
+        // never legitimately be "the same session" as a later web actingAs(), so it's
+        // always correct to hand the default guard back to 'web' once its request is
+        // done. A person token is left alone — Sanctum's own request-scoped guard
+        // caching is a real, if fragile, existing behaviour other tests rely on, and a
+        // real person can legitimately act as themselves across both guards.
+        $isMachineCaller = $token?->tokenable_type === ApiClient::class;
 
-        $tenant = Tenant::find($tenantId);
+        try {
+            if (! $tokenable || ! $token || ! $tenantId) {
+                return $this->unauthenticated();
+            }
 
-        if (! $tenant) {
-            return $this->unauthenticated();
-        }
+            $tenant = Tenant::find($tenantId);
 
-        // Read once here so the controllers never have to ask what kind of caller this
-        // is. A person-token carries ['*'], which every scope check treats as "all".
-        $request->attributes->set('tokenAbilities', array_values((array) ($token->abilities ?? [])));
+            if (! $tenant) {
+                return $this->unauthenticated();
+            }
 
-        // Machine caller: an app, not a person. Branch on the string column, not on
-        // instanceof — see the plan's note about static analysis.
-        if ($token->tokenable_type === ApiClient::class) {
-            $client = ApiClient::find($token->tokenable_id);
+            // Read once here so the controllers never have to ask what kind of caller this
+            // is. A person-token carries ['*'], which every scope check treats as "all".
+            $request->attributes->set('tokenAbilities', array_values((array) ($token->abilities ?? [])));
 
-            // The client row and the token must agree on the tenant. Without this, moving
-            // a client to another company leaves its old keys reading the old company.
-            if (! $client || $client->tenant_id !== $tenant->id) {
+            // Machine caller: an app, not a person. Branch on the string column, not on
+            // instanceof — see the plan's note about static analysis.
+            if ($token->tokenable_type === ApiClient::class) {
+                $client = ApiClient::find($token->tokenable_id);
+
+                // The client row and the token must agree on the tenant. Without this, moving
+                // a client to another company leaves its old keys reading the old company.
+                if (! $client || $client->tenant_id !== $tenant->id) {
+                    return $this->unauthenticated();
+                }
+
+                app(CurrentTenant::class)->set($tenant);
+                $request->attributes->set('apiClient', $client);
+
+                return $next($request);
+            }
+
+            // Person caller — unchanged from here down.
+            if (! $tokenable->tenants->contains('id', $tenant->id)) {
                 return $this->unauthenticated();
             }
 
             app(CurrentTenant::class)->set($tenant);
-            $request->attributes->set('apiClient', $client);
+
+            // An archived staff record must not act through a lingering API token — the API
+            // equivalent of EnsureNotArchived on the web stack. Treated as revoked membership (401).
+            $employee = $tokenable->employeeFor($tenant);
+            if ($employee && $employee->isArchived()) {
+                return $this->unauthenticated();
+            }
+
+            $request->attributes->set('tenantRole', $tokenable->roleIn($tenant));
+            $request->attributes->set('employee', $employee);
 
             return $next($request);
+        } finally {
+            if ($isMachineCaller) {
+                app('auth')->shouldUse('web');
+            }
         }
-
-        // Person caller — unchanged from here down.
-        if (! $tokenable->tenants->contains('id', $tenant->id)) {
-            return $this->unauthenticated();
-        }
-
-        app(CurrentTenant::class)->set($tenant);
-
-        // An archived staff record must not act through a lingering API token — the API
-        // equivalent of EnsureNotArchived on the web stack. Treated as revoked membership (401).
-        $employee = $tokenable->employeeFor($tenant);
-        if ($employee && $employee->isArchived()) {
-            return $this->unauthenticated();
-        }
-
-        $request->attributes->set('tenantRole', $tokenable->roleIn($tenant));
-        $request->attributes->set('employee', $employee);
-
-        return $next($request);
     }
 
     private function unauthenticated(): JsonResponse

@@ -132,7 +132,7 @@ final class ProjectMaster
             }
         }
 
-        $financeAuthorized = in_array(Permissions::effectiveRole($role), ['hr', 'management'], true);
+        $financeAuthorized = self::financeAuthorized($role);
         foreach (self::VARIATION_FIELDS as $field) {
             if (! $project->isDirty($field)) {
                 continue;
@@ -244,5 +244,15 @@ final class ProjectMaster
     public static function label(string $field): string
     {
         return self::LABELS[$field] ?? Str::headline($field);
+    }
+
+    /**
+     * Finance authority: hr and the management tier (director). The gate for the
+     * VARIATION_FIELDS in-place lock above, and — CR-06b — for raising a Variation in
+     * the first place, so both paths agree on who counts as finance.
+     */
+    public static function financeAuthorized(string $role): bool
+    {
+        return in_array(Permissions::effectiveRole($role), ['hr', 'management'], true);
     }
 }

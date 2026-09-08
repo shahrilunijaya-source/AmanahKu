@@ -132,45 +132,103 @@ class ApiController extends Controller
     }
 
     /** GET /api/v1/projects — the tenant's active projects and their category tags. */
+    /**
+     * GET /api/v1/projects — optionally `as_of=YYYY-MM-DD` for a reporting-period
+     * read (CR-06b §E3, E5): each project's master figures come from the version
+     * effective on that date, not the current row, so re-running an old report
+     * reproduces the old figures. A project with no version effective by then is
+     * left out entirely. Every row also carries `awaiting_approval`, the count of
+     * pending Variations Track shows as a caveat on the figure.
+     */
     public function projects(Request $request): JsonResponse
     {
         if (! $this->tokenCan($request, 'projects:read')) {
             return $this->denyScope('projects:read');
         }
 
+        $asOf = $request->validate(['as_of' => ['nullable', 'date']])['as_of'] ?? null;
+
         // Eager-loaded: without it the map below fires one query per project.
         $projects = Project::where('is_active', true)
-            ->with(['categories:id,name', 'pm:id,name,nickname', 'pe:id,name,nickname', 'versions:id,project_id,version_no'])
+            ->with([
+                'categories:id,name',
+                'pm:id,name,nickname',
+                'pe:id,name,nickname',
+                'versions:id,project_id,version_no,effective_date,snapshot',
+                'variations:id,project_id,status',
+            ])
             ->orderBy('sort')
             ->orderBy('name')
             ->get()
-            ->map(fn (Project $p) => [
-                'id' => $p->id,
-                'code' => $p->code,
-                'name' => $p->name,
-                // Names, not ids: a category id means nothing outside AmanahKu, and a
-                // consumer matching on "Development" needs no second lookup.
-                // Sorted: Project::categories() carries no ORDER BY, so unsorted order
-                // depends on MySQL's query plan — a consumer diffing this array would
-                // see phantom changes between otherwise-identical calls.
-                'categories' => $p->categories->pluck('name')->sort()->values()->all(),
-                // CR-06a master fields: this is what Track pulls instead of re-keying
-                // the same details a second time (docs/specs/CR-06.md §B).
-                'project_code' => $p->project_code,
-                'client' => $p->client,
-                'status' => $p->status,
-                'contract_value' => $p->contract_value,
-                // Plain dates: a Carbon here would serialise as a UTC timestamp and read
-                // as the previous day in Malaysia.
-                'contract_start' => $p->contract_start?->toDateString(),
-                'contract_end' => $p->contract_end?->toDateString(),
-                'procurement_method' => $p->procurement_method,
-                'contractor' => $p->contractor,
-                'drive_link' => $p->drive_link,
-                'pm' => $p->pm?->display_name,
-                'pe' => $p->pe?->display_name,
-                'version' => $p->versions->max('version_no'),
-            ]);
+            ->map(function (Project $p) use ($asOf) {
+                $awaitingApproval = $p->variations->where('status', 'pending')->count();
+
+                if ($asOf !== null) {
+                    // Computed off the already-eager-loaded versions collection, not
+                    // Project::versionEffectiveOn() (a fresh query per call) — this
+                    // runs inside a map() over every project, so a query-builder call
+                    // here would be an N+1 the eager-load above was meant to avoid.
+                    $version = $p->versions
+                        ->filter(fn ($v) => $v->effective_date->toDateString() <= $asOf)
+                        ->sort(fn ($a, $b) => [$b->effective_date->toDateString(), $b->version_no] <=> [$a->effective_date->toDateString(), $a->version_no])
+                        ->first();
+                    if ($version === null) {
+                        return null;
+                    }
+                    $s = $version->snapshot;
+
+                    return [
+                        'id' => $p->id,
+                        'code' => $p->code,
+                        'name' => $s['name'] ?? $p->name,
+                        'categories' => $p->categories->pluck('name')->sort()->values()->all(),
+                        'project_code' => $s['project_code'] ?? $p->project_code,
+                        'client' => $s['client'] ?? null,
+                        'status' => $s['status'] ?? null,
+                        'contract_value' => $s['contract_value'] ?? null,
+                        'contract_start' => $s['contract_start'] ?? null,
+                        'contract_end' => $s['contract_end'] ?? null,
+                        'procurement_method' => $s['procurement_method'] ?? null,
+                        'contractor' => $s['contractor'] ?? null,
+                        'drive_link' => $s['drive_link'] ?? null,
+                        'pm' => $p->pm?->display_name,
+                        'pe' => $p->pe?->display_name,
+                        'version' => $version->version_no,
+                        'awaiting_approval' => $awaitingApproval,
+                    ];
+                }
+
+                return [
+                    'id' => $p->id,
+                    'code' => $p->code,
+                    'name' => $p->name,
+                    // Names, not ids: a category id means nothing outside AmanahKu, and a
+                    // consumer matching on "Development" needs no second lookup.
+                    // Sorted: Project::categories() carries no ORDER BY, so unsorted order
+                    // depends on MySQL's query plan — a consumer diffing this array would
+                    // see phantom changes between otherwise-identical calls.
+                    'categories' => $p->categories->pluck('name')->sort()->values()->all(),
+                    // CR-06a master fields: this is what Track pulls instead of re-keying
+                    // the same details a second time (docs/specs/CR-06.md §B).
+                    'project_code' => $p->project_code,
+                    'client' => $p->client,
+                    'status' => $p->status,
+                    'contract_value' => $p->contract_value,
+                    // Plain dates: a Carbon here would serialise as a UTC timestamp and read
+                    // as the previous day in Malaysia.
+                    'contract_start' => $p->contract_start?->toDateString(),
+                    'contract_end' => $p->contract_end?->toDateString(),
+                    'procurement_method' => $p->procurement_method,
+                    'contractor' => $p->contractor,
+                    'drive_link' => $p->drive_link,
+                    'pm' => $p->pm?->display_name,
+                    'pe' => $p->pe?->display_name,
+                    'version' => $p->versions->max('version_no'),
+                    'awaiting_approval' => $awaitingApproval,
+                ];
+            })
+            ->filter()
+            ->values();
 
         return $this->ok($projects);
     }

@@ -536,6 +536,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/projects/{project}/reopen', [ProjectController::class, 'reopenProject'])->name('projects.reopen');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
         Route::post('/app/projects/{project}/archive', [ProjectController::class, 'archiveProject'])->name('projects.archive');
+        // Contract variations (CR-06b §E4, E5) — raise (finance), decide (management tier).
+        Route::post('/app/projects/{project}/variations', [ProjectController::class, 'storeVariation'])->name('projects.variations.store');
+        Route::post('/app/projects/{project}/variations/{variation}/approve', [ProjectController::class, 'approveVariation'])->name('projects.variations.approve');
+        Route::post('/app/projects/{project}/variations/{variation}/reject', [ProjectController::class, 'rejectVariation'])->name('projects.variations.reject');
+        Route::get('/app/projects/{project}/variations/{variation}/attachment', [ProjectController::class, 'variationAttachment'])->name('projects.variations.attachment');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
         Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
         Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');
