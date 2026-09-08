@@ -45,9 +45,10 @@
 
 ## Test counts
 - `tests/Acceptance/CR09Test.php`: 5/5 passed, 180 assertions.
-- `tests/Feature/TotSessionSlotsTest.php` (new, this session): 8/8 passed, 64 assertions — slot update (partial-field vs full), reorder, delete + governance, per-slot reaction independence and toggle, cross-session 404 on every slot route and on the tindakan card route, and the legacy backfill (titled/untitled/already-slotted sessions, idempotent re-run).
-- Related pre-existing TOT/reaction files run together (`CR09Test`, `TotSessionSlotsTest`, `TotTest`, `TotLiveActionsTest`, `TotAssignPermissionTest`, `TotHistorySeederTest`, `TotReminderTest`, `TotSaturdayTimesheetTest`, `CR30Test`): 193/193 passed, 812 assertions.
-- Full suite (`php artisan test --compact`): 2778 tests, 2773 passed, 0 failed, 5 skipped, 12 incomplete (pre-existing, unrelated to CR-09).
+- `tests/Feature/TotSessionSlotsTest.php` (new, this session): 11/11 passed, 72 assertions — slot update (partial-field vs full), reorder, delete + governance, per-slot reaction independence and toggle, cross-session 404 on every slot route and on the tindakan card route, the legacy backfill (titled/untitled/already-slotted sessions, idempotent re-run), HR and chair rendering `/app/tot` (the `$canManageSession` Blade branches CR09Test never compiles, since it only renders as plain staff), and the chair-only `isManagedBy()`/`authorizeSlotEdit()` path (a plain employee who is the session's chair, no manager/hr/management role, can and a non-chair bystander cannot).
+- Related pre-existing TOT/reaction files run together (`CR09Test`, `TotSessionSlotsTest`, `TotTest`, `TotLiveActionsTest`, `TotAssignPermissionTest`, `TotHistorySeederTest`, `TotReminderTest`, `TotSaturdayTimesheetTest`, `CR30Test`): 196/196 passed, 820 assertions.
+- Full suite (`php artisan test --compact`): 2781 tests, 2776 passed, 0 failed, 5 skipped, 12 incomplete (pre-existing, unrelated to CR-09).
+- Follow-up fix caught by a second review pass before closing the session: `partials/tot-attendance-form.blade.php` seeded its Alpine `reasons` object from `pluck('reason', 'employee_id')`, which serialises as a JSON array `[]` (not `{}`) when a session has zero attendance rows yet — the very common "first time entering attendance for this session" case — breaking `x-model="reasons[id]"`/`x-for="(reason, id) in reasons"`. Fixed by casting to `(object)` before `Js::from()`. No test render the Blade output directly (no browser MCP available this session); covered indirectly by the new HR/chair render test above, which would 500 on any hard error in that block but cannot assert on client-side Alpine state.
 
 ## Commit
 - Formatted with `vendor/bin/pint --dirty --format agent` (fixed import ordering/spacing in `TotController.php`).

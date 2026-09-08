@@ -5,7 +5,7 @@
 <form method="post" action="{{ route('tot.attendance', $session) }}"
       x-data="{
           present: {{ \Illuminate\Support\Js::from($session->attendance->where('present', true)->pluck('employee_id')->values()) }},
-          reasons: {{ \Illuminate\Support\Js::from($session->attendance->where('present', false)->pluck('reason', 'employee_id')) }},
+          reasons: {{ \Illuminate\Support\Js::from((object) $session->attendance->where('present', false)->pluck('reason', 'employee_id')->all()) }},
       }">
     @csrf
     <div style="max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:6px;max-width:620px;">

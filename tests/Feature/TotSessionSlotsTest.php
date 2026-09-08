@@ -183,6 +183,53 @@ class TotSessionSlotsTest extends TestCase
         $this->assertSame(1, DB::table('tot_slots')->where('session_id', $withTitle->id)->count());
     }
 
+    public function test_hr_and_the_chair_can_render_the_tot_screen_with_management_forms(): void
+    {
+        // CR09Test only ever renders /app/tot as plain staff, so the @if ($canManageSession)
+        // blocks (attendance form, slot edit/add forms, tindakan add form) never compile in
+        // that suite. Render as the two other actors who see them.
+        $hr = $this->person('Hidayah', 'hr');
+        $chairOnly = $this->person('Chairman'); // plain employee role, chair by session field only
+        $session = $this->totSession(['title' => 'Topic', 'chair_employee_id' => $chairOnly->id]);
+        TotSlot::create(['tenant_id' => $this->tenant()->id, 'session_id' => $session->id, 'position' => 1, 'title' => 'Slot', 'kind' => 'pembentangan']);
+        TotAction::create(['tenant_id' => $this->tenant()->id, 'session_id' => $session->id, 'position' => 1, 'action' => 'Do it', 'owner_employee_id' => $hr->id]);
+
+        $this->actingInTenantAs($hr)->get('/app/tot?year=2026')->assertOk();
+        $this->actingInTenantAs($chairOnly)->get('/app/tot?year=2026')->assertOk();
+    }
+
+    public function test_the_chair_may_update_session_fields_by_the_chair_branch_alone_not_a_role(): void
+    {
+        $chairOnly = $this->person('Chairman'); // no manager/hr/management role
+        $session = $this->totSession(['title' => 'Topic', 'chair_employee_id' => $chairOnly->id]);
+
+        $this->assertTrue($session->isManagedBy('employee', $chairOnly), 'the chair branch of isManagedBy() must fire for a plain employee role');
+
+        $this->actingInTenantAs($chairOnly)
+            ->post("/app/tot/{$session->id}", [
+                'nota_url' => 'https://example.com/nota.pdf',
+                'next_agenda' => 'Next month topic',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $session->refresh();
+        $this->assertSame('https://example.com/nota.pdf', $session->nota_url);
+        $this->assertSame('Next month topic', $session->next_agenda);
+    }
+
+    public function test_a_non_chair_non_privileged_employee_may_not_update_session_fields(): void
+    {
+        $chairOnly = $this->person('Chairman');
+        $bystander = $this->person('Bystander');
+        $session = $this->totSession(['title' => 'Topic', 'chair_employee_id' => $chairOnly->id]);
+
+        $this->assertFalse($session->isManagedBy('employee', $bystander));
+
+        $this->actingInTenantAs($bystander)
+            ->post("/app/tot/{$session->id}", ['nota_url' => 'https://example.com/nota.pdf'])
+            ->assertStatus(403);
+    }
+
     public function test_always_checks(): void
     {
         $this->assertDueDateLocked();
