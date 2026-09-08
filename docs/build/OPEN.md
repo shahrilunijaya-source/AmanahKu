@@ -325,3 +325,39 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: helpers by Position title "Admin Executive" (rejected, the prod data has no such band and CR-18 already models admin staff as a tagged list; a department is the cheapest stable group); votes as a JSON column on the request (rejected, the per-person unique row is what stops double counting); reopen window in working days (rejected, the spec says three days and the requester is the one counting); Insights as a section of the existing Oversight screen (rejected for the test, the JSON endpoint keeps the numbers checkable; S14 may still link it from Insights); notifications by mail (rejected, mail is a port and the spec says notified, not emailed).
 - Reversal cost: cheap for routes and enums (rename in one controller and the test); moderate for the helper rule (a department rename silently empties the helper list, S14 should say so in the handoff); the card label and the votes table are additive.
 - Source: `docs/specs/CR-21.md` scope 1, 2, 3, 6, 7 and acceptance 1 to 5; `docs/build/contracts/roles.md`; S06 handoff and the CR-18 OPEN entries for position-title ownership.
+
+### S14 / CR-21 / card due date, module toggle, insights month window, /eta and scope 4/5
+- Question: the frozen "QA / CR-21 / shapes fixed by CR21Test" entry fixes tables, routes and
+  notification shapes but not: what `due_at` the raised T.A.A. card gets (dates.md Rule 1 makes
+  a due date mandatory for new work rows, and CR21Test never asserts on it), whether Office
+  Requests is a toggleable module, whether Insights' `requests`/`by_category`/`top_voted` scope
+  by raised-month or done-month (its own text mixes "requests per month" with "avg_days_to_close
+  over requests done in that month"), and whether to build the optional `/eta` route and CR-21
+  scope 3's "reassign within the team" as new endpoints given CR21Test exercises neither.
+- Decided: due date = raise date + 1 day (urgent) or + 5 days (normal/low), computed at creation
+  like the CR-18 engine computes one, never left null. No `Features::MODULES` entry — Office
+  Requests is always on, like the other core/un-toggleable surfaces, since nothing tests a
+  toggle. Insights: `requests`/`by_category`/`top_voted` scoped by `created_at` (raised that
+  month); `avg_days_to_close` scoped by `done_at` (done that month) — the literal reading of
+  "over requests done in that month" applied to only that one figure. `/eta` and a dedicated
+  office-requests reassign route: not built — CR21Test's own route list (the actual, tested
+  contract) has neither; card reassignment is already reachable through the existing generic
+  `POST /app/board/{card}/reassign` (CR-18, HR/management), so nothing is lost. Scope 4 (pantry
+  staples as recurring restock tasks): no new code — the CR-21 spec text itself says this goes
+  through the existing `/app/recurring` admin screen (CR-18), which already does it.
+- Alternatives: leave `due_at` null (rejected, dates.md Rule 1 says due date is mandatory for
+  new work rows after S02, and a null due date on every office-request card would make them
+  invisible to overdue tooling that assumes a date); register `module.office_requests` default
+  ON (rejected, adds an un-tested toggle surface for no benefit — cheap to add later if a real
+  company wants to switch it off); scope `avg_days_to_close` by raised-month like the other
+  three figures for consistency (rejected, contradicts the frozen entry's own explicit words);
+  build `/eta` anyway since the session brief lists it (rejected, the brief itself marks it
+  optional and CR21Test — the actual grading surface — never calls it; building untested surface
+  is exactly what Rule 3 warns against).
+- Reversal cost: cheap across the board — the due-date offset is two numbers in one method, the
+  module toggle is one registry row, the insights month-scope split is one query's date range,
+  and `/eta`/reassign are additive routes with no existing behaviour to unwind.
+- Source: `docs/build/contracts/dates.md` Rule 1; `docs/build/contracts/roles.md`;
+  `docs/specs/CR-21.md` scope 4 and 7; the "QA / CR-21 / shapes fixed by CR21Test" entry above
+  (own wording quoted); `tests/Acceptance/CR21Test.php` (read in full — no assertion on `due_at`,
+  no call to `/eta` or a reassign route).
