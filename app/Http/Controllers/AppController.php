@@ -159,7 +159,7 @@ class AppController extends Controller
         }
 
         // Administration screens are restricted to privileged roles.
-        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load', 'recurring'], true)) {
+        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load', 'recurring', 'management-meeting'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
         // The all-staff timesheet view used to sit behind a tighter management/HR gate
@@ -568,6 +568,7 @@ class AppController extends Controller
             'attendance-admin' => app(AttendanceAdminController::class)->screenData($request),
             'leave-setup' => app(LeaveSetupController::class)->screenData($request),
             'recurring' => app(RecurringTaskController::class)->screenData($request),
+            'management-meeting' => app(ManagementMeetingController::class)->screenData($request),
             'attendance-report' => app(AttendanceReportController::class)->screenData($request),
             'leave-report' => app(LeaveReportController::class)->screenData($request),
             'position' => app(PositionController::class)->screenData($request),

@@ -49,6 +49,9 @@ class WorkItem extends Model implements HasAuditedFields
         'tot' => ['TOT Action', '#2563eb'],
         // CR-21: stamped on every card an Office Request raises for the Admin team.
         'office' => ['Office Request', '#0e9488'],
+        // CR-34: stamped on every system-generated card (the Friday management-meeting
+        // task; CR-19 auto-done and CR-14a awards both read this marker).
+        'system' => ['System', '#475569'],
     ];
 
     protected function casts(): array

@@ -40,6 +40,7 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\ManagementExceptionsController;
+use App\Http\Controllers\ManagementMeetingController;
 use App\Http\Controllers\McpDocsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
@@ -349,6 +350,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/admin/recurring/{recurringTask}/skip', [RecurringTaskController::class, 'skip'])->name('admin.recurring.skip');
         Route::post('/app/admin/recurring/{recurringTask}/pause', [RecurringTaskController::class, 'pause'])->name('admin.recurring.pause');
         Route::post('/app/admin/recurring/{recurringTask}/resume', [RecurringTaskController::class, 'resume'])->name('admin.recurring.resume');
+        // CR-34: management meeting day/time, reminder recipients and HR pause.
+        Route::post('/app/admin/management-meeting', [ManagementMeetingController::class, 'update'])->name('admin.management-meeting.update');
         Route::post('/app/admin/greetings/{greetingLine}', [GreetingLineController::class, 'update'])->name('admin.greetings.update');
         Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
         // Any signed-in employee can suggest a line; HR approves it above.

@@ -94,6 +94,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // MailPort intent per tenant. Idempotent per tenant per day, so a retry is safe.
         $schedule->command('management:digest')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('management:digest'));
+        // CR-34: Friday morning T.A.A. task, one per manager/attendee, moved to Thursday on
+        // a holiday Friday. Runs daily; the command itself decides whether today is the day.
+        $schedule->command('management:meeting-tasks')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:meeting-tasks'));
+        // CR-34: the deferred 3 PM reminder — one MailPort intent per tenant, same trigger
+        // day as the task above.
+        $schedule->command('management:meeting-reminder')->dailyAt('15:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:meeting-reminder'));
         // Close punches nobody clocked out of, stamped at the shift end. Last thing at
         // night so the whole working day has had its chance to clock out honestly, and
         // late enough that an overnight shift started this evening is still inside its

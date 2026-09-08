@@ -6,6 +6,7 @@ use App\Models\AttendanceIncident;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\ManagementMeetingSettings;
 use App\Models\Scopes\ParentOnly;
 use App\Models\Shift;
 use App\Models\WorkItem;
@@ -132,11 +133,26 @@ class ManagementExceptions
     public function overdue(?array $employeeIds): array
     {
         $today = Carbon::now()->startOfDay();
+        $now = Carbon::now();
+
+        // CR-34: a management_meeting card is overdue from the tenant's meeting time on its
+        // own due date onward ("0 days overdue" that evening), not only from the next day
+        // like every other card. Resolved once per call, never for a card outside today.
+        $meetingSettings = ManagementMeetingSettings::forTenant();
+        $meetingCutoff = Carbon::parse($today->toDateString().' '.($meetingSettings->meeting_time ?: ManagementMeetingSettings::DEFAULT_MEETING_TIME));
+        $meetingDueToday = $now->gte($meetingCutoff);
 
         $items = WorkItem::withoutGlobalScope(ParentOnly::class)
             ->whereNotNull('due_at')
             ->whereNotNull('employee_id')
-            ->whereDate('due_at', '<', $today->toDateString())
+            ->where(function ($query) use ($today, $meetingDueToday) {
+                $query->whereDate('due_at', '<', $today->toDateString());
+                if ($meetingDueToday) {
+                    $query->orWhere(function ($q) use ($today) {
+                        $q->where('source', 'management_meeting')->whereDate('due_at', $today->toDateString());
+                    });
+                }
+            })
             ->whereNotIn('status', ['done'])
             ->where('type', '!=', 'event')
             ->whereNull('cancelled_at')
