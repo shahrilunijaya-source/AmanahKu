@@ -133,7 +133,7 @@
     @if ($wcParentTitle)
         <p class="wc-parent-of">Subtask of {{ $wcParentTitle }}</p>
     @endif
-    <p class="wc-title">{{ $c->title }}</p>
+    <p class="wc-title">@if ($c->is_milestone)<span class="wc-milestone" title="Milestone" aria-hidden="true">🔔</span>@endif{{ $c->title }}</p>
 
     @if (! empty($c->labels))
         <div class="wc-labels">

@@ -593,7 +593,7 @@ class AppController extends Controller
             'ideas' => app(IdeaController::class)->screenData($request, $employee),
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
             'awards' => app(AwardController::class)->screenData($request, $employee),
-            'wins' => app(BigDealController::class)->screenData($request, $employee),
+            'wins' => $this->winsData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
             'tot-roster' => app(TotController::class)->rosterData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),
@@ -618,6 +618,25 @@ class AppController extends Controller
             'security' => ['passkeyEnabled' => app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'security.passkey') !== 'off'],
             default => [],
         };
+    }
+
+    /**
+     * Wins page (The Playground): Big Deals and Victory Bells interleaved
+     * newest-first, an archive not a window (CR-24 + CR-28).
+     *
+     * @return array{deals: Collection, bells: Collection, rows: Collection}
+     */
+    private function winsData(Request $request, ?Employee $employee): array
+    {
+        $bigDeal = app(BigDealController::class)->screenData($request, $employee);
+        $victoryBell = app(VictoryBellController::class)->screenData($request, $employee);
+
+        $rows = $bigDeal['deals']->map(fn (array $row) => $row + ['kind' => 'big-deal', 'at' => $row['deal']->published_at])
+            ->concat($victoryBell['bells']->map(fn (array $row) => $row + ['kind' => 'victory-bell', 'at' => $row['bell']->rung_at]))
+            ->sortByDesc('at')
+            ->values();
+
+        return $bigDeal + $victoryBell + ['rows' => $rows];
     }
 
     private function auditLogsData(): Collection

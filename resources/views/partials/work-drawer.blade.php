@@ -360,7 +360,31 @@
                                       x-text="drawer.card.reviewer ? drawer.card.reviewer.name : ($store.ui.lang==='en' ? 'None' : 'Tiada')"></span>
                             </template>
                         </span>
+
+                        {{-- CR-28: Milestone — set by PM and above; only a Milestone card can ring the Victory Bell. --}}
+                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
+                        <span class="wd-pval">
+                            <template x-if="drawer.card.can_set_milestone">
+                                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" :checked="drawer.card.is_milestone" :disabled="drawer.locked"
+                                           @change="setMilestone($event.target.checked)">
+                                    <span x-text="$store.ui.lang==='en' ? 'Flag as Milestone' : 'Tanda sebagai Pencapaian'"></span>
+                                </label>
+                            </template>
+                            <template x-if="!drawer.card.can_set_milestone">
+                                <span class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.is_milestone }" style="margin:0;padding-left:0;"
+                                      x-text="drawer.card.is_milestone ? ($store.ui.lang==='en' ? 'Milestone' : 'Pencapaian') : ($store.ui.lang==='en' ? 'None' : 'Tiada')"></span>
+                            </template>
+                        </span>
                     </div>
+
+                    {{-- CR-28: persistent "Ring the bell" action for a Done, unrung Milestone
+                         card — the toast (work-board.js ringPrompt) offers it right after the
+                         move; this stays for later. --}}
+                    <template x-if="drawer.card.is_milestone && drawer.card.status === 'done'">
+                        <button type="button" class="uj-btn-ghost" style="align-self:flex-start;" @click="ringBell()"
+                                x-text="$store.ui.lang==='en' ? '🔔 Ring the bell' : '🔔 Bunyikan loceng'"></button>
+                    </template>
 
                     <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</h3>
                     <textarea class="wd-desc" x-model="drawer.card.description" :readonly="drawer.locked" maxlength="5000"

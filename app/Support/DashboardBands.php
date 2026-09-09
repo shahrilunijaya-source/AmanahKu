@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Attendance\HolidayEve;
 use App\Models\BigDeal;
 use App\Models\Employee;
+use App\Models\VictoryBell;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -244,6 +245,63 @@ final class DashboardBands
                 'story_lines' => $storyLines,
                 'meta' => implode(' · ', $metaBits),
                 'client_contact' => $deal->names_approved ? $deal->client_contact : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One moment per Victory Bell still inside its 24-hour dashboard window (CR-28,
+     * `VictoryBell::isActive()`). Team is the card's owner plus tagged participants
+     * (no separate members pivot, unlike Big Deal — the card already names its
+     * people). `art` is left null so the generic confetti-burst art box never
+     * fires; the view renders its own confetti directly for this kind, gated on
+     * "Keep it plain" the same way. `reactHtml` is stitched in by the caller
+     * afterward, same as bigDealMoments().
+     *
+     * @param  iterable<VictoryBell>  $bells  eager-loaded workItem.participants, workItem.employee, project, rungBy
+     * @return list<Moment&array{victory_bell_id:int, team:list<array<string,mixed>>, line:?string, meta:string}>
+     */
+    public static function victoryBellMoments(iterable $bells, CarbonImmutable $today): array
+    {
+        $out = [];
+        foreach ($bells as $bell) {
+            if (! $bell->isActive() || $bell->workItem === null) {
+                continue;
+            }
+
+            $card = $bell->workItem;
+            $team = collect([$card->employee])
+                ->merge($card->participants)
+                ->filter()
+                ->unique('id')
+                ->map(fn (Employee $e) => [
+                    'id' => $e->id, 'display_name' => $e->display_name,
+                    'initials' => $e->initials, 'avatar_color' => $e->avatar_color,
+                ])->values()->all();
+
+            $metaBits = ['Rung by '.($bell->rungBy->display_name ?? '—')];
+            if ($bell->project) {
+                $metaBits[] = $bell->project->name;
+            }
+            $metaBits[] = 'on the dashboard until '.$bell->rung_at->addHours(24)->format('D j M, H:i');
+
+            $out[] = [
+                'kind' => 'victory-bell',
+                'victory_bell_id' => $bell->id,
+                'kicker' => ['en' => 'WE HAVE MOVEMENT', 'ms' => 'WE HAVE MOVEMENT'],
+                'title' => [
+                    'en' => $card->title.' is officially Done.',
+                    'ms' => $card->title.' rasmi Selesai.',
+                ],
+                // The optional line rides the shared uj-db-s span (mockup CSS styles
+                // it italic for this kind); empty means the view omits the span.
+                'sub' => ['en' => (string) ($bell->line ?? ''), 'ms' => (string) ($bell->line ?? '')],
+                'cta' => null,
+                'art' => null,
+                'team' => $team,
+                'meta' => implode(' · ', $metaBits).' · then on the Wins page',
             ];
         }
 

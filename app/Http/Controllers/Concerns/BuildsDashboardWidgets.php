@@ -8,6 +8,7 @@ use App\Attendance\HolidayEve;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\VictoryBellController;
 use App\Models\AttendanceRecord;
 use App\Models\BigDeal;
 use App\Models\Claim;
@@ -17,6 +18,7 @@ use App\Models\Flower;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
+use App\Models\VictoryBell;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\ArchetypeCatalog;
@@ -176,6 +178,18 @@ trait BuildsDashboardWidgets
             }
             unset($moment);
             $moments = [...$moments, ...$bigDealMoments];
+
+            // CR-28: every Victory Bell still inside its 24-hour window, one moment
+            // each, appended after Big Deal moments (docs/build/OPEN.md — arbitrary,
+            // reversible ordering, nothing in the spec or test pins it).
+            $bells = VictoryBell::with(['workItem.participants', 'workItem.employee', 'project', 'rungBy'])->get()->keyBy('id');
+            $bellMoments = DashboardBands::victoryBellMoments($bells, $today);
+            $bellController = app(VictoryBellController::class);
+            foreach ($bellMoments as &$moment) {
+                $moment['reactHtml'] = $bellController->reactPartial($bells[$moment['victory_bell_id']], $employee);
+            }
+            unset($moment);
+            $moments = [...$moments, ...$bellMoments];
 
             $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
             $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();

@@ -56,6 +56,9 @@ export function registerWorkBoard(Alpine) {
         // active — see setSortMode() — because Sortable reads DOM order as the
         // new manual order on every drop, and a date/priority sort would get
         // written back as sort_order the instant a card is dragged.
+        // CR-28: the "Ring the bell?" toast state, or null when none is showing.
+        // { work_item_id, prompt, line } — set from a move() response's `bell` key.
+        ringPrompt: null,
         sortMode: 'manual',
         // [data-list] key => Sortable instance, so setSortMode() can toggle
         // `disabled` on them. Populated in init().
@@ -716,6 +719,42 @@ export function registerWorkBoard(Alpine) {
             this.commitField('reviewer_id', id);
         },
 
+        // CR-28: PM and above only (the server gates it; the drawer hides the
+        // control otherwise).
+        setMilestone(checked) {
+            if (this.drawer.locked || !this.drawer.card.can_set_milestone) return;
+            this.drawer.card.is_milestone = checked;
+            this.commitField('is_milestone', checked);
+        },
+
+        // The drawer's persistent "Ring the bell" button, for after the toast is
+        // dismissed or missed. The server re-checks everything the toast's own
+        // ringFromPrompt() does — this is just a second door to the same action.
+        async ringBell() {
+            if (!this.drawer.id) return;
+            try {
+                await this.api(`/app/board/${this.drawer.id}/bell`, { method: 'POST', body: JSON.stringify({}) });
+                this.$store.toast.success(this.t('Bell rung. It is now on every dashboard.', 'Loceng dibunyikan. Kini di setiap papan pemuka.'));
+            } catch (err) {
+                this.$store.toast.error(this.t('Could not ring the bell.', 'Tidak dapat membunyikan loceng.'));
+            }
+        },
+
+        // ponytail: no "bells left this project this month" counter here — the
+        // mockup shows one, the acceptance test does not exercise it, and the
+        // server already 422s past the cap. Add if a session lands to polish this.
+        async ringFromPrompt() {
+            if (!this.ringPrompt) return;
+            const { work_item_id: id, line } = this.ringPrompt;
+            this.ringPrompt = null;
+            try {
+                await this.api(`/app/board/${id}/bell`, { method: 'POST', body: JSON.stringify({ line: line || undefined }) });
+                this.$store.toast.success(this.t('Bell rung. It is now on every dashboard.', 'Loceng dibunyikan. Kini di setiap papan pemuka.'));
+            } catch (err) {
+                this.$store.toast.error?.(this.t('Could not ring the bell.', 'Tidak dapat membunyikan loceng.'));
+            }
+        },
+
         // Reveals the native date picker from the formatted-date button, so the
         // drawer can always DISPLAY "30 Jul 2026" (matching the card face) while
         // still using a real <input type="date"> to collect the value — a bare
@@ -747,12 +786,13 @@ export function registerWorkBoard(Alpine) {
             const seq = this.nextSeq();
             this.drawer.error = '';
             try {
-                const { html, egg } = await this.api(`/app/board/${this.drawer.id}/move`, {
+                const { html, egg, bell } = await this.api(`/app/board/${this.drawer.id}/move`, {
                     method: 'POST',
                     body: JSON.stringify({ status }),
                 });
                 if (!this.acceptSeq(seq)) return;
                 this.drawer.card.status = status;
+                if (bell) this.ringPrompt = { ...bell, line: '' };
                 // Repaint BEFORE moving columns: the server's html carries the
                 // correct wc-when/wc-when--over class for the new status (the card
                 // face treats "overdue" as due_at && status !== 'done', so a move
@@ -1374,7 +1414,7 @@ export function registerWorkBoard(Alpine) {
             evt.item.dataset.status = status;
             this.refreshCounts();
             try {
-                const { html, egg } = await this.api(`/app/board/${cardId}/move`, {
+                const { html, egg, bell } = await this.api(`/app/board/${cardId}/move`, {
                     method: 'POST',
                     body: JSON.stringify({ status, ids }),
                 });
@@ -1382,6 +1422,8 @@ export function registerWorkBoard(Alpine) {
                 // day when this was the viewer's last overdue open card. Never blocks
                 // the move either way — egg is just an extra key on the same response.
                 if (egg) this.$store.toast.success(this.t(egg.text_en, egg.text_ms));
+                // CR-28: same idea — a Milestone card landing in Done offers the toast.
+                if (bell) this.ringPrompt = { ...bell, line: '' };
                 // SortableJS has already placed evt.item in the destination list by the
                 // time onEnd fires, and outerHTML destroys whatever node it's assigned
                 // to — re-resolve by [data-id] rather than swapping evt.item directly,

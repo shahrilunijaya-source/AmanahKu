@@ -56,7 +56,7 @@ class WorkItem extends Model implements HasAuditedFields
 
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'auto_closed_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'auto_closed_at' => 'datetime', 'labels' => 'array', 'links' => 'array', 'is_milestone' => 'boolean'];
     }
 
     protected static function booted(): void

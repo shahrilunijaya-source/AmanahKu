@@ -213,6 +213,24 @@
     @if ($employee)
     @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel])
 
+    {{-- CR-28: "Ring the bell?" toast — offered right after a Milestone card lands
+         in Done (move()'s JSON `bell` key), never for a non-milestone card. --}}
+    <template x-if="ringPrompt">
+        <div class="uj-vb-prompt" role="status">
+            <span class="k" x-text="$store.ui.lang==='en' ? 'Milestone done' : 'Pencapaian selesai'"></span>
+            <span class="t" x-text="ringPrompt && ringPrompt.prompt"></span>
+            <span class="s" x-text="$store.ui.lang==='en' ? 'Add a line, or leave it blank.' : 'Tambah satu baris, atau biar kosong.'"></span>
+            <input type="text" x-model="ringPrompt.line" maxlength="160"
+                   :placeholder="$store.ui.lang==='en' ? 'Optional line…' : 'Baris pilihan…'">
+            <span class="row">
+                <button type="button" class="uj-btn-primary" @click="ringFromPrompt()"
+                        x-text="$store.ui.lang==='en' ? 'Ring it' : 'Bunyikan'"></button>
+                <button type="button" class="uj-btn-ghost" @click="ringPrompt = null"
+                        x-text="$store.ui.lang==='en' ? 'Not now' : 'Bukan sekarang'"></button>
+            </span>
+        </div>
+    </template>
+
     {{-- Archived-cards panel: reached only from the Done column's "Archived (N)"
          link. A card lands here via archiveCard() (shake + fade, see work-board.js)
          and leaves only through reopenCard(), which puts it back at To Do — the

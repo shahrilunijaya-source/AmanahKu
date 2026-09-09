@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\Project;
 use App\Models\RecurringTask;
 use App\Models\TimesheetCategory;
+use App\Models\VictoryBell;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
 use App\Support\AuditContext;
@@ -245,6 +246,15 @@ class WorkItemController extends Controller
                 // CR-04: PM and above set the reviewer; the card's role for this viewer
                 // drives the drawer's "you are the reviewer" hint.
                 'can_set_reviewer' => $canManage && in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true),
+                // CR-28: PM and above flag the Milestone toggle, regardless of $canManage
+                // (which the is_milestone gate deliberately does not use — see update()).
+                'can_set_milestone' => in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true),
+                // CR-28: whether this viewer (owner or PM+) may ring the bell right now.
+                'can_ring_bell' => $workItem->is_milestone
+                    && $workItem->status === 'done'
+                    && ! DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists()
+                    && ($workItem->employee_id === $employee->id
+                        || in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true)),
                 'viewer_role' => $workItem->roleFor($employee->id),
                 // Drawer subline only: "Opened 12 Jul 2026 by X" for a self-made card,
                 // "Assigned 12 Jul 2026 by X" for a tac. Fetched once on open — later
@@ -325,6 +335,9 @@ class WorkItemController extends Controller
             // CR-04: the one person who may move the card from In Review to Done. Set
             // by PM and above only (checked below), never the Assigned owner.
             'reviewer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            // CR-28: only a Milestone card can ring the Victory Bell. Set by PM and
+            // above only (checked below); an employee gets 403 even on their own card.
+            'is_milestone' => ['sometimes', 'boolean'],
             // A subtask's assignee may be reassigned after the fact; a top-level
             // card's owner never changes, so this is rejected unless the card is a
             // child (checked below, once we know which we're holding).
@@ -359,6 +372,11 @@ class WorkItemController extends Controller
                 throw ValidationException::withMessages(['reviewer_id' => 'The reviewer cannot be the person the card is assigned to.']);
             }
             $data['reviewer_id'] = $data['reviewer_id'] === null ? null : (int) $data['reviewer_id'];
+        }
+
+        if (array_key_exists('is_milestone', $data)) {
+            $role = $request->attributes->get('tenantRole', 'employee');
+            abort_unless(in_array(Permissions::effectiveRole($role), BoardRules::ASSIGNER_ROLES, true), 403, 'Only a manager can flag a milestone.');
         }
 
         // Participants are a relation, not a column — pull them out before the fill.
@@ -488,6 +506,16 @@ class WorkItemController extends Controller
             }
         }
 
+        // CR-28: a Milestone card that just reached Done, and has never been rung,
+        // gets offered the "Ring the bell?" prompt. Keyed off whether a victory_bells
+        // row already exists (not off $wasDone) so a rung card that leaves Done and
+        // comes back to Done never re-offers it.
+        $bell = null;
+        if ($workItem->status === 'done' && $workItem->is_milestone
+            && ! DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists()) {
+            $bell = ['work_item_id' => $workItem->id, 'prompt' => 'Ring the bell?'];
+        }
+
         if ($request->expectsJson()) {
             return response()->json([
                 'ok' => true,
@@ -496,10 +524,60 @@ class WorkItemController extends Controller
                 // A ticked subtask changes the parent's face (the 1/3 badge), so hand it back.
                 'parent_html' => $workItem->parent_id ? $this->cardHtml($workItem->parent->fresh()) : null,
                 'egg' => $egg,
+                'bell' => $bell,
             ]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
+    }
+
+    /**
+     * CR-28: ring the Victory Bell on a Milestone card that just reached Done. The
+     * card's owner or a PM-and-above may ring it, once, with an optional line —
+     * everyone else is 403'd. Route-model binding is not tenant-scoped, so the
+     * tenant check happens here before anything else. Business rules (not a
+     * milestone, not Done, already rung, project's 3-a-month cap) are 422s so the
+     * "Ring the bell?" toast can show a clear reason.
+     */
+    public function ring(Request $request, WorkItem $workItem): JsonResponse
+    {
+        abort_unless($workItem->tenant_id === app(CurrentTenant::class)->id(), 404);
+
+        $employee = $this->employee($request);
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        $isOwner = $workItem->employee_id === $employee->id;
+        abort_unless($isOwner || in_array($role, BoardRules::ASSIGNER_ROLES, true), 403, 'Only the card owner or a manager can ring the bell.');
+
+        $data = $request->validate([
+            'line' => ['sometimes', 'nullable', 'string', 'max:160'],
+        ]);
+
+        abort_unless($workItem->is_milestone, 422, 'Only a Milestone card can ring the bell.');
+        abort_unless($workItem->status === 'done', 422, 'The card must be Done before ringing the bell.');
+        abort_if(DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists(), 422, 'This card has already rung the bell.');
+
+        // Max 3 bells per project per calendar month (docs/specs/CR-28.md). A card
+        // with no project is never counted against any project's cap.
+        if ($workItem->project_id !== null) {
+            $ringsThisMonth = DB::table('victory_bells')
+                ->where('project_id', $workItem->project_id)
+                ->whereBetween('rung_at', [now()->startOfMonth(), now()->endOfMonth()])
+                ->count();
+            abort_if($ringsThisMonth >= 3, 422, 'This project has already rung 3 bells this month.');
+        }
+
+        $bell = VictoryBell::create([
+            'tenant_id' => app(CurrentTenant::class)->id(),
+            'work_item_id' => $workItem->id,
+            'project_id' => $workItem->project_id,
+            'rung_by' => $employee->id,
+            'line' => filled($data['line'] ?? null) ? $data['line'] : null,
+            'rung_at' => now(),
+        ]);
+
+        AuditLog::record('victory_bell.rung', "victory_bell:{$bell->id}");
+
+        return response()->json(['ok' => true, 'id' => $bell->id]);
     }
 
     /**
@@ -1099,6 +1177,8 @@ class WorkItemController extends Controller
                     'role' => $e->pivot->role ?? 'helper',
                 ])->values()->all()
                 : [],
+            // CR-28: the Milestone flag — see BoardRules::ASSIGNER_ROLES for who sets it.
+            'is_milestone' => (bool) $item->is_milestone,
             'reviewer_id' => $item->reviewer_id,
             'reviewer' => $item->reviewer_id ? [
                 'id' => $item->reviewer_id,
