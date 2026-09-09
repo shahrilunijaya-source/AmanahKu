@@ -154,7 +154,7 @@ class PlotTwistController extends Controller
                 ]);
                 // Unique (poll_id, receipt) is the real backstop against a concurrent
                 // double vote: this insert failing rolls the vote insert back too.
-                DB::table('plot_twist_receipts')->insert(['poll_id' => $poll->id, 'receipt' => $receipt, 'created_at' => now()]);
+                DB::table('plot_twist_receipts')->insert(['poll_id' => $poll->id, 'receipt' => $receipt]);
             });
         } catch (QueryException $e) {
             if (str_starts_with((string) $e->getCode(), '23')) {

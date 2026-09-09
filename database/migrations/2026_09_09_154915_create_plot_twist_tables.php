@@ -47,8 +47,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('poll_id')->constrained('plot_twist_polls')->cascadeOnDelete();
             $table->char('receipt', 64);
-            $table->timestamp('created_at')->useCurrent();
             $table->unique(['poll_id', 'receipt']);
+            // No created_at: a shared timestamp with the vote row it accompanies
+            // would let anyone with DB access join receipt to vote by time and
+            // recover who voted for what. Nothing reads this column.
         });
 
         Schema::create('plot_twist_questions', function (Blueprint $table) {
