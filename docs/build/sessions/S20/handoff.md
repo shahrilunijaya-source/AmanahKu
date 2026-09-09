@@ -21,8 +21,11 @@
   acceptance items 1/2/4/5 (unchanged morning/afternoon/evening boundaries).
 - Settings-screen trigger picker: no code change needed, it already reads off
   `GreetingLine::TRIGGERS` (`BuildsSettingsData.php` line 43), so the 9 new labels (EN+BM)
-  show up automatically — spot-checked via `GreetingLineTest::test_settings_screen_renders_the_greetings_card_for_hr`
-  (unchanged, still green).
+  show up automatically — verified directly by the new
+  `GreetingTriggersTest::test_settings_trigger_picker_lists_the_nine_new_triggers`, which
+  asserts all 9 new English labels render on `/app/settings` for an HR user (not just
+  spot-checked by the unrelated `GreetingLineTest` case, which only proves the card itself
+  still renders).
 - Deletion + backfill migration for existing tenants, idempotent — verified by
   `tests/Feature/GreetingTriggersTest.php::test_deletion_migration_removes_overdue_and_not_clocked_in_and_backfills_new_lines`
   and applied to the dev DB.
@@ -128,8 +131,9 @@ php artisan test --compact   (full suite, background)
   session by the same test failing on files this CR never touches).
 - `Tests\Acceptance\CR33Test::test_acceptance_1_...` — the birthday collision above.
 
-New test file added: `tests/Feature/GreetingTriggersTest.php` — 11 tests, all passing, one
-per new trigger plus the deletion/backfill migration.
+New test file added: `tests/Feature/GreetingTriggersTest.php` — 12 tests, all passing, one
+per new trigger, the deletion/backfill migration, and the settings-screen trigger-label
+check.
 
 Dev DB migration applied: `lerd artisan migrate --no-interaction` ran
 `2026_09_09_100000_cr33_greeting_bank_refresh` clean.

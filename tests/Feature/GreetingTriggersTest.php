@@ -201,4 +201,23 @@ class GreetingTriggersTest extends TestCase
         (require base_path('database/migrations/2026_09_09_100000_cr33_greeting_bank_refresh.php'))->up();
         $this->assertSame($countAfterFirstRun, GreetingLine::where('tenant_id', $old->id)->count());
     }
+
+    public function test_settings_trigger_picker_lists_the_nine_new_triggers(): void
+    {
+        $user = User::create(['name' => 'HR Person', 'email' => 'hrperson@acme.test', 'password' => Hash::make('password')]);
+        $user->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $user->id, 'name' => 'HR Person', 'status' => 'active', 'workload' => 'green']);
+        $this->actingAs($user)->withSession(['current_tenant' => $this->tenant->id]);
+
+        $this->get('/app/settings')->assertOk()
+            ->assertSee('Early (before 8am)')
+            ->assertSee('Wednesday')
+            ->assertSee('Saturday')
+            ->assertSee('Start of month')
+            ->assertSee('All clear')
+            ->assertSee('Long weekend')
+            ->assertSee('Work anniversary')
+            ->assertSee('Back from leave')
+            ->assertSee('Rainy day');
+    }
 }
