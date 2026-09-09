@@ -904,3 +904,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: build a matching suggest flow for symmetry with CR-33 (rejected — not asked for by the CR text, `CR31Test`, or the shapes OPEN entry above; adding it would be scope the CR didn't request).
 - Reversal cost: cheap — copy `GreetingLineController::suggest()` and the picker's suggest form if Shazwan wants it later.
 - Source: `docs/specs/CR-31.md`, `tests/Acceptance/CR31Test.php` (no suggest route exercised).
+
+### QA / CR-31 / S21 grade PASS, F1 shortcut 404 when the overtime module is off
+- Question: the late-night egg's shortcut pointed at `/app/overtime` for every tenant, but `module.overtime` is off on tenant 1 (the real data), so the only link in the whole CR gave Not Found.
+- Decided: `dashboardEgg()` checks `FeatureManager::screenAllowed($tenant, 'overtime')` and falls back to `/app/timesheets` with matching copy (`110b4f3a`). CR31Test still expects `/app/overtime` on its own tenant, where the module is at its default (on).
+- Alternatives: drop the shortcut when the module is off (rejected, the timesheet is where those hours go anyway); turn the overtime module on for tenant 1 (rejected, a data change QA has no mandate for).
+- Reversal cost: none, one ternary and two strings.
+- Source: QA grade of S21, 2026-09-09. Also fixed on the way: a pre-existing `\"` inside an `x-text` on the settings page (Form EA label) that threw two Alpine SyntaxErrors per load.
