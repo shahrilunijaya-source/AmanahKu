@@ -8,6 +8,7 @@ use App\Attendance\HolidayEve;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\FridayController;
 use App\Http\Controllers\VictoryBellController;
 use App\Models\AttendanceRecord;
 use App\Models\BigDeal;
@@ -241,7 +242,7 @@ trait BuildsDashboardWidgets
             'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
             'flowers' => $this->flowersWidget($request),
-            'friday' => ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
+            'friday' => app(FridayController::class)->widgetData($request, $employee) + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             'claims' => $this->claimsWidget($employee, $when),
             'work' => $this->workWidget($employee, $when),
             'style' => $this->styleWidget($employee),

@@ -30,6 +30,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FlowerController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
+use App\Http\Controllers\FridayController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
 use App\Http\Controllers\GreetingLineController;
@@ -559,6 +560,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/plot-twist/{poll}/vote', [PlotTwistController::class, 'vote'])->name('plot-twist.vote');
         Route::post('/app/plot-twist/{poll}/opt-out', [PlotTwistController::class, 'optOut'])->name('plot-twist.opt-out');
         Route::get('/app/plot-twist/{poll}/results', [PlotTwistController::class, 'results'])->name('plot-twist.results');
+        // CR-29: Friday Sign-Off — one tap, anonymous mood, on the `friday` dashboard
+        // widget only (S04 slot). No screen, no GET route: everything reads back
+        // through the widget (docs/build/OPEN.md "QA / CR-29").
+        Route::post('/app/friday-signoff', [FridayController::class, 'signOff'])->name('friday.signoff');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');

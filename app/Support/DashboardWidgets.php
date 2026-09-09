@@ -200,6 +200,16 @@ final class DashboardWidgets
         };
     }
 
+    /**
+     * The Friday whose sign-off window we are in, `Y-m-d`. Only meaningful
+     * while fridaySignOffOpen() is true: Friday itself, or the Friday just
+     * gone for Saturday, Sunday, or Monday before 09:00.
+     */
+    public static function fridayWeekOf(CarbonImmutable $now): string
+    {
+        return $now->subDays(($now->dayOfWeek - CarbonImmutable::FRIDAY + 7) % 7)->toDateString();
+    }
+
     /** The period slice a widget's arrows move by, or null when it has none. */
     public static function periodUnit(string $id): ?string
     {
