@@ -940,3 +940,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: a second approval step (e.g. director sign-off before the name shows) — rejected, no route, role, or UI for it is named anywhere in the CR text or the frozen test, and adding one would be inventing a workflow the acceptance test can't see.
 - Reversal cost: medium — would need a new status column/route and a review screen; the current boolean stays valid as the "approved" flag either way.
 - Source: `docs/specs/CR-24.md` (client compliment names "shown only if approved, never assumed"), `tests/Acceptance/CR24Test.php` acceptance item 5.
+
+### QA / CR-24 / S22 grade PASS, F1 story split and F2 red border fixed by QA
+- Question: should QA patch presentation defects found in the browser instead of bouncing the session?
+- Decided: yes for both. F1: a one-paragraph story now fills the "What it took" box (`BigDeal::storyParts()`, shared by dashboard and Wins). F2: the red left border on that box was removed on Shazwan's instruction mid-grade.
+- Alternatives: bounce to S22 for a re-run (rejected, both fixes are a few lines and the acceptance test stayed green); keep the border (rejected, Shazwan asked for it gone).
+- Reversal cost: trivial, one CSS rule and one small model method.
+- Source: `docs/build/sessions/S22/grade.md`, Shazwan's message during the grade.

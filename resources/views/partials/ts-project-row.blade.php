@@ -246,7 +246,7 @@
                 </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'What it took' : 'Apa yang diperlukan'">What it took</span></label>
-                    <textarea name="story" rows="3" maxlength="4000" placeholder="Everyone involved may now breathe again." style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:12.5px;outline:none;"></textarea>
+                    <textarea name="story" rows="4" maxlength="4000" placeholder="One-liner on the first line, e.g. Everyone involved may now breathe again.&#10;Then what it took, on the lines below." style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:12.5px;outline:none;"></textarea>
                 </div>
                 <div>
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Team' : 'Pasukan'">Team</span></label>

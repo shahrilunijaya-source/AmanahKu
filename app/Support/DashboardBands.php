@@ -215,9 +215,7 @@ final class DashboardBands
                 continue;
             }
 
-            $lines = preg_split('/\r?\n/', trim((string) $deal->story)) ?: [];
-            $oneLiner = array_shift($lines) ?? '';
-            $storyLines = array_values(array_filter($lines, fn (string $l) => trim($l) !== ''));
+            [$oneLiner, $storyLines] = $deal->storyParts();
 
             $team = $deal->members->map(fn (Employee $e) => [
                 'id' => $e->id, 'display_name' => $e->display_name,

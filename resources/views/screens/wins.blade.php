@@ -21,9 +21,7 @@
     @forelse ($deals as $row)
         @php
             $deal = $row['deal'];
-            $lines = preg_split('/\r?\n/', trim((string) $deal->story)) ?: [];
-            $oneLiner = array_shift($lines) ?? '';
-            $storyLines = array_values(array_filter($lines, fn ($l) => trim($l) !== ''));
+            [$oneLiner, $storyLines] = $deal->storyParts();
         @endphp
         <div class="uj-card" data-win="{{ $deal->id }}" style="padding:18px 20px;display:flex;flex-direction:column;gap:8px;">
             <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">

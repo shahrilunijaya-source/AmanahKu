@@ -5050,13 +5050,13 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-bd-team small { margin-left:8px; font-size:11.5px; color:var(--muted); white-space:nowrap; }
 .uj-bd-photos { display:flex; gap:8px; flex-wrap:wrap; }
 .uj-bd-photos img { width:76px; height:56px; object-fit:cover; border-radius:8px; border:1px solid var(--hairline); background:#fff; }
-.uj-bd-story { flex-basis:100%; display:flex; flex-direction:column; gap:3px; padding:8px 12px; border-left:2px solid var(--red); background:rgba(255,255,255,.55); border-radius:0 8px 8px 0; }
+.uj-bd-story { flex-basis:100%; display:flex; flex-direction:column; gap:3px; padding:8px 12px; background:rgba(255,255,255,.55); border-radius:8px; }
 .uj-bd-story b { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--muted-soft); }
 .uj-bd-story p { margin:0; font-size:var(--t-sm); color:var(--body); line-height:1.45; }
 .uj-bd-story i { font-style:normal; font-size:11.5px; color:var(--muted); }
 .uj-bd-react { flex-basis:100%; display:flex; flex-wrap:wrap; gap:6px; align-items:center; position:relative; z-index:1; }
 .uj-bd-react .uj-react-tally { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
-.uj-db[data-plain] .uj-bd-story { background:none; border-left-color:var(--hairline); }
+.uj-db[data-plain] .uj-bd-story { background:none; }
 .uj-db[data-plain] .uj-db-band[data-kind="big-deal"] .uj-db-k { color:var(--muted-soft); }
 /* Wins page card (screens/wins.blade.php) reuses the same .uj-bd-* pieces outside a band. */
 [data-win] .uj-bd-story { background:var(--shelf); }

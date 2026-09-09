@@ -59,6 +59,26 @@ class BigDeal extends Model
     }
 
     /** True while it still belongs on the dashboard band; false once it is Wins-only. */
+    /**
+     * Split the story into the one-liner shown under the title and the lines
+     * shown in the "What it took" box. The first line is the one-liner only when
+     * more lines follow; a single-paragraph story is the story itself.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    public function storyParts(): array
+    {
+        $lines = preg_split('/\r?\n/', trim((string) $this->story)) ?: [];
+        $oneLiner = trim(array_shift($lines) ?? '');
+        $storyLines = array_values(array_filter(array_map('trim', $lines), fn (string $l) => $l !== ''));
+
+        if ($storyLines === [] && $oneLiner !== '') {
+            return ['', [$oneLiner]];
+        }
+
+        return [$oneLiner, $storyLines];
+    }
+
     public function isActive(): bool
     {
         return CarbonImmutable::now()->lessThan($this->published_at->addDays(self::DASHBOARD_DAYS));
