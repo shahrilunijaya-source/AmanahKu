@@ -235,6 +235,14 @@ class PlotTwistController extends Controller
             'voted' => $voted,
             'results' => $results,
             'canOptOut' => $poll && $employee && (int) $poll->named_employee_id === $employee->id && $poll->optOutAllowed(),
+            // QA F3: every upcoming who-poll naming the viewer, not just the "current" one.
+            'optOutPolls' => $employee
+                ? PlotTwistPoll::where('status', 'open')->where('kind', 'who')->where('named_employee_id', $employee->id)
+                    ->orderBy('opens_on')->get()->filter(fn (PlotTwistPoll $p) => $p->optOutAllowed())->values()
+                : Collection::make(),
+            'upcoming' => $poll && now()->lt($poll->opens_on->copy()->startOfDay()),
+            // QA F2: a person picker for who-polls instead of a raw employee id.
+            'people' => $canPublish ? Employee::active()->orderBy('name')->get(['id', 'name']) : Collection::make(),
             'canPublish' => $canPublish,
             'suggestions' => $canPublish
                 ? PlotTwistQuestion::where('approved', false)->latest()->take(10)->get()
@@ -284,7 +292,13 @@ class PlotTwistController extends Controller
      */
     public function currentPoll(): ?PlotTwistPoll
     {
-        return PlotTwistPoll::where('status', 'open')->orderByDesc('opens_on')->orderByDesc('id')->first();
+        // QA F1/F3: the poll whose week we are in (latest one already opened), else the next
+        // one coming up. Publishing next week's poll early no longer hides this week's.
+        $today = now()->toDateString();
+
+        return PlotTwistPoll::where('status', 'open')->whereDate('opens_on', '<=', $today)
+            ->orderByDesc('opens_on')->orderByDesc('id')->first()
+            ?? PlotTwistPoll::where('status', 'open')->orderBy('opens_on')->orderBy('id')->first();
     }
 
     /**

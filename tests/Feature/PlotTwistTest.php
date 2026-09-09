@@ -149,4 +149,73 @@ class PlotTwistTest extends TestCase
         $this->actingInTenantAs($hr)->getJson("/app/plot-twist/{$poll->id}/results")->assertOk();
         $this->assertSame(1, WorkItemComment::where('work_item_id', $card->id)->count());
     }
+
+    #[Test]
+    public function test_qa_f1_an_upcoming_poll_shows_no_vote_buttons_and_does_not_hide_this_weeks_poll(): void
+    {
+        $hr = $this->person('Hidayah HR', 'hr');
+        $shazwan = $this->person('Shazwan Dev');
+
+        $this->actingInTenantAs($hr)->post('/app/plot-twist', $this->payload())->assertSessionHasNoErrors();
+        $this->actingInTenantAs($hr)->post('/app/plot-twist', $this->payload([
+            'question' => 'Next week?', 'opens_on' => '2026-09-14', 'options' => ['A', 'B'],
+        ]))->assertSessionHasNoErrors();
+
+        // This week's poll is still the one on screen, with live vote buttons.
+        $body = $this->actingInTenantAs($shazwan)->get('/app/plot-twist')->assertOk()->getContent();
+        $this->assertStringContainsString('unofficial national food', $body);
+        $this->assertStringContainsString('data-poll-option', $body);
+        $this->assertStringNotContainsString('data-poll-upcoming', $body);
+
+        // With only an upcoming poll, it renders read-only with its opening day.
+        PlotTwistPoll::where('question', 'like', '%national food%')->update(['status' => 'withdrawn']);
+        $body = $this->actingInTenantAs($shazwan)->get('/app/plot-twist')->assertOk()->getContent();
+        $this->assertStringContainsString('Next week?', $body);
+        $this->assertStringContainsString('data-poll-upcoming', $body);
+        $this->assertStringContainsString('OPENS MON 14 SEP', $body);
+        $this->assertStringNotContainsString('data-poll-option', $body);
+    }
+
+    #[Test]
+    public function test_qa_f2_hr_picks_the_named_person_from_a_select_of_active_staff(): void
+    {
+        $hr = $this->person('Hidayah HR', 'hr');
+        $shazwan = $this->person('Shazwan Dev');
+        $gone = $this->person('Gone Person');
+        $gone->update(['archived_at' => now()]);
+
+        $body = $this->actingInTenantAs($hr)->get('/app/plot-twist')->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/<select name="named_employee_id">/', $body);
+        $this->assertStringContainsString('<option value="'.$shazwan->id.'">Shazwan Dev</option>', $body);
+        $this->assertStringNotContainsString('Gone Person</option>', $body);
+        $this->assertStringNotContainsString('type="number" name="named_employee_id"', $body);
+    }
+
+    #[Test]
+    public function test_qa_f3_the_named_person_can_opt_out_even_when_a_newer_poll_exists(): void
+    {
+        $hr = $this->person('Hidayah HR', 'hr');
+        $shazwan = $this->person('Shazwan Dev');
+
+        PlotTwistQuestion::create([
+            'tenant_id' => $this->tenant()->id, 'text' => 'Who is most likely to be late?',
+            'kind' => 'who', 'template' => true, 'approved' => true,
+        ]);
+        $this->actingInTenantAs($hr)->post('/app/plot-twist', $this->payload())->assertSessionHasNoErrors();
+        $this->actingInTenantAs($hr)->post('/app/plot-twist', $this->payload([
+            'question' => 'Who is most likely to be late?', 'kind' => 'who',
+            'named_employee_id' => $shazwan->id, 'opens_on' => '2026-09-14', 'options' => ['Shazwan Dev', 'Nobody'],
+        ]))->assertSessionHasNoErrors();
+        $this->actingInTenantAs($hr)->post('/app/plot-twist', $this->payload([
+            'question' => 'Even later poll', 'opens_on' => '2026-09-21', 'options' => ['A', 'B'],
+        ]))->assertSessionHasNoErrors();
+        $who = PlotTwistPoll::where('kind', 'who')->sole();
+
+        $body = $this->actingInTenantAs($shazwan)->get('/app/plot-twist')->assertOk()->getContent();
+        $this->assertStringContainsString('data-plot-twist-optout="'.$who->id.'"', $body);
+
+        $this->actingInTenantAs($shazwan)->post("/app/plot-twist/{$who->id}/opt-out")->assertRedirect();
+        $this->assertSame('withdrawn', $who->fresh()->status);
+        $this->assertStringNotContainsString('data-plot-twist-optout', $this->actingInTenantAs($shazwan)->get('/app/plot-twist')->getContent());
+    }
 }

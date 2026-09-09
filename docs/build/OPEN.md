@@ -978,6 +978,13 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: trivial, one CSS value.
 - Source: `docs/build/sessions/S23/grade.md`, `resources/css/app.css` `.uj-vb-prompt`.
 
+### QA / CR-25 / S24 grade PASS, F1 upcoming state, F2 person select, F3 current-poll and opt-out fixed by QA
+- Question: three browser defects (future poll rendered votable, named person as a bare id input, opt-out strip and results hidden once a newer poll was published). Fix in the session's code or fail the session?
+- Decided: QA fixed all three with feature tests (`tests/Feature/PlotTwistTest.php` `test_qa_f1/f2/f3_*`) and graded PASS. `currentPoll()` now prefers the latest poll whose `opens_on` has passed, else the earliest upcoming, which supersedes the "newest open poll" rule in `S24 / CR-25 / which poll is "current" with no scheduler`. QA also corrected two assertions in its own `tests/Acceptance/CR25Test.php` item 4 (hex digest can contain digits; voter-name sweep scoped to the poll markup, it was matching the director's own clock-in widget). See `docs/build/sessions/S24/grade.md`.
+- Alternatives: fail S24 and re-run it (rejected, three contained fixes, no schema change); keep "newest open poll" and forbid publishing before Friday's reveal (rejected, HR would lose the ability to queue next week early); a free-text name search instead of a select (rejected, 35 staff fits a select and needs no JS).
+- Reversal cost: cheap, one query, one blade branch, one form field.
+- Source: `docs/build/sessions/S24/grade.md`, `docs/build/sessions/S24/mockup/README.md` (person picker), `app/Http/Controllers/PlotTwistController.php` `currentPoll()`/`screenData()`.
+
 ### S24 / CR-25 / which poll is "current" with no scheduler
 - Question: nothing runs a job to open/close a poll or to flip a status at `reveals_at`; the screen and the dashboard have to work out which poll to show purely from `now()` on each render.
 - Decided: `PlotTwistController::currentPoll()` is `plot_twist_polls` where `status = 'open'`, ordered by `opens_on` desc then `id` desc, first row — revealed or not. A poll only ever leaves this slot by a later poll's `opens_on` passing it, never by its own reveal; `isVotable()`/`isRevealed()` are pure `now()` comparisons against `opens_on`/`reveals_at` on whichever row this returns.
