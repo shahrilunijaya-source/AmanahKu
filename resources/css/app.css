@@ -5080,6 +5080,41 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-vb-prompt .count { margin-left:auto; font-size:11px; color:var(--muted-soft); text-align:right; max-width:120px; }
 .wc-milestone { font-size:12px; margin-right:2px; }
 
+/* --- CR-25: This Week's Plot Twist (Notice board row + /app/plot-twist screen) --- */
+.uj-dw-notice[data-plot-twist] { flex-wrap:wrap; }
+.uj-dw-notice[data-plot-twist] .when { color:var(--red); }
+.uj-pt-art { font-size:18px; line-height:1; display:inline-block; margin-right:4px; animation:uj-pt-flip 700ms var(--ease) 1; }
+@keyframes uj-pt-flip { 0% { transform:rotateY(0) } 50% { transform:rotateY(180deg) } 100% { transform:rotateY(360deg) } }
+.uj-pt-bars { flex-basis:100%; display:flex; flex-direction:column; gap:5px; margin-top:6px; padding-left:63px; }
+.uj-pt-bar { display:grid; grid-template-columns:150px 1fr 38px; align-items:center; gap:8px; font-size:var(--t-sm); color:var(--body); }
+.uj-pt-bar .bar { height:8px; border-radius:4px; background:var(--hairline-soft); overflow:hidden; }
+.uj-pt-bar .bar i { display:block; height:100%; background:var(--red); border-radius:4px; width:var(--w); animation:uj-pt-grow 600ms var(--ease) both; }
+.uj-pt-bar.win { font-weight:600; color:var(--ink); }
+.uj-pt-bar .pct { text-align:right; font:600 var(--t-micro) var(--font-mono); color:var(--muted); }
+@keyframes uj-pt-grow { from { width:0 } }
+.uj-db[data-plain] .uj-pt-bar .bar i { animation:none; }
+
+.uj-pt-wrap { display:flex; flex-direction:column; gap:14px; max-width:720px; }
+.uj-pt-hero { padding:22px 24px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden; }
+.uj-pt-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--red); }
+.uj-pt-q { font-size:22px; font-weight:600; color:var(--ink); line-height:1.25; }
+.uj-pt-meta { font-size:12px; color:var(--muted); }
+.uj-pt-opts { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+.uj-pt-opt { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--hairline); border-radius:10px; background:#fff; cursor:pointer; font-size:14px; color:var(--ink); text-align:left; transition:border-color 160ms ease, transform 160ms ease; }
+.uj-pt-opt:hover { border-color:var(--red); transform:translateX(2px); }
+.uj-pt-opt .dot { width:18px; height:18px; border-radius:50%; border:2px solid var(--hairline); flex-shrink:0; }
+.uj-pt-opt.is-on { border-color:var(--red); background:#fdf2f2; }
+.uj-pt-opt.is-on .dot { border-color:var(--red); background:var(--red); box-shadow:inset 0 0 0 3px #fff; }
+.uj-pt-voted { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; background:var(--info-tint); color:var(--info-ink); font-size:13px; }
+.uj-pt-art-big { position:absolute; right:18px; top:14px; font-size:44px; opacity:.18; transform:rotate(12deg); }
+.uj-pt-optout { padding:14px 18px; display:flex; align-items:center; gap:12px; background:#fff7e6; border:1px solid #e0b25a; border-radius:12px; font-size:13px; color:var(--ink); }
+.uj-pt-hero .uj-pt-bars { padding-left:0; }
+.uj-pt-hero .uj-pt-bar { grid-template-columns:170px 1fr 40px; font-size:14px; }
+.uj-pt-hero .uj-pt-bar .bar { height:10px; }
+/* Shazwan's note on approval (2026-09-09): give the wrap's buttons real height/padding
+   so they match the inputs beside them instead of rendering as cramped bare text. */
+.uj-pt-wrap .uj-btn-primary, .uj-pt-wrap .uj-btn-ghost { height:36px; padding:0 16px; font-size:13px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+
 /* --- CR-13: birthday wishes, confetti, dismiss, coming-up line --- */
 /* The birthday band wraps to a second row for the wishes region under the copy. */
 .uj-db-band[data-kind="birthday"] { flex-wrap:wrap; row-gap:12px; }

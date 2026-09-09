@@ -59,6 +59,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PettyCashController;
+use App\Http\Controllers\PlotTwistController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
@@ -550,6 +551,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/big-deals/{deal}/photos/{photo}', [BigDealController::class, 'photo'])->name('big-deals.photos.show');
         Route::post('/app/big-deals/{deal}/react', [BigDealController::class, 'react'])->name('big-deals.react');
         Route::post('/app/victory-bells/{bell}/react', [VictoryBellController::class, 'react'])->name('victory-bells.react');
+        // CR-25: This Week's Plot Twist — weekly anonymous poll (screen route rides the
+        // existing /app/{screen} catch-all, see AppController). Vote/opt-out/results all
+        // need the {poll} segment so they must be declared ahead of that catch-all.
+        Route::post('/app/plot-twist', [PlotTwistController::class, 'store'])->name('plot-twist.store');
+        Route::post('/app/plot-twist/suggest', [PlotTwistController::class, 'suggest'])->name('plot-twist.suggest');
+        Route::post('/app/plot-twist/{poll}/vote', [PlotTwistController::class, 'vote'])->name('plot-twist.vote');
+        Route::post('/app/plot-twist/{poll}/opt-out', [PlotTwistController::class, 'optOut'])->name('plot-twist.opt-out');
+        Route::get('/app/plot-twist/{poll}/results', [PlotTwistController::class, 'results'])->name('plot-twist.results');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');

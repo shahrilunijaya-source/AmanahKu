@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Concerns;
 
 use App\Attendance\HolidayEve;
+use App\Http\Controllers\PlotTwistController;
 use App\Models\Achievement;
 use App\Models\Announcement;
 use App\Models\Claim;
@@ -467,7 +468,15 @@ trait BuildsDashboardData
             );
         }
 
-        return $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
+        $news = $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
+
+        // CR-25: one extra row at the top of the Notice board from reveals_at until
+        // the next week's poll reveals in turn — never part of the news sort above,
+        // it is not an announcement.
+        $plain = (bool) DashboardPrefs::forUser($employee?->user?->dashboard_prefs)['plain'];
+        $plotTwist = app(PlotTwistController::class)->noticeRow($plain);
+
+        return $plotTwist ? array_merge([$plotTwist], $news) : $news;
     }
 
     /** "today" / "tomorrow" / "in 3 days" — the rail's right-hand meta for a dated event. */
