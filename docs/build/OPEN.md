@@ -1064,6 +1064,13 @@ These are already known before the run starts. A session that hits one of them s
 - Source: `docs/specs/CR-26.md`, `docs/specs/culture-pack-preamble.md`, `docs/specs/CR-30.md` (reactions), `tests/Acceptance/CR24Test.php` (photo and reaction precedent).
 - Left open for the session: how a badge looks next to CR-14b award badges on the profile card, whether the feed pages or caps at N posts, whether a retired quest's posts stay under a "past quests" heading.
 
+### QA / CR-26 / S26 grade PASS, "Quests" nav label reverted to "Side Quests", Wins assertion was a QA test defect
+- Question: S26 shortened the sidebar label to "Quests" because `CR26Test` item 4 asserted the whole `/app/wins` body never contains "Side Quest". Was that the right fix?
+- Decided: no, the test was wrong, not the label. QA scoped the assertion to `<main>` (QA may fix its own test defects) and restored `label`/`label_ms` to "Side Quests" in `app/Support/Amanahku.php`. Supersedes `S26 / CR-26 / sidebar nav label shortened to "Quests"...`. Grade PASS, see `docs/build/sessions/S26/grade.md`.
+- Alternatives: keep "Quests" (rejected, inconsistent with the screen title and the spec's name); strip the sidebar from the response in the test (same thing, `<main>` slice is simpler).
+- Reversal cost: trivial, one label pair and one line in the test.
+- Source: `tests/Acceptance/CR26Test.php` item 4, `app/Support/Amanahku.php`.
+
 ### S25 / CR-29 / percentages() duplicated from PlotTwistController rather than extracted
 - Question: `FridayController::percentages()` needs the exact same largest-remainder rounding (floor each share, hand leftover points to the largest fractional remainders) as `PlotTwistController::percentages()` (CR-25), so the two methods are identical.
 - Decided: duplicated the method into `FridayController` rather than extracting a shared helper, since a shared helper would mean creating or editing a file outside `PlotTwistController.php`'s and `FridayController.php`'s own CR, which the standing rule forbids ("one CR per session, no refactoring outside the CR's files").

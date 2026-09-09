@@ -272,7 +272,11 @@ class CR26Test extends TestCase
         // Badges never count anywhere.
         $this->assertSame(0, DB::table('award_results')->count());
         $this->assertFalse(Schema::hasColumn('award_results', 'side_quest_id'));
-        $this->actingInTenantAs($this->shahril)->get('/app/wins')->assertOk()->assertDontSee('data-quest-badge', false)->assertDontSee('Side Quest', false);
+        // Scoped to <main>: the sidebar names the screen on every page (QA test defect fixed in grade).
+        $wins = $this->actingInTenantAs($this->shahril)->get('/app/wins')->assertOk()->getContent();
+        $wins = ($m = strpos($wins, '<main')) === false ? $wins : substr($wins, $m);
+        $this->assertStringNotContainsString('data-quest-badge', $wins);
+        $this->assertStringNotContainsString('Side Quest', $wins);
         $routes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn ($r) => str_contains($r->uri(), 'side-quest'))
             ->map(fn ($r) => implode('|', $r->methods()).' '.$r->uri());
