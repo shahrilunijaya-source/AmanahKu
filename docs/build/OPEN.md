@@ -876,3 +876,10 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: cheap, text-only changes to `GreetingBank::DEFAULTS`.
 - Source: `tests/Acceptance/CR33Test.php::assertCleanLine`/`FORBIDDEN`; found by scripting
   a substring scan of the full `DEFAULTS` array during this session.
+
+### QA / CR-33 / S20 grade PASS, F1 was the acceptance test's own birthday date
+- Question: item 1 of `CR33Test` ran on the fixture's birthday, so the birthday bucket correctly outranked the Tuesday-morning lines and the test could never pass.
+- Decided: QA moved item 1 to Tuesday 2026-09-22 (`717323dc`). The session's implementation (birthday unconditional, DOB month/day match) stands. This closes the session's OPEN entry "S20 / CR-33 / birthday is unconditional and collides with CR33Test's own Tuesday-morning test".
+- Alternatives: gate birthday on time of day or on the absence of other signals (rejected, contradicts the CR's "birthday wins over all others"); leave the test red (rejected, a red acceptance test is a FAIL by the grade rules).
+- Reversal cost: none, one date in a test.
+- Source: QA grade of S20, 2026-09-09.
