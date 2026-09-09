@@ -245,9 +245,20 @@ trait BuildsPeopleData
                 ->get()->map(fn ($row) => ['key' => $row->award_key, 'wins' => (int) $row->wins, 'hallOfFame' => (int) $row->wins >= 3])
             : collect();
 
+        // CR-26: Side Quest badges still inside their 30-day window — same "both cards,
+        // outside canViewFull" rule as award badges above. Never touches award_results.
+        $questBadges = $e
+            ? DB::table('side_quest_badges')->join('side_quests', 'side_quests.id', '=', 'side_quest_badges.quest_id')
+                ->where('side_quest_badges.employee_id', $e->id)
+                ->where('side_quest_badges.expires_at', '>', now())
+                ->select('side_quest_badges.quest_id', 'side_quests.title', 'side_quest_badges.expires_at')
+                ->get()
+            : collect();
+
         return array_merge([
             'profile' => $e,
             'awardBadges' => $awardBadges,
+            'questBadges' => $questBadges,
             'canViewFull' => $canViewFull,
             'canEdit' => $canEdit,
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),

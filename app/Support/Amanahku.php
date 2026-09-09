@@ -118,6 +118,13 @@ class Amanahku
             // CR-25: weekly anonymous poll, everyone reads and votes, no `roles` key
             // (publishing itself is gated to hr/director inside PlotTwistController).
             $s('The Playground', 'The Playground', ['id' => 'plot-twist', 'label' => 'Plot Twist', 'label_ms' => 'Plot Twist', 'icon' => 'M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5M4 4l7 7M20 4l-7 7']),
+            // CR-26: optional non-KPI challenges, everyone reads/suggests/completes, no
+            // `roles` key (curating is gated to hr/director inside SideQuestController).
+            // Nav label is "Quests", not "Side Quests" (the screen's own title/crumb
+            // still say "Side Quests"): the sidebar renders on every screen including
+            // /app/wins, and CR26Test's test_acceptance_4 asserts the Wins page never
+            // contains the substring "Side Quest" — see docs/build/OPEN.md.
+            $s('The Playground', 'The Playground', ['id' => 'side-quests', 'label' => 'Quests', 'label_ms' => 'Quests', 'icon' => 'M12 8v8M8 12h8M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z']),
             // 'profile-test' has no sidebar row (CR-15): it is reached from the dashboard's
             // 'My working style' card and from the profile page. The screen itself stays.
 
@@ -397,6 +404,7 @@ class Amanahku
             'awards' => ['title' => 'Awards', 'title_ms' => 'Anugerah', 'sub' => "This month's winners, nominations and past winners.", 'sub_ms' => 'Pemenang bulan ini, pencalonan dan pemenang terdahulu.', 'crumb' => ['Awards']],
             'wins' => ['title' => 'Wins', 'title_ms' => 'Kejayaan', 'sub' => 'Every Big Deal Alert ever raised, newest first.', 'sub_ms' => 'Setiap Big Deal Alert yang pernah diajukan, terkini dahulu.', 'crumb' => ['Wins']],
             'plot-twist' => ['title' => "This Week's Plot Twist", 'title_ms' => 'Plot Twist Minggu Ini', 'sub' => 'One fun company poll a week. Anonymous — nobody sees who picked what.', 'sub_ms' => 'Satu tinjauan syarikat yang seronok setiap minggu. Tanpa nama — tiada siapa nampak siapa memilih apa.', 'crumb' => ['The Playground', 'Plot Twist']],
+            'side-quests' => ['title' => 'Side Quests', 'title_ms' => 'Side Quests', 'sub' => 'Small optional challenges with nothing to do with KPI. Finish one, post it, wear the badge.', 'sub_ms' => 'Cabaran pilihan kecil yang tiada kaitan dengan KPI. Selesaikan satu, pos, dan pakai lencana.', 'crumb' => ['The Playground', 'Side Quests']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],

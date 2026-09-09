@@ -595,6 +595,7 @@ class AppController extends Controller
             'awards' => app(AwardController::class)->screenData($request, $employee),
             'wins' => $this->winsData($request, $employee),
             'plot-twist' => app(PlotTwistController::class)->screenData($request, $employee),
+            'side-quests' => app(SideQuestController::class)->screenData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
             'tot-roster' => app(TotController::class)->rosterData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),

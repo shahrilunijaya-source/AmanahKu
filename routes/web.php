@@ -79,6 +79,7 @@ use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
+use App\Http\Controllers\SideQuestController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
@@ -564,6 +565,15 @@ Route::middleware('auth')->group(function () {
         // widget only (S04 slot). No screen, no GET route: everything reads back
         // through the widget (docs/build/OPEN.md "QA / CR-29").
         Route::post('/app/friday-signoff', [FridayController::class, 'signOff'])->name('friday.signoff');
+        // CR-26: Side Quests — optional non-KPI challenges, 2-3 live at a time (screen
+        // route rides the existing /app/{screen} catch-all, see AppController).
+        Route::post('/app/side-quests', [SideQuestController::class, 'store'])->name('side-quests.store');
+        Route::post('/app/side-quests/suggest', [SideQuestController::class, 'suggest'])->name('side-quests.suggest');
+        Route::post('/app/side-quests/{quest}/retire', [SideQuestController::class, 'retire'])->name('side-quests.retire');
+        Route::post('/app/side-quests/{quest}/approve', [SideQuestController::class, 'approve'])->name('side-quests.approve');
+        Route::post('/app/side-quests/{quest}/complete', [SideQuestController::class, 'complete'])->name('side-quests.complete');
+        Route::get('/app/side-quests/posts/{post}/photo', [SideQuestController::class, 'photo'])->name('side-quests.posts.photo');
+        Route::post('/app/side-quests/posts/{post}/react', [SideQuestController::class, 'react'])->name('side-quests.posts.react');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');
