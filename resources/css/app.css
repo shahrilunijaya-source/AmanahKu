@@ -1868,6 +1868,21 @@ select.wd-inline {
 .uj-dw-gear:active { transform:scale(.94); }
 .uj-dw-gear svg { width:17px; height:17px; }
 
+/* CR-31: one quiet aside under the greeting row, its own line inside .uj-dw-head
+   (flex-basis 100%). No motion on entry (it is in the server HTML), no sound. */
+.uj-egg { display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px; flex-basis:100%; width:fit-content; max-width:100%; margin:-8px 0 0; padding:7px 12px 7px 10px; border:1px solid color-mix(in srgb, var(--amber) 28%, var(--hairline)); border-radius:10px; background:color-mix(in srgb, var(--amber) 8%, #fff); font-size:var(--t-sm); color:var(--body); line-height:1.35; }
+.uj-egg svg { width:14px; height:14px; color:var(--amber-ink); flex-shrink:0; }
+.uj-egg-shortcut { color:var(--amber-ink); font-weight:600; text-decoration:underline; text-underline-offset:2px; text-decoration-color:color-mix(in srgb, var(--amber-ink) 40%, transparent); }
+.uj-egg-x { margin-left:auto; width:22px; height:22px; border:0; background:none; color:var(--muted); border-radius:6px; cursor:pointer; font-size:16px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+.uj-egg-x:hover { color:var(--ink); background:var(--hairline-soft); }
+
+/* CR-31 "Keep it plain": the three shell animations flagged in OPEN "QA / CR-06a /
+   Keep it plain still leaves shell animations running" go static under body[data-plain],
+   the same body attribute the layout stamps from DashboardPrefs. */
+body[data-plain] .uj-fade { animation:none; opacity:1; }
+body[data-plain] .uj-dw-tiles .uj-dw-tile { animation:none; opacity:1; transform:none; }
+body[data-plain] .kb-pulse-ring { animation:none; }
+
 /* ── grid ── */
 .uj-dw-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
 /* The dashboard rides the wide page measure (1280px, same as the calendar

@@ -21,6 +21,7 @@ use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
+use App\Http\Controllers\EasterEggController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EventController;
@@ -357,6 +358,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
         // Any signed-in employee can suggest a line; HR approves it above.
         Route::post('/app/greetings/suggest', [GreetingLineController::class, 'suggest'])->name('greetings.suggest');
+        // CR-31 dashboard/board easter-egg bank — HR curates it on Company Settings.
+        Route::post('/app/admin/eggs', [EasterEggController::class, 'store'])->name('admin.eggs.store');
+        Route::post('/app/admin/eggs/{easterEgg}', [EasterEggController::class, 'update'])->name('admin.eggs.update');
+        Route::post('/app/admin/eggs/{easterEgg}/delete', [EasterEggController::class, 'delete'])->name('admin.eggs.delete');
         Route::post('/app/admin/features', [AdminController::class, 'updateFeatures'])->name('admin.features.update');
         Route::post('/app/admin/roles/{user}', [AdminController::class, 'updateRole'])->name('admin.roles.update');
         Route::post('/app/admin/scope/{user}', [AdminController::class, 'updateScope'])->name('admin.scope.update');

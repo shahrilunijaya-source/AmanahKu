@@ -26,6 +26,7 @@
 @section('screen')
 @php
     $head = $head ?? ['h1' => '', 'h1_ms' => '', 'sub' => ''];
+    $egg = $egg ?? null;
     $widgetCatalog = $widgetCatalog ?? [];
     $widgetLayout = $widgetLayout ?? ['left' => [], 'right' => []];
     $widgetPrefs = $widgetPrefs ?? ['hidden' => [], 'order' => []];
@@ -55,6 +56,23 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.76 1 1.4 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
         </button>
+        @if ($egg)
+            {{-- CR-31: a one-off aside, never a band or a widget. Under "Keep it plain"
+                 $egg is always null (BuildsDashboardData::dashboardEgg), so nothing here
+                 ever renders for a plain viewer. --}}
+            <div class="uj-egg" role="status" data-egg="{{ $egg['kind'] }}" data-egg-en="{{ $egg['text_en'] }}" data-egg-ms="{{ $egg['text_ms'] }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+                </svg>
+                <span x-text="$store.ui.lang==='en' ? @js($egg['text_en']) : @js($egg['text_ms'])">{{ $egg['text_en'] }}</span>
+                @if ($egg['kind'] === 'late_night')
+                    <a class="uj-egg-shortcut" href="/app/overtime" data-egg-shortcut
+                       x-text="$store.ui.lang==='en' ? 'Log your hours as overtime?' : 'Log jam kerja sebagai lebih masa?'">Log your hours as overtime?</a>
+                @endif
+                <button type="button" class="uj-egg-x" @click="$el.closest('.uj-egg').remove()"
+                        :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'">&times;</button>
+            </div>
+        @endif
     </div>
 
     @include('partials.dash.bands', ['bands' => $bands, 'plain' => (bool) ($widgetPrefs['plain'] ?? false)])

@@ -747,7 +747,7 @@ export function registerWorkBoard(Alpine) {
             const seq = this.nextSeq();
             this.drawer.error = '';
             try {
-                const { html } = await this.api(`/app/board/${this.drawer.id}/move`, {
+                const { html, egg } = await this.api(`/app/board/${this.drawer.id}/move`, {
                     method: 'POST',
                     body: JSON.stringify({ status }),
                 });
@@ -762,6 +762,8 @@ export function registerWorkBoard(Alpine) {
                 this.applySort();
                 this.refreshCounts();
                 this.flashSaved();
+                // CR-31 inbox_zero — see persistMove() for the full explanation.
+                if (egg) this.$store.toast.success(this.t(egg.text_en, egg.text_ms));
             } catch (err) {
                 this.drawer.error = err.validation ? err.message : this.t('Could not move this card.', 'Tidak dapat gerakkan kad ini.');
             }
@@ -1372,10 +1374,14 @@ export function registerWorkBoard(Alpine) {
             evt.item.dataset.status = status;
             this.refreshCounts();
             try {
-                const { html } = await this.api(`/app/board/${cardId}/move`, {
+                const { html, egg } = await this.api(`/app/board/${cardId}/move`, {
                     method: 'POST',
                     body: JSON.stringify({ status, ids }),
                 });
+                // CR-31 inbox_zero: the move endpoint hands back an egg at most once a
+                // day when this was the viewer's last overdue open card. Never blocks
+                // the move either way — egg is just an extra key on the same response.
+                if (egg) this.$store.toast.success(this.t(egg.text_en, egg.text_ms));
                 // SortableJS has already placed evt.item in the destination list by the
                 // time onEnd fires, and outerHTML destroys whatever node it's assigned
                 // to — re-resolve by [data-id] rather than swapping evt.item directly,

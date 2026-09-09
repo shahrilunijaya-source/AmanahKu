@@ -21,6 +21,7 @@ use App\Models\Timesheet;
 use App\Models\WorkItem;
 use App\Services\FeatureManager;
 use App\Support\DashboardPrefs;
+use App\Support\EasterEggBank;
 use App\Support\GreetingBank;
 use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
@@ -138,6 +139,37 @@ trait BuildsDashboardData
         }
 
         return str_replace('{name}', '', str_replace(', {name}', '', $text));
+    }
+
+    /**
+     * CR-31: one contextual aside under the greeting, at most one per load,
+     * priority late_night (22:00+) > friday_late (Friday 17:00+) > holiday_eve.
+     * "Keep it plain" computes and records nothing — a plain viewer never calls
+     * EasterEggBank::showOnce() at all. Once shown, easter_egg_views keeps it
+     * from showing again the same day (see EasterEggBank::showOnce()).
+     *
+     * @return array{kind: string, text_en: string, text_ms: string}|null
+     */
+    private function dashboardEgg(?Employee $employee, CarbonInterface $now, bool $plain): ?array
+    {
+        if ($plain || ! $employee) {
+            return null;
+        }
+
+        $kind = match (true) {
+            (int) $now->hour >= 22 => 'late_night',
+            $now->isFriday() && (int) $now->hour >= 17 => 'friday_late',
+            app(HolidayEve::class)->forDay($now) !== null => 'holiday_eve',
+            default => null,
+        };
+
+        if ($kind === null) {
+            return null;
+        }
+
+        $egg = EasterEggBank::showOnce($employee->tenant_id, $employee->id, $kind, $now);
+
+        return $egg ? ['kind' => $kind, 'text_en' => $egg->text_en, 'text_ms' => $egg->text_ms] : null;
     }
 
     /**

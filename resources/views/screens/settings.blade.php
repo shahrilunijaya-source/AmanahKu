@@ -441,6 +441,84 @@
         </div>
         @endif
 
+        @if (! $only || $only === 'eggs')
+        {{-- CR-31: dashboard/board easter-egg bank. Same card shape as "Dashboard
+             greetings" above — list, add form with a kind picker, edit / delete. --}}
+        @php $eggKindLabels = ['friday_late' => 'Friday after 5', 'inbox_zero' => 'Inbox zero', 'late_night' => 'Late night', 'tab_collector' => 'Tab collector', 'holiday_eve' => 'Holiday eve']; @endphp
+        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Dashboard easter eggs' : 'Telur Paskah papan pemuka'">Dashboard easter eggs</h3>
+                @if ($canManageFeatures)
+                    <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
+                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                    </button>
+                @endif
+            </div>
+            @include('partials.hint', ['en' => 'Small surprises shown on the dashboard or board, at most once a day per person. Never blocks anything.', 'ms' => 'Kejutan kecil yang dipapar pada papan pemuka atau board, paling banyak sekali sehari bagi setiap orang. Tidak menyekat apa-apa.'])
+
+            @if ($canManageFeatures)
+                @php $efs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.eggs.store') }}" style="margin-bottom:14px;display:flex;flex-direction:column;gap:8px;">
+                    @csrf
+                    <select name="kind" required style="{{ $efs }}">
+                        @foreach ($easterEggKinds as $k)
+                            <option value="{{ $k }}">{{ $eggKindLabels[$k] ?? $k }}</option>
+                        @endforeach
+                    </select>
+                    <input name="text_en" required maxlength="200" placeholder="English line" style="{{ $efs }}" />
+                    <input name="text_ms" required maxlength="200" placeholder="Baris Bahasa Melayu" style="{{ $efs }}" />
+                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;align-self:flex-start;"><span x-text="$store.ui.lang==='en'?'Add line':'Tambah baris'">Add line</span></button>
+                </form>
+            @endif
+
+            @forelse ($easterEggs->groupBy('kind') as $kind => $eggs)
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px;">{{ $eggKindLabels[$kind] ?? $kind }}</div>
+                    @foreach ($eggs as $l)
+                        <div style="padding:6px 0;border-bottom:1px solid var(--hairline-soft);">
+                            <div @if ($canManageFeatures) x-show="editId !== {{ $l->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                <div style="min-width:0;">
+                                    <div style="font-size:12.5px;color:var(--ink);">{{ $l->text_en }}</div>
+                                    <div style="font-size:12px;color:var(--muted);">{{ $l->text_ms }}</div>
+                                </div>
+                                @if ($canManageFeatures)
+                                    <div style="display:flex;gap:10px;flex-shrink:0;">
+                                        <button type="button" @click="editId={{ $l->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
+                                        <button type="submit" form="del-egg-{{ $l->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
+                                    </div>
+                                @endif
+                            </div>
+                            @if ($canManageFeatures)
+                                <form x-show="editId === {{ $l->id }}" x-cloak method="post" action="{{ route('admin.eggs.update', $l) }}" style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+                                    @csrf
+                                    <select name="kind" required style="{{ $efs }}">
+                                        @foreach ($easterEggKinds as $k)
+                                            <option value="{{ $k }}" @selected($l->kind === $k)>{{ $eggKindLabels[$k] ?? $k }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input name="text_en" value="{{ $l->text_en }}" required maxlength="200" style="{{ $efs }}" />
+                                    <input name="text_ms" value="{{ $l->text_ms }}" required maxlength="200" style="{{ $efs }}" />
+                                    <div style="display:flex;gap:8px;">
+                                        <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
+                                        <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                                    </div>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @empty
+                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No easter eggs yet.':'Tiada telur Paskah lagi.'">No easter eggs yet.</p>
+            @endforelse
+
+            @if ($canManageFeatures)
+                @foreach ($easterEggs as $l)
+                    <form id="del-egg-{{ $l->id }}" method="post" action="{{ route('admin.eggs.delete', $l) }}" onsubmit="return confirm('Delete this line?')">@csrf</form>
+                @endforeach
+            @endif
+        </div>
+        @endif
+
         @if (!empty($canManageFeatures) && (! $only || $only === 'reactions'))
         {{-- CR-30: the tenant's reaction set. Add or retire, never rename, ten active at most. --}}
         @php $reactionSet = \App\Models\Reaction::set(); $activeReactions = $reactionSet->whereNull('retired_at')->count(); @endphp

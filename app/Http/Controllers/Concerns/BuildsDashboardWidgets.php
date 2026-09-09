@@ -48,7 +48,7 @@ trait BuildsDashboardWidgets
      * The whole dashboard view-model: greeting, the picker catalog, the two-column
      * layout, and a payload per visible widget.
      *
-     * @return array{head: array, bands: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
+     * @return array{head: array, egg: array|null, bands: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
      */
     private function dashboardData(Request $request, ?Employee $employee, string $role): array
     {
@@ -99,6 +99,7 @@ trait BuildsDashboardWidgets
 
         return [
             'head' => $this->meHead($request, $employee),
+            'egg' => $this->dashboardEgg($employee, $now, (bool) ($prefs['plain'] ?? false)),
             'bands' => $this->dashboardBands($employee, $role),
             'widgetCatalog' => DashboardWidgets::catalog($available),
             'widgetLayout' => $layout,

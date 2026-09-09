@@ -26,6 +26,7 @@ use App\Models\UserPermission;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\DashboardPrefs;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -256,6 +257,11 @@ trait BuildsPeopleData
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
             'canSeeMoney' => $canSeeMoney,
             'assignedTasks' => $assignedTasks,
+            // CR-31: "Keep it plain" also lives on the profile screen, same prefs key as
+            // the dashboard picker (App\Support\DashboardPrefs), own profile only.
+            'keepItPlain' => ($own && $e && $own->id === $e->id)
+                ? DashboardPrefs::forUser($own->user?->dashboard_prefs)['plain']
+                : false,
             'googleCalendarConnected' => ($own && $e && $own->id === $e->id)
                 ? GoogleCalendarConnection::where('user_id', $own->user_id)->exists()
                 : false,

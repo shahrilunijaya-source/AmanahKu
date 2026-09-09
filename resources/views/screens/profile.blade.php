@@ -101,6 +101,25 @@
             @endif
         </div>
 
+        @if ($isOwn)
+        {{-- CR-31 "Keep it plain": same prefs key as the dashboard picker
+             (App\Support\DashboardPrefs), posts to the same route. --}}
+        <div x-data="{ plain: {{ ($keepItPlain ?? false) ? 'true' : 'false' }} }" style="padding:12px 4px 0;">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input type="checkbox" x-model="plain" style="margin-top:3px;"
+                       @change="fetch('/app/dashboard/prefs', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                           body: JSON.stringify({ plain: plain }),
+                       }).catch(() => {})">
+                <span>
+                    <b style="display:block;font-size:13px;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Keep it plain' : 'Biar ringkas'">Keep it plain</b>
+                    <small style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No animations, no cheeky messages, anywhere.' : 'Tiada animasi, tiada mesej nakal, di mana-mana.'">No animations, no cheeky messages, anywhere.</small>
+                </span>
+            </label>
+        </div>
+        @endif
+
         {{-- Edit modal — teleported to body + centered. Route/method/field names unchanged. --}}
         @if ($canEdit)
             @php $bandsByDept = $allPositions->groupBy(fn ($pos) => $pos->department?->name ?? '—'); @endphp

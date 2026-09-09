@@ -25,7 +25,7 @@
         })();
     </script>
 </head>
-<body>
+<body {{ \App\Support\DashboardPrefs::forUser(auth()->user()?->dashboard_prefs)['plain'] ? 'data-plain' : '' }}>
 @php
     $embed = $embed ?? false;
     // Notices that hang off the header rather than scrolling with the page.
@@ -579,6 +579,41 @@
     });
 </script>
 @include('partials.toast-host')
+{{-- CR-31 tab_collector: 20+ Amanahku tabs open (this browser only — it can't see other
+     sites), the line shows once a day, via a localStorage heartbeat. Never under Keep it
+     plain, never with sound. Human check (CR31Test item 6). --}}
+<script>
+(function () {
+    try {
+        if (document.body.hasAttribute('data-plain')) return;
+        var KEY = 'uj-tabs', id = Math.random().toString(36).slice(2);
+        var beat = function () {
+            try {
+                var tabs = JSON.parse(localStorage.getItem(KEY) || '{}');
+                var now = Date.now();
+                tabs[id] = now;
+                Object.keys(tabs).forEach(function (k) { if (now - tabs[k] > 10000) delete tabs[k]; });
+                localStorage.setItem(KEY, JSON.stringify(tabs));
+                var seenKey = 'uj-tab-collector-' + new Date().toISOString().slice(0, 10);
+                if (Object.keys(tabs).length >= 20 && !localStorage.getItem(seenKey) && window.Alpine?.store('toast')) {
+                    localStorage.setItem(seenKey, '1');
+                    var lang = Alpine.store('ui')?.lang;
+                    Alpine.store('toast').success(lang === 'ms' ? 'Pengumpul Tab Profesional dikesan.' : 'Professional Tab Collector detected.');
+                }
+            } catch (e) {}
+        };
+        beat();
+        setInterval(beat, 4000);
+        window.addEventListener('beforeunload', function () {
+            try {
+                var tabs = JSON.parse(localStorage.getItem(KEY) || '{}');
+                delete tabs[id];
+                localStorage.setItem(KEY, JSON.stringify(tabs));
+            } catch (e) {}
+        });
+    } catch (e) {}
+})();
+</script>
 @if (app()->isLocal())
 <form method="POST" action="{{ route('dev.clock') }}" style="position:fixed;bottom:8px;left:8px;z-index:9999;background:#fde68a;color:#111;padding:4px 8px;border-radius:6px;font:var(--t-micro) var(--font-mono);display:flex;gap:6px;align-items:center">
     @csrf

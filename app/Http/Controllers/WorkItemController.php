@@ -15,6 +15,8 @@ use App\Models\WorkItem;
 use App\Models\WorkItemComment;
 use App\Support\AuditContext;
 use App\Support\BoardRules;
+use App\Support\DashboardPrefs;
+use App\Support\EasterEggBank;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -476,6 +478,16 @@ class WorkItemController extends Controller
             }
         }
 
+        // CR-31 inbox_zero: never lets a bank/view problem fail the move itself.
+        $egg = null;
+        if (! $wasDone && $workItem->status === 'done') {
+            try {
+                $egg = $this->boardMoveEgg($request, $employee, $workItem);
+            } catch (\Throwable) {
+                $egg = null;
+            }
+        }
+
         if ($request->expectsJson()) {
             return response()->json([
                 'ok' => true,
@@ -483,10 +495,50 @@ class WorkItemController extends Controller
                 'html' => $this->cardHtml($workItem),
                 // A ticked subtask changes the parent's face (the 1/3 badge), so hand it back.
                 'parent_html' => $workItem->parent_id ? $this->cardHtml($workItem->parent->fresh()) : null,
+                'egg' => $egg,
             ]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
+    }
+
+    /**
+     * CR-31 inbox_zero: fires only when the just-closed card was itself overdue
+     * (not an Event, due before today) AND, after this move, the viewer has no
+     * other overdue open card left. "Keep it plain" and the once-a-day gate
+     * both live in EasterEggBank::showOnce().
+     *
+     * @return array{kind: string, text_en: string, text_ms: string}|null
+     */
+    private function boardMoveEgg(Request $request, Employee $employee, WorkItem $workItem): ?array
+    {
+        $today = now()->toDateString();
+        $dueDate = $workItem->due_at?->toDateString();
+        if ($workItem->type === 'event' || $dueDate === null || $dueDate >= $today) {
+            return null;
+        }
+
+        if (DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']) {
+            return null;
+        }
+
+        $stillOverdue = WorkItem::where('employee_id', $employee->id)
+            ->where('id', '!=', $workItem->id)
+            ->where('status', '!=', 'done')
+            ->whereNull('archived_at')
+            ->whereNull('cancelled_at')
+            ->where('type', '!=', 'event')
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', $today)
+            ->exists();
+
+        if ($stillOverdue) {
+            return null;
+        }
+
+        $egg = EasterEggBank::showOnce($employee->tenant_id, $employee->id, 'inbox_zero', now());
+
+        return $egg ? ['kind' => 'inbox_zero', 'text_en' => $egg->text_en, 'text_ms' => $egg->text_ms] : null;
     }
 
     /** Delete one of the employee's own cards. */

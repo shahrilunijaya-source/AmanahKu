@@ -7,11 +7,13 @@ namespace App\Http\Controllers\Concerns;
 use App\Http\Controllers\AdminController;
 use App\Models\Branch;
 use App\Models\Department;
+use App\Models\EasterEgg;
 use App\Models\EmploymentType;
 use App\Models\GreetingLine;
 use App\Models\StaffLevel;
 use App\Models\Tenant;
 use App\Services\FeatureManager;
+use App\Support\EasterEggBank;
 use App\Support\Features;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -41,6 +43,9 @@ trait BuildsSettingsData
             'greetingLines' => $canManage ? $this->greetingLinesOrdered() : collect(),
             'greetingPending' => $canManage ? GreetingLine::whereNull('approved_at')->orderBy('created_at')->get() : collect(),
             'greetingTriggers' => GreetingLine::TRIGGERS,
+            // CR-31: dashboard/board easter-egg bank, same card shape as the greetings one above.
+            'easterEggs' => $canManage ? EasterEgg::orderBy('kind')->orderBy('id')->get() : collect(),
+            'easterEggKinds' => EasterEggBank::KINDS,
         ];
     }
 

@@ -16,6 +16,7 @@ use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Notifications\MemberInvited;
 use App\Services\FeatureManager;
+use App\Support\EasterEggBank;
 use App\Support\GreetingBank;
 use App\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
@@ -169,6 +170,9 @@ class CompanyController extends Controller
             // Dashboard greeting bank (CR-33): needs default lines from day one so the
             // rotating greeting has something to pick from.
             GreetingBank::seed($tenant->id);
+
+            // CR-31: dashboard/board easter-egg bank needs default lines from day one too.
+            EasterEggBank::seed($tenant->id);
 
             $branch = Branch::create([
                 'tenant_id' => $tenant->id,
