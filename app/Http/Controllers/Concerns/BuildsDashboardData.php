@@ -169,7 +169,22 @@ trait BuildsDashboardData
 
         $egg = EasterEggBank::showOnce($employee->tenant_id, $employee->id, $kind, $now);
 
-        return $egg ? ['kind' => $kind, 'text_en' => $egg->text_en, 'text_ms' => $egg->text_ms] : null;
+        if (! $egg) {
+            return null;
+        }
+
+        // The late-night shortcut lands on Overtime only when that module is on for the
+        // tenant; otherwise it points at the timesheet so it never 404s.
+        $overtime = app(FeatureManager::class)->screenAllowed(Tenant::find($employee->tenant_id), 'overtime');
+
+        return [
+            'kind' => $kind,
+            'text_en' => $egg->text_en,
+            'text_ms' => $egg->text_ms,
+            'shortcut' => $overtime ? '/app/overtime' : '/app/timesheets',
+            'shortcut_en' => $overtime ? 'Log your hours as overtime?' : 'Log your hours on the timesheet?',
+            'shortcut_ms' => $overtime ? 'Log jam kerja sebagai lebih masa?' : 'Log jam kerja dalam timesheet?',
+        ];
     }
 
     /**

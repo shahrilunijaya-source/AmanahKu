@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Services\FeatureManager;
 use App\Support\EasterEggBank;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -187,6 +188,31 @@ class EasterEggTest extends TestCase
 
         $this->assertNull($response->json('egg'));
         $this->assertSame(0, EasterEggView::where('employee_id', $employee->id)->count());
+        Carbon::setTestNow();
+    }
+
+    // ── late-night shortcut never 404s ──
+
+    public function test_late_night_shortcut_points_at_overtime_when_the_module_is_on(): void
+    {
+        EasterEggBank::seed($this->tenant->id);
+        $this->signIn('employee');
+        Carbon::setTestNow('2026-09-09 22:30:00');
+
+        $this->get('/app/dash')->assertOk()->assertSee('href="/app/overtime"', false);
+        Carbon::setTestNow();
+    }
+
+    public function test_late_night_shortcut_falls_back_to_timesheets_when_overtime_is_off(): void
+    {
+        EasterEggBank::seed($this->tenant->id);
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.overtime', '0');
+        $this->signIn('employee');
+        Carbon::setTestNow('2026-09-09 22:30:00');
+
+        $response = $this->get('/app/dash')->assertOk();
+        $response->assertSee('href="/app/timesheets"', false)->assertDontSee('href="/app/overtime"', false);
+        $this->assertStringContainsString('Log your hours on the timesheet?', $response->getContent());
         Carbon::setTestNow();
     }
 

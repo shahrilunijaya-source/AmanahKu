@@ -66,8 +66,8 @@
                 </svg>
                 <span x-text="$store.ui.lang==='en' ? @js($egg['text_en']) : @js($egg['text_ms'])">{{ $egg['text_en'] }}</span>
                 @if ($egg['kind'] === 'late_night')
-                    <a class="uj-egg-shortcut" href="/app/overtime" data-egg-shortcut
-                       x-text="$store.ui.lang==='en' ? 'Log your hours as overtime?' : 'Log jam kerja sebagai lebih masa?'">Log your hours as overtime?</a>
+                    <a class="uj-egg-shortcut" href="{{ $egg['shortcut'] }}" data-egg-shortcut
+                       x-text="$store.ui.lang==='en' ? @js($egg['shortcut_en']) : @js($egg['shortcut_ms'])">{{ $egg['shortcut_en'] }}</a>
                 @endif
                 <button type="button" class="uj-egg-x" @click="$el.closest('.uj-egg').remove()"
                         :aria-label="$store.ui.lang==='en' ? 'Dismiss' : 'Tutup'">&times;</button>
