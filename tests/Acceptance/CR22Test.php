@@ -212,11 +212,11 @@ class CR22Test extends TestCase
             $this->assertSame('9', $this->stat($moment, 'cards_closed'));
             $this->assertSame('4', $this->stat($moment, 'lessons_shared'));
             $this->assertSame('5', $this->stat($moment, 'fires'));
-            $this->assertSame('4', $this->stat($moment, 'urgent'));
+            $this->assertSame('3', $this->stat($moment, 'urgent'));
             $this->assertStringContainsString('9 cards closed', $moment);
             $this->assertStringContainsString('4 lessons shared', $moment);
             $this->assertStringContainsString('5 fires extinguished', $moment);
-            $this->assertStringContainsString('only 4 "urgent" tasks', $moment);
+            $this->assertStringContainsString('only 3 "urgent" tasks', $moment);
             $page->assertSeeInOrder(['data-kind="wrapped"', 'Current month summary', 'Daily clock log', 'Pending tasks'], false);
         }
 
@@ -354,7 +354,8 @@ class CR22Test extends TestCase
      * Snapshot (frozen 30 Sep): done_and_dusted Yati 5 / Shazwan 3 / Kussairi 1,
      * chief_firefighter Yati 2 / Shazwan 3, walking_wikipedia Yati 1 / Shazwan 3.
      * Company for September: 9 cards done (5 + 3 + 1), 4 lessons (1 + 3), 5 fires
-     * (high-priority done: 2 + 3), 4 "urgent" (high-priority created in September: 2 + 2).
+     * (high-priority done: 2 + 3), 3 "urgent" (high-priority created in September: Yati 1,
+     * her 1 Sep card was created on 31 Aug by finishedCard(), + Shazwan 2). QA fixture fix.
      */
     private function septemberFixture(): void
     {
