@@ -631,3 +631,30 @@ These are already known before the run starts. A session that hits one of them s
   `tests/Feature/AwardsTest.php` that would need dropping with it.
 - Source: `docs/build/sessions/S18/grade.md`, `tests/Feature/AwardsTest.php` (`s18_f2_a_`
   to `s18_f6_f7_f8_`), `tests/Acceptance/CR14bTest.php` (frozen).
+
+### QA / CR-19 / shapes fixed by CR19Test
+- Question: CR-19 names outcomes (Pending Attendance, Auto badge, "Closed automatically –
+  <reason>", 15-minute job, flag off) but no route names, columns, command name, flag key,
+  RSVP value for "Did Not Attend" or where the badge lives. The session cannot start
+  without them.
+- Decided (in `tests/Acceptance/CR19Test.php`'s docblock): command `board:auto-done` on
+  `*/15 * * * *`, gated by `config('services.auto_done.enabled')` (env `AMANAHKU_AUTO_DONE`,
+  default false) with a dry-run line when off; triggering actions close their card at once
+  regardless of the flag; marker `work_items.auto_closed_at`; activity line as a
+  `work_item_comments` row with null `employee_id`; audit on the card's `status` /
+  `archived_at` / `cancelled_at`; `auto_closed` and `pending_attendance` in the card JSON,
+  `data-auto-closed="1"` and the text "Pending Attendance" on the board; new RSVP response
+  `did_not_attend` archives the card; a withdrawn invitation cancels it; the organiser
+  prompt is one `app_notifications` row keyed `event-attendance-<event id>`; the unsubmitted
+  nominate task is archived by the scheduler after its month; `Awards::cards()` also rejects
+  `auto_closed_at`; the Calendar row is a `markTestIncomplete` human check.
+- Alternatives: gate the triggering actions on the flag too (rejected, the awards close
+  already ships live and a user action closing its own card is not "the scheduler");
+  a tenant settings row for the flag like CR-34 (rejected, RULES says flag off for the
+  run, an env default does that without a screen); a `closed_by` enum instead of
+  `auto_closed_at` (rejected, the timestamp doubles as the badge and the reopen reset);
+  a new `event_attendance` table (rejected, one more RSVP value does the job).
+- Reversal cost: small. The command, the flag key and one nullable column; the JSON/HTML
+  attributes are additive.
+- Source: `docs/specs/CR-19.md`, `docs/build/RULES.md` (flag off, calendar row deferred),
+  `tests/Acceptance/CR11Test.php` (event fixture reused), `tests/Acceptance/CR14bTest.php`.
