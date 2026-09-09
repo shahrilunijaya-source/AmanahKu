@@ -26,7 +26,7 @@
 .uj-pt-suggest .row { display:flex; gap:8px; }
 .uj-pt-suggest input, .uj-pt-suggest select, .uj-pt-pub input, .uj-pt-pub select { height:36px; padding:0 10px; border:1px solid var(--hairline); border-radius:8px; font-size:13px; background:#fff; }
 .uj-pt-suggest input { flex:1; min-width:0; }
-.uj-pt-suggest .row .uj-btn-primary { flex-shrink:0; }
+.uj-pt-wrap .uj-btn-primary, .uj-pt-wrap .uj-btn-ghost { height:36px; padding:0 16px; font-size:13px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
 .uj-pt-pub { padding:16px 20px; display:flex; flex-direction:column; gap:10px; }
 .uj-pt-pub h3 { margin:0; font-size:14px; font-weight:600; color:var(--ink); }
 .uj-pt-pub label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }

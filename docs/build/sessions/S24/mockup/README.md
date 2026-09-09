@@ -92,3 +92,12 @@ rejects anything else with the normal `$errors` line), Named person (only when K
 Who, with the heads-up note), 2 to 6 option inputs, "Publish for Mon 14 Sep" +
 "Save as draft". Who questions can only be picked from the template chips, free text is
 refused for Kind = Who.
+
+## Shazwan's note on approval (2026-09-09)
+The buttons in the screenshots looked off (bare `.uj-btn-primary` / `.uj-btn-ghost`
+have no height or padding, so "Suggest" and "Publish for Mon 14 Sep" rendered as
+cramped text). Build them with explicit sizing, matched to the inputs beside them:
+
+```css
+.uj-pt-wrap .uj-btn-primary, .uj-pt-wrap .uj-btn-ghost { height:36px; padding:0 16px; font-size:13px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+```
