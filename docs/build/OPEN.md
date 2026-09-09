@@ -713,3 +713,10 @@ These are already known before the run starts. A session that hits one of them s
   `tests/Feature/LeaveScreenTabsTest.php` on this worktree, and the same file run again on
   a detached worktree at clean `HEAD` (`a0689e8c`) with no S19 changes present — identical
   failure in both.
+
+### QA / CR-19 / S19 grade PASS, audit row 1282 blocks an October publish on dev
+- Question: grading item 3 (select card closes on publish) needed a real `awards:publish` run on the dev copy, but September was already published there by the S18 grade (audit row 1144).
+- Decided: ran the October cycle instead (`awards:tasks` at 2026-10-26, `awards:freeze` at 2026-10-31, `awards:publish` at 2026-11-02 via tinker with `Carbon::setTestNow`), then deleted the cards, snapshots and nomination. The audit row `awards.published` for 2026-10-01 (id 1282) stays because the log is append-only, so an October publish will be skipped on this dev copy.
+- Alternatives: deleting audit row 1144 or 1282 by SQL (rejected, breaks the append-only rule even on dev); grading publish from the acceptance test alone (rejected, the grade must click it); re-importing the prod dump (heavier than the problem).
+- Reversal cost: none for the app. A fresh dev import removes both rows. Staging and prod never saw these rows.
+- Source: QA grade of S19, 2026-09-09.
