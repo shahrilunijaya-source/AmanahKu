@@ -120,7 +120,12 @@ class WrappedBuild extends Command
                 $cardsClosed = (int) ($doneAndDusted[$employee->id] ?? 0);
                 $highPriority = (int) ($chiefFirefighter[$employee->id] ?? 0);
                 $lessonsShared = (int) ($walkingWikipedia[$employee->id] ?? 0);
-                [$bestDay, $bestDayCount] = $this->bestDay($cards, $employee->id, $start, $end);
+                // QA (S28 grade): the closed count is the frozen awards number; when it is 0
+                // (no snapshot row, or nothing closed) a best day counted from live cards
+                // would read "6 of your 0 cards", so the card falls back to the quiet line.
+                [$bestDay, $bestDayCount] = $cardsClosed > 0
+                    ? $this->bestDay($cards, $employee->id, $start, $end)
+                    : ['', 0];
                 $helpedPeople = $this->helpedPeople($cards, $employee->id, $start, $end);
 
                 $rule = $this->ruleFor($highPriority, $helpedPeople, $cardsClosed);

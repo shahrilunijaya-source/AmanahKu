@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkItem;
 use App\Models\WrappedArc;
 use App\Models\WrappedStory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -103,6 +104,26 @@ class WrappedTest extends TestCase
         $cards = substr_count($html, 'data-wrapped-card="');
         $this->assertGreaterThanOrEqual(6, $cards);
         $this->assertLessThanOrEqual(8, $cards);
+    }
+
+    #[Test]
+    public function test_best_day_is_dropped_when_the_frozen_closed_count_is_zero(): void
+    {
+        // QA (S28 grade): live cards exist but no award snapshot row does, so the frozen
+        // count is 0. The deck must not say "N of your 0 cards".
+        $person = $this->person('Snapshotless Person');
+        Carbon::setTestNow('2026-09-10 09:00:00');
+        $card = WorkItem::create(['tenant_id' => $this->tenant()->id, 'employee_id' => $person->id, 'title' => 'Closed without a snapshot', 'status' => 'todo']);
+        $this->actingInTenantAs($person)->postJson("/app/board/{$card->id}/move", ['status' => 'done'])->assertOk();
+
+        Carbon::setTestNow('2026-10-01 08:00:00');
+        Artisan::call('wrapped:build');
+
+        $story = WrappedStory::where('employee_id', $person->id)->first();
+        $this->assertSame(0, $story->cards['cards_closed']);
+        $this->assertSame('', $story->cards['best_day']);
+        $this->assertSame(0, $story->cards['best_day_count']);
+        $this->actingInTenantAs($person)->get('/app/wrapped')->assertOk()->assertDontSee('of your 0 cards');
     }
 
     #[Test]

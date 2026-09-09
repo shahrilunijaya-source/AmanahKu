@@ -1094,6 +1094,13 @@ These are already known before the run starts. A session that hits one of them s
 - Source: `docs/specs/CR-22.md`, `docs/specs/CR-14.md` (snapshot), `docs/build/contracts/dashboard-slots.md` (moments), `tests/Acceptance/CR24Test.php`, `CR28Test.php` (moment and Wall precedent), `CR30Test.php` (reactions).
 - Left open for the session: the exact 6 to 8 card texts and their order, the arc seed titles, whether the personal deck auto-advances, how "share" looks on the deck.
 
+### QA / CR-22 / S28 grade PASS, urgent fixture count corrected, company moment layout, best day dropped when frozen count is 0
+- Question: the session left `CR22Test` item 3 red claiming the fixture's `urgent` of 4 was unreachable; the browser pass also found the company moment's sentence squeezed beside the reaction chips and a personal deck reading "6 of your 0 cards" when live cards exist but no award snapshot does.
+- Decided: the session was right on the count (fixture creates each card the day before it is done, so Yati's 1 Sep high card is an August card), expectation corrected to 3 in QA's own test. Moment band gets the Victory Bell row model in CSS. `WrappedBuild` computes best day only when the frozen closed count is above 0; otherwise the deck's quiet line shows. Feature test added. Supersedes `QA / CR-22 / test_acceptance_3's urgent assertion cannot be made green`.
+- Alternatives: re-date the fixture cards so 4 is real (rejected, the number is arbitrary and 3 is what the fixture says); count best day from the snapshot too (rejected, CR-14 froze no per-day numbers); fall back to live counts for `cards_closed` when no snapshot row exists (rejected, spec says numbers must match the awards).
+- Reversal cost: low. Three small diffs (test expectation, four CSS lines, one ternary in the build command), all independent.
+- Source: `docs/build/sessions/S28/grade.md`, `tests/Acceptance/CR22Test.php`, `tests/Feature/WrappedTest.php`, `app/Console/Commands/WrappedBuild.php`, `resources/css/app.css`.
+
 ### S25 / CR-29 / percentages() duplicated from PlotTwistController rather than extracted
 - Question: `FridayController::percentages()` needs the exact same largest-remainder rounding (floor each share, hand leftover points to the largest fractional remainders) as `PlotTwistController::percentages()` (CR-25), so the two methods are identical.
 - Decided: duplicated the method into `FridayController` rather than extracting a shared helper, since a shared helper would mean creating or editing a file outside `PlotTwistController.php`'s and `FridayController.php`'s own CR, which the standing rule forbids ("one CR per session, no refactoring outside the CR's files").

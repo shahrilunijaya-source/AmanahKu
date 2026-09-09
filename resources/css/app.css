@@ -5277,6 +5277,10 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-wr-arcs input, .uj-wr-arcs select { height:34px; border:1px solid var(--hairline); border-radius:8px; padding:0 10px; font-size:13px; font-family:inherit; }
 .uj-wr-arcs form .uj-btn-primary { height:34px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
 .uj-wr-line { font-size:15px; color:var(--ink); line-height:1.5; flex:1 1 300px; min-width:240px; }
-.uj-wr-foot { font-size:11.5px; color:var(--muted); flex:0 1 200px; }
+.uj-wr-foot { font-size:11.5px; color:var(--muted); flex-basis:100%; }
+/* QA (S28 grade): same row model as the Victory Bell moment, otherwise the sentence squeezes
+   into a narrow column beside the reaction chips and the footer overlaps it. */
+.uj-db-band[data-kind="wrapped"] { flex-wrap:wrap; row-gap:10px; }
+.uj-db-band[data-kind="wrapped"] .uj-db-s { flex-basis:100%; margin-top:-6px; }
 .uj-wr-num { font-size:40px; font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--red); }
 @media (max-width:600px){ .uj-wr-card { padding:22px; min-height:200px; } .uj-wr-card .big { font-size:42px; } }
