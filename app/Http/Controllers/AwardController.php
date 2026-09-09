@@ -112,6 +112,12 @@ class AwardController extends Controller
 
         $winner = Employee::findOrFail($data['employee_id']);
 
+        // QA S27: a pick for a month whose awards already published (awards:publish runs
+        // once, on the 1st, and skips a month it has already stamped) would otherwise stay
+        // sealed forever. Reveal it on the spot, like a late chosen_one pick does.
+        $alreadyPublished = AuditLog::where('tenant_id', $tenantId)
+            ->where('action', 'awards.published')->where('target', $month->toDateString())->exists();
+
         DB::table('mystery_awards')->where('tenant_id', $tenantId)->whereDate('month', $month->toDateString())->delete();
         $now = now();
         $id = DB::table('mystery_awards')->insertGetId([
@@ -121,7 +127,7 @@ class AwardController extends Controller
             'category' => $data['category'],
             'explanation' => $data['explanation'],
             'picked_by' => $employee->id,
-            'published_at' => null,
+            'published_at' => $alreadyPublished ? $now : null,
             'created_at' => $now,
             'updated_at' => $now,
         ]);

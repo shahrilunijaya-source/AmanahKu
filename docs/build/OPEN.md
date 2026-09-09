@@ -1079,6 +1079,13 @@ These are already known before the run starts. A session that hits one of them s
 - Source: `docs/specs/CR-27.md`, `docs/specs/CR-14.md`, `tests/Acceptance/CR14bTest.php` (band, screen and badge markup).
 - Left open for the session: committee-member self-picks, whether the mystery slide gets CR-30 reactions and comments like the others, and how the slide looks (envelope, seal, reveal animation) in non-plain mode.
 
+### QA / CR-27 / S27 grade PASS, test secret swapped, late pick reveals at once, plain mode honoured on the slide
+- Question: S27 left `test_acceptance_2` red (CR-31 easter egg prints the spec's example "Professional Tab Collector" on every page) and shipped a slide that ignored Keep it plain; a pick made after `awards:publish` had run for that month could never reveal.
+- Decided: QA fixed its own test (secret is now "Chief Snack Negotiator"; item 4 also refuses `uj-ma-env` and the cheeky line), `mysteryPick()` stamps `published_at` immediately when the month's `awards.published` audit row already exists, and `partials/awards/mystery.blade.php` reads the plain pref (no envelope, no fade-in, calm sub line). Supersedes `QA / CR-27 / S27 CR27Test's test_acceptance_2 cannot be made green...`. Grade PASS, see `docs/build/sessions/S27/grade.md`.
+- Alternatives: change the CR-31 easter egg text (rejected, other CR's scope and the phrase is the joke); let `awards:publish` re-run for an already published month (rejected, it would re-tally and duplicate award rows); hide the envelope by CSS only (rejected, the emoji would still be in the markup and the cheeky copy would remain).
+- Reversal cost: trivial, one string in the test, one conditional in the controller, one `@php` block in the partial.
+- Source: `tests/Acceptance/CR27Test.php`, `app/Http/Controllers/AwardController.php::mysteryPick()`, `resources/views/partials/awards/mystery.blade.php`, `docs/specs/culture-pack-preamble.md`.
+
 ### S25 / CR-29 / percentages() duplicated from PlotTwistController rather than extracted
 - Question: `FridayController::percentages()` needs the exact same largest-remainder rounding (floor each share, hand leftover points to the largest fractional remainders) as `PlotTwistController::percentages()` (CR-25), so the two methods are identical.
 - Decided: duplicated the method into `FridayController` rather than extracting a shared helper, since a shared helper would mean creating or editing a file outside `PlotTwistController.php`'s and `FridayController.php`'s own CR, which the standing rule forbids ("one CR per session, no refactoring outside the CR's files").

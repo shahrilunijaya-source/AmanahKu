@@ -220,4 +220,19 @@ class MysteryAwardTest extends TestCase
         ])->assertRedirect();
         $this->assertSame(1, AuditLog::where('action', 'award.mystery_picked')->count());
     }
+
+    #[Test]
+    public function test_a_pick_for_an_already_published_month_reveals_immediately(): void
+    {
+        $director = $this->person('Shahril', 'director');
+        $adri = $this->person('Adri');
+        Carbon::setTestNow('2026-10-02 10:00:00');
+        AuditLog::create(['tenant_id' => $this->tenant()->id, 'action' => 'awards.published', 'target' => '2026-09-01', 'actor_name' => 'System']);
+
+        $this->actingInTenantAs($director)->postJson('/app/awards/mystery', ['employee_id' => $adri->id, 'category' => 'Late Bloomer', 'explanation' => 'Picked after the 1st, still gets its moment.'])->assertOk();
+
+        $row = DB::table('mystery_awards')->sole();
+        $this->assertSame('2026-09-01', substr((string) $row->month, 0, 10));
+        $this->assertSame('2026-10-02 10:00:00', substr((string) $row->published_at, 0, 19));
+    }
 }

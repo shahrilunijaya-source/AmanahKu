@@ -10,12 +10,20 @@
                     byDirector, monthLabel}
     $attr   'slide' or 'award'
 --}}
-<div data-{{ $attr }}="mystery" class="uj-ma-slide uj-ma-reveal">
-    <span class="uj-ma-k"><span class="uj-ma-env" aria-hidden="true">&#9993;&#65039;</span>
+@php
+    // QA S27: Keep it plain — no envelope art, no cheeky line (same lookup as side-quests).
+    $maPlain = (bool) \App\Support\DashboardPrefs::forUser(auth()->user()?->dashboard_prefs)['plain'];
+@endphp
+<div data-{{ $attr }}="mystery" class="uj-ma-slide{{ $maPlain ? '' : ' uj-ma-reveal' }}">
+    <span class="uj-ma-k">@unless ($maPlain)<span class="uj-ma-env" aria-hidden="true">&#9993;&#65039;</span>@endunless
         <span x-text="$store.ui.lang==='en' ? @js('MYSTERY AWARD · '.strtoupper($group->monthLabel)) : @js('ANUGERAH MISTERI · '.strtoupper($group->monthLabel))">MYSTERY AWARD &middot; {{ strtoupper($group->monthLabel) }}</span>
     </span>
     <div class="uj-ma-cat">{{ $group->category }}</div>
-    <p class="uj-ma-sub" x-text="$store.ui.lang==='en' ? 'Nobody knew this category existed until 8:00 this morning.' : 'Tiada siapa tahu kategori ini wujud sehingga 8:00 pagi ini.'">Nobody knew this category existed until 8:00 this morning.</p>
+    @if ($maPlain)
+        <p class="uj-ma-sub" x-text="$store.ui.lang==='en' ? 'One surprise award a month. Category kept sealed until today.' : 'Satu anugerah kejutan sebulan. Kategori dirahsiakan sehingga hari ini.'">One surprise award a month. Category kept sealed until today.</p>
+    @else
+        <p class="uj-ma-sub" x-text="$store.ui.lang==='en' ? 'Nobody knew this category existed until 8:00 this morning.' : 'Tiada siapa tahu kategori ini wujud sehingga 8:00 pagi ini.'">Nobody knew this category existed until 8:00 this morning.</p>
+    @endif
     <div class="uj-ma-who" data-winner="{{ $group->employee_id }}">
         <span class="uj-db-avatar" style="background:{{ $group->employee?->avatar_color ?? '#3a6ea5' }};">{{ $group->employee?->initials ?? '?' }}</span>
         <span class="n">{{ $group->employee?->display_name ?? $group->employee?->name }}</span>
