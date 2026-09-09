@@ -21,38 +21,59 @@ class GreetingBank
     public const DEFAULTS = [
         // personal
         ['birthday', 'Happy birthday, {name}! The team has your back today.', 'Selamat hari lahir, {name}! Pasukan sokong awak hari ini.'],
-        ['birthday', 'It is your day, {name}. Cake first, inbox later.', 'Hari ini hari awak, {name}. Kek dulu, inbox kemudian.'],
+        ['birthday', 'It is your day, {name}. Cake first, inbox can wait.', 'Hari ini hari awak, {name}. Kek dulu, inbox boleh tunggu.'],
         ['birthday', 'Another year wiser, {name}. Happy birthday!', 'Setahun lagi bijak, {name}. Selamat hari lahir!'],
         ['birthday', 'Happy birthday, {name}. Go easy on yourself today.', 'Selamat hari jadi, {name}. Relaks sikit hari ini.'],
+        ['anniversary', 'Happy work anniversary, {name}! Look how far you have come.', 'Selamat ulang tahun perkhidmatan, {name}! Lihat jauh mana awak dah sampai.'],
+        ['anniversary', 'Another year with the team, {name}. Cheers to that.', 'Setahun lagi bersama pasukan, {name}. Tahniah!'],
+        ['anniversary', 'Work anniversary today, {name}. Thanks for sticking around.', 'Ulang tahun perkhidmatan hari ini, {name}. Terima kasih kerana terus bersama.'],
+        ['back_from_leave', 'Welcome back, {name}. Ease back in.', 'Selamat kembali, {name}. Mula semula perlahan-lahan.'],
+        ['back_from_leave', 'Good to see you again, {name}. Hope the break was good.', 'Gembira jumpa awak lagi, {name}. Harap cuti awak menyeronokkan.'],
+        ['back_from_leave', 'Back in action, {name}. Take today at your own pace.', 'Dah kembali beraksi, {name}. Buat hari ini ikut tempo sendiri.'],
 
         // situation
         ['holiday_eve', 'Holiday tomorrow, {name}. Clear the desk and go.', 'Cuti esok, {name}. Kemas meja dan balik.'],
         ['holiday_eve', 'Almost there, {name} — a holiday is one sleep away.', 'Dah dekat, {name} — cuti tinggal satu tidur je lagi.'],
         ['holiday_eve', 'Wrap it up, {name}. Tomorrow is a holiday.', 'Habiskan kerja, {name}. Esok cuti.'],
         ['holiday_eve', 'Last push before the holiday, {name}. Then rest.', 'Tolakan terakhir sebelum cuti, {name}. Lepas tu rehat.'],
-        ['overdue', 'A few cards are past due, {name}. One at a time.', 'Beberapa kad dah lepas tarikh, {name}. Satu-satu je.'],
-        ['overdue', 'Some tasks are waiting on you, {name}. No rush, just don’t forget.', 'Ada tugasan tunggu awak, {name}. Tak perlu tergesa, jangan lupa je.'],
-        ['overdue', 'A couple of overdue cards, {name}. Small wins still count.', 'Ada kad tertunggak, {name}. Kemenangan kecil pun dikira.'],
-        ['overdue', 'Your board has a few late items, {name}. Pick the easiest first.', 'Board awak ada beberapa item lewat, {name}. Buat yang senang dulu.'],
-        ['not_clocked_in', 'Morning, {name}. Do not forget to clock in.', 'Pagi, {name}. Jangan lupa clock in.'],
-        ['not_clocked_in', 'Hey {name}, the clock is still waiting for you.', 'Hai {name}, clock masih tunggu awak.'],
-        ['not_clocked_in', '{name}, punch in when you get a moment.', '{name}, clock in bila sempat ya.'],
-        ['not_clocked_in', 'Quick one, {name} — you have not clocked in yet.', 'Sekejap, {name} — awak belum clock in lagi.'],
+        ['long_weekend', 'Long weekend coming up, {name}. Almost there.', 'Cuti panjang akan tiba, {name}. Dah hampir.'],
+        ['long_weekend', 'A holiday is lining up with the weekend, {name}.', 'Cuti akan bersambung dengan hujung minggu, {name}.'],
+        ['long_weekend', 'Long weekend ahead, {name}. Plan something nice.', 'Hujung minggu panjang menanti, {name}. Rancang sesuatu yang best.'],
+        ['month_start', 'New month, {name}. Fresh page.', 'Bulan baru, {name}. Helaian baharu.'],
+        ['month_start', 'First of the month, {name}. Fresh start.', 'Awal bulan, {name}. Permulaan bersih.'],
+        ['month_start', 'A new month begins, {name}. Set the pace you want.', 'Bulan baharu bermula, {name}. Tetapkan tempo yang awak mahu.'],
+        ['all_clear', 'Board looks clear, {name}. Nicely done.', 'Board nampak bersih, {name}. Bagus.'],
+        ['all_clear', 'Everything is caught up, {name}. Enjoy the calm.', 'Semua dah settle, {name}. Nikmati ketenangan.'],
+        ['all_clear', 'Clean board, {name}. Take the win.', 'Board bersih, {name}. Raikan kemenangan ini.'],
+        ['rain', 'Rainy one out there, {name}. Drive safe if you head out.', 'Hujan di luar, {name}. Bawa kereta elok-elok kalau nak keluar.'],
+        ['rain', 'Wet morning, {name}. Grab an umbrella.', 'Pagi basah, {name}. Bawa payung.'],
+        ['rain', 'Rain outside, {name}. Cosy day for focused work.', 'Hujan di luar, {name}. Hari yang sesuai untuk fokus bekerja.'],
 
         // day
-        ['monday', 'Monday, {name}. New week, clean slate.', 'Isnin, {name}. Minggu baru, permulaan baru.'],
+        ['monday', 'Monday, {name}. New week, fresh start.', 'Isnin, {name}. Minggu baru, permulaan baru.'],
         ['monday', 'Here we go again, {name}. You have got this week.', 'Mula lagi, {name}. Awak boleh handle minggu ini.'],
         ['monday', 'Monday reporting for duty, {name}.', 'Isnin lapor diri, {name}.'],
         ['monday', 'Ease into it, {name}. It is only Monday.', 'Ambil masa, {name}. Baru pun Isnin.'],
+        ['wednesday', 'Wednesday, {name}. Halfway up the hill.', 'Rabu, {name}. Separuh jalan mendaki.'],
+        ['wednesday', 'Midweek check-in, {name}. Keep the pace.', 'Semakan pertengahan minggu, {name}. Kekalkan tempo.'],
+        ['wednesday', 'Wednesday already, {name}. Onward.', 'Dah Rabu, {name}. Teruskan.'],
         ['friday', 'It is Friday, {name}. Finish strong, then go home.', 'Hari ini Jumaat, {name}. Habiskan dengan baik, lepas tu balik.'],
         ['friday', 'Friday, {name}! The weekend can see you from here.', 'Jumaat, {name}! Hujung minggu dah nampak dari sini.'],
         ['friday', 'Last stretch, {name}. Friday is nearly done.', 'Peringkat akhir, {name}. Jumaat hampir selesai.'],
         ['friday', 'Almost the weekend, {name}. Keep it light today.', 'Dah hampir hujung minggu, {name}. Buat ringan-ringan hari ini.'],
         ['friday', 'Friday vibes, {name}. Wrap up what you can.', 'Vibe Jumaat, {name}. Habiskan apa yang boleh.'],
+        ['saturday', 'Saturday, {name}. Whatever brought you here, take it easy.', 'Sabtu, {name}. Apa pun sebabnya, buat santai je.'],
+        ['saturday', 'It is Saturday, {name}. Short and sweet today.', 'Ini hari Sabtu, {name}. Ringkas je hari ini.'],
+        ['saturday', 'Saturday check-in, {name}? Rest is close by.', 'Semakan hari Sabtu, {name}? Rehat dah dekat.'],
         ['weekend', 'Weekend, {name}? Whatever brings you here, keep it short.', 'Hujung minggu, {name}? Apa-apa pun sebabnya, buat ringkas je.'],
         ['weekend', 'You are here on a weekend, {name}. Do not stay too long.', 'Awak datang hujung minggu, {name}. Jangan lama sangat.'],
         ['weekend', 'Weekend check-in, {name}? Go rest after this.', 'Semak hujung minggu, {name}? Pergi rehat lepas ni.'],
         ['weekend', '{name}, it is the weekend. Even work needs a break.', '{name}, ini hujung minggu. Kerja pun perlu rehat.'],
+
+        // time — early
+        ['early', 'Up early, {name}. The office is still quiet.', 'Awal pagi, {name}. Pejabat masih senyap.'],
+        ['early', 'Early bird, {name}! Nice and calm before the rush.', 'Awal betul, {name}! Tenang sebelum sibuk.'],
+        ['early', 'Morning has barely started, {name}. Ease into it.', 'Hari baru saja bermula, {name}. Mula perlahan-lahan.'],
 
         // time — morning
         ['morning', 'Morning, {name}. Coffee first, emails second.', 'Pagi, {name}. Kopi dulu, emel kemudian.'],
@@ -87,10 +108,10 @@ class GreetingBank
 
         // time — late
         ['late', 'Still here, {name}? Whatever it is, it can wait till tomorrow.', 'Masih di sini, {name}? Apa-apa pun boleh tunggu esok.'],
-        ['late', 'It is late, {name}. Go get some rest.', 'Dah lewat, {name}. Pergi rehat.'],
+        ['late', 'Wrapping up, {name}? Go get some rest.', 'Nak habiskan kerja, {name}? Pergi rehat.'],
         ['late', '{name}, this hour is for sleeping, not spreadsheets.', '{name}, waktu ini untuk tidur, bukan spreadsheet.'],
         ['late', 'Burning the midnight oil, {name}? Take care of yourself.', 'Bekerja larut malam, {name}? Jaga diri elok-elok.'],
-        ['late', 'Late night, {name}. Save your energy for tomorrow.', 'Malam yang lewat, {name}. Simpan tenaga untuk esok.'],
+        ['late', 'Quiet night, {name}. Save your energy for tomorrow.', 'Malam yang senyap, {name}. Simpan tenaga untuk esok.'],
         ['late', 'It can wait, {name}. Go rest.', 'Boleh tunggu, {name}. Pergi rehat.'],
     ];
 

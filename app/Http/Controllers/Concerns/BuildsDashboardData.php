@@ -15,6 +15,7 @@ use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeRead;
 use App\Models\LeaveRequest;
 use App\Models\PerformanceReview;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\WorkItem;
@@ -88,6 +89,12 @@ trait BuildsDashboardData
         }
 
         $triggers = $this->activeGreetingTriggers($employee, $today, $now);
+
+        // CR-33 "first load" markers for month_start / back_from_leave: stamped on every
+        // non-plain load so a trigger that fired once for this browser session doesn't
+        // fire again on the next reload of the same day/leave-return.
+        session(['greeting.month_seen' => $now->format('Y-m'), 'greeting.dash_last_load' => $now->toDateString()]);
+
         $lastId = (string) session('greeting.last', '');
         $line = GreetingBank::pick($employee->tenant_id, $triggers, $lastId !== '' ? $lastId : null);
 
@@ -150,37 +157,71 @@ trait BuildsDashboardData
             $triggers[] = 'birthday';
         }
 
+        $joined = $employee->joined_at;
+        if ($joined !== null && $joined->month === $now->month && $joined->day === $now->day
+            && ! ($dob !== null && $dob->month === $now->month && $dob->day === $now->day)) {
+            $triggers[] = 'anniversary';
+        }
+
+        // First load after an approved leave that ended before today, and no later
+        // than the last recorded load caught it — session-marker "first load" pattern,
+        // same one greeting.last already uses for no-immediate-repeat.
+        $lastLoad = session('greeting.dash_last_load');
+        if (LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where('date_to', '<', $now->toDateString())
+            ->when($lastLoad, fn ($q) => $q->where('date_to', '>=', $lastLoad))
+            ->exists()
+        ) {
+            $triggers[] = 'back_from_leave';
+        }
+
         if (app(HolidayEve::class)->forDay($now) !== null) {
             $triggers[] = 'holiday_eve';
         }
 
-        $isWeekday = $now->isWeekday();
-
-        if ($isWeekday
-            && WorkItem::where('employee_id', $employee->id)
-                ->where('status', '!=', 'done')
-                ->whereNull('archived_at')
-                ->whereNotNull('due_at')
-                ->where('due_at', '<', $now->toDateString())
-                ->where('type', '!=', 'event')
-                ->whereNull('cancelled_at')
-                ->exists()
-        ) {
-            $triggers[] = 'overdue';
+        if ($this->isLongWeekend($employee->tenant_id, $now)) {
+            $triggers[] = 'long_weekend';
         }
 
-        if ($isWeekday && (int) $now->hour >= 10 && ($today === null || ! $today->clock_in)) {
-            $triggers[] = 'not_clocked_in';
+        if ($now->day === 1 && session('greeting.month_seen') !== $now->format('Y-m')) {
+            $triggers[] = 'month_start';
         }
+
+        // "All clear": at least one open card AND none of them overdue. Without the
+        // "has an open card" half, someone with an empty board trivially has "nothing
+        // overdue" and this would fire on every quiet day, outranking day/time lines.
+        $openCards = WorkItem::where('employee_id', $employee->id)
+            ->where('status', '!=', 'done')
+            ->whereNull('archived_at')
+            ->whereNull('cancelled_at')
+            ->where('type', '!=', 'event');
+
+        $hasOpenCards = (clone $openCards)->exists();
+        $hasOverdueCards = (clone $openCards)
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', $now->toDateString())
+            ->exists();
+
+        if ($hasOpenCards && ! $hasOverdueCards) {
+            $triggers[] = 'all_clear';
+        }
+
+        // Weather lines have no real signal wired up (no forecast source, no port) — the
+        // flag exists so a later session can wire a real one behind it, but this session
+        // never fires `rain` on its own. See docs/build/OPEN.md.
 
         $triggers[] = match (true) {
             $now->isMonday() => 'monday',
+            $now->isWednesday() => 'wednesday',
             $now->isFriday() => 'friday',
-            $now->isWeekend() => 'weekend',
+            $now->isSaturday() => 'saturday',
+            $now->isSunday() => 'weekend',
             default => null,
         };
 
         $triggers[] = match (true) {
+            (int) $now->hour < 8 => 'early',
             (int) $now->hour < 12 => 'morning',
             (int) $now->hour < 18 => 'afternoon',
             (int) $now->hour < 22 => 'evening',
@@ -188,6 +229,23 @@ trait BuildsDashboardData
         };
 
         return array_values(array_filter($triggers));
+    }
+
+    /** A public holiday on the Friday before, or the Monday after, the coming weekend. */
+    private function isLongWeekend(int $tenantId, CarbonInterface $now): bool
+    {
+        $saturday = in_array($now->dayOfWeekIso, [6, 7], true)
+            ? $now->copy()->startOfWeek(CarbonInterface::SATURDAY)
+            : $now->copy()->next(CarbonInterface::SATURDAY);
+
+        $dates = [
+            $saturday->copy()->subDay()->toDateString(),
+            $saturday->copy()->addDays(2)->toDateString(),
+        ];
+
+        return PublicHoliday::where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->whereDate('date', $dates[0])->orWhereDate('date', $dates[1]))
+            ->exists();
     }
 
     /** Trim a float to its shortest useful string: 12.0 → "12", 12.5 → "12.5". */

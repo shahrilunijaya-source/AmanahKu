@@ -120,4 +120,14 @@ return [
         'enabled' => env('AMANAHKU_AUTO_DONE', false),
     ],
 
+    /*
+    | CR-33: the `rain` greeting-bank trigger is gated behind this flag and ships unset
+    | (false). No weather source or port exists yet — BuildsDashboardData never fires
+    | `rain` on its own regardless of this flag; it only stops HR-approved rain lines
+    | from ever showing until a real signal is wired up behind this same flag.
+    */
+    'weather' => [
+        'enabled' => env('AMANAHKU_WEATHER_ENABLED', false),
+    ],
+
 ];
