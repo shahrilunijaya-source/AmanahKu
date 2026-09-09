@@ -143,11 +143,11 @@ class CR27Test extends TestCase
         Carbon::setTestNow('2026-09-29 10:00:00');
         $this->actingInTenantAs($this->director)->post('/app/awards/mystery', [
             'employee_id' => $this->adri->id,
-            'category' => 'Professional Tab Collector',
+            'category' => 'Chief Snack Negotiator',
             'explanation' => 'Forty-three tabs open, every one of them important, apparently.',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $secrets = ['Professional Tab Collector', 'Forty-three tabs open', 'data-slide="mystery"', 'data-award="mystery"'];
+        $secrets = ['Chief Snack Negotiator', 'Forty-three tabs open', 'data-slide="mystery"', 'data-award="mystery"'];
         $pages = ['/app/dash', '/app/awards', '/app/awards?month='.self::SEPTEMBER, '/app/profile', '/app/profile?emp='.$this->adri->id];
 
         // Before the 1st, nothing for anyone, the director who typed it included.
@@ -171,7 +171,7 @@ class CR27Test extends TestCase
         Carbon::setTestNow('2026-10-01 08:00:00');
         Artisan::call('awards:publish');
         Carbon::setTestNow('2026-10-01 10:00:00');
-        $this->actingInTenantAs($this->emysha)->get('/app/dash')->assertOk()->assertSee('Professional Tab Collector');
+        $this->actingInTenantAs($this->emysha)->get('/app/dash')->assertOk()->assertSee('Chief Snack Negotiator');
     }
 
     #[Test]
@@ -262,6 +262,8 @@ class CR27Test extends TestCase
         $page->assertSee('data-band="awards"', false)->assertSee('data-plain', false)
             ->assertDontSee('uj-db-art', false)->assertDontSee('<canvas', false)->assertDontSee('<audio', false);
         $slide = $this->slide($html, 'mystery');
+        $this->assertStringNotContainsString('uj-ma-env', $slide);
+        $this->assertStringNotContainsString('Nobody knew this category existed', $slide);
         $this->assertStringContainsString('PowerPoint Has Left the Chat', $slide);
         $this->assertStringContainsString('Ran the whole review from a whiteboard photo.', $slide);
         $this->assertStringContainsString('data-winner="'.$this->adri->id.'"', $slide);
