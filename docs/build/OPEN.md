@@ -1049,6 +1049,13 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: cheap — one line in `newsRows()` to fold the plot-twist row into the same `take(5)` slice instead of prepending after it, if a future session or contract update wants a hard 5-row ceiling.
 - Source: `docs/build/contracts/dashboard-slots.md` (no cap named), `app/Http/Controllers/Concerns/BuildsDashboardData.php::newsRows()`.
 
+### QA / CR-29 / S25 grade PASS, F1 mood kicker layout fixed by QA
+- Question: the 5 PM mood state put the kicker and the question on one line, unlike the approved mockup. Fail the session or fix?
+- Decided: QA set `.uj-fr-k` and `.uj-fr-q` to `display:block` and graded PASS. See `docs/build/sessions/S25/grade.md`.
+- Alternatives: fail S25 for a one-line CSS change (rejected, disproportionate); wrap both in a div (rejected, more markup for the same result).
+- Reversal cost: trivial, two CSS declarations.
+- Source: `docs/build/sessions/S25/grade.md`, `docs/build/sessions/S25/mockup/README.md`.
+
 ### S25 / CR-29 / percentages() duplicated from PlotTwistController rather than extracted
 - Question: `FridayController::percentages()` needs the exact same largest-remainder rounding (floor each share, hand leftover points to the largest fractional remainders) as `PlotTwistController::percentages()` (CR-25), so the two methods are identical.
 - Decided: duplicated the method into `FridayController` rather than extracting a shared helper, since a shared helper would mean creating or editing a file outside `PlotTwistController.php`'s and `FridayController.php`'s own CR, which the standing rule forbids ("one CR per session, no refactoring outside the CR's files").
