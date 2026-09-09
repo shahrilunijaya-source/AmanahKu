@@ -224,14 +224,18 @@ class CR25Test extends TestCase
         // The receipt is a one-way hash: not the raw user id, not reversible without the key.
         $receipt = DB::table('plot_twist_receipts')->value('receipt');
         $this->assertNotSame((string) $this->yati->user_id, $receipt);
-        $this->assertStringNotContainsString((string) $this->yati->user_id, $receipt);
-        $this->assertSame(64, strlen($receipt));
+        // A 64-char hex digest, so a bare user id can never be read out of it. (An earlier
+        // "does not contain the digit" assertion was a QA test defect: any hex digest contains
+        // most single digits, and acceptance 2 pins the exact HMAC.)
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $receipt);
 
         // Nothing rendered for a director before or after reveal names a voter.
         Carbon::setTestNow('2026-09-11 15:00:00');
         foreach (['/app/dash', '/app/plot-twist', "/app/plot-twist/{$poll->id}/results"] as $url) {
             $body = $this->actingInTenantAs($this->shahril)->get($url)->assertOk()->getContent();
-            $this->assertStringNotContainsString('Yati Dev', $this->stripChrome($body), "{$url} names a voter");
+            // Scoped to the poll's own markup: the director's dashboard legitimately lists
+            // every staff name elsewhere (clock-in widget), which is not a voter leak.
+            $this->assertStringNotContainsString('Yati Dev', $this->pollHtml($body, $poll->id), "{$url} names a voter");
         }
         $this->actingInTenantAs($this->shahril)->getJson("/app/plot-twist/{$poll->id}/results")->assertOk()
             ->assertJsonMissingPath('voters')->assertJsonMissingPath('votes.0.employee_id');
@@ -414,5 +418,23 @@ class CR25Test extends TestCase
         $main = strpos($html, '<main');
 
         return $main === false ? $html : substr($html, $main);
+    }
+
+    /**
+     * The poll's own markup only: from its data-plot-twist marker up to the next
+     * sibling notice row, the next poll marker, or the end of <main>. JSON bodies
+     * (the results endpoint) have no marker and are checked whole.
+     */
+    private function pollHtml(string $html, int $pollId): string
+    {
+        $html = $this->stripChrome($html);
+        $start = strpos($html, 'data-plot-twist="'.$pollId.'"');
+        if ($start === false) {
+            return $html;
+        }
+        $rest = substr($html, $start + 1);
+        preg_match('/<div class="uj-dw-notice"|data-plot-twist="|<\/main>/', $rest, $m, PREG_OFFSET_CAPTURE);
+
+        return isset($m[0]) ? substr($rest, 0, $m[0][1]) : $rest;
     }
 }
