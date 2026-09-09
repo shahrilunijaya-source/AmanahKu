@@ -947,3 +947,11 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: bounce to S22 for a re-run (rejected, both fixes are a few lines and the acceptance test stayed green); keep the border (rejected, Shazwan asked for it gone).
 - Reversal cost: trivial, one CSS rule and one small model method.
 - Source: `docs/build/sessions/S22/grade.md`, Shazwan's message during the grade.
+
+### QA / CR-28 / shapes fixed by CR28Test
+- Question: the spec names no routes, columns or markup for the Milestone flag, the "Ring the bell?" prompt, the ring itself, the 24-hour celebration or the Wins archive.
+- Decided: `work_items.is_milestone` set via the existing `PATCH /app/board/{workItem}` by manager/management/director only (employee 403); `POST .../move {status: done}` JSON answers `bell: {work_item_id, prompt: "Ring the bell?"}` for an unrung milestone, else `bell: null`; `POST /app/board/{workItem}/bell {line?}` by owner or PM+ (others 403; 422 if not milestone, not Done, already rung, or the project already has 3 bells in the calendar month); table `victory_bells` + `victory_bell_reactions`; audit `victory_bell.rung`; moment `data-kind="victory-bell" data-victory-bell="<id>"`, kicker WE HAVE MOVEMENT, "<title> is officially Done.", `[data-victory-bell-member]` for owner + tagged participants, CR-30 reactions at `POST /app/victory-bells/{bell}/react`; 24 hours on the dashboard, then `[data-win-bell="<id>"]` on `/app/wins`. Track WBS milestones out of scope (no port call). Full list in the CR28Test docblock.
+- Alternatives: a `milestone` label instead of a column (rejected, labels are owner-editable and the spec wants PM-and-above gating); a separate confirmation screen for the prompt (rejected, the move answer already returns JSON the drawer reads); counting the limit over a rolling 30 days (rejected, "per month" read as calendar month).
+- Reversal cost: low, all names are QA choices; the session must match them, not redesign them.
+- Source: `docs/specs/CR-28.md`, `docs/specs/culture-pack-preamble.md`, `docs/build/contracts/dashboard-slots.md`.
+- Left open for the session: where the ring prompt appears in the board UI (toast vs drawer), whether a rung bell also posts to the card's activity log, ordering of a bell next to a live Big Deal in the moments rotation.
