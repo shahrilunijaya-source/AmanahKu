@@ -75,9 +75,9 @@ class CR33Test extends TestCase
         }
         $this->assertFalse(GreetingLine::where('tenant_id', $this->tenant()->id)->whereIn('trigger', ['overdue', 'not_clocked_in'])->exists(), 'the bank still carries lines about overdue work or clocking in');
 
-        // Tuesday 2026-09-15, 10:00, an overdue card and no clock-in: neither may colour the line.
+        // Tuesday 2026-09-22, 10:00 (not her birthday), an overdue card and no clock-in: neither may colour the line.
         $this->card($this->yati, ['title' => 'Late card', 'due_at' => '2026-09-01']);
-        Carbon::setTestNow('2026-09-15 10:00:00');
+        Carbon::setTestNow('2026-09-22 10:00:00');
 
         $seen = [];
         $previous = null;
