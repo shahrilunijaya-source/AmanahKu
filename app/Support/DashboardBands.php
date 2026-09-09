@@ -261,7 +261,7 @@ final class DashboardBands
      * afterward, same as bigDealMoments().
      *
      * @param  iterable<VictoryBell>  $bells  eager-loaded workItem.participants, workItem.employee, project, rungBy
-     * @return list<Moment&array{victory_bell_id:int, team:list<array<string,mixed>>, line:?string, meta:string}>
+     * @return list<Moment&array{victory_bell_id:int, team:list<array<string,mixed>>, meta:string}>
      */
     public static function victoryBellMoments(iterable $bells, CarbonImmutable $today): array
     {

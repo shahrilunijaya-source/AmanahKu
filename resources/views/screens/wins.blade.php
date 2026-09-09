@@ -9,11 +9,11 @@
     'key' => 'wins',
     'en'  => [
         'title' => 'Wins',
-        'body'  => 'Every Big Deal Alert ever raised — project go-lives, tenders won, client compliments and more. Newest first, this is an archive, not a window.',
+        'body'  => 'Every Big Deal Alert and Victory Bell ever raised — project go-lives, tenders won, client compliments, milestones hit and more. Newest first, this is an archive, not a window.',
     ],
     'ms'  => [
         'title' => 'Kejayaan',
-        'body'  => 'Setiap Big Deal Alert yang pernah diajukan — projek go-live, tender dimenangi, pujian klien dan banyak lagi. Terkini dahulu, ini arkib, bukan tetingkap.',
+        'body'  => 'Setiap Big Deal Alert dan Loceng Kejayaan yang pernah diajukan — projek go-live, tender dimenangi, pujian klien, pencapaian dicapai dan banyak lagi. Terkini dahulu, ini arkib, bukan tetingkap.',
     ],
 ])
 

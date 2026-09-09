@@ -381,7 +381,7 @@
                     {{-- CR-28: persistent "Ring the bell" action for a Done, unrung Milestone
                          card — the toast (work-board.js ringPrompt) offers it right after the
                          move; this stays for later. --}}
-                    <template x-if="drawer.card.is_milestone && drawer.card.status === 'done'">
+                    <template x-if="drawer.card.can_ring_bell">
                         <button type="button" class="uj-btn-ghost" style="align-self:flex-start;" @click="ringBell()"
                                 x-text="$store.ui.lang==='en' ? '🔔 Ring the bell' : '🔔 Bunyikan loceng'"></button>
                     </template>

@@ -427,6 +427,37 @@ export function registerTeamBoard(Alpine) {
             }
         },
 
+        // CR-28: same can_set_milestone gate as the personal board's setMilestone,
+        // but this drawer has no commitField()/toast — it PATCHes directly and
+        // repaints, exactly like setReviewer() just above.
+        async setMilestone(checked) {
+            if (!this.drawer.id || !this.drawer.card.can_set_milestone) return;
+            this.drawer.error = '';
+            try {
+                const { card, html } = await this.api(`/app/board/${this.drawer.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ is_milestone: checked }),
+                });
+                this.drawer.card.is_milestone = card.is_milestone;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not set the milestone flag.', 'Tidak dapat menetapkan tanda pencapaian.');
+            }
+        },
+
+        // CR-28: the drawer's persistent "Ring the bell" button, mirroring the
+        // personal board's ringBell() — this surface has no toast store, so
+        // success/failure both surface through drawer.error (cleared on success).
+        async ringBell() {
+            if (!this.drawer.id) return;
+            this.drawer.error = '';
+            try {
+                await this.api(`/app/board/${this.drawer.id}/bell`, { method: 'POST', body: JSON.stringify({}) });
+            } catch (err) {
+                this.drawer.error = this.t('Could not ring the bell.', 'Tidak dapat membunyikan loceng.');
+            }
+        },
+
         async api(url, opts = {}) {
             const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
             if (opts.body) headers['Content-Type'] = 'application/json';
