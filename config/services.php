@@ -111,4 +111,13 @@ return [
         'browser_dsn' => env('APP_ENV') === 'production' ? env('SENTRY_BROWSER_DSN') : null,
     ],
 
+    /*
+    | CR-19: the auto-Done scheduler (`board:auto-done`) ships FLAGGED OFF everywhere,
+    | docs/build/RULES.md. Set AMANAHKU_AUTO_DONE=true to switch it live for a tenant's
+    | environment; with it false the command changes nothing and only dry-runs.
+    */
+    'auto_done' => [
+        'enabled' => env('AMANAHKU_AUTO_DONE', false),
+    ],
+
 ];

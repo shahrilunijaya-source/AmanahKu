@@ -8,6 +8,8 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Tenant;
+use App\Models\WorkItem;
+use App\Support\AutoDone;
 use App\Support\AwardCatalog;
 use App\Support\Awards;
 use App\Tenancy\CurrentTenant;
@@ -111,6 +113,16 @@ class AwardsPublish extends Command
         }
 
         AuditLog::record('awards.published', $month->toDateString());
+
+        // CR-19: publishing closes every still-open "Select manual award winners" card for
+        // the month, whoever it belongs to — not only whoever actually made a pick. A
+        // pick already closed its own card (AwardController::select() via closeCard());
+        // this sweeps everyone else's.
+        WorkItem::where('source', 'awards')->where('source_ref', $month->format('Y-m').'-select')
+            ->where('status', '!=', 'done')
+            ->get()
+            ->each(fn (WorkItem $card) => AutoDone::done($card, 'the awards were published'));
+
         AppNotification::sendMany(
             Employee::where('tenant_id', $tenantId)->active()->where('status', '!=', 'resigned')->whereNotNull('user_id')->pluck('user_id'),
             $month->format('F Y').' awards are out!',

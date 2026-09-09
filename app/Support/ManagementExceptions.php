@@ -156,6 +156,9 @@ class ManagementExceptions
             ->whereNotIn('status', ['done'])
             ->where('type', '!=', 'event')
             ->whereNull('cancelled_at')
+            // CR-19: an auto-closed (or auto-archived) system card is never overdue.
+            ->whereNull('auto_closed_at')
+            ->whereNull('archived_at')
             ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
             ->with(['employee', 'projectRef'])
             ->orderBy('due_at')

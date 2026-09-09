@@ -1130,6 +1130,11 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-role--fyi { color: var(--muted); }
 .wc-role--reviewer { color: var(--info); background: rgba(45, 120, 200, .1); }
 
+/* CR-19 "Auto" chip (docs/build/sessions/S19/mockup/README.md) */
+.wc-auto { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-micro); font-weight: 600; letter-spacing: .2px; color: var(--muted); background: var(--hairline-soft); padding: 1px 7px 1px 5px; border-radius: 9999px; flex-shrink: 0; }
+.wc-auto svg { color: var(--muted-soft); }
+.wc-pri + .wc-auto, .wc-role + .wc-auto { margin-left: 6px; }
+
 /* Drawer: the Helper / FYI flip on a tagged chip, and the two picks in the add menu. */
 .wd-role-toggle {
     border: 1px solid var(--hairline); background: var(--canvas); color: var(--muted); cursor: pointer;
@@ -1170,6 +1175,8 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wc-when-badge { font-variant-numeric: tabular-nums; flex-shrink: 0; font-weight: 600; font-size: 10px; }
 .wc-when-badge.wc-when-badge--over { color: var(--error); }
 .wc-when-badge.wc-when--early { color: var(--success-ink); }
+/* CR-19 mockup (docs/build/sessions/S19/mockup/README.md) */
+.wc-when-badge.wc-when--pending { color: var(--amber-ink); background: color-mix(in srgb, var(--amber) 11%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 22%, transparent); padding: 1px 7px; border-radius: 6px; font-weight: 600; font-variant-numeric: normal; }
 .wc-sep { color: var(--muted-soft); flex-shrink: 0; }
 .wc-when--none { color: var(--muted); }
 .wc-proj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1561,6 +1568,9 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 .wd-title:focus { background: var(--card); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 
 .wd-sub { font-size: var(--t-micro); color: var(--muted); margin: 0 0 18px; min-height: 1em; }
+/* CR-19 drawer meta suffix (docs/build/sessions/S19/mockup/README.md) */
+.wd-meta-auto { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.wd-meta-auto svg { color: var(--muted-soft); }
 
 /* Property rows: label left, live control right. Every one autosaves. */
 .wd-props { display: grid; grid-template-columns: 108px 1fr; align-items: center; gap: 3px 10px; margin-bottom: 22px; }
@@ -1634,6 +1644,8 @@ select.wd-inline {
 .wd-cmt-name { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 .wd-cmt-at { font-size: var(--t-micro); color: var(--muted-soft); }
 .wd-cmt-body { font-size: 13.5px; color: var(--body); line-height: 1.6; margin-top: 2px; white-space: pre-wrap; }
+/* CR-19 system activity line (docs/build/sessions/S19/mockup/README.md) */
+.wd-cmt--system .wd-cmt-mark { width: 28px; height: 28px; border-radius: 50%; background: var(--hairline-soft); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
 /* Composer docks to the panel floor so the thread never hides it. */
 .wd-foot {

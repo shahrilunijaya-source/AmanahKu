@@ -39,8 +39,11 @@ class CompanyEvent extends Model
     /** CR-11: signed up ahead of an external/registration-style event. */
     public const RESPONSE_REGISTERED = 'registered';
 
+    /** CR-19: the post-event mark-off's other outcome — archives the attendee's card. */
+    public const RESPONSE_DID_NOT_ATTEND = 'did_not_attend';
+
     /** Every RSVP response the attendees endpoint and the page may show. */
-    public const RESPONSES = ['going', self::RESPONSE_REGISTERED, self::RESPONSE_ATTENDED, 'maybe', 'declined'];
+    public const RESPONSES = ['going', self::RESPONSE_REGISTERED, self::RESPONSE_ATTENDED, self::RESPONSE_DID_NOT_ATTEND, 'maybe', 'declined'];
 
     protected $guarded = [];
 

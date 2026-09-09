@@ -109,7 +109,17 @@
                     @else
                         <h2 class="wd-title" id="wd-title" x-text="drawer.card.title"></h2>
                     @endif
-                    <p class="wd-sub" x-text="drawer.sub"></p>
+                    <p class="wd-sub">
+                        <span x-text="drawer.sub"></span>
+                        {{-- CR-19: " · ⚡ Closed automatically <date>" once the card carries the Auto marker. --}}
+                        <template x-if="drawer.card.auto_closed_label">
+                            <span class="wd-meta-auto">
+                                &middot;
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+                                <span x-text="($store.ui.lang==='en' ? 'Closed automatically' : 'Ditutup automatik') + ' ' + drawer.card.auto_closed_label"></span>
+                            </span>
+                        </template>
+                    </p>
 
                     <div class="wd-props">
                         <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
@@ -430,8 +440,11 @@
                     <h3 class="wd-sech" x-text="drawer.comments.length ? (($store.ui.lang==='en' ? 'Comments' : 'Komen') + ' (' + drawer.comments.length + ')') : ($store.ui.lang==='en' ? 'Comments' : 'Komen')">Comments</h3>
                     <div class="wd-cmts">
                         <template x-for="c in drawer.comments" :key="c.id">
-                            <div class="wd-cmt">
-                                <span class="wa" :style="'background:' + c.color" x-text="c.initials"></span>
+                            <div class="wd-cmt" :class="{ 'wd-cmt--system': c.is_system }">
+                                {{-- CR-19: an auto-close activity line carries no employee_id — a system
+                                     mark renders instead of an avatar. --}}
+                                <span class="wd-cmt-mark" x-show="c.is_system"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
+                                <span class="wa" :style="'background:' + c.color" x-text="c.initials" x-show="!c.is_system"></span>
                                 <div style="flex:1;min-width:0;">
                                     <div class="wd-cmt-who">
                                         <span class="wd-cmt-name" x-text="c.author"></span>

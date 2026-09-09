@@ -120,6 +120,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // last Monday of the month.
         $schedule->command('awards:tasks')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('awards:tasks'));
+        // CR-19: ships FLAGGED OFF (config('services.auto_done.enabled'), env
+        // AMANAHKU_AUTO_DONE) — prompts the organiser once an event's attendance is
+        // pending, archives an unsubmitted awards nomination once its window closes.
+        $schedule->command('board:auto-done')->everyFifteenMinutes()
+            ->withoutOverlapping()->onFailure($onFailure('board:auto-done'));
         // Captured faults are a debugging aid, not a record to keep. Without this the
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())

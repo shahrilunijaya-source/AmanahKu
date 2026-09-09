@@ -9,6 +9,7 @@ use App\Models\AwardResult;
 use App\Models\Employee;
 use App\Models\Reaction;
 use App\Models\WorkItem;
+use App\Support\AutoDone;
 use App\Support\AwardBoard;
 use App\Support\AwardCatalog;
 use App\Tenancy\CurrentTenant;
@@ -101,7 +102,7 @@ class AwardController extends Controller
         }
 
         AuditLog::record('award.nominated', "{$data['award_key']}:{$nominee->id}");
-        $this->closeCard($employee->id, $month->format('Y-m').'-nominate');
+        $this->closeCard($employee->id, $month->format('Y-m').'-nominate', 'Nomination submitted');
 
         // QA S18 F2: the screen's forms are plain posts, so a browser lands back on the
         // tab with a flash; only fetch callers get the JSON.
@@ -165,7 +166,7 @@ class AwardController extends Controller
         ]);
 
         AuditLog::record('award.selected', "{$data['award_key']}:{$pick->id}");
-        $this->closeCard($employee->id, $month->format('Y-m').'-select');
+        $this->closeCard($employee->id, $month->format('Y-m').'-select', 'Pick recorded');
 
         return $request->expectsJson()
             ? response()->json(['ok' => true])
@@ -282,12 +283,19 @@ class AwardController extends Controller
         ])->render();
     }
 
-    /** Marks the caller's own Nominate/Select card done — never anyone else's (route-model binding is not tenant-safe by itself, but employee_id here is always the acting employee's own id). */
-    private function closeCard(int $employeeId, string $sourceRef): void
+    /**
+     * Marks the caller's own Nominate/Select card done — never anyone else's (route-model
+     * binding is not tenant-safe by itself, but employee_id here is always the acting
+     * employee's own id). CR-19: closed one at a time through App\Support\AutoDone (never
+     * a bulk query-builder update) so the model's own save fires AuditsChanges and leaves
+     * the Auto marker + activity-line trail every automatic close must carry.
+     */
+    private function closeCard(int $employeeId, string $sourceRef, string $reason): void
     {
         WorkItem::where('employee_id', $employeeId)->where('source', 'awards')->where('source_ref', $sourceRef)
             ->where('status', '!=', 'done')
-            ->update(['status' => 'done', 'progress' => 100, 'done_at' => now()]);
+            ->get()
+            ->each(fn (WorkItem $card) => AutoDone::done($card, $reason));
     }
 
     /** Nominations are only accepted in the last 7 calendar days of the month (24 to 30 Sep, for a 30-day month). */

@@ -81,6 +81,19 @@
         ->filter(fn ($ch) => $ch->due_at && $ch->due_at->lt(today()) && $ch->type !== 'event' && ! $ch->cancelled_at)
         ->sortBy('due_at')
         ->first()?->due_at : null;
+
+    // CR-19: the "Auto" chip's title carries the full reason off the trail comment the
+    // close left behind ("Closed automatically – <reason>"); falls back to a bare label
+    // if the comment somehow isn't there.
+    // ponytail: one query per auto-closed card on the board (and one per event card for
+    // isPendingAttendance below) — fine at board scale, revisit with eager-loading if a
+    // board ever carries enough auto-closed/event cards to matter.
+    $wcAutoReason = null;
+    if ($c->auto_closed_at) {
+        $wcAutoComment = $c->comments()->whereNull('employee_id')->where('body', 'like', 'Closed automatically%')->latest('id')->first();
+        $wcAutoReason = $wcAutoComment->body ?? 'Closed automatically';
+    }
+    $wcPendingAttendance = $c->isPendingAttendance();
 @endphp
 <div class="wc @if ($wcCompact) wc--sm @endif @if ($wcChildren) wc--stack @endif"
      data-card
@@ -94,6 +107,8 @@
      data-role="{{ $wcRole }}"
      @if ($owner ?? null) data-owner-id="{{ $owner['id'] }}" @endif
      @if ($c->assigned_by_id) data-assigned="1" @endif
+     @if ($c->auto_closed_at) data-auto-closed="1" @endif
+     @if ($wcPendingAttendance) data-pending-attendance="1" @endif
      {{-- Keyboard path to the drawer — both the personal board and the team board's
           compact cards open a (view + comment only, on team-board) drawer on click
           or Enter/Space. See work-board.js / team-board.js's click delegation. --}}
@@ -106,6 +121,12 @@
         @endif
         @if ($wcRoleLabel)
             <span class="wc-role wc-role--{{ $wcRole }}">{{ $wcRoleLabel }}</span>
+        @endif
+        @if ($c->auto_closed_at)
+            <span class="wc-auto" title="{{ $wcAutoReason }}">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+                Auto
+            </span>
         @endif
     </div>
 
@@ -127,7 +148,9 @@
     <div class="wc-foot">
         @if ($c->due_at)
             <span class="wc-when @if ($wcOverdue) wc-when--over @endif">{{ $c->due_at->format('d M') }}</span>
-            @if ($wcDueBadge)
+            @if ($wcPendingAttendance)
+                <span class="wc-when-badge wc-when--pending">Pending Attendance</span>
+            @elseif ($wcDueBadge)
                 <span class="wc-when-badge {{ $wcDueBadge['class'] }}">{{ $wcDueBadge['text'] }}</span>
             @endif
         @else

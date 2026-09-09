@@ -20,6 +20,7 @@ use App\Models\Reaction;
 use App\Models\WorkItem;
 use App\Ports\CalendarPort;
 use App\Ports\Data\CalendarEvent;
+use App\Support\AutoDone;
 use App\Support\ImageCompressor;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
@@ -55,6 +56,8 @@ class EventController extends Controller
         'going' => 'Going',
         CompanyEvent::RESPONSE_REGISTERED => 'Registered',
         CompanyEvent::RESPONSE_ATTENDED => 'Attended',
+        // CR-19: the post-event mark-off's other outcome — archives the attendee's card.
+        CompanyEvent::RESPONSE_DID_NOT_ATTEND => 'Did not attend',
         'maybe' => 'Maybe',
         'declined' => 'Declined',
     ];
@@ -279,6 +282,19 @@ class EventController extends Controller
                 'response' => $data['response'],
             ],
         );
+
+        // CR-19: the post-event mark-off closes the attendee's card automatically —
+        // Attended is Done, Did not attend is archived (never Done). Every other
+        // response (still pending, or set before the event is over) leaves the card
+        // alone; the scheduler only ever notifies about those, never closes them.
+        if (in_array($data['response'], [CompanyEvent::RESPONSE_ATTENDED, CompanyEvent::RESPONSE_DID_NOT_ATTEND], true)) {
+            $card = WorkItem::where('company_event_id', $event->id)->where('employee_id', $target->id)->whereNull('archived_at')->first();
+            if ($card) {
+                $data['response'] === CompanyEvent::RESPONSE_ATTENDED
+                    ? AutoDone::done($card, 'Attended')
+                    : AutoDone::archived($card, 'Did not attend');
+            }
+        }
 
         return back()->with('ok', 'RSVP recorded.');
     }
@@ -630,8 +646,10 @@ class EventController extends Controller
         }
 
         $externalId = $card->google_event_id;
-        // QA F10: archived AND cancelled, as the CR-11 OPEN shape and the S13 handoff both say.
-        $card->update(['archived_at' => now(), 'cancelled_at' => now()]);
+        // QA F10: archived AND cancelled, as the CR-11 OPEN shape and the S13 handoff both
+        // say. CR-19: routed through AutoDone so it carries the same Auto marker/audit/
+        // activity-line trail as every other automatic close.
+        AutoDone::cancelled($card, 'Invitation withdrawn');
 
         $employee = Employee::find($employeeId);
         if ($externalId && $employee) {

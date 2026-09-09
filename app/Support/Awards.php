@@ -116,7 +116,10 @@ final class Awards
             ->reject(fn (WorkItem $card) => $card->type === 'event'
                 || $card->source !== null
                 || array_intersect($card->labels ?? [], ['recurring', 'system']) !== []
-                || in_array($card->id, $occurrenceCardIds, true))
+                || in_array($card->id, $occurrenceCardIds, true)
+                // CR-19: an auto-closed card (any trigger, not only the system-labelled
+                // ones above) never earns an award either.
+                || $card->auto_closed_at !== null)
             ->map(function (WorkItem $card) use ($firstDone, $helpers) {
                 $completedAt = $firstDone->get($card->id)
                     ?? ($card->status === 'done' ? $card->done_at : null);

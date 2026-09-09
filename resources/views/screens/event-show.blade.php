@@ -8,6 +8,8 @@
         'going' => 'Going',
         'registered' => 'Registered',
         'attended' => 'Attended',
+        // CR-19: the post-event mark-off's other outcome.
+        'did_not_attend' => 'Did not attend',
         'maybe' => 'Maybe',
         'declined' => 'Declined',
     ];

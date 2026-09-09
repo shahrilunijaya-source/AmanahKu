@@ -56,7 +56,7 @@ class WorkItem extends Model implements HasAuditedFields
 
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'auto_closed_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
     }
 
     protected static function booted(): void
@@ -124,6 +124,31 @@ class WorkItem extends Model implements HasAuditedFields
     public function isCancelled(): bool
     {
         return $this->cancelled_at !== null;
+    }
+
+    /**
+     * CR-19: an event attendee card whose event has ended but whose RSVP is still
+     * undecided (going/registered/maybe) — the scheduler never closes it by time, it only
+     * notifies the organiser; only marking attendance (attended/did_not_attend) or
+     * withdrawing the invitation moves it, via App\Support\AutoDone.
+     */
+    public function isPendingAttendance(): bool
+    {
+        if ($this->type !== 'event' || $this->company_event_id === null) {
+            return false;
+        }
+        if ($this->auto_closed_at !== null || $this->archived_at !== null || $this->cancelled_at !== null) {
+            return false;
+        }
+
+        $event = $this->companyEvent;
+        if (! $event || ! $event->isOver()) {
+            return false;
+        }
+
+        $response = EventRsvp::where('company_event_id', $event->id)->where('employee_id', $this->employee_id)->value('response');
+
+        return in_array($response, ['going', 'registered', 'maybe'], true);
     }
 
     /**

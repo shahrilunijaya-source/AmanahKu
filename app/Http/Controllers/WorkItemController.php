@@ -259,6 +259,10 @@ class WorkItemController extends Controller
                 'event_options' => $this->eventOptions($workItem),
             ],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
+            // CR-19 (QA shape, tests/Acceptance/CR19Test.php): read off the JSON's top
+            // level, not nested under `card`.
+            'auto_closed' => $workItem->auto_closed_at !== null,
+            'pending_attendance' => $workItem->isPendingAttendance(),
         ]);
     }
 
@@ -440,6 +444,10 @@ class WorkItemController extends Controller
             // move or reorder — the auto-archive clock (WorkItem::archive-done) reads
             // this, not updated_at, so reordering cards within Done doesn't reset it.
             'done_at' => (! $wasDone && $data['status'] === 'done') ? now() : $workItem->done_at,
+            // CR-19: moving an auto-closed card off Done by hand makes it a normal card
+            // again — the Auto badge and marker are gone for good, not reapplied by a
+            // later scheduler run.
+            'auto_closed_at' => $data['status'] === 'done' ? $workItem->auto_closed_at : null,
         ]);
 
         // Close the loop: when an assigned tac first reaches Done, tell the assigner.
@@ -998,6 +1006,10 @@ class WorkItemController extends Controller
             'child_summary' => $item->parent_id ? null : $item->childSummary(),
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
+            // CR-19: the Auto badge and the drawer's "Closed automatically <date>" suffix.
+            'auto_closed' => $item->auto_closed_at !== null,
+            'auto_closed_label' => $item->auto_closed_at?->format('j M'),
+            'pending_attendance' => $item->isPendingAttendance(),
             'labels' => $item->labels ?? [],
             'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
@@ -1047,14 +1059,19 @@ class WorkItemController extends Controller
 
     private function commentPayload(WorkItemComment $c, Employee $viewer): array
     {
+        // CR-19: an auto-close activity line carries no employee_id — the drawer renders
+        // it with a system mark instead of an avatar (work-drawer.blade.php).
+        $isSystem = $c->employee_id === null;
+
         return [
             'id' => $c->id,
             'body' => $c->body,
-            'author' => $c->employee?->display_name ?? 'Someone',
-            'initials' => $c->employee?->initials ?? '··',
+            'author' => $isSystem ? 'Amanahku' : ($c->employee?->display_name ?? 'Someone'),
+            'initials' => $isSystem ? '' : ($c->employee?->initials ?? '··'),
             'color' => $c->employee?->avatar_color ?? 'var(--muted)',
             'when' => $c->created_at?->diffForHumans(),
             'mine' => $c->employee_id === $viewer->id,
+            'is_system' => $isSystem,
         ];
     }
 }
