@@ -1071,6 +1071,14 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: trivial, one label pair and one line in the test.
 - Source: `tests/Acceptance/CR26Test.php` item 4, `app/Support/Amanahku.php`.
 
+### QA / CR-27 / shapes fixed by CR27Test
+- Question: the spec names no table, route or markup for the pick, the committee, the reveal, or how "not counted" is enforced.
+- Decided: own table `mystery_awards` (month, employee_id, category, explanation, picked_by, published_at), one row per month, never an `award_results` row so Hall of Fame, badges and rule 9/10 never see it; `mystery_committee` rows set by the director with `POST /app/awards/mystery/committee {employee_ids: [3]}` for the selection month; pick with `POST /app/awards/mystery {employee_id, category, explanation}` by director or committee member, previous month's winner 422, no rubric field; `awards:publish` stamps `published_at` on the 1st and only then the band renders `data-slide="mystery"` last and `/app/awards` renders `data-award="mystery"`; before that the category and explanation appear on no page for anyone (Select tab shows `data-mystery-picked="YYYY-MM-01"` only); audit `award.mystery_committee` / `award.mystery_picked`. Full list in the CR27Test docblock.
+- Alternatives: store as an `award_results` row with key `mystery` (rejected, it would count toward badges and Hall of Fame unless every reader special-cased it); reveal by date without a publish stamp (rejected, `awards:publish` already owns "the 1st working day" and the audit trail); let the director see the sealed category on the Select tab (rejected, spec says "not visible anywhere before publish").
+- Reversal cost: low, all names are QA choices; the session must match them.
+- Source: `docs/specs/CR-27.md`, `docs/specs/CR-14.md`, `tests/Acceptance/CR14bTest.php` (band, screen and badge markup).
+- Left open for the session: committee-member self-picks, whether the mystery slide gets CR-30 reactions and comments like the others, and how the slide looks (envelope, seal, reveal animation) in non-plain mode.
+
 ### S25 / CR-29 / percentages() duplicated from PlotTwistController rather than extracted
 - Question: `FridayController::percentages()` needs the exact same largest-remainder rounding (floor each share, hand leftover points to the largest fractional remainders) as `PlotTwistController::percentages()` (CR-25), so the two methods are identical.
 - Decided: duplicated the method into `FridayController` rather than extracting a shared helper, since a shared helper would mean creating or editing a file outside `PlotTwistController.php`'s and `FridayController.php`'s own CR, which the standing rule forbids ("one CR per session, no refactoring outside the CR's files").
