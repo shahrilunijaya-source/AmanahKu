@@ -970,3 +970,10 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: a modal instead of a toast for the prompt (rejected, the mockup is explicit about the toast, and a modal would block the board mid-drag); writing a system comment on ring (rejected, no test or spec asks for it, and the card's comment thread is a discussion log, not an audit trail — that is what `AuditLog::record` is for); a `victory_bell` key on the Wins screenData instead of a merged `rows` list (rejected, the view would then duplicate the interleave/sort logic that belongs in one place).
 - Reversal cost: cheap. The toast can move into the drawer, an activity-log line can be added in `WorkItemController::ring()` alongside the audit call, and the moments order is one array-spread reorder — none of these are asserted anywhere.
 - Source: `docs/build/OPEN.md` (`## QA / CR-28`, "Left open for the session" line), `docs/build/sessions/S23/mockup/README.md`, `tests/Acceptance/CR28Test.php` (no assertion touches prompt placement, activity log, moment order, or the Wins merge mechanism — only the final rendered attributes).
+
+### QA / CR-28 / S23 grade PASS, F1 ring prompt z-index fixed by QA
+- Question: the "Ring the bell?" toast was invisible when Done was pressed from inside the card drawer (toast `z-index:60` under the drawer's 61). Fix in the session's code or fail the session?
+- Decided: QA raised `.uj-vb-prompt` to `z-index:63` (own class, not a bare `.wd` bump) and re-verified in the browser; graded PASS. See `docs/build/sessions/S23/grade.md`.
+- Alternatives: fail S23 and re-run it for a one-number CSS change (rejected, disproportionate); close the drawer when the prompt fires (rejected, loses the user's place on a card they were editing).
+- Reversal cost: trivial, one CSS value.
+- Source: `docs/build/sessions/S23/grade.md`, `resources/css/app.css` `.uj-vb-prompt`.
