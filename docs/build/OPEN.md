@@ -919,3 +919,24 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: low. One route family, four tables, one moment builder, one screen.
 - Left open for the session: whether Wins also lists deals still inside their 3-day window (the test only asserts presence after 3 days), whether the raise form lives in the project row or the card drawer or both (the test posts to the route directly), and who may approve client names (the test sends `names_approved` with the raise).
 - Source: `docs/specs/CR-24.md`, `docs/specs/culture-pack-preamble.md`, `docs/build/contracts/dashboard-slots.md`, `docs/build/contracts/roles.md`, CR-30 reaction shapes.
+
+### S22 / CR-24 / Wins lists every deal, in-window or not
+- Question: does the Wins archive page (`GET /app/wins`) hide a deal while it is still showing on the live dashboard (inside its 3-day window), or list everything ever raised?
+- Decided: list everything, newest first. Wins is an archive, not a "what fell off the dashboard" filter — CR-24 calls it a place things "archive to", and CR24Test only checks a deal is present there after 3 days, never that it is absent before.
+- Alternatives: hide in-window deals from Wins (rejected — would need a second query path and a second copy of the render markup just to punish someone for looking early; nothing in the CR or the test asks for it).
+- Reversal cost: cheap — add `->where('published_at', '<=', now()->subDays(3))` to the `BigDeal::query()` in `BigDealController::screenData()`'s wins branch if Shazwan wants it filtered later.
+- Source: `docs/specs/CR-24.md` ("archives to a Wins page"), `tests/Acceptance/CR24Test.php` acceptance item 4.
+
+### S22 / CR-24 / Raise form lives only on the Projects row, not the board card drawer
+- Question: the CR-24 mockup describes a "Mark as Big Deal" entry both as a ghost button on the Projects screen row and as a `...` menu item on a project or T.A.A. card's board drawer; CR24Test only exercises `POST /app/big-deals` directly and never touches the board UI.
+- Decided: built the ghost button + inline form on the Projects screen row only (`partials/ts-project-row.blade.php`), matching the Variations raise-form pattern already there. The board card drawer's `...` menu was not touched.
+- Alternatives: also wire the board card drawer entry point (rejected for this session — doubles the UI surface for a CR that the acceptance test never drives through the drawer, and the drawer's `...` menu is shared scaffolding outside this CR's named files).
+- Reversal cost: cheap — the drawer entry point would just be a second `<button>` posting to the same `route('big-deals.store')` with `project_id`/`work_item_id` prefilled from the card; no new backend work.
+- Source: `docs/build/sessions/S22/mockup/README.md`, `tests/Acceptance/CR24Test.php` (posts to the route directly, no drawer assertions).
+
+### S22 / CR-24 / Client-name approval is self-attested by the raiser, no separate approval workflow
+- Question: CR-24 says client compliment names are "hidden unless approved" but never says who does the approving; CR24Test just sends `names_approved` as a boolean field on the same raise request.
+- Decided: no separate approval screen or role check — whoever raises the Big Deal (already gated to PM-and-above) ticks a "Client name approved to show" checkbox on the raise form itself, and `names_approved` is stored as sent. The dashboard/Wins views hide `client_contact` whenever it is false.
+- Alternatives: a second approval step (e.g. director sign-off before the name shows) — rejected, no route, role, or UI for it is named anywhere in the CR text or the frozen test, and adding one would be inventing a workflow the acceptance test can't see.
+- Reversal cost: medium — would need a new status column/route and a review screen; the current boolean stays valid as the "approved" flag either way.
+- Source: `docs/specs/CR-24.md` (client compliment names "shown only if approved, never assumed"), `tests/Acceptance/CR24Test.php` acceptance item 5.

@@ -15,6 +15,7 @@ use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
 use App\Http\Controllers\AwardController;
 use App\Http\Controllers\BenefitController;
+use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
@@ -540,6 +541,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/awards/{result}/react', [AwardController::class, 'react'])->name('awards.react');
         Route::post('/app/awards/{result}/comments', [AwardController::class, 'comment'])->name('awards.comments');
         Route::post('/app/awards/{result}/adjust', [AwardController::class, 'adjust'])->name('awards.adjust');
+        // CR-24: Big Deal Alert — raised from a project or T.A.A. card, shown on the
+        // dashboard's moments band for 3 days, archived to /app/wins after (screen
+        // route rides the existing /app/{screen} catch-all, see AppController).
+        Route::post('/app/big-deals', [BigDealController::class, 'store'])->name('big-deals.store');
+        Route::get('/app/big-deals/{deal}/photos/{photo}', [BigDealController::class, 'photo'])->name('big-deals.photos.show');
+        Route::post('/app/big-deals/{deal}/react', [BigDealController::class, 'react'])->name('big-deals.react');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');

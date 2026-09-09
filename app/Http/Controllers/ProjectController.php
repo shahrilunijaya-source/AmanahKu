@@ -68,6 +68,9 @@ class ProjectController extends Controller
             // narrower still, management tier only.
             'canRaiseVariation' => $role !== null && ProjectMaster::financeAuthorized($role),
             'canDecideVariation' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
+            // CR-24: "Mark as Big Deal" — roles.md "PM and above" (manager, hr,
+            // management, director), same gate as BigDealController::RAISE_ROLES.
+            'canRaiseBigDeal' => $this->hasTenantRole($request, ['manager', 'hr', 'management', 'director']),
         ];
     }
 
@@ -103,6 +106,7 @@ class ProjectController extends Controller
                     'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
                     'canRaiseVariation' => ProjectMaster::financeAuthorized((string) $this->tenantRole($request)),
                     'canDecideVariation' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
+                    'canRaiseBigDeal' => $this->hasTenantRole($request, ['manager', 'hr', 'management', 'director']),
                 ])->render(),
                 'count_sel' => '#ts-proj-count',
             ]);

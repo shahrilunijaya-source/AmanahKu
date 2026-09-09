@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Attendance\HolidayEve;
+use App\Models\BigDeal;
 use App\Models\Employee;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -193,6 +194,62 @@ final class DashboardBands
             'cta' => null,
             'art' => 'stamp',
         ];
+    }
+
+    /**
+     * One moment per Big Deal still inside its 3-day dashboard window (CR-24,
+     * `BigDeal::isActive()`). Team avatars, the split "one-liner / what it took"
+     * story, photo ids and the meta line are all built here so the view stays a
+     * dumb renderer; `reactHtml` (the CR-30 picker/tally region) is stitched in
+     * by the caller afterward, same as `wishesHtml` on a birthday moment, since
+     * it needs the controller's reaction-partial renderer.
+     *
+     * @param  iterable<BigDeal>  $deals  eager-loaded raisedBy, project, workItem
+     * @return list<Moment&array{big_deal_id:int, team:list<array<string,mixed>>, photos:list<int>, story_lines:list<string>, meta:string, client_contact:?string}>
+     */
+    public static function bigDealMoments(iterable $deals, CarbonImmutable $today): array
+    {
+        $out = [];
+        foreach ($deals as $deal) {
+            if (! $deal->isActive()) {
+                continue;
+            }
+
+            $lines = preg_split('/\r?\n/', trim((string) $deal->story)) ?: [];
+            $oneLiner = array_shift($lines) ?? '';
+            $storyLines = array_values(array_filter($lines, fn (string $l) => trim($l) !== ''));
+
+            $team = $deal->members->map(fn (Employee $e) => [
+                'id' => $e->id, 'display_name' => $e->display_name,
+                'initials' => $e->initials, 'avatar_color' => $e->avatar_color,
+            ])->all();
+
+            $metaBits = ['Raised by '.($deal->raisedBy->display_name ?? '—')];
+            if ($deal->project) {
+                $metaBits[] = $deal->project->name;
+            }
+            if ($deal->track_ref) {
+                $metaBits[] = 'Track '.$deal->track_ref;
+            }
+            $metaBits[] = 'on the dashboard until '.$deal->published_at->addDays(3)->format('D j M');
+
+            $out[] = [
+                'kind' => 'big-deal',
+                'big_deal_id' => $deal->id,
+                'kicker' => ['en' => 'BIG DEAL ALERT', 'ms' => 'BIG DEAL ALERT'],
+                'title' => ['en' => $deal->title, 'ms' => $deal->title],
+                'sub' => ['en' => $oneLiner, 'ms' => $oneLiner],
+                'cta' => null,
+                'art' => 'deal',
+                'team' => $team,
+                'photos' => $deal->photos->pluck('id')->all(),
+                'story_lines' => $storyLines,
+                'meta' => implode(' · ', $metaBits),
+                'client_contact' => $deal->names_approved ? $deal->client_contact : null,
+            ];
+        }
+
+        return $out;
     }
 
     /**

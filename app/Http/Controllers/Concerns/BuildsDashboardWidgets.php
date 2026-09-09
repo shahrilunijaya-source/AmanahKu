@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Concerns;
 
 use App\Attendance\HolidayEve;
+use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
 use App\Models\AttendanceRecord;
+use App\Models\BigDeal;
 use App\Models\Claim;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
@@ -162,6 +164,18 @@ trait BuildsDashboardWidgets
             unset($moment);
 
             $moments = [...$moments, ...$birthdayMoments];
+
+            // CR-24: every Big Deal still inside its 3-day window, one moment each.
+            // The reaction region is stitched in afterward, same as a birthday
+            // moment's wishesHtml, since it needs the controller's partial renderer.
+            $bigDeals = BigDeal::with(['members', 'photos', 'raisedBy', 'project'])->get()->keyBy('id');
+            $bigDealMoments = DashboardBands::bigDealMoments($bigDeals, $today);
+            $bigDealController = app(BigDealController::class);
+            foreach ($bigDealMoments as &$moment) {
+                $moment['reactHtml'] = $bigDealController->reactPartial($bigDeals[$moment['big_deal_id']], $employee);
+            }
+            unset($moment);
+            $moments = [...$moments, ...$bigDealMoments];
 
             $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
             $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();

@@ -28,8 +28,8 @@
     @if ($moments !== [])
         <div class="uj-db-moments" x-data="{ i: {{ (int) ($bands['moments_start'] ?? 0) }}, n: {{ count($moments) }} }">
         @foreach ($moments as $idx => $m)
-            @php $isBirthday = $m['kind'] === 'birthday'; @endphp
-            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" aria-label="{{ $m['title']['en'] }}"
+            @php $isBirthday = $m['kind'] === 'birthday'; $isBigDeal = $m['kind'] === 'big-deal'; @endphp
+            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" @if ($isBigDeal) data-big-deal="{{ $m['big_deal_id'] }}" @endif aria-label="{{ $m['title']['en'] }}"
                      @if ($isBirthday)
                          x-data="{
                             dismissed: false,
@@ -66,7 +66,32 @@
                 @if ($isBirthday && ! empty($m['employee']['position']))
                     <span class="uj-db-role">{{ $m['employee']['position'] }}</span>
                 @endif
+                @if ($isBigDeal && $m['team'] !== [])
+                    <span class="uj-bd-team">
+                        @foreach ($m['team'] as $member)
+                            <span class="uj-db-avatar" data-big-deal-member="{{ $member['id'] }}" style="background:{{ $member['avatar_color'] ?? '#3a6ea5' }}">{{ $member['initials'] }}</span>
+                        @endforeach
+                        <small>{{ collect($m['team'])->pluck('display_name')->implode(', ') }}</small>
+                    </span>
+                @endif
                 <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($m['sub']['en']) : @js($m['sub']['ms'])">{{ $m['sub']['en'] }}</span>
+                @if ($isBigDeal)
+                    @if ($m['story_lines'] !== [] || $m['meta'])
+                        <div class="uj-bd-story">
+                            <b>What it took</b>
+                            @foreach ($m['story_lines'] as $line)<p>{{ $line }}</p>@endforeach
+                            <i>{{ $m['meta'] }}@if ($m['client_contact']) · {{ $m['client_contact'] }}@endif</i>
+                        </div>
+                    @endif
+                    @if ($m['photos'] !== [])
+                        <div class="uj-bd-photos">
+                            @foreach ($m['photos'] as $photoId)
+                                <img src="{{ route('big-deals.photos.show', [$m['big_deal_id'], $photoId]) }}" alt="" />
+                            @endforeach
+                        </div>
+                    @endif
+                    {!! $m['reactHtml'] ?? '' !!}
+                @endif
                 @if (! $plain && $m['art'])
                     <div class="uj-db-art" aria-hidden="true">
                         @for ($i = 0; $i < 8; $i++)

@@ -593,6 +593,7 @@ class AppController extends Controller
             'ideas' => app(IdeaController::class)->screenData($request, $employee),
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
             'awards' => app(AwardController::class)->screenData($request, $employee),
+            'wins' => app(BigDealController::class)->screenData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
             'tot-roster' => app(TotController::class)->rosterData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),

@@ -113,6 +113,8 @@ class Amanahku
             // CR-14b: monthly awards — everyone, so no `roles` key. The "Select" tab
             // inside the screen is what's gated to PM and above.
             $s('The Playground', 'The Playground', ['id' => 'awards', 'label' => 'Awards', 'label_ms' => 'Anugerah', 'icon' => 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 14L7 22l5-3 5 3-1.5-8']),
+            // CR-24: Big Deal Alerts archive, everyone reads it, no `roles` key.
+            $s('The Playground', 'The Playground', ['id' => 'wins', 'label' => 'Wins', 'label_ms' => 'Kejayaan', 'icon' => 'M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z']),
             // 'profile-test' has no sidebar row (CR-15): it is reached from the dashboard's
             // 'My working style' card and from the profile page. The screen itself stays.
 
@@ -390,6 +392,7 @@ class Amanahku
             'reports' => ['title' => 'Workforce Reports', 'title_ms' => 'Laporan Tenaga Kerja', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Insights', 'Workforce Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
             'awards' => ['title' => 'Awards', 'title_ms' => 'Anugerah', 'sub' => "This month's winners, nominations and past winners.", 'sub_ms' => 'Pemenang bulan ini, pencalonan dan pemenang terdahulu.', 'crumb' => ['Awards']],
+            'wins' => ['title' => 'Wins', 'title_ms' => 'Kejayaan', 'sub' => 'Every Big Deal Alert ever raised, newest first.', 'sub_ms' => 'Setiap Big Deal Alert yang pernah diajukan, terkini dahulu.', 'crumb' => ['Wins']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],

@@ -11,6 +11,7 @@
     $canReopen = $canReopen ?? false;
     $canRaiseVariation = $canRaiseVariation ?? false;
     $canDecideVariation = $canDecideVariation ?? false;
+    $canRaiseBigDeal = $canRaiseBigDeal ?? false;
     $hay = mb_strtolower(trim($project->name.' '.$project->code.' '.$project->project_code.' '.$project->client));
     $catIds = $project->categories->pluck('id')->all();
     $statusColours = ['planning' => 'var(--muted)', 'active' => 'var(--info)', 'closed' => 'var(--error)'];
@@ -19,7 +20,7 @@
     $pendingVariations = $project->pendingVariationsCount();
 @endphp
 <div class="uj-card" style="padding:15px 18px;margin-bottom:10px;{{ $project->is_active ? '' : 'background:var(--canvas);' }}"
-     x-data="{ edit: false, history: false, variations: false }"
+     x-data="{ edit: false, history: false, variations: false, bigDeal: false }"
      {{-- Registers this row in the parent's `items` index (search/empty-state banner)
           on both the initial render and an AJAX-appended row (Alpine.initTree runs
           x-init same as first paint) — no separate server-built index to fall stale. --}}
@@ -65,6 +66,9 @@
         @endif
         @if ($project->variations->isNotEmpty() || $canRaiseVariation)
             <button @click="variations = ! variations" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="variations ? ($store.ui.lang==='en' ? 'Hide variations' : 'Sembunyi variasi') : ($store.ui.lang==='en' ? 'Variations' : 'Variasi')">Variations</span></button>
+        @endif
+        @if ($canRaiseBigDeal)
+            <button @click="bigDeal = ! bigDeal" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="bigDeal ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Mark as Big Deal' : 'Tanda sebagai Big Deal')">Mark as Big Deal</span></button>
         @endif
         @if ($canEdit)
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
@@ -209,6 +213,72 @@
                     </div>
                 </form>
             @endif
+        </div>
+    @endif
+
+    @if ($canRaiseBigDeal)
+        <div x-show="bigDeal" x-cloak x-data="{ type: 'go_live' }" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);">
+            <form method="post" action="{{ route('big-deals.store') }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:10px;">
+                @csrf
+                <input type="hidden" name="project_id" value="{{ $project->id }}" />
+                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;"><span x-text="$store.ui.lang==='en' ? 'Mark as Big Deal' : 'Tanda sebagai Big Deal'">Mark as Big Deal</span></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <div style="width:190px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span></label>
+                        <select name="type" x-model="type" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;">
+                            <option value="go_live">Project go-live</option>
+                            <option value="tender_won">Tender won</option>
+                            <option value="claim_received">Claim received</option>
+                            <option value="uat_completed">UAT completed</option>
+                            <option value="milestone">Major milestone</option>
+                            <option value="client_compliment">Client compliment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div style="width:180px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Track ref (optional)' : 'Ruj. Track (pilihan)'">Track ref (optional)</span></label>
+                        <input name="track_ref" maxlength="100" placeholder="MS-42" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Headline' : 'Tajuk'">Headline</span></label>
+                        <input name="title" required maxlength="255" placeholder="iLPF just completed UAT" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'What it took' : 'Apa yang diperlukan'">What it took</span></label>
+                    <textarea name="story" rows="3" maxlength="4000" placeholder="Everyone involved may now breathe again." style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:12.5px;outline:none;"></textarea>
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Team' : 'Pasukan'">Team</span></label>
+                    <select name="team[]" multiple style="width:100%;min-height:76px;padding:6px 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;">
+                        @foreach ($employees as $emp)
+                            <option value="{{ $emp['id'] }}">{{ $emp['display_name'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                    <div>
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Photos (up to 3)' : 'Foto (sehingga 3)'">Photos (up to 3)</span></label>
+                        <input type="file" name="photos[]" accept="image/*" multiple style="font-size:12px;" />
+                    </div>
+                    <div x-show="type === 'client_compliment'">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Source (email/letter)' : 'Sumber (emel/surat)'">Source (email/letter)</span></label>
+                        <input type="file" name="source" accept=".pdf,.jpg,.jpeg,.png,.eml,.msg" style="font-size:12px;" />
+                    </div>
+                    <div x-show="type === 'client_compliment'" style="width:180px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Client contact' : 'Kenalan klien'">Client contact</span></label>
+                        <input name="client_contact" maxlength="255" placeholder="Puan Rahimah" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                    </div>
+                    <label x-show="type === 'client_compliment'" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);height:36px;">
+                        <input type="checkbox" name="names_approved" value="1" />
+                        <span x-text="$store.ui.lang==='en' ? 'Client name approved to show' : 'Nama klien diluluskan untuk dipapar'">Client name approved to show</span>
+                    </label>
+                </div>
+                <p style="font-size:11.5px;color:var(--muted);margin:0;"><span x-text="$store.ui.lang==='en' ? 'Shows on every dashboard for 3 days, then moves to the Wins page.' : 'Dipaparkan di setiap papan pemuka selama 3 hari, kemudian berpindah ke halaman Kejayaan.'">Shows on every dashboard for 3 days, then moves to the Wins page.</span></p>
+                <div>
+                    <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Raise Big Deal' : 'Ajukan Big Deal'">Raise Big Deal</span></button>
+                </div>
+            </form>
         </div>
     @endif
 
