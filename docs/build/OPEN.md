@@ -727,3 +727,152 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: keep the overdue/not-clocked-in lines as "situation" (rejected, the spec says never about performance or lateness, and CR-31's Keep it plain already covers people who want none of it); a server-side language switch (rejected, the app's EN/BM toggle is client-side `$store.ui.lang`, no reason to add a second mechanism).
 - Reversal cost: low. Trigger names are strings in `GreetingLine::TRIGGERS` and the seed; a rename is one migration plus the test.
 - Source: `docs/specs/CR-33.md`, `app/Support/GreetingBank.php`, `app/Models/GreetingLine.php`, `BuildsDashboardData::meHead()`.
+
+### S20 / CR-33 / birthday is unconditional and collides with CR33Test's own Tuesday-morning test
+- Question: `tests/Acceptance/CR33Test.php` sets Yati's `date_of_birth` to `1995-09-15` in
+  `setUp()` and reuses her in every test. Test 1 (`test_acceptance_1_...`) runs on
+  `2026-09-15 10:00:00` and asserts the trigger is only `morning` or `tuesday`, i.e. never
+  `birthday`. Test 3 (`test_acceptance_3_birthday_line_wins_over_every_other_bucket`) runs
+  on the SAME calendar date, `2026-09-15 09:00:00`, and asserts the trigger is `birthday`
+  on every one of 10 loads. Both use the identical employee and the identical month/day.
+  Under a plain month/day match (what CR-33 and the OPEN "shapes fixed by CR33Test" entry
+  both call for: "birthday ... personal ... wins over every other bucket"), these two
+  assertions cannot both hold — there is no time-of-day, work-item, or holiday signal in
+  either test that could legitimately gate birthday on one and not the other.
+- Decided: implemented `birthday` exactly as specified and as test 3 requires — a plain,
+  unconditional `date_of_birth` month/day match, no extra gating. This is what the CR text
+  and the CR33Test docstring both call for ("birthday (personal), joined_at month and
+  day"; "Priority stays personal > situation > day > time"). Did not invent a gate (e.g.
+  "birthday only before 10:00", "birthday only if no holiday_eve", "show birthday only
+  once per session") to force test 1 green — that would read as reverse-engineering the
+  product to satisfy one assertion, and would contradict test 3 and the plain-English CR
+  text ("birthday line wins over every other bucket"). Result: test 1 fails with a clear,
+  honest message ("load 0 showed a 'birthday' line on a plain Tuesday morning"); test 3
+  passes. This looks like an authoring collision in the frozen fixture (both tests reuse
+  the same `$this->yati` with the same DOB on the same date) rather than a real product
+  requirement gap.
+- Alternatives: gate birthday on time-of-day or on the absence of other signals (rejected,
+  contradicts test 3 and the CR text, and no such gate is named anywhere in the spec, the
+  CR33Test docstring, or the existing OPEN entry); change Yati's DOB or the test dates
+  (rejected, `tests/Acceptance/CR33Test.php` is frozen, never edited); skip birthday
+  entirely (rejected, test 3 requires it and it is explicitly in SPEC_TRIGGERS).
+- Reversal cost: cheap. `activeGreetingTriggers()`'s birthday check is one `if` block; a
+  future session that finds the real distinguishing rule (if one exists) changes only that
+  block.
+- Source: `tests/Acceptance/CR33Test.php` lines 58 (`setUp`), 80 (`test 1`), 116-119
+  (`test 3`); confirmed by running `php artisan test --compact tests/Acceptance/CR33Test.php`
+  against the finished S20 implementation — 8/9 pass, only `test_acceptance_1_...` fails,
+  with the message above.
+
+### S20 / CR-33 / month_start and back_from_leave "first load" tracked in session, not a column
+- Question: CR-33 needs "first dashboard load of the calendar month" (`month_start`) and
+  "first load after an approved leave that ended yesterday or later than the last load"
+  (`back_from_leave`). Neither signal exists anywhere in the schema yet.
+- Decided: two session keys stamped in `BuildsDashboardData::meHead()` right after
+  `activeGreetingTriggers()` reads them (so the read always sees the PREVIOUS load's
+  marker, never the one just set): `greeting.month_seen` (`Y-m` of the last non-plain
+  load) and `greeting.dash_last_load` (`Y-m-d` of the last non-plain load). This is the
+  same pattern the code already used for `greeting.last` (no-immediate-repeat). Safest
+  reversible option: no migration, no new column, nothing written for a "Keep it plain"
+  viewer, and a session that ends (browser closed, different device) just means the
+  trigger can fire again — a low-cost false positive, never a false negative that hides a
+  line HR wants shown.
+- Alternatives: a persisted `employees.dash_last_seen_month` / `dash_last_seen_at` column
+  (rejected — real per-tenant schema change for a "session-shaped" fact, and the run
+  scopes one CR's files); no memory at all, i.e. `month_start` fires on every load on the
+  1st and `back_from_leave` fires on every load once the leave has ended (rejected — spec
+  explicitly says "first load", and doing this correctly for `back_from_leave` needs it,
+  since an approved leave doesn't change state on its own the way a birthday date does).
+- Reversal cost: cheap. Two session keys; deleting them turns both triggers into
+  "fires on every load" instead of "fires once", not a breaking change to the schema.
+- Source: `tests/Acceptance/CR33Test.php` docstring lines 33-36; `app/Support/DashboardPrefs.php`
+  (ruled out storing this in `dashboard_prefs` — that JSON is strictly whitelisted to
+  `hidden`/`order`/`plain`); `app/Http/Controllers/Concerns/BuildsDashboardData.php` (existing
+  `greeting.last` precedent).
+
+### S20 / CR-33 / all_clear requires an open card, not just "nothing overdue"
+- Question: CR-33 defines `all_clear` as "no open card past due". Read literally, an
+  employee with ZERO work items also has "no open card past due" and would trip this on
+  every quiet day, which would outrank `friday`/`evening`/any day-or-time line for anyone
+  with an empty board — this is exactly what `tests/Acceptance/CR33Test.php` test 2
+  (Friday 4pm, Yati has no cards at all) needs to NOT happen.
+- Decided: `all_clear` requires (a) at least one open, non-archived, non-cancelled,
+  non-event work item AND (b) none of those open items is overdue. An empty board is
+  neutral, not "all clear" — there is nothing to be clear of.
+- Alternatives: "no overdue card" with no open-card requirement (rejected — breaks test 2
+  as described above, and reads oddly as a greeting for someone who simply has no board
+  activity at all).
+- Reversal cost: cheap, one boolean condition in `activeGreetingTriggers()`.
+- Source: `docs/specs/CR-33.md`; `tests/Acceptance/CR33Test.php` test 2 (Friday 4pm, no
+  cards, expects `friday`/`evening` to win); verified empirically with
+  `tests/Feature/GreetingTriggersTest.php::test_all_clear_does_not_fire_with_no_open_cards_at_all`.
+
+### S20 / CR-33 / long_weekend definition and a sqlite date-storage trap
+- Question: CR-33 says `long_weekend` is "a public holiday adjoining the coming weekend",
+  without saying which weekend (the current one, if today is already Sat/Sun) or exactly
+  which two adjoining days count.
+- Decided: the coming Saturday/Sunday relative to `now` (today's own weekend if today is
+  already Sat or Sun, otherwise the next one), and the two days that would extend it into
+  a long weekend: the Friday immediately before it, or the Monday immediately after it.
+  Fires if a `PublicHoliday` row exists on either of those two dates, tenant-scoped. Hit a
+  real bug while building this: `PublicHoliday::date` is cast `'date'` but Eloquent still
+  serialises it for storage as a full `Y-m-d H:i:s` string (`2026-09-11 00:00:00`, not
+  `2026-09-11`), so an exact-string `whereIn('date', [...])` silently matched nothing —
+  same class of trap the memory bank already warns about ("never assert raw date/time
+  column values"). Fixed by using `whereDate('date', ...)` (applies SQL `date()`, immune
+  to the stored time-of-day suffix), matching the existing pattern other date-range
+  queries on this column already use loosely (`HolidayEve::forDay()`'s `whereBetween`).
+- Alternatives: none seriously considered for the definition itself — no frozen test
+  constrains this trigger's exact boundary, so the plain reading of the CR text was used
+  directly.
+- Reversal cost: cheap, isolated to `BuildsDashboardData::isLongWeekend()`.
+- Source: `docs/specs/CR-33.md`; `app/Attendance/HolidayEve.php` (reference pattern);
+  verified with `tests/Feature/GreetingTriggersTest.php::test_long_weekend_fires_when_a_holiday_adjoins_the_coming_weekend`.
+
+### S20 / CR-33 / rain ships wired to a flag but not to any signal
+- Question: CR-33 and the existing OPEN entry both say weather lines (`rain`) only show
+  when `config('services.weather.enabled')` is true, which ships unset. No weather source
+  or port exists in `docs/build/contracts/ports.md`, and RULES forbids calling any real
+  external service.
+- Decided: added the `services.weather.enabled` config flag (mirrors CR-19's `auto_done`
+  pattern exactly) and `AMANAHKU_WEATHER_ENABLED=false` in `.env.example`, added `rain` to
+  `GreetingLine::TRIGGERS` and >=3 EN+BM bank lines so HR can curate rain copy in advance —
+  but `activeGreetingTriggers()` never adds `rain` to the active trigger list under any
+  configuration, since there is no real rain signal to check. A future session that adds a
+  weather port can wire the real check behind the existing flag without touching the bank
+  or the trigger definition.
+- Alternatives: leave the flag permanently true-safe by never adding it at all (rejected,
+  the CR33Test docstring explicitly names the flag by its config path, so HR/QA expect it
+  to exist); fake a "rain" signal off some unrelated existing field (rejected, would be
+  fabricated, not a real signal, and against RULES' no-external-service / no-fake-data
+  spirit).
+- Reversal cost: cheap. Flag and bank lines stay inert until a real check is added.
+- Source: `tests/Acceptance/CR33Test.php` line 36-37; `config/services.php` `auto_done` block
+  (CR-19 pattern); verified with
+  `tests/Feature/GreetingTriggersTest.php::test_rain_never_fires_even_when_the_weather_flag_is_enabled`.
+
+### S20 / CR-33 / reworded a handful of pre-existing bank lines to actually satisfy the forbidden-word rule
+- Question: CR-33's "never about performance or lateness" rule bans several substrings
+  (including "late") from any SHOWN line. Two problems found in the bank that predates
+  this session, neither exercised by a frozen test until the new triggers made the
+  personal bucket reachable together with `assertCleanLine` checks: (1) the existing
+  `birthday` line "Cake first, inbox later." contains "later", which contains "late" as a
+  substring; (2) the pre-existing `late` (after-10pm) trigger's own lines literally used
+  the words "late"/"lewat" (e.g. "It is late, {name}." / "Late night, {name}."); (3) two
+  lines (pre-existing `monday`, and this session's new `month_start`) used "clean slate.",
+  and "slate" also contains "late" as a substring.
+- Decided: reworded all of the above (e.g. "inbox can wait", "Wrapping up, {name}?",
+  "fresh start" instead of "clean slate") so no approved line anywhere in the bank can
+  trip `assertCleanLine`'s substring check, in either language. None of these lines were
+  required reading by CR-33's explicit scope (only `overdue`/`not_clocked_in` were named
+  for removal), but leaving them in with the literal forbidden word felt like it defeated
+  the point of the rule the CR is actually pinning down.
+- Alternatives: leave them as-is since no frozen test currently exercises them (`late`
+  never fires in any frozen test's time window; the `monday`/`month_start` "slate" lines
+  were never checked by a test that also calls `assertCleanLine` on that exact bucket)
+  (rejected — cheap, low-risk wording fix, and a future QA pass or a Monday-morning
+  acceptance test would otherwise fail on a bug this session already knew about and could
+  fix in one line each).
+- Reversal cost: cheap, text-only changes to `GreetingBank::DEFAULTS`.
+- Source: `tests/Acceptance/CR33Test.php::assertCleanLine`/`FORBIDDEN`; found by scripting
+  a substring scan of the full `DEFAULTS` array during this session.
