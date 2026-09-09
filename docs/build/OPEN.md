@@ -658,3 +658,58 @@ These are already known before the run starts. A session that hits one of them s
   attributes are additive.
 - Source: `docs/specs/CR-19.md`, `docs/build/RULES.md` (flag off, calendar row deferred),
   `tests/Acceptance/CR11Test.php` (event fixture reused), `tests/Acceptance/CR14bTest.php`.
+
+### S19 / CR-19 / audit `source` value and who closes a select card on publish
+- Question: two details `CR19Test`'s docblock names but does not pin exactly — (1) the
+  CR-19 spec text says an auto-close audit row's `source` should read "system" or
+  "sync job", but the frozen `docs/build/contracts/audit-log.md` enum is
+  `ui/api/mcp/job/sync` — no "system" or "sync job" value exists to write; (2) whether
+  `awards:publish` closes only the select card of whoever actually made a pick, or every
+  still-open select card for the month regardless of who.
+- Decided: (1) never hand-write a `source` literal for an auto-close — every close goes
+  through `App\Support\AutoDone`, which saves the `WorkItem` model directly rather than a
+  bulk query-builder update, so `AuditsChanges` fires and `App\Support\AuditContext::source()`
+  picks the value itself (`job` for the console-run scheduler, `ui`/`api` for a
+  controller-triggered close such as marking attendance) — always a value the contract's
+  enum actually has. (2) `AwardsPublish::publishTenant()` sweeps every open
+  `source_ref = '<month>-select'` card after `awards.published` is recorded and closes each
+  through `AutoDone::done()`, not only the picker's own card. Confirmed as the intended
+  shape by `CR19Test::test_acceptance_3`, where Kussairi's select card closes on
+  `awards:publish` even though nobody ever calls `POST /app/awards/select` for that month.
+- Alternatives: (1) write `source: 'system'` as a new enum value (rejected, `audit-log.md`
+  is frozen and out of scope for this CR; the auto-detected `job`/`ui`/`api` values already
+  say who or what triggered the change, which is what the column is for); (2) only close
+  the picker's own select card on `select()` and leave everyone else's for a human to close
+  by hand (rejected, contradicts the acceptance test directly).
+- Reversal cost: cheap. Both are internal to `AutoDone`/`AwardsPublish::publishTenant()`; no
+  schema or route changes ride on either choice.
+- Source: `tests/Acceptance/CR19Test.php::test_acceptance_3...` (Kussairi's card closes on
+  publish, never on a `select()` call), `docs/build/contracts/audit-log.md` (frozen `source`
+  enum), `app/Support/AuditContext.php`.
+
+### S19 / pre-existing / LeaveScreenTabsTest replacement-refund failure not caused by CR-19
+- Question: the mandatory end-of-session full suite
+  (`php artisan test --compact`, 2908 tests) came back with one failure —
+  `Tests\Feature\LeaveScreenTabsTest::test_cancelling_an_approved_replacement_refunds_the_quota`,
+  line 732, "Failed asserting that 1.0 matches expected 0.0." — does that block the CR-19
+  commit?
+- Decided: no, commit CR-19. Confirmed the failure is pre-existing and unrelated: (1) no
+  file CR-19 touches (`app/Models/WorkItem.php`, `app/Http/Controllers/WorkItemController.php`,
+  `app/Http/Controllers/EventController.php`, `app/Models/CompanyEvent.php`,
+  `app/Http/Controllers/AwardController.php`, `app/Console/Commands/AwardsPublish.php`,
+  `app/Support/Awards.php`, `app/Support/ManagementExceptions.php`, `bootstrap/app.php`,
+  `config/services.php`, plus Blade/CSS) has anything to do with leave or replacement
+  quota; (2) built a detached worktree at clean `HEAD` (before any S19 change) and ran
+  `tests/Feature/LeaveScreenTabsTest.php` there — same single failure, same assertion. The
+  leave-replacement-quota feature (`6adfb05c feat(leave): grant replacement quota instead
+  of booking the days`) already carries this bug on `dev`, independent of this session.
+- Alternatives: fix it inside S19 (rejected — out of CR-19's scope, and RULES/CLAUDE.md say
+  one CR per session, no adjacent work); hold the CR-19 commit until someone fixes it
+  (rejected — S19 has no visibility into leave/quota code and Shazwan is unavailable to
+  reassign a session for it; blocking the last feature session of the run on an unrelated
+  pre-existing bug serves nobody).
+- Reversal cost: none, this is a report not a code change.
+- Source: full-suite run (`php artisan test --compact`, this session), isolated run of
+  `tests/Feature/LeaveScreenTabsTest.php` on this worktree, and the same file run again on
+  a detached worktree at clean `HEAD` (`a0689e8c`) with no S19 changes present — identical
+  failure in both.
