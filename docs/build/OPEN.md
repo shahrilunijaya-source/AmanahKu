@@ -890,3 +890,17 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: eggs as moments in the CR-32 moments band (rejected, moments show every load and the contract keeps that band for birthday/holiday/awards moments, an egg is a one-off aside); a session flag for once-a-day (rejected, a second device or login would show it again); reusing `greeting_lines` with an egg bucket (rejected, the greeting picker would have to skip it on every load).
 - Reversal cost: low. One table, one view element, one JSON key; the CSS guard is a body attribute.
 - Source: `docs/specs/CR-31.md`, `docs/specs/culture-pack-preamble.md`, `docs/build/contracts/dashboard-slots.md`, OPEN "QA / CR-06a / Keep it plain still leaves shell animations running".
+
+### S21 / CR-31 / tab collector built as a localStorage heartbeat, not BroadcastChannel
+- Question: CR-31 names two viable client-side mechanisms for counting "Amanahku's own open windows" (`BroadcastChannel('amanahku-tabs')` or a `localStorage` heartbeat) and leaves the choice open; item 6 is a human check, so no test decides it either.
+- Decided: a `localStorage` heartbeat (`resources/views/layouts/app.blade.php`, before `</body>`) — each tab writes `{tabId: timestamp}` into one shared key every 4s and prunes entries older than 10s, so the live count is the number of fresh entries. Under 30 lines, wrapped in try/catch, skipped entirely when `document.body` carries `data-plain`, no sound.
+- Alternatives: `BroadcastChannel` (rejected — needs every tab to answer a ping and reconcile a live roster, more moving parts for the same outcome; also unsupported in Safari < 15.4, which `localStorage` is not). Server-side tab counting (rejected — CR text is explicit this is client-side only, "browser can't see other sites" applies just as much to Amanahku's own server).
+- Reversal cost: cheap — swap the storage mechanism inside the one `<script>` block, nothing else depends on it.
+- Source: `docs/specs/CR-31.md` ("Tab detection limited to Amanahku's own open windows").
+
+### S21 / CR-31 / no employee-suggest route for the egg bank
+- Question: CR-33's greeting bank has an employee-suggest flow (`POST /app/greetings/suggest`) that this session's HR bank card was modelled on; CR-31 and CR31Test name only the three HR routes (store/update/delete), no suggestion path.
+- Decided: no suggest route or UI for easter eggs — HR-added lines are auto-approved (same as `GreetingLineController::store`), there is no pending state reachable through the app, so the settings card omits the "pending suggestions" block the greetings card has.
+- Alternatives: build a matching suggest flow for symmetry with CR-33 (rejected — not asked for by the CR text, `CR31Test`, or the shapes OPEN entry above; adding it would be scope the CR didn't request).
+- Reversal cost: cheap — copy `GreetingLineController::suggest()` and the picker's suggest form if Shazwan wants it later.
+- Source: `docs/specs/CR-31.md`, `tests/Acceptance/CR31Test.php` (no suggest route exercised).
