@@ -546,6 +546,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/awards/{result}/react', [AwardController::class, 'react'])->name('awards.react');
         Route::post('/app/awards/{result}/comments', [AwardController::class, 'comment'])->name('awards.comments');
         Route::post('/app/awards/{result}/adjust', [AwardController::class, 'adjust'])->name('awards.adjust');
+        // CR-27: the Mystery Award — director/committee pick and the director-only
+        // committee roster, both on the Awards screen's Select tab.
+        Route::post('/app/awards/mystery', [AwardController::class, 'mysteryPick'])->name('awards.mystery.pick');
+        Route::post('/app/awards/mystery/committee', [AwardController::class, 'mysteryCommittee'])->name('awards.mystery.committee');
         // CR-24: Big Deal Alert — raised from a project or T.A.A. card, shown on the
         // dashboard's moments band for 3 days, archived to /app/wins after (screen
         // route rides the existing /app/{screen} catch-all, see AppController).

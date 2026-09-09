@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\AwardResult;
+use App\Models\Employee;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,12 +25,16 @@ use Illuminate\Support\Facades\DB;
  */
 final class AwardBoard
 {
-    /** @return Collection<int, object{award_key:string, winners: Collection<int, AwardResult>, copy: array, primaryResultId: int, label: string, reason: ?string, source: string, reactionCount: int, comments: Collection}> */
+    /**
+     * @return Collection<int, object{award_key:string, winners: Collection<int, AwardResult>, copy: array, primaryResultId: int, label: string, reason: ?string, source: string, reactionCount: int, comments: Collection}|object{award_key:string, employee: ?Employee, employee_id: int, category: string, explanation: string, byDirector: bool, monthLabel: string}>
+     */
     public static function slidesForMonth(string $monthDate): Collection
     {
+        $mystery = self::mysterySlide($monthDate);
+
         $results = AwardResult::whereDate('month', $monthDate)->with('employee:id,name,nickname,position_id,avatar_color,initials')->orderBy('id')->get();
         if ($results->isEmpty()) {
-            return collect();
+            return $mystery === null ? collect() : collect([$mystery]);
         }
 
         $primaryIds = $results->groupBy('award_key')->map(fn (Collection $rows) => $rows->sortBy('id')->first()->id);
@@ -44,7 +50,7 @@ final class AwardBoard
 
         $order = AwardCatalog::order();
 
-        return $results->groupBy('award_key')
+        $slides = $results->groupBy('award_key')
             ->sortBy(fn (Collection $rows, string $key) => array_search($key, $order, true))
             ->values()
             ->map(function (Collection $rows) use ($reactionCounts, $comments) {
@@ -62,6 +68,37 @@ final class AwardBoard
                     'comments' => $comments->get($primary->id, collect()),
                 ];
             });
+
+        return $mystery === null ? $slides : $slides->push($mystery);
+    }
+
+    /**
+     * CR-27: the Mystery Award is never an `award_results` row (it must never reach the
+     * rule-9/10 resolver, Hall of Fame or the profile badge), so it is looked up on the
+     * side and appended last by the caller. Null until `awards:publish` stamps
+     * `published_at` — before that the category and explanation stay off every page.
+     */
+    private static function mysterySlide(string $monthDate): ?object
+    {
+        $row = DB::table('mystery_awards')->where('tenant_id', app(CurrentTenant::class)->id())
+            ->whereDate('month', $monthDate)->whereNotNull('published_at')->first();
+        if ($row === null) {
+            return null;
+        }
+
+        $picker = Employee::find($row->picked_by);
+        $tenant = app(CurrentTenant::class)->get();
+        $byDirector = $tenant !== null && $picker?->user?->roleIn($tenant) === 'director';
+
+        return (object) [
+            'award_key' => 'mystery',
+            'employee' => Employee::find($row->employee_id),
+            'employee_id' => (int) $row->employee_id,
+            'category' => $row->category,
+            'explanation' => $row->explanation,
+            'byDirector' => $byDirector,
+            'monthLabel' => Carbon::parse($monthDate)->format('F'),
+        ];
     }
 
     /** Every month with published results, newest first, as 'Y-m-d'. @return list<string> */

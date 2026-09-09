@@ -171,7 +171,7 @@
             <div class="uj-db-awards-track">
                 @forelse ($awardSlides as $idx => $group)
                     <div x-show="i === {{ $idx }}" @if ($idx !== 0) style="display:none" @endif>
-                        @include('partials.awards.result', ['group' => $group, 'attr' => 'slide'])
+                        @include($group->award_key === 'mystery' ? 'partials.awards.mystery' : 'partials.awards.result', ['group' => $group, 'attr' => 'slide'])
                     </div>
                 @empty
                     <p class="uj-db-awards-empty" x-text="$store.ui.lang==='en' ? 'Not published yet, check back soon.' : 'Belum diterbitkan, sila semak semula tidak lama lagi.'">Not published yet, check back soon.</p>
@@ -184,7 +184,7 @@
                     @foreach ($awardSlides as $idx => $group)
                         <button type="button" role="tab" :aria-selected="i === {{ $idx }}" @click="stop(); i = {{ $idx }}"
                                 :style="{ background: i === {{ $idx }} ? 'var(--ink)' : 'var(--hairline)' }"
-                                style="width:8px;height:8px;border-radius:50%;border:0;padding:0;cursor:pointer;" aria-label="{{ $group->copy['en']['name'] }}"></button>
+                                style="width:8px;height:8px;border-radius:50%;border:0;padding:0;cursor:pointer;" aria-label="{{ $group->award_key === 'mystery' ? 'Mystery Award' : $group->copy['en']['name'] }}"></button>
                     @endforeach
                     <button type="button" data-carousel-next aria-label="Next award" @click="go(1)" style="border:1px solid var(--hairline);background:transparent;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">&rsaquo;</button>
                 </div>

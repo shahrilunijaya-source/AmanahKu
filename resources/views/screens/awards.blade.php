@@ -3,10 +3,14 @@
 @php
     $slides = $slides ?? collect();
     $pastMonths = $pastMonths ?? [];
-    $canSelect = ($canSelectNewButDangerous ?? false) || ($canSelectChosenOne ?? false);
+    $canSelect = ($canSelectNewButDangerous ?? false) || ($canSelectChosenOne ?? false) || ($isMysteryCommitteeMember ?? false);
     // QA S18 F2: after a plain form post the page comes back on the tab that was used.
+    // CR-27: the mystery pick/committee forms carry no award_key, so a validation
+    // failure on either falls back to their own fields to land back on Select.
     $tab = session('tab', $errors->any()
-        ? (old('award_key') === null ? 'winners' : (in_array(old('award_key'), ['new_but_dangerous', 'chosen_one'], true) ? 'select' : 'nominate'))
+        ? (old('award_key') !== null
+            ? (in_array(old('award_key'), ['new_but_dangerous', 'chosen_one'], true) ? 'select' : 'nominate')
+            : ((old('category') !== null || old('employee_ids') !== null) ? 'select' : 'winners'))
         : 'winners');
 @endphp
 
@@ -54,7 +58,7 @@
         @else
             <p style="font-size:12px;color:var(--muted);margin:0 0 6px;">{{ \Carbon\Carbon::parse($month)->format('F Y') }}</p>
             @foreach ($slides as $group)
-                @include('partials.awards.result', ['group' => $group, 'attr' => 'award', 'canAdjust' => $canAdjust ?? false, 'colleagues' => $colleagues ?? collect()])
+                @include($group->award_key === 'mystery' ? 'partials.awards.mystery' : 'partials.awards.result', ['group' => $group, 'attr' => 'award', 'canAdjust' => $canAdjust ?? false, 'colleagues' => $colleagues ?? collect()])
             @endforeach
         @endif
     </div>
@@ -126,6 +130,56 @@
                     </div>
                     <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;">Pick</button>
                 </form>
+            @endif
+
+            {{-- CR-27: director or that month's rotating mystery committee only. --}}
+            @if (($isDirector ?? false) || ($isMysteryCommitteeMember ?? false))
+                <div style="border-top:1px solid var(--hairline);padding-top:16px;">
+                    <div class="uj-ma-h">&#9993;&#65039; Mystery Award</div>
+                    <p class="uj-ma-hint" style="margin:2px 0 10px;">One surprise a month. No rubric, no points, never counts. Category unknown to everyone until the 1st.</p>
+
+                    @if ($mysteryPicked ?? false)
+                        <div class="uj-ma-sealed" data-mystery-picked="{{ $mysteryMonth }}">
+                            <span class="env" aria-hidden="true">&#9993;&#65039;</span>
+                            <span>Sealed. A pick for {{ \Carbon\Carbon::parse($mysteryMonth)->format('F') }} is in. Category and reason stay hidden, even here, until the reveal on the 1st. Picking again replaces it.</span>
+                        </div>
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-size:12.5px;color:var(--muted);">Pick again</summary>
+                            <div style="margin-top:10px;">
+                                @include('partials.awards.mystery-form', ['colleagues' => $colleagues ?? collect(), 'mysteryLastWinnerId' => $mysteryLastWinnerId ?? null])
+                            </div>
+                        </details>
+                    @else
+                        @include('partials.awards.mystery-form', ['colleagues' => $colleagues ?? collect(), 'mysteryLastWinnerId' => $mysteryLastWinnerId ?? null])
+                    @endif
+
+                    @if ($isDirector ?? false)
+                        <div style="margin-top:16px;">
+                            <div class="uj-ma-h">Mystery committee &middot; {{ \Carbon\Carbon::parse($mysteryMonth)->format('F') }}</div>
+                            <div class="uj-ma-chips" style="margin-top:6px;">
+                                @forelse ($mysteryCommitteeMembers ?? [] as $m)
+                                    <span class="uj-ma-chip"><span class="uj-db-avatar" style="background:{{ $m->avatar_color ?? '#3a6ea5' }};">{{ $m->initials }}</span>{{ $m->display_name }}</span>
+                                @empty
+                                    <span class="uj-ma-hint">No committee set for this month yet.</span>
+                                @endforelse
+                            </div>
+                            <details style="margin-top:8px;">
+                                <summary class="uj-btn-ghost" style="cursor:pointer;display:inline-block;font-size:12px;padding:4px 10px;">Change</summary>
+                                <form method="post" action="{{ url('/app/awards/mystery/committee') }}" style="display:flex;flex-direction:column;gap:8px;max-width:420px;margin-top:8px;">
+                                    @csrf
+                                    @for ($i = 0; $i < 3; $i++)
+                                        <select name="employee_ids[]" required style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
+                                            @foreach ($colleagues ?? [] as $c)
+                                                <option value="{{ $c->id }}">{{ $c->display_name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endfor
+                                    <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;">Save committee</button>
+                                </form>
+                            </details>
+                        </div>
+                    @endif
+                </div>
             @endif
         </div>
     @endif

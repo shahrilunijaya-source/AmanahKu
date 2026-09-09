@@ -101,6 +101,12 @@ class AwardsPublish extends Command
         $winCounts = [];
         $rows = [];
 
+        // CR-27: reveal last month's Mystery Award, if one was picked. Never an
+        // award_results row, so this update is the only place published_at gets set;
+        // a month with a mystery pick and nothing else still must reveal on time.
+        DB::table('mystery_awards')->where('tenant_id', $tenantId)->whereDate('month', $month->toDateString())
+            ->whereNull('published_at')->update(['published_at' => $publishedAt, 'updated_at' => $publishedAt]);
+
         foreach (Awards::KEYS as $key) {
             $rows = [...$rows, ...$this->publishAward($key, $snapshot->get($key, collect()), $previousWinners->get($key, []), $winCounts, 'auto', $tenantId, $month, $publishedAt)];
         }

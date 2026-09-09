@@ -43,6 +43,11 @@ class AwardController extends Controller
             ? $requested
             : ($pastMonths[0] ?? null);
 
+        $isDirector = $this->hasTenantRole($request, ['director']);
+        $selectionMonth = $this->selectionMonth();
+        $mysteryCommitteeIds = $this->mysteryCommitteeIds($selectionMonth);
+        $isMysteryCommitteeMember = $employee !== null && in_array($employee->id, $mysteryCommitteeIds, true);
+
         return [
             'month' => $month,
             'pastMonths' => $pastMonths,
@@ -55,7 +60,117 @@ class AwardController extends Controller
             'canAdjust' => $this->hasTenantRole($request, ['director']),
             'colleagues' => Employee::active()->where('id', '!=', $employee?->id)->orderBy('name')->get(['id', 'name', 'nickname']),
             'activeReactionKeys' => Reaction::activeKeys(),
+            // CR-27: never expose category/explanation here, only that a pick exists.
+            'isDirector' => $isDirector,
+            'isMysteryCommitteeMember' => $isMysteryCommitteeMember,
+            'mysteryMonth' => $selectionMonth->toDateString(),
+            'mysteryPicked' => DB::table('mystery_awards')->where('tenant_id', app(CurrentTenant::class)->id())
+                ->whereDate('month', $selectionMonth->toDateString())->exists(),
+            'mysteryCommitteeMembers' => $mysteryCommitteeIds === []
+                ? collect()
+                : Employee::whereIn('id', $mysteryCommitteeIds)->orderBy('name')->get(['id', 'name', 'nickname', 'avatar_color', 'initials']),
+            // Only when last month's mystery result is already published — otherwise it is
+            // still sealed and the "(won last month)" hint would be the leak itself.
+            'mysteryLastWinnerId' => DB::table('mystery_awards')->where('tenant_id', app(CurrentTenant::class)->id())
+                ->whereDate('month', $selectionMonth->copy()->subMonthNoOverflow()->startOfMonth()->toDateString())
+                ->whereNotNull('published_at')->value('employee_id'),
         ];
+    }
+
+    /** CR-27: director or that month's rotating 3-person committee writes the pick. */
+    public function mysteryPick(Request $request): JsonResponse|RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403);
+
+        $month = $this->selectionMonth();
+        $isDirector = $this->hasTenantRole($request, ['director']);
+        $isCommittee = in_array($employee->id, $this->mysteryCommitteeIds($month), true);
+        abort_unless($isDirector || $isCommittee, 403);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'category' => ['required', 'string', 'max:80'],
+            'explanation' => ['required', 'string', 'max:500'],
+        ]);
+
+        // OPEN.md S27/CR-27: self-picks. The Select-tab dropdown already excludes the
+        // picker (screenData()'s `colleagues` list), but that's cosmetic only — refuse
+        // server-side too, since RULES' "undecided detail" default is the more
+        // restrictive option and no acceptance test constrains this either way.
+        if ((int) $data['employee_id'] === (int) $employee->id) {
+            throw ValidationException::withMessages(['employee_id' => 'Cannot pick yourself for the Mystery Award.']);
+        }
+
+        $tenantId = app(CurrentTenant::class)->id();
+        $previousMonth = $month->copy()->subMonthNoOverflow()->startOfMonth();
+        $previousWinner = DB::table('mystery_awards')->where('tenant_id', $tenantId)
+            ->whereDate('month', $previousMonth->toDateString())->value('employee_id');
+        if ($previousWinner !== null && (int) $previousWinner === (int) $data['employee_id']) {
+            throw ValidationException::withMessages(['employee_id' => 'Cannot win the Mystery Award two months in a row.']);
+        }
+
+        $winner = Employee::findOrFail($data['employee_id']);
+
+        DB::table('mystery_awards')->where('tenant_id', $tenantId)->whereDate('month', $month->toDateString())->delete();
+        $now = now();
+        $id = DB::table('mystery_awards')->insertGetId([
+            'tenant_id' => $tenantId,
+            'month' => $month->toDateString(),
+            'employee_id' => $winner->id,
+            'category' => $data['category'],
+            'explanation' => $data['explanation'],
+            'picked_by' => $employee->id,
+            'published_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        AuditLog::record('award.mystery_picked', "mystery:{$id}");
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Sealed. Stays hidden until the reveal.')->with('tab', 'select');
+    }
+
+    /** CR-27: director sets the rotating 3-person mystery committee for the selection month. */
+    public function mysteryCommittee(Request $request): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['director']);
+
+        $data = $request->validate([
+            'employee_ids' => ['required', 'array', 'size:3'],
+            'employee_ids.*' => ['integer'],
+        ]);
+
+        $ids = collect($data['employee_ids'])->map(fn ($id) => (int) $id);
+        $tenantId = app(CurrentTenant::class)->id();
+
+        if ($ids->unique()->count() !== 3 || Employee::whereIn('id', $ids->unique())->active()->count() !== 3) {
+            throw ValidationException::withMessages(['employee_ids' => 'Pick exactly three different active colleagues.']);
+        }
+
+        $month = $this->selectionMonth();
+        DB::table('mystery_committee')->where('tenant_id', $tenantId)->whereDate('month', $month->toDateString())->delete();
+        $now = now();
+        DB::table('mystery_committee')->insert($ids->unique()->values()->map(fn (int $id) => [
+            'tenant_id' => $tenantId,
+            'month' => $month->toDateString(),
+            'employee_id' => $id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
+
+        AuditLog::record('award.mystery_committee', 'mystery_committee:'.$month->toDateString());
+
+        return back()->with('ok', 'Committee saved.')->with('tab', 'select');
+    }
+
+    /** @return list<int> */
+    private function mysteryCommitteeIds(Carbon $month): array
+    {
+        return DB::table('mystery_committee')->where('tenant_id', app(CurrentTenant::class)->id())
+            ->whereDate('month', $month->toDateString())->pluck('employee_id')->map(fn ($id) => (int) $id)->all();
     }
 
     /** CR-14: peer nomination for main_character/office_yoda, last 7 days of the month only. */

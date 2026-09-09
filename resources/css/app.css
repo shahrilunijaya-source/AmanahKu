@@ -5018,6 +5018,32 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-mgmt-btn { font-size:11.5px; padding:3px 8px; border-radius:6px; border:1px solid var(--hairline); background:var(--card); color:var(--ink); cursor:pointer; }
 .uj-mgmt-empty { color:var(--muted-soft); font-size:12.5px; padding:4px 2px; }
 .uj-db-awards { background:var(--amber-tint); border-color:var(--amber-line); }
+/* CR-27 Mystery Award — dashboard slide and Awards screen Select tab (docs/build/sessions/S27/mockup) */
+.uj-ma-slide { display:flex; flex-direction:column; gap:6px; padding:14px 0; }
+.uj-ma-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:#8a5a00; display:inline-flex; align-items:center; gap:6px; }
+.uj-ma-env { font-size:22px; line-height:1; }
+.uj-ma-cat { font-size:22px; font-weight:700; color:var(--ink); line-height:1.15; letter-spacing:-.01em; }
+.uj-ma-sub { font-size:12.5px; color:var(--muted); }
+.uj-ma-who { display:flex; align-items:center; gap:8px; margin-top:6px; }
+.uj-ma-who .n { font-size:13.5px; font-weight:600; color:var(--ink); }
+.uj-ma-who .p { font-size:12px; color:var(--muted); }
+.uj-ma-why { font-size:13px; color:var(--body); line-height:1.5; margin:4px 0 0; font-style:italic; max-width:560px; }
+.uj-ma-by { font-size:11.5px; color:var(--muted); }
+.uj-ma-reveal { animation: uj-ma-in .5s ease-out; }
+@keyframes uj-ma-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+[data-plain] .uj-ma-reveal { animation:none; }
+.uj-ma-form { display:flex; flex-direction:column; gap:10px; max-width:420px; }
+.uj-ma-form label { display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; }
+.uj-ma-form select, .uj-ma-form input, .uj-ma-form textarea { width:100%; border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--ink); background:#fff; }
+.uj-ma-form select, .uj-ma-form input { height:38px; }
+.uj-ma-form .uj-btn-primary { height:38px; padding:0 18px; font-size:13px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+.uj-ma-hint { font-size:11.5px; color:var(--muted); }
+.uj-ma-sealed { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed #d9b36a; background:#fff8e8; border-radius:10px; font-size:12.5px; color:#6b4a00; }
+.uj-ma-sealed .env { font-size:20px; line-height:1; }
+.uj-ma-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.uj-ma-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; border:1px solid var(--hairline); border-radius:9999px; padding:4px 10px 4px 4px; background:#fff; }
+.uj-ma-chip .uj-db-avatar { width:22px; height:22px; font-size:9.5px; }
+.uj-ma-h { font-size:13px; font-weight:600; color:var(--ink); }
 .uj-db-moment .uj-db-k { color:var(--red); }
 .uj-db-moment .uj-db-cta { background:var(--red); color:#fff; }
 /* ornament zone on the right; the copy never runs under it */
