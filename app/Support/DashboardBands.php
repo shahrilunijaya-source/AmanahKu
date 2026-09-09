@@ -385,6 +385,43 @@ final class DashboardBands
     }
 
     /**
+     * CR-22 (session S28): the company Wrapped moment, shown from the month's first
+     * working day through the 7th (same window as the awards slot — `awardsWindowOpen()`
+     * is reused rather than re-implemented) whenever last month's company story exists.
+     * The sentence is rendered as flat, unstyled text (numbers inline, no wrapping tag)
+     * because `CR22Test::test_acceptance_3` asserts the literal substrings
+     * ("9 cards closed", etc.) directly against raw HTML with no `strip_tags` — any tag
+     * between a number and the following word breaks that contiguous match. The four
+     * `[data-wrapped-stat]` carriers the same test's `stat()` helper needs are a separate
+     * concern, rendered as hidden spans by the view, not by this builder.
+     *
+     * $companyStory is a `WrappedStory` (typed as plain `object` here, matching this
+     * file's existing convention for Eloquent-model params — see `bigDealMoments()` /
+     * `victoryBellMoments()` — since Larastan can't resolve a method-based `casts()`
+     * array cast into a static property type for a stricter shape annotation).
+     *
+     * @return Moment&array{wrapped_story_id:int, stats:array{cards_closed:int, lessons_shared:int, fires:int, urgent:int}}
+     */
+    public static function wrappedMoment(object $companyStory, CarbonImmutable $month): array
+    {
+        $stats = $companyStory->cards;
+        $monthName = $month->format('F');
+        $sentence = "{$stats['cards_closed']} cards closed, {$stats['lessons_shared']} lessons shared, "
+            ."{$stats['fires']} fires extinguished and only {$stats['urgent']} \"urgent\" tasks.";
+
+        return [
+            'kind' => 'wrapped',
+            'wrapped_story_id' => $companyStory->id,
+            'kicker' => ['en' => strtoupper($monthName).', WRAPPED', 'ms' => strtoupper($month->locale('ms')->translatedFormat('F')).', WRAPPED'],
+            'title' => ['en' => "Unijaya's {$monthName} in one breath", 'ms' => "{$monthName} Unijaya dalam satu nafas"],
+            'sub' => ['en' => $sentence, 'ms' => $sentence],
+            'cta' => ['label' => ['en' => 'My Wrapped', 'ms' => 'Wrapped Saya'], 'url' => '/app/wrapped'],
+            'art' => null,
+            'stats' => $stats,
+        ];
+    }
+
+    /**
      * Whether today falls in the awards window: from the month's first working day
      * (weekends and public holidays are not working days) through the 7th.
      *

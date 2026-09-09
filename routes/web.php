@@ -98,6 +98,7 @@ use App\Http\Controllers\WelcomeWizardController;
 use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
+use App\Http\Controllers\WrappedController;
 use App\Support\Changelog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -557,6 +558,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/big-deals/{deal}/photos/{photo}', [BigDealController::class, 'photo'])->name('big-deals.photos.show');
         Route::post('/app/big-deals/{deal}/react', [BigDealController::class, 'react'])->name('big-deals.react');
         Route::post('/app/victory-bells/{bell}/react', [VictoryBellController::class, 'react'])->name('victory-bells.react');
+        // CR-22: Amanahku Wrapped. Unlike most Playground screens, /app/wrapped is its
+        // OWN route (not left to the /app/{screen?} catch-all below) because
+        // CR22Test::test_acceptance_5 scans every route's uri() for the literal string
+        // "wrapped" and expects 'app/wrapped' among them — the catch-all's own uri() is
+        // literally "app/{screen?}", which would never match. Still dispatches through
+        // the same AppController::screen()/screenData() shell as every other screen.
+        Route::get('/app/wrapped', [AppController::class, 'screen'])->defaults('screen', 'wrapped')
+            ->middleware(['system.launched', 'profile.complete'])->name('wrapped.show');
+        Route::post('/app/wrapped/arcs', [WrappedController::class, 'addArc'])->name('wrapped.arcs.store');
+        Route::post('/app/wrapped/arcs/{arc}/retire', [WrappedController::class, 'retireArc'])->name('wrapped.arcs.retire');
+        Route::post('/app/wrapped/{story}/share', [WrappedController::class, 'share'])->name('wrapped.share');
+        Route::post('/app/wrapped/{story}/unshare', [WrappedController::class, 'unshare'])->name('wrapped.unshare');
+        Route::post('/app/wrapped/{story}/react', [WrappedController::class, 'react'])->name('wrapped.react');
         // CR-25: This Week's Plot Twist — weekly anonymous poll (screen route rides the
         // existing /app/{screen} catch-all, see AppController). Vote/opt-out/results all
         // need the {poll} segment so they must be declared ahead of that catch-all.

@@ -54,7 +54,7 @@
                 @endif
                 {!! $row['reactHtml'] !!}
             </div>
-        @else
+        @elseif ($row['kind'] === 'victory-bell')
             @php
                 $bell = $row['bell'];
                 $card = $bell->workItem;
@@ -75,6 +75,28 @@
                 @endif
                 @if ($bell->line)<span style="font-size:13px;color:var(--body);font-style:italic;">{{ $bell->line }}</span>@endif
                 {!! $row['reactHtml'] !!}
+            </div>
+        @else
+            @php
+                $story = $row['story'];
+                $cards = $story->cards;
+            @endphp
+            <div class="uj-card" data-win-wrapped="{{ $story->id }}" style="padding:18px 20px;display:flex;flex-direction:column;gap:8px;border-left:3px solid var(--red);">
+                {{-- Visually uppercase via CSS only: the literal mixed-case month text
+                     ("September 2026") must stay in the raw HTML — CR22Test's Wins
+                     assertion checks for it case-sensitively. --}}
+                <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">
+                    Wrapped · {{ $story->month->format('F Y') }}
+                </span>
+                <span class="uj-bd-team">
+                    <span class="uj-db-avatar" style="background:{{ $story->employee->avatar_color ?? '#3a6ea5' }}">{{ $story->employee->initials }}</span>
+                    <small>{{ $story->employee->display_name }}@if ($story->employee->position) · {{ $story->employee->position }}@endif</small>
+                </span>
+                <span style="font-size:16px;font-weight:600;color:var(--ink);">Character arc: {{ $story->arc_title }}</span>
+                <span style="font-size:13px;color:var(--body);">
+                    {{ $cards['cards_closed'] }} cards closed · {{ $cards['high_priority'] }} high-priority situations ·
+                    {{ $cards['helped_people'] }} people helped · {{ $cards['lessons_shared'] }} lessons shared
+                </span>
             </div>
         @endif
     @empty

@@ -10,6 +10,7 @@ use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\FridayController;
 use App\Http\Controllers\VictoryBellController;
+use App\Http\Controllers\WrappedController;
 use App\Models\AttendanceRecord;
 use App\Models\BigDeal;
 use App\Models\Claim;
@@ -20,6 +21,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
 use App\Models\VictoryBell;
+use App\Models\WrappedStory;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\ArchetypeCatalog;
@@ -191,6 +193,19 @@ trait BuildsDashboardWidgets
             }
             unset($moment);
             $moments = [...$moments, ...$bellMoments];
+
+            // CR-22: the company Wrapped moment, same window as the awards slot below,
+            // appended after Victory Bell moments (docs/build/OPEN.md — arbitrary,
+            // reversible ordering, nothing in the spec or test pins it).
+            if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
+                $companyStory = WrappedStory::whereDate('month', $today->copy()->subMonthNoOverflow()->startOfMonth()->toDateString())
+                    ->whereNull('employee_id')->first();
+                if ($companyStory !== null) {
+                    $wrappedMoment = DashboardBands::wrappedMoment($companyStory, $today->copy()->subMonthNoOverflow());
+                    $wrappedMoment['reactHtml'] = app(WrappedController::class)->reactPartial($companyStory, $employee);
+                    $moments[] = $wrappedMoment;
+                }
+            }
 
             $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
             $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();

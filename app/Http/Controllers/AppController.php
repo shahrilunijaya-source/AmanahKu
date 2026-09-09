@@ -594,6 +594,7 @@ class AppController extends Controller
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
             'awards' => app(AwardController::class)->screenData($request, $employee),
             'wins' => $this->winsData($request, $employee),
+            'wrapped' => app(WrappedController::class)->screenData($request, $employee),
             'plot-twist' => app(PlotTwistController::class)->screenData($request, $employee),
             'side-quests' => app(SideQuestController::class)->screenData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
@@ -623,8 +624,8 @@ class AppController extends Controller
     }
 
     /**
-     * Wins page (The Playground): Big Deals and Victory Bells interleaved
-     * newest-first, an archive not a window (CR-24 + CR-28).
+     * Wins page (The Playground): Big Deals, Victory Bells and shared Amanahku Wrapped
+     * stories interleaved newest-first, an archive not a window (CR-24 + CR-28 + CR-22).
      *
      * @return array{deals: Collection, bells: Collection, rows: Collection}
      */
@@ -633,8 +634,12 @@ class AppController extends Controller
         $bigDeal = app(BigDealController::class)->screenData($request, $employee);
         $victoryBell = app(VictoryBellController::class)->screenData($request, $employee);
 
+        // CR-22: shared Wrapped stories join the same archive, newest-shared first.
+        $wrapped = app(WrappedController::class)->winsRows();
+
         $rows = $bigDeal['deals']->map(fn (array $row) => $row + ['kind' => 'big-deal', 'at' => $row['deal']->published_at])
             ->concat($victoryBell['bells']->map(fn (array $row) => $row + ['kind' => 'victory-bell', 'at' => $row['bell']->rung_at]))
+            ->concat($wrapped)
             ->sortByDesc('at')
             ->values();
 

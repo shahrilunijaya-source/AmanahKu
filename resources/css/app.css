@@ -5248,3 +5248,35 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-sq-sugg .row { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink); }
 .uj-sq-sugg .row small { color:var(--muted); }
 .uj-sq-sugg .row .uj-btn-ghost { margin-left:auto; height:30px; padding:0 12px; font-size:12px; display:inline-flex; align-items:center; }
+
+/* CR-22 (session S28): Amanahku Wrapped — /app/wrapped deck, dashboard moment and Wins
+   card. Verbatim from docs/build/sessions/S28/mockup/README.md. */
+.uj-wr-wrap { display:flex; flex-direction:column; gap:14px; max-width:760px; }
+.uj-wr-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--red); }
+.uj-wr-card { border-radius:18px; padding:28px 30px; min-height:240px; display:flex; flex-direction:column; justify-content:flex-end; gap:6px; color:#fff; background:linear-gradient(135deg,#b5202b,#7a1230); box-shadow:0 10px 30px rgba(120,20,40,.18); }
+.uj-wr-card[data-tone=ink] { background:linear-gradient(135deg,#1f2937,#0f172a); }
+.uj-wr-card[data-tone=amber] { background:linear-gradient(135deg,#c76b12,#8a4a00); }
+.uj-wr-card[data-tone=teal] { background:linear-gradient(135deg,#0f766e,#134e4a); }
+.uj-wr-card[data-tone=plum] { background:linear-gradient(135deg,#6b3fa0,#3b1d5e); }
+.uj-wr-card .uj-wr-art { font-size:34px; line-height:1; margin-bottom:auto; }
+.uj-wr-card .big { font-size:52px; font-weight:700; line-height:1; letter-spacing:-.02em; }
+.uj-wr-card .line { font-size:17px; font-weight:600; line-height:1.3; }
+.uj-wr-card .sub { font-size:12.5px; opacity:.8; }
+.uj-wr-nav { display:flex; align-items:center; gap:8px; margin-top:10px; }
+.uj-wr-nav button.arrow { border:1px solid var(--hairline); background:transparent; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:14px; line-height:1; }
+.uj-wr-nav .dot { width:8px; height:8px; border-radius:50%; background:var(--hairline); border:0; padding:0; }
+.uj-wr-nav .dot.on { background:var(--ink); }
+.uj-wr-nav .share { margin-left:auto; height:32px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; }
+.uj-wr-shared { font-size:12px; color:#1f6b4a; font-weight:600; margin-left:auto; display:inline-flex; align-items:center; gap:8px; }
+.uj-wr-plain { font-size:14px; color:var(--body); line-height:1.6; padding:16px 18px; }
+.uj-wr-arcs { padding:14px 18px; display:flex; flex-direction:column; gap:8px; }
+.uj-wr-arcs .row { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink); }
+.uj-wr-arcs .row small { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.uj-wr-arcs .row button { margin-left:auto; height:28px; padding:0 10px; font-size:12px; display:inline-flex; align-items:center; }
+.uj-wr-arcs form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.uj-wr-arcs input, .uj-wr-arcs select { height:34px; border:1px solid var(--hairline); border-radius:8px; padding:0 10px; font-size:13px; font-family:inherit; }
+.uj-wr-arcs form .uj-btn-primary { height:34px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+.uj-wr-line { font-size:15px; color:var(--ink); line-height:1.5; flex:1 1 300px; min-width:240px; }
+.uj-wr-foot { font-size:11.5px; color:var(--muted); flex:0 1 200px; }
+.uj-wr-num { font-size:40px; font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--red); }
+@media (max-width:600px){ .uj-wr-card { padding:22px; min-height:200px; } .uj-wr-card .big { font-size:42px; } }

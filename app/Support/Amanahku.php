@@ -115,6 +115,8 @@ class Amanahku
             $s('The Playground', 'The Playground', ['id' => 'awards', 'label' => 'Awards', 'label_ms' => 'Anugerah', 'icon' => 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 14L7 22l5-3 5 3-1.5-8']),
             // CR-24: Big Deal Alerts archive, everyone reads it, no `roles` key.
             $s('The Playground', 'The Playground', ['id' => 'wins', 'label' => 'Wins', 'label_ms' => 'Kejayaan', 'icon' => 'M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z']),
+            // CR-22: Amanahku Wrapped, own story only, everyone reads it, no `roles` key.
+            $s('The Playground', 'The Playground', ['id' => 'wrapped', 'label' => 'Wrapped', 'label_ms' => 'Wrapped', 'icon' => 'M4 4h16v16H4z M8 8h8v8H8z']),
             // CR-25: weekly anonymous poll, everyone reads and votes, no `roles` key
             // (publishing itself is gated to hr/director inside PlotTwistController).
             $s('The Playground', 'The Playground', ['id' => 'plot-twist', 'label' => 'Plot Twist', 'label_ms' => 'Plot Twist', 'icon' => 'M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5M4 4l7 7M20 4l-7 7']),
@@ -399,6 +401,7 @@ class Amanahku
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
             'awards' => ['title' => 'Awards', 'title_ms' => 'Anugerah', 'sub' => "This month's winners, nominations and past winners.", 'sub_ms' => 'Pemenang bulan ini, pencalonan dan pemenang terdahulu.', 'crumb' => ['Awards']],
             'wins' => ['title' => 'Wins', 'title_ms' => 'Kejayaan', 'sub' => 'Every Big Deal Alert ever raised, newest first.', 'sub_ms' => 'Setiap Big Deal Alert yang pernah diajukan, terkini dahulu.', 'crumb' => ['Wins']],
+            'wrapped' => ['title' => 'Wrapped', 'title_ms' => 'Wrapped', 'sub' => 'Your month, story-card style. Numbers and dates only.', 'sub_ms' => 'Bulan anda, gaya kad cerita. Nombor dan tarikh sahaja.', 'crumb' => ['The Playground', 'Wrapped']],
             'plot-twist' => ['title' => "This Week's Plot Twist", 'title_ms' => 'Plot Twist Minggu Ini', 'sub' => 'One fun company poll a week. Anonymous — nobody sees who picked what.', 'sub_ms' => 'Satu tinjauan syarikat yang seronok setiap minggu. Tanpa nama — tiada siapa nampak siapa memilih apa.', 'crumb' => ['The Playground', 'Plot Twist']],
             'side-quests' => ['title' => 'Side Quests', 'title_ms' => 'Side Quests', 'sub' => 'Small optional challenges with nothing to do with KPI. Finish one, post it, wear the badge.', 'sub_ms' => 'Cabaran pilihan kecil yang tiada kaitan dengan KPI. Selesaikan satu, pos, dan pakai lencana.', 'crumb' => ['The Playground', 'Side Quests']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],

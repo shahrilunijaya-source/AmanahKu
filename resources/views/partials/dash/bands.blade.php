@@ -28,8 +28,8 @@
     @if ($moments !== [])
         <div class="uj-db-moments" x-data="{ i: {{ (int) ($bands['moments_start'] ?? 0) }}, n: {{ count($moments) }} }">
         @foreach ($moments as $idx => $m)
-            @php $isBirthday = $m['kind'] === 'birthday'; $isBigDeal = $m['kind'] === 'big-deal'; $isVictoryBell = $m['kind'] === 'victory-bell'; @endphp
-            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" @if ($isBigDeal) data-big-deal="{{ $m['big_deal_id'] }}" @endif @if ($isVictoryBell) data-victory-bell="{{ $m['victory_bell_id'] }}" @endif aria-label="{{ $m['title']['en'] }}"
+            @php $isBirthday = $m['kind'] === 'birthday'; $isBigDeal = $m['kind'] === 'big-deal'; $isVictoryBell = $m['kind'] === 'victory-bell'; $isWrapped = $m['kind'] === 'wrapped'; @endphp
+            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" @if ($isBigDeal) data-big-deal="{{ $m['big_deal_id'] }}" @endif @if ($isVictoryBell) data-victory-bell="{{ $m['victory_bell_id'] }}" @endif @if ($isWrapped) data-wrapped-company="{{ $m['wrapped_story_id'] }}" @endif aria-label="{{ $m['title']['en'] }}"
                      @if ($isBirthday)
                          x-data="{
                             dismissed: false,
@@ -60,6 +60,7 @@
                 <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($m['kicker']['en']) : @js($m['kicker']['ms'])">{{ $m['kicker']['en'] }}</span>
                 @if (! $plain && $m['art'] === 'cake')<span class="uj-db-cake" aria-hidden="true">🎂</span>@endif
                 @if ($isVictoryBell && ! $plain)<span class="uj-vb-bell" aria-hidden="true">🔔</span>@endif
+                @if ($isWrapped && ! $plain)<span class="uj-wr-num" aria-hidden="true">{{ $m['stats']['cards_closed'] }}</span>@endif
                 @if ($isBirthday && isset($m['employee']))
                     <span class="uj-db-avatar" style="background:{{ $m['employee']['avatar_color'] ?? '#3a6ea5' }}">{{ $m['employee']['initials'] }}</span>
                 @endif
@@ -76,7 +77,10 @@
                     </span>
                 @endif
                 @if ($m['sub']['en'] !== '')
-                    <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($m['sub']['en']) : @js($m['sub']['ms'])">{{ $m['sub']['en'] }}</span>
+                    {{-- Wrapped's sentence carries literal "urgent" quote characters (CR22Test
+                         asserts them raw, e.g. 'only 4 "urgent" tasks'); {{ }} would HTML-escape
+                         them to &quot;, so its SSR fallback is unescaped, unlike every other kind. --}}
+                    <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($m['sub']['en']) : @js($m['sub']['ms'])">@if ($isWrapped){!! $m['sub']['en'] !!}@else{{ $m['sub']['en'] }}@endif</span>
                 @endif
                 @if ($isVictoryBell)
                     <span class="uj-vb-meta">{{ $m['meta'] }}</span>
@@ -88,6 +92,16 @@
                             @endfor
                         </div>
                     @endif
+                @endif
+                @if ($isWrapped)
+                    {{-- Hidden, number-only carriers for CR22Test's stat() helper — separate
+                         from the flat sentence above on purpose, see DashboardBands::wrappedMoment(). --}}
+                    <span data-wrapped-stat="cards_closed" hidden>{{ $m['stats']['cards_closed'] }}</span>
+                    <span data-wrapped-stat="lessons_shared" hidden>{{ $m['stats']['lessons_shared'] }}</span>
+                    <span data-wrapped-stat="fires" hidden>{{ $m['stats']['fires'] }}</span>
+                    <span data-wrapped-stat="urgent" hidden>{{ $m['stats']['urgent'] }}</span>
+                    <span class="uj-wr-foot" x-text="$store.ui.lang==='en' ? 'Company totals, frozen with the awards.' : 'Jumlah syarikat, dibekukan bersama anugerah.'">Company totals, frozen with the awards.</span>
+                    {!! $m['reactHtml'] ?? '' !!}
                 @endif
                 @if ($isBigDeal)
                     @if ($m['story_lines'] !== [] || $m['meta'])

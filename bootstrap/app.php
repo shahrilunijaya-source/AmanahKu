@@ -120,6 +120,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // last Monday of the month.
         $schedule->command('awards:tasks')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('awards:tasks'));
+        // CR-22: build last month's Amanahku Wrapped stories, acting only on the first
+        // working day of the month (same trigger day as awards:publish, so Wrapped's
+        // frozen-snapshot numbers are always available by the time it runs).
+        $schedule->command('wrapped:build')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('wrapped:build'));
         // CR-19: ships FLAGGED OFF (config('services.auto_done.enabled'), env
         // AMANAHKU_AUTO_DONE) — prompts the organiser once an event's attendance is
         // pending, archives an unsubmitted awards nomination once its window closes.

@@ -87,9 +87,16 @@ final class Awards
     // ── Card-based awards ──────────────────────────────────────────────────────────────
 
     /**
-     * @return Collection<int, object{id:int, employee_id:?int, priority:string, due_at:?Carbon, completed_at:?Carbon, helpers:list<int>}>
+     * Public since S28 (CR-22 Amanahku Wrapped): the same exclusion set (events, system/
+     * recurring/auto-closed cards) and completed-at derivation this class uses for the
+     * card-based awards is exactly what Wrapped's company/personal card-count and
+     * high-priority numbers must reuse, rather than re-deriving it. `created_at` is added
+     * for Wrapped's "high-priority cards created that month" figure; every existing
+     * caller in this class ignores the new key.
+     *
+     * @return Collection<int, object{id:int, employee_id:?int, priority:string, due_at:?Carbon, completed_at:?Carbon, created_at:Carbon, helpers:list<int>}>
      */
-    private function creditableCards(): Collection
+    public function creditableCards(): Collection
     {
         $tenantId = $this->tenant->id();
 
@@ -130,6 +137,7 @@ final class Awards
                     'priority' => $card->priority,
                     'due_at' => $card->due_at,
                     'completed_at' => $completedAt,
+                    'created_at' => $card->created_at,
                     'helpers' => $helpers->get($card->id, []),
                 ];
             });
