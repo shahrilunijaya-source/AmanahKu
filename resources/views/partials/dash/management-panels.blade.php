@@ -16,7 +16,7 @@
     $compact = $compact ?? false;
     $peek = 5;
 @endphp
-<div class="uj-mgmt" x-data="{
+<div class="uj-mgmt {{ $extraClass ?? '' }}" x-data="{
         lateOpen: true,
         overdueOpen: true,
         lateAll: {{ $compact ? 'false' : 'true' }},
@@ -54,7 +54,7 @@
     }">
     <div class="uj-mgmt-panel" data-panel="lateness">
         <button type="button" class="uj-mgmt-head" @click="lateOpen = ! lateOpen">
-            <span x-text="$store.ui.lang==='en' ? 'Lateness today' : 'Lewat hari ini'">Lateness today</span>
+            <span><span x-text="$store.ui.lang==='en' ? 'Lateness today' : 'Lewat hari ini'">Lateness today</span> <span class="uj-mgmt-n">{{ count($lateness) }}</span></span>
             <span aria-hidden="true" x-text="lateOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="lateOpen">
@@ -77,7 +77,7 @@
     </div>
     <div class="uj-mgmt-panel" data-panel="overdue">
         <button type="button" class="uj-mgmt-head" @click="overdueOpen = ! overdueOpen">
-            <span x-text="$store.ui.lang==='en' ? 'Overdue by Primary Owner' : 'Tertunggak mengikut Pemilik Utama'">Overdue by Primary Owner</span>
+            <span><span x-text="$store.ui.lang==='en' ? 'Overdue by Primary Owner' : 'Tertunggak mengikut Pemilik Utama'">Overdue by Primary Owner</span> <span class="uj-mgmt-n">{{ array_sum(array_map(fn ($g) => count($g['cards']), $overdue)) }}</span></span>
             <span aria-hidden="true" x-text="overdueOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="overdueOpen">
@@ -95,10 +95,12 @@
                         <div class="uj-mgmt-card" data-card="{{ $card['id'] }}" @if ($hide) x-show="overdueAll" @endif>
                             <span class="uj-mgmt-card-title">{{ $card['title'] }}</span>
                             <span class="uj-mgmt-days" x-text="$store.ui.lang==='en' ? @js($card['days_overdue'].' days overdue') : @js($card['days_overdue'].' hari tertunggak')">{{ $card['days_overdue'] }} days overdue</span>
-                            <button type="button" class="uj-mgmt-btn" data-nudge-url="{{ $nudgeUrl }}" @click="nudge('{{ $nudgeUrl }}')" x-text="$store.ui.lang==='en' ? 'Nudge' : 'Ingatkan'">Nudge</button>
-                            @if ($card['can_reassign'] ?? true)
-                                <button type="button" class="uj-mgmt-btn" data-reassign-url="{{ $reassignUrl }}" @click="reassign('{{ $reassignUrl }}')" x-text="$store.ui.lang==='en' ? 'Reassign' : 'Tugas semula'">Reassign</button>
-                            @endif
+                            <span class="uj-mgmt-acts">
+                                <button type="button" class="uj-mgmt-btn" data-nudge-url="{{ $nudgeUrl }}" @click="nudge('{{ $nudgeUrl }}')" x-text="$store.ui.lang==='en' ? 'Nudge' : 'Ingatkan'">Nudge</button>
+                                @if ($card['can_reassign'] ?? true)
+                                    <button type="button" class="uj-mgmt-btn" data-reassign-url="{{ $reassignUrl }}" @click="reassign('{{ $reassignUrl }}')" x-text="$store.ui.lang==='en' ? 'Reassign' : 'Tugas semula'">Reassign</button>
+                                @endif
+                            </span>
                         </div>
                     @endforeach
                 </div>

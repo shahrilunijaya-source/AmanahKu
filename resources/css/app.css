@@ -5075,6 +5075,19 @@ form.uj-or-fields { padding: 20px; }
 .uj-mgmt-empty { color:var(--muted-soft); font-size:12.5px; padding:4px 2px; }
 .uj-mgmt-more { display:flex; align-items:center; gap:12px; padding:8px 2px 2px; font-size:12px; }
 .uj-mgmt-more a { color:inherit; opacity:.85; text-decoration:underline; text-underline-offset:2px; }
+.uj-mgmt-acts { display:inline-flex; gap:6px; flex-shrink:0; margin-left:auto; }
+.uj-mgmt-card .uj-mgmt-card-title { flex:1 1 200px; }
+.uj-mgmt-n { display:inline-block; min-width:18px; padding:0 6px; border-radius:999px; background:rgba(0,0,0,.12); font:600 11px/18px var(--font-sans); text-align:center; vertical-align:1px; }
+/* /app/management/exceptions: the same two panels as cards side by side, uncapped. */
+.uj-mgmt--page { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+.uj-mgmt--page .uj-mgmt-panel { border:1px solid var(--hairline); border-radius:12px; background:var(--card); padding:14px 18px 10px; }
+.uj-mgmt--page .uj-mgmt-head { font-size:14px; cursor:default; }
+.uj-mgmt--page .uj-mgmt-head > [aria-hidden] { display:none; }
+.uj-mgmt--page .uj-mgmt-n { background:var(--hairline-soft); color:var(--muted); }
+.uj-mgmt--page .uj-mgmt-row, .uj-mgmt--page .uj-mgmt-card { font-size:13px; padding:8px 2px; }
+.uj-mgmt--page .uj-mgmt-owner { padding:8px 0 2px; }
+.uj-mgmt--page .uj-mgmt-owner-name { font-size:13px; margin-bottom:4px; }
+@media (max-width:960px) { .uj-mgmt--page { grid-template-columns:1fr; } }
 /* CR-27 Mystery Award — dashboard slide and Awards screen Select tab (docs/build/sessions/S27/mockup) */
 .uj-ma-slide { display:flex; flex-direction:column; gap:6px; padding:14px 0; }
 .uj-ma-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:#8a5a00; display:inline-flex; align-items:center; gap:6px; }
